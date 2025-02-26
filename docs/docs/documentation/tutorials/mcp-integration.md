@@ -8,14 +8,14 @@ sidebar_position: 20
 In this tutorial, you will walk you through the process of integrating an Model Context Protocol (MCP) Server into Solace Agent Mesh.
 
 :::info[Learn about agents and plugins]
-You should have an understanding of  agents and plugins in the Solace Agent Mesh. For more information, see [Agents](../concepts/agents.md) and [Using Plugins](../concepts/plugins/use-plugins.md).
+You should have an understanding of agents and plugins in the Solace Agent Mesh. For more information, see [Agents](../concepts/agents.md) and [Using Plugins](../concepts/plugins/use-plugins.md).
 :::
 
 As an example, you are going to integrate the [MCP server-filesystem Server](https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem) into the Solace Agent Mesh Framework to perform simple filesystem commands.
 
 ## Setting Up the Environment
 
-You must [install Solace Agent Mesh and Solace Mesh Agent (SAM) CLI](../getting-started/installation.md), and then you'll want to [create a new SAM project](../getting-started/quick-start.md).
+You must [install Solace Agent Mesh and Solace Mesh Agent (SAM) CLI](../getting-started/installation.md), and then you'll want to [create a new Solace Agent Mesh project](../getting-started/quick-start.md).
 
 This project also requires the installation of Node.js and the NPM package manager.
 

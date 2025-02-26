@@ -13,7 +13,7 @@ We recommend you read about [Gateways](../concepts/gateways.md) before you start
 
 ## Setting Up the Environment
 
-First, you need to [install Solace Agent Mesh and Solace Mesh Agent (SAM) CLI](../getting-started/installation.md), and then you'll want to [create a new SAM project](../getting-started/quick-start.md) or [create a new plugin](../concepts/plugins/create-plugin.md).
+First, you need to [install Solace Agent Mesh and Solace Mesh Agent (SAM) CLI](../getting-started/installation.md), and then you'll want to [create a new Solace Agent Mesh project](../getting-started/quick-start.md) or [create a new plugin](../concepts/plugins/create-plugin.md).
 
 ## Creating the Slack App
 
