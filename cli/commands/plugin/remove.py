@@ -45,21 +45,27 @@ def remove_command(name: str, installer: str = None):
             return 1
 
         # Attempt to uninstall using the specified installer
-        if installer:
-            click.echo(f"Attempting to uninstall module '{name}' using {installer}...")
-            try:
-                if installer == "pip":
-                    subprocess.check_call(["pip", "uninstall", "-y", name])
-                elif installer == "poetry":
-                    subprocess.check_call(["poetry", "remove", name])
-                elif installer == "conda":
-                    subprocess.check_call(["conda", "remove", "-y", name])
-                else:
-                    log_error(
-                        f"Unsupported installer: {installer} - (pip, poetry, or conda)."
-                    )
-                    return 1
-                click.echo(f"Successfully uninstalled module '{name}'.")
-            except subprocess.CalledProcessError as e:
-                log_error(f"Error occurred while uninstalling module '{name}': {e}")
+        click.echo(f"Attempting to uninstall module '{name}' using {installer}...")
+        try:
+            if installer == "pip":
+                subprocess.check_call(["pip", "uninstall", "-y", name])
+            elif installer == "poetry":
+                subprocess.check_call(["poetry", "remove", name])
+            elif installer == "conda":
+                subprocess.check_call(["conda", "remove", "-y", name])
+            else:
+                log_error(
+                    f"Unsupported installer: {installer} - (pip, poetry, or conda)."
+                )
                 return 1
+            click.echo(f"Successfully uninstalled module '{name}'.")
+        except subprocess.CalledProcessError as e:
+            log_error(f"Error occurred while uninstalling module '{name}': {e}")
+            return 1
+    else:
+        click.echo(
+            click.style(
+                f"Module '{name}' was only removed from the config. Use your package manager to uninstall from environment.",
+                fg="yellow",
+            )
+        )
