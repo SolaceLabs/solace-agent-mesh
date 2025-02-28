@@ -35,10 +35,11 @@ This command will create a new configuration file at `configs/agents/abc_coffee_
 
 For this tutorial, we'll use a sample SQLite database for a fictional coffee company called ABC Coffee Co. Follow these steps to download the example data:
 
-1. Visit [this link](https://download-directory.github.io/?url=https%3A%2F%2Fgithub.com%2FSolaceLabs%2Fsolace-agent-mesh-core-plugins%2Ftree%2Fmain%2Fsam-sql-database%2Fexample-data%2Fabc_coffee_co) to download the example data
+1. Visit [this link](https://download-directory.github.io/?url=https%3A%2F%2Fgithub.com%2FSolaceLabs%2Fsolace-agent-mesh-core-plugins%2Ftree%2Fmain%2Fsam-sql-database%2Fexample-data) to download the example data
 2. The link will open a page allowing you to download a ZIP file containing the example data
 3. Save the ZIP file to your computer
 4. Unzip the file to a directory of your choice (preferably in the same directory where you'll run the agent)
+5. This should create an abc_coffee_co directory with many CSV files inside
 
 ## Configuring the Agent
 
@@ -50,18 +51,12 @@ Now you need to update the agent configuration to use the SQLite database and im
 Here's what you need to modify in the configuration file:
 
 ```yaml
-# Find the component_config section and update these values:
-component_config:
-  llm_service_topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/llm-service/request/general-good/
-  embedding_service_topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/embedding-service/request/text/
-  agent_name: abc_coffee_info
-  db_type: sqlite
-  database: /path/to/your/unzipped/data/abc_coffee.db
-  query_timeout: 30
-  database_purpose: "ABC Coffee Co. sales and operations database"
-  data_description: "Contains information about ABC Coffee Co. products, sales, customers, employees, and store locations."
-  csv_directories:
-    - /path/to/your/unzipped/data
+      # Find the component_config section for the action_request_processor and update these values:
+      - component_name: action_request_processor
+        component_config: 
+            # Other configuration options (mostly specified via env vars)...
+            csv_directories:
+                - /path/to/your/unzipped/data
 ```
 
 Make sure to replace `/path/to/your/unzipped/data` with the actual path where you unzipped the example data.
@@ -71,19 +66,12 @@ Make sure to replace `/path/to/your/unzipped/data` with the actual path where yo
 The SQL Database agent requires several environment variables. Create or update your `.env` file with the following:
 
 ```
-SOLACE_BROKER_URL=tcp://localhost:55555
-SOLACE_BROKER_USERNAME=default
-SOLACE_BROKER_PASSWORD=default
-SOLACE_BROKER_VPN=default
-SOLACE_AGENT_MESH_NAMESPACE=
-
 ABC_COFFEE_INFO_DB_TYPE=sqlite
-ABC_COFFEE_INFO_DB_NAME=/path/to/your/unzipped/data/abc_coffee.db
+ABC_COFFEE_INFO_DB_NAME=abc_coffee.db
 ABC_COFFEE_INFO_DB_PURPOSE="ABC Coffee Co. sales and operations database"
 ABC_COFFEE_INFO_DB_DESCRIPTION="Contains information about ABC Coffee Co. products, sales, customers, employees, and store locations."
+# You can leave other environment variables as unset or empty
 ```
-
-Again, replace `/path/to/your/unzipped/data` with the actual path to your unzipped data.
 
 ## Running the Agent
 
@@ -93,7 +81,7 @@ Now you can start Solace Agent Mesh with your new SQL database agent:
 sam run -eb
 ```
 
-The `-e` flag loads environment variables from the `.env` file, and the `-b` flag opens a browser window to the SAM web interface.
+The `-e` flag loads environment variables from the `.env` file, and the `-b` flag will rebuild the sam config files
 
 ## Interacting with the Database
 
@@ -113,7 +101,20 @@ The SQL Database agent will convert your natural language questions into SQL que
 
 The ABC Coffee Co. database contains the following tables:
 
-[Table names and descriptions to be filled in]
+    customers
+    employees
+    inventory
+    order_history
+    order_items
+    orders
+    product_categories
+    product_specifications
+    products
+    sales_call_logs
+    support_ticket_comments
+    support_tickets
+
+The schemas for them all will be learned by the agent when it starts up.
 
 ## Conclusion
 
