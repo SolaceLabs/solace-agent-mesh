@@ -38,6 +38,12 @@ info = {
             },
             "description": "Gateway configuration including originators and their configurations.",
         },
+        {
+            "name": "response_format_prompt",
+            "type": "string",
+            "description": "Format instructions for the response that will be passed to the model",
+            "default": ""
+        }
     ],
     "input_schema": {
         "type": "object",
@@ -129,6 +135,7 @@ class GatewayInput(GatewayBase):
             "interaction_type", DEFAULT_INTERACTION_TYPE
         )
         self.identity_component = self._initialize_identity_component()
+        self.response_format_prompt = self.get_config("response_format_prompt", "")
 
     def _authenticate_user(self, _user_properties: Dict[str, Any]) -> bool:
         # Implement actual authentication logic here
@@ -164,7 +171,6 @@ class GatewayInput(GatewayBase):
             top_level_user_properties = {
                 "input_type",
                 "session_id",
-                "response_format_prompt",
             }
             self.demote_interface_properties(user_properties, top_level_user_properties)
 
@@ -221,6 +227,10 @@ class GatewayInput(GatewayBase):
             errors.append(str(e))
 
         stimulus_uuid = self.gateway_id + str(uuid4())
+
+        # Add response format prompt from config if available
+        if self.response_format_prompt:
+            user_properties["response_format_prompt"] = self.response_format_prompt
 
         user_properties.update(
             {
