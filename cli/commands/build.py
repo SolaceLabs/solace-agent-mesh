@@ -188,7 +188,7 @@ def build_specific_gateway(
             with open(gateway_config_file, "r", encoding="utf-8") as g:
                 gateway_config_content = g.read()
                 
-            # Define config aliases to check for
+            # Define config aliases to check for so that if they are missing we can add defaults
             config_aliases = {
                 "response_format_config": "- response_format_config: &response_format_config\n    response_format_prompt: \"\""
             }
@@ -249,9 +249,18 @@ def build_specific_gateway(
                 # Add any missing config aliases
                 missing_aliases = set(config_aliases.keys()) - gateway_found_aliases - interface_found_aliases
                 if missing_aliases:
-                    complete_interface_gateway += "\n# Default configurations\nshared_config:\n"
+                    complete_interface_gateway += "\n# Default configurations\nshared_config_defaults:\n"
                     for alias in missing_aliases:
                         complete_interface_gateway += f"{config_aliases[alias]}\n"
+
+                # One special case for backwards compatibility for resopnse_format_config:
+                if re.search(r"response_format_prompt:\s*&response_format_prompt\s*>", complete_interface_gateway):
+                    # Use regex to replace with proper indentation preserved
+                    complete_interface_gateway = re.sub(
+                        r"response_format_prompt:\s*&response_format_prompt\s*>",
+                        r"- response_format_config: &response_format_config\n    response_format_prompt: >",
+                        complete_interface_gateway
+                    )                    
 
                 # Write interface specific flows
                 complete_interface_gateway += "\nflows:\n"
