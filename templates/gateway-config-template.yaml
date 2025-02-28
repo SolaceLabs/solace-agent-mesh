@@ -1,4 +1,6 @@
 - {{SNAKE_CASE_NAME}}_config: &gateway_interface_config
     key: "value" # Add your configuration here
 
-- response_format_prompt: &response_format_prompt ""
+- response_format_prompt: &response_format_prompt >
+    Format the response using Markdown text formatting such as
+    **bold**, _italic_, and `code` where necessary.
