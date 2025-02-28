@@ -144,6 +144,31 @@ def build_agents(config, build_config_dir, abort, parsers):
                 abort()
 
 
+def ensure_config_aliases(content, config_aliases):
+    """
+    Ensures that the specified config aliases exist in the content.
+    If not, adds default configurations for them.
+    
+    Args:
+        content: The YAML content to check
+        config_aliases: A dictionary mapping alias names to their default configurations
+        
+    Returns:
+        Tuple of (updated_content, found_aliases) where found_aliases is a set of aliases found in the content
+    """
+    found_aliases = set()
+    updated_content = content
+    
+    for alias, default_config in config_aliases.items():
+        if f"- {alias}:" in content or f"- {alias} :" in content:
+            found_aliases.add(alias)
+        else:
+            # Add default config at the end of the file
+            updated_content += f"\n{default_config}\n"
+    
+    return updated_content, found_aliases
+
+
 def build_gateways(config, build_config_dir, abort, parsers, plugin_gateway_interfaces):
     configs_path = config["config_directory"]
     gateways_config_path = os.path.join(configs_path, "gateways")
@@ -187,6 +212,16 @@ def build_specific_gateway(
             gateway_config_file = os.path.join(subdir_path, "gateway.yaml")
             with open(gateway_config_file, "r", encoding="utf-8") as g:
                 gateway_config_content = g.read()
+                
+            # Define config aliases to check for and their default configurations
+            config_aliases = {
+                "response_format_config": "- response_format_config: &response_format_config\n    response_format_prompt: \"\""
+            }
+            
+            # Check for config aliases in gateway config
+            gateway_config_content, gateway_found_aliases = ensure_config_aliases(
+                gateway_config_content, config_aliases
+            )
 
             click.echo("Getting interface types.")
             known_interfaces = ["slack", "web", "rest-api"]
@@ -225,6 +260,18 @@ def build_specific_gateway(
                 interface_config_file = os.path.join(subdir_path, interface_file)
                 with open(interface_config_file, "r", encoding="utf-8") as g:
                     file_content = g.read()
+                    
+                    # Check for config aliases in interface config
+                    file_content, interface_found_aliases = ensure_config_aliases(
+                        file_content, config_aliases
+                    )
+                    
+                    # Remove duplicate aliases that are already in the gateway config
+                    for alias in gateway_found_aliases.intersection(interface_found_aliases):
+                        # Remove the alias from the interface config
+                        pattern = rf"- {alias}:.*?(?=\n-|\Z)"
+                        file_content = re.sub(pattern, "", file_content, flags=re.DOTALL)
+                    
                     reindented_file_content = normalize_and_reindent_yaml(complete_interface_gateway, file_content)
                     complete_interface_gateway += reindented_file_content
 
