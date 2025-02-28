@@ -190,7 +190,7 @@ def build_specific_gateway(
                 
             # Define config aliases to check for so that if they are missing we can add defaults
             config_aliases = {
-                "response_format_config": "- response_format_config: &response_format_config\n    response_format_prompt: \"\""
+                "response_format_config": "- response_format_config: &response_format_config \"\""
             }
             
             # Check which aliases are already in the gateway config
@@ -253,12 +253,12 @@ def build_specific_gateway(
                     for alias in missing_aliases:
                         complete_interface_gateway += f"{config_aliases[alias]}\n"
 
-                # One special case for backwards compatibility for resopnse_format_config:
+                # One special case for backwards compatibility for response_format_config:
                 if re.search(r"response_format_prompt:\s*&response_format_prompt\s*>", complete_interface_gateway):
                     # Use regex to replace with proper indentation preserved
                     complete_interface_gateway = re.sub(
                         r"response_format_prompt:\s*&response_format_prompt\s*>",
-                        r"- response_format_config: &response_format_config\n    response_format_prompt: >",
+                        r"- response_format_config: &response_format_config >",
                         complete_interface_gateway
                     )                    
 
