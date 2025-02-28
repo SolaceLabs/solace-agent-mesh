@@ -160,7 +160,8 @@ def ensure_config_aliases(content, config_aliases):
     updated_content = content
     
     for alias, default_config in config_aliases.items():
-        if f"- {alias}:" in content or f"- {alias} :" in content:
+        # Check for the alias pattern &alias_name in the content
+        if f"&{alias}" in content:
             found_aliases.add(alias)
         else:
             # Add default config at the end of the file
