@@ -1,4 +1,4 @@
 - {{SNAKE_CASE_NAME}}_config: &gateway_interface_config
     key: "value" # Add your configuration here
 
-- response_format_config: &response_format_config ""
+- response_format_prompt: &response_format_prompt ""
