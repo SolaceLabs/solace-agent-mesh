@@ -5,7 +5,7 @@ sidebar_position: 20
 
 # SQL Database Integration
 
-This tutorial will guide you through setting up a SQL database agent in Solace Agent Mesh (SAM) that can answer natural language queries about a sample coffee company database.
+This tutorial will guide you through setting up a SQL database agent in Solace Agent Mesh (SAM) that can answer natural language queries about a sample coffee company database. It provides some example data to setup a SQLite database, but you can use the same approach to connect to other database types like MySQL and PostgreSQL.
 
 ## Prerequisites
 
@@ -21,12 +21,14 @@ First, add the SQL Database plugin to your SAM project:
 solace-agent-mesh plugin add sam_sql_database --pip -u git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-sql-database
 ```
 
+Note that you can replace the Solace Agent Mesh CLI command with `sam` as a shortcut.
+
 ## Creating a SQL Database Agent
 
 Next, create a new agent instance based on the SQL database template:
 
 ```sh
-solace-agent-mesh add agent abc_coffee_info --copy-from sam_sql_database:sql_database
+sam add agent abc_coffee_info --copy-from sam_sql_database:sql_database
 ```
 
 This command will create a new configuration file at `configs/agents/abc_coffee_info.yaml`.
@@ -59,7 +61,7 @@ Here's what you need to modify in the configuration file:
                 - /path/to/your/unzipped/data
 ```
 
-Make sure to replace `/path/to/your/unzipped/data` with the actual path where you unzipped the example data.
+Make sure to replace `/path/to/your/unzipped/data` with the actual path where you unzipped the example data. In this example, if you put the zip file in the same directory as the agent, you can use `abc_coffee_co`.
 
 ## Setting Environment Variables
 
@@ -72,6 +74,8 @@ ABC_COFFEE_INFO_DB_PURPOSE="ABC Coffee Co. sales and operations database"
 ABC_COFFEE_INFO_DB_DESCRIPTION="Contains information about ABC Coffee Co. products, sales, customers, employees, and store locations."
 # You can leave other environment variables as unset or empty
 ```
+
+For SQLite, it just uses a local file with no username or password. If you're using MySQL or PostgreSQL, you'll need to provide the appropriate environment variables for your database.
 
 ## Running the Agent
 
@@ -92,8 +96,10 @@ You can ask natural language questions about the ABC Coffee Co. database, such a
 - "How many customers does ABC Coffee have?"
 - "What are the top-selling products?"
 - "Show me the sales by region"
-- "Which employees have the highest sales?"
-- "What's the average order value?"
+
+Try creating reports by asking questions like:
+
+- "Create a report of our sales in 2024"
 
 The SQL Database agent will convert your natural language questions into SQL queries, execute them against the database, and return the results.
 
