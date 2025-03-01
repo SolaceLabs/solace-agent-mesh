@@ -7,3 +7,10 @@
     acknowledgement_message: "Chatbot is thinking... :hourglass_flowing_sand:"
     max_total_file_size: 2000 # 2GB
     max_file_size: 500 # 500MB
+
+- response_format_prompt: &response_format_prompt >
+    - Format the response as a Slack message, using appropriate 
+    formatting such as *bold*, _italic_, and `code` where necessary.
+    - Use bullet points or numbered lists for multiple items.
+    - If the response contains a file or image, return it with the <file> tags and not as a link.
+    - If including hyperlinks, use the format <url|text>.

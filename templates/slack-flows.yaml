@@ -13,21 +13,13 @@
         component_config:
           identity_key_field: user_email
           <<: *gateway_config
+          response_format_prompt: *response_format_prompt
         component_input:
           source_expression: previous
         input_transforms:
           - type: copy
             source_expression: input.payload:thread_id
             dest_expression: input.user_properties:session_id
-          - type: copy
-            source_value: >
-              - Format the response as a Slack message, using appropriate 
-              formatting such as *bold*, _italic_, and `code` where necessary.
-
-              - Use bullet points or numbered lists for multiple items.
-
-              - If including links, use the format <url|text>.
-            dest_expression: input.user_properties:response_format_prompt
       - component_name: broker_output
         component_module: broker_output
         component_config:
@@ -87,4 +79,3 @@
             dest_expression: user_data.component_input:content
         component_input:
           source_expression: user_data.component_input
-
