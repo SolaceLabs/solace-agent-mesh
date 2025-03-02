@@ -471,6 +471,24 @@ class BaseAgentComponent(LLMServiceComponentBase, ABC):
                             }
                         },
                         "handler": self._handle_update_agent_config
+                    },
+                    "PATCH": {
+                        "description": "Update specific agent configuration fields",
+                        "path_params": {},
+                        "query_params": {},
+                        "request_body_schema": {
+                            "type": "object",
+                            "additionalProperties": True
+                        },
+                        "response_schema": {
+                            "type": "object",
+                            "properties": {
+                                "success": {"type": "boolean"},
+                                "message": {"type": "string"},
+                                "updated_fields": {"type": "array", "items": {"type": "string"}}
+                            }
+                        },
+                        "handler": self._handle_patch_agent_config
                     }
                 }
             },
@@ -526,6 +544,42 @@ class BaseAgentComponent(LLMServiceComponentBase, ABC):
                             }
                         },
                         "handler": self._handle_get_action_stats
+                    }
+                }
+            },
+            # Agent configuration endpoint
+            {
+                "path": f"/agents/{self.info['agent_name']}/config",
+                "methods": {
+                    "GET": {
+                        "description": "Get agent configuration",
+                        "path_params": {},
+                        "query_params": {},
+                        "response_schema": {
+                            "type": "object",
+                            "properties": {
+                                "agent": {"type": "object"},
+                                "component": {"type": "object"}
+                            }
+                        },
+                        "handler": self._handle_get_agent_config
+                    },
+                    "PUT": {
+                        "description": "Update agent configuration",
+                        "path_params": {},
+                        "query_params": {},
+                        "request_body_schema": {
+                            "type": "object",
+                            "additionalProperties": True
+                        },
+                        "response_schema": {
+                            "type": "object",
+                            "properties": {
+                                "success": {"type": "boolean"},
+                                "message": {"type": "string"}
+                            }
+                        },
+                        "handler": self._handle_update_full_agent_config
                     }
                 }
             }
@@ -662,21 +716,49 @@ class BaseAgentComponent(LLMServiceComponentBase, ABC):
             "always_open": self.info.get("always_open", False)
         }
         
+        # Add any additional configuration from the agent_info
+        for key, value in self.info.items():
+            if key not in ["agent_name", "description", "always_open"]:
+                # Skip internal or complex objects
+                if not key.startswith("_") and not callable(value) and not isinstance(value, (dict, list)):
+                    agent_config[key] = value
+        
+        # Build mutable paths dynamically based on agent_config keys
+        mutable_paths = ["agent.description", "agent.always_open"]
+        for key in agent_config:
+            if key not in ["agent_name"]:  # Don't allow changing the agent name
+                mutable_paths.append(f"agent.{key}")
+        
+        # Build schema properties dynamically based on agent_config keys
+        schema_properties = {
+            "description": {"type": "string"},
+            "always_open": {"type": "boolean"}
+        }
+        
+        for key, value in agent_config.items():
+            if key not in ["agent_name", "description", "always_open"]:
+                # Determine the type for the schema
+                if isinstance(value, bool):
+                    schema_properties[key] = {"type": "boolean"}
+                elif isinstance(value, int):
+                    schema_properties[key] = {"type": "integer"}
+                elif isinstance(value, float):
+                    schema_properties[key] = {"type": "number"}
+                else:
+                    schema_properties[key] = {"type": "string"}
+        
         return {
             "current_config": {
                 "component": filtered_config,
                 "agent": agent_config
             },
-            "mutable_paths": ["agent.description", "agent.always_open"],
+            "mutable_paths": mutable_paths,
             "config_schema": {
                 "type": "object",
                 "properties": {
                     "agent": {
                         "type": "object",
-                        "properties": {
-                            "description": {"type": "string"},
-                            "always_open": {"type": "boolean"}
-                        }
+                        "properties": schema_properties
                     }
                 }
             }
@@ -720,6 +802,126 @@ class BaseAgentComponent(LLMServiceComponentBase, ABC):
         if "always_open" in body:
             self.info["always_open"] = bool(body["always_open"])
             updated = True
+        
+        return {
+            "success": updated,
+            "message": "Configuration updated" if updated else "No changes made"
+        }
+    
+    def _handle_patch_agent_config(self, path_params=None, query_params=None, body=None, context=None):
+        """Handle a request to patch agent configuration.
+        
+        Args:
+            path_params: Path parameters from the request.
+            query_params: Query parameters from the request.
+            body: Request body.
+            context: Request context.
+            
+        Returns:
+            Result of the patch operation.
+        """
+        if not body:
+            return {"success": False, "message": "No configuration provided", "updated_fields": []}
+        
+        updated_fields = []
+        
+        for key, value in body.items():
+            if key in self.info:
+                # Handle type conversion for boolean values
+                if isinstance(self.info[key], bool) and not isinstance(value, bool):
+                    if value.lower() in ["true", "yes", "1"]:
+                        value = True
+                    elif value.lower() in ["false", "no", "0"]:
+                        value = False
+                
+                # Handle type conversion for numeric values
+                if isinstance(self.info[key], int) and not isinstance(value, int):
+                    try:
+                        value = int(value)
+                    except (ValueError, TypeError):
+                        continue
+                
+                if isinstance(self.info[key], float) and not isinstance(value, float):
+                    try:
+                        value = float(value)
+                    except (ValueError, TypeError):
+                        continue
+                
+                self.info[key] = value
+                updated_fields.append(key)
+        
+        return {
+            "success": len(updated_fields) > 0,
+            "message": f"Updated {len(updated_fields)} fields" if updated_fields else "No changes made",
+            "updated_fields": updated_fields
+        }
+    
+    def _handle_get_agent_config(self, path_params=None, query_params=None, body=None, context=None):
+        """Handle a request for agent configuration.
+        
+        Args:
+            path_params: Path parameters from the request.
+            query_params: Query parameters from the request.
+            body: Request body.
+            context: Request context.
+            
+        Returns:
+            Agent configuration.
+        """
+        config = self._get_command_control_configuration()
+        return config["current_config"]
+    
+    def _handle_update_full_agent_config(self, path_params=None, query_params=None, body=None, context=None):
+        """Handle a request to update the full agent configuration.
+        
+        Args:
+            path_params: Path parameters from the request.
+            query_params: Query parameters from the request.
+            body: Request body.
+            context: Request context.
+            
+        Returns:
+            Result of the update operation.
+        """
+        if not body:
+            return {"success": False, "message": "No configuration provided"}
+        
+        updated = False
+        
+        # Update agent configuration
+        if "agent" in body and isinstance(body["agent"], dict):
+            for key, value in body["agent"].items():
+                if key != "agent_name":  # Don't allow changing the agent name
+                    if key in self.info:
+                        # Handle type conversion
+                        if isinstance(self.info[key], bool) and not isinstance(value, bool):
+                            if value.lower() in ["true", "yes", "1"]:
+                                value = True
+                            elif value.lower() in ["false", "no", "0"]:
+                                value = False
+                        
+                        if isinstance(self.info[key], int) and not isinstance(value, int):
+                            try:
+                                value = int(value)
+                            except (ValueError, TypeError):
+                                continue
+                        
+                        if isinstance(self.info[key], float) and not isinstance(value, float):
+                            try:
+                                value = float(value)
+                            except (ValueError, TypeError):
+                                continue
+                        
+                        self.info[key] = value
+                        updated = True
+        
+        # Update component configuration (limited to non-sensitive fields)
+        if "component" in body and isinstance(body["component"], dict):
+            for key, value in body["component"].items():
+                # Skip sensitive fields
+                if not any(sensitive in key.lower() for sensitive in ["password", "secret", "key", "token"]):
+                    self.component_config[key] = value
+                    updated = True
         
         return {
             "success": updated,
