@@ -309,37 +309,49 @@ class TestBaseAgentComponent(unittest.TestCase):
         # Check that the timer was rescheduled
         self.agent.add_timer.assert_called_once_with(60000, "agent_registration")
     
-    def test_update_action_stats(self):
+    @patch('time.time')
+    def test_update_action_stats(self, mock_time):
         """Test updating action statistics."""
+        # Set up fixed time values for reliable testing
+        mock_time.return_value = 1000.0  # Current time
+        
         # Test successful action
-        start_time = time.time() - 0.1  # 100ms ago
+        start_time = 999.9  # 100ms ago
         self.agent._update_action_stats("test_action", True, start_time)
         
         stats = self.agent.action_stats["test_action"]
         self.assertEqual(stats["total_invocations"], 1)
         self.assertEqual(stats["successful_invocations"], 1)
         self.assertEqual(stats["failed_invocations"], 0)
-        self.assertGreaterEqual(stats["last_execution_time_ms"], 100)  # At least 100ms
+        self.assertEqual(stats["last_execution_time_ms"], 100)  # Exactly 100ms
         self.assertIsNone(stats["last_error"])
+        self.assertEqual(stats["average_execution_time_ms"], 100)
+        self.assertEqual(stats["last_invoked_at"], 1000.0)
         
         # Test failed action
-        start_time = time.time() - 0.2  # 200ms ago
+        mock_time.return_value = 1000.2  # New current time
+        start_time = 1000.0  # 200ms ago
         self.agent._update_action_stats("test_action", False, start_time, "Test error")
         
         stats = self.agent.action_stats["test_action"]
         self.assertEqual(stats["total_invocations"], 2)
         self.assertEqual(stats["successful_invocations"], 1)
         self.assertEqual(stats["failed_invocations"], 1)
-        self.assertGreaterEqual(stats["last_execution_time_ms"], 200)  # At least 200ms
+        self.assertEqual(stats["last_execution_time_ms"], 200)  # Exactly 200ms
         self.assertEqual(stats["last_error"], "Test error")
+        # Average should be (100 + 200) / 2 = 150
+        self.assertEqual(stats["average_execution_time_ms"], 150)
+        self.assertEqual(stats["last_invoked_at"], 1000.2)
         
         # Test non-existent action
-        start_time = time.time()
+        mock_time.return_value = 1000.5  # New current time
+        start_time = 1000.3  # 200ms ago
         self.agent._update_action_stats("non_existent_action", True, start_time)
         
         self.assertIn("non_existent_action", self.agent.action_stats)
         stats = self.agent.action_stats["non_existent_action"]
         self.assertEqual(stats["total_invocations"], 1)
+        self.assertEqual(stats["last_execution_time_ms"], 200)  # Exactly 200ms
     
     def test_get_metrics(self):
         """Test getting metrics."""
