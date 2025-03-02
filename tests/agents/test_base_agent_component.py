@@ -23,13 +23,13 @@ class TestAction(Action):
             "params": [
                 {
                     "name": "param1",
-                    "description": "Test parameter 1",
+                    "desc": "Test parameter 1",
                     "required": True,
                     "type": "string"
                 },
                 {
                     "name": "param2",
-                    "description": "Test parameter 2",
+                    "desc": "Test parameter 2",
                     "required": False,
                     "type": "integer"
                 }
