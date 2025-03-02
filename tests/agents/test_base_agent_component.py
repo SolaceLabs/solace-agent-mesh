@@ -54,6 +54,19 @@ class TestAction(Action):
         )
 
 
+class DummyTraceContext:
+    """Dummy trace context for testing."""
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return False
+    
+    def progress(self, data=None, stage="progress"):
+        pass
+
+
 class TestBaseAgentComponent(unittest.TestCase):
     """Test cases for the BaseAgentComponent class."""
     
@@ -68,6 +81,9 @@ class TestBaseAgentComponent(unittest.TestCase):
                 "always_open": True,
                 "custom_field": "custom_value"
             }
+            
+            def create_trace_context(self, operation, data=None, trace_level="INFO"):
+                return DummyTraceContext()
         
         # Mock the connector and command control service
         self.mock_connector = MagicMock()
