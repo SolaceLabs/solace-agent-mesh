@@ -100,7 +100,8 @@ class BaseAgentComponent(LLMServiceComponentBase, ABC):
         
         # Initialize action statistics
         self.action_stats = {}
-        for action_name in self.action_list.get_action_names():
+        for action in self.action_list.actions:
+            action_name = action.name
             self.action_stats[action_name] = {
                 "total_invocations": 0,
                 "successful_invocations": 0,
@@ -586,8 +587,8 @@ class BaseAgentComponent(LLMServiceComponentBase, ABC):
         ]
         
         # Add endpoints for each action
-        for action_name in self.action_list.get_action_names():
-            action = self.action_list.get_action(action_name)
+        for action in self.action_list.actions:
+            action_name = action.name
             endpoints.append({
                 "path": f"/agents/{self.info['agent_name']}/actions/{action_name}",
                 "methods": {
@@ -829,7 +830,7 @@ class BaseAgentComponent(LLMServiceComponentBase, ABC):
             if key in self.info:
                 # Handle type conversion for boolean values
                 if isinstance(self.info[key], bool) and not isinstance(value, bool):
-                    if value.lower() in ["true", "yes", "1"]:
+                    if value.lower()in ["true", "yes", "1"]:
                         value = True
                     elif value.lower() in ["false", "no", "0"]:
                         value = False
@@ -941,10 +942,9 @@ class BaseAgentComponent(LLMServiceComponentBase, ABC):
             List of agent actions.
         """
         actions = []
-        for action_name in self.action_list.get_action_names():
-            action = self.action_list.get_action(action_name)
+        for action in self.action_list.actions:
             actions.append({
-                "name": action_name,
+                "name": action.name,
                 "description": action.long_description
             })
         return actions
