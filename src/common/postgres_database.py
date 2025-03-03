@@ -56,11 +56,17 @@ class PostgreSQLDatabase:
 
         return cursor
 
-def get_db_for_action(action_obj):
-    sql_host = action_obj.get_config("sql_host")
-    sql_user = action_obj.get_config("sql_user")
-    sql_password = action_obj.get_config("sql_password")
-    sql_database = action_obj.get_config("sql_database")
+def get_db_for_action(action_obj, sql_params=None):
+    if sql_params:
+        sql_host = sql_params.get("sql_host")
+        sql_user = sql_params.get("sql_user")
+        sql_password = sql_params.get("sql_password")
+        sql_database = sql_params.get("sql_database")
+    else:
+        sql_host = action_obj.get_config("sql_host")
+        sql_user = action_obj.get_config("sql_user")
+        sql_password = action_obj.get_config("sql_password")
+        sql_database = action_obj.get_config("sql_database")
     sql_db = None
 
     if sql_host and sql_user and sql_password and sql_database:
