@@ -13,12 +13,9 @@
         component_config:
           identity_key_field: identity
           <<: *gateway_config
+          response_format_prompt: *response_format_prompt
         component_input:
           source_expression: previous
-        input_transforms:
-          - type: copy
-            source_value: *response_format_prompt
-            dest_expression: input.user_properties:response_format_prompt
       - component_name: broker_output
         component_module: broker_output
         component_config:

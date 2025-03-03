@@ -16,8 +16,8 @@
 - gateway_config: &gateway_config
     gateway_id: {{GATEWAY_ID}}
     system_purpose: >
-      The system is an AI Chatbot, that is providing information reasoning and general assistance for writing 
-      and coding to the users in this system.
+      The system is an AI Chatbot with agentic capabilities. It will use the agents available to provide information, reasoning and general assistance for the users in this system.      
+        
     interaction_type: "interactive"
 
     identity:
