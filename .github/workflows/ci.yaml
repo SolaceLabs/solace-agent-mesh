@@ -73,7 +73,7 @@ jobs:
           pip install virtualenv
 
       - name: Run Whitesource Scan
-        if: ${{ github.repository_owner == 'SolaceLabs' && github.ref == 'refs/heads/main' }}
+        if: ${{ github.ref == 'refs/heads/main' }}
         uses: SolaceDev/solace-public-workflows/.github/actions/whitesource-scan@main
         with:
           whitesource_product_name: ${{ env.WS_PRODUCT_NAME}}
@@ -82,7 +82,7 @@ jobs:
           whitesource_config_file: wss-unified-agent.config
 
       - name: Run WhiteSource Policy Gate
-        if: ${{ github.repository_owner == 'SolaceLabs' && github.ref == 'refs/heads/main' }}
+        if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker://ghcr.io/solacedev/maas-build-actions:latest
         env:
           WS_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
@@ -102,7 +102,7 @@ jobs:
             "
 
       - name: Run WhiteSource Vulnerability Gate
-        if: ${{ github.repository_owner == 'SolaceLabs' && github.ref == 'refs/heads/main' }}
+        if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker://ghcr.io/solacedev/maas-build-actions:latest
         continue-on-error: true
         env:

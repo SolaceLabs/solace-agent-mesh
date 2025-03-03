@@ -67,24 +67,21 @@ homepage = "https://github.com/SolaceLabs/solace-agent-mesh"
 repository = "https://github.com/SolaceLabs/solace-agent-mesh"
 documentation = "https://github.com/SolaceLabs/solace-agent-mesh/blob/main/docs/docs/index.md"
 
-[tool.hatch.metadata]
-allow-direct-references = true
-
 [tool.hatch.build.targets.wheel.force-include]
 "src" = "solace_agent_mesh/"
 "configs" = "solace_agent_mesh/configs"
 "templates" = "solace_agent_mesh/templates"
 "cli" = "solace_agent_mesh/cli"
+"web-visualizer/dist" = "solace_agent_mesh/assets/web-visualizer"
 
 [tool.hatch.build.targets.sdist.force-include]
-"web-visualizer/dist" = "solace_agent_mesh/assets/web-visualizer"
+"web-visualizer/dist" = "/assets/web-visualizer"
 
 [project.scripts]
 solace-agent-mesh = "solace_agent_mesh.cli.main:main"
 sam = "solace_agent_mesh.cli.main:main"
 
 [tool.hatch.build.targets.wheel]
-require-runtime-dependencies = true
 packages = ["solace_agent_mesh"]
 
 
