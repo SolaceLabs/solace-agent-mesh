@@ -56,7 +56,7 @@ dependencies = [
     "duckduckgo_search~=6.3.7",
     "markitdown~=0.0.1a3",
     "pyperclip~=1.9.0",
-    "solace-ai-connector @ git+https://github.com/SolaceDev/solace-ai-connector.git@hugo/ai-308/litellm-error-handling",
+    "solace-ai-connector~=1.0.1",
     "solace-ai-connector-web~=0.1.0",
     "solace-ai-connector-rest~=0.0.1",
     "solace-ai-connector-slack~=0.0.1",

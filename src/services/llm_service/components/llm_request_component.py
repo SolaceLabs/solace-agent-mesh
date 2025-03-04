@@ -207,9 +207,9 @@ class LLMRequestComponent(ComponentBase):
             current_batch += content
 
             if payload.get("handle_error", False):
-                    log.error("Error invoking LLM service: %s", payload.get("content", ""), exc_info=True)
-                    aggregate_result = payload.get("content", None)
-                    last_message = True
+                log.error("Error invoking LLM service: %s", payload.get("content", ""), exc_info=True)
+                aggregate_result = payload.get("content", None)
+                last_message = True
 
             if len(current_batch.split()) >= self.stream_batch_size or last_message:
                 self._send_streaming_chunk(
