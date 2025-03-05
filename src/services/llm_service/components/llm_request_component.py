@@ -208,7 +208,7 @@ class LLMRequestComponent(ComponentBase):
                     # Start or continue the streaming request
                     broker_responses = self.do_broker_request_response(
                         llm_message,
-                        strea=True,
+                        stream=True,
                         streaming_complete_expression="input.payload:last_chunk"
                     )
 
