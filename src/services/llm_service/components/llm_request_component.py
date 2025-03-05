@@ -1,5 +1,6 @@
 """LLM Request Component for performing LLM service requests."""
 
+import time
 import uuid
 from typing import Dict, Any
 
@@ -128,6 +129,8 @@ class LLMRequestComponent(ComponentBase):
         self.stream_to_next_component = self.get_config("stream_to_next_component")
         self.llm_mode = self.get_config("llm_mode")
         self.stream_batch_size = self.get_config("stream_batch_size")
+        self.max_retries = self.get_config("max_retries", 3)
+        self.retry_timeout = self.get_config("retry_timeout", 60)
 
         if self.stream_to_flow and self.stream_to_next_component:
             raise ValueError(
@@ -195,38 +198,149 @@ class LLMRequestComponent(ComponentBase):
         aggregate_result = ""
         current_batch = ""
         first_chunk = True
+        retry_count = 0
+        last_activity_time = time.time()
+        sent_content_length = 0
 
-        for response_message, last_message in self.do_broker_request_response(
-            llm_message,
-            stream=True,
-            streaming_complete_expression="input.payload:last_chunk",
-        ):
-            payload = response_message.get_payload()
-            content = payload.get("chunk", "")
-            aggregate_result += content
-            current_batch += content
+        try:
+            while True:
+                try:
+                    # Start or continue the streaming request
+                    broker_responses = self.do_broker_request_response(
+                        llm_message,
+                        strea=True,
+                        streaming_complete_expression="input.payload:last_chunk"
+                    )
 
-            if len(current_batch.split()) >= self.stream_batch_size or last_message:
-                self._send_streaming_chunk(
-                    input_message,
-                    current_batch,
-                    aggregate_result,
-                    response_uuid,
-                    first_chunk,
-                    last_message,
-                )
-                current_batch = ""
-                first_chunk = False
+                    # Process all responses from request
+                    for response_message, last_message in broker_responses:
+                        # Update last activity time
+                        last_activity_time = time.time()
 
-            if last_message:
-                break
+                        payload = response_message.get_payload()
+                        content = payload.get("chunk", "")
+
+                        # Clean up content if this is a continuation (not the first chunk)
+                        if retry_count > 0 and not first_chunk:
+                            # Address formatting in response
+                            content = content.lstrip()
+
+                        aggregate_result += content
+                        current_batch += content
+
+                        if len(current_batch.split()) >= self.stream_batch_size or last_message:
+                            # Check if we have new content to send
+                            if len(aggregate_result) > sent_content_length:
+                                new_content = aggregate_result[sent_content_length:]
+                                self._send_streaming_chunk(
+                                    input_message,
+                                    new_content,
+                                    aggregate_result,
+                                    response_uuid,
+                                    first_chunk,
+                                    last_message,
+                                )
+                                sent_content_length = len(aggregate_result)
+                                current_batch = ""
+                                first_chunk = False
+
+                        if last_message:
+                            return {
+                                "content": aggregate_result,
+                                "response_uuid": response_uuid,
+                                "streaming": True,
+                                "last_chunk": True,
+                            }
+
+                    if retry_count < self.max_retries:
+                        retry_count += 1
+                        log.info(f"Continuing LLM generation (attempt {retry_count}/{self.max_retries})")
+
+                        # Create a continuation request
+                        llm_message = self._create_continuation_request(
+                            input_message,
+                            aggregate_result,
+                            llm_message.get_payload()['messages']
+                        )
+                    else:
+                        # Too many retries
+                        log.warning(f"Maximum retries ({self.max_retries}) reached for LLM request")
+                        break
+
+                except TimeoutError:
+                    # Check if we should retry
+                    now = time.time()
+                    if retry_count < self.max_retries and (now - last_activity_time) < self.retry_timeout:
+                        retry_count += 1
+                        log.info(f"Retrying LLM request after timeout (attempt {retry_count}/{self.max_retries})")
+
+                        # Create a continuation request
+                        llm_message = self._create_continuation_request(
+                            input_message,
+                            aggregate_result,
+                            llm_message.get_payload()['messages']
+                        )
+                    else:
+                        # Too many retries
+                        log.warning(f"Maximum retries ({self.max_retries}) reached for LLM request")
+                        break
+
+        except Exception as e:
+            log.error("Error handling streaming: %s", e, exc_info=True)
+            raise e
 
         return {
             "content": aggregate_result,
             "response_uuid": response_uuid,
             "streaming": True,
-            "last_chunk": True,
+            "last_chunk": True
         }
+
+    def _create_continuation_request(self, original_message: Message, current_content: str, original_messages: list) -> Message:
+        """
+        Create a continuation request when a timeout occurs.
+
+        Args:
+            original_message (Message): The original input message.
+            current_content (str): The content generated so far.
+            original_messages (list): The original messages sent to the LLM.
+
+        Returns:
+            Message: A new message configured to continue the generation
+        """
+        messages = original_messages.copy()
+
+        messages.append({
+            'role': 'assistant',
+            'content': current_content
+        })
+
+        # Add system instruction to continue
+        messages.append({
+            'role': 'system',
+            'content': (
+                "You must continue exactly from where the previous message ended, without repeating any content. "
+                "Start your response as if you're mid-sentence, picking up directly from the last word/character of the previous message. "
+                "Do not add any line breaks, spaces, or other characters at the beginning of your response. "
+                "If you were generating a CSV or other structured data format, maintain the exact same structure without adding extra newlines. "
+                "For CSV data, continue with the exact column structure from the previous response."
+            )
+        })
+
+        # Add user instruction to continue
+        messages.append({
+            'role': 'user',
+            'content': (
+                "Continue the previous response, starting exactly from its last word/character. "
+                "Do not include any line breaks or spaces at the beginning. "
+                "Do not summarize or repeat any previous content. "
+                "If you were generating CSV data or other structured format, maintain the exact same structure."
+            )
+        })
+
+        # Create a new LLM message
+        source_info = original_message.get_payload().get("source_info", {})
+        return self._create_llm_message(original_message, messages, source_info)
 
     def _create_llm_message(self, message: Message, messages: list, source_info: dict) -> Message:
         """
