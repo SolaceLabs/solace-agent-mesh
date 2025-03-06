@@ -22,3 +22,7 @@
     frontend_collect_feedback: ${WEBUI_FRONTEND_COLLECT_FEEDBACK}
     frontend_url: ${WEBUI_FRONTEND_URL}
     local_dev : ${WEBUI_LOCAL_DEV}
+
+- response_format_prompt: &response_format_prompt >
+    Return all responses in markdown format and if the response contains a file or image, return it with the <file> tags and not as a link.
+    

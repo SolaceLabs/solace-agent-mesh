@@ -187,6 +187,17 @@ def build_specific_gateway(
             gateway_config_file = os.path.join(subdir_path, "gateway.yaml")
             with open(gateway_config_file, "r", encoding="utf-8") as g:
                 gateway_config_content = g.read()
+                
+            # Define config aliases to check for so that if they are missing we can add defaults
+            config_aliases = {
+                "response_format_prompt": "- response_format_prompt: &response_format_prompt \"\""
+            }
+            
+            # Check which aliases are already in the gateway config
+            gateway_found_aliases = set()
+            for alias in config_aliases:
+                if f"&{alias}" in gateway_config_content:
+                    gateway_found_aliases.add(alias)
 
             click.echo("Getting interface types.")
             known_interfaces = ["slack", "web", "rest-api"]
@@ -225,8 +236,22 @@ def build_specific_gateway(
                 interface_config_file = os.path.join(subdir_path, interface_file)
                 with open(interface_config_file, "r", encoding="utf-8") as g:
                     file_content = g.read()
-                    reindented_file_content = normalize_and_reindent_yaml(complete_interface_gateway, file_content)
-                    complete_interface_gateway += reindented_file_content
+                    
+                # Check which aliases are in the interface config
+                interface_found_aliases = set()
+                for alias in config_aliases:
+                    if f"&{alias}" in file_content:
+                        interface_found_aliases.add(alias)
+                
+                reindented_file_content = normalize_and_reindent_yaml(complete_interface_gateway, file_content)
+                complete_interface_gateway += reindented_file_content
+
+                # Add any missing config aliases
+                missing_aliases = set(config_aliases.keys()) - gateway_found_aliases - interface_found_aliases
+                if missing_aliases:
+                    complete_interface_gateway += "\n# Default configurations\nshared_config_defaults:\n"
+                    for alias in missing_aliases:
+                        complete_interface_gateway += f"{config_aliases[alias]}\n"
 
                 # Write interface specific flows
                 complete_interface_gateway += "\nflows:\n"
