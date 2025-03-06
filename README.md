@@ -28,7 +28,7 @@ Built on event-driven architecture technology from Solace, SAM provides the robu
 pip install solace-agent-mesh
 ```
 
-1. Run the following SAM CLI command (`solace-agent-mesh` or `sam`) to verify your installation:
+2. Run the following SAM CLI command (`solace-agent-mesh` or `sam`) to verify your installation:
 
 ```sh
 solace-agent-mesh --version
