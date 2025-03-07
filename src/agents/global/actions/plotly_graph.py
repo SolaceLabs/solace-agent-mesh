@@ -1,11 +1,14 @@
 """Plotly graph generation"""
 
+import platform
 import os
 import random
 import tempfile
 import json
 import yaml
+from importlib.metadata import version
 from io import BytesIO
+from packaging.version import parse
 from solace_ai_connector.common.log import log
 
 import plotly.graph_objects as go
@@ -80,6 +83,14 @@ class PlotlyGraph(Action):
         )
 
     def invoke(self, params, meta={}) -> ActionResponse:
+        if platform.system() == "Windows":
+            kaleido_version = version('kaleido')
+            min_version = parse('0.1.0.post1')
+            max_version = parse('0.2.0')
+            if parse(kaleido_version) < min_version or parse(kaleido_version) >= max_version:
+                return ActionResponse(
+                    message=f"For Windows users, the plotting functionality requires a specific version of Kaleido. Please refer to the documentation."
+                )
         obj = params["plotly_figure_config"]
         if isinstance(obj, str):
             # Remove any leading/trailing quote characters
