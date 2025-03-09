@@ -7,6 +7,16 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/solace-agent-mesh.svg)](https://pypi.org/project/solace-agent-mesh)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/solace-agent-mesh.svg)](https://pypi.org/project/solace-agent-mesh)
 
+- [Solace Agent Mesh](#solace-agent-mesh)
+   * [Installation](#installation)
+   * [Quick Start](#quick-start)
+   * [Why Use Solace Agent Mesh?](#why-use-solace-agent-mesh)
+   * [Next Steps](#next-steps)
+   * [Contributing](#contributing)
+   * [Authors](#authors)
+   * [Release Notes](#release-notes)
+   * [License](#license)
+
 The Solace Agent Mesh (SAM) is an open-source platform that tackles a fundamental challenge in modern AI development: while powerful AI models are readily available, the real complexity lies in connecting them to the data and systems where they can provide value. Data is often siloed across databases, SaaS platforms, APIs, and legacy systems, making it difficult to build AI applications that operate seamlessly across these boundaries. SAM provides a flexible foundation for AI applications where multiple agents can collaborate, each bringing their own specialized capabilities and data access. Whether you're an AI enthusiast experimenting with new models, or an enterprise developer building production systems, SAM gives you the tools to:
 
 - Connect AI agents to real-world data sources and systems.
