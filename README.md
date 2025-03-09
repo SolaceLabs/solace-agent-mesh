@@ -22,13 +22,27 @@ Built on event-driven architecture technology from Solace, SAM provides the robu
 
 ## Installation
 
-1. The following command installs the Solace Agent Mesh CLI in your environment:
+1. [Optional] Set up Python Virtual Environment using `virtualenv` and activate it
+
+```sh
+## Install virtualenv if not already installed
+python3 -m pip install --user virtualenv
+## Setup python virtual environment
+python3 -m venv venv
+## Activate virtual environment:
+### MacOS/Linux:
+source venv/bin/activate
+### Windows:
+venv/Scripts/activate
+```
+
+2. The following command installs the Solace Agent Mesh CLI in your environment:
 
 ```sh
 pip install solace-agent-mesh
 ```
 
-2. Run the following SAM CLI command (`solace-agent-mesh` or `sam`) to verify your installation:
+3. Run the following SAM CLI command (`solace-agent-mesh` or `sam`) to verify your installation:
 
 ```sh
 solace-agent-mesh --version
