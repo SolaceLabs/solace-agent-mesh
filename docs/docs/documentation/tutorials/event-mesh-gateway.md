@@ -27,7 +27,7 @@ This creates a streamlined workflow where bug reports are automatically enhanced
 ## Setting Up the Environment
 First, you need to [install Solace Agent Mesh and the Solace Agent Mesh (SAM) CLI](../getting-started/installation.md), and then you'll want to [create a new Solace Agent Mesh project](../getting-started/quick-start.md)
 
-For this tutorial, you will need to create or use an existing [Solace Event Broker](https://solace.com/products/event-broker/) or [event mesh] created using PubSub+ event brokers (https://solace.com/solutions/initiative/event-mesh/).
+For this tutorial, you will need to create or use an existing [Solace Event Broker](https://solace.com/products/event-broker/) or [event mesh](https://solace.com/solutions/initiative/event-mesh/) created using PubSub+ event brokers.
 
 ## Creating the Event Mesh Gateway
 Once you have your project set up, you can add the plugin to Solace Agent Mesh:
