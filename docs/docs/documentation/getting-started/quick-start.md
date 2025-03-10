@@ -11,6 +11,11 @@ Looking to get started with plugins? For more information, see the [Plugins](../
 
 To get started with Solace Agent Mesh, you must first create a project.
 
+## Prerequisites
+
+1. You have installed the Solace Agent Mesh CLI. If not, see the [Installation](./installation.md) page.
+2. You have an available AI provider and API key. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 3.7 or OpenAI GPT-4o
+
 ## Create a Project
 
 Ensure you have the Solace Agent Mesh (SAM) CLI ( run `solace-agent-mesh --version` or `sam `) available. If not, see  [Installation](./installation.md).
@@ -77,9 +82,16 @@ You can combine the build and run steps by using `solace-agent-mesh run -eb`.
 
 To learn more about the other CLI commands, see the [CLI documentation](../concepts/cli.md).
 
-## Sending a Request
+## Interacting with SAM
 
-You can use different gateway interfaces to communicate with the system such REST, Web UI, Slack, MS Teams, etc. To keep it simple for this demo, we'll use the **REST API**.
+You can use different gateway interfaces to communicate with the system such REST, Web UI, Slack, MS Teams, etc. To keep it simple for this demo, we will use the browser UI. To connect to the browser UI, open a browser and navigate to `http://localhost:5001`. If you chose another port during the `init` step, use that port instead.
+
+This will provide a simple chat interface where you can interact with the Agent Mesh. Try some commands like `What is the capital of France?` or `Give me a diagram of the oAuth process`.
+
+
+## Sending a Request via REST API
+
+You can also interact with SAM via a **REST API**.
 
 The REST API gateway runs on `http://localhost:5050` by default. You can send a **POST** request to the `/api/v1/request`.
 
@@ -122,12 +134,18 @@ Files would be returned as base64-encoded strings, with the following structure:
 ]
 ```
 
-For example, here's a prompt to retrieve a file: `prompt="Give me a diagram of the oAuth process"`
+For example, here's a prompt to retrieve a file: `prompt="Give me a random bar chart"`
 :::
+
+
+## Exercise
+
+Try adding a new agent to the system by following the tutorial on adding an [SQL database agent](../tutorials/sql-database.md). This tutorial will guide you through the process of adding the SQL agent plugin and adding some example data to the database.
+
 
 ## Next Steps
 
-Solace Agent Mesh requires two types of components, **agents** and **gateways**. The system comes with a set of built-in agents and a REST API gateway (which you enabled during the `init` step).
+Solace Agent Mesh requires two types of components, **agents** and **gateways**. The system comes with a set of built-in agents and a REST API gateway (which you enabled during the `init` step) include a browser UI running on top of it.
 
 You can learn more about [gateways](../concepts/gateways.md). Alternatively, you learn about [adding a pre-built gateway interfaces](../concepts/gateways.md#gateway-from-interfaces) or [creating your own new gateways](../user-guide/custom-gateways.md).
 
@@ -140,3 +158,5 @@ If you said no to the REST API gateway during the `init` step, you can add it af
 solace-agent-mesh add gateway my-rest-endpoint --interface rest-api
 ```
 ::: 
+
+
