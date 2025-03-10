@@ -78,6 +78,12 @@ class ActionManager:
     def add_action_response(self, action_response_obj, response_text_and_files):
         """Add an action response to the list"""
         action_list_id = action_response_obj.get("action_list_id")
+        
+        # Ignore action responses with action_list_id "non-orchestrator-agent-invocation"
+        if action_list_id == "non-orchestrator-agent-invocation":
+            log.debug("Ignoring non-orchestrator initiated action response with action_list_id 'non-orchestrator-agent-invocation'")
+            return None
+            
         with self.lock:
             action_list = self.action_requests.get(action_list_id)
             if action_list is None:
