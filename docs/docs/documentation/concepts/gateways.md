@@ -53,7 +53,7 @@ sequenceDiagram
         Gateway->>Gateway: Attach Format Rules
         Gateway->>Gateway: Format Response
         Gateway->>Gateway: Transform to Stimulus
-        Gateway->>Solace Agent Mesh: Send Stimulus
+        Gateway->>Mesh: Send Stimulus
         
         alt Response Expected
             Mesh-->>Gateway: Return Response

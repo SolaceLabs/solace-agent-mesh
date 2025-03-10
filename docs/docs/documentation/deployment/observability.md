@@ -42,7 +42,7 @@ Replace `[NAME_SPACES]` with the namespace you are using. If none, omit the `[NA
 Agents periodically send registration messages, which may clutter your UI if you're using the STM VSCode extension. To filter out these messages, you can add the following topic to the ignore list:
 
 ```
-[NAME_SPACES]solace-agent-mesh/v1/register/agent/>
+![NAME_SPACES]solace-agent-mesh/v1/register/agent/>
 ```
 :::
 

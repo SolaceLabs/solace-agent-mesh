@@ -15,7 +15,7 @@ The key components that make up SAM are:
 
 2. **Orchestrator**: A specialized agent responsible for breaking down requests into tasks and managing the overall workflow. [more 🔗](../concepts/orchestrator.md)
 
-3. **Gateway**: Entry and exit points for the system, and providing a custom interface for each use case. [more 🔗](../concepts/gateways.md)
+3. **Gateway**: The entry and exit points for the system, providing a custom interface for each use case. [more 🔗](../concepts/gateways.md)
 
 4. **Agents**: Specialized processing units, which can be AI-enabled or conventional, that subscribe to and process specific tasks. [more 🔗](../concepts/agents.md)
 
