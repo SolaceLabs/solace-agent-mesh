@@ -85,7 +85,8 @@ flows:
         broker_request_response:
           enabled: true
           broker_config: *broker_connection
-          request_expiry_ms: 120000
+          request_expiry_ms: 300000
+          activity_timeout_s: 30
           payload_encoding: utf-8
           payload_format: json
           response_topic_prefix: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/llm-service/response
