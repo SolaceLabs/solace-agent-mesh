@@ -43,8 +43,8 @@ def plugin_command(plugin):
     @plugin.command()
     @click.argument("name")
     @click.option("--add-all", is_flag=True, help="Added the plugin with default of loading all exported files from the plugin")
-    @click.option("--uv-pip", is_flag=True, help="Install with uv pip for uv environment.")
     @click.option("--pip", is_flag=True, help="Install with pip.")
+    @click.option("--uv-pip", is_flag=True, help="Install with uv pip for uv environment.")
     @click.option("--poetry", is_flag=True, help="Install with poetry.")
     @click.option("--conda", is_flag=True, help="Install with conda.")
     @click.option(
