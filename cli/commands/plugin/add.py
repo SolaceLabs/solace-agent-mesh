@@ -38,6 +38,8 @@ def add_command(name: str, installer: str = None, from_url=None, add_all=False):
             )
             if installer == "pip":
                 subprocess.check_call(["pip", "install", install_name])
+            elif installer == "uv-pip":
+                subprocess.check_call(["uv", "pip", "install", install_name])
             elif installer == "poetry":
                 subprocess.check_call(["poetry", "add", install_name])
             elif installer == "conda":

@@ -49,6 +49,8 @@ def remove_command(name: str, installer: str = None):
         try:
             if installer == "pip":
                 subprocess.check_call(["pip", "uninstall", "-y", name])
+            elif installer == "uv-pip":
+                subprocess.check_call(["uv", "pip", "uninstall", "-y", name])
             elif installer == "poetry":
                 subprocess.check_call(["poetry", "remove", name])
             elif installer == "conda":
