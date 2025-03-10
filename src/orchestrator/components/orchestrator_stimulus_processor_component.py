@@ -184,7 +184,7 @@ class OrchestratorStimulusProcessorComponent(LLMRequestComponent):
             message.set_user_properties(user_properties)
 
         input_data = self.get_user_input(chat_text)
-        user_info = message.get_user_properties()
+        user_info = user_properties.get("user_info", {"email": "unknown"})
 
         agent_state_yaml, examples = self.get_agents_yaml(user_properties)
         full_input = {
