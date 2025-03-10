@@ -24,12 +24,12 @@ solace-agent-mesh add agent message-analyzer
 
 The following files are created in your project:
 - `./configs/agents/message_analyzer.yaml`: Includes the agent configuration. Learn more about configs [here 🔗](../user-guide/solace-ai-connector.md).
-- `./src/agents/message_analyzer/message_analyzer_agent_component.py`: Includes the agent component.
-- `./src/agents/message_analyzer/actions/sample_action.py`: Includes a sample action, which you will replace with your own action.
+- `./modules/agents/message_analyzer/message_analyzer_agent_component.py`: Includes the agent component.
+- `./modules/agents/message_analyzer/actions/sample_action.py`: Includes a sample action, which you will replace with your own action.
 
 ## Planning the Agent
 
-Your are going to build an agent that will have two actions: one for sentiment analysis and another for entity extraction. Each agent will require configuration. 
+Your are going to build an agent that will have two actions: one for sentiment analysis and another for entity extraction. Each action will require configuration. 
 
 :::tip[AI access]
 Solace Agent Mesh provides access to [LLM Service](../user-guide/advanced/services/llm-service.md) and [Embedding Service](../user-guide/advanced/services/embedding-service.md) to agents.
@@ -39,7 +39,7 @@ For the sentiment analysis action, you are going to use the LLM service to deter
 
 ## Describing the Agent
 
-You can start by updating the `./src/agents/message_analyzer/message_analyzer_agent_component.py` file to describe the agent:
+You can start by updating the `./modules/agents/message_analyzer/message_analyzer_agent_component.py` file to describe the agent:
 
 ```python
 # previous lines have been removed for brevity
@@ -58,15 +58,15 @@ class MessageAnalyzerAgentComponent(BaseAgentComponent):
     actions = [SampleAction]
 ```
 
-At this point, you have only updated the `description` field in the agent info. You will now update the actions once after you have created them.
+At this point, you have only updated the `description` field in the agent info. You will now update the actions after you have created them.
 
 ## Implementing the Actions
 
-Next, you can copy the `sample_action.py` file to `sentiment_analysis_action.py` and `entity_extraction_action.py` and update the contents.
+Next, copy the `sample_action.py` file to `sentiment_analysis_action.py` and `entity_extraction_action.py` files in the `./modules/agents/message_analyzer/actions` directory and update the contents as follows:
 
 ### Sentiment Analysis Action
 
-Now, you update the action info in `./src/agents/message_analyzer/actions/sentiment_analysis_action.py`:
+Now, you update the action info in `./modules/agents/message_analyzer/actions/sentiment_analysis_action.py`:
 
 ```python
 # previous lines have been removed for brevity
@@ -105,7 +105,7 @@ To access the [LLM Service](../user-guide/advanced/services/llm-service.md) for 
 agent = self.get_agent()
 ```
 
-Next, you access the `do_llm_service_request` method to make a request to the LLM service. This function requires an array of messages in the format of the standard OpenAI interface.
+Next, you will need to access the `do_llm_service_request` method to make a request to the LLM service. This function requires an array of messages in the format of the standard OpenAI interface.
 
 You also need to determine a proper system prompt for the LLM service to understand the context of the task.
 
@@ -226,7 +226,7 @@ class SentimentAnalysisAction(Action):
 
 ### Entity Extraction Action
 
-To be more flexible, you are going to allow the user to specify the types of entities they want to extract. You will then update the `./configs/agents/message_analyzer.yaml` file to include the entity types.
+To be more flexible, you are going to allow the user to specify the types of entities they want to extract. Update the `./configs/agents/message_analyzer.yaml` file to include the entity types.
 
 ```yaml
 # previous lines have been removed for brevity
@@ -258,7 +258,7 @@ To be more flexible, you are going to allow the user to specify the types of ent
 If you are building a plugin and have a lot of configurations or objects that don't transfer to environment variables (like arrays), you can hard-code them and request the user to template your agent instead of directly using it. To learn more, check the [copy from agent, plugins](../concepts/plugins/use-plugins.md#copy-from-an-agent) page.
 :::
 
-Now, you update the `./src/agents/message_analyzer/actions/entity_extraction_action.py` file:
+Now, you update the `./modules/agents/message_analyzer/actions/entity_extraction_action.py` file:
 
 ```python
 # previous lines have been removed for brevity
@@ -417,7 +417,7 @@ class EntityExtractionAction(Action):
 ```
 ## Updating the Agent
 
-Now that you have the actions implemented, you must update the agent to include these actions. To accomplish this, update the `./src/agents/message_analyzer/message_analyzer_agent_component.py` file:
+Now that you have the actions implemented, you must update the agent to include these actions. To accomplish this, update the `./modules/agents/message_analyzer/message_analyzer_agent_component.py` file:
 
 ```python
 # previous lines have been removed for brevity

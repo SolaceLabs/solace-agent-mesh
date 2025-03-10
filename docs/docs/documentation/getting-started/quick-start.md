@@ -21,7 +21,7 @@ mkdir my-agent-mesh
 cd my-agent-mesh
 ```
 
-Run the `init` command and follow the prompts to create your project. Ensure to enable REST API interface when prompted.
+Run the `init` command and follow the prompts to create your project. Ensure you enable REST API interface when prompted.
 
 ```sh
 solace-agent-mesh init
