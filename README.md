@@ -65,7 +65,7 @@ To get started with Solace Agent Mesh, follow these steps:
 
 5. **Connect to the Web Interface**:
 
-   Open the web interface at [http://localhost:5050](http://localhost:5001) or with the port specified during `init`.
+   Open the web interface at [http://localhost:5001](http://localhost:5001) or with the port specified during `init`.
 
 6. **Send a REST Request**:
 
