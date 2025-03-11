@@ -77,18 +77,6 @@ You can combine the build and run steps by using `solace-agent-mesh run -eb`.
 
 To learn more about the other CLI commands, see the [CLI documentation](../concepts/cli.md).
 
-## Windows-Specific Setup
-
-### PlantUML Support
-**Windows Users:** PlantUML functionality is not available when running directly on Windows. If you need to use PlantUML-related actions, please install and run the application through Windows Subsystem for Linux (WSL).
-
-### Plotly Support
-**Windows Users:** To enable Plotly visualization capabilities, you must install a specific version of the Kaleido package before launching the application:
-```sh
-pip install --upgrade "kaleido==0.1.*"
-```
-This step is required only for Windows environments.
-
 ## Sending a Request
 
 You can use different gateway interfaces to communicate with the system such REST, Web UI, Slack, MS Teams, etc. To keep it simple for this demo, we'll use the **REST API**.

@@ -46,6 +46,21 @@ python3 -m venv .venv
 pip install solace-agent-mesh
 ```
 
+<details>
+    <summary>Windows-Specific Setup</summary>
+
+    **PlantUML Support**
+
+    Windows Users: PlantUML functionality is not available when running directly on Windows. If you need to use PlantUML-related actions, please install and run the application through Windows Subsystem for Linux (WSL).
+
+    **Plotly Support**
+
+    Windows Users: To enable Plotly visualization capabilities, you must install a specific version of the Kaleido package before launching the application:
+    ```sh
+    pip install --upgrade "kaleido==0.1.*"
+    ```
+    This step is required only for Windows environments.
+</details>
 
 2. Run the following SAM CLI command (`solace-agent-mesh`) to verify your installation:
 
