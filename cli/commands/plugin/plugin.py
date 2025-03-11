@@ -44,7 +44,7 @@ def plugin_command(plugin):
     @click.argument("name")
     @click.option("--add-all", is_flag=True, help="Added the plugin with default of loading all exported files from the plugin")
     @click.option("--pip", is_flag=True, help="Install with pip.")
-    @click.option("--uv-pip", is_flag=True, help="Install with uv pip for uv environment.")
+    @click.option("--uv", is_flag=True, help="Install with uv pip.")
     @click.option("--poetry", is_flag=True, help="Install with poetry.")
     @click.option("--conda", is_flag=True, help="Install with conda.")
     @click.option(
@@ -81,10 +81,10 @@ def plugin_command(plugin):
         help="Removes the plugin module using pip",
     )
     @click.option(
-        "--uv-pip-uninstall",
+        "--uv-uninstall",
         default=False,
         is_flag=True,
-        help="Removes the plugin module using uv pip for uv environment",
+        help="Removes the plugin module using uv.",
     )
     @click.option(
         "--poetry-uninstall",

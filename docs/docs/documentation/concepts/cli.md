@@ -256,7 +256,7 @@ sam plugin add [OPTIONS] NAME
 ##### Options:
 - `--add-all` – Adds the plugin with the default of loading all exported files from the plugin.
 - `--pip` – Install with pip.
-- `--uv-pip` - Install with uv pip for uv environment.
+- `--uv` - Install with uv pip.
 - `--poetry` – Install with poetry.
 - `--conda` – Install with conda.
 - `-u, --from-url TEXT` – Install the plugin from a given URL instead of the given name. The URL can be a file path or a Git URL.
@@ -274,7 +274,7 @@ sam plugin remove [OPTIONS] NAME
 ##### Options:
 
 - `--pip-uninstall` – Removes the plugin module using pip.
-- `--uv-pip-uninstall` – Removes the plugin module using uv pip for uv environment.
+- `--uv-uninstall` – Removes the plugin module using uv pip.
 - `--poetry-uninstall` – Removes the plugin module using poetry.
 - `--conda-uninstall` – Removes the plugin module using conda.
 - `-h, --help` – Displays the help message and exits.

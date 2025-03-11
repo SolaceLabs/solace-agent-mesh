@@ -37,8 +37,8 @@ def add_command(name: str, installer: str = None, from_url=None, add_all=False):
                 f"Module '{name}' not found. Attempting to install '{install_name}' using {installer}..."
             )
             if installer == "pip":
-                subprocess.check_call(["pip", "install", install_name])
-            elif installer == "uv-pip":
+                subprocess.check_call(["pip3", "install", install_name])
+            elif installer == "uv":
                 subprocess.check_call(["uv", "pip", "install", install_name])
             elif installer == "poetry":
                 subprocess.check_call(["poetry", "add", install_name])
