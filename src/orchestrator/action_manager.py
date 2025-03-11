@@ -79,11 +79,10 @@ class ActionManager:
     def add_action_response(self, action_response_obj, response_text_and_files):
         """Add an action response to the list"""
 
-        originator = action_response_obj.get(ORCHESTRATOR_COMPONENT_NAME)
-        
-        # Ignore action responses that were not originated by the orchestrator
-        if originator != "orchestrator":
-            log.debug("Ignoring action response not originated by the orchestrator")
+        originator = action_response_obj.get("originator")
+        # Ignore responses for actions that are not originated by the orchestrator
+        if originator != ORCHESTRATOR_COMPONENT_NAME:
+            log.debug("Ignoring response for action not originated by the orchestrator")
             return None
             
         action_list_id = action_response_obj.get("action_list_id")

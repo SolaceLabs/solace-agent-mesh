@@ -12,6 +12,7 @@ from solace_ai_connector.common.utils import ensure_slash_on_end
 from ..services.llm_service.components.llm_service_component_base import LLMServiceComponentBase
 from ..common.action_list import ActionList
 from ..common.action_response import ActionResponse, ErrorInfo
+from ..common.constants import ORCHESTRATOR_COMPONENT_NAME
 from ..services.file_service import FileService
 from ..services.file_service.file_utils import recursive_file_resolver
 from ..services.middleware_service.middleware_service import MiddlewareService
@@ -185,6 +186,7 @@ class BaseAgentComponent(LLMServiceComponentBase, ABC):
         action_response.action_idx = data.get("action_idx")
         action_response.action_name = action_name
         action_response.action_params = data.get("action_params", {})
+        action_response.originator = data.get("originator", ORCHESTRATOR_COMPONENT_NAME)
         try:
             action_response_dict = action_response.to_dict()
         except Exception as e:

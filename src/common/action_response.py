@@ -212,6 +212,8 @@ class ActionResponse:
         self._is_async: bool = is_async
         # async_response_id - unique identifier for correlating async responses
         self._async_response_id: str = async_response_id
+        # originator - the component that originated the action request
+        self._originator: str = None
 
     @property
     def message(self) -> any:
@@ -269,6 +271,10 @@ class ActionResponse:
     def action_params(self) -> dict:
         return self._action_params
 
+    @property
+    def originator(self) -> dict:
+        return self._originator
+
     @action_list_id.setter
     def action_list_id(self, action_list_id: str):
         self._action_list_id = action_list_id
@@ -284,6 +290,10 @@ class ActionResponse:
     @action_params.setter
     def action_params(self, action_params: dict):
         self._action_params = action_params
+
+    @originator.setter
+    def originator(self, originator: str):
+        self._originator = originator
 
     @property
     def is_async(self) -> bool:
@@ -324,4 +334,5 @@ class ActionResponse:
         response["action_idx"] = self._action_idx
         response["action_name"] = self._action_name
         response["action_params"] = self._action_params
+        response["originator"] = self._originator
         return response
