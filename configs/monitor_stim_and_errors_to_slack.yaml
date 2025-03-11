@@ -100,8 +100,8 @@ flows:
             source_value: '0'
             dest_expression: user_data.output:payload.action_idx
           - type: copy
-            source_value: 'non-orchestrator-agent-invocation'
-            dest_expression: user_data.output:payload.action_list_id
+            source_value: 'stim_and_error_monitor'
+            dest_expression: user_data.output:payload.originator
           - type: copy
             source_expression: template:${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/actionRequest/monitor/x/slack/post_message/{{text://input.payload:correlation_id}}
             dest_expression: user_data.output:topic
