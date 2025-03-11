@@ -48,7 +48,9 @@ def remove_command(name: str, installer: str = None):
         click.echo(f"Attempting to uninstall module '{name}' using {installer}...")
         try:
             if installer == "pip":
-                subprocess.check_call(["pip", "uninstall", "-y", name])
+                subprocess.check_call(["pip3", "uninstall", "-y", name])
+            elif installer == "uv":
+                subprocess.check_call(["uv", "pip", "uninstall", "-y", name])
             elif installer == "poetry":
                 subprocess.check_call(["poetry", "remove", name])
             elif installer == "conda":

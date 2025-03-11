@@ -8,7 +8,7 @@ build-web-visualizer:
 		npm run build
 
 build-pypi: build-web-visualizer
-	@python3 -m build
+	@hatch build
 
 build: test build-pypi
 	@docker build --platform=linux/amd64 \

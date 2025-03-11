@@ -66,7 +66,7 @@ build:
 
 ### Runtime Configuration
 
-Runtime configuration are the settings that are loaded when you start the application. Those configurations are copied to the `build_directory`.
+Runtime configurations are settings that are loaded when you start the application. Those configurations are copied to the `build_directory`.
 
 #### Services
 
@@ -134,7 +134,7 @@ File service types:
        module_path: path/to/module
        custom_key: value
    ```
-    - **module_path**: Te path to the custom python module file.
+    - **module_path**: The path to the custom python module file.
     - **custom_key**: The key/value pair for the custom configuration.
 
 ### Plugins
