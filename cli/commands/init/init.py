@@ -9,8 +9,6 @@ from .create_config_file_step import create_config_file_step
 from .file_service_step import file_service_step
 from .project_structure_step import project_structure_step
 from .create_other_project_files_step import create_other_project_files_step
-from .rest_api_step import rest_api_step
-from .web_ui_step import webui_step
 
 from cli.utils import (
     log_error,
@@ -76,8 +74,6 @@ def init_command(options={}):
         ("AI provider setup", ai_provider_step),
         ("Builtin agent setup", builtin_agent_step),
         ("File service setup", file_service_step),
-        ("REST API setup", rest_api_step),
-        ("Web UI setup", webui_step),
         ("", create_config_file_step),
         ("Setting up project", create_other_project_files_step),
     ]

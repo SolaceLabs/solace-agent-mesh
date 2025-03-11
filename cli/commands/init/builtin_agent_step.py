@@ -10,12 +10,7 @@ def builtin_agent_step(options, default_options, none_interactive, abort):
         "image_processing": (
             True,
             "generate images from text or convert images to text (The model name should be formatted like provider/model-name)",
-            ["IMAGE_GEN_MODEL=", "IMAGE_GEN_ENDPOINT=", "IMAGE_GEN_API_KEY="],
-        ),
-        "slack": (
-            False,
-            "Slack agent, send messages to Slack channels",
-            ["MONITOR_SLACK_BOT_TOKEN="],
+            ["IMAGE_GEN_ENDPOINT=", "IMAGE_GEN_API_KEY=", "IMAGE_GEN_MODEL=",],
         ),
     }
 
