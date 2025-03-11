@@ -6,14 +6,12 @@ class MiddlewareService(metaclass=SingletonMeta):
         self._register_defaults()
     
     def _register_defaults(self):
-        print("Registering default middleware in middleware_service.py")
         # Default middleware that just returns actions unchanged
         self.register("filter_action", lambda user_properties, actions: actions)
         # Default middleware that allows all actions
         self.register("base_agent_filter", lambda user_properties, action: True)
         # Default middleware that allows all action requests
         self.register("validate_action_request", lambda user_properties, action_details: True)
-        print("Done Registering default middleware in middleware_service.py")
     
     def register(self, name: str, middleware_fn):
         self._middleware[name] = middleware_fn
