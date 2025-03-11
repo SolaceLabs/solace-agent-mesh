@@ -51,7 +51,7 @@ pip install solace-agent-mesh
 
     **PlantUML Support**
 
-    Windows Users: PlantUML functionality is not available when running directly on Windows. If you need to use PlantUML-related actions, please install and run the application through Windows Subsystem for Linux (WSL).
+    The functionality from PlantUML is not available on Windows.  To use PlantUML on Windows, we recommend you install it on Windows Subsystem for Linux (WSL).
 
     **Plotly Support**
 

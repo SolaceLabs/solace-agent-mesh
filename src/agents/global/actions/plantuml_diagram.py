@@ -44,7 +44,7 @@ class PlantUmlDiagram(Action):
     def invoke(self, params, meta={}) -> ActionResponse:
         if platform.system() == "Windows":
             return ActionResponse(
-                message=f"The PlantUML action is unfortunately not available on {platform.system()}"
+                message=f"Unfortunately, the PlantUML is not available on {platform.system()}"
             )
         # Do a local command to run plantuml -tpng
         description = params.get("diagram_description")
