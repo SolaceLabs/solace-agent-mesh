@@ -136,4 +136,4 @@ class HistoryService(AutoExpiry, metaclass=AutoExpirySingletonMeta):
         :param session_id: The session identifier.
         :param keep_levels: Number of most recent history entries to keep. Default is 0 (clear all).
         """
-        return self.history_provider.clear_history(session_id, keep_levels)
+        return self.history_provider.clear_history(session_id, keep_levels, clear_files=True)

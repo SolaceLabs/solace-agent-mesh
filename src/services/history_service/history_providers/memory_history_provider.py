@@ -125,12 +125,13 @@ class MemoryHistoryProvider(BaseHistoryProvider):
             files.append(file)
         return files
 
-    def clear_history(self, session_id: str, keep_levels=0):
+    def clear_history(self, session_id: str, keep_levels=0, clear_files=True):
         """
         Clear the history for a session, optionally keeping a specified number of recent entries.
 
         :param session_id: The session identifier.
         :param keep_levels: Number of most recent history entries to keep. Default is 0 (clear all).
+        :param clear_files: Whether to clear associated files. Default is True.
         """
         if session_id in self.history:
             if keep_levels <= 0:
@@ -146,6 +147,8 @@ class MemoryHistoryProvider(BaseHistoryProvider):
                 self.history[session_id]["num_turns"] = len(
                     self.history[session_id]["history"]
                 )
+        if session_id in self.history and clear_files:
+            self.history[session_id]["files"] = []
 
     def get_session_meta(self, session_id: str):
         """

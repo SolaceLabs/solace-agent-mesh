@@ -206,6 +206,7 @@ class GatewayOutput(GatewayBase):
 
             clear_history_tuple = user_properties.get("clear_gateway_history", [])
             if clear_history_tuple and clear_history_tuple[0]:
+                print("Clearing history ------------------", clear_history_tuple)
                 keep_depth = clear_history_tuple[1]
                 self.history_instance.clear_history(session_id, keep_depth)
 

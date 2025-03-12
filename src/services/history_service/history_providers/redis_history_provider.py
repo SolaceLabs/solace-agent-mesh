@@ -112,9 +112,8 @@ class RedisHistoryProvider(BaseHistoryProvider):
 
         return valid_files
 
-    def clear_history(self, session_id: str, keep_levels=0):
+    def clear_history(self, session_id: str, keep_levels=0, clear_files=True):
         history_key = self._get_history_key(session_id)
-        files_key = self._get_files_key(session_id)
 
         if keep_levels > 0:
             # Keep the latest `keep_levels` entries
@@ -132,7 +131,11 @@ class RedisHistoryProvider(BaseHistoryProvider):
             })
         else:
             # Clear all history and files
-            self.redis_client.delete(history_key, files_key, session_id)
+            self.redis_client.delete(history_key, session_id)
+
+        if clear_files:
+            files_key = self._get_files_key(session_id)
+            self.redis_client.delete(files_key)
 
 
     def get_session_meta(self, session_id: str):
