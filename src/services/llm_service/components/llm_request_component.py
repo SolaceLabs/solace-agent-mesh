@@ -175,8 +175,13 @@ class LLMRequestComponent(ComponentBase):
         Returns:
             Dict[str, Any]: The response from the LLM service.
         """
-        response = self.do_broker_request_response(llm_message)
-        return response.get_payload()
+        try:
+            response = self.do_broker_request_response(llm_message)
+            return response.get_payload()
+        except Exception as e:
+            error_message = f"Error handling LLM synchronous request: {str(e)}"
+            log.error(error_message, exc_info=True)
+            return {"content": error_message}
 
     def _handle_streaming(
         self, input_message: Message, llm_message: Message, response_uuid: str
@@ -228,7 +233,7 @@ class LLMRequestComponent(ComponentBase):
                     break
 
         except Exception as e:
-            error_message = f"Error during LLM streaming: {str(e)}"
+            error_message = f"Error handling LLM streaming request: {str(e)}"
             log.error(error_message, exc_info=True)
             aggregate_result = error_message
             # Send final chunk with error message
