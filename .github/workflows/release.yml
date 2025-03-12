@@ -18,97 +18,15 @@ permissions:
   packages: write
 jobs:
   release:
-    runs-on: ubuntu-latest
-    environment: pypi
-    env:
-      pypi_project_name: solace-agent-mesh
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ssh-key: ${{ secrets.COMMIT_KEY }}
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_pypi.yml@main
+    with:
+      ENVIRONMENT: pypi
+      version: ${{ github.event.inputs.version }}
+      npm_package_path: web-visualizer
+      node_version: 20
+      npm_lock_file: package-lock.json
+      pypi-project: solace-agent-mesh
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install Node.js dependencies
-        run: |
-          cd web-visualizer
-          npm install
-
-      - name: Build Web Visualizer
-        run: |
-          cd web-visualizer
-          npm run build
-
-      - name: Set up Hatch
-        uses: SolaceDev/solace-public-workflows/.github/actions/hatch-setup@main
-
-      - name: Get Current Version
-        id: current_version
-        run: |
-          CURRENT_VERSION=$(hatch version)
-          echo "CURRENT_VERSION=${CURRENT_VERSION}" >> $GITHUB_ENV
-
-      - name: Check if last commit was a version bump commit
-        id: check_bump
-        run: |
-          LAST_COMMIT_MSG=$(git log -1 --pretty=%B)
-          echo "Last commit: $LAST_COMMIT_MSG"
-          if echo "$LAST_COMMIT_MSG" | grep -q "\[ci skip\] Bump version to"; then
-              echo "Previous commit was a version bump. Skipping version bump."
-              echo "SKIP_BUMP=1" >> $GITHUB_ENV
-          else
-              echo "SKIP_BUMP=0" >> $GITHUB_ENV
-          fi
-
-      - name: Bump Version
-        id: bump_version
-        run: |
-          if [ "$SKIP_BUMP" = "1" ]; then
-              echo "Skipping version bump as the last commit was a version bump."
-              echo "NEW_VERSION=${CURRENT_VERSION}" >> $GITHUB_ENV
-          else
-              if [ -n "${{ github.event.inputs.full_version }}" ]; then
-                  if [[ "${{ github.event.inputs.full_version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                      hatch version "${{ github.event.inputs.full_version }}"
-                  else
-                      echo "Invalid full_version provided: ${{ github.event.inputs.full_version }}. Expected format x.y.z."
-                      exit 1
-                  fi
-              else
-                  hatch version "${{ github.event.inputs.version }}"
-              fi
-              NEW_VERSION=$(hatch version)
-              echo "NEW_VERSION=${NEW_VERSION}" >> $GITHUB_ENV
-          fi
-
-      - name: Fail if the current version doesn't exist
-        if: env.CURRENT_VERSION == ''
-        run: exit 1
-
-      - name: Commit new version
-        if: ${{ env.SKIP_BUMP == '0' }}
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git commit -a -m "[ci skip] Bump version to ${NEW_VERSION}"
-          git push
-
-      - name: Build project for distribution
-        run: hatch build
-
-      - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-
-      - name: Create Release
-        uses: ncipollo/release-action@v1
-        env:
-          NEW_VERSION: ${{ env.NEW_VERSION }}
-        with:
-          artifacts: "dist/*.whl"
-          makeLatest: true
-          generateReleaseNotes: true
-          tag: ${{ env.NEW_VERSION }}
+    secrets:
+      COMMIT_KEY: ${{ secrets.COMMIT_KEY }}
+      PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
