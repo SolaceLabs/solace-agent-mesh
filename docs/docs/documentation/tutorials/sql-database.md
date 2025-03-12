@@ -40,7 +40,7 @@ For this tutorial, we'll use a sample SQLite database for a fictional coffee com
 1. Visit [this link](https://download-directory.github.io/?url=https%3A%2F%2Fgithub.com%2FSolaceLabs%2Fsolace-agent-mesh-core-plugins%2Ftree%2Fmain%2Fsam-sql-database%2Fexample-data) to download the example data
 2. The link will open a page allowing you to download a ZIP file containing the example data
 3. Save the ZIP file to your computer
-4. Unzip the file to a directory of your choice (preferably in the same directory where you'll run the agent)
+4. Unzip the file to a directory of your choice (preferably in the root directory of your Solace Agent Mesh project)
 5. This should create an abc_coffee_co directory with many CSV files inside
 
 ## Configuring the Agent
@@ -61,7 +61,7 @@ Here's what you need to modify in the configuration file:
                 - /path/to/your/unzipped/data
 ```
 
-Make sure to replace `/path/to/your/unzipped/data` with the actual path where you unzipped the example data. In this example, if you put the zip file in the same directory as the agent, you can use `abc_coffee_co`.
+Make sure to replace `/path/to/your/unzipped/data` with the actual path where you unzipped the example data. In this example, if you put the zip file in the root directory of your Solace Agent Mesh project, you can use `abc_coffee_co`.
 
 ## Setting Environment Variables
 
