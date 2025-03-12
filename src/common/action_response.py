@@ -1,5 +1,7 @@
 """This is the definition of responses for the actions of the system."""
 
+from typing import Optional
+
 
 class RagMatch:
 
@@ -213,7 +215,7 @@ class ActionResponse:
         # async_response_id - unique identifier for correlating async responses
         self._async_response_id: str = async_response_id
         # originator - the component that originated the action request
-        self._originator: str = None
+        self._originator: Optional[str] = None
 
     @property
     def message(self) -> any:
