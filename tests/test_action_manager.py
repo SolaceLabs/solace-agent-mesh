@@ -2,6 +2,7 @@
 import unittest
 
 from src.orchestrator.action_manager import ActionManager
+from src.common.constants import ORCHESTRATOR_COMPONENT_NAME
 from tests.mocks import FlowKVStore, FlowLockManager
 
 
@@ -64,6 +65,7 @@ class TestActionManger(unittest.TestCase):
                 "action_idx": 0,
                 "action_name": "send_message",
                 "action_params": {"message": "Hello"},
+                "originator": ORCHESTRATOR_COMPONENT_NAME,
             },
             {"text": "Hello", "files": []},
         )
@@ -77,6 +79,8 @@ class TestActionManger(unittest.TestCase):
                 "action_idx": 1,
                 "action_name": "send_message",
                 "action_params": {"message": "Hello2"},
+                "originator": ORCHESTRATOR_COMPONENT_NAME,
+
             },
             {"text": "Hello2", "files": []},
         )
@@ -90,6 +94,7 @@ class TestActionManger(unittest.TestCase):
                 "action_idx": 2,
                 "action_name": "send_message",
                 "action_params": {"message": "Hello3"},
+                "originator": ORCHESTRATOR_COMPONENT_NAME,
             },
             {"text": "Hello3", "files": []},
         )
