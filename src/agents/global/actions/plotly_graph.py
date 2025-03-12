@@ -89,7 +89,7 @@ class PlotlyGraph(Action):
             max_version = parse('0.2.0')
             if parse(kaleido_version) < min_version or parse(kaleido_version) >= max_version:
                 return ActionResponse(
-                    message=f"For Windows users, the plotting functionality requires a specific version of Kaleido. Please refer to the documentation."
+                    message="For Windows users, the plotting functionality requires a specific version of Kaleido. Please refer to the documentation."
                 )
         obj = params["plotly_figure_config"]
         if isinstance(obj, str):
