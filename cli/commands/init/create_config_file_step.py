@@ -7,6 +7,11 @@ def create_config_file_step(options, default_options, none_interactive, abort):
     """
     Creates the configuration files.
     """
+    # Populate options dictionary with default values, for non specified options
+    for key, value in default_options.items():
+        if key not in options or options[key] is None:
+            options[key] = value
+    
     sam_config = Config.get_default_config()
 
     # Set up the built-in agents
