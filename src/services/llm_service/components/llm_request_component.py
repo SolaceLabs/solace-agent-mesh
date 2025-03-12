@@ -228,8 +228,8 @@ class LLMRequestComponent(ComponentBase):
                     break
 
         except Exception as e:
-            log.error("Error invoking LLM service: %s", e, exc_info=True)
             error_message = f"Error during LLM streaming: {str(e)}"
+            log.error(error_message, exc_info=True)
             aggregate_result = error_message
             # Send final chunk with error message
             self._send_streaming_chunk(
