@@ -196,35 +196,50 @@ class LLMRequestComponent(ComponentBase):
         current_batch = ""
         first_chunk = True
 
-        for response_message, last_message in self.do_broker_request_response(
-            llm_message,
-            stream=True,
-            streaming_complete_expression="input.payload:last_chunk",
-        ):
-            payload = response_message.get_payload()
-            content = payload.get("chunk", "")
-            aggregate_result += content
-            current_batch += content
+        try:
+            for response_message, last_message in self.do_broker_request_response(
+                llm_message,
+                stream=True,
+                streaming_complete_expression="input.payload:last_chunk",
+            ):
+                payload = response_message.get_payload()
+                content = payload.get("chunk", "")
+                aggregate_result += content
+                current_batch += content
 
-            if payload.get("handle_error", False):
-                log.error("Error invoking LLM service: %s", payload.get("content", ""), exc_info=True)
-                aggregate_result = payload.get("content", None)
-                last_message = True
+                if payload.get("handle_error", False):
+                    log.error("Error invoking LLM service: %s", payload.get("content", ""), exc_info=True)
+                    aggregate_result = payload.get("content", None)
+                    last_message = True
 
-            if len(current_batch.split()) >= self.stream_batch_size or last_message:
-                self._send_streaming_chunk(
-                    input_message,
-                    current_batch,
-                    aggregate_result,
-                    response_uuid,
-                    first_chunk,
-                    last_message,
-                )
-                current_batch = ""
-                first_chunk = False
+                if len(current_batch.split()) >= self.stream_batch_size or last_message:
+                    self._send_streaming_chunk(
+                        input_message,
+                        current_batch,
+                        aggregate_result,
+                        response_uuid,
+                        first_chunk,
+                        last_message,
+                    )
+                    current_batch = ""
+                    first_chunk = False
 
-            if last_message:
-                break
+                if last_message:
+                    break
+
+        except Exception as e:
+            log.error("Error invoking LLM service: %s", e, exc_info=True)
+            error_message = f"Error during LLM streaming: {str(e)}"
+            aggregate_result = error_message
+            # Send final chunk with error message
+            self._send_streaming_chunk(
+                input_message,
+                error_message,
+                aggregate_result,
+                response_uuid,
+                first_chunk,
+                True,
+            )
 
         return {
             "content": aggregate_result,
