@@ -428,12 +428,12 @@ def format_examples_by_llm_type( examples: list, llm_type: str = "anthropic") ->
 
     if llm_type == "anthropic":
         for example in examples:
-            formatted_example = _format_example_for_anthropic(example)
+            formatted_example = format_example_for_anthropic(example)
             formatted_examples.append(formatted_example)
 
     return formatted_examples
 
-def _format_example_for_anthropic( example: dict) -> str:
+def format_example_for_anthropic( example: dict) -> str:
     
     tag_prefix = example.get("tag_prefix_placeholder", "t123")
     starting_id = example.get("starting_id", "1")
