@@ -414,7 +414,7 @@ you should ask the originator for more information. Include links to the source 
 """
 
 
-def format_examples_by_llm_type( examples: list, llm_type: str = "anthropic") -> list:
+def format_examples_by_llm_type(examples: list, llm_type: str = "anthropic") -> list:
     """
     Render examples based on llm type
     
@@ -436,7 +436,10 @@ def format_examples_by_llm_type( examples: list, llm_type: str = "anthropic") ->
 
     return formatted_examples
 
-def format_example_for_anthropic( example: dict) -> str:
+def format_example_for_anthropic(example: dict) -> str:
+    """
+    Format an example for the Anthropic's LLMs
+    """
     
     tag_prefix = example.get("tag_prefix_placeholder", "t123")
     starting_id = example.get("starting_id", "1")
