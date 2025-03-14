@@ -84,7 +84,7 @@ To learn more about the other CLI commands, see the [CLI documentation](../conce
 
 ## Interacting with SAM
 
-You can use different gateway interfaces to communicate with the system such REST, Web UI, Slack, MS Teams, etc. To keep it simple for this demo, we will use the browser UI. To connect to the browser UI, open a browser and navigate to `http://localhost:5001`. If you chose another port during the `init` step, use that port instead.
+You can use different gateway interfaces to communicate with the system such REST, Web UI, Slack, MS Teams, etc. To keep it simple for this demo, we will use the browser UI. To connect to the browser UI, open a browser and navigate to `http://127.0.0.1:5001`. If you chose another port during the `init` step, use that port instead.
 
 This will provide a simple chat interface where you can interact with the Agent Mesh. Try some commands like `What is the capital of France?` or `Give me a diagram of the oAuth process`.
 
