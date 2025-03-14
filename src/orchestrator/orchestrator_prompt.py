@@ -2,6 +2,7 @@ from typing import Dict, Any, List
 import yaml
 from langchain_core.messages import HumanMessage
 from ..services.file_service import FS_PROTOCOL, Types, LLM_QUERY_OPTIONS, TRANSFORMERS
+from solace_ai_connector.common.log import log
 
 # Cap the number of examples so we don't overwhelm the LLM
 MAX_SYSTEM_PROMPT_EXAMPLES = 6
@@ -430,6 +431,8 @@ def format_examples_by_llm_type( examples: list, llm_type: str = "anthropic") ->
         for example in examples:
             formatted_example = format_example_for_anthropic(example)
             formatted_examples.append(formatted_example)
+    else:
+        log.error(f"Unsupported LLM type: {llm_type}")
 
     return formatted_examples
 
