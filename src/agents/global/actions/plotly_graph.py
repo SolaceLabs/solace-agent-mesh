@@ -37,46 +37,44 @@ class PlotlyGraph(Action):
                 ],
                 "required_scopes": ["global:plotly:read"],
                 "examples": [
-                    """    <example>
-        <example_docstring>
-            This is an example of a user asking for a bar graph. The plotly action from the global agent is invoked to generate the graph.
-        </example_docstring>
-        <example_stimulus>
-            <{tp}stimulus starting_id="12">
-            Please generate a random bar graph for me
-            </{tp}stimulus>
-            <{tp}stimulus_metadata>
-            local_time: 2024-09-04 15:59:02 EDT-0400 (Wednesday)
-            </{tp}stimulus_metadata>
-        </example_stimulus>
-        <example_response>
-            <{tp}reasoning>
-            - user has requested a random bar graph
-            - invoke the plotly action from the global agent to generate a bar graph with random data
-            </{tp}reasoning>
-            Certainly! I'd be happy to generate a random bar graph for you.
-            <{tp}status_update>I'll use our plotting tool to create this for you right away.</{tp}status_update>
-            <{tp}invoke_action agent="global" action="plotly">
-            <{tp}parameter name="plotly_figure_config">
-            {{
-                "data": [
-                {{
-                    "x": ["A", "B", "C", "D", "E"],
-                    "y": [23, 45, 56, 78, 90],
-                    "type": "bar"
-                }}
-                ],
-                "layout": {{
-                "title": "Random Bar Graph",
-                "xaxis": {{"title": "Categories"}},
-                "yaxis": {{"title": "Values"}}
-                }}
-            }}
-            </{tp}parameter>
-            </{tp}invoke_action>
-        </example_response>
-    </example>
-"""
+                    {
+                        "docstring": "This is an example of a user asking for a bar graph. The plotly action from the global agent is invoked to generate the graph.",
+                        "tag_prefix_placeholder": "{tp}",
+                        "starting_id": "12",
+                        "user_input": "Please generate a random bar graph for me",
+                        "metadata": [
+                            "local_time: 2024-09-04 15:59:02 EDT-0400 (Wednesday)"
+                        ],
+                        "reasoning": [
+                            "- user has requested a random bar graph",
+                            "- invoke the plotly action from the global agent to generate a bar graph with random data"
+                        ],
+                        "response_text": "Certainly! I'd be happy to generate a random bar graph for you.",
+                        "status_update": "I'll use our plotting tool to create this for you right away.",
+                        "action": {
+                            "agent": "global",
+                            "name": "plotly",
+                            "parameter_name": "plotly_figure_config",
+                            "parameters": {
+                                "plotly_figure_config": [
+                                    "{{",
+                                    "    \"data\": [",
+                                    "    {{",
+                                    "        \"x\": [\"A\", \"B\", \"C\", \"D\", \"E\"],",
+                                    "        \"y\": [23, 45, 56, 78, 90],",
+                                    "        \"type\": \"bar\"",
+                                    "    }}",
+                                    "    ],",
+                                    "    \"layout\": {{",
+                                    "    \"title\": \"Random Bar Graph\",",
+                                    "    \"xaxis\": {{\"title\": \"Categories\"}},",
+                                    "    \"yaxis\": {{\"title\": \"Values\"}}",
+                                    "    }}",
+                                    "}}"
+                                ]
+                            }
+                        }
+                    }
                 ],
             },
             **kwargs,
