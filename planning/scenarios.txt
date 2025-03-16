@@ -1,0 +1,2 @@
+Consider scenario:
+- request fans out to several agents, and multiple of those agents require approval
