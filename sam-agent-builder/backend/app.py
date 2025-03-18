@@ -8,6 +8,7 @@ sys.path.append(solace_agent_mesh)
 
 from flask import Flask, request, jsonify, make_response
 from solace_agent_mesh.cli.commands.add.agent import add_agent_command
+from scripts.agent_builder import build_agent
 # from solace_agent_mesh.cli.config import Config
 
 app = Flask(__name__)
@@ -50,6 +51,8 @@ def create_agent():
             "success": False,
             "message": f"Failed to create agent '{agent_name}'"
         }), 500
+    
+    build_agent(agent_name, agent_description)
     
     return jsonify({
         "success": True,
