@@ -134,19 +134,16 @@ You are tasked with creating a new agent named "{agent_name}" for an AI system. 
 
 Your job is to develop this agent by:
 
-1. Refining the agent description to be clear, concise, and informative for the system. The description should explain the agent's purpose, capabilities, and appropriate use cases.
+1. Refining the agent description to be clear, concise, and informative for the system. The description should explain the agent's purpose, and capabilities.
 
-2. Creating a comprehensive list of actions this agent should be able to perform. Each action should:
+2. Creating a list of actions this agent should be able to perform. Try to limit the amount of actions to the core functionalities. Usually agents contain 1 to 3 core actions. Each action should:
    - Be named in PascalCase format (e.g., GetUserData, ProcessPayment)
    - Directly relate to the agent's core functionality
    - Represent a discrete, meaningful operation
 
 3. For each action, provide:
    - A detailed description explaining what the action does
-   - Required parameters with their data types and purpose
    - Expected output format and content
-   - Any constraints, limitations, or edge cases to consider
-   - Example usage scenarios
 
 4. Ensure the actions collectively cover the full range of functionality needed for the agent to fulfill its purpose.
 
@@ -160,48 +157,88 @@ Format your response as an XML document with the following structure:
     <action>
       <name>ActionName1</name>
       <description>Detailed explanation of what the action does</description>
-      <parameters>
-        <parameter>
-          <name>param1</name>
-          <type>string/number/boolean/etc</type>
-          <description>Description of this parameter</description>
-        </parameter>
-        <parameter>
-          <name>param2</name>
-          <type>string/number/boolean/etc</type>
-          <description>Description of this parameter</description>
-        </parameter>
-      </parameters>
       <returns>Description of what the action returns</returns>
-      <exampleUseCases>
-        <useCase>Example use case 1</useCase>
-        <useCase>Example use case 2</useCase>
-      </exampleUseCases>
-      <constraints>Any constraints or limitations to consider</constraints>
     </action>
     
     <action>
       <name>ActionName2</name>
       <description>Detailed explanation of what the action does</description>
-      <parameters>
-        <parameter>
-          <name>param1</name>
-          <type>string/number/boolean/etc</type>
-          <description>Description of this parameter</description>
-        </parameter>
-      </parameters>
       <returns>Description of what the action returns</returns>
-      <exampleUseCases>
-        <useCase>Example use case 1</useCase>
-      </exampleUseCases>
-      <constraints>Any constraints or limitations to consider</constraints>
     </action>
   </actions>
-  
-  <implementationConsiderations>Any special considerations for implementing this agent</implementationConsiderations>
 </agent>
 """
 
+
+def update_agent_component(agent_name, new_imports=None, new_description=None, new_actions=None):
+    """
+    Update the agent component file with new imports, description, and actions.
+    
+    Args:
+        agent_name (str): The name of the agent.
+        new_imports (list): List of new import statements to add.
+        new_description (str): New description for the agent.
+        new_actions (list): List of new action definitions to add.
+    
+    Returns:
+        str: The updated content of the agent component file.
+    """
+
+    # Get the current content of the agent component file
+    current_content = get_agent_file(agent_name, "agent_main")
+
+    # Create a modified version of the content
+    lines = current_content.split("\n")
+    modified_lines = []
+
+    # Track what section we're in                                                                                                                                                                                                                                     
+    in_imports = False                                                                                                                                                                                                                                                
+    in_description = False                                                                                                                                                                                                                                            
+    in_actions = False                                                                                                                                                                                                                                                
+                                                                                                                                                                                                                                                                    
+    for line in lines:                                                                                                                                                                                                                                                
+        # Handle imports section                                                                                                                                                                                                                                      
+        if new_imports is not None and line.startswith("from test_agent.actions"):                                                                                                                                                                                    
+            # Add all new imports before the existing action import                                                                                                                                                                                                   
+            for import_stmt in new_imports:                                                                                                                                                                                                                           
+                modified_lines.append(import_stmt)                                                                                                                                                                                                                    
+            modified_lines.append(line)  # Add the original line                                                                                                                                                                                                      
+            continue                                                                                                                                                                                                                                                  
+                                                                                                                                                                                                                                                                    
+        # Handle description section                                                                                                                                                                                                                                  
+        if new_description is not None and 'info["description"]' in line:                                                                                                                                                                                             
+            # Replace the description                                                                                                                                                                                                                                 
+            modified_lines.append(f'info["description"] = (\n    "{new_description}"\n)')                                                                                                                                                                             
+            in_description = True                                                                                                                                                                                                                                     
+            continue                                                                                                                                                                                                                                                  
+                                                                                                                                                                                                                                                                       
+        # Skip lines until we're out of the description block                                                                                                                                                                                                         
+        if in_description and line.strip() == ")":                                                                                                                                                                                                                    
+            in_description = False                                                                                                                                                                                                                                    
+            continue                                                                                                                                                                                                                                                  
+                                                                                                                                                                                                                                                                    
+        # Handle actions section                                                                                                                                                                                                                                      
+        if new_actions is not None and line.strip() == "actions = [SampleAction]":                                                                                                                                                                                    
+            # Replace the actions list                                                                                                                                                                                                                                
+            actions_str = ", ".join(new_actions)                                                                                                                                                                                                                      
+            modified_lines.append(f"    actions = [{actions_str}]")                                                                                                                                                                                                   
+            continue                                                                                                                                                                                                                                                  
+                                                                                                                                                                                                                                                                    
+        # Add any line that wasn't specifically modified                                                                                                                                                                                                              
+        if not in_description:                                                                                                                                                                                                                                        
+            modified_lines.append(line)                                                                                                                                                                                                                               
+                                                                                                                                                                                                                                                                    
+    updated_content = '\n'.join(modified_lines)                                                                                                                                                                                                                       
+                                                                                                                                                                                                                                                                       
+    # Write the updated content back to the file                                                                                                                                                                                                                      
+    current_dir = Path(os.path.dirname(os.path.abspath(__file__)))                                                                                                                                                                                                    
+    project_root = current_dir.parent.parent                                                                                                                                                                                                                          
+    file_path = project_root / "modules" / "agents" / agent_name / f"{agent_name}_agent_component.py"                                                                                                                                                                 
+                                                                                                                                                                                                                                                                    
+    with open(file_path, 'w') as file:                                                                                                                                                                                                                                
+        file.write(updated_content)                                                                                                                                                                                                                                   
+                                                                                                                                                                                                                                                                    
+    return updated_content
 
 # # Test the function
 # agent_config_content = get_agent_file("test", "agent_main")
@@ -209,6 +246,20 @@ Format your response as an XML document with the following structure:
 
 #test prompt
 
-#prompt = create_agent_prompt("Health Expert", "I want to build an agent that provides health-related information.")
+# prompt = create_agent_prompt("finance", "I want to build an agent that gets the stock price for a specific stock.")
 # print(prompt)
 # print(make_llm_api_call(prompt))
+
+# Example usage                                                                                                                                                                                                                                                       
+update_agent_component(                                                                                                                                                                                                                                               
+    agent_name="stock_price",                                                                                                                                                                                                                                          
+    new_imports=[                                                                                                                                                                                                                                                     
+        "from stock_price.actions.new_action import NewAction",                                                                                                                                                                                                        
+        "from stock_price.actions.another_action import AnotherAction"                                                                                                                                                                                                 
+    ],                                                                                                                                                                                                                                                                
+    new_description="This agent handles financial data processing. It should be used when a user explicitly requests information about stocks or financial metrics.",                                                                                                 
+    new_actions=["SampleAction", "NewAction", "AnotherAction"]                                                                                                                                                                                                        
+)
+
+# content = get_agent_file("stock_price", "agent_main")
+# print(content)

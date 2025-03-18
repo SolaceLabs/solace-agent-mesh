@@ -39,8 +39,8 @@ def create_agent():
     # Create a default config when not in CLI context
     config = {
         "solace_agent_mesh": {
-            "config_directory": os.path.join(os.getcwd(), "config"),
-            "modules_directory": os.path.join(os.getcwd(), "src"),
+            "config_directory": os.path.join(os.getcwd(), "configs"),
+            "modules_directory": os.path.join(os.getcwd(), "modules"),
         }
     }
 
