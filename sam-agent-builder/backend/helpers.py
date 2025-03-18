@@ -4,6 +4,9 @@ from dotenv import load_dotenv
 from litellm import completion
 import os
 from dotenv import load_dotenv
+import re
+import xml.etree.ElementTree as ET
+from typing import List, Dict, Any
 
 def get_agent_file(agent_name: str, file_type: str, action_file_name: str = None) -> str:
     """
@@ -278,6 +281,40 @@ def delete_sample_action(agent_name):
 
 def create_action_file(agent_name, action_name, action_description, params=None):
     return
+
+
+def parse_actions_from_global_context(xml_string: str) -> List[Dict[str, Any]]:
+    """
+    Parse XML output from LLM to extract action details.
+    
+    Args:
+        xml_string: XML string from LLM
+    
+    Returns:
+        List of dictionaries with action details
+    """
+    # Extract the XML content from the code block
+    match = re.search(r'```xml\n(.*?)\n```', xml_string, re.DOTALL)
+    if match:
+        xml_content = match.group(1)
+    else:
+        xml_content = xml_string
+    
+    # Parse the XML
+    root = ET.fromstring(xml_content)
+    
+    # Find all actions
+    actions = []
+    for action_elem in root.findall('./actions/action'):
+        action = {
+            'name': action_elem.find('name').text if action_elem.find('name') is not None else '',
+            'description': action_elem.find('description').text if action_elem.find('description') is not None else '',
+            'returns': action_elem.find('returns').text if action_elem.find('returns') is not None else ''
+        }
+        actions.append(action)
+    
+    return actions
+
 
 # # Test the function
 # agent_config_content = get_agent_file("test", "agent_main")
