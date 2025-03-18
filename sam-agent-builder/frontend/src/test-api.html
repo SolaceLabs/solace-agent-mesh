@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #00af83;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>API Test Page</h1>
+    <p>Use the buttons below to test the API endpoints:</p>
+    
+    <div>
+        <button id="healthCheck">Test Health Check</button>
+        <button id="testCreateAgent">Test Create Agent</button>
+    </div>
+    
+    <h2>Response:</h2>
+    <pre id="response">No response yet.</pre>
+    
+    <script>
+        document.getElementById('healthCheck').addEventListener('click', async () => {
+            try {
+                const response = await fetch('http://localhost:5002/api/health');
+                const data = await response.json();
+                document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('response').textContent = 'Error: ' + error.message;
+            }
+        });
+        
+        document.getElementById('testCreateAgent').addEventListener('click', async () => {
+            try {
+                const response = await fetch('http://localhost:5002/api/create-agent', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: 'Test Agent',
+                        description: 'This is a test agent',
+                        apiKey: null
+                    }),
+                });
+                const data = await response.json();
+                document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('response').textContent = 'Error: ' + error.message;
+            }
+        });
+    </script>
+</body>
+</html>
