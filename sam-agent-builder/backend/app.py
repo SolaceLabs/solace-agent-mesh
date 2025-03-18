@@ -20,6 +20,7 @@ def create_agent():
     print(f"Creating agent: {agent_name}")
     print(f"Description: {agent_description}")
     print(f"API Key provided: {'Yes' if api_key else 'No'}")
+    print(f"API key: {api_key}")
     
     # Here we would actually create the agent in the agent mesh framework
     # For now, just return a success response
