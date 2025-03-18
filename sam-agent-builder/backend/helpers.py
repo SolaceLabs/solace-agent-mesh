@@ -37,6 +37,47 @@ def get_agent_file(agent_name: str, file_type: str) -> str:
     
     return content
 
+def write_agent_file(agent_name: str, file_type: str, content: str) -> Path:
+    """
+    Write content to an agent file based on agent name and file type.
+    If the file or its parent directories don't exist, raises FileNotFoundError.
+    
+    Args:
+        agent_name: Name of the agent
+        file_type: Type of file to write ("agent_config", "agent_main", "agent_action")
+        content: The content to write to the file
+    
+    Returns:
+        The path of the written file
+        
+    Raises:
+        FileNotFoundError: If the file or its parent directories don't exist
+        ValueError: If the file type is unknown
+    """
+    
+    current_dir = Path(os.path.dirname(os.path.abspath(__file__)))
+    project_root = current_dir.parent.parent
+    
+    if file_type == "agent_config":
+        file_path = project_root / "configs" / "agents" / f"{agent_name}.yaml"
+    elif file_type == "agent_main":
+        file_path = project_root / "modules" / "agents" / agent_name / f"{agent_name}_agent_component.py"
+    elif file_type == "agent_action":
+        file_path = project_root / "modules" / "agents" / agent_name / "actions" / "sample_action.py"
+    else:
+        raise ValueError(f"Unknown file type: {file_type}")
+    
+    # Check if parent directory exists
+    if not file_path.parent.exists():
+        raise FileNotFoundError(f"Directory not found: {file_path.parent}")
+    
+    # Write content to file
+    with open(file_path, 'w') as file:
+        file.write(content)
+    
+    print(f"Written content to: {file_path}")
+    return file_path
+
 
 def make_llm_api_call(prompt, model="openai/claude-3-7-sonnet"):
     """
@@ -79,14 +120,14 @@ def make_llm_api_call(prompt, model="openai/claude-3-7-sonnet"):
                 collected_content += content_piece
                 
                 # Debug
-                #print(content_piece, end="", flush=True)
+                print(content_piece, end="", flush=True)
         
         return collected_content
         
     except Exception as e:
         print(f"API call error: {e}")
         raise
-    
+
 def create_agent_prompt(agent_name, agent_description):
     return f"""
 You are tasked with creating a new agent named "{agent_name}" for an AI system. This agent will be described as: "{agent_description}".
