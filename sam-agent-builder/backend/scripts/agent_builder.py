@@ -5,13 +5,13 @@ import os
 solace_agent_mesh = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.append(solace_agent_mesh)
 
-from solace_agent_mesh.sam_agent_builder.backend.helpers import make_llm_api_call
+from helpers import make_llm_api_call
 from scripts.prompts import create_agent_prompt
 
 def build_agent(agent_name, agent_description):
-    prompt = create_agent_prompt(agent_name, agent_description)
-    response = make_llm_api_call(prompt)
-    print(response)
+    #prompt = create_agent_prompt(agent_name, agent_description)
+ #   response = make_llm_api_call(prompt)
+    #print(response)
     return ""
 
 if __name__ == "__main__":

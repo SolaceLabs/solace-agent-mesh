@@ -1,8 +1,9 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-import requests
-import json
+from litellm import completion
+import os
+from dotenv import load_dotenv
 
 def get_agent_file(agent_name: str, file_type: str) -> str:
     """
@@ -36,50 +37,137 @@ def get_agent_file(agent_name: str, file_type: str) -> str:
     
     return content
 
-def make_llm_api_call(prompt, model="claude-3-7-sonnet"):
+
+def make_llm_api_call(prompt, model="openai/claude-3-7-sonnet"):
     """
-    Make a completion API call to the local server.
+    Make a streaming completion API call using litellm.
     
     Args:
         prompt (str): The prompt to complete.
         model (str): The model to use for completion.
         
     Returns:
-        dict: The API response as a dictionary.
+        str: The combined generated text from the streaming API response.
     """
     # Get API key from environment variables
     load_dotenv()
     api_key = os.environ.get('LLM_SERVICE_API_KEY')
     
     if not api_key:
-        raise ValueError("API_KEY environment variable is not set")
+        raise ValueError("LLM_SERVICE_API_KEY environment variable is not set")
     
-    # API endpoint
-    url = 'https://lite-llm.mymaas.net/completions'
+    # Set the API key for litellm to use
+    os.environ["OPENAI_API_KEY"] = api_key
     
-    # Headers
-    headers = {
-        'Content-Type': 'application/json',
-        'Authorization': f'Bearer {api_key}'
-    }
+    try:
+        # Make the API call using litellm with streaming enabled
+        response_stream = completion(
+            model=model,
+            messages=[{"content": prompt, "role": "user"}],
+            api_base="https://lite-llm.mymaas.net/v1",
+            stream=True
+        )
+        
+        # Initialize an empty string to collect the streamed content
+        collected_content = ""
+        
+        # Process the streaming response
+        for chunk in response_stream:
+            # Extract content from the delta if it exists
+            if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                content_piece = chunk.choices[0].delta.content
+                collected_content += content_piece
+                
+                # Debug
+                #print(content_piece, end="", flush=True)
+        
+        return collected_content
+        
+    except Exception as e:
+        print(f"API call error: {e}")
+        raise
     
-    # Request payload
-    payload = {
-        'model': model,
-        'prompt': prompt,
-    }
-    
-    # Make the POST request
-    response = requests.post(url, headers=headers, data=json.dumps(payload))
-    
-    # Check if the request was successful
-    if response.status_code == 200:
-        return response.json()['choices'][0]['text']
-    else:
-        raise Exception(f"API call failed with status code {response.status_code}: {response.text}")
+def create_agent_prompt(agent_name, agent_description):
+    return f"""
+You are tasked with creating a new agent named "{agent_name}" for an AI system. This agent will be described as: "{agent_description}".
 
+Your job is to develop this agent by:
+
+1. Refining the agent description to be clear, concise, and informative for the system. The description should explain the agent's purpose, capabilities, and appropriate use cases.
+
+2. Creating a comprehensive list of actions this agent should be able to perform. Each action should:
+   - Be named in PascalCase format (e.g., GetUserData, ProcessPayment)
+   - Directly relate to the agent's core functionality
+   - Represent a discrete, meaningful operation
+
+3. For each action, provide:
+   - A detailed description explaining what the action does
+   - Required parameters with their data types and purpose
+   - Expected output format and content
+   - Any constraints, limitations, or edge cases to consider
+   - Example usage scenarios
+
+4. Ensure the actions collectively cover the full range of functionality needed for the agent to fulfill its purpose.
+
+Format your response as an XML document with the following structure:
+
+<agent>
+  <name>{agent_name}</name>
+  <description>Your refined description here</description>
+  
+  <actions>
+    <action>
+      <name>ActionName1</name>
+      <description>Detailed explanation of what the action does</description>
+      <parameters>
+        <parameter>
+          <name>param1</name>
+          <type>string/number/boolean/etc</type>
+          <description>Description of this parameter</description>
+        </parameter>
+        <parameter>
+          <name>param2</name>
+          <type>string/number/boolean/etc</type>
+          <description>Description of this parameter</description>
+        </parameter>
+      </parameters>
+      <returns>Description of what the action returns</returns>
+      <exampleUseCases>
+        <useCase>Example use case 1</useCase>
+        <useCase>Example use case 2</useCase>
+      </exampleUseCases>
+      <constraints>Any constraints or limitations to consider</constraints>
+    </action>
+    
+    <action>
+      <name>ActionName2</name>
+      <description>Detailed explanation of what the action does</description>
+      <parameters>
+        <parameter>
+          <name>param1</name>
+          <type>string/number/boolean/etc</type>
+          <description>Description of this parameter</description>
+        </parameter>
+      </parameters>
+      <returns>Description of what the action returns</returns>
+      <exampleUseCases>
+        <useCase>Example use case 1</useCase>
+      </exampleUseCases>
+      <constraints>Any constraints or limitations to consider</constraints>
+    </action>
+  </actions>
+  
+  <implementationConsiderations>Any special considerations for implementing this agent</implementationConsiderations>
+</agent>
+"""
 
 
 # # Test the function
-# agent_config_content = get_agent_file("test", "agent_config")
+# agent_config_content = get_agent_file("test", "agent_main")
 # print(agent_config_content)
+
+#test prompt
+
+#prompt = create_agent_prompt("Health Expert", "I want to build an agent that provides health-related information.")
+# print(prompt)
+# print(make_llm_api_call(prompt))
