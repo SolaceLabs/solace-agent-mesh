@@ -199,75 +199,85 @@ Format your response as an XML document with the following structure:
 """
 
 
-def update_agent_component(agent_name, new_imports=None, new_description=None, new_actions=None):
+def generate_agent_component(agent_name, description, actions, imports=None):                                                                                                                                                                                         
+    """                                                                                                                                                                                                                                                               
+    Generate a complete agent component file from scratch.                                                                                                                                                                                                            
+                                                                                                                                                                                                                                                                    
+    Args:                                                                                                                                                                                                                                                             
+        agent_name (str): The name of the agent (snake_case)                                                                                                                                                                                                          
+        description (str): Description of the agent's purpose                                                                                                                                                                                                         
+        actions (list): List of action class names to include                                                                                                                                                                                                         
+        imports (list): List of import statements for the actions                                                                                                                                                                                                     
+                                                                                                                                                                                                                                                                    
+    Returns:                                                                                                                                                                                                                                                          
+        str: The complete content for the agent component file                                                                                                                                                                                                        
+    """                                                                                                                                                                                                                                                               
+    # Convert agent_name to PascalCase for class name                                                                                                                                                                                                                 
+    class_name = ''.join(word.capitalize() for word in agent_name.split('_')) + 'AgentComponent'                                                                                                                                                                      
+                                                                                                                                                                                                                                                                    
+    # Default imports if none provided                                                                                                                                                                                                                                
+    if imports is None:                                                                                                                                                                                                                                               
+        imports = [f"from {agent_name}.actions.{action.lower()} import {action}" for action in actions]                                                                                                                                                               
+                                                                                                                                                                                                                                                                    
+    # Format the actions list for the file                                                                                                                                                                                                                            
+    actions_str = ", ".join(actions)                                                                                                                                                                                                                                  
+                                                                                                                                                                                                                                                                    
+    # Generate the complete file content                                                                                                                                                                                                                              
+    content = f'''"""The agent component for the {agent_name}"""                                                                                                                                                                                                      
+{chr(10).join(imports)}                                                                                                                                                                                                                                               
+                                                                                                                                                                                                                                                                       
+import os                                                                                                                                                                                                                                                             
+import copy                                                                                                                                                                                                                                                           
+import sys                                                                                                                                                                                                                                                            
+                                                                                                                                                                                                                                                                    
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))                                                                                                                                                                                                               
+sys.path.append(os.path.dirname(SCRIPT_DIR))                                                                                                                                                                                                                          
+                                                                                                                                                                                                                                                                    
+from solace_agent_mesh.agents.base_agent_component import (                                                                                                                                                                                                           
+    agent_info,                                                                                                                                                                                                                                                       
+    BaseAgentComponent,                                                                                                                                                                                                                                               
+)                                                                                                                                                                                                                                                                     
+                                                                                                                                                                                                                                                                    
+info = copy.deepcopy(agent_info)                                                                                                                                                                                                                                      
+info["agent_name"] = "{agent_name}"                                                                                                                                                                                                                                   
+info["class_name"] = "{class_name}"                                                                                                                                                                                                                                   
+info["description"] = (                                                                                                                                                                                                                                               
+    "{description}"                                                                                                                                                                                                                                                   
+)                                                                                                                                                                                                                                                                     
+                                                                                                                                                                                                                                                                    
+class {class_name}(BaseAgentComponent):                                                                                                                                                                                                                               
+    info = info                                                                                                                                                                                                                                                       
+    actions = [{actions_str}]                                                                                                                                                                                                                                         
+ '''                                                                                                                                                                                                                                                                   
+                                                                                                                                                                                                                                                                       
+    # Write the content to the file                                                                                                                                                                                                                                   
+    write_agent_file(agent_name, "agent_main", content)                                                                                                                                                                                                               
+                                                                                                                                                                                                                                                                    
+    return content
+
+def delete_sample_action(agent_name):
     """
-    Update the agent component file with new imports, description, and actions.
+    Delete the sample action from the agent component file.
     
     Args:
         agent_name (str): The name of the agent.
-        new_imports (list): List of new import statements to add.
-        new_description (str): New description for the agent.
-        new_actions (list): List of new action definitions to add.
-    
+        
     Returns:
-        str: The updated content of the agent component file.
+        bool: True if the action was successfully deleted, False otherwise.
     """
+    current_dir = Path(os.path.dirname(os.path.abspath(__file__)))
+    project_root = current_dir.parent.parent
+    sample_action_path = project_root / "modules" / "agents" / agent_name / "actions" / "sample_action.py"
 
-    # Get the current content of the agent component file
-    current_content = get_agent_file(agent_name, "agent_main")
+    if sample_action_path.exists():
+        os.remove(sample_action_path)
+        print(f"Deleted sample action file: {sample_action_path}")
+    else:
+        print(f"Sample action file not found: {sample_action_path}")
+        return False
 
-    # Create a modified version of the content
-    lines = current_content.split("\n")
-    modified_lines = []
-
-    # Track what section we're in                                                                                                                                                                                                                                     
-    in_imports = False                                                                                                                                                                                                                                                
-    in_description = False                                                                                                                                                                                                                                            
-    in_actions = False                                                                                                                                                                                                                                                
-                                                                                                                                                                                                                                                                    
-    for line in lines:                                                                                                                                                                                                                                                
-        # Handle imports section                                                                                                                                                                                                                                      
-        if new_imports is not None and line.startswith("from test_agent.actions"):                                                                                                                                                                                    
-            # Add all new imports before the existing action import                                                                                                                                                                                                   
-            for import_stmt in new_imports:                                                                                                                                                                                                                           
-                modified_lines.append(import_stmt)                                                                                                                                                                                                                    
-            modified_lines.append(line)  # Add the original line                                                                                                                                                                                                      
-            continue                                                                                                                                                                                                                                                  
-                                                                                                                                                                                                                                                                    
-        # Handle description section                                                                                                                                                                                                                                  
-        if new_description is not None and 'info["description"]' in line:                                                                                                                                                                                             
-            # Replace the description                                                                                                                                                                                                                                 
-            modified_lines.append(f'info["description"] = (\n    "{new_description}"\n)')                                                                                                                                                                             
-            in_description = True                                                                                                                                                                                                                                     
-            continue                                                                                                                                                                                                                                                  
-                                                                                                                                                                                                                                                                       
-        # Skip lines until we're out of the description block                                                                                                                                                                                                         
-        if in_description and line.strip() == ")":                                                                                                                                                                                                                    
-            in_description = False                                                                                                                                                                                                                                    
-            continue                                                                                                                                                                                                                                                  
-                                                                                                                                                                                                                                                                    
-        # Handle actions section                                                                                                                                                                                                                                      
-        if new_actions is not None and line.strip() == "actions = [SampleAction]":                                                                                                                                                                                    
-            # Replace the actions list                                                                                                                                                                                                                                
-            actions_str = ", ".join(new_actions)                                                                                                                                                                                                                      
-            modified_lines.append(f"    actions = [{actions_str}]")                                                                                                                                                                                                   
-            continue                                                                                                                                                                                                                                                  
-                                                                                                                                                                                                                                                                    
-        # Add any line that wasn't specifically modified                                                                                                                                                                                                              
-        if not in_description:                                                                                                                                                                                                                                        
-            modified_lines.append(line)                                                                                                                                                                                                                               
-                                                                                                                                                                                                                                                                    
-    updated_content = '\n'.join(modified_lines)                                                                                                                                                                                                                       
-                                                                                                                                                                                                                                                                       
-    # Write the updated content back to the file                                                                                                                                                                                                                      
-    current_dir = Path(os.path.dirname(os.path.abspath(__file__)))                                                                                                                                                                                                    
-    project_root = current_dir.parent.parent                                                                                                                                                                                                                          
-    file_path = project_root / "modules" / "agents" / agent_name / f"{agent_name}_agent_component.py"                                                                                                                                                                 
-                                                                                                                                                                                                                                                                    
-    with open(file_path, 'w') as file:                                                                                                                                                                                                                                
-        file.write(updated_content)                                                                                                                                                                                                                                   
-                                                                                                                                                                                                                                                                    
-    return updated_content
+def create_action_file(agent_name, action_name, action_description, params=None):
+    return
 
 # # Test the function
 # agent_config_content = get_agent_file("test", "agent_main")
@@ -279,15 +289,15 @@ def update_agent_component(agent_name, new_imports=None, new_description=None, n
 # print(prompt)
 # print(make_llm_api_call(prompt))
 
-# Example usage                                                                                                                                                                                                                                                       
-# update_agent_component(                                                                                                                                                                                                                                               
+# # Example usage                                                                                                                                                                                                                                                       
+# generate_agent_component(                                                                                                                                                                                                                                               
 #     agent_name="stock_price",                                                                                                                                                                                                                                          
-#     new_imports=[                                                                                                                                                                                                                                                     
-#         "from stock_price.actions.new_action import NewAction",                                                                                                                                                                                                        
-#         "from stock_price.actions.another_action import AnotherAction"                                                                                                                                                                                                 
+#     imports=[                                                                                                                                                                                                                                                     
+#         "from stock_price.actions.get_stock_price import GetStockPrice",                                                                                                                                                                                                        
+#         "from stock_price.actions.analyze_stock_trend import AnalyzeStockTrend"                                                                                                                                                                                                 
 #     ],                                                                                                                                                                                                                                                                
-#     new_description="This agent handles financial data processing. It should be used when a user explicitly requests information about stocks or financial metrics.",                                                                                                 
-#     new_actions=["SampleAction", "NewAction", "AnotherAction"]                                                                                                                                                                                                        
+#     description="This agent handles financial data processing. It should be used when a user explicitly requests information about stocks or financial metrics.",                                                                                                 
+#     actions=["GetStockPrice", "AnalyzeStockTrend"]                                                                                                                                                                                                        
 # )
 
 # content = get_agent_file("stock_price", "agent_main")

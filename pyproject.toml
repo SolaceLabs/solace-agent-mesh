@@ -73,7 +73,7 @@ documentation = "https://github.com/SolaceLabs/solace-agent-mesh/blob/main/docs/
 "configs" = "solace_agent_mesh/configs"
 "templates" = "solace_agent_mesh/templates"
 "cli" = "solace_agent_mesh/cli"
-"web-visualizer/dist" = "solace_agent_mesh/assets/web-visualizer"
+#"web-visualizer/dist" = "solace_agent_mesh/assets/web-visualizer"
 
 [tool.hatch.build.targets.sdist.force-include]
 "web-visualizer/dist" = "/assets/web-visualizer"
