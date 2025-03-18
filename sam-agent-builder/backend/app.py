@@ -1,4 +1,14 @@
+
+import sys
+import os
+
+# Add the project root to the path
+solace_agent_mesh = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+sys.path.append(solace_agent_mesh)
+
 from flask import Flask, request, jsonify, make_response
+from solace_agent_mesh.cli.commands.add.agent import add_agent_command
+# from solace_agent_mesh.cli.config import Config
 
 app = Flask(__name__)
 from flask_cors import CORS
@@ -24,6 +34,22 @@ def create_agent():
     
     # Here we would actually create the agent in the agent mesh framework
     # For now, just return a success response
+
+    # Create a default config when not in CLI context
+    config = {
+        "solace_agent_mesh": {
+            "config_directory": os.path.join(os.getcwd(), "config"),
+            "modules_directory": os.path.join(os.getcwd(), "src"),
+        }
+    }
+
+    result = add_agent_command(agent_name, config)
+
+    if result == 1:
+        return jsonify({
+            "success": False,
+            "message": f"Failed to create agent '{agent_name}'"
+        }), 500
     
     return jsonify({
         "success": True,
