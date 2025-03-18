@@ -423,37 +423,48 @@ class {action_name}(Action):
     return action_file_path
 
 
-
 def parse_actions_from_global_context(xml_string: str) -> List[Dict[str, Any]]:
     """
     Parse XML output from LLM to extract action details.
-    
+
     Args:
         xml_string: XML string from LLM
-    
+
     Returns:
         List of dictionaries with action details
     """
     # Extract the XML content from the code block
-    match = re.search(r'```xml\n(.*?)\n```', xml_string, re.DOTALL)
+    match = re.search(r"```xml\n(.*?)\n```", xml_string, re.DOTALL)
     if match:
         xml_content = match.group(1)
     else:
         xml_content = xml_string
-    
+
     # Parse the XML
     root = ET.fromstring(xml_content)
-    
+
     # Find all actions
     actions = []
-    for action_elem in root.findall('./actions/action'):
+    for action_elem in root.findall("./actions/action"):
         action = {
-            'name': action_elem.find('name').text if action_elem.find('name') is not None else '',
-            'description': action_elem.find('description').text if action_elem.find('description') is not None else '',
-            'returns': action_elem.find('returns').text if action_elem.find('returns') is not None else ''
+            "name": (
+                action_elem.find("name").text
+                if action_elem.find("name") is not None
+                else ""
+            ),
+            "description": (
+                action_elem.find("description").text
+                if action_elem.find("description") is not None
+                else ""
+            ),
+            "returns": (
+                action_elem.find("returns").text
+                if action_elem.find("returns") is not None
+                else ""
+            ),
         }
         actions.append(action)
-    
+
     return actions
 
 
