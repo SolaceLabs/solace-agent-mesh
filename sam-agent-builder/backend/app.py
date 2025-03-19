@@ -212,6 +212,59 @@ def process_agent_creation(tracking_id, agent_name, agent_description, api_key, 
         )
         test_case_response = make_llm_api_call(test_case_prompt)
 
+        test_case_dictionary = parse_test_cases_xml(test_case_response)
+        # test_case_dictionary = {
+        #     "test_cases": [
+        #         {
+        #             "agent_name": "health_expert",
+        #             "action_name": "GetCalorieEstimate",
+        #             "id": "1",
+        #             "title": "Basic Fruit Calorie Query",
+        #             "user_query": "How many calories are in an apple?",
+        #             "invoke_action": {
+        #                 "agent_name": "health_expert",
+        #                 "action_name": "GetCalorieEstimate",
+        #             },
+        #             "expected_output": {
+        #                 "status": "success",
+        #                 "description": "Approximate calorie count for a medium apple with brief nutritional context.",
+        #             },
+        #         },
+        #         {
+        #             "agent_name": "health_expert",
+        #             "action_name": "GetCalorieEstimate",
+        #             "id": "2",
+        #             "title": "Basic Protein Food Calorie Query",
+        #             "user_query": "What's the calorie content of a chicken breast?",
+        #             "invoke_action": {
+        #                 "agent_name": "health_expert",
+        #                 "action_name": "GetCalorieEstimate",
+        #             },
+        #             "expected_output": {
+        #                 "status": "success",
+        #                 "description": "Approximate calorie count for a standard chicken breast serving with brief nutritional context.",
+        #             },
+        #         },
+        #     ]
+        # }
+        # print(f"Test cases: {test_case_dictionary}")
+
+        # Test build
+        success, error_message = run_agent_mesh(test_case_dictionary)
+
+        if not success:
+            print(f"Agent mesh failed to start: {error_message}")
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": f"Failed to build agent '{agent_name}'",
+                        "error": error_message,
+                    }
+                ),
+                500,
+            )
+
         # Final update - completed
         report_progress(
             tracking_id, 
