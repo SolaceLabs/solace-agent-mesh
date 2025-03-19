@@ -1,5 +1,6 @@
 import sys
 import os
+import logging
 
 # Add the project root to the path
 solace_agent_mesh = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
@@ -7,12 +8,14 @@ sys.path.append(solace_agent_mesh)
 
 from flask import Flask, request, jsonify
 from solace_agent_mesh.cli.commands.add.agent import add_agent_command
+from scripts.test_build import run_agent_mesh, test_agent_with_test_cases
 from helpers import (
     make_llm_api_call,
     parse_actions_from_global_context,
     parse_agent_from_global_context,
     add_filenames_to_action_list_and_create,
     parse_config_output,
+    parse_test_cases_xml,
 )
 from scripts.prompts import create_agent_prompt, create_test_cases_prompt
 from scripts.file_utils import (
@@ -73,7 +76,6 @@ def create_agent():
         )
 
     # Prompt LLM to get the agent format in XML
-    #prompt is the global contextr
     prompt = create_agent_prompt(agent_name, agent_description)
     response = make_llm_api_call(prompt)
 
@@ -107,37 +109,111 @@ def create_agent():
     delete_sample_action_file(agent_name.replace("-", "_"))
 
     # Create action files
-    add_filenames_to_action_list_and_create(agent_name.replace("-", "_"), action_dictionary)
+    add_filenames_to_action_list_and_create(
+        agent_name.replace("-", "_"), action_dictionary
+    )
 
-    #update the config file with any needed configurations
+    # update the config file with any needed configurations
     is_api_key_required = True if api_key else False
-    updated_config_file_raw = build_config(agent_name.replace("-", "_"), agent_dictionary, action_dictionary, is_api_key_required )
+    updated_config_file_raw = build_config(
+        agent_name.replace("-", "_"),
+        agent_dictionary,
+        action_dictionary,
+        is_api_key_required,
+    )
 
     updated_config_file_parsed = parse_config_output(updated_config_file_raw)
 
     print(f"Updated config file: {updated_config_file_parsed}")
 
-    write_agent_file(agent_name.replace("-", "_"), "agent_config", updated_config_file_parsed["file_content"])
+    write_agent_file(
+        agent_name.replace("-", "_"),
+        "agent_config",
+        updated_config_file_parsed["file_content"],
+    )
 
     configs_added = updated_config_file_parsed["configs_added"]
 
-    #update action files
+    # update action files
     for action in action_dictionary:
         action_name = action["name"]
         action_file_name = action["filename"]
         action_description = action["description"]
         action_return_description = action["returns"]
 
-        updated_action_file_raw = output_action_file(agent_name.replace("-", "_"), action_file_name, action_name, action_description, action_return_description, configs_added)
+        updated_action_file_raw = output_action_file(
+            agent_name.replace("-", "_"),
+            action_file_name,
+            action_name,
+            action_description,
+            action_return_description,
+            configs_added,
+        )
         updated_action_file_parsed = parse_config_output(updated_action_file_raw)
-        write_agent_file(agent_name.replace("-", "_"), "agent_action",updated_action_file_parsed["file_content"] ,action_file_name)
-
+        write_agent_file(
+            agent_name.replace("-", "_"),
+            "agent_action",
+            updated_action_file_parsed["file_content"],
+            action_file_name,
+        )
 
     test_case_prompt = create_test_cases_prompt(
-    agent_name.replace("-", "_"), agent_dictionary["description"], action_dictionary
+        agent_name.replace("-", "_"), agent_dictionary["description"], action_dictionary
     )
     test_case_response = make_llm_api_call(test_case_prompt)
-    # print(f"test_case_response: {test_case_response}")
+
+    test_case_dictionary = parse_test_cases_xml(test_case_response)
+    # test_case_dictionary = {
+    #     "test_cases": [
+    #         {
+    #             "agent_name": "health_expert",
+    #             "action_name": "GetCalorieEstimate",
+    #             "id": "1",
+    #             "title": "Basic Fruit Calorie Query",
+    #             "user_query": "How many calories are in an apple?",
+    #             "invoke_action": {
+    #                 "agent_name": "health_expert",
+    #                 "action_name": "GetCalorieEstimate",
+    #             },
+    #             "expected_output": {
+    #                 "status": "success",
+    #                 "description": "Approximate calorie count for a medium apple with brief nutritional context.",
+    #             },
+    #         },
+    #         {
+    #             "agent_name": "health_expert",
+    #             "action_name": "GetCalorieEstimate",
+    #             "id": "2",
+    #             "title": "Basic Protein Food Calorie Query",
+    #             "user_query": "What's the calorie content of a chicken breast?",
+    #             "invoke_action": {
+    #                 "agent_name": "health_expert",
+    #                 "action_name": "GetCalorieEstimate",
+    #             },
+    #             "expected_output": {
+    #                 "status": "success",
+    #                 "description": "Approximate calorie count for a standard chicken breast serving with brief nutritional context.",
+    #             },
+    #         },
+    #     ]
+    # }
+    # print(f"Test cases: {test_case_dictionary}")
+
+    # Test build
+    success, error_message = run_agent_mesh(test_case_dictionary)
+
+    if not success:
+        print(f"Agent mesh failed to start: {error_message}")
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": f"Failed to build agent '{agent_name}'",
+                    "error": error_message,
+                }
+            ),
+            500,
+        )
 
     return jsonify(
         {

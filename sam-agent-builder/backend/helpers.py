@@ -204,48 +204,49 @@ def get_agent_file(
 
 def add_filenames_to_action_list_and_create(agent_name, action_dictionary):
     """
-    Calls create_action_file for each action in action_dictionary and adds the resulting 
+    Calls create_action_file for each action in action_dictionary and adds the resulting
     filename (without extension) to each action config.
-    
+
     Args:
         agent_name (str): The name of the agent
         action_dictionary (list): List of action configurations
-    
+
     Returns:
         list: The updated configurations with filenames
     """
     for action in action_dictionary:
-        action_name = action['name']
-        action_description = action['description']
-        
+        action_name = action["name"]
+        action_description = action["description"]
+
         # Call your existing function to create the action file
         action_file_path = create_action_file(
             agent_name=agent_name,
             action_name=action_name,
             action_description=action_description,
         )
-        
+
         # Extract just the filename without extension from the path
         filename = os.path.basename(action_file_path)
-        action['filename'] = filename.replace('.py', '')
-    
+        action["filename"] = filename.replace(".py", "")
+
     return action_dictionary
+
 
 def parse_config_output(text):
     """
     Parse the output response and return a valid JSON with 'file_content' and 'configs_added' fields.
     Handles backticks if they are present in the response.
-    
+
     Args:
         text (str): The output response text to parse
-    
+
     Returns:
         dict: A dictionary containing 'file_content' and 'configs_added' fields
     """
-     # Try to find JSON content within the response
-    code_block_pattern = r'```json\s*([\s\S]*?)```'
+    # Try to find JSON content within the response
+    code_block_pattern = r"```json\s*([\s\S]*?)```"
     code_block_match = re.search(code_block_pattern, text)
-    
+
     if code_block_match:
         extracted_json = code_block_match.group(1).strip()
         try:
@@ -255,11 +256,11 @@ def parse_config_output(text):
                 return result
         except json.JSONDecodeError:
             pass  # Fall through to the next approach
-    
+
     # 2. If no code block or JSON parse above failed, attempt to find a JSON object { ... }
-    json_pattern = r'({[\s\S]*})'
+    json_pattern = r"({[\s\S]*})"
     json_match = re.search(json_pattern, text)
-    
+
     if json_match:
         candidate_json = json_match.group(1).strip()
         try:
@@ -269,8 +270,8 @@ def parse_config_output(text):
                 return result
         except json.JSONDecodeError:
             pass  # Fall through to more detailed parsing
-    
-    # 3. Fallback approach: 
+
+    # 3. Fallback approach:
     #    - Extract file_content from backticks or standard quotes
     #    - Optionally extract configs_added
     file_content = None
@@ -278,11 +279,9 @@ def parse_config_output(text):
     file_match = re.search(file_content_pattern, text, re.DOTALL)
     if file_match:
         file_content = file_match.group(1).strip()
-    
-    result = {
-        "file_content": file_content if file_content is not None else ""
-    }
-    
+
+    result = {"file_content": file_content if file_content is not None else ""}
+
     # Look for configs_added as a JSON array if it exists
     configs_pattern = r'"configs_added"\s*:\s*(\[.*?\])'
     configs_match = re.search(configs_pattern, text, re.DOTALL)
@@ -295,8 +294,107 @@ def parse_config_output(text):
             items = re.findall(r'"([^"]+)"', configs_match.group(1))
             if items:
                 result["configs_added"] = items
-    
+
     return result
+
+
+def parse_test_cases_xml(xml_string: str) -> Dict[str, Any]:
+    """
+    Parse test cases XML into a dictionary structure.
+    Args:
+        xml_string: XML string containing test cases
+    Returns:
+        Dictionary representation of the test cases
+    """
+    # First, try to extract XML content from code blocks if present
+    xml_content = xml_string
+
+    # Look for XML in code blocks (```xml ... ```)
+    code_block_match = re.search(
+        r"```(?:xml)?\s*([\s\S]*?)\s*```", xml_string, re.DOTALL
+    )
+    if code_block_match:
+        xml_content = code_block_match.group(1).strip()
+
+    # If no code block found, try to find XML tags directly
+    if "<test_cases>" not in xml_content:
+        xml_match = re.search(
+            r"(<test_cases>[\s\S]*?</test_cases>)", xml_string, re.DOTALL
+        )
+        if xml_match:
+            xml_content = xml_match.group(1).strip()
+
+    # If we still don't have valid XML content with root tags, wrap it
+    if not xml_content.strip().startswith("<test_cases>"):
+        xml_content = f"<test_cases>{xml_content}</test_cases>"
+
+    try:
+        # Parse the XML string
+        root = ET.fromstring(xml_content)
+
+        # Initialize the result dictionary
+        result = {"test_cases": []}
+
+        # If the root is not test_cases (in case we wrapped it above), find the test_cases element
+        if root.tag != "test_cases":
+            test_cases_elem = root.find("test_cases")
+            if test_cases_elem is not None:
+                root = test_cases_elem
+
+        # Process each agent
+        for agent_elem in root.findall("agent"):
+            agent_name = agent_elem.get("name")
+            # Process each action within the agent
+            for action_elem in agent_elem.findall("action"):
+                action_name = action_elem.get("name")
+                # Process each test case within the action
+                for test_case_elem in action_elem.findall("test_case"):
+                    test_case = {
+                        "agent_name": agent_name,
+                        "action_name": action_name,
+                        "id": test_case_elem.get("id"),
+                        "title": test_case_elem.get("title"),
+                    }
+
+                    # Extract user query
+                    user_query_elem = test_case_elem.find("user_query")
+                    if user_query_elem is not None and user_query_elem.text:
+                        test_case["user_query"] = user_query_elem.text
+
+                    # Extract invoke action details
+                    invoke_action_elem = test_case_elem.find("invoke_action")
+                    if invoke_action_elem is not None:
+                        invoke_action = {}
+                        agent_name_elem = invoke_action_elem.find("agent_name")
+                        if agent_name_elem is not None and agent_name_elem.text:
+                            invoke_action["agent_name"] = agent_name_elem.text
+                        action_name_elem = invoke_action_elem.find("action_name")
+                        if action_name_elem is not None and action_name_elem.text:
+                            invoke_action["action_name"] = action_name_elem.text
+                        test_case["invoke_action"] = invoke_action
+
+                    # Extract expected output
+                    expected_output_elem = test_case_elem.find("expected_output")
+                    if expected_output_elem is not None:
+                        expected_output = {}
+                        status_elem = expected_output_elem.find("status")
+                        if status_elem is not None and status_elem.text:
+                            expected_output["status"] = status_elem.text
+                        description_elem = expected_output_elem.find("description")
+                        if description_elem is not None and description_elem.text:
+                            expected_output["description"] = description_elem.text
+                        test_case["expected_output"] = expected_output
+
+                    # Add the test case to the result
+                    result["test_cases"].append(test_case)
+
+        return result
+
+    except ET.ParseError as e:
+        # If parsing fails, return an error message
+        print(f"XML parsing error: {e}")
+        return {"error": f"Failed to parse XML: {str(e)}", "test_cases": []}
+
 
 # # Test the function
 # agent_config_content = get_agent_file("test", "agent_main")
@@ -355,5 +453,3 @@ def parse_config_output(text):
 
 # content = get_agent_file("stock_price", "agent_main")
 # print(content)
-
-

@@ -1,4 +1,4 @@
-NUMBER_OF_TEST_CASES_PER_ACTION = 2
+NUMBER_OF_TEST_CASES_PER_ACTION = 1
 
 
 def create_agent_prompt(agent_name, agent_description):
