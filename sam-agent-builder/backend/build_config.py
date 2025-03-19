@@ -122,7 +122,10 @@ Here's an example of adding a custom configuration variable with an environment 
     {agent_config_content}
 
     OUTPUT FORMAT:
-    Remember to provide your response as a JSON object with a  "file_content" field containing the complete YAML configuration and a "configs_added" field with just the names of the configs that were added as a list. ALways return the 
+    Remember to provide your response as a JSON object with a  "file_content" field containing the complete YAML configuration, 
+    a "configs_added" field with just the names of the configs that were added as a list, and a api_key_name value which is the anme of the
+    environment variable for the API KEY if it is required., or just put "" if not required
+      ALways return the 
     complete configuration file, not just the changes.
     Example response:
     """

@@ -1,7 +1,7 @@
 #given a file name without the .py extension of an action, this function will overwrite it with code for that action
 from helpers import make_llm_api_call, get_agent_file
 
-def output_action_file(agent_name,file_name, action_name, action_description, action_return_description, configs_added):
+def output_action_file(agent_name,file_name, action_name, action_description, action_return_description, configs_added,api_description):
     action_file = get_agent_file(agent_name,"agent_action" ,file_name)
     SYSTEM_PROMPT = """
     You are an expert Python developer creating action files for the Solace Agent Mesh framework.
@@ -41,6 +41,10 @@ Action Description: {action_description}
 Expected Return: {action_return_description}
 Current action file to be edited: {action_file}
 The configs that were added are: {configs_added}
+
+IMPORTANT:
+IF an api description was passed in then the action should use that API, the key will be usually provided through configs.
+Here is the api description: {api_description}
 
 You don't need to use all the configs, only use the ones that are absolutel required or supported
 

@@ -298,6 +298,65 @@ def parse_config_output(text):
     
     return result
 
+
+def add_env_variable_if_missing(env_var_name: str, env_var_value: str) -> tuple[Path, bool]:
+    """
+    Adds an environment variable to the .env file in the project root ONLY if it doesn't already exist.
+    Preserves comments and formatting in the .env file.
+    
+    Args:
+        env_var_name: Name of the environment variable (e.g., ACCUWEATHER_API_KEY)
+        env_var_value: Value to set for the environment variable
+        
+    Returns:
+        Tuple of (path_to_env_file, was_variable_added)
+        
+    Raises:
+        FileNotFoundError: If the .env file doesn't exist in the project root
+    """
+    # Get the project root directory
+    current_dir = Path(os.path.dirname(os.path.abspath(__file__)))
+    project_root = current_dir.parent.parent  # Adjust this if needed
+    
+    # Path to the .env file
+    env_path = project_root / ".env"
+    
+    # Check if .env file exists
+    if not env_path.exists():
+        raise FileNotFoundError(f"No .env file found at: {env_path}")
+    
+    # Read existing content
+    with open(env_path, 'r') as file:
+        lines = file.readlines()
+    
+    # Check if variable already exists
+    for line in lines:
+        # Skip comments and empty lines when checking for variables
+        if line.strip() and not line.strip().startswith('#'):
+            # Split only on the first equals sign
+            parts = line.split('=', 1)
+            if len(parts) >= 2 and parts[0].strip() == env_var_name:
+                print(f"{env_var_name} already exists in: {env_path}")
+                return env_path, False
+    
+    # If we get here, the variable doesn't exist - add it
+    # Add a newline if the file doesn't end with one
+    if lines and not lines[-1].endswith('\n'):
+        lines.append('\n')
+    
+    # Add an empty line if the file doesn't end with an empty line
+    if lines and lines[-1].strip():
+        lines.append('\n')
+        
+    lines.append(f"{env_var_name}={env_var_value}\n")
+    
+    # Write updated content back to file
+    with open(env_path, 'w') as file:
+        file.writelines(lines)
+    
+    print(f"Added {env_var_name} to: {env_path}")
+    return env_path, True
+
 # # Test the function
 # agent_config_content = get_agent_file("test", "agent_main")
 # print(agent_config_content)
