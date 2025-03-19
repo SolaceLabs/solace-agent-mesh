@@ -199,6 +199,7 @@ Your job is to develop this agent by:
 
 3. For each action, provide:
    - A detailed description explaining what the action does
+   - Required parameters with their data types and purpose
    - Expected output format and content
 
 4. Ensure the actions collectively cover the full range of functionality needed for the agent to fulfill its purpose.
@@ -213,12 +214,31 @@ Format your response as an XML document with the following structure:
     <action>
       <name>ActionName1</name>
       <description>Detailed explanation of what the action does</description>
+      <parameters>
+        <parameter>
+          <name>param1</name>
+          <type>string/number/boolean/etc</type>
+          <description>Description of this parameter</description>
+        </parameter>
+        <parameter>
+          <name>param2</name>
+          <type>string/number/boolean/etc</type>
+          <description>Description of this parameter</description>
+        </parameter>
+      </parameters>
       <returns>Description of what the action returns</returns>
     </action>
     
     <action>
       <name>ActionName2</name>
       <description>Detailed explanation of what the action does</description>
+      <parameters>
+        <parameter>
+          <name>param1</name>
+          <type>string/number/boolean/etc</type>
+          <description>Description of this parameter</description>
+        </parameter>
+      </parameters>
       <returns>Description of what the action returns</returns>
     </action>
   </actions>
@@ -255,8 +275,7 @@ def generate_agent_component(agent_name, description, actions, imports=None):
     actions_str = ", ".join(actions)
 
     # Generate the complete file content
-    content = f'''"""The agent component for the {agent_name}"""                                                                                                                                                                                                      
-{chr(10).join(imports)}                                                                                                                                                                                                                                               
+    content = f'''"""The agent component for the {agent_name}"""                                                                                                                                                                                                                                               
                                                                                                                                                                                                                                                                        
 import os                                                                                                                                                                                                                                                             
 import copy                                                                                                                                                                                                                                                           
@@ -268,8 +287,10 @@ sys.path.append(os.path.dirname(SCRIPT_DIR))
 from solace_agent_mesh.agents.base_agent_component import (                                                                                                                                                                                                           
     agent_info,                                                                                                                                                                                                                                                       
     BaseAgentComponent,                                                                                                                                                                                                                                               
-)                                                                                                                                                                                                                                                                     
-                                                                                                                                                                                                                                                                    
+)          
+                                                                                                                                                                                                      
+{chr(10).join(imports)}
+
 info = copy.deepcopy(agent_info)                                                                                                                                                                                                                                      
 info["agent_name"] = "{agent_name}"                                                                                                                                                                                                                                   
 info["class_name"] = "{class_name}"                                                                                                                                                                                                                                   
@@ -423,6 +444,36 @@ class {action_name}(Action):
     return action_file_path
 
 
+def parse_agent_from_global_context(xml_string: str) -> Dict[str, Any]:
+    """
+    Parse XML output from LLM to extract agent details.
+
+    Args:
+        xml_string: XML string from LLM
+
+    Returns:
+        Dictionary with agent details
+    """
+    # Extract the XML content from the code block
+    match = re.search(r"```xml\n(.*?)\n```", xml_string, re.DOTALL)
+    if match:
+        xml_content = match.group(1)
+    else:
+        xml_content = xml_string
+
+    # Parse the XML
+    root = ET.fromstring(xml_content)
+
+    # Extract agent details
+    agent = {
+        "name": root.find("name").text,
+        "description": root.find("description").text,
+        "actions": [],
+    }
+
+    return agent
+
+
 def parse_actions_from_global_context(xml_string: str) -> List[Dict[str, Any]]:
     """
     Parse XML output from LLM to extract action details.
@@ -457,6 +508,14 @@ def parse_actions_from_global_context(xml_string: str) -> List[Dict[str, Any]]:
                 if action_elem.find("description") is not None
                 else ""
             ),
+            "parameters": [
+                {
+                    "name": param.find("name").text,
+                    "type": param.find("type").text,
+                    "desc": param.find("description").text,
+                }
+                for param in action_elem.findall("parameters/parameter")
+            ],
             "returns": (
                 action_elem.find("returns").text
                 if action_elem.find("returns") is not None
@@ -478,49 +537,49 @@ def parse_actions_from_global_context(xml_string: str) -> List[Dict[str, Any]]:
 # print(prompt)
 # print(make_llm_api_call(prompt))
 
-# Example usage
-generate_agent_component(
-    agent_name="stock_price",
-    imports=[
-        "from stock_price.actions.get_stock_price import GetStockPrice",
-        "from stock_price.actions.analyze_stock_trend import AnalyzeStockTrend",
-    ],
-    description="This agent handles financial data processing. It should be used when a user explicitly requests information about stocks or financial metrics.",
-    actions=["GetStockPrice", "AnalyzeStockTrend"],
-)
+# # Example usage
+# generate_agent_component(
+#     agent_name="stock_price",
+#     imports=[
+#         "from stock_price.actions.get_stock_price import GetStockPrice",
+#         "from stock_price.actions.analyze_stock_trend import AnalyzeStockTrend",
+#     ],
+#     description="This agent handles financial data processing. It should be used when a user explicitly requests information about stocks or financial metrics.",
+#     actions=["GetStockPrice", "AnalyzeStockTrend"],
+# )
 
-# Create GetStockPrice action
-create_action_file(
-    agent_name="stock_price",
-    action_name="GetStockPrice",
-    action_description="Retrieves the current price of a specified stock symbol",
-    params=[
-        {
-            "name": "symbol",
-            "desc": "The stock ticker symbol (e.g., AAPL, MSFT, GOOGL)",
-            "type": "string",
-        }
-    ],
-)
+# # Create GetStockPrice action
+# create_action_file(
+#     agent_name="stock_price",
+#     action_name="GetStockPrice",
+#     action_description="Retrieves the current price of a specified stock symbol",
+#     params=[
+#         {
+#             "name": "symbol",
+#             "desc": "The stock ticker symbol (e.g., AAPL, MSFT, GOOGL)",
+#             "type": "string",
+#         }
+#     ],
+# )
 
-# Create AnalyzeStockTrend action
-create_action_file(
-    agent_name="stock_price",
-    action_name="AnalyzeStockTrend",
-    action_description="Analyzes the trend of a stock over a specified time period",
-    params=[
-        {
-            "name": "symbol",
-            "desc": "The stock ticker symbol (e.g., AAPL, MSFT, GOOGL)",
-            "type": "string",
-        },
-        {
-            "name": "period",
-            "desc": "Time period for analysis (e.g., '1d', '1w', '1m', '1y')",
-            "type": "string",
-        },
-    ],
-)
+# # Create AnalyzeStockTrend action
+# create_action_file(
+#     agent_name="stock_price",
+#     action_name="AnalyzeStockTrend",
+#     action_description="Analyzes the trend of a stock over a specified time period",
+#     params=[
+#         {
+#             "name": "symbol",
+#             "desc": "The stock ticker symbol (e.g., AAPL, MSFT, GOOGL)",
+#             "type": "string",
+#         },
+#         {
+#             "name": "period",
+#             "desc": "Time period for analysis (e.g., '1d', '1w', '1m', '1y')",
+#             "type": "string",
+#         },
+#     ],
+# )
 
 
 # content = get_agent_file("stock_price", "agent_main")
