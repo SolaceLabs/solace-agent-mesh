@@ -26,7 +26,8 @@ Use syntax like: ${VARIABLE_NAME, default_value} or ${VARIABLE_NAME}
 This allows for externalized configuration at runtime.
 
 # WORKING WITH YOUR TASK
-If the agent requires a specific configuration such as in most cases an API KEY or a customizable behavior you can add this to the configuration like so:
+Only add configurations if it is abolutely required by an action, otherwise leave it as is.
+If the agent requires a specific configuration such as in most cases an API KEY you can add it like so:
 
 # EXAMPLES
 Here is an example of a valid agent configuration file:

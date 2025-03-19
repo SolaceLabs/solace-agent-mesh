@@ -5,6 +5,8 @@ import re
 from pathlib import Path
 import xml.etree.ElementTree as ET
 from typing import List, Dict, Any
+from scripts.file_utils import create_action_file
+import json
 
 
 def make_llm_api_call(prompt, model="openai/claude-3-7-sonnet"):
@@ -200,84 +202,19 @@ def get_agent_file(
     return content
 
 
-def write_agent_file(
-    agent_name: str, file_type: str, content: str, action_file_name: str = None
-) -> Path:
+def add_filenames_to_action_list_and_create(agent_name, action_dictionary):
     """
-    Write content to an existing agent file based on agent name and file type.
-    Will not create new files, only update existing ones.
-
-    Args:
-        agent_name: Name of the agent
-        file_type: Type of file to write ("agent_config", "agent_main", "agent_action")
-        content: The content to write to the file
-        action_file_name: Optional name of the action file (without .py extension) when file_type is "agent_action"
-
-    Returns:
-        The path of the written file
-
-    Raises:
-        FileNotFoundError: If the file or its parent directories don't exist
-        ValueError: If the file type is unknown
-    """
-
-    current_dir = Path(os.path.dirname(os.path.abspath(__file__)))
-    project_root = current_dir.parent.parent
-
-    if file_type == "agent_config":
-        file_path = project_root / "configs" / "agents" / f"{agent_name}.yaml"
-    elif file_type == "agent_main":
-        file_path = (
-            project_root
-            / "modules"
-            / "agents"
-            / agent_name
-            / f"{agent_name}_agent_component.py"
-        )
-    elif file_type == "agent_action":
-        actions_dir = project_root / "modules" / "agents" / agent_name / "actions"
-
-        # If specific action file is provided, use it
-        if action_file_name:
-            file_path = actions_dir / f"{action_file_name}.py"
-        else:
-            # Find the first .py file that's not __init__.py
-            py_files = [f for f in actions_dir.glob("*.py") if f.name != "__init__.py"]
-            if not py_files:
-                raise FileNotFoundError(f"No action files found in: {actions_dir}")
-            file_path = py_files[0]
-    else:
-        raise ValueError(f"Unknown file type: {file_type}")
-
-    # Check if file exists
-    if not file_path.exists():
-        raise FileNotFoundError(f"File not found: {file_path}")
-
-    # Check if parent directory exists
-    if not file_path.parent.exists():
-        raise FileNotFoundError(f"Directory not found: {file_path.parent}")
-
-    # Write content to file
-    with open(file_path, "w") as file:
-        file.write(content)
-
-    print(f"Written content to: {file_path}")
-    return file_path
-
-
-def add_filenames_to_action_list(agent_name, updated_configs):
-    """
-    Calls create_action_file for each action in updated_configs and adds the resulting 
+    Calls create_action_file for each action in action_dictionary and adds the resulting 
     filename (without extension) to each action config.
     
     Args:
         agent_name (str): The name of the agent
-        updated_configs (list): List of action configurations
+        action_dictionary (list): List of action configurations
     
     Returns:
         list: The updated configurations with filenames
     """
-    for action in updated_configs:
+    for action in action_dictionary:
         action_name = action['name']
         action_description = action['description']
         
@@ -292,7 +229,61 @@ def add_filenames_to_action_list(agent_name, updated_configs):
         filename = os.path.basename(action_file_path)
         action['filename'] = filename.replace('.py', '')
     
-    return updated_configs
+    return action_dictionary
+
+def parse_config_output(text):
+    """
+    Parse the output response and return a valid JSON with 'file_content' and 'configs_added' fields.
+    Handles backticks if they are present in the response.
+    
+    Args:
+        text (str): The output response text to parse
+    
+    Returns:
+        dict: A dictionary containing 'file_content' and 'configs_added' fields
+    """
+     # Try to find JSON content within the response
+    json_pattern = r'({[\s\S]*})'
+    json_match = re.search(json_pattern, text)
+    
+    if json_match:
+        # If JSON pattern is found, try to directly parse it
+        try:
+            result = json.loads(json_match.group(1))
+            # Ensure file_content is present
+            if "file_content" in result:
+                return result
+        except json.JSONDecodeError:
+            pass  # Fall through to more detailed parsing
+    
+    # Handle backticks and extract file_content
+    file_content = None
+    
+    # Look for file_content between backticks or quotes
+    file_content_pattern = r'"file_content"\s*:\s*(?:`{3}|")([\s\S]*?)(?:`{3}|")'
+    file_match = re.search(file_content_pattern, text, re.DOTALL)
+    if file_match:
+        file_content = file_match.group(1).strip()
+    
+    # Create the result dictionary with just file_content
+    result = {
+        "file_content": file_content if file_content is not None else ""
+    }
+    
+    # Optionally look for configs_added array if it exists
+    configs_pattern = r'"configs_added"\s*:\s*(\[.*?\])'
+    configs_match = re.search(configs_pattern, text, re.DOTALL)
+    if configs_match:
+        try:
+            configs_added = json.loads(configs_match.group(1))
+            result["configs_added"] = configs_added
+        except json.JSONDecodeError:
+            # Try to parse as string list if JSON parsing fails
+            items = re.findall(r'"([^"]+)"', configs_match.group(1))
+            if items:
+                result["configs_added"] = items
+    
+    return result
 
 # # Test the function
 # agent_config_content = get_agent_file("test", "agent_main")

@@ -5,7 +5,7 @@ from pathlib import Path
 helpers = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(helpers)
 
-from helpers import write_agent_file
+from common import write_agent_file
 
 
 def create_agent_component(agent_name, description, actions, imports=None):

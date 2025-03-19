@@ -1,8 +1,8 @@
 #given a file name without the .py extension of an action, this function will overwrite it with code for that action
-from .helpers import get_agent_file, write_agent_file
+from helpers import make_llm_api_call, get_agent_file
 
-
-def create_action_file(file_name, action_name, action_description, action_return_description):
+def output_action_file(agent_name,file_name, action_name, action_description, action_return_description, configs_added):
+    action_file = get_agent_file(agent_name,"agent_action" ,file_name)
     SYSTEM_PROMPT = """
     You are an expert Python developer creating action files for the Solace Agent Mesh framework.
 
@@ -32,7 +32,7 @@ def create_action_file(file_name, action_name, action_description, action_return
     Most of the boilerplate code will already be provided. You need to fill in the blanks with the action's logic.
 
     # OUTPUT FORMAT
-    Your response must be a JSON object with a single field called "file_content" containing the complete Python code as a string:
+    Your response must be ONLY a JSON object with a single field called "file_content" containing the complete Python code as a string:
     ```json
     {
     "file_content": "\"\"\"Action description\"\"\"\n\nfrom solace_ai_connector.common.log import log..."
@@ -42,11 +42,15 @@ def create_action_file(file_name, action_name, action_description, action_return
     """
 
     SYSTEM_PROMPT += f"""
-ACTION DETAILS
+ACTION DETAILS TO BE IMPLEMENTED
 File Name: {file_name}
 Action Name: {action_name}
 Action Description: {action_description}
 Expected Return: {action_return_description}
+Current action file to be edited: {action_file}
+The configs that were added are: {configs_added}
+
+You don't need to use all the configs, only use the ones that are absolutel required or supported
 
 EXAMPLES OF ACTIONS
 Here are examples of well-implemented actions to guide your implementation:
@@ -247,4 +251,15 @@ files: File attachments
 Scope names usually follow the pattern: agent_name:action_name:operation
 Use helper methods for complex logic
 Access agent methods via self.get_agent()
+
+    # OUTPUT FORMAT
+    Your response must be ONLY a JSON object with a single field called "file_content" containing the complete Python code as a string:
+    ```json
+    {{
+    "file_content": "\"\"\"Action description\"\"\"\n\nfrom solace_ai_connector.common.log import log..."
+    }}" \
 """
+    
+    response = make_llm_api_call(SYSTEM_PROMPT)
+
+    return response

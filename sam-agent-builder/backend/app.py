@@ -11,13 +11,18 @@ from helpers import (
     make_llm_api_call,
     parse_actions_from_global_context,
     parse_agent_from_global_context,
+    add_filenames_to_action_list_and_create,
+    parse_config_output,
 )
 from scripts.prompts import create_agent_prompt, create_test_cases_prompt
 from scripts.file_utils import (
     create_agent_component,
-    create_action_file,
     delete_sample_action_file,
+    write_agent_file,
 )
+from build_actions import output_action_file
+
+from build_config import build_config
 
 # from solace_agent_mesh.cli.config import Config
 
@@ -66,6 +71,7 @@ def create_agent():
         )
 
     # Prompt LLM to get the agent format in XML
+    #prompt is the global contextr
     prompt = create_agent_prompt(agent_name, agent_description)
     response = make_llm_api_call(prompt)
 
@@ -95,25 +101,41 @@ def create_agent():
         description=agent_dictionary["description"],
         imports=imports,
     )
+    # Delete the sample action file
+    delete_sample_action_file(agent_name.replace("-", "_"))
 
     # Create action files
+    add_filenames_to_action_list_and_create(agent_name.replace("-", "_"), action_dictionary)
+
+    #update the config file with any needed configurations
+    is_api_key_required = True if api_key else False
+    updated_config_file_raw = build_config(agent_name.replace("-", "_"), agent_dictionary, action_dictionary, is_api_key_required )
+
+    updated_config_file_parsed = parse_config_output(updated_config_file_raw)
+
+    print(f"Updated config file: {updated_config_file_parsed}")
+
+    write_agent_file(agent_name.replace("-", "_"), "agent_config", updated_config_file_parsed["file_content"])
+
+    configs_added = updated_config_file_parsed["configs_added"]
+
+    #update action files
     for action in action_dictionary:
-        # print(f"action: {action}")
-        create_action_file(
-            agent_name=agent_name.replace("-", "_"),
-            action_name=action["name"],
-            action_description=action["description"],
-            params=action["parameters"],
-        )
+        action_name = action["name"]
+        action_file_name = action["filename"]
+        action_description = action["description"]
+        action_return_description = action["returns"]
+
+        updated_action_file_raw = output_action_file(agent_name.replace("-", "_"), action_file_name, action_name, action_description, action_return_description, configs_added)
+        updated_action_file_parsed = parse_config_output(updated_action_file_raw)
+        write_agent_file(agent_name.replace("-", "_"), "agent_action",updated_action_file_parsed["file_content"] ,action_file_name)
+
 
     test_case_prompt = create_test_cases_prompt(
-        agent_name.replace("-", "_"), agent_dictionary["description"], action_dictionary
+    agent_name.replace("-", "_"), agent_dictionary["description"], action_dictionary
     )
     test_case_response = make_llm_api_call(test_case_prompt)
     # print(f"test_case_response: {test_case_response}")
-
-    # Delete the sample action file
-    delete_sample_action_file(agent_name.replace("-", "_"))
 
     return jsonify(
         {
