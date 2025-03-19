@@ -31,14 +31,6 @@ def output_action_file(agent_name,file_name, action_name, action_description, ac
 
     Most of the boilerplate code will already be provided. You need to fill in the blanks with the action's logic.
 
-    # OUTPUT FORMAT
-    Your response must be ONLY a JSON object with a single field called "file_content" containing the complete Python code as a string:
-    ```json
-    {
-    "file_content": "\"\"\"Action description\"\"\"\n\nfrom solace_ai_connector.common.log import log..."
-    }" \
-    "" \
-    "" \
     """
 
     SYSTEM_PROMPT += f"""
@@ -253,11 +245,8 @@ Use helper methods for complex logic
 Access agent methods via self.get_agent()
 
     # OUTPUT FORMAT
-    Your response must be ONLY a JSON object with a single field called "file_content" containing the complete Python code as a string:
-    ```json
-    {{
-    "file_content": "\"\"\"Action description\"\"\"\n\nfrom solace_ai_connector.common.log import log..."
-    }}" \
+    Remember to provide your response as a JSON object with a  "file_content" field containing the complete action code. ALways return the 
+    complete file, not just the changes.
 """
     
     response = make_llm_api_call(SYSTEM_PROMPT)

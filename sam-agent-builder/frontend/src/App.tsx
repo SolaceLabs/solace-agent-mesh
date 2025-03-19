@@ -7,6 +7,7 @@ function App() {
   const [description, setDescription] = useState('');
   const [requiresApi, setRequiresApi] = useState(false);
   const [apiKey, setApiKey] = useState('');
+  const [apiDescription, setApiDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [response, setResponse] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -25,6 +26,7 @@ function App() {
           name,
           description,
           apiKey: requiresApi ? apiKey : null,
+          apiDescription: requiresApi ? apiDescription : null,
         }),
         mode: 'cors', // Specify CORS mode
       });
@@ -105,18 +107,31 @@ function App() {
             </label>
             
             {requiresApi && (
-              <div className="form-group">
-                <label className="form-label" htmlFor="apiKey">API Key</label>
-                <input
-                  id="apiKey"
-                  className="form-input"
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="Enter your API key"
-                  required={requiresApi}
-                />
-              </div>
+              <>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="apiKey">API Key</label>
+                  <input
+                    id="apiKey"
+                    className="form-input"
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="Enter your API key"
+                    required={requiresApi}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="apiDescription">API Description</label>
+                  <textarea
+                    id="apiDescription"
+                    className="form-input form-textarea"
+                    value={apiDescription}
+                    onChange={(e) => setApiDescription(e.target.value)}
+                    placeholder="Describe the API and how it should be used..."
+                    required={requiresApi}
+                  />
+                </div>
+              </>
             )}
           </div>
           

@@ -243,34 +243,47 @@ def parse_config_output(text):
         dict: A dictionary containing 'file_content' and 'configs_added' fields
     """
      # Try to find JSON content within the response
+    code_block_pattern = r'```json\s*([\s\S]*?)```'
+    code_block_match = re.search(code_block_pattern, text)
+    
+    if code_block_match:
+        extracted_json = code_block_match.group(1).strip()
+        try:
+            result = json.loads(extracted_json)
+            # If "file_content" exists, return immediately
+            if "file_content" in result:
+                return result
+        except json.JSONDecodeError:
+            pass  # Fall through to the next approach
+    
+    # 2. If no code block or JSON parse above failed, attempt to find a JSON object { ... }
     json_pattern = r'({[\s\S]*})'
     json_match = re.search(json_pattern, text)
     
     if json_match:
-        # If JSON pattern is found, try to directly parse it
+        candidate_json = json_match.group(1).strip()
         try:
-            result = json.loads(json_match.group(1))
+            result = json.loads(candidate_json)
             # Ensure file_content is present
             if "file_content" in result:
                 return result
         except json.JSONDecodeError:
             pass  # Fall through to more detailed parsing
     
-    # Handle backticks and extract file_content
+    # 3. Fallback approach: 
+    #    - Extract file_content from backticks or standard quotes
+    #    - Optionally extract configs_added
     file_content = None
-    
-    # Look for file_content between backticks or quotes
     file_content_pattern = r'"file_content"\s*:\s*(?:`{3}|")([\s\S]*?)(?:`{3}|")'
     file_match = re.search(file_content_pattern, text, re.DOTALL)
     if file_match:
         file_content = file_match.group(1).strip()
     
-    # Create the result dictionary with just file_content
     result = {
         "file_content": file_content if file_content is not None else ""
     }
     
-    # Optionally look for configs_added array if it exists
+    # Look for configs_added as a JSON array if it exists
     configs_pattern = r'"configs_added"\s*:\s*(\[.*?\])'
     configs_match = re.search(configs_pattern, text, re.DOTALL)
     if configs_match:
@@ -278,7 +291,7 @@ def parse_config_output(text):
             configs_added = json.loads(configs_match.group(1))
             result["configs_added"] = configs_added
         except json.JSONDecodeError:
-            # Try to parse as string list if JSON parsing fails
+            # Fallback: parse any items in quotes as strings
             items = re.findall(r'"([^"]+)"', configs_match.group(1))
             if items:
                 result["configs_added"] = items

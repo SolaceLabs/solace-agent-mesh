@@ -42,12 +42,14 @@ def create_agent():
     agent_name = data.get("name")
     agent_description = data.get("description")
     api_key = data.get("apiKey")
+    api_description = data.get("apiDescription")
 
     # Log the received data for now (would integrate with agent mesh later)
     # print(f"Creating agent: {agent_name}")
     # print(f"Description: {agent_description}")
     print(f"API Key provided: {'Yes' if api_key else 'No'}")
     print(f"API key: {api_key}")
+    print(f"API Description: {api_description if api_description else 'None'}")
 
     # Here we would actually create the agent in the agent mesh framework
     # For now, just return a success response

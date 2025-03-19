@@ -34,7 +34,8 @@ const DebugPanel: React.FC = () => {
         body: JSON.stringify({
           name: 'Test Agent',
           description: 'This is a test agent',
-          apiKey: null
+          apiKey: 'test-api-key',
+          apiDescription: 'This is a test API description'
         }),
         mode: 'cors'
       });
