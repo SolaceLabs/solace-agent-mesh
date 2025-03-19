@@ -5,17 +5,18 @@ import os
 solace_agent_mesh = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.append(solace_agent_mesh)
 
-from flask import Flask, request, jsonify, make_response
+from flask import Flask, request, jsonify
 from solace_agent_mesh.cli.commands.add.agent import add_agent_command
-from scripts.agent_builder import build_agent
 from helpers import (
-    create_agent_prompt,
     make_llm_api_call,
     parse_actions_from_global_context,
-    create_action_file,
-    generate_agent_component,
-    delete_sample_action,
     parse_agent_from_global_context,
+)
+from scripts.prompts import create_agent_prompt
+from scripts.file_utils import (
+    create_agent_component,
+    create_action_file,
+    delete_sample_action_file,
 )
 
 # from solace_agent_mesh.cli.config import Config
@@ -38,8 +39,8 @@ def create_agent():
     api_key = data.get("apiKey")
 
     # Log the received data for now (would integrate with agent mesh later)
-    print(f"Creating agent: {agent_name}")
-    print(f"Description: {agent_description}")
+    # print(f"Creating agent: {agent_name}")
+    # print(f"Description: {agent_description}")
     print(f"API Key provided: {'Yes' if api_key else 'No'}")
     print(f"API key: {api_key}")
 
@@ -63,9 +64,6 @@ def create_agent():
             ),
             500,
         )
-
-    # Creates template files for the agent
-    build_agent(agent_name, agent_description)
 
     # Prompt LLM to get the agent format in XML
     prompt = create_agent_prompt(agent_name, agent_description)
@@ -91,7 +89,7 @@ def create_agent():
 
     print(f"agent description: {agent_dictionary}")
     # Create the new agent component
-    generate_agent_component(
+    create_agent_component(
         agent_name=agent_name.replace("-", "_"),
         actions=action_names,
         description=agent_dictionary["description"],
@@ -107,6 +105,9 @@ def create_agent():
             action_description=action["description"],
             params=action["parameters"],
         )
+
+    # Delete the sample action file
+    delete_sample_action_file(agent_name.replace("-", "_"))
 
     return jsonify(
         {
