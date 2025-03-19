@@ -1,3 +1,6 @@
+NUMBER_OF_TEST_CASES_PER_ACTION = 2
+
+
 def create_agent_prompt(agent_name, agent_description):
     return f"""
 You are tasked with creating a new agent named "{agent_name}" for an AI system. This agent will be described as: "{agent_description}".
@@ -58,3 +61,75 @@ Format your response as an XML document with the following structure:
   </actions>
 </agent>
 """
+
+
+def create_test_cases_prompt(agent_name, agent_description, actions):
+    prompt = f"""
+# Agent Test Case Generator
+
+## Agent Information
+- Agent Name: {agent_name}
+- Agent Description: {agent_description}
+
+## Available Actions
+"""
+    for action in actions:
+        prompt += f"""
+- Action Name: {action["name"]}
+- Action Description: {action["description"]}
+- Action Expected Output: {action["returns"]}
+"""
+    prompt += f"""
+## Test Case Requirements
+1. Create {NUMBER_OF_TEST_CASES_PER_ACTION} test cases for each action in the agent
+2. Each test case should:
+   - Have a clear, descriptive title
+   - Include a realistic user query that would trigger the action
+   - Describe the expected output/response
+   - The expected output should be not be overly detailed, it should simply not return any issues or unrelated responses
+3. Test cases should only cover basic functionalities (happy path)
+
+## Output Format
+Generate a single XML file containing all test cases with the following structure:
+<test_cases>
+  <agent name="{agent_name}">
+    <action name="[action_name]">
+      <test_case id="1" title="[descriptive_title]">
+        <user_query>[sample_user_query]</user_query>
+        <invoke_action>
+          <agent_name>{agent_name}</agent_name>
+          <action_name>[action_name]</action_name>
+        </invoke_action>
+        <expected_output>
+          <status>success</status>
+          <description>[brief description of expected successful output, should simply not return any issues or unrelated responses]</description>
+        </expected_output>
+      </test_case>
+      <!-- Additional test cases for this action -->
+    </action>
+    <!-- Additional actions -->
+  </agent>
+</test_cases>
+
+## Example XML Structure
+Here's an example of what the output should look like:
+<test_cases>
+  <agent name="weather_agent">
+    <action name="get_weather">
+      <test_case id="1" title="Basic City Weather Query">
+        <user_query>What's the weather like in Seattle right now?</user_query>
+        <invoke_action>
+          <agent_name>weather_agent</agent_name>
+          <action_name>get_weather</action_name>
+        </invoke_action>
+        <expected_output>
+          <status>success</status>
+          <description>Current temperature or weather conditions for Seattle.</description>
+        </expected_output>
+      </test_case>
+    </action>
+  </agent>
+</test_cases>
+"""
+
+    return prompt

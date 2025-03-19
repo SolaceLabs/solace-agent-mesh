@@ -12,7 +12,7 @@ from helpers import (
     parse_actions_from_global_context,
     parse_agent_from_global_context,
 )
-from scripts.prompts import create_agent_prompt
+from scripts.prompts import create_agent_prompt, create_test_cases_prompt
 from scripts.file_utils import (
     create_agent_component,
     create_action_file,
@@ -105,6 +105,12 @@ def create_agent():
             action_description=action["description"],
             params=action["parameters"],
         )
+
+    test_case_prompt = create_test_cases_prompt(
+        agent_name.replace("-", "_"), agent_dictionary["description"], action_dictionary
+    )
+    test_case_response = make_llm_api_call(test_case_prompt)
+    # print(f"test_case_response: {test_case_response}")
 
     # Delete the sample action file
     delete_sample_action_file(agent_name.replace("-", "_"))
