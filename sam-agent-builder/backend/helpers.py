@@ -263,3 +263,93 @@ def write_agent_file(
 
     print(f"Written content to: {file_path}")
     return file_path
+
+
+def add_filenames_to_action_list(agent_name, updated_configs):
+    """
+    Calls create_action_file for each action in updated_configs and adds the resulting 
+    filename (without extension) to each action config.
+    
+    Args:
+        agent_name (str): The name of the agent
+        updated_configs (list): List of action configurations
+    
+    Returns:
+        list: The updated configurations with filenames
+    """
+    for action in updated_configs:
+        action_name = action['name']
+        action_description = action['description']
+        
+        # Call your existing function to create the action file
+        action_file_path = create_action_file(
+            agent_name=agent_name,
+            action_name=action_name,
+            action_description=action_description,
+        )
+        
+        # Extract just the filename without extension from the path
+        filename = os.path.basename(action_file_path)
+        action['filename'] = filename.replace('.py', '')
+    
+    return updated_configs
+
+# # Test the function
+# agent_config_content = get_agent_file("test", "agent_main")
+# print(agent_config_content)
+
+# test prompt
+
+# prompt = create_agent_prompt("finance", "I want to build an agent that gets the stock price for a specific stock.")
+# print(prompt)[{'name': 'GetCurrentWeather', 'description': 'Retrieves the current weather conditions for a specified location. The location can be provided as a city name, address, or geographic coordinates (latitude and longitude). This action connects to weather data services to obtain real-time information.', 'returns': 'A structured weather report containing: current temperature (in both Celsius and Fahrenheit), weather conditions (sunny, cloudy, rainy, etc.), humidity percentage, wind speed and direction, barometric pressure, visibility, and the local time of the weather reading.'}, {'name': 'GetForecast', 'description': 'Retrieves a weather forecast for a specified location. The user can optionally specify the forecast duration (e.g., 24-hour, 3-day, or 7-day forecast). This action provides predictive weather information to help users plan ahead.', 'returns': 'A day-by-day forecast containing predicted high and low temperatures, precipitation probability, expected weather conditions, and any weather alerts or warnings for the requested timeframe.'}]
+# print(make_llm_api_call(prompt))
+
+# Example usage
+# generate_agent_component(
+#     agent_name="stock_price",
+#     imports=[
+#         "from stock_price.actions.get_stock_price import GetStockPrice",
+#         "from stock_price.actions.analyze_stock_trend import AnalyzeStockTrend",
+#     ],
+#     description="This agent handles financial data processing. It should be used when a user explicitly requests information about stocks or financial metrics.",
+#     actions=["GetStockPrice", "AnalyzeStockTrend"],
+# )
+
+# # Create GetStockPrice action
+# create_action_file(
+#     agent_name="stock_price",
+#     action_name="GetStockPrice",
+#     action_description="Retrieves the current price of a specified stock symbol",
+#     params=[
+#         {
+#             "name": "symbol",
+#             "desc": "The stock ticker symbol (e.g., AAPL, MSFT, GOOGL)",
+#             "type": "string",
+#         }
+#     ],
+# )
+
+# # Create AnalyzeStockTrend action
+# create_action_file(
+#     agent_name="stock_price",
+#     action_name="AnalyzeStockTrend",
+#     action_description="Analyzes the trend of a stock over a specified time period",
+#     params=[
+#         {
+#             "name": "symbol",
+#             "desc": "The stock ticker symbol (e.g., AAPL, MSFT, GOOGL)",
+#             "type": "string",
+#         },
+#         {
+#             "name": "period",
+#             "desc": "Time period for analysis (e.g., '1d', '1w', '1m', '1y')",
+#             "type": "string",
+#         },
+#     ],
+# )
+
+
+# content = get_agent_file("stock_price", "agent_main")
+# print(content)
+
+
