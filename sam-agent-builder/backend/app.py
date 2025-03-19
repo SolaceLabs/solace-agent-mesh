@@ -16,6 +16,7 @@ from helpers import (
     add_filenames_to_action_list_and_create,
     parse_config_output,
     parse_test_cases_xml,
+    add_env_variable_if_missing,
 )
 from scripts.prompts import create_agent_prompt, create_test_cases_prompt
 from scripts.file_utils import (
@@ -53,6 +54,7 @@ def create_agent():
     print(f"API Key provided: {'Yes' if api_key else 'No'}")
     print(f"API key: {api_key}")
     print(f"API Description: {api_description if api_description else 'None'}")
+    is_api_key_required = True if api_key else False
 
     # Here we would actually create the agent in the agent mesh framework
     # For now, just return a success response
@@ -76,7 +78,9 @@ def create_agent():
         )
 
     # Prompt LLM to get the agent format in XML
-    prompt = create_agent_prompt(agent_name, agent_description)
+    prompt = create_agent_prompt(
+        agent_name, agent_description, is_api_key_required, api_description
+    )
     response = make_llm_api_call(prompt)
 
     # Parse XML response to dictionary
@@ -114,7 +118,7 @@ def create_agent():
     )
 
     # update the config file with any needed configurations
-    is_api_key_required = True if api_key else False
+
     updated_config_file_raw = build_config(
         agent_name.replace("-", "_"),
         agent_dictionary,
@@ -134,6 +138,14 @@ def create_agent():
 
     configs_added = updated_config_file_parsed["configs_added"]
 
+    environment_variable = updated_config_file_parsed["api_key_name"]
+
+    if is_api_key_required:
+        added = add_env_variable_if_missing(environment_variable, api_key)
+
+        if added:
+            print(f"Added environment variable: {environment_variable}")
+
     # update action files
     for action in action_dictionary:
         action_name = action["name"]
@@ -148,6 +160,7 @@ def create_agent():
             action_description,
             action_return_description,
             configs_added,
+            api_description,
         )
         updated_action_file_parsed = parse_config_output(updated_action_file_raw)
         write_agent_file(
