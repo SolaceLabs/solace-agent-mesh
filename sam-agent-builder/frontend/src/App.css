@@ -39,7 +39,7 @@
   background-color: white;
   color: var(--solace-blue);
   border-radius: 8px;
-  padding: 2rem;
+  padding: 4rem;
   margin-top: 3rem;
   width: 90%;
   max-width: 600px;
@@ -103,4 +103,317 @@
 
 .api-toggle input {
   margin-right: 0.5rem;
+}
+
+/* Progress Page Styles */
+.progress-container {
+  text-align: center;
+  padding: 1.5rem;
+  position: relative;
+}
+
+.progress-container.success {
+  color: #068f6c;
+}
+
+.progress-container.error {
+  color: #d32f2f;
+}
+
+.progress-header {
+  margin-bottom: 1.5rem;
+  position: relative;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 1rem;
+}
+
+.progress-header h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.25rem;
+  color: var(--solace-blue);
+  font-weight: 600;
+}
+
+.progress-subtitle {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 0;
+}
+
+.progress-card {
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  margin-bottom: 1.5rem;
+  position: relative;
+  transition: all 0.3s ease;
+  border-left: 4px solid var(--solace-green);
+}
+
+.progress-bar-container {
+  padding: 0 1rem;
+  position: relative;
+  margin-bottom: 2rem;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background-color: #eeeeee;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: var(--solace-green);
+  border-radius: 4px;
+  transition: width 0.3s ease-out;
+  background-image: linear-gradient(45deg, 
+    rgba(255, 255, 255, 0.15) 25%, 
+    transparent 25%, 
+    transparent 50%, 
+    rgba(255, 255, 255, 0.15) 50%, 
+    rgba(255, 255, 255, 0.15) 75%, 
+    transparent 75%, 
+    transparent);
+  background-size: 20px 20px;
+  animation: progress-animation 2s linear infinite;
+  will-change: width; /* Optimize for animations */
+}
+
+@keyframes progress-animation {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 20px 0;
+  }
+}
+
+.progress-container.success .progress-fill {
+  animation: none;
+  background-image: none;
+}
+
+.progress-container.error .progress-fill {
+  background-color: #d32f2f;
+  animation: none;
+  background-image: none;
+}
+
+.progress-percentage {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: var(--solace-blue);
+  position: absolute;
+  right: 1rem;
+  top: -24px;
+}
+
+.progress-message {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--solace-blue);
+}
+
+.progress-steps {
+  margin: 1.5rem 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step-counter;
+  text-align: left;
+}
+
+.progress-step {
+  position: relative;
+  padding: 0.8rem 1rem 0.8rem 3rem;
+  margin-bottom: 0.8rem;
+  border-radius: 4px;
+  background-color: #f3f3f3;
+  border-left: 3px solid #ddd;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+  opacity: 0;
+  transform: translateY(10px);
+  animation: fadeInStep 0.5s ease forwards;
+}
+
+/* Stagger the animations for a nice sequence effect */
+.progress-step:nth-child(1) { animation-delay: 0.1s; }
+.progress-step:nth-child(2) { animation-delay: 0.2s; }
+.progress-step:nth-child(3) { animation-delay: 0.3s; }
+.progress-step:nth-child(4) { animation-delay: 0.4s; }
+.progress-step:nth-child(5) { animation-delay: 0.5s; }
+.progress-step:nth-child(6) { animation-delay: 0.6s; }
+.progress-step:nth-child(7) { animation-delay: 0.7s; }
+.progress-step:nth-child(8) { animation-delay: 0.8s; }
+.progress-step:nth-child(9) { animation-delay: 0.9s; }
+.progress-step:nth-child(10) { animation-delay: 1s; }
+.progress-step:nth-child(11) { animation-delay: 1.1s; }
+
+@keyframes fadeInStep {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.progress-step:before {
+  content: counter(step-counter);
+  counter-increment: step-counter;
+  position: absolute;
+  left: 0.8rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+  text-align: center;
+  background-color: #ddd;
+  color: #666;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.progress-step.active {
+  background-color: #e7f7ef;
+  border-left-color: var(--solace-green);
+}
+
+.progress-step.active:before {
+  background-color: var(--solace-green);
+  color: white;
+}
+
+.progress-step.completed {
+  background-color: #f3f9f7;
+  border-left-color: #ccc;
+  color: #666;
+}
+
+.progress-step.completed:before {
+  background-color: #90d3c0;
+  color: white;
+}
+
+.pulse-animation {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 175, 131, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(0, 175, 131, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 175, 131, 0);
+  }
+}
+
+.progress-summary {
+  margin-top: 1.5rem;
+  text-align: left;
+}
+
+.progress-summary h3 {
+  font-size: 1.1rem;
+  color: var(--solace-blue);
+  margin-bottom: 0.75rem;
+  font-weight: 500;
+}
+
+.error-message {
+  background-color: #ffeeee;
+  border: 1px solid #d32f2f;
+  border-radius: 4px;
+  padding: 1rem;
+  margin: 1rem 0;
+  text-align: left;
+  color: #d32f2f;
+  box-shadow: 0 2px 8px rgba(211, 47, 47, 0.1);
+}
+
+.error-message h3 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.error-message p {
+  margin-bottom: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.success-animation {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 1rem;
+  position: relative;
+}
+
+.checkmark {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: block;
+  stroke-width: 2;
+  stroke: var(--solace-green);
+  stroke-miterlimit: 10;
+  box-shadow: inset 0 0 0 var(--solace-green);
+  animation: fill .4s ease-in-out .4s forwards, scale .3s ease-in-out .9s both;
+}
+
+.checkmark__circle {
+  stroke-dasharray: 166;
+  stroke-dashoffset: 166;
+  stroke-width: 2;
+  stroke-miterlimit: 10;
+  stroke: var(--solace-green);
+  fill: none;
+  animation: stroke .6s cubic-bezier(0.650, 0.000, 0.450, 1.000) forwards;
+}
+
+.checkmark__check {
+  transform-origin: 50% 50%;
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: stroke .3s cubic-bezier(0.650, 0.000, 0.450, 1.000) .8s forwards;
+}
+
+@keyframes stroke {
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes scale {
+  0%, 100% {
+    transform: none;
+  }
+  50% {
+    transform: scale3d(1.1, 1.1, 1);
+  }
+}
+
+@keyframes fill {
+  100% {
+    box-shadow: inset 0 0 0 30px white;
+  }
+}
+
+:root {
+  --solace-blue: #0c2139;
+  --solace-green: #00af83;
+  --solace-dark-green: #008f69;
 }
