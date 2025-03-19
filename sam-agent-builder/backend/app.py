@@ -45,23 +45,23 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 # Stream queues to track progress for each job
 # Maps job_id to a queue of progress events
 stream_queues = {}
+MAX_RETRIES = 3
 
 
-def process_agent_creation(tracking_id, agent_name, agent_description, api_key, api_description):
+def process_agent_creation(
+    tracking_id, agent_name, agent_description, api_key, api_description
+):
     """Process agent creation in a background thread and report progress via streaming."""
     try:
         # Initialize the stream queue for this job
         if tracking_id not in stream_queues:
             stream_queues[tracking_id] = queue.Queue()
-            
+
         # Report initial progress
         report_progress(
-            tracking_id, 
-            "initializing", 
-            0, 
-            "Starting agent creation process"
+            tracking_id, "initializing", 0, "Starting agent creation process"
         )
-        
+
         # Create a default config when not in CLI context
         config = {
             "solace_agent_mesh": {
@@ -69,39 +69,32 @@ def process_agent_creation(tracking_id, agent_name, agent_description, api_key, 
                 "modules_directory": os.path.join(os.getcwd(), "modules"),
             }
         }
-        
+
         # Report progress
-        report_progress(
-            tracking_id, 
-            "in_progress", 
-            10, 
-            "Creating agent framework"
-        )
+        report_progress(tracking_id, "in_progress", 10, "Creating agent framework")
 
         result = add_agent_command(agent_name, config)
 
         if result == 1:
             report_progress(
-                tracking_id, 
-                "failed", 
-                0, 
+                tracking_id,
+                "failed",
+                0,
                 f"Failed to create agent '{agent_name}'",
-                error="Agent creation failed"
+                error="Agent creation failed",
             )
             return
 
         # Report progress
         report_progress(
-            tracking_id, 
-            "in_progress", 
-            20, 
-            "Generating agent definition with AI"
+            tracking_id, "in_progress", 20, "Generating agent definition with AI"
         )
 
         # Prompt LLM to get the agent format in XML
-        prompt = create_agent_prompt(agent_name, agent_description, bool(api_key), api_description)
+        prompt = create_agent_prompt(
+            agent_name, agent_description, bool(api_key), api_description
+        )
         response = make_llm_api_call(prompt)
-
 
         # Parse XML response to dictionary
         action_dictionary = parse_actions_from_global_context(response)
@@ -109,10 +102,7 @@ def process_agent_creation(tracking_id, agent_name, agent_description, api_key, 
 
         # Report progress
         report_progress(
-            tracking_id, 
-            "in_progress", 
-            35, 
-            "Creating agent component structure"
+            tracking_id, "in_progress", 35, "Creating agent component structure"
         )
 
         # Action(s) to be created
@@ -136,43 +126,41 @@ def process_agent_creation(tracking_id, agent_name, agent_description, api_key, 
             description=agent_dictionary["description"],
             imports=imports,
         )
-        
+
         # Delete the sample action file
         delete_sample_action_file(agent_name.replace("-", "_"))
 
         # Report progress
-        report_progress(
-            tracking_id, 
-            "in_progress", 
-            45, 
-            "Creating action files"
-        )
+        report_progress(tracking_id, "in_progress", 45, "Creating action files")
 
         # Create action files
-        add_filenames_to_action_list_and_create(agent_name.replace("-", "_"), action_dictionary)
-
-        # Report progress
-        report_progress(
-            tracking_id, 
-            "in_progress", 
-            55, 
-            "Updating agent configuration"
+        add_filenames_to_action_list_and_create(
+            agent_name.replace("-", "_"), action_dictionary
         )
 
-        #update the config file with any needed configurations
-        updated_config_file_raw = build_config(agent_name.replace("-", "_"), agent_dictionary, action_dictionary, bool(api_key))
+        # Report progress
+        report_progress(tracking_id, "in_progress", 55, "Updating agent configuration")
+
+        # update the config file with any needed configurations
+        updated_config_file_raw = build_config(
+            agent_name.replace("-", "_"),
+            agent_dictionary,
+            action_dictionary,
+            bool(api_key),
+        )
         updated_config_file_parsed = parse_config_output(updated_config_file_raw)
-        write_agent_file(agent_name.replace("-", "_"), "agent_config", updated_config_file_parsed["file_content"])
+        write_agent_file(
+            agent_name.replace("-", "_"),
+            "agent_config",
+            updated_config_file_parsed["file_content"],
+        )
 
         configs_added = updated_config_file_parsed["configs_added"]
         environment_variable = updated_config_file_parsed["api_key_name"]
 
         # Report progress
         report_progress(
-            tracking_id, 
-            "in_progress", 
-            60, 
-            "Setting up environment variables"
+            tracking_id, "in_progress", 60, "Setting up environment variables"
         )
 
         if api_key:
@@ -181,34 +169,39 @@ def process_agent_creation(tracking_id, agent_name, agent_description, api_key, 
                 print(f"Added environment variable: {environment_variable}")
 
         # Report progress
-        report_progress(
-            tracking_id, 
-            "in_progress", 
-            65, 
-            "Generating action files"
-        )
+        report_progress(tracking_id, "in_progress", 65, "Generating action files")
 
-        #update action files
+        # update action files
         for action in action_dictionary:
             action_name = action["name"]
             action_file_name = action["filename"]
             action_description = action["description"]
             action_return_description = action["returns"]
 
-            updated_action_file_raw = output_action_file(agent_name.replace("-", "_"), action_file_name, action_name, action_description, action_return_description, configs_added, api_description)
+            updated_action_file_raw = output_action_file(
+                agent_name.replace("-", "_"),
+                action_file_name,
+                action_name,
+                action_description,
+                action_return_description,
+                configs_added,
+                api_description,
+            )
             updated_action_file_parsed = parse_config_output(updated_action_file_raw)
-            write_agent_file(agent_name.replace("-", "_"), "agent_action", updated_action_file_parsed["file_content"], action_file_name)
+            write_agent_file(
+                agent_name.replace("-", "_"),
+                "agent_action",
+                updated_action_file_parsed["file_content"],
+                action_file_name,
+            )
 
         # Report progress
-        report_progress(
-            tracking_id, 
-            "in_progress", 
-            80, 
-            "Creating test cases"
-        )
+        report_progress(tracking_id, "in_progress", 80, "Creating test cases")
 
         test_case_prompt = create_test_cases_prompt(
-            agent_name.replace("-", "_"), agent_dictionary["description"], action_dictionary
+            agent_name.replace("-", "_"),
+            agent_dictionary["description"],
+            action_dictionary,
         )
         test_case_response = make_llm_api_call(test_case_prompt)
 
@@ -250,7 +243,16 @@ def process_agent_creation(tracking_id, agent_name, agent_description, api_key, 
         # print(f"Test cases: {test_case_dictionary}")
 
         # Test build
-        success, error_message = run_agent_mesh(test_case_dictionary)
+        retries_left = MAX_RETRIES
+        while retries_left > 0:
+            success, error_message = run_agent_mesh(test_case_dictionary)
+            if success:
+                break
+            retries_left -= 1
+            print(f"Retrying test build. Retries left: {retries_left}")
+            print(f"Error message: {error_message}")
+
+            # Modify action file(s) to fix the error
 
         if not success:
             print(f"Agent mesh failed to start: {error_message}")
@@ -267,21 +269,17 @@ def process_agent_creation(tracking_id, agent_name, agent_description, api_key, 
 
         # Final update - completed
         report_progress(
-            tracking_id, 
-            "completed", 
-            100, 
+            tracking_id,
+            "completed",
+            100,
             f"Agent '{agent_name}' created successfully",
-            is_complete=True
+            is_complete=True,
         )
 
     except Exception as e:
         # Report error
         report_progress(
-            tracking_id, 
-            "failed", 
-            0, 
-            f"Error creating agent: {str(e)}",
-            error=str(e)
+            tracking_id, "failed", 0, f"Error creating agent: {str(e)}", error=str(e)
         )
 
 
@@ -298,24 +296,26 @@ def create_agent():
 
     # Generate a tracking ID for this job
     tracking_id = str(uuid.uuid4())
-    
+
     # Initialize the stream queue
     stream_queues[tracking_id] = queue.Queue()
-    
+
     # Start the process in a background thread
     thread = threading.Thread(
         target=process_agent_creation,
-        args=(tracking_id, agent_name, agent_description, api_key, api_description)
+        args=(tracking_id, agent_name, agent_description, api_key, api_description),
     )
     thread.daemon = True  # Make sure thread doesn't block application exit
     thread.start()
-    
+
     # Return the tracking ID immediately
-    return jsonify({
-        "success": True,
-        "message": "Agent creation started",
-        "tracking_id": tracking_id
-    })
+    return jsonify(
+        {
+            "success": True,
+            "message": "Agent creation started",
+            "tracking_id": tracking_id,
+        }
+    )
 
 
 # Helper function to report progress through the stream
@@ -329,51 +329,48 @@ def report_progress(job_id, status, progress, message, error=None, is_complete=F
         "id": str(uuid.uuid4()),
         "event": "progress",
         "data": {
-            "status": status, 
+            "status": status,
             "progress": progress,
             "message": message,
             "error": error,
-            "is_complete": is_complete
-        }
+            "is_complete": is_complete,
+        },
     }
-    
+
     stream_queues[job_id].put(json.dumps(event))
-    
+
     # If complete or error, add a special "complete" event after a short delay
     if is_complete or status == "failed":
         # Add the complete event after the progress event
         complete_event = {
             "id": str(uuid.uuid4()),
             "event": "complete",
-            "data": {
-                "status": status,
-                "success": status == "completed"
-            }
+            "data": {"status": status, "success": status == "completed"},
         }
         stream_queues[job_id].put(json.dumps(complete_event))
+
 
 # SSE endpoint for streaming progress updates
 @app.route("/api/progress/<job_id>/stream", methods=["GET"])
 def stream_progress(job_id):
     """Stream progress events for a job using Server-Sent Events (SSE)"""
+
     def event_stream():
         # Create a new queue if one doesn't exist
         if job_id not in stream_queues:
             stream_queues[job_id] = queue.Queue()
-            
+
             # Send an initial "connected" event
             initial_event = {
                 "id": str(uuid.uuid4()),
                 "event": "connected",
-                "data": {
-                    "message": "Connected to progress stream"
-                }
+                "data": {"message": "Connected to progress stream"},
             }
             yield f"data: {json.dumps(initial_event)}\n\n"
 
         # Get the queue for this job
         q = stream_queues[job_id]
-        
+
         try:
             # Keep the connection open indefinitely
             while True:
@@ -381,13 +378,13 @@ def stream_progress(job_id):
                     # Try to get an event with a timeout
                     event_data = q.get(timeout=30)
                     yield f"data: {event_data}\n\n"
-                    
+
                     # Check if the event was a complete event
                     event = json.loads(event_data)
                     if event.get("event") == "complete":
                         # When complete, break the loop to close the connection
                         break
-                        
+
                 except queue.Empty:
                     # Send a keepalive comment to prevent the connection from timing out
                     yield ": keepalive\n\n"
@@ -395,7 +392,7 @@ def stream_progress(job_id):
             # If we break out of the loop for any reason, remove the queue
             if job_id in stream_queues:
                 del stream_queues[job_id]
-    
+
     # Return the event stream with appropriate headers
     return Response(
         stream_with_context(event_stream()),
@@ -403,8 +400,8 @@ def stream_progress(job_id):
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",  # Disable buffering in Nginx
-            "Connection": "keep-alive"
-        }
+            "Connection": "keep-alive",
+        },
     )
 
 
@@ -425,9 +422,9 @@ def catch_all(path):
                 "error": "not_found",
                 "message": f"Path '/{path}' not found",
                 "available_endpoints": [
-                    "/api/create-agent", 
-                    "/api/health", 
-                    "/api/progress/<job_id>/stream"
+                    "/api/create-agent",
+                    "/api/health",
+                    "/api/progress/<job_id>/stream",
                 ],
             }
         ),

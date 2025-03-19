@@ -1,7 +1,9 @@
 NUMBER_OF_TEST_CASES_PER_ACTION = 1
 
 
-def create_agent_prompt(agent_name, agent_description, is_api_required, api_description):
+def create_agent_prompt(
+    agent_name, agent_description, is_api_required, api_description
+):
     return f"""
 You are tasked with creating a new agent named "{agent_name}" for an AI system. This agent will be described as: "{agent_description}".
 
@@ -144,3 +146,40 @@ Here's an example of what the output should look like:
 """
 
     return prompt
+
+
+def create_action_file_correcter_prompt(
+    action_file_content, error_message, example_action_files
+):
+    return f"""
+# Code Error Correction Assistant
+
+## Context
+You are an expert code debugging assistant. You've been provided with:
+1. A file containing code with an error
+2. The error message produced when running this code
+3. Example files showing correct implementations
+
+## Your Task
+Analyze the code and error message, then provide a corrected version of the file that resolves the error.
+
+## Input
+- *File with Error*:
+{action_file_content}
+
+- *Error Message*:
+{error_message}
+
+- *Example Files*:
+{example_action_files}
+
+## Guidelines
+1. First, identify the exact location and nature of the error based on the error message.
+2. Analyze the problematic code section carefully.
+3. Reference the example files to understand the correct implementation patterns.
+4. Make minimal changes necessary to fix the error while preserving the original functionality.
+5. If multiple solutions are possible, choose the one that best aligns with the coding style in the examples.
+
+## Output Format
+Your response should contain ONLY the complete corrected file content, with no additional explanations, comments, or formatting.
+"""

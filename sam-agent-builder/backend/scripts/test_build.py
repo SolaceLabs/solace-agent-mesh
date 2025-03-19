@@ -7,9 +7,6 @@ import signal
 import time
 import os
 
-from solace_agent_mesh.cli.commands.chat import chat_command
-from solace_agent_mesh.cli.commands.run import run_command
-
 # Add the parent directory to the path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from helpers import make_llm_api_call
@@ -74,12 +71,13 @@ def run_agent_mesh(test_cases=None):
                 error_message = f"Error in stderr: {line.strip()}"
 
         stop_agent_mesh(process)
-        return False, None
+        return False, error_message
 
     except Exception as e:
         # Catch any other exceptions
         error_message = f"An unexpected error occurred: {str(e)}"
         logger.error(error_message)
+        stop_agent_mesh(process)
         return False, error_message
 
 
