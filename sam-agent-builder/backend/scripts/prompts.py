@@ -10,6 +10,7 @@ You are tasked with creating a new agent named "{agent_name}" for an AI system. 
 Your job is to develop this agent by:
 
 1. Refining the agent description to be clear, concise, and informative for the system. The description should explain the agent's purpose, and capabilities.
+Do not use any quotation marks in the description.
 
 2. Creating a list of actions this agent should be able to perform. The actions are what is exposed to the user, 
 as such they must only be operations that a user would ask for, if there are steps required to do the action

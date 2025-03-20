@@ -108,7 +108,7 @@ def process_agent_creation(
 
         # Report progress
         report_progress(
-            tracking_id, "in_progress", 35, "Creating agent component structure"
+            tracking_id, "in_progress", 25, "Creating agent component structure"
         )
 
         # Action(s) to be created
@@ -137,7 +137,7 @@ def process_agent_creation(
         delete_sample_action_file(agent_name.replace("-", "_"))
 
         # Report progress
-        report_progress(tracking_id, "in_progress", 45, "Creating action files")
+        report_progress(tracking_id, "in_progress", 30, "Generating action files")
 
         # Create action files
         add_filenames_to_action_list_and_create(
@@ -145,7 +145,7 @@ def process_agent_creation(
         )
 
         # Report progress
-        report_progress(tracking_id, "in_progress", 55, "Updating agent configuration")
+        report_progress(tracking_id, "in_progress", 35, "Updating agent configuration")
 
         # update the config file with any needed configurations
         updated_config_file_raw = build_config(
@@ -166,7 +166,7 @@ def process_agent_creation(
 
         # Report progress
         report_progress(
-            tracking_id, "in_progress", 60, "Setting up environment variables"
+            tracking_id, "in_progress", 40, "Setting up environment variables"
         )
 
         if api_key:
@@ -175,7 +175,7 @@ def process_agent_creation(
                 print(f"Added environment variable: {environment_variable}")
 
         # Report progress
-        report_progress(tracking_id, "in_progress", 65, "Generating action files")
+        report_progress(tracking_id, "in_progress", 50, "Creating action files")
 
         # update action files
         for action in action_dictionary:
@@ -202,7 +202,7 @@ def process_agent_creation(
             )
 
         # Report progress
-        report_progress(tracking_id, "in_progress", 80, "Creating test cases")
+        report_progress(tracking_id, "in_progress", 60, "Creating test cases")
 
         test_case_prompt = create_test_cases_prompt(
             agent_name.replace("-", "_"),
@@ -216,6 +216,7 @@ def process_agent_creation(
         # Test build
         retries_left = MAX_RETRIES
         while retries_left > 0:
+            report_progress(tracking_id, "in_progress", 70, "Testing the new agent")
             # success, error_message = run_agent_mesh(test_case_dictionary)
             success, error_message = run_agent_mesh()
             if success:
@@ -229,6 +230,14 @@ def process_agent_creation(
             print(
                 f"content of file: {get_agent_file(agent_name.replace('-', '_'), "agent_action", action_file_name)}"
             )
+
+            report_progress(
+                tracking_id,
+                "in_progress",
+                85,
+                f"Correcting action file: {action_file_name}.py\n {retries_left} retries left",
+            )
+
             # Modify action file(s) to fix the error
             action_file_correcter_prompt = create_action_file_correcter_prompt(
                 get_agent_file(
