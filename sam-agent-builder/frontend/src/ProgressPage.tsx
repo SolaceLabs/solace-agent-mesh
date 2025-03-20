@@ -11,17 +11,16 @@ interface ProgressState {
 
 // Define steps for the progress visualization
 const progressSteps = [
-  { threshold: 0, label: "Starting agent creation process" },
-  { threshold: 10, label: "Creating agent framework" },
-  { threshold: 20, label: "Generating agent definition with AI" },
-  { threshold: 35, label: "Parsing AI response" },
-  { threshold: 45, label: "Creating agent component structure" },
-  { threshold: 60, label: "Creating action files" },
-  { threshold: 70, label: "Updating agent configuration" },
-  { threshold: 80, label: "Setting up environment variables" },
-  { threshold: 85, label: "Generating action files" },
-  { threshold: 95, label: "Creating test cases" },
-  { threshold: 100, label: "Agent created successfully" }
+  { threshold: 0, label: "Hold tight, kicking things off!" },
+  { threshold: 10, label: "Getting our agent warmed up..." },
+  { threshold: 20, label: "Building some magic behind the scenes!" },
+  { threshold: 40, label: "Almost decoded the AI's wisdom..." },
+  { threshold: 60, label: "Testing the agent's new powers..." },
+  { threshold: 70, label: "Agent's brain getting smarter..." },
+  { threshold: 80, label: "Just tweaking some settings..." },
+  { threshold: 85, label: "Wrapping up cool agent powers!" },
+  { threshold: 95, label: "Quickly crafting some test magic..." },
+  { threshold: 100, label: "Voilà! Your agent is ready!" }
 ];
 
 function ProgressPage({ trackingId, onComplete }: { trackingId: string; onComplete: () => void }) {

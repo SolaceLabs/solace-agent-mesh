@@ -1,5 +1,168 @@
 NUMBER_OF_TEST_CASES_PER_ACTION = 1
+EXAMPLES = """
+Example 1: Sample Action Template
+\"\"\"Action description\"\"\"
+from solace_ai_connector.common.log import log
 
+from solace_agent_mesh.common.action import Action
+from solace_agent_mesh.common.action_response import ActionResponse
+# To import from a local file, like this file, use a relative path from the test
+# For example, to load this class, use:
+#   from test.actions.sample_action import SampleAction
+
+class SampleAction(Action):
+    def __init__(self, **kwargs):
+        super().__init__(
+            {
+                "name": "sample_action",
+                "prompt_directive": ("detailed description of the action. " "examples, chain of thought, etc." "details for parameters"),
+                "params": [
+                    {
+                        "name": "sampleParam",
+                        "desc": "Description of the parameter",
+                        "type": "type of parameter (string, int, etc.)",
+                    }
+                ],
+                "required_scopes": ["test:sample_action:read"],
+            },
+            **kwargs,
+        )
+    def invoke(self, params, meta={}) -> ActionResponse:
+        log.debug("Doing sample action: %s", params["sampleParam"])
+        return self.do_action(params["sampleParam"])
+    def do_action(self, sample) -> ActionResponse:
+        sample += " Action performed"
+        return ActionResponse(message=sample)
+Example 2: City to Coordinates Action
+\"\"\"Action for converting city names to geographic coordinates.\"\"\"
+from typing import Dict, Any
+import yaml
+from solace_agent_mesh.common.action import Action
+from solace_agent_mesh.common.action_response import ActionResponse, ErrorInfo
+from ..services.geocoding_service import MapsCoGeocodingService
+
+class CityToCoordinates(Action):
+    \"\"\"Convert city names to geographic coordinates.\"\"\"
+    def __init__(self, **kwargs):
+        \"\"\"Initialize the action.\"\"\"
+        super().__init__(
+            {
+                "name": "city_to_coordinates",
+                "prompt_directive": (
+                    "Convert a city name to its geographic coordinates. "
+                    "If multiple matches are found, all possibilities will be returned."
+                ),
+                "params": [
+                    {
+                        "name": "city",
+                        "desc": "Location to look up. Can be a city name (e.g., 'Paris'), city and country (e.g., 'Paris, France'), or full address. More specific inputs will return more precise results.",
+                        "type": "string",
+                        "required": True,
+                    }
+                ],
+                "required_scopes": ["<agent_name>:city_to_coordinates:execute"],
+            },
+            **kwargs
+        )
+        geocoding_api_key = kwargs.get("config_fn")("geocoding_api_key")
+        self.geocoding_service = MapsCoGeocodingService(api_key=geocoding_api_key)
+    def invoke(self, params: Dict[str, Any], meta: Dict[str, Any] = None) -> ActionResponse:
+        \"\"\"Execute the city to coordinates conversion.
+        
+        Args:
+            params: Must contain 'city' parameter
+            meta: Optional metadata
+            
+        Returns:
+            ActionResponse containing the coordinates or error information
+        \"\"\"
+        try:
+            city = params.get("city")
+            if not city:
+                raise ValueError("City parameter is required")
+            locations = self.geocoding_service.geocode(city)
+            
+            # Format the results
+            results = []
+            for loc in locations:
+                result = {
+                    "latitude": loc.latitude,
+                    "longitude": loc.longitude,
+                    "display_name": loc.display_name
+                }
+                if loc.country:
+                    result["country"] = loc.country
+                if loc.state:
+                    result["state"] = loc.state
+                if loc.city:
+                    result["city"] = loc.city
+                results.append(result)
+            if len(results) == 1:
+                message = f"Found coordinates for {city}:\\n\\n{yaml.dump(results)}"
+            else:
+                message = f"Found {len(results)} possible matches for {city}:\\n\\n{yaml.dump(results)}"
+            return ActionResponse(message=message)
+        except Exception as e:
+            return ActionResponse(
+                message=f"Error looking up coordinates: {str(e)}",
+                error_info=ErrorInfo(str(e))
+            )
+Example 3: Sentiment Analysis Action
+from typing import Dict, Any
+import yaml
+from solace_agent_mesh.common.action import Action
+from solace_agent_mesh.common.action_response import ActionResponse, ErrorInfo
+import json
+SYSTEM_PROMPT = (
+    "Analyze the sentiment of the message and return whether it's positive, negative, or neutral. "
+    "You should only respond with a JSON value with 2 keys: 'sentiment' and 'confidence'. "
+    "The sentiment should be one of 'positive', 'negative', or 'neutral'. "
+    "The confidence should be a float value between 0 and 1."
+)
+class SentimentAnalysisAction(Action):
+    def __init__(self, **kwargs):
+        super().__init__(
+            {
+                "name": "sentiment_analysis",
+                "prompt_directive": "Analyze the sentiment of the message and return an analysis indicating whether it's positive, negative, or neutral.",
+                "params": [
+                    {
+                        "name": "message",
+                        "desc": "The message to analyze",
+                        "type": "string",
+                    }
+                ],
+                "required_scopes": ["message_analyzer:sentiment_analysis:execute"],
+            },
+            **kwargs,
+        )
+    def invoke(self, params, meta={}) -> ActionResponse:
+        msg = params.get("message")
+        log.debug("Analyzing the message: %s", msg)
+        return self.analyze_message(msg)
+    def analyze_message(self, message) -> ActionResponse:
+        agent = self.get_agent()
+        user_msg = f"<message>{message}</message>"
+        message = [
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT,
+            },
+            {
+                "role": "user",
+                "content": user_msg,
+            },
+        ]
+        try:
+            response = agent.do_llm_service_request(message)
+            content = response.get("content")
+            analysis = json.loads(content)
+            log.debug("Sentiment: %s, Confidence: %s", analysis["sentiment"], analysis["confidence"])
+            return ActionResponse(message=content) # Message should be of type string, converting to JSON was just an example
+        except Exception as e:
+            log.error("Error in sentiment analysis: %s", e)
+            return ActionResponse(message="error: Error in sentiment analysis")
+"""
 
 def create_agent_prompt(
     agent_name, agent_description, is_api_required, api_description
@@ -150,7 +313,7 @@ Here's an example of what the output should look like:
 
 
 def create_action_file_correcter_prompt(
-    action_file_content, error_message, example_action_files=None
+    action_file_content, error_message, example_action_files=EXAMPLES
 ):
     return f"""
 # Code Error Correction Assistant

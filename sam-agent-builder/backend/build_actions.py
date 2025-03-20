@@ -247,6 +247,9 @@ files: File attachments
 Scope names usually follow the pattern: agent_name:action_name:operation
 Use helper methods for complex logic
 Access agent methods via self.get_agent()
+Always return an ActionResponse as the response and attach whatever data you need to return in the message field. 
+DO NOT PASS IN DATA TO ACTIONRESPONSE USE MESSAGE.
+There is no need to explicitly hard code pasing if the API returns a lot of information you can just pass the whole thing in the message field
 
     # OUTPUT FORMAT
     Remember to provide your response as a JSON object with a  "file_content" field containing the complete action code. ALways return the 

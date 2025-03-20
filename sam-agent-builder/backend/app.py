@@ -202,7 +202,7 @@ def process_agent_creation(
             )
 
         # Report progress
-        report_progress(tracking_id, "in_progress", 60, "Creating test cases")
+        report_progress(tracking_id, "in_progress", 65, "Creating test cases")
 
         test_case_prompt = create_test_cases_prompt(
             agent_name.replace("-", "_"),
@@ -216,7 +216,7 @@ def process_agent_creation(
         # Test build
         retries_left = MAX_RETRIES
         while retries_left > 0:
-            report_progress(tracking_id, "in_progress", 70, "Testing the new agent")
+            report_progress(tracking_id, "in_progress", 80, "Testing the new agent")
             # success, error_message = run_agent_mesh(test_case_dictionary)
             success, error_message = run_agent_mesh()
             if success:
