@@ -23,8 +23,14 @@ from helpers import (
     parse_config_output,
     parse_test_cases_xml,
     add_env_variable_if_missing,
+    extract_filename,
+    get_agent_file,
 )
-from scripts.prompts import create_agent_prompt, create_test_cases_prompt
+from scripts.prompts import (
+    create_agent_prompt,
+    create_test_cases_prompt,
+    create_action_file_correcter_prompt,
+)
 from scripts.file_utils import (
     create_agent_component,
     delete_sample_action_file,
@@ -206,53 +212,38 @@ def process_agent_creation(
         test_case_response = make_llm_api_call(test_case_prompt)
 
         test_case_dictionary = parse_test_cases_xml(test_case_response)
-        # test_case_dictionary = {
-        #     "test_cases": [
-        #         {
-        #             "agent_name": "health_expert",
-        #             "action_name": "GetCalorieEstimate",
-        #             "id": "1",
-        #             "title": "Basic Fruit Calorie Query",
-        #             "user_query": "How many calories are in an apple?",
-        #             "invoke_action": {
-        #                 "agent_name": "health_expert",
-        #                 "action_name": "GetCalorieEstimate",
-        #             },
-        #             "expected_output": {
-        #                 "status": "success",
-        #                 "description": "Approximate calorie count for a medium apple with brief nutritional context.",
-        #             },
-        #         },
-        #         {
-        #             "agent_name": "health_expert",
-        #             "action_name": "GetCalorieEstimate",
-        #             "id": "2",
-        #             "title": "Basic Protein Food Calorie Query",
-        #             "user_query": "What's the calorie content of a chicken breast?",
-        #             "invoke_action": {
-        #                 "agent_name": "health_expert",
-        #                 "action_name": "GetCalorieEstimate",
-        #             },
-        #             "expected_output": {
-        #                 "status": "success",
-        #                 "description": "Approximate calorie count for a standard chicken breast serving with brief nutritional context.",
-        #             },
-        #         },
-        #     ]
-        # }
-        # print(f"Test cases: {test_case_dictionary}")
 
         # Test build
         retries_left = MAX_RETRIES
         while retries_left > 0:
-            success, error_message = run_agent_mesh(test_case_dictionary)
+            # success, error_message = run_agent_mesh(test_case_dictionary)
+            success, error_message = run_agent_mesh()
             if success:
                 break
             retries_left -= 1
             print(f"Retrying test build. Retries left: {retries_left}")
             print(f"Error message: {error_message}")
 
+            # Find action file that caused the error
+            action_file_name = extract_filename(error_message)
+            print(
+                f"content of file: {get_agent_file(agent_name.replace('-', '_'), "agent_action", action_file_name)}"
+            )
             # Modify action file(s) to fix the error
+            action_file_correcter_prompt = create_action_file_correcter_prompt(
+                get_agent_file(
+                    agent_name.replace("-", "_"), "agent_action", action_file_name
+                ),
+                error_message,
+            )
+            response = make_llm_api_call(action_file_correcter_prompt)
+            print(f"Response: {response}")
+            write_agent_file(
+                agent_name.replace("-", "_"),
+                "agent_action",
+                response,
+                action_file_name,
+            )
 
         if not success:
             print(f"Agent mesh failed to start: {error_message}")

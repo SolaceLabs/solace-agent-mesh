@@ -457,6 +457,14 @@ def add_env_variable_if_missing(
     return env_path, True
 
 
+def extract_filename(text):
+    # Using regex to find patterns between '(' and '.py'
+    match = re.search(r"\(([^()]+)\.py", text)
+    if match:
+        return match.group(1)
+    return None
+
+
 # # Test the function
 # agent_config_content = get_agent_file("test", "agent_main")
 # print(agent_config_content)

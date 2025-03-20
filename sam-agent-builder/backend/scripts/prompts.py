@@ -149,7 +149,7 @@ Here's an example of what the output should look like:
 
 
 def create_action_file_correcter_prompt(
-    action_file_content, error_message, example_action_files
+    action_file_content, error_message, example_action_files=None
 ):
     return f"""
 # Code Error Correction Assistant
@@ -182,4 +182,5 @@ Analyze the code and error message, then provide a corrected version of the file
 
 ## Output Format
 Your response should contain ONLY the complete corrected file content, with no additional explanations, comments, or formatting.
+The output NEEDS to include the whole file content, not just the corrected part.
 """
