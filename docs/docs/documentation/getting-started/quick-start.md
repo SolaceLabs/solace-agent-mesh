@@ -89,6 +89,10 @@ You can use different gateway interfaces to communicate with the system such RES
 
 This will provide a simple chat interface where you can interact with the Agent Mesh. Try some commands like `What is the capital of France?` or `Give me a diagram of the oAuth process`.
 
+:::tip
+You can also use 127.0.0.1:5001 to connect locally. In situations, where you get a connection error to 127.0.0.1, check that your local firewall doesn't block it or block the ports.
+:::
+
 
 ## Sending a Request via REST API
 
