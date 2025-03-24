@@ -58,7 +58,7 @@ dependencies = [
     "markitdown~=0.0.1a3",
     "pyperclip~=1.9.0",
     "solace-ai-connector~=1.0.2",
-    "solace-ai-connector-web~=0.2.0",
+    "solace-ai-connector-web~=0.2.1",
     "solace-ai-connector-rest~=0.0.2",
     "solace-ai-connector-slack~=0.0.1",
   ]
@@ -73,6 +73,7 @@ documentation = "https://github.com/SolaceLabs/solace-agent-mesh/blob/main/docs/
 "configs" = "solace_agent_mesh/configs"
 "templates" = "solace_agent_mesh/templates"
 "cli" = "solace_agent_mesh/cli"
+"config_portal" = "solace_agent_mesh/config_portal"
 "web-visualizer/dist" = "solace_agent_mesh/assets/web-visualizer"
 
 [tool.hatch.build.targets.sdist.force-include]
