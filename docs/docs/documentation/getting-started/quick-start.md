@@ -65,6 +65,10 @@ solace-agent-mesh build
 You must run the `solace-agent-mesh` commands at the root directory of your project where the `solace-agent-mesh.yaml` file is located.
 :::
 
+:::warning
+On Windows, if you encounter an error where you see `unacceptable character #x0016` when building, remove that invalid charater from the `.env` file and build again.
+:::
+ 
 
 ## Running the Project
 
