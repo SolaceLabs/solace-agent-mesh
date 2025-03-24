@@ -65,6 +65,7 @@ solace-agent-mesh build
 You must run the `solace-agent-mesh` commands at the root directory of your project where the `solace-agent-mesh.yaml` file is located.
 :::
 
+
 ## Running the Project
 
 To run the project, you can use the `run` command to execute all the components in a single, multi-threaded application. It's possible to split the components into separate processes. See the [deployment](../deployment/deploy.md) page for more information.
@@ -138,9 +139,9 @@ For example, here's a prompt to retrieve a file: `prompt="Give me a random bar c
 :::
 
 
-## Exercise
+## Try a Tutorial
 
-Try adding a new agent to the system by following the tutorial on adding an [SQL database agent](../tutorials/sql-database.md). This tutorial will guide you through the process of adding the SQL agent plugin and adding some example data to the database.
+Try adding a new agent to the system by following the tutorial on adding an [SQL database agent](../tutorials/sql-database.md). This tutorial guides you through the process of adding the SQL agent plugin and adding some sample data to the database.
 
 
 ## Next Steps

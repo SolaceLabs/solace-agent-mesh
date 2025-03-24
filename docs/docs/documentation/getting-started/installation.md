@@ -3,11 +3,11 @@ title: Installation
 sidebar_position: 20
 ---
 
-# Pre-Requisites
+# Prerequisites
 Before you begin, you require the following installed on your computer:
 
 - Python 3.11 or later
-- PIP (if you have `pip3`, alias it to `pip`).
+- PIP (if you have `pip3`, you can alias it to `pip`).
   
 # Installation
 
