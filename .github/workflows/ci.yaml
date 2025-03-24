@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   ci:
-    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_ci.yml@main
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_ci.yml@npm_builds
     with:
       min-python-version: "3.11"
       whitesource_product_name: "solace-agent-mesh"
