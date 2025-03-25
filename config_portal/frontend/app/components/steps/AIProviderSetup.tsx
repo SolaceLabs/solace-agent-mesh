@@ -38,6 +38,11 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
       newErrors.llm_model_name = 'LLM model name is required';
       isValid = false;
     }
+
+    if(!data.llm_api_key) {
+      newErrors.llm_api_key = 'LLM API key is required';
+      isValid = false;
+    }
     
     if (!data.embedding_endpoint_url) {
       newErrors.embedding_endpoint_url = 'Embedding endpoint is required';
@@ -46,6 +51,11 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
     
     if (!data.embedding_model_name) {
       newErrors.embedding_model_name = 'Embedding model name is required';
+      isValid = false;
+    }
+
+    if(!data.embedding_api_key) {
+      newErrors.embedding_api_key = 'Embedding API key is required';
       isValid = false;
     }
     
@@ -73,7 +83,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
   
   return (
     <form onSubmit={handleSubmit}>
-      <div className="space-y-6">
+      <div className="space-y-6 ">
         <div className="p-4 bg-blue-50 rounded-md mb-4">
           <p className="text-sm text-blue-800">
             Configure your AI service providers for language models and embeddings.
@@ -81,8 +91,8 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
           </p>
         </div>
         
-        <div className="border-b border-gray-200 pb-4 mb-4">
-          <h3 className="text-lg font-medium mb-4">Language Model Configuration</h3>
+        <div className="border-b border-gray-200 pb-4 mb-4 ">
+          <h3 className="text-lg font-medium mb-4 text-gray-700 font-semibold">Language Model Configuration</h3>
           
           <FormField 
             label="LLM Endpoint URL" 
@@ -95,7 +105,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
               name="llm_endpoint_url"
               value={data.llm_endpoint_url}
               onChange={handleChange}
-              placeholder="https://api.openai.com/v1"
+              placeholder="https://api.example.com/v1"
               required
             />
           </FormField>
@@ -104,6 +114,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
             label="LLM API Key" 
             htmlFor="llm_api_key"
             error={errors.llm_api_key}
+            required
           >
             <Input
               id="llm_api_key"
@@ -127,14 +138,14 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
               name="llm_model_name"
               value={data.llm_model_name}
               onChange={handleChange}
-              placeholder="openai/gpt-4o"
+              placeholder="provider/model-name"
               required
             />
           </FormField>
         </div>
         
         <div>
-          <h3 className="text-lg font-medium mb-4">Embedding Model Configuration</h3>
+          <h3 className="text-lg font-medium mb-4 text-gray-700 font-semibold">Embedding Model Configuration</h3>
           
           <FormField 
             label="Embedding Endpoint URL" 
@@ -147,7 +158,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
               name="embedding_endpoint_url"
               value={data.embedding_endpoint_url}
               onChange={handleChange}
-              placeholder="https://api.openai.com/v1"
+              placeholder="https://api.example.com/v1"
               required
             />
           </FormField>
@@ -156,6 +167,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
             label="Embedding API Key" 
             htmlFor="embedding_api_key"
             error={errors.embedding_api_key}
+            required
           >
             <Input
               id="embedding_api_key"
@@ -164,6 +176,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
               value={data.embedding_api_key}
               onChange={handleChange}
               placeholder="Enter your API key"
+              required
             />
           </FormField>
           
@@ -179,7 +192,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
               name="embedding_model_name"
               value={data.embedding_model_name}
               onChange={handleChange}
-              placeholder="openai/text-embedding-ada-002"
+              placeholder="provider/model-name"
               required
             />
           </FormField>
@@ -194,6 +207,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
           Previous
         </Button>
         <Button 
+          onClick={handleSubmit}
           type="submit"
         >
           Next

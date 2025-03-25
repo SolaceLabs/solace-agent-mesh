@@ -63,7 +63,7 @@ export default function InitializationFlow() {
 
   // Fetch default options from the backend when component mounts
   useEffect(() => {
-    fetch('http://127.0.0.1:5002/api/default_options')
+    fetch('/api/default_options')
       .then(response => {
         if (!response.ok) {
           throw new Error('Failed to fetch default options');

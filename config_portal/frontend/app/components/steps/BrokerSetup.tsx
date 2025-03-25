@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import FormField from '../ui/FormField';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
@@ -11,6 +11,7 @@ type BrokerSetupProps = {
     broker_vpn: string;
     broker_username: string;
     broker_password: string;
+    container_engine?: string;
     [key: string]: any 
   };
   updateData: (data: Record<string, any>) => void;
@@ -24,8 +25,42 @@ const brokerOptions = [
   { value: 'dev_mode', label: 'Run in \'dev mode\' - all in one process (not recommended for production)' },
 ];
 
+const containerEngineOptions = [
+  { value: 'podman', label: 'Podman' },
+  { value: 'docker', label: 'Docker' },
+];
+
 export default function BrokerSetup({ data, updateData, onNext, onPrevious }: BrokerSetupProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isRunningContainer, setIsRunningContainer] = useState(false);
+  const [containerStatus, setContainerStatus] = useState<{
+    isRunning: boolean;
+    success: boolean;
+    message: string;
+  }>({
+    isRunning: false,
+    success: false,
+    message: '',
+  });
+
+  useEffect(() => {
+    console.log(data.container_engine);
+    if (!data.container_engine && data.broker_type === 'container') {
+      updateData({ container_engine: 'podman' });
+    }
+    if (data.container_engine && data.broker_type !== 'container') {
+      updateData({ container_engine: '' });
+    }
+
+    if (data.broker_type === 'container' && data.container_engine) {
+
+      setContainerStatus({
+        isRunning: false,
+        success: true,
+        message: 'Container already started'
+       });
+    }
+  }, [data.broker_type]);
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     updateData({ [e.target.name]: e.target.value });
@@ -34,8 +69,9 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     let isValid = true;
-    // Validation
-    if (brokerType === '1') {
+    
+    // Validation for existing broker
+    if (brokerType === 'solace') {
       if (!data.broker_url) {
         newErrors.broker_url = 'Broker URL is required';
         isValid = false;
@@ -53,8 +89,62 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
         isValid = false;
       }
     }
+    
+    // Validation for container - ensure container has been successfully started
+    if (brokerType === 'container' && !containerStatus.success) {
+      newErrors.container = 'You must successfully run the container before proceeding';
+      isValid = false;
+    }
+    
     setErrors(newErrors);
     return isValid;
+  };
+  
+  const handleRunContainer = async () => {
+    setIsRunningContainer(true);
+    setContainerStatus({
+      isRunning: true,
+      success: false,
+      message: 'Starting container...',
+    });
+    
+    try {
+      const response = await fetch('api/runcontainer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          container_engine: data.container_engine
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (result.status === 'success') {
+        setContainerStatus({
+          isRunning: false,
+          success: true,
+          message: result.message || 'Container started successfully!'
+        });
+        // Update the selected container engine in case it was auto-selected
+        updateData({ container_engine: data.container_engine });
+      } else {
+        setContainerStatus({
+          isRunning: false,
+          success: false,
+          message: result.message || 'Failed to start container. Please try again.'
+        });
+      }
+    } catch (error) {
+      setContainerStatus({
+        isRunning: false,
+        success: false,
+        message: error instanceof Error ? error.message : 'An unexpected error occurred'
+      });
+    } finally {
+      setIsRunningContainer(false);
+    }
   };
   
   const handleSubmit = (e: React.FormEvent) => {
@@ -68,8 +158,7 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
   
   // Show broker connection details default option
   const showBrokerDetails = brokerType === 'solace';
-  console.log('showBrokerDetails:', showBrokerDetails);
-  console.log('brokerType:', brokerType);
+  const showContainerDetails = brokerType === 'container';
   
   return (
     <form onSubmit={handleSubmit}>
@@ -85,6 +174,7 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
             options={brokerOptions}
             value={brokerType}
             onChange={handleChange}
+            disabled={containerStatus.success && data.broker_type==='container'}
             required
           />
         </FormField>
@@ -158,12 +248,50 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
           </div>
         )}
         
-        {brokerType === 'container' && (
-          <div className="p-4 bg-blue-50 rounded-md">
-            <p className="text-sm text-blue-800">
-              A new local Solace PubSub+ broker container will be created using Docker or Podman.
-              The default parameters will be used.
-            </p>
+        {showContainerDetails && (
+          <div className="space-y-4 p-4 border border-gray-200 rounded-md">
+            <FormField 
+              label="Container Engine" 
+              htmlFor="container_engine"
+              required
+            >
+              <Select
+                id="container_engine"
+                name="container_engine"
+                options={containerEngineOptions}
+                value={data.container_engine || ''}
+                onChange={handleChange}
+                disabled={containerStatus.isRunning || containerStatus.success}
+              />
+            </FormField>
+            
+            {errors.container && (
+              <div className="text-sm text-red-600 mt-1">
+                {errors.container}
+              </div>
+            )}
+            
+            {containerStatus.message && (
+              <div className={`p-3 rounded-md ${
+                containerStatus.isRunning ? 'bg-blue-50 text-blue-800' : 
+                containerStatus.success ? 'bg-green-50 text-green-800' : 
+                'bg-red-50 text-red-800'
+              }`}>
+                {containerStatus.message}
+              </div>
+            )}
+            
+            <div className="mt-2">
+              <Button 
+                onClick={handleRunContainer}
+                disabled={isRunningContainer || containerStatus.success}
+                variant="primary"
+                type="button"
+              >
+                {isRunningContainer ? 'Starting Container...' : 
+                 containerStatus.success ? 'Container Running ✓' : 'Run Container'}
+              </Button>
+            </div>
           </div>
         )}
         
@@ -180,12 +308,14 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
         <Button 
           onClick={onPrevious}
           variant="outline"
+          type="button"
         >
           Previous
         </Button>
         <Button 
           onClick={handleSubmit}
           type="submit"
+          disabled={isRunningContainer}
         >
           Next
         </Button>

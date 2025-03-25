@@ -19,6 +19,8 @@ const providerOptions = [
 export default function FileServiceSetup({ data, updateData, onNext, onPrevious }: FileServiceSetupProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [volumePath, setVolumePath] = useState('');
+  const [bucketName, setBucketName] = useState('');
+  const [endpointUrl, setEndpointUrl] = useState('');
   const [initialized, setInitialized] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState(data.file_service_provider || 'volume');
 
@@ -53,6 +55,25 @@ export default function FileServiceSetup({ data, updateData, onNext, onPrevious 
           file_service_config: [`directory=${initialPath}`]
         });
       }
+    } else if (initialProvider === 'bucket') {
+      // Parse file_service_config to extract bucket settings if they exist
+      if (data.file_service_config && Array.isArray(data.file_service_config)) {
+        const bucketConfig = data.file_service_config.find((config: string) => 
+          config.startsWith('bucket_name=')
+        );
+        
+        const endpointConfig = data.file_service_config.find((config: string) => 
+          config.startsWith('endpoint_url=')
+        );
+        
+        if (bucketConfig) {
+          setBucketName(bucketConfig.split('=')[1]);
+        }
+        
+        if (endpointConfig) {
+          setEndpointUrl(endpointConfig.split('=')[1]);
+        }
+      }
     }
     
     setInitialized(true);
@@ -70,10 +91,12 @@ export default function FileServiceSetup({ data, updateData, onNext, onPrevious 
         file_service_config: [`directory=${path}`]
       });
     } else if (newProvider === 'bucket') {
-      // TODO: Add bucket config
       updateData({
         file_service_provider: newProvider,
-        file_service_config: []
+        file_service_config: [
+          [`bucket_name=${bucketName}`],
+          [`endpoint_url=${endpointUrl}`]
+        ]
       });
     }
   };
@@ -84,6 +107,30 @@ export default function FileServiceSetup({ data, updateData, onNext, onPrevious 
     
     updateData({ 
       file_service_config: [`directory=${newPath}`]
+    });
+  };
+
+  const handleBucketNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newBucketName = e.target.value;
+    setBucketName(newBucketName);
+    
+    updateData({
+      file_service_config: [
+        `bucket_name=${newBucketName}`,
+        ...(endpointUrl ? [`endpoint_url=${endpointUrl}`] : [])
+      ]
+    });
+  };
+
+  const handleEndpointUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newEndpointUrl = e.target.value;
+    setEndpointUrl(newEndpointUrl);
+    
+    updateData({
+      file_service_config: [
+        ...(bucketName ? [`bucket_name=${bucketName}`] : []),
+        `endpoint_url=${newEndpointUrl}`
+      ]
     });
   };
 
@@ -98,7 +145,14 @@ export default function FileServiceSetup({ data, updateData, onNext, onPrevious 
         isValid = false;
       }
     } else if (selectedProvider === 'bucket') {
-      // TODO: Add bucket validation
+      if (!bucketName) {
+        newErrors.bucketName = 'Bucket name is required';
+        isValid = false;
+      }
+      if (!endpointUrl) {
+        newErrors.endpointUrl = 'Endpoint URL is required';
+        isValid = false;
+      }
     }
     
     setErrors(newErrors);
@@ -156,12 +210,47 @@ export default function FileServiceSetup({ data, updateData, onNext, onPrevious 
         )}
         
         {selectedProvider === 'bucket' && (
-          <div className="p-4 bg-yellow-50 rounded-md">
-            <p className="text-sm text-yellow-800">
-              <strong>Note:</strong> Bucket configuration (AWS S3 API compatible) will be added in a future version.
-              For now, we're defaulting to local volume storage.              
-            </p>
-          </div>
+          <>
+            <FormField
+              label="Bucket Name"
+              htmlFor="bucketName"
+              helpText="The name of the S3 bucket to use for file storage"
+              error={errors.bucketName}
+              required
+            >
+              <Input
+                id="bucketName"
+                name="bucketName"
+                value={bucketName}
+                onChange={handleBucketNameChange}
+                placeholder="my-s3-bucket"
+                required
+              />
+            </FormField>
+            
+            <FormField
+              label="Endpoint URL"
+              htmlFor="endpointUrl"
+              helpText="The S3 service endpoint URL"
+              error={errors.endpointUrl}
+              required
+            >
+              <Input
+                id="endpointUrl"
+                name="endpointUrl"
+                value={endpointUrl}
+                onChange={handleEndpointUrlChange}
+                placeholder="https://s3.amazonaws.com"
+                required
+              />
+            </FormField>
+            
+            <div className="p-4 bg-yellow-50 rounded-md">
+              <p className="text-sm text-yellow-800">
+                <strong>Note:</strong> You can setup the Boto3 authentication configuration in the ./solace-agent-mesh.yaml file
+              </p>
+            </div>
+          </>
         )}
       </div>
       

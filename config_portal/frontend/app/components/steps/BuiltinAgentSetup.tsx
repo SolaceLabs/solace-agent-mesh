@@ -15,6 +15,8 @@ type Agent = {
     placeholder: string;
     type: string;
     defaultValue: string;
+    required?: boolean;
+    validation?: (value: string) => string | null;
   }[];
 };
 
@@ -46,6 +48,7 @@ export const builtinAgents: Agent[] = [
         placeholder: 'Enter endpoint URL',
         type: 'text',
         defaultValue: '',
+        required: true,
       },
       {
         key: 'IMAGE_GEN_API_KEY',
@@ -53,6 +56,7 @@ export const builtinAgents: Agent[] = [
         placeholder: 'Enter API key',
         type: 'password',
         defaultValue: '',
+        required: true,
       },
       {
         key: 'IMAGE_GEN_MODEL',
@@ -60,6 +64,16 @@ export const builtinAgents: Agent[] = [
         placeholder: 'provider/model-name',
         type: 'text',
         defaultValue: '',
+        required: true,
+        validation: (value) => {
+          if (!value) {
+            return 'Image Generation Model is required';
+          } 
+          if (!value.includes('/')) {
+            return 'Model name should follow the format provider/model-name';
+          }
+          return null;
+        }
       },
     ],
   },
@@ -71,7 +85,7 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
   const [agentEnabledState, setAgentEnabledState] = useState<Record<string, boolean>>({});
   const [initialized, setInitialized] = useState(false);
 
-  // Initialize form dat
+  // Initialize form data
   useEffect(() => {
     if (initialized) return;
     
@@ -138,6 +152,14 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
     updateData({
       env_var: envVarArray
     });
+    
+    // Clear error when field is edited
+    if (errors[key]) {
+      setErrors({
+        ...errors,
+        [key]: ''
+      });
+    }
   };
 
   const handleToggle = (agentId: string, value: boolean) => {
@@ -149,15 +171,20 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
     
     updateData({ [`enable_${agentId}`]: value });
     
-    // If disabling, clear related env vars
+    // If disabling, clear related env vars and errors
     if (!value) {
       const agent = builtinAgents.find(a => a.id === agentId);
       if (agent?.envVars && agent.envVars.length > 0) {
         const updatedEnvVars = { ...envVars };
+        const updatedErrors = { ...errors };
+        
         agent.envVars.forEach(env => {
           delete updatedEnvVars[env.key];
+          delete updatedErrors[env.key];
         });
+        
         setEnvVars(updatedEnvVars);
+        setErrors(updatedErrors);
         
         // Update parent data with the new env vars
         const envVarArray = Object.entries(updatedEnvVars)
@@ -190,15 +217,22 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
     builtinAgents.forEach(agent => {
       if (isAgentEnabled(agent.id) && agent.envVars) {
         agent.envVars.forEach(env => {
-          if (!envVars[env.key] && env.key === 'IMAGE_GEN_MODEL') {
+          // Skip validation for non-required fields that are empty
+          if (!env.required && !envVars[env.key]) {
+            return;
+          }
+          
+          // Use custom validation function if provided
+          if (env.validation) {
+            const errorMessage = env.validation(envVars[env.key] || '');
+            if (errorMessage) {
+              newErrors[env.key] = errorMessage;
+              isValid = false;
+            }
+          } 
+          // Otherwise apply basic required field validation
+          else if (env.required && !envVars[env.key]) {
             newErrors[env.key] = `${env.label} is required`;
-            isValid = false;
-          } else if (
-            env.key === 'IMAGE_GEN_MODEL' && 
-            envVars[env.key] && 
-            !envVars[env.key].includes('/')
-          ) {
-            newErrors[env.key] = 'Model name should follow the format provider/model-name';
             isValid = false;
           }
         });
@@ -249,7 +283,7 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
                       label={env.label} 
                       htmlFor={env.key}
                       error={errors[env.key]}
-                      required={env.key === 'IMAGE_GEN_MODEL'}
+                      required={!!env.required}
                     >
                       <Input
                         id={env.key}
@@ -258,7 +292,7 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
                         value={envVars[env.key] || ''}
                         onChange={(e) => handleEnvVarChange(env.key, e.target.value)}
                         placeholder={env.placeholder}
-                        required={env.key === 'IMAGE_GEN_MODEL' && isAgentEnabled(agent.id)}
+                        required={!!env.required && isAgentEnabled(agent.id)}
                       />
                     </FormField>
                   ))}
@@ -273,14 +307,16 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
         <Button 
           onClick={onPrevious}
           variant="outline"
+          type="button"
         >
           Previous
         </Button>
         <Button 
-          type="submit"
+        onClick={handleSubmit}
+        type="submit"
         >
           Next
-        </Button>
+      </Button>
       </div>
     </form>
   );
