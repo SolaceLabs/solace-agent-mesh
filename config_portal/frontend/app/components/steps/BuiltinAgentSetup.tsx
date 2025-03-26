@@ -8,7 +8,6 @@ type Agent = {
   id: string;
   name: string;
   description: string;
-  enabled: boolean;
   envVars?: {
     key: string;
     label: string;
@@ -33,14 +32,12 @@ export const builtinAgents: Agent[] = [
     id: 'web_request',
     name: 'Web Request Agent',
     description: 'Can make queries to web to get real-time data',
-    enabled: true,
     envVars: [],
   },
   {
     id: 'image_processing',
     name: 'Image Processing Agent',
     description: 'Generate images from text or convert images to text',
-    enabled: true,
     envVars: [
       {
         key: 'IMAGE_GEN_ENDPOINT',
@@ -68,7 +65,7 @@ export const builtinAgents: Agent[] = [
         validation: (value) => {
           if (!value) {
             return 'Image Generation Model is required';
-          } 
+          }
           if (!value.includes('/')) {
             return 'Model name should follow the format provider/model-name';
           }
@@ -82,14 +79,12 @@ export const builtinAgents: Agent[] = [
 export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious }: BuiltinAgentSetupProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [envVars, setEnvVars] = useState<Record<string, string>>({});
-  const [agentEnabledState, setAgentEnabledState] = useState<Record<string, boolean>>({});
   const [initialized, setInitialized] = useState(false);
 
   // Initialize form data
   useEffect(() => {
     if (initialized) return;
     
-    const initialAgentState: Record<string, boolean> = {};
     const initialEnvVars: Record<string, string> = {};
     
     // Parse existing env_var data if present
@@ -102,18 +97,13 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
       });
     }
     
-    // Set default enabled values based on built_in_agent data
+    // Initialize env vars for enabled agents
     const enabledAgents = data.built_in_agent || [];
     builtinAgents.forEach(agent => {
-      // Set default enabled values from existing data or use defaults
-      const isAgentEnabled = enabledAgents.includes(agent.id);
-      initialAgentState[`enable_${agent.id}`] = isAgentEnabled;
-      
-      // Initialize env vars
-      if (agent.envVars) {
+      if (agent.envVars && enabledAgents.includes(agent.id)) {
         agent.envVars.forEach(env => {
           // Only set default value if no value exists yet
-          if (!initialEnvVars[env.key] && isAgentEnabled) {
+          if (!initialEnvVars[env.key]) {
             initialEnvVars[env.key] = env.defaultValue;
           }
         });
@@ -121,20 +111,11 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
     });
     
     setEnvVars(initialEnvVars);
-    setAgentEnabledState(initialAgentState);
-    
-    updateData({
-      ...initialAgentState,
-      built_in_agent: enabledAgents
-    });
-    
     setInitialized(true);
-  }, [data, updateData, initialized]);
+  }, [data, initialized]);
 
   const isAgentEnabled = (agentId: string) => {
-    return agentEnabledState[`enable_${agentId}`] !== undefined 
-      ? agentEnabledState[`enable_${agentId}`] 
-      : !!data[`enable_${agentId}`];
+    return (data.built_in_agent || []).includes(agentId);
   };
 
   const handleEnvVarChange = (key: string, value: string) => {
@@ -163,14 +144,6 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
   };
 
   const handleToggle = (agentId: string, value: boolean) => {
-    const newAgentState = {
-      ...agentEnabledState,
-      [`enable_${agentId}`]: value
-    };
-    setAgentEnabledState(newAgentState);
-    
-    updateData({ [`enable_${agentId}`]: value });
-    
     // If disabling, clear related env vars and errors
     if (!value) {
       const agent = builtinAgents.find(a => a.id === agentId);
@@ -197,15 +170,22 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
       }
     }
     
-    const selectedAgents = builtinAgents
-      .filter(agent => {
-        if (agent.id === agentId) return value;
-        return isAgentEnabled(agent.id);
-      })
-      .map(agent => agent.id);
+    // Update the built_in_agent array directly
+    const currentAgents = data.built_in_agent || [];
+    let updatedAgents;
+    
+    if (value) {
+      // Add agent if not already in the list
+      updatedAgents = currentAgents.includes(agentId)
+        ? currentAgents
+        : [...currentAgents, agentId];
+    } else {
+      // Remove agent from the list
+      updatedAgents = currentAgents.filter((id: string) => id !== agentId);
+    }
     
     updateData({
-      built_in_agent: selectedAgents
+      built_in_agent: updatedAgents
     });
   };
 
