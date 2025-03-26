@@ -251,8 +251,16 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
     );
   };
 
+  const cleanDataBeforeSubmit = (data: Record<string, any>) => {
+    // if namespace does not end with / add it
+    if (data.namespace && !data.namespace.endsWith('/')) {
+      data.namespace += '/';
+    }
+  };
+
   //  Submission Logic
   const submitConfiguration = async (force = false) => {
+    cleanDataBeforeSubmit(data);
     try {
       const response = await fetch('api/save_config', {
         method: 'POST',
@@ -322,6 +330,12 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
     setIsSubmitting(false);
   };
 
+  // Handle form submission
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleSubmit();
+  };
+
   //  Rendering
   return (
     <div className="space-y-6">
@@ -334,7 +348,7 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
       )}
 
       {!isSubmitted ? (
-        <>
+        <form onSubmit={onSubmit}>
           <div className="p-6 bg-solace-light-blue/10 rounded-md mb-4">
             <h3 className="text-xl font-bold text-solace-blue mb-3">
               Review Your Configuration
@@ -360,14 +374,14 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
           )}
 
           <div className="mt-8 flex justify-end space-x-4">
-            <Button onClick={onPrevious} variant="outline">
+            <Button onClick={onPrevious} variant="outline" type="button">
               Previous
             </Button>
-            <Button onClick={handleSubmit} disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? 'Initializing...' : 'Initialize Project'}
             </Button>
           </div>
-        </>
+        </form>
       ) : (
         <>
           <div className="p-6 bg-green-50 rounded-md mb-4 text-center">
