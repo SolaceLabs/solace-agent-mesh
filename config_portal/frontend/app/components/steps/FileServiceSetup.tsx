@@ -205,6 +205,7 @@ export default function FileServiceSetup({ data, updateData, onNext, onPrevious 
               onChange={handleVolumePathChange}
               placeholder="/tmp/solace-agent-mesh"
               required
+              autoFocus={true}
             />
           </FormField>
         )}
@@ -261,7 +262,7 @@ export default function FileServiceSetup({ data, updateData, onNext, onPrevious 
         >
           Previous
         </Button>
-        <Button 
+        <Button
           type="submit"
         >
           Next

@@ -226,6 +226,7 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
                 onChange={handleChange}
                 placeholder="default"
                 required
+                autoFocus={true}
               />
             </FormField>
             
@@ -313,8 +314,7 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
           Previous
         </Button>
         <Button 
-          onClick={handleSubmit}
-          type="submit"
+          type='submit'
           disabled={isRunningContainer}
         >
           Next

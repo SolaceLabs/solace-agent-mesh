@@ -106,7 +106,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
               value={data.llm_endpoint_url}
               onChange={handleChange}
               placeholder="https://api.example.com/v1"
-              required
+              autoFocus={true}
             />
           </FormField>
           
@@ -139,7 +139,6 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
               value={data.llm_model_name}
               onChange={handleChange}
               placeholder="provider/model-name"
-              required
             />
           </FormField>
         </div>
@@ -159,7 +158,6 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
               value={data.embedding_endpoint_url}
               onChange={handleChange}
               placeholder="https://api.example.com/v1"
-              required
             />
           </FormField>
           
@@ -176,7 +174,6 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
               value={data.embedding_api_key}
               onChange={handleChange}
               placeholder="Enter your API key"
-              required
             />
           </FormField>
           
@@ -193,7 +190,6 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
               value={data.embedding_model_name}
               onChange={handleChange}
               placeholder="provider/model-name"
-              required
             />
           </FormField>
         </div>
@@ -206,8 +202,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
         >
           Previous
         </Button>
-        <Button 
-          onClick={handleSubmit}
+        <Button
           type="submit"
         >
           Next

@@ -273,6 +273,7 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
                         onChange={(e) => handleEnvVarChange(env.key, e.target.value)}
                         placeholder={env.placeholder}
                         required={!!env.required && isAgentEnabled(agent.id)}
+                        autoFocus={agent?.envVars?.indexOf(env) === 0}  // Focuses on first input field of an built in agent
                       />
                     </FormField>
                   ))}
