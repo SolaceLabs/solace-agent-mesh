@@ -414,11 +414,11 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
               in the root of the project and the <code className="bg-gray-800 px-1 py-0.5 rounded">solace-agent-mesh.yaml</code> file.
             </p>
             <p className="mb-4">
-              To start Solace Agent Mesh directly, you can run:{' '}
-              <code className="bg-gray-800 px-1 py-0.5 rounded">
-                sam run -eb
-              </code>
+              To start Solace Agent Mesh directly, you can run:
             </p>
+            <div className="bg-gray-800 text-gray-200 p-3 rounded font-mono text-sm mb-4">
+              $ solace-agent-mesh run -eb
+            </div>
             <p className="mb-4">
               To get started adding components, use the{' '}
               <code className="bg-gray-800 px-1 py-0.5 rounded">
@@ -426,8 +426,14 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
               </code>{' '}
               command to add agents and gateways.
             </p>
-            <div className="bg-gray-800 text-gray-200 p-3 rounded font-mono text-sm">
+            <div className="bg-gray-800 text-gray-200 p-3 rounded font-mono text-sm mb-4">
               $ solace-agent-mesh add agent my-agent
+            </div>
+            <p className="mb-4 bg-gray-700 p-3 rounded text-yellow-300">
+              <span className="font-bold">Pro Tip:</span> You can use <code className="bg-gray-800 px-1 py-0.5 rounded">sam</code> as a shorthand for <code className="bg-gray-800 px-1 py-0.5 rounded">solace-agent-mesh</code> in all commands:
+            </p>
+            <div className="bg-gray-800 text-gray-200 p-3 rounded font-mono text-sm">
+              $ sam add agent my-agent
             </div>
           </div>
         </>
