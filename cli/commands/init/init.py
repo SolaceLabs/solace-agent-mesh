@@ -80,7 +80,8 @@ def init_command(options={}):
                 click.echo(click.style("Configuration received from portal", fg="green"))
 
                 #if web configuration portal is used, skip the steps that are already done
-                print(options)
+                #TODO REMOVE PRINT
+                #print(options)
                 steps_if_web_setup_used = [
                     ("", create_config_file_step),
                     ("", create_other_project_files_step),

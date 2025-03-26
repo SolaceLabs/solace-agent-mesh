@@ -5,7 +5,8 @@ export default {
   theme: {
     extend: {
       colors: {
-        'solace-blue': '#0c2139',
+        // I have modified solace blue here so its not as dark as the original
+        'solace-blue': '#20344a',
         'solace-green': '#00af83',
         'solace-dark-green': '#068f6c',
         'solace-light-blue': '#032034',

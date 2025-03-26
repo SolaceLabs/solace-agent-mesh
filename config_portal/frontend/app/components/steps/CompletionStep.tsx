@@ -18,7 +18,7 @@ const SENSITIVE_FIELDS = ['broker_password', 'llm_api_key', 'embedding_api_key']
 const CONFIG_GROUPS: Record<string, string[]> = {
   Project: ['namespace'],
   Broker: ['broker_type'],
-  'LLM Providers': [
+  'AI Providers': [
     'llm_model_name',
     'llm_endpoint_url',
     'llm_api_key',
@@ -34,7 +34,6 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [confirmationMessage, setConfirmationMessage] = useState('');
 
@@ -394,10 +393,20 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
               up.
             </p>
           </div>
-          <div className="p-4 bg-blue-400 text-white rounded-md">
+          <div className="p-4 bg-solace-blue text-white rounded-md">
             <h3 className="font-bold mb-2">Next Steps</h3>
             <p className="mb-4">
-              To get started, use the{' '}
+              Your configurations have been saved in the <code className="bg-gray-800 px-1 py-0.5 rounded">.env</code> file 
+              in the root of the project and the <code className="bg-gray-800 px-1 py-0.5 rounded">solace-agent-mesh.yaml</code> file.
+            </p>
+            <p className="mb-4">
+              To start Solace Agent Mesh directly, you can run:{' '}
+              <code className="bg-gray-800 px-1 py-0.5 rounded">
+                sam run -eb
+              </code>
+            </p>
+            <p className="mb-4">
+              To get started adding components, use the{' '}
               <code className="bg-gray-800 px-1 py-0.5 rounded">
                 solace-agent-mesh add
               </code>{' '}
