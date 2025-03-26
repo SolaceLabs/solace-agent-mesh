@@ -12,7 +12,7 @@ authors = [
 ]
 description = "Solace Agent Mesh is an EDA AI-first platform powered by Solace"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10.16"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
@@ -98,4 +98,6 @@ installer = "pip"
 
 
 [[tool.hatch.envs.hatch-test.matrix]]
-python = ["3.11", "3.12"]
+python = ["3.10.16", "3.12"]
+
+
