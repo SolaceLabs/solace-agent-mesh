@@ -27,9 +27,29 @@ def create_app(shared_config=None):
     @app.route('/api/default_options', methods=['GET'])
     def get_default_options():
         """Endpoint that returns the default options for form initialization"""
+        path = request.args.get('path', 'advanced')
+        
         modified_default_options = default_options.copy()
-        for option in EXCLUDE_OPTIONS:
+        
+        # Base exclusions for all paths
+        base_exclude_options = EXCLUDE_OPTIONS.copy()
+        
+        # Additional exclusions for quick path
+        quick_path_exclude_options = [
+            "namespace", "broker_type", "broker_url", "broker_vpn",
+            "broker_username", "broker_password", "container_engine",
+            "built_in_agent", "file_service_provider", "file_service_config"
+        ]
+        
+        # Apply exclusions based on path
+        exclude_options = base_exclude_options.copy()
+        if path == 'quick':
+            exclude_options.extend(quick_path_exclude_options)
+        
+        # Remove excluded options
+        for option in exclude_options:
             modified_default_options.pop(option, None)
+        
         return jsonify({
             "default_options": modified_default_options,
             "status": "success"
