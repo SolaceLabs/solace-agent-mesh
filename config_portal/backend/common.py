@@ -16,7 +16,7 @@ default_options = {
     "embedding_model_name": "openai/text-embedding-ada-002",
     "embedding_endpoint_url": "https://api.openai.com/v1",
     "embedding_api_key": "",
-    "built_in_agent": [],
+    "built_in_agent": ["web_request", "image_processing"],
     "file_service_provider": "volume",
     "file_service_config": ["directory=/tmp/solace-agent-mesh"],
     "env_var": [],
