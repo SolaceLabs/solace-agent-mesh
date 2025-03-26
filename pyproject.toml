@@ -15,8 +15,10 @@ readme = "README.md"
 requires-python = ">=3.10.16"
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10.16",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
 ]
@@ -97,7 +99,8 @@ lint.ignore = ["F401", "E731"]
 installer = "pip"
 
 
-[[tool.hatch.envs.hatch-test.matrix]]
-python = ["3.10.16", "3.12"]
 
+
+[[tool.hatch.envs.hatch-test.matrix]]
+python = ["3.10.16", "3.13"]
 
