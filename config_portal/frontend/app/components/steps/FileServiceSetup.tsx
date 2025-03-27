@@ -94,8 +94,8 @@ export default function FileServiceSetup({ data, updateData, onNext, onPrevious 
       updateData({
         file_service_provider: newProvider,
         file_service_config: [
-          [`bucket_name=${bucketName}`],
-          [`endpoint_url=${endpointUrl}`]
+          `bucket_name=${bucketName}`,
+          `endpoint_url=${endpointUrl}`
         ]
       });
     }
@@ -186,7 +186,6 @@ export default function FileServiceSetup({ data, updateData, onNext, onPrevious 
             options={providerOptions}
             value={selectedProvider}
             onChange={handleProviderChange}
-            required
           />
         </FormField>
         
@@ -204,7 +203,6 @@ export default function FileServiceSetup({ data, updateData, onNext, onPrevious 
               value={volumePath}
               onChange={handleVolumePathChange}
               placeholder="/tmp/solace-agent-mesh"
-              required
               autoFocus={true}
             />
           </FormField>
@@ -225,7 +223,6 @@ export default function FileServiceSetup({ data, updateData, onNext, onPrevious 
                 value={bucketName}
                 onChange={handleBucketNameChange}
                 placeholder="my-s3-bucket"
-                required
               />
             </FormField>
             
@@ -242,7 +239,6 @@ export default function FileServiceSetup({ data, updateData, onNext, onPrevious 
                 value={endpointUrl}
                 onChange={handleEndpointUrlChange}
                 placeholder="https://s3.amazonaws.com"
-                required
               />
             </FormField>
             

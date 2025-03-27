@@ -27,7 +27,7 @@ const pathOptions: Record<PathType, {
 }> = {
   quick: {
     title: 'Get Started Quickly',
-    timeEstimate: '5 minutes',
+    timeEstimate: '2 minutes',
     timeColor: 'green',
     description: 'Simple setup with recommended defaults',
     features: [
@@ -37,7 +37,7 @@ const pathOptions: Record<PathType, {
   },
   advanced: {
     title: 'Advanced Setup',
-    timeEstimate: '15 minutes',
+    timeEstimate: '10 minutes',
     timeColor: 'blue',
     description: 'Full control over all configuration options',
     features: [

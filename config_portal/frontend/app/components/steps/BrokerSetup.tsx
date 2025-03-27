@@ -44,7 +44,6 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
   });
 
   useEffect(() => {
-    console.log(data.container_engine);
     if (!data.container_engine && data.broker_type === 'container') {
       updateData({ container_engine: 'podman' });
     }
@@ -60,6 +59,14 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
         message: 'Container already started'
        });
     }
+
+    // Set dev_mode to false if it's not the selected broker type
+    if (data.broker_type !== 'dev_mode') {
+      updateData({ dev_mode: false });
+    } else if (data.broker_type === 'dev_mode') {
+      updateData({ dev_mode: true });
+    }
+    
   }, [data.broker_type]);
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
