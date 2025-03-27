@@ -3,6 +3,12 @@ title: Installation
 sidebar_position: 20
 ---
 
+# Prerequisites
+Before you begin, you require the following installed on your computer:
+
+- Python 3.11 or later
+- PIP (if you have `pip3`, you can alias it to `pip`).
+  
 # Installation
 
 [Solace Agent Mesh Module](https://pypi.org/project/solace-agent-mesh) comes with two components:

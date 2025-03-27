@@ -54,8 +54,15 @@ class PlantUmlDiagram(Action):
             {"role": "user", "content": description},
         ]
         agent = self.get_agent()
-        response = agent.do_llm_service_request(messages=messages)
-        expression = response.get("content")
+        try:
+            response = agent.do_llm_service_request(messages=messages)
+            expression = response.get("content")
+        except TimeoutError as e:
+            log.error("LLM request timed out: %s", str(e))
+            return ActionResponse(message="LLM request timed out")
+        except Exception as e:
+            log.error("Failed to process content with LLM: %s", str(e))
+            return ActionResponse(message="Failed to process content with LLM")
 
         # Surround expression with @startuml and @enduml if missing
         if not expression.startswith("@startuml"):

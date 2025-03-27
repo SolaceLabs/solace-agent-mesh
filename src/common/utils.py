@@ -139,17 +139,22 @@ def parse_file_content(file_xml: str) -> dict:
     """
     Parse the xml tags in the content and return a dictionary of the content.
     """
-    ignore_content_tags = ["data"]
-    file_dict = xml_to_dict(file_xml, ignore_content_tags)
-    dict_keys = list(file_dict.keys())
-    top_key = [key for key in dict_keys if key not in ignore_content_tags][0]
+    try:
+        ignore_content_tags = ["data"]
+        file_dict = xml_to_dict(file_xml, ignore_content_tags)
+        dict_keys = list(file_dict.keys())
+        top_key = [key for key in dict_keys if key not in ignore_content_tags][0]
 
-    return {
-        "data": file_dict.get("data", {}).get("data", ""),
-        "url": file_dict.get(top_key, {}).get("url", {}).get("url", ""),
-        "mime_type": file_dict.get(top_key, {}).get("mime_type", ""),
-        "name": file_dict.get(top_key, {}).get("name", ""),
-    }
+        return {
+            "data": file_dict.get("data", {}).get("data", ""),
+            "url": file_dict.get(top_key, {}).get("url", {}).get("url", ""),
+            "mime_type": file_dict.get(top_key, {}).get("mime_type", ""),
+            "name": file_dict.get(top_key, {}).get("name", ""),
+        }
+    except Exception as e:
+        result = {"data": "", "url": "", "mime_type": "", "name": ""}
+        log.error("Error parsing file content: %s", e)
+        return result
 
 
 def parse_llm_output(llm_output: str) -> dict:

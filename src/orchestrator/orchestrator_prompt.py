@@ -2,42 +2,39 @@ from typing import Dict, Any, List
 import yaml
 from langchain_core.messages import HumanMessage
 from ..services.file_service import FS_PROTOCOL, Types, LLM_QUERY_OPTIONS, TRANSFORMERS
+from solace_ai_connector.common.log import log
 
 # Cap the number of examples so we don't overwhelm the LLM
 MAX_SYSTEM_PROMPT_EXAMPLES = 6
 
 # Examples that should always be included in the prompt
 fixed_examples = [
-    """    <example>
-        <example_docstring>
-          This example shows a stimulus from a chatbot gateway in which a user is asking about the top stories on the website hacker news. The web_request is not yet open, so the change_agent_status action is invoked to open the web_request agent.
-        </example_docstring> 
-        <example_stimulus>
-          <{tp}stimulus starting_id="1"/>
-          What is the top story on hacker news?
-          </{tp}stimulus>
-          <{tp}stimulus_metadata>
-          local_time: 2024-11-06 15:58:04 EST-0500 (Wednesday)
-          </{tp}stimulus_metadata>    
-        </example_stimulus>
-        <example_response>
-          <{tp}reasoning>
-          - User is asking for the top story on Hacker News
-          - We need to use the web_request agent to fetch the latest information
-          - The web_request agent is currently closed, so we need to open it first
-          - After opening the agent, we\'ll need to make a web request to Hacker News
-          </{tp}reasoning>
-
-          <{tp}status_update>To get the latest top story from Hacker News, I\'ll need to access the web. I\'m preparing to do that now.</{tp}status_update>
-
-          <{tp}invoke_action agent="global" action="change_agent_status">
-          <{tp}parameter name="agent_name">web_request</{tp}parameter>
-          <{tp}parameter name="new_state">open</{tp}parameter>
-          </{tp}invoke_action>
-        </example_response>
-    </example>
-"""
-]
+                    {
+                        "docstring": "This example shows a stimulus from a chatbot gateway in which a user is asking about the top stories on the website hacker news. The web_request is not yet open, so the change_agent_status action is invoked to open the web_request agent.",
+                        "tag_prefix_placeholder": "{tp}",
+                        "starting_id": "1",
+                        "user_input": "What is the top story on hacker news?",
+                        "metadata": [
+                            "local_time: 2024-11-06 15:58:04 EST-0500 (Wednesday)"
+                        ],
+                        "reasoning": [
+                            "- User is asking for the top story on Hacker News",
+                            "- We need to use the web_request agent to fetch the latest information",
+                            "- The web_request agent is currently closed, so we need to open it first",
+                            "- After opening the agent, we'll need to make a web request to Hacker News"
+                        ],
+                        "response_text": "",
+                        "status_update": "To get the latest top story from Hacker News, I'll need to access the web. I'm preparing to do that now.",
+                        "action": {
+                            "agent": "global",
+                            "name": "change_agent_status",
+                            "parameters": {
+                                "agent_name": "web_request",
+                                "new_state": "open"
+                            }
+                        }
+                    }
+                  ]
 
 
 def get_file_handling_prompt(tp: str) -> str:
@@ -156,7 +153,9 @@ def create_examples(
         String containing all examples with replaced placeholders
     """
     examples = (fixed_examples + agent_examples)[:MAX_SYSTEM_PROMPT_EXAMPLES]
-    return "\n".join([example.replace("{tp}", tp) for example in examples])
+    formatted_examples = format_examples_by_llm_type(examples)
+    
+    return "\n".join([example.replace("{tp}", tp) for example in formatted_examples])
 
 
 def SystemPrompt(info: Dict[str, Any], action_examples: List[str]) -> str:
@@ -413,3 +412,106 @@ you should ask the originator for more information. Include links to the source 
 {context}
 </context>
 """
+
+
+def format_examples_by_llm_type(examples: list, llm_type: str = "anthropic") -> list:
+    """
+    Render examples based on llm type
+    
+    Args:
+        llm_type (str): The type of LLM to render examples for (default: "anthropic")
+        examples (list): List of examples in model-agnostic format
+        
+    Returns:
+        list: List of examples formatted for the specified LLM
+    """
+    formatted_examples = []
+
+    if llm_type == "anthropic":
+        for example in examples:
+            formatted_example = format_example_for_anthropic(example)
+            formatted_examples.append(formatted_example)
+    else:
+        log.error(f"Unsupported LLM type: {llm_type}")
+
+    return formatted_examples
+
+def format_example_for_anthropic(example: dict) -> str:
+    """
+    Format an example for the Anthropic's LLMs
+    """
+    
+    tag_prefix = example.get("tag_prefix_placeholder", "t123")
+    starting_id = example.get("starting_id", "1")
+    docstring = example.get("docstring", "")
+    user_input = example.get("user_input", "")
+    metadata_lines = example.get("metadata", [])
+    reasoning_lines = example.get("reasoning", [])
+    response_text = example.get("response_text", "")
+    
+    # Start building the XML structure, add the description and user input
+    xml_content = f"""<example>
+        <example_docstring>
+            {docstring}
+        </example_docstring>
+        <example_stimulus>
+            <{tag_prefix}stimulus starting_id="{starting_id}">
+            {user_input}
+            </{tag_prefix}stimulus>
+            <{tag_prefix}stimulus_metadata>
+            """
+    
+    # Add metadata lines
+    for metadata_line in metadata_lines:
+        xml_content += f"{metadata_line}\n"
+    
+    xml_content += f"""</{tag_prefix}stimulus_metadata>
+        </example_stimulus>
+        <example_response>
+            <{tag_prefix}reasoning>
+            """
+    
+    # Add reasoning lines
+    for reasoning_line in reasoning_lines:
+        xml_content += f"{reasoning_line}\n"
+    
+    xml_content += f"""</{tag_prefix}reasoning>
+            {response_text}"""
+    
+    # Add action invocation section
+    if "action" in example:
+        action_data = example.get("action", {})
+        status_update = example.get("status_update", "")
+        agent_name = action_data.get("agent", "")
+        action_name = action_data.get("name", "")
+        
+        xml_content += f"""
+            <{tag_prefix}status_update>{status_update}</{tag_prefix}status_update>
+            <{tag_prefix}invoke_action agent="{agent_name}" action="{action_name}">"""
+        
+        # Handle parameters as dictionary
+        parameter_dict = action_data.get("parameters", {})
+        for param_name, param_value in parameter_dict.items():
+            xml_content += f"""
+            <{tag_prefix}parameter name="{param_name}">"""
+            
+            # Handle parameter names and values (as lists)
+            if isinstance(param_value, list):
+                for line in param_value:
+                    xml_content += f"\n{line}"
+                xml_content += "\n"
+            else:
+                # For simple string values
+                xml_content += f"{param_value}"
+                
+            xml_content += f"</{tag_prefix}parameter>\n"
+    
+        xml_content += f"</{tag_prefix}invoke_action>"
+    
+    # Close the XML structure
+    xml_content += """
+        </example_response>
+    </example>
+    """
+
+    return xml_content

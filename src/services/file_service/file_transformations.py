@@ -82,6 +82,8 @@ def apply_file_transformations(
         return file
     text_mime_type_regex = r"text/.*|.*csv|.*json|.*xml|.*yaml|.*x-yaml|.*txt"
     mime_type = metadata.get("mime_type", "")
+    if mime_type is None:
+        mime_type = ""
     name = metadata.get("name", "unknown")
     other = {
         "mime_type": mime_type,
@@ -126,6 +128,14 @@ def apply_file_transformations(
                 return file
 
         if not isinstance(data, str):
-            data = json.dumps(data)
+            # Convert bytes to string
+            if isinstance(data, bytes):
+                try:
+                    data = data.decode("utf-8")
+                except UnicodeDecodeError:
+                    data = base64.b64encode(data).decode("utf-8")
+                    data = f"data:{mime_type};base64,{data}"
+            else:
+                data = json.dumps(data)
 
         return data

@@ -34,6 +34,8 @@ def get_str_type(value: str) -> str:
     Returns:
     - str: The type of the value.
     """
+    if not value:
+        return Types.NULL
     if value.isdigit():
         return Types.INT
     elif value.replace(".", "", 1).isdigit():

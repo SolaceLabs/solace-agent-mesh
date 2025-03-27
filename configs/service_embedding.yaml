@@ -53,7 +53,7 @@ flows:
           source_expression: input.payload
 
       - component_name: embedding_service_model
-        num_instances: 1
+        num_instances: ${EMBEDDING_SERVICE_MODEL_NUM_INSTANCES, 1}
         component_module: litellm_embeddings
         component_config:
           load_balancer:

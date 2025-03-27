@@ -81,7 +81,7 @@ flows:
           source_expression: input.payload
 
       - component_name: llm_service_planning
-        num_instances: 1
+        num_instances: ${LLM_SERVICE_PLANNING_MODEL_NUM_INSTANCES, 1}
         component_module: litellm_chat_model
         component_config:
           <<: *llm_config

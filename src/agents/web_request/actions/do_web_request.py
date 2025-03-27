@@ -31,37 +31,31 @@ class DoWebRequest(Action):
                 ],
                 "required_scopes": ["web_request:do_web_request:read"],
                 "examples": [
-                    """    <example>
-        <example_docstring>
-            This is an example of a user requesting to fetch information from the web. The web_request agent is open so invoke the do_web_request action to fetch the content from the url and process the information according to the llm_prompt.
-        </example_docstring>
-        <example_stimulus>
-            <{tp}stimulus starting_id="10"/>
-            What is the weather in Ottawa?
-            </{tp}stimulus>
-            <{tp}stimulus_metadata>
-            local_time: 2024-11-06 12:33:12 EST-0500 (Wednesday)
-            </{tp}stimulus_metadata>
-        </example_stimulus>
-        <example_response>
-            <{tp}reasoning>
-            - User is asking for current weather information in Ottawa
-            - We need to fetch up-to-date weather data
-            - Use the web_request agent to get the latest weather information
-            - Plan to use the Environment Canada website for accurate local weather data
-            </{tp}reasoning>
-
-            Certainly! I\'ll fetch the current weather information for Ottawa for you right away.
-
-            <{tp}invoke_action agent="web_request" action="do_web_request">
-            <{tp}parameter name="url">https://weather.gc.ca/city/pages/on-118_metric_e.html</{tp}parameter>
-            <{tp}parameter name="llm_prompt">Extract the current temperature, weather conditions, and any important weather alerts or warnings for Ottawa from the webpage. Format the response as a bulleted list with emoji where appropriate.</{tp}parameter>
-            </{tp}invoke_action>
-
-            <{tp}status_update>Retrieving the latest weather data for Ottawa...</{tp}status_update>'
-        </example_response>
-    </example>
-"""
+                    {
+                        "docstring": "This is an example of a user requesting to fetch information from the web. The web_request agent is open so invoke the do_web_request action to fetch the content from the url and process the information according to the llm_prompt.",
+                        "tag_prefix_placeholder": "{tp}",
+                        "starting_id": "10",
+                        "user_input": "What is the weather in Ottawa?",
+                        "metadata": [
+                            "local_time: 2024-11-06 12:33:12 EST-0500 (Wednesday)"
+                        ],
+                        "reasoning": [
+                            "- User is asking for current weather information in Ottawa",
+                            "- We need to fetch up-to-date weather data",
+                            "- Use the web_request agent to get the latest weather information",
+                            "- Plan to use the Environment Canada website for accurate local weather data"
+                        ],
+                        "response_text": "Certainly! I'll fetch the current weather information for Ottawa for you right away.",
+                        "status_update": "Retrieving the latest weather data for Ottawa...",
+                        "action": {
+                            "agent": "web_request",
+                            "name": "do_web_request",
+                            "parameters": {
+                                "url": "https://weather.gc.ca/city/pages/on-118_metric_e.html",
+                                "llm_prompt": "Extract the current temperature, weather conditions, and any important weather alerts or warnings for Ottawa from the webpage. Format the response as a bulleted list with emoji where appropriate."
+                            }
+                        }
+                    }
                 ],
             },
             **kwargs,
@@ -127,8 +121,15 @@ class DoWebRequest(Action):
             ]
 
             agent = self.get_agent()
-            response = agent.do_llm_service_request(messages=messages)
-            content = response.get("content")
+            try:
+                response = agent.do_llm_service_request(messages=messages)
+                content = response.get("content")
+            except TimeoutError as e:
+                log.error("LLM request timed out: %s", str(e))
+                return ActionResponse(message="LLM request timed out")
+            except Exception as e:
+                log.error("Failed to process content with LLM: %s", str(e))
+                return ActionResponse(message="Failed to process content with LLM")
 
         # Code to create the image using the provided content
         return ActionResponse(message=content)

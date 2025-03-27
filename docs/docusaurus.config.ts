@@ -46,7 +46,7 @@ const config: Config = {
       logo: {
         alt: "Solace Agent Mesh Logo",
         src: "img/logo.png",
-        target: "/docs/documentation/getting-started/introduction",
+        href: "/docs/documentation/getting-started/introduction",
       },
       items: [
         {

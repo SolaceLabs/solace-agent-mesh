@@ -201,6 +201,13 @@ class LLMRequestComponent(ComponentBase):
             stream=True,
             streaming_complete_expression="input.payload:last_chunk",
         ):
+            # Only process if the stimulus UUIDs correlate
+            if not self._correlate_request_and_response(input_message, response_message):
+                log.error("Mismatched request and response stimulus UUIDs: %s %s",
+                        self._get_user_propery(input_message, "stimulus_uuid"),
+                        self._get_user_propery(response_message, "stimulus_uuid"))                
+                raise ValueError("Mismatched request and response stimulus UUIDs")
+
             payload = response_message.get_payload()
             content = payload.get("chunk", "")
             aggregate_result += content
@@ -296,3 +303,15 @@ class LLMRequestComponent(ComponentBase):
             self.send_to_flow(self.stream_to_flow, message)
         elif self.stream_to_next_component:
             self.send_message(message)
+
+    @staticmethod
+    def _get_user_propery(message, user_property_key):
+        message_props = message.get_user_properties()
+        return message_props.get(user_property_key, "unknown")
+
+    # Define a helper function to check if response matches request
+    @staticmethod
+    def _correlate_request_and_response(request_msg, response_msg, correlation_key="stimulus_uuid"):
+        return (LLMRequestComponent._get_user_propery(request_msg, correlation_key) == 
+            LLMRequestComponent._get_user_propery(response_msg, correlation_key))
+

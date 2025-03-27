@@ -16,108 +16,17 @@ permissions:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
-    env:
-      WS_PRODUCT_NAME: "solaceai"
-      WS_PROJECT_NAME: ${{ github.event.repository.name }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Install Node.js dependencies
-        run: |
-          cd web-visualizer
-          npm install
-
-      - name: Build Web Visualizer
-        run: |
-          cd web-visualizer
-          npm run build
-
-      - name: Lint, Test and Build with Hatch
-        uses: SolaceDev/solace-public-workflows/.github/actions/hatch-lint-test@main
-        with:
-          min-python-version: "3.11"
-
-      - name: SonarQube Scan
-        if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
-        uses: sonarsource/sonarqube-scan-action@v2.2.0
-        env:
-          SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONARQUBE_HOST_URL }}
-        with:
-          args: >
-            -Dsonar.tests=tests/
-            -Dsonar.verbose=true
-            -Dsonar.sources=src/
-            -Dsonar.projectKey=${{github.repository_owner}}_${{github.event.repository.name}}
-            -Dsonar.python.coverage.reportPaths=coverage.xml
-            -Dsonar.python.ruff.reportPaths=lint.json
-
-      - name: SonarQube Quality Gate check
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        id: sonarqube-quality-gate-check
-        uses: sonarsource/sonarqube-quality-gate-action@master
-        env:
-          SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONARQUBE_HOST_URL }}
-
-      - name: Install Virtualenv for Whitesource Scan
-        run: |
-          python -m pip install --upgrade pip
-          pip install virtualenv
-
-      - name: Run Whitesource Scan
-        if: ${{ github.ref == 'refs/heads/main' }}
-        uses: SolaceDev/solace-public-workflows/.github/actions/whitesource-scan@main
-        with:
-          whitesource_product_name: ${{ env.WS_PRODUCT_NAME}}
-          whitesource_project_name: ${{ env.WS_PROJECT_NAME }}
-          whitesource_api_key: ${{ secrets.WHITESOURCE_API_KEY }}
-          whitesource_config_file: wss-unified-agent.config
-
-      - name: Run WhiteSource Policy Gate
-        if: ${{ github.ref == 'refs/heads/main' }}
-        uses: docker://ghcr.io/solacedev/maas-build-actions:latest
-        env:
-          WS_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
-          WS_PRODUCT_NAME: ${{ env.WS_PRODUCT_NAME}}
-          WS_PROJECT_NAME: ${{ env.WS_PROJECT_NAME }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AWS_REGION: ${{ vars.MANIFEST_AWS_REGION }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_READ_ONLY_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
-        with:
-          entrypoint: /bin/sh
-          args: >
-            -c "
-            . $VIRTUAL_ENV/bin/activate &&
-            cd $ACTIONS_PATH/whitesource-policy-violation-checker &&
-            python whitesource_policy_violation_checker.py
-            "
-
-      - name: Run WhiteSource Vulnerability Gate
-        if: ${{ github.ref == 'refs/heads/main' }}
-        uses: docker://ghcr.io/solacedev/maas-build-actions:latest
-        continue-on-error: true
-        env:
-          WS_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
-          WS_PRODUCT_NAME: ${{ env.WS_PRODUCT_NAME }}
-          WS_PROJECT_NAME: ${{ env.WS_PROJECT_NAME }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AWS_REGION: ${{ vars.MANIFEST_AWS_REGION }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_READ_ONLY_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
-          WS_JIRA_CHECK: "False" #No Jira Search for Open Vulnerability Issues
-        with:
-          entrypoint: /bin/sh
-          args: >
-            -c ". $VIRTUAL_ENV/bin/activate &&
-            cd $ACTIONS_PATH/whitesource-vulnerability-checker &&
-            python whitesource_vulnerability_checker.py
-            "
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_ci.yml@main
+    with:
+      min-python-version: "3.11"
+      whitesource_product_name: "solace-agent-mesh"
+      whitesource_config_file: "wss-unified-agent.config"
+      npm_package_path: web-visualizer
+      node_version: 20
+      npm_lock_file: package-lock.json
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONARQUBE_HOST_URL }}
+      WHITESOURCE_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
+      MANIFEST_AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_READ_ONLY_AWS_ACCESS_KEY_ID }}
+      MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}

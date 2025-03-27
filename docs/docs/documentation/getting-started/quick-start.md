@@ -65,6 +65,8 @@ solace-agent-mesh build
 You must run the `solace-agent-mesh` commands at the root directory of your project where the `solace-agent-mesh.yaml` file is located.
 :::
 
+ 
+
 ## Running the Project
 
 To run the project, you can use the `run` command to execute all the components in a single, multi-threaded application. It's possible to split the components into separate processes. See the [deployment](../deployment/deploy.md) page for more information.
@@ -84,7 +86,7 @@ To learn more about the other CLI commands, see the [CLI documentation](../conce
 
 ## Interacting with SAM
 
-You can use different gateway interfaces to communicate with the system such REST, Web UI, Slack, MS Teams, etc. To keep it simple for this demo, we will use the browser UI. To connect to the browser UI, open a browser and navigate to `http://localhost:5001`. If you chose another port during the `init` step, use that port instead.
+You can use different gateway interfaces to communicate with the system such REST, Web UI, Slack, MS Teams, etc. To keep it simple for this demo, we will use the browser UI. To connect to the browser UI, open a browser and navigate to `http://127.0.0.1:5001`. If you chose another port during the `init` step, use that port instead.
 
 This will provide a simple chat interface where you can interact with the Agent Mesh. Try some commands like `What is the capital of France?` or `Give me a diagram of the oAuth process`.
 
@@ -138,9 +140,9 @@ For example, here's a prompt to retrieve a file: `prompt="Give me a random bar c
 :::
 
 
-## Exercise
+## Try a Tutorial
 
-Try adding a new agent to the system by following the tutorial on adding an [SQL database agent](../tutorials/sql-database.md). This tutorial will guide you through the process of adding the SQL agent plugin and adding some example data to the database.
+Try adding a new agent to the system by following the tutorial on adding an [SQL database agent](../tutorials/sql-database.md). This tutorial guides you through the process of adding the SQL agent plugin and adding some sample data to the database.
 
 
 ## Next Steps
