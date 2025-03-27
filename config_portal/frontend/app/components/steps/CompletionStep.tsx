@@ -256,6 +256,10 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
     if (data.namespace && !data.namespace.endsWith('/')) {
       data.namespace += '/';
     }
+    if (data.container_started){
+      //remove container_started from data
+      delete data.container_started;
+    }
   };
 
   //  Submission Logic

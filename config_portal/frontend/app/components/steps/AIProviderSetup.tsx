@@ -2,6 +2,7 @@ import { useState } from 'react';
 import FormField from '../ui/FormField';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
+import ConfirmationModal from '../ui/ConfirmationModal';
 
 type AIProviderSetupProps = {
   data: { 
@@ -20,6 +21,9 @@ type AIProviderSetupProps = {
 
 export default function AIProviderSetup({ data, updateData, onNext, onPrevious }: AIProviderSetupProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isTestingConfig, setIsTestingConfig] = useState<boolean>(false);
+  const [testError, setTestError] = useState<string | null>(null);
+  const [showTestErrorDialog, setShowTestErrorDialog] = useState<boolean>(false);
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     updateData({ [e.target.name]: e.target.value });
@@ -74,10 +78,47 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
     return isValid;
   };
   
+  const testLLMConfig = async () => {
+    setIsTestingConfig(true);
+    setTestError(null);
+    
+    try {
+      const response = await fetch('/api/test_llm_config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: data.llm_model_name,
+          api_key: data.llm_api_key,
+          base_url: data.llm_endpoint_url,
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (result.status === 'success') {
+        // Test passed, proceed to next step
+        setIsTestingConfig(false);
+        onNext();
+      } else {
+        // Test failed, show error dialog
+        setTestError(result.message || 'Failed to test LLM configuration');
+        setShowTestErrorDialog(true);
+        setIsTestingConfig(false);
+      }
+    } catch (error) {
+      // Handle network or other errors
+      setTestError('An error occurred while testing the LLM configuration');
+      setShowTestErrorDialog(true);
+      setIsTestingConfig(false);
+    }
+  };
+  
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateForm()) {
-      onNext();
+      testLLMConfig();
     }
   };
   
@@ -208,6 +249,38 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
           Next
         </Button>
       </div>
+
+      {/* Loading indicator */}
+      {isTestingConfig && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full text-center">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Testing LLM Configuration</h3>
+            <div className="flex justify-center mb-4">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-solace-green"></div>
+            </div>
+            <p>Please wait while we test your LLM configuration...</p>
+          </div>
+        </div>
+      )}
+      
+      {/* Error dialog */}
+      {showTestErrorDialog && (
+        <ConfirmationModal
+          message={`LLM Configuration Test Failed: ${testError}
+
+This may indicate an issue with your LLM provider settings. Please check your endpoint URL, API key, and model name.
+
+Would you like to ignore this warning and continue anyway?`}
+          onConfirm={() => {
+            setShowTestErrorDialog(false);
+            onNext(); // Ignore the error and proceed
+          }}
+          onCancel={() => {
+            setShowTestErrorDialog(false);
+            // Stay on the current page to let the user fix the configuration
+          }}
+        />
+      )}
     </form>
   );
 }

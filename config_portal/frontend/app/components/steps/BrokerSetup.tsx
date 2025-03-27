@@ -12,6 +12,7 @@ type BrokerSetupProps = {
     broker_username: string;
     broker_password: string;
     container_engine?: string;
+    container_started?: boolean;
     [key: string]: any 
   };
   updateData: (data: Record<string, any>) => void;
@@ -39,8 +40,8 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
     message: string;
   }>({
     isRunning: false,
-    success: false,
-    message: '',
+    success: data.container_started === true,
+    message: data.container_started ? 'Container already started successfully' : '',
   });
 
   useEffect(() => {
@@ -50,16 +51,9 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
     if (data.container_engine && data.broker_type !== 'container') {
       updateData({ container_engine: '' });
     }
-
-    if (data.broker_type === 'container' && data.container_engine) {
-
-      setContainerStatus({
-        isRunning: false,
-        success: true,
-        message: 'Container already started'
-       });
-    }
-
+    
+    // Removed automatic success setting here
+    
     // Set dev_mode to false if it's not the selected broker type
     if (data.broker_type !== 'dev_mode') {
       updateData({ dev_mode: false });
@@ -134,14 +128,19 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
           success: true,
           message: result.message || 'Container started successfully!'
         });
-        // Update the selected container engine in case it was auto-selected
-        updateData({ container_engine: data.container_engine });
+        // Store the container status in the data for persistence
+        updateData({ 
+          container_engine: data.container_engine,
+          container_started: true 
+        });
       } else {
         setContainerStatus({
           isRunning: false,
           success: false,
           message: result.message || 'Failed to start container. Please try again.'
         });
+        // Clear the container_started flag on failure
+        updateData({ container_started: false });
       }
     } catch (error) {
       setContainerStatus({
@@ -149,6 +148,8 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
         success: false,
         message: error instanceof Error ? error.message : 'An unexpected error occurred'
       });
+      // Clear the container_started flag on error
+      updateData({ container_started: false });
     } finally {
       setIsRunningContainer(false);
     }

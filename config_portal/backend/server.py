@@ -6,7 +6,9 @@ import sys
 from solace_agent_mesh.config_portal.backend.common import default_options, CONTAINER_RUN_COMMAND 
 from cli.utils import get_formatted_names
 import shutil
+import litellm
 
+litellm.suppress_debug_info = True
 
 #disable flask startup banner
 import logging
@@ -98,7 +100,35 @@ def create_app(shared_config=None):
             
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)}), 500
-        
+    
+    @app.route('/api/test_llm_config', methods=['POST'])
+    def test_llm_config():
+        """
+        Endpoint that tests the LLM configuration given by the users"""
+        llm_config = request.json
+
+        #check for all values
+        if not llm_config.get("model") or not llm_config.get("api_key") or not llm_config.get("base_url"):
+            return jsonify({"status": "error", "message": "Please provide all the required values"}), 400
+
+        try:
+            response = litellm.completion(
+                model=llm_config.get("model"),
+                api_key=llm_config.get("api_key"),
+                base_url=llm_config.get("base_url"),
+                messages=[{"role":"user","content": "Say OK"}]
+                )
+            message = response.get("choices")[0].get("message")
+
+            if message is not None:
+                return jsonify({"status": "success", "message": message.content}), 200
+            else:
+                raise ValueError("No response from LLM")
+        except Exception:  
+            return jsonify({"status": "error", "message": "No response from LLM."}), 400
+
+
+
     @app.route('/api/runcontainer', methods=['POST'])
     def runcontainer():
         try:
