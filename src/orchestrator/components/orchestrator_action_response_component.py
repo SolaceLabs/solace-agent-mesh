@@ -1,7 +1,9 @@
 """This is the component that handles processing all action responses from agents"""
 
 import os
+import json
 from time import time
+from uuid import uuid4
 
 from solace_ai_connector.components.component_base import ComponentBase
 from solace_ai_connector.common.log import log
@@ -141,7 +143,63 @@ class OrchestratorActionResponseComponent(ComponentBase):
                 user_response["text"] = query
             else:
                 user_response["text"] = ContextQueryPrompt(query=query, context=context)
-
+                
+        # Handle approval requests
+        if data.get("approval_request"):
+            log.info("Approval request received")
+            approval_request = data.get("approval_request")
+            
+            # Get session state, stimulus state, and agent list state
+            session_state = self.orchestrator_state.get_session_state(session_id)
+            stimulus_state = self.orchestrator_state.get_stimulus_state(session_id)
+            agent_list_state = self.orchestrator_state.get_agent_list_state(session_id)
+            
+            # Create a task in the AsyncService
+            gateway_id = user_properties.get("gateway_id")
+            if not gateway_id:
+                log.error("No gateway_id found in user_properties")
+                self.discard_current_message()
+                return None
+                
+            # Send task creation request to AsyncService
+            events = []
+            events.append({
+                "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/async/task/create",
+                "payload": {
+                    "stimulus_id": session_id,
+                    "session_state": session_state,
+                    "stimulus_state": stimulus_state,
+                    "agent_list_state": agent_list_state,
+                    "gateway_id": gateway_id,
+                    "timeout_seconds": approval_request.get("timeout_seconds", 3600)
+                }
+            })
+            
+            # Send approval request to AsyncService
+            events.append({
+                "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/async/approval/create",
+                "payload": {
+                    "task_id": "{{task_id}}",  # This will be filled in by the AsyncService after task creation
+                    "originator": user_properties.get("identity"),
+                    "form_schema": approval_request.get("form_schema"),
+                    "approval_data": approval_request.get("approval_data")
+                }
+            })
+            
+            # Return status message to user
+            user_response["text"] = "Your request requires approval. Please check for an approval request."
+            
+            # Clear orchestrator state to pause processing
+            self.orchestrator_state.clear_stimulus_state(session_id)
+            self.orchestrator_state.clear_agent_list_state(session_id)
+            
+            # Return events
+            user_properties = message.get_user_properties()
+            user_properties['timestamp_end'] = time()
+            message.set_user_properties(user_properties)
+            
+            return events
+            
         events = []
 
         # Tell the ActionManager about the result - if it is complete, then

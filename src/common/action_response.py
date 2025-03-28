@@ -1,6 +1,6 @@
 """This is the definition of responses for the actions of the system."""
 
-from typing import Optional
+from typing import Optional, Dict, Any
 
 
 class RagMatch:
@@ -165,6 +165,49 @@ class ErrorInfo:
         return {"error_message": self._error_message}
 
 
+class ApprovalRequest:
+    """
+    Class representing an approval request that requires user interaction.
+    This is used when an action needs approval from the originator before proceeding.
+    """
+
+    def __init__(
+        self,
+        form_schema: Dict[str, Any],  # RJFS form schema
+        approval_data: Dict[str, Any],  # Data to display in the form
+        approval_type: str = "binary",  # binary (approve/reject) or custom
+        timeout_seconds: int = 3600,  # Default 1 hour timeout
+    ):
+        self._form_schema = form_schema
+        self._approval_data = approval_data
+        self._approval_type = approval_type
+        self._timeout_seconds = timeout_seconds
+
+    @property
+    def form_schema(self) -> Dict[str, Any]:
+        return self._form_schema
+
+    @property
+    def approval_data(self) -> Dict[str, Any]:
+        return self._approval_data
+
+    @property
+    def approval_type(self) -> str:
+        return self._approval_type
+
+    @property
+    def timeout_seconds(self) -> int:
+        return self._timeout_seconds
+
+    def to_dict(self) -> dict:
+        return {
+            "form_schema": self._form_schema,
+            "approval_data": self._approval_data,
+            "approval_type": self._approval_type,
+            "timeout_seconds": self._timeout_seconds,
+        }
+
+
 class ActionResponse:
 
     def __init__(
@@ -180,6 +223,7 @@ class ActionResponse:
         context_query: WithContextQuery = None,
         is_async: bool = False,
         async_response_id: str = None,
+        approval_request: ApprovalRequest = None,
     ):
         # Message to return - this could be a string or a slack blocks message
         self._message: str = message
@@ -216,6 +260,8 @@ class ActionResponse:
         self._async_response_id: str = async_response_id
         # originator - the component that originated the action request
         self._originator: Optional[str] = None
+        # approval_request - contains information for requesting approval from the originator
+        self._approval_request: ApprovalRequest = approval_request
 
     @property
     def message(self) -> any:
@@ -301,9 +347,13 @@ class ActionResponse:
     def is_async(self) -> bool:
         return self._is_async
 
-    @property 
+    @property
     def async_response_id(self) -> str:
         return self._async_response_id
+        
+    @property
+    def approval_request(self) -> ApprovalRequest:
+        return self._approval_request
 
     def to_dict(self) -> dict:
         response = {}
@@ -332,6 +382,8 @@ class ActionResponse:
             response["invoke_model_again"] = self._invoke_model_again
         if self._context_query:
             response["context_query"] = self._context_query.to_dict()
+        if self._approval_request:
+            response["approval_request"] = self._approval_request.to_dict()
         response["action_list_id"] = self._action_list_id
         response["action_idx"] = self._action_idx
         response["action_name"] = self._action_name

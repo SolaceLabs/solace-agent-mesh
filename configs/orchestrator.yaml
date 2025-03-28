@@ -139,15 +139,56 @@ flows:
         input_transforms:
           - type: copy
             source_expression: input.payload
-            dest_expression: user_data.component_input
+            dest_expression: user_data.output:payload
           - type: copy
             source_expression: input.user_properties:session_id
-            dest_expression: user_data.component_input:session_id
+            dest_expression: user_data.output:session_id
         component_input:
-          source_expression: user_data.component_input
+          source_expression: user_data.output
 
       # Break the action response into individual responses
       - component_name: split_action_response
+        component_module: iterate
+
+      # Send to the broker
+      - component_name: broker_output
+        component_module: broker_output
+        component_config:
+          <<: *broker_connection
+          payload_encoding: utf-8
+          payload_format: json
+          copy_user_properties: true
+        component_input:
+          source_expression: previous
+
+  # Flow to handle approval resumption from the AsyncService
+  - name: orchestrator_approval_resume
+    components:
+      # Input from a Solace broker
+      - component_name: solace_sw_broker
+        component_module: broker_input
+        component_config:
+          <<: *broker_connection
+          broker_queue_name: ${SOLACE_AGENT_MESH_NAMESPACE}orchestrator_approval_resume
+          broker_subscriptions:
+            - topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/async/resume/>
+              qos: 1
+          payload_encoding: utf-8
+          payload_format: json
+
+      # Process the approval resume with a custom component
+      - component_name: resume_processor
+        component_base_path: .
+        component_module: src.orchestrator.components.orchestrator_resume_component
+        input_transforms:
+          - type: copy
+            source_expression: input.payload
+            dest_expression: user_data.output:payload
+        component_input:
+          source_expression: user_data.output
+
+      # Break the response into individual responses
+      - component_name: split_response
         component_module: iterate
 
       # Send to the broker
