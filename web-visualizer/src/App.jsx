@@ -144,21 +144,31 @@ const App = () => {
 
   const onDialogClose = (proceed) => {
     if (proceed) {
-      connect(config)
+      // Format the namespace before connecting
+      const formattedConfig = {
+        ...config,
+        namespace: config.namespace && !config.namespace.endsWith('/') 
+          ? config.namespace + '/' 
+          : config.namespace
+      };
+      // Update the config state with the formatted namespace
+      setConfig(formattedConfig);
+      
+      connect(formattedConfig)
         .then(() => {
           setIsConnected(true);
-          if (config.name) {
+          if (formattedConfig.name) {
             const existingConfigIndex = savedConfigs.findIndex(
-              (c) => c.name === config.name
+              (c) => c.name === formattedConfig.name
             );
             let updatedConfigs;
             if (existingConfigIndex !== -1) {
               // Replace existing config
               updatedConfigs = [...savedConfigs];
-              updatedConfigs[existingConfigIndex] = config;
+              updatedConfigs[existingConfigIndex] = formattedConfig;
             } else {
               // Add new config
-              updatedConfigs = [...savedConfigs, config];
+              updatedConfigs = [...savedConfigs, formattedConfig];
             }
             setSavedConfigs(updatedConfigs);
             localStorage.setItem(

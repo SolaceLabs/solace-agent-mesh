@@ -1,7 +1,7 @@
 import React, { createContext, useState, useEffect, useCallback, useMemo, useContext } from 'react';
 
 // Constants for agent registration management
-const AGENT_TIMEOUT = 120000; // 2 minutes in milliseconds
+const AGENT_TIMEOUT = 70000 // 70 seconds in milliseconds (default TTL for agent registrations is 60 seconds)
 const CLEANUP_INTERVAL = 30000; // 30 seconds
 
 // Create context for agent registrations
