@@ -51,7 +51,7 @@ def init_command(options={}):
     check_if_already_done(options, default_options, skip, abort)
 
     click.echo(click.style("Initializing Solace Agent Mesh", bold=True, fg="blue"))
-    use_web_based_init = ask_yes_no_question("Do you want to use the web-based configuration portal?", False)
+    use_web_based_init = ask_yes_no_question("Do you want to use the web-based configuration portal?", True)
 
     if use_web_based_init and not skip:
 
@@ -81,7 +81,7 @@ def init_command(options={}):
 
                 #if web configuration portal is used, skip the steps that are already done
                 #TODO REMOVE PRINT
-                #print(options)
+                print(options)
                 steps_if_web_setup_used = [
                     ("", create_config_file_step),
                     ("", create_other_project_files_step),
@@ -108,7 +108,8 @@ def init_command(options={}):
         abort("\n\nAborted by user")
 
     click.echo(click.style("Solace Agent Mesh has been initialized", fg="green"))
-
+    #TODO REMOVE PRINT
+    #print(options)
     if not skip:
         click.echo(
             click.style(
