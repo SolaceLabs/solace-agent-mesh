@@ -105,7 +105,8 @@ export default function InitializationFlow() {
         .then(data => {
           if (data && data.default_options) {
             const options = data.default_options;
-            
+
+            preProcessOptions(options);
             setFormData(options);
             setIsLoading(false);
           } else {
@@ -119,6 +120,14 @@ export default function InitializationFlow() {
         });
     }
   }, [setupPath]);
+
+  // Pre-process options for certain fields
+  //remove llm model name from data
+  const preProcessOptions = (options: Record<string, any>) => {
+    if (options.llm_model_name) {
+      delete options.llm_model_name;
+    }
+  };
 
   // Update active steps when setup path changes
   useEffect(() => {

@@ -260,6 +260,12 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
       //remove container_started from data
       delete data.container_started;
     }
+    
+    //join provider and model name
+    if (data.llm_model_name && data.llm_provider){
+      data.llm_model_name = `${data.llm_provider}/${data.llm_model_name}`;
+      delete data.llm_provider
+    }
   };
 
   //  Submission Logic
@@ -439,6 +445,18 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
             <div className="bg-gray-800 text-gray-200 p-3 rounded font-mono text-sm">
               $ sam add agent my-agent
             </div>
+          </div>
+          <div className="p-4 bg-solace-blue text-white rounded-md mt-6">
+            <h3 className="font-bold mb-2">Documentation Resources</h3>
+            <p className="mb-4">
+              For more information on how to use Solace Agent Mesh, check out our documentation:
+            </p>
+            <a 
+              href="https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/" 
+              className="inline-block bg-white bg-opacity-20 px-4 py-2 rounded-md hover:bg-opacity-30 transition-all font-medium"
+            >
+              View Documentation →
+            </a>
           </div>
         </>
       )}
