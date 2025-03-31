@@ -180,6 +180,7 @@ class ActionResponse:
         context_query: WithContextQuery = None,
         is_async: bool = False,
         async_response_id: str = None,
+        user_form: dict = None,  # New field for user forms
     ):
         # Message to return - this could be a string or a slack blocks message
         self._message: str = message
@@ -216,6 +217,8 @@ class ActionResponse:
         self._async_response_id: str = async_response_id
         # originator - the component that originated the action request
         self._originator: Optional[str] = None
+        # user_form - form to be filled by the user
+        self._user_form: dict = user_form
 
     @property
     def message(self) -> any:
@@ -301,9 +304,13 @@ class ActionResponse:
     def is_async(self) -> bool:
         return self._is_async
 
-    @property 
+    @property
     def async_response_id(self) -> str:
         return self._async_response_id
+        
+    @property
+    def user_form(self) -> dict:
+        return self._user_form
 
     def to_dict(self) -> dict:
         response = {}
@@ -332,6 +339,8 @@ class ActionResponse:
             response["invoke_model_again"] = self._invoke_model_again
         if self._context_query:
             response["context_query"] = self._context_query.to_dict()
+        if self._user_form:
+            response["user_form"] = self._user_form
         response["action_list_id"] = self._action_list_id
         response["action_idx"] = self._action_idx
         response["action_name"] = self._action_name

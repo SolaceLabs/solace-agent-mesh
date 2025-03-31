@@ -7,8 +7,9 @@ from solace_ai_connector.components.component_base import ComponentBase
 from solace_ai_connector.common.log import log
 from solace_ai_connector.common.message import Message
 from solace_ai_connector.common.event import Event, EventType
-from ...orchestrator.orchestrator_main import OrchestratorState
+from ...orchestrator.orchestrator_main import OrchestratorState, ORCHESTRATOR_HISTORY_IDENTIFIER, ORCHESTRATOR_HISTORY_CONFIG
 from ...orchestrator.orchestrator_prompt import BasicRagPrompt, ContextQueryPrompt
+from ...services.history_service import HistoryService
 from ..action_manager import ActionManager
 
 info = {
@@ -48,6 +49,9 @@ class OrchestratorActionResponseComponent(ComponentBase):
                 self.kv_store_set("orchestrator_state", self.orchestrator_state)
 
         self.action_manager = ActionManager(self.flow_kv_store, self.flow_lock_manager)
+        self.history = HistoryService(
+            ORCHESTRATOR_HISTORY_CONFIG, identifier=ORCHESTRATOR_HISTORY_IDENTIFIER
+        )
 
     def invoke(self, message: Message, data):
         """Handle action responses from agents"""
@@ -148,13 +152,45 @@ class OrchestratorActionResponseComponent(ComponentBase):
         # it will send the result back to the model
         action_list = self.action_manager.add_action_response(data, user_response)
         if action_list and action_list.is_complete():
-            response_text, files = action_list.format_ai_response()
-
-            if response_text:
-                # Send the result back to the model
-                user_properties = message.get_user_properties()
-                events.append(
-                    {
+            # Check if there are any async responses
+            async_responses = []
+            for action in action_list.get_responses():
+                if action.get("response", {}).get("is_async"):
+                    async_responses.append(action)
+            
+            if async_responses:
+                # There are async responses, create a task group
+                # Get the history for this stimulus_uuid
+                stimulus_uuid = message.get_user_properties().get("stimulus_uuid")
+                session_id = message.get_user_properties().get("session_id")
+                gateway_id = message.get_user_properties().get("gateway_id")
+                
+                # Get history from history service
+                stimulus_state = self.history.get_history(session_id) if self.history else []
+                
+                # Create event to send to async service
+                events.append({
+                    "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/stimulus/async_service/createTaskGroup",
+                    "payload": {
+                        "event_type": "create_task_group",
+                        "stimulus_uuid": stimulus_uuid,
+                        "session_id": session_id,
+                        "gateway_id": gateway_id,
+                        "stimulus_state": stimulus_state,
+                        "agent_responses": action_list.get_responses(),
+                        "async_responses": async_responses,
+                    },
+                })
+                
+                log.info(f"Created task group for stimulus {stimulus_uuid} with {len(async_responses)} async responses")
+            else:
+                # No async responses, proceed as normal
+                response_text, files = action_list.format_ai_response()
+                
+                if response_text:
+                    # Send the result back to the model
+                    user_properties = message.get_user_properties()
+                    events.append({
                         "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/stimulus/orchestrator/reinvokeModel",
                         "payload": {
                             "text": response_text,
@@ -164,8 +200,8 @@ class OrchestratorActionResponseComponent(ComponentBase):
                             "thread_ts": user_properties.get("thread_ts"),
                             "action_response_reinvoke": True,
                         },
-                    }
-                )
+                    })
+            
             self.action_manager.delete_action_request(action_list.action_list_id)
 
         if len(events) == 0:
@@ -176,4 +212,60 @@ class OrchestratorActionResponseComponent(ComponentBase):
         user_properties['timestamp_end'] = time()
         message.set_user_properties(user_properties)
 
+        return events
+        
+    def handle_async_response(self, message: Message, data):
+        """Handle async responses from the async service"""
+        
+        if not data:
+            log.error("No data received from async service")
+            self.discard_current_message()
+            return None
+            
+        stimulus_uuid = data.get("stimulus_uuid")
+        session_id = data.get("session_id")
+        gateway_id = data.get("gateway_id")
+        user_responses = data.get("user_responses", {})
+        timed_out = data.get("timed_out", False)
+        
+        if not stimulus_uuid or not session_id:
+            log.error("Missing required fields for async_response")
+            self.discard_current_message()
+            return None
+            
+        # Process user responses and create a response to send back to the model
+        response_text = "User responses received:\n\n"
+        
+        # For each user response, we have the action information needed to restart the action
+        for task_id, response_data in user_responses.items():
+            user_response = response_data.get("user_response")
+            action_name = response_data.get("action_name")
+            action_params = response_data.get("action_params")
+            action_idx = response_data.get("action_idx")
+            action_list_id = response_data.get("action_list_id")
+            originator = response_data.get("originator")
+            async_response_id = response_data.get("async_response_id")
+            
+            # Here we would restart the action with the user response
+            # This part will be implemented in the future
+            
+            response_text += f"Task {task_id} for action {action_name}: {user_response}\n"
+            
+        if timed_out:
+            response_text += "\nSome tasks timed out and did not receive a response."
+            
+        # Send the result back to the model
+        user_properties = message.get_user_properties()
+        events = [{
+            "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/stimulus/orchestrator/reinvokeModel",
+            "payload": {
+                "text": response_text,
+                "files": [],
+                "identity": user_properties.get("identity"),
+                "channel": user_properties.get("channel"),
+                "thread_ts": user_properties.get("thread_ts"),
+                "action_response_reinvoke": True,
+            },
+        }]
+        
         return events
