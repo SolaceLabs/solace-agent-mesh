@@ -199,6 +199,24 @@ class GatewayOutput(GatewayBase):
                 and "text" in data
             ):
                 if content:
+                    actions_called = user_properties.get("actions_called", [])
+                    if actions_called:
+                        actions_called_str = ""
+                        for action_called in actions_called:
+                            actions_called_str += (
+                                f"\n - Agent: {action_called.get('agent_name')}"
+                                f"\n   Action: {action_called.get('action_name')}"
+                                f"\n   Action Parameters: {action_called.get('action_params')}"
+                            )
+                            
+                        actions_called_prompt = (
+                            "<message_metadata>\n"
+                            "[Following actions were called to generate this response:]"
+                            f"{actions_called_str}"
+                            "\n</message_metadata>\n\n"
+                        )
+                        content = f"{actions_called_prompt}{content}"
+
                     self.history_instance.store_history(
                         session_id, "assistant", content, other_history_props
                     )

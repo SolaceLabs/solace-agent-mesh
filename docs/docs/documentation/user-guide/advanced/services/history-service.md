@@ -49,7 +49,7 @@ The History service requires a configuration object when creating a new instance
    "history_policy": {
       "max_characters": 30000,
       "max_turns": 10,
-      "enforce_alternate_message_roles": false
+      "enforce_alternate_message_roles": true
    }
 }
 ```  

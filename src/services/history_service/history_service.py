@@ -32,7 +32,7 @@ DEFAULT_SUMMARY_TIME_TO_LIVE = ONE_DAY * 5
 DEFAULT_HISTORY_POLICY = {
     "max_turns": DEFAULT_MAX_TURNS,
     "max_characters": DEFAULT_MAX_CHARACTERS,
-    "enforce_alternate_message_roles": False,
+    "enforce_alternate_message_roles": True,
 }
 
 
@@ -152,7 +152,7 @@ class HistoryService(AutoExpiry, metaclass=AutoExpirySingletonMeta):
             and history["history"][-1]["role"] == role
         ):
             # Append to last entry
-            history["history"][-1]["content"] += content
+            history["history"][-1]["content"] += "\n\n" + content
         else:
             # Add the new entry
             history["history"].append(

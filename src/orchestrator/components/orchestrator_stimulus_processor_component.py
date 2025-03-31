@@ -128,6 +128,18 @@ class OrchestratorStimulusProcessorComponent(LLMRequestComponent):
 
         user_properties = message.get_user_properties()
         user_properties['timestamp_end'] = time()
+
+        actions_called = user_properties.get('actions_called', []).copy()
+        if results:
+            for result in results:
+                if result.get("payload", {}).get("action_name"):
+                    actions_called.append({
+                        "agent_name": result.get("payload", {}).get("agent_name"),
+                        "action_name": result.get("payload", {}).get("action_name"),
+                        "action_params": result.get("payload", {}).get("action_params"),
+                    })
+        user_properties['actions_called'] = actions_called
+
         message.set_user_properties(user_properties)
 
         return results
