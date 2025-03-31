@@ -15,7 +15,8 @@ import plotly.graph_objects as go
 import plotly.io as pio
 
 from ....common.action import Action
-from ....common.action_response import ActionResponse
+from ....common.action_response import ActionResponse, ApprovalRequest
+from ....common.form_utils import create_approval_form
 from ....services.file_service import FileService
 
 
@@ -81,6 +82,39 @@ class PlotlyGraph(Action):
         )
 
     def invoke(self, params, meta={}) -> ActionResponse:
+
+        if not params.get("approved", False):
+
+            # Create approval data
+            approval_data = {
+                "task_description": "Create a plotly graph",
+                "task_details": "Make a nice plotly graph",
+                "priority": "High",
+                "requested_by": meta.get("user", "Unknown"),
+                "timestamp": meta.get("timestamp", "Unknown"),
+            }
+
+            # Create form schema
+            form_schema = create_approval_form(
+                approval_data=approval_data,
+                title="Task Approval Request",
+                description="Please review the following task and approve or reject it."
+            )
+
+            # Create approval request
+            approval_request = ApprovalRequest(
+                form_schema=form_schema,
+                approval_data=approval_data,
+                approval_type="binary",  # binary (approve/reject)
+                timeout_seconds=3600,  # 1 hour timeout
+            )
+
+            # Create action response with approval request
+            return ActionResponse(
+                message="Requesting approval for: Create a plotly graph",
+                approval_request=approval_request,
+            )
+    
         if platform.system() == "Windows":
             kaleido_version = version('kaleido')
             min_version = parse('0.1.0.post1')

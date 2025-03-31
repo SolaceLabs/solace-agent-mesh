@@ -9,9 +9,10 @@ from solace_ai_connector.components.component_base import ComponentBase
 from solace_ai_connector.common.log import log
 from solace_ai_connector.common.message import Message
 from solace_ai_connector.common.event import Event, EventType
-from ...orchestrator.orchestrator_main import OrchestratorState
+from ...orchestrator.orchestrator_main import OrchestratorState, ORCHESTRATOR_HISTORY_IDENTIFIER, ORCHESTRATOR_HISTORY_CONFIG
 from ...orchestrator.orchestrator_prompt import BasicRagPrompt, ContextQueryPrompt
-from ..action_manager import ActionManager
+from ..action_manager import ActionManager, ActionRequestList
+from ...services.history_service import HistoryService
 
 info = {
     "class_name": "OrchestratorActionResponseComponent",
@@ -50,6 +51,9 @@ class OrchestratorActionResponseComponent(ComponentBase):
                 self.kv_store_set("orchestrator_state", self.orchestrator_state)
 
         self.action_manager = ActionManager(self.flow_kv_store, self.flow_lock_manager)
+        self.history = HistoryService(
+            ORCHESTRATOR_HISTORY_CONFIG, identifier=ORCHESTRATOR_HISTORY_IDENTIFIER
+        )
 
     def invoke(self, message: Message, data):
         """Handle action responses from agents"""
@@ -148,11 +152,21 @@ class OrchestratorActionResponseComponent(ComponentBase):
         if data.get("approval_request"):
             log.info("Approval request received")
             approval_request = data.get("approval_request")
+                        
+            # Get the orchestrator history
+            stimulus_uuid = user_properties.get("stimulus_uuid")
+            stimulus_state = {}
+            if stimulus_uuid:
+                stimulus_state = self.history.get_history(stimulus_uuid)
             
-            # Get session state, stimulus state, and agent list state
-            session_state = self.orchestrator_state.get_session_state(session_id)
-            stimulus_state = self.orchestrator_state.get_stimulus_state(session_id)
-            agent_list_state = self.orchestrator_state.get_agent_list_state(session_id)
+            #TODO - what to add to the action response? Maybe a new method in action_manager?
+            action_list_state = self.action_manager.add_action_response(data, approval_request)
+            action_list_state_json = {}
+            #action_list_state_json["action_list_id"] = action_list_state
+            action_list_state_json["responses"] = action_list_state.get_responses()
+            action_list_state_json["actions"] = action_list_state.get_actions()
+            action_list_state_json["user_properties"] = action_list_state.get_user_properties()
+            action_list_state_json["action_name"] = data.get("action_name")
             
             # Create a task in the AsyncService
             gateway_id = user_properties.get("gateway_id")
@@ -166,10 +180,10 @@ class OrchestratorActionResponseComponent(ComponentBase):
             events.append({
                 "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/async/task/create",
                 "payload": {
-                    "stimulus_id": session_id,
-                    "session_state": session_state,
+                    "stimulus_id": stimulus_uuid,
+                    "session_id": session_id,
                     "stimulus_state": stimulus_state,
-                    "agent_list_state": agent_list_state,
+                    "agent_list_state": action_list_state_json,
                     "gateway_id": gateway_id,
                     "timeout_seconds": approval_request.get("timeout_seconds", 3600)
                 }
@@ -188,16 +202,13 @@ class OrchestratorActionResponseComponent(ComponentBase):
             
             # Return status message to user
             user_response["text"] = "Your request requires approval. Please check for an approval request."
-            
-            # Clear orchestrator state to pause processing
-            self.orchestrator_state.clear_stimulus_state(session_id)
-            self.orchestrator_state.clear_agent_list_state(session_id)
-            
+                        
             # Return events
             user_properties = message.get_user_properties()
             user_properties['timestamp_end'] = time()
             message.set_user_properties(user_properties)
             
+            # TODO: Need to save files
             return events
             
         events = []
@@ -235,3 +246,10 @@ class OrchestratorActionResponseComponent(ComponentBase):
         message.set_user_properties(user_properties)
 
         return events
+    
+class ActionRequestListEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, ActionRequestList):
+            # Customize this part: convert the object to a dictionary or list
+            return obj.__dict__
+        return super().default(obj)

@@ -34,12 +34,7 @@ class ApprovalExampleAction(Action):
                     "type": "string",
                     "required": False,
                 },
-            ],
-            "examples": [
-                "Request approval for creating a new user account",
-                "Get approval for deploying to production",
-                "Request approval for purchasing new equipment",
-            ],
+            ]
         }
         super().__init__(attributes, agent, config_fn, **kwargs)
 

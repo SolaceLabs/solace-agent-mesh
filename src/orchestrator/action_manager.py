@@ -75,6 +75,20 @@ class ActionManager:
                 return None
 
         return action
+        
+    def get_action_list(self, action_list_id):
+        """Get the entire action list for a given list_id
+        
+        Args:
+            action_list_id (str): The ID of the action list to retrieve
+            
+        Returns:
+            ActionRequestList: The action list object if found, None otherwise
+        """
+        with self.lock:
+            action_list = self.action_requests.get(action_list_id)
+            
+        return action_list
 
     def add_action_response(self, action_response_obj, response_text_and_files):
         """Add an action response to the list"""
@@ -142,6 +156,14 @@ class ActionRequestList:
         self.timeout_count = 0
         self.responses = {}
 
+    def get_responses(self):
+        """Get all the responses"""
+        return self.actions
+
+    def get_actions(self):
+        """Get all the actions"""
+        return self.actions
+    
     def has_timed_out(self):
         """Check if the action request has timed out"""
         return (

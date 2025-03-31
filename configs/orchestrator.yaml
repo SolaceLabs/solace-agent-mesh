@@ -139,12 +139,12 @@ flows:
         input_transforms:
           - type: copy
             source_expression: input.payload
-            dest_expression: user_data.output:payload
+            dest_expression: user_data.component_input
           - type: copy
             source_expression: input.user_properties:session_id
-            dest_expression: user_data.output:session_id
+            dest_expression: user_data.component_input:session_id
         component_input:
-          source_expression: user_data.output
+          source_expression: user_data.component_input
 
       # Break the action response into individual responses
       - component_name: split_action_response

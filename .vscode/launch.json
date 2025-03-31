@@ -8,6 +8,7 @@
       "name": "solace-agent-mesh",
       "type": "debugpy",
       "request": "launch",
+      "envFile": "${workspaceFolder}/.env",
       // "program": ".venv/bin/solace-ai-connector",
       "module": "cli.main",
       "console": "integratedTerminal",
@@ -18,22 +19,30 @@
         "build/configs/service_embedding.yaml",
         "build/configs/agent_global.yaml",
         "build/configs/agent_image_processing.yaml",
+        "build/configs/agent_web_request.yaml",
         "build/configs/error_catcher.yaml",
+        "build/configs/conversation_to_file.yaml",
+        //"build/configs/gateway_approval_flows.yaml",
+        "build/configs/gateway_rest_api_rest_api.yaml",
+        "build/configs/monitor_stim_and_errors_to_slack.yaml",
+        "build/configs/monitor_user_feedback.yaml",
+        "build/configs/async_service.yaml",
       ],
       "justMyCode": false
     },
     {
-      "name": "monitor slack",
+      "name": "agent web",
       "type": "debugpy",
       "request": "launch",
       "module": "cli.main",
+      "envFile": "${workspaceFolder}/.env",
       "console": "integratedTerminal",
       "args": [
         "run",
-        "build/configs/orchestrator.yaml",
-        "configs/monitor_stim_and_errors_to_slack.yaml",
-        "configs/agent_slack.yaml",
-        "configs/error_catcher.yaml",
+        "build/configs/agent_web_request.yaml",
+        // "configs/monitor_stim_and_errors_to_slack.yaml",
+        // "configs/agent_slack.yaml",
+        // "configs/error_catcher.yaml",
       ],
       "justMyCode": false
     },
@@ -49,12 +58,15 @@
       "justMyCode": false
     },
     {
-      "name":"prompt-testing",
-      "type":"debugpy",
-      "request":"launch",
-      "program":"tools/prompt_tester.py",
-      "console":"integratedTerminal",
-      "args":["--env-file", ".env"]
+      "name": "prompt-testing",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "tools/prompt_tester.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--env-file",
+        ".env"
+      ]
     },
   ]
 }

@@ -79,3 +79,107 @@
             dest_expression: user_data.component_input:content
         component_input:
           source_expression: user_data.component_input
+
+## Approval Flows
+  # Handle approval requests from the AsyncService
+  - name: gateway_approval_request_flow
+    components:
+      # Input from a Solace broker
+      - component_name: broker_input
+        component_module: broker_input
+        component_config:
+          <<: *broker_connection
+          broker_queue_name: ${SOLACE_AGENT_MESH_NAMESPACE}_approval_request_{{GATEWAY_ID}}
+          broker_subscriptions:
+            - topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/approval/request/{{GATEWAY_ID}}
+              qos: 1
+          payload_encoding: utf-8
+          payload_format: json
+
+      # Process the approval request
+      - component_name: approval_request_processor
+        component_base_path: .
+        component_module: src.gateway.components.gateway_approval_request_component
+        component_config:
+          <<: *gateway_config
+        component_input:
+          source_expression: input.payload
+
+      # Send to the interface (e.g., Slack)
+      - component_name: broker_output
+        component_module: broker_output
+        component_config:
+          <<: *broker_connection
+          payload_encoding: utf-8
+          payload_format: json
+          copy_user_properties: true
+        component_input:
+          source_expression: previous
+
+  # Handle approval responses from the interface
+  - name: gateway_approval_response_flow
+    components:
+      # Input from a Solace broker
+      - component_name: broker_input
+        component_module: broker_input
+        component_config:
+          <<: *broker_connection
+          broker_queue_name: ${SOLACE_AGENT_MESH_NAMESPACE}_approval_response_{{GATEWAY_ID}}
+          broker_subscriptions:
+            - topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/approval/response/{{GATEWAY_ID}}
+              qos: 1
+          payload_encoding: utf-8
+          payload_format: json
+
+      # Process the approval response
+      - component_name: approval_response_processor
+        component_base_path: .
+        component_module: src.gateway.components.gateway_approval_response_component
+        component_config:
+          <<: *gateway_config
+        component_input:
+          source_expression: input.payload
+
+      # Send to the AsyncService
+      - component_name: broker_output
+        component_module: broker_output
+        component_config:
+          <<: *broker_connection
+          payload_encoding: utf-8
+          payload_format: json
+          copy_user_properties: true
+        component_input:
+          source_expression: previous
+
+  # Handle approval timeouts
+  - name: gateway_approval_timeout_flow
+    components:
+      # Input from a Solace broker
+      - component_name: broker_input
+        component_module: broker_input
+        component_config:
+          <<: *broker_connection
+          broker_queue_name: ${SOLACE_AGENT_MESH_NAMESPACE}_approval_timeout_{{GATEWAY_ID}}
+          broker_subscriptions:
+            - topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/approval/timeout/{{GATEWAY_ID}}
+              qos: 1
+          payload_encoding: utf-8
+          payload_format: json
+
+      # Send timeout notification to the interface
+      - component_name: broker_output
+        component_module: broker_output
+        component_config:
+          <<: *broker_connection
+          payload_encoding: utf-8
+          payload_format: json
+          copy_user_properties: true
+        input_transforms:
+          - type: copy
+            source_expression: input.payload
+            dest_expression: user_data.output:payload
+          - type: copy
+            source_expression: template:${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/interface/slack/timeout
+            dest_expression: user_data.output:topic
+        component_input:
+          source_expression: user_data.output
