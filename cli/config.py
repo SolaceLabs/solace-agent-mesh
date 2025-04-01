@@ -79,3 +79,7 @@ class Config:
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as f:
                 return yaml.load(f)
+            
+    @staticmethod
+    def get_yaml_parser():
+        return yaml.load

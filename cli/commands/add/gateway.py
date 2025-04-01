@@ -169,7 +169,8 @@ def add_interface_command(name):
     Creates a new gateway interface with the provided name.
     """
     config = Config.get_plugin_config()
-    plugin_name = config.get("solace_agent_mesh_plugin", {}).get("name")
+    plugin_config = config.get("solace_agent_mesh_plugin", {})
+    plugin_name = plugin_config.get("name")
     if not plugin_name or plugin_name == "solace-agent-mesh-plugin":
         log_error("Could not find a valid plugin project")
         return 1
@@ -209,6 +210,18 @@ def add_interface_command(name):
         created_file_names.append(interface_config_path)
 
         _add_python_files(modules_directory, template_args, created_file_names)
+
+        # Update the 'solace-agent-mesh-plugin' configuration file
+        plugin_config["includes_gateway_interface"] = True
+        plugin_gateway_config_template = load_template("plugin-gateway-default-config.yaml", parser=Config.get_yaml_parser())
+        if not plugin_gateway_config_template:
+            log_error("Error: Plugin gateway config template not found.")
+        else:
+            if "interface_gateway_configs" not in plugin_config:
+                plugin_config["interface_gateway_configs"] = {}
+            plugin_config["interface_gateway_configs"][template_args["HYPHENED_NAME"]] = plugin_gateway_config_template.get("plugin_gateway_default_config", {})
+            Config.write_config(config, Config.user_plugin_config_file)
+            click.echo(f"Updated {Config.user_plugin_config_file} with default gateway interface configuration for {template_args['HYPHENED_NAME']}")
 
     except IOError as e:
         log_error(f"Error creating gateway interface, {e}")
