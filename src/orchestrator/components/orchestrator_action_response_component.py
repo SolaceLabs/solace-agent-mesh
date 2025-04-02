@@ -11,6 +11,7 @@ from ...orchestrator.orchestrator_main import OrchestratorState, ORCHESTRATOR_HI
 from ...orchestrator.orchestrator_prompt import BasicRagPrompt, ContextQueryPrompt
 from ...services.history_service import HistoryService
 from ..action_manager import ActionManager
+from time import sleep
 
 info = {
     "class_name": "OrchestratorActionResponseComponent",
@@ -52,6 +53,7 @@ class OrchestratorActionResponseComponent(ComponentBase):
         self.history = HistoryService(
             ORCHESTRATOR_HISTORY_CONFIG, identifier=ORCHESTRATOR_HISTORY_IDENTIFIER
         )
+        self.stream_to_flow = self.get_config("stream_to_flow")
 
     def invoke(self, message: Message, data):
         """Handle action responses from agents"""
@@ -167,10 +169,21 @@ class OrchestratorActionResponseComponent(ComponentBase):
                 
                 # Get history from history service
                 stimulus_state = self.history.get_history(session_id) if self.history else []
-                
+                # Send a status update message to the user
+                events.append({
+                    "payload": {
+                        "status_update": True,
+                        "streaming": True,
+                        "text": "Request suspended. Waiting for user input.",
+                    },
+                    "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/streamingResponse/orchestrator/{gateway_id}",
+                })
+
+                # TODO: Remove sleep
+                sleep(1)  # TODO: Remove sleep
                 # Create event to send to async service
                 events.append({
-                    "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/stimulus/async_service/createTaskGroup",
+                    "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/stimulus/async-service/create-task-group/{stimulus_uuid}",
                     "payload": {
                         "event_type": "create_task_group",
                         "stimulus_uuid": stimulus_uuid,
@@ -181,6 +194,19 @@ class OrchestratorActionResponseComponent(ComponentBase):
                         "async_responses": async_responses,
                     },
                 })
+                
+                # # Send a status update message to the user
+                # if self.stream_to_flow:
+                #     status_message = Message(
+                #         payload={
+                #             "status_update": True,
+                #             "streaming": True,
+                #             "message": "Request suspended. Waiting for user input.",
+                #         },
+                #         user_properties=message.get_user_properties(),
+                #         topic=f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/responseStatus/orchestrator/{gateway_id}",
+                #     )
+                #     self.send_to_flow(self.stream_to_flow, status_message)
                 
                 log.info(f"Created task group for stimulus {stimulus_uuid} with {len(async_responses)} async responses")
             else:

@@ -50,6 +50,8 @@ class BaseStorageProvider(ABC):
         timeout_time: datetime,
         status: str,
         user_response: Optional[Dict],
+        originator: Dict = None,  # Add originator parameter
+        requester_list: List[Dict] = None,  # Add requester_list parameter
     ) -> None:
         """Create a task."""
         pass

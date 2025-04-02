@@ -49,6 +49,8 @@
               qos: 1
             - topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/responseComplete/orchestrator/{{GATEWAY_ID}}
               qos: 1
+            - topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/userRequest/async-service/{{GATEWAY_ID}}
+              qos: 1
           payload_encoding: utf-8
           payload_format: json
 

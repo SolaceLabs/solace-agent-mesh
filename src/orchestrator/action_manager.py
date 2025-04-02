@@ -215,7 +215,22 @@ class ActionRequestList:
         if "response" in action and not action.get("timed_out"):
             log.error("Action Response already has a response")
         else:
-            action["response"] = response_text_and_files
+            # Create a complete response by merging response_text_and_files with action_response_obj
+            complete_response = {}
+            
+            # Add text and files from response_text_and_files
+            if response_text_and_files.get("text"):
+                complete_response["text"] = response_text_and_files.get("text")
+            if response_text_and_files.get("files"):
+                complete_response["files"] = response_text_and_files.get("files")
+                
+            # Add all other fields from action_response_obj
+            for key, value in action_response_obj.items():
+                if key not in ["action_idx", "action_name", "action_list_id", "action_params", "originator"]:
+                    complete_response[key] = value
+                    
+            # Store the complete response
+            action["response"] = complete_response
             self.num_pending_actions -= 1
 
         if self.is_complete():

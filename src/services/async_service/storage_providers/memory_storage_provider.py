@@ -74,6 +74,8 @@ class MemoryStorageProvider(BaseStorageProvider):
         timeout_time: datetime,
         status: str,
         user_response: Optional[Dict],
+        originator: Dict = None,  # Add originator parameter
+        requester_list: List[Dict] = None,  # Add requester_list parameter
     ) -> None:
         """Create a task."""
         self.tasks[task_id] = {
@@ -84,6 +86,8 @@ class MemoryStorageProvider(BaseStorageProvider):
             "timeout_time": timeout_time,
             "status": status,
             "user_response": user_response,
+            "originator": originator,  # Store originator
+            "requester_list": requester_list or [],  # Store requester_list
         }
         log.debug(f"Created task: {task_id}")
     

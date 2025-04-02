@@ -115,7 +115,7 @@ class AsyncServiceComponent(ComponentBase):
         event_type = data.get("event_type")
         
         if event_type == "create_task_group":
-            return self.handle_create_task_group(data)
+            return self.handle_create_task_group(message, data)  # Pass message parameter
         elif event_type == "user_response":
             return self.handle_user_response(data)
         else:
@@ -123,7 +123,7 @@ class AsyncServiceComponent(ComponentBase):
             self.discard_current_message()
             return None
     
-    def handle_create_task_group(self, data):
+    def handle_create_task_group(self, message, data):
         """Handle create task group event"""
         
         stimulus_uuid = data.get("stimulus_uuid")
@@ -137,10 +137,25 @@ class AsyncServiceComponent(ComponentBase):
             log.error("Missing required fields for create_task_group")
             self.discard_current_message()
             return None
+        
+        # Extract interface_properties and identity from user_properties
+        interface_properties = message.user_properties.get("interface_properties", {})
+        identity = message.user_properties.get("identity", {})
+        
+        # Create originator and requester_list
+        originator = {
+            "interface_properties": interface_properties,
+            "identity": identity
+        }
+        
+        requester_list = [originator]
             
         # Create task group
         task_group_id = str(uuid.uuid4())
         task_id_list = []
+        
+        # Create events for each async task
+        events = []
         
         # Create tasks for each async response
         for async_response in async_responses:
@@ -156,7 +171,25 @@ class AsyncServiceComponent(ComponentBase):
                 timeout_time=datetime.now() + timedelta(seconds=self.task_timeout),
                 status="pending",
                 user_response=None,
+                originator=originator,  # Add originator
+                requester_list=requester_list  # Add requester_list
             )
+            
+            # Extract user_form from async_response
+            # The user_form is nested under the "response" key
+            user_form = async_response.get("response", {}).get("user_form")
+            
+            if user_form:
+                # Create event for this task
+                events.append({
+                    "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/userRequest/async-service/{gateway_id}",
+                    "payload": {
+                        "task_id": task_id,
+                        "user_form": user_form,
+                        "stimulus_uuid": stimulus_uuid,
+                        "session_id": session_id,
+                    }
+                })
         
         # Create task group
         self.storage_provider.create_task_group(
@@ -173,6 +206,11 @@ class AsyncServiceComponent(ComponentBase):
         )
         
         log.info(f"Created task group {task_group_id} with {len(task_id_list)} tasks for stimulus {stimulus_uuid}")
+        
+        # Return events if any
+        if events:
+            log.info(f"Sending {len(events)} user form events to gateway {gateway_id}")
+            return events
         
         # Return success
         self.discard_current_message()
@@ -243,7 +281,7 @@ class AsyncServiceComponent(ComponentBase):
             
             # Create event to send back to orchestrator
             events = [{
-                "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/stimulus/orchestrator/asyncResponse",
+                "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/stimulus/orchestrator/async-response",
                 "payload": {
                     "stimulus_uuid": task_group["stimulus_uuid"],
                     "session_id": task_group["session_id"],
@@ -297,7 +335,7 @@ class AsyncServiceComponent(ComponentBase):
                         
                         # Create event to send back to orchestrator
                         events = [{
-                            "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/stimulus/orchestrator/asyncResponse",
+                            "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/stimulus/orchestrator/async-response",
                             "payload": {
                                 "stimulus_uuid": task_group["stimulus_uuid"],
                                 "session_id": task_group["session_id"],

@@ -17,6 +17,7 @@ import plotly.io as pio
 from ....common.action import Action
 from ....common.action_response import ActionResponse
 from ....services.file_service import FileService
+from ....common.form_utils import create_approval_form
 
 
 class PlotlyGraph(Action):
@@ -90,6 +91,22 @@ class PlotlyGraph(Action):
                     message="For Windows users, the plotting functionality requires a specific version of Kaleido. Please refer to the documentation."
                 )
         obj = params["plotly_figure_config"]
+
+        try:
+            # Add a user approval
+            form = create_approval_form("Plotly Graph Approval", "Please approve the plotly graph generation.", fields={"plotly_definition": obj})
+
+            return ActionResponse(
+                message="Please approve the plotly graph generation.",
+                user_form=form,
+                is_async=True,
+                async_response_id="plotly_graph_approval",
+            )
+        except Exception as e:
+            log.error(f"Error creating approval form: {e}")
+            return ActionResponse(
+                message="Could not create plotly graph. Please check the plotly figure configuration. plotly error: " + str(e),
+            )
         if isinstance(obj, str):
             # Remove any leading/trailing quote characters
             obj = obj.strip("'\" ")
