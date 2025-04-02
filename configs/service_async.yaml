@@ -4,11 +4,11 @@
 # It will subscribe to async service events and manage task groups and tasks.
 #
 # The general topic format is:
-# - <namespace>/solace-agent-mesh/v1/stimulus/async_service/<verb>/<stimulus-uuid>/<session-uuid>/<originator-id>
+# - <namespace>/solace-agent-mesh/v1/stimulus/async-service/<verb>/<stimulus-uuid>/<session-uuid>/<originator-id>
 #
 # The specific subscriptions are:
-# - <namespace>/solace-agent-mesh/v1/stimulus/async_service/createTaskGroup/>
-# - <namespace>/solace-agent-mesh/v1/stimulus/async_service/userResponse/>
+# - <namespace>/solace-agent-mesh/v1/stimulus/async-service/create-task-group/>
+# - <namespace>/solace-agent-mesh/v1/stimulus/async-service/user-response/>
 
 ---
 log:
@@ -36,11 +36,11 @@ flows:
         component_module: broker_input
         component_config:
           <<: *broker_connection
-          broker_queue_name: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/async_service
+          broker_queue_name: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/async-service
           broker_subscriptions:
-            - topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/stimulus/async_service/createTaskGroup/>
+            - topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/stimulus/async-service/create-task-group/>
               qos: 1
-            - topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/stimulus/async_service/userResponse/>
+            - topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/stimulus/async-service/user-response/>
               qos: 1
 
       - component_name: async_service_component
@@ -54,6 +54,10 @@ flows:
         input_selection:
           source_expression: input.payload
 
+      # Add iterate component to handle multiple messages
+      - component_name: split_events
+        component_module: iterate
+
       - component_name: broker_output
         component_module: broker_output
         component_config:
@@ -61,10 +65,10 @@ flows:
           copy_user_properties: true
         input_transforms:
           - type: copy
-            source_expression: previous
+            source_expression: previous:payload
             dest_expression: user_data.output:payload
           - type: copy
-            source_expression: input.user_properties:__solace_ai_connector_broker_request_response_topic__
+            source_expression: previous:topic
             dest_expression: user_data.output:topic
         input_selection:
           source_expression: user_data.output

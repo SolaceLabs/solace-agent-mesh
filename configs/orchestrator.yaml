@@ -136,6 +136,8 @@ flows:
       - component_name: action_response_processor
         component_base_path: .
         component_module: src.orchestrator.components.orchestrator_action_response_component
+        component_config:
+          stream_to_flow: streaming_output
         input_transforms:
           - type: copy
             source_expression: input.payload
