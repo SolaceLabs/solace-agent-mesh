@@ -36,7 +36,16 @@
             source_expression: previous
             dest_expression: user_data.output:payload
           - type: copy
-            source_expression: template:${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/stimulus/gateway/gateway_input/{{GATEWAY_ID}}
+            source_expression:
+              invoke:
+                module: invoke_functions
+                function: if_else
+                params:
+                  positional:
+                    # Check if form_data exists (not null)
+                    - source_expression(previous:form_data)
+                    - source_expression(template:${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/stimulus/async-service/user-response/{{text://input.user_properties:gateway_id}})
+                    - source_expression(template:${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/stimulus/gateway/gateway_input/{{GATEWAY_ID}})
             dest_expression: user_data.output:topic
         component_input:
           source_expression: user_data.output

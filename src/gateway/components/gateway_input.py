@@ -73,6 +73,8 @@ info = {
                             },
                         },
                     },
+                    "user_form": {"type": "object"},  # Add user_form field
+                    "task_id": {"type": "string"},    # Add task_id field
                 },
             },
         },
@@ -147,6 +149,30 @@ class GatewayInput(GatewayBase):
 
         errors = []
         available_files = []
+        
+        # Check if this is a user form submission
+        form_data = data.get("form_data")
+        task_id = data.get("task_id")
+        
+        if form_data and isinstance(form_data, dict) and len(form_data) > 0 and task_id:
+            # This is a user form submission
+            # Add task_id to user properties
+            user_properties["task_id"] = task_id
+            
+            # Create the payload for the async service
+            copied_data["event_type"] = "user_response"
+            copied_data["task_id"] = task_id
+            copied_data["user_response"] = form_data
+            
+            log.info(f"Processing user form submission with task_id: {task_id}")
+        else:
+            # For regular user queries, ensure user_form is None
+            # This makes the conditional check in the gateway flow simpler
+            copied_data["user_form"] = None
+            
+            # If there was a task_id but no valid user_form, log a warning
+            if task_id:
+                log.warning(f"Received task_id {task_id} but no valid user_form")
 
         try:
             if not self._authenticate_user(user_properties):
