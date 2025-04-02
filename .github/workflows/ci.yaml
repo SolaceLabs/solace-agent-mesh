@@ -16,9 +16,9 @@ permissions:
 
 jobs:
   ci:
-    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_ci.yml@python-install
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_ci.yml@main
     with:
-      min-python-version: "3.10.16"
+      min-python-version: "3.10"
       whitesource_product_name: "solace-agent-mesh"
       whitesource_config_file: "wss-unified-agent.config"
       npm_package_path: web-visualizer
