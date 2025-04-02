@@ -81,7 +81,5 @@ lint.ignore = ["F401", "E731"]
 installer = "pip"
 
 
-
-
 [[tool.hatch.envs.hatch-test.matrix]]
 python = ["3.10", "3.12"]
