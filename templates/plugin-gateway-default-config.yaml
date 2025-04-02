@@ -3,8 +3,6 @@ plugin_gateway_default_config:
 
   system_purpose: "The system is an AI Chatbot with agentic capabilities. It will use the agents available to provide information, reasoning and general assistance for the users in this system."
 
-  identity_config: {}
-
   history: 
     enabled: true
 
