@@ -16,7 +16,6 @@ from cli.utils import (
     get_display_path,
     log_error,
     apply_document_parsers,
-    find_last_list_item_indent,
     normalize_and_reindent_yaml
 )
 

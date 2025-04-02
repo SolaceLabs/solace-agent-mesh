@@ -78,6 +78,8 @@ def get_display_path(path):
 def log_error(message):
     click.echo(click.style(message, fg="red"), err=True)
 
+def log_warning(message):
+    click.echo(click.style(message, fg="yellow"), err=False)
 
 def log_link(message):
     click.echo(click.style(message, fg="blue"), err=False)
