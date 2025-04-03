@@ -12,11 +12,13 @@ authors = [
 ]
 description = "Solace Agent Mesh is an EDA AI-first platform powered by Solace"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10.16"
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
 ]
@@ -57,10 +59,10 @@ dependencies = [
     "duckduckgo_search~=6.3.7",
     "markitdown~=0.0.1a3",
     "pyperclip~=1.9.0",
-    "solace-ai-connector~=1.0.2",
-    "solace-ai-connector-web~=0.2.1",
-    "solace-ai-connector-rest~=0.0.2",
-    "solace-ai-connector-slack~=0.0.1",
+    "solace-ai-connector @ git+https://github.com/SolaceDev/solace-ai-connector.git@bump-py",
+    "solace-ai-connector-web @ git+https://github.com/SolaceLabs/solace-ai-connector-web.git@dev",
+    "solace-ai-connector-rest @ git+https://github.com/SolaceLabs/solace-ai-connector-rest.git@dev",
+    "solace-ai-connector-slack @ git+https://github.com/SolaceLabs/solace-ai-connector-slack.git@dev",
   ]
 
 [project.urls]
@@ -98,4 +100,7 @@ installer = "pip"
 
 
 [[tool.hatch.envs.hatch-test.matrix]]
-python = ["3.11", "3.12"]
+python = ["3.10", "3.13"]
+
+[tool.hatch.metadata]
+allow-direct-references = true 
