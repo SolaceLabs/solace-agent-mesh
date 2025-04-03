@@ -102,3 +102,5 @@ installer = "pip"
 [[tool.hatch.envs.hatch-test.matrix]]
 python = ["3.10", "3.13"]
 
+[tool.hatch.metadata]
+allow-direct-references = true 
