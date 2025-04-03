@@ -59,10 +59,10 @@ dependencies = [
     "duckduckgo_search~=6.3.7",
     "markitdown~=0.0.1a3",
     "pyperclip~=1.9.0",
-    "solace-ai-connector git+https://github.com/SolaceDev/solace-ai-connector.git@bump-py",
-    "solace-ai-connector-web git+https://github.com/SolaceLabs/solace-ai-connector-web.git@dev",
-    "solace-ai-connector-rest git+https://github.com/SolaceLabs/solace-ai-connector-rest.git@dev",
-    "solace-ai-connector-slack git+https://github.com/SolaceLabs/solace-ai-connector-slack.git@dev",
+    "solace-ai-connector @ git+https://github.com/SolaceDev/solace-ai-connector.git@bump-py",
+    "solace-ai-connector-web @ git+https://github.com/SolaceLabs/solace-ai-connector-web.git@dev",
+    "solace-ai-connector-rest @ git+https://github.com/SolaceLabs/solace-ai-connector-rest.git@dev",
+    "solace-ai-connector-slack @ git+https://github.com/SolaceLabs/solace-ai-connector-slack.git@dev",
   ]
 
 [project.urls]
