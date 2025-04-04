@@ -16,7 +16,7 @@ def copy_from_plugin(name, plugin_name, entity_type):
     if entity_type not in ["agents", "gateways"]:
         log_error("Invalid entity type.")
         return 1
-    
+
     src_entity_name = name
     if ":" in plugin_name:
         plugin_name, src_entity_name = plugin_name.split(":")
@@ -33,11 +33,13 @@ def copy_from_plugin(name, plugin_name, entity_type):
     item_name = f"{item_name}.yaml" if entity_type == "agents" else item_name
 
     src_entity_name = src_entity_name.replace("-", "_")
-    src_entity_name = f"{src_entity_name}.yaml" if entity_type == "agents" else src_entity_name
+    src_entity_name = (
+        f"{src_entity_name}.yaml" if entity_type == "agents" else src_entity_name
+    )
     template_path = os.path.join(plugin_path, "configs", entity_type, src_entity_name)
 
     if not os.path.exists(template_path):
-        log_error(f"Could not find '{item_name}' in '{plugin_name}' plugin.")
+        log_error(f"Could not find '{src_entity_name}' in '{plugin_name}' plugin.")
         return 1
 
     config = click.get_current_context().obj
@@ -80,11 +82,11 @@ def copy_from_plugin(name, plugin_name, entity_type):
     else:
         log_error("Invalid entity type.")
         return 1
-    
+
     temp_file = os.path.join(config_directory, "__TEMPLATES_WILL_BE_HERE__")
     if os.path.exists(temp_file):
         os.remove(temp_file)
-        
+
     click.echo(
         f"Copied {entity_type[:-1]} '{name}' from plugin '{plugin_name}' at: {get_display_path(target_directory)}"
     )
