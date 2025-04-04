@@ -2,7 +2,12 @@ import subprocess
 import os
 import click
 
-from cli.utils import log_error, apply_document_parsers, load_plugin
+from cli.utils import (
+    log_error,
+    apply_document_parsers,
+    load_plugin,
+    get_formatted_names,
+)
 from cli.config import Config
 
 
@@ -27,12 +32,21 @@ def get_all_plugin_gateway_interfaces(config, abort, return_plugin_config=False)
             if not os.path.exists(interface_path):
                 continue
 
-            interface_gateway_configs = (Config.load_config(os.path.join(plugin_path, Config.user_plugin_config_file)) or {}).get("solace_agent_mesh_plugin", {}).get("interface_gateway_configs", {})
+            interface_gateway_configs = (
+                (
+                    Config.load_config(
+                        os.path.join(plugin_path, Config.user_plugin_config_file)
+                    )
+                    or {}
+                )
+                .get("solace_agent_mesh_plugin", {})
+                .get("interface_gateway_configs", {})
+            )
             interface_gateway_config = None
             # Ensuring flow and default pair exist
             interface_pairs = {}
             for file in os.listdir(interface_path):
-                if file.endswith("-flows.yaml") :
+                if file.endswith("-flows.yaml"):
                     name = file.split("-flows.yaml")[0]
                     if name not in interface_pairs:
                         interface_pairs[name] = []
@@ -43,22 +57,35 @@ def get_all_plugin_gateway_interfaces(config, abort, return_plugin_config=False)
                     if name not in interface_pairs:
                         interface_pairs[name] = []
                     interface_pairs[name].append(file)
-            
+
             for name, files in interface_pairs.items():
                 if len(files) == 2:
                     if return_plugin_config:
-                        for interface_name, interface_config in interface_gateway_configs.items():
+                        for (
+                            interface_name,
+                            interface_config,
+                        ) in interface_gateway_configs.items():
                             if interface_name == name.replace("-", "_"):
                                 interface_gateway_config = interface_config
                                 break
-                        gateway_interfaces[name] = (interface_path, interface_gateway_config)
+                        gateway_interfaces[name] = (
+                            interface_path,
+                            interface_gateway_config,
+                        )
                     else:
                         gateway_interfaces[name] = interface_path
-        
+
     return gateway_interfaces
 
 
-def build_plugins(config, build_config_dir, abort, parsers, plugin_gateway_interfaces, build_specific_gateway):
+def build_plugins(
+    config,
+    build_config_dir,
+    abort,
+    parsers,
+    plugin_gateway_interfaces,
+    build_specific_gateway,
+):
     plugins = config.get("plugins", [])
     plugins_overwrite_dir = os.path.join(build_config_dir, "..", "overwrites")
 
@@ -70,7 +97,9 @@ def build_plugins(config, build_config_dir, abort, parsers, plugin_gateway_inter
         name = plugin.get("name")
         load_unspecified_files = plugin.get("load_unspecified_files", True)
         load = plugin.get("load", {})
-        agents_to_load = [agent.replace("-", "_") for agent in (load.get("agents") or [])]
+        agents_to_load = [
+            agent.replace("-", "_") for agent in (load.get("agents") or [])
+        ]
         gateways_to_load = load.get("gateways") or []
         overwrites_to_load = load.get("overwrites") or []
 
@@ -130,6 +159,14 @@ def build_plugins(config, build_config_dir, abort, parsers, plugin_gateway_inter
                     agent_config_content = apply_document_parsers(
                         agent_config_content, parsers, meta
                     )
+                    # Perform name substitutions
+                    base_agent_name = agent_config[:-5]  # Remove .yaml
+                    name_cases = get_formatted_names(base_agent_name)
+                    for case, val in name_cases.items():
+                        agent_config_content = agent_config_content.replace(
+                            f"{{{{{case}}}}}", val
+                        )
+
                     # Write agent configuration to build directory
                     agent_build_path = os.path.join(
                         build_config_dir, "agent_" + agent_config
@@ -165,7 +202,12 @@ def build_plugins(config, build_config_dir, abort, parsers, plugin_gateway_inter
             for gateway in gateway_subdirs:
                 if load_unspecified_files or gateway in gateway_dirs:
                     build_specific_gateway(
-                        build_config_dir, abort, parsers, gateway_config_path, gateway, plugin_gateway_interfaces
+                        build_config_dir,
+                        abort,
+                        parsers,
+                        gateway_config_path,
+                        gateway,
+                        plugin_gateway_interfaces,
                     )
 
         ####################
