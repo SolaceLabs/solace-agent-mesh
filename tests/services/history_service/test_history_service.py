@@ -7,6 +7,8 @@ from src.services.history_service import HistoryService
 class TestHistoryService(unittest.TestCase):
     def get_memory_history_service(self, config={}, ttl=10, exp=5):
         id = "test_history_" + str(time.time())
+        if "enforce_alternate_message_roles" not in config:
+            config["enforce_alternate_message_roles"] = False
         return HistoryService(
             config={
                 "type": "memory",
@@ -94,17 +96,17 @@ class TestHistoryService(unittest.TestCase):
         self.assertEqual(len(history), 2)
 
     def test_max_turns_reached(self):
-        service = self.get_memory_history_service({"max_turns": 1})
+        service = self.get_memory_history_service({"max_turns": 10})
         session_id = "session1"
         role = "user"
         content = "Hello, world!"
 
-        service.store_history(session_id, role, content)
-        service.store_history(session_id, role, content)
-        service.store_history(session_id, role, content)
+        for _ in range(20):
+            service.store_history(session_id, role, content)
+
         history = service.get_history(session_id)
 
-        self.assertEqual(len(history), 1)
+        self.assertEqual(len(history), 10)
 
     def test_enforce_alternate_message_roles_off(self):
         service = self.get_memory_history_service(
@@ -144,7 +146,7 @@ class TestHistoryService(unittest.TestCase):
         history = service.get_history(session_id)
 
         self.assertEqual(len(history), 2)
-        self.assertEqual(history[0]["content"], content1 + content2)
+        self.assertEqual(history[0]["content"], content1 + "\n\n" + content2)
         self.assertEqual(history[1]["content"], content3)
 
     def test_store_and_get_files(self):

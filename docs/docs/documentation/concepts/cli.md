@@ -9,19 +9,22 @@ toc_max_heading_level: 4
 Solace Agent Mesh comes with a comprehensive CLI tool that you can use to create, build, and run an instance of Solace Agent Mesh, which is referred to as a Solace Agent Mesh (SAM) application. The Solace Agent Mesh (SAM) CLI also allows you to add agents and gateways, update configurations, manage plugins, help you debug, and much more.
 
 ## Installation
+
 The SAM CLI is installed as part of the package for Solace Agent Mesh. For more information, see [Installation](../getting-started/installation.md).
 
 :::tip[CLI Tips]
+
 - The Solace Agent Mesh CLI comes with a short alias of `sam` which can be used in place of `solace-agent-mesh`.
 - You can determine the version of the SAM CLI by running `solace-agent-mesh --version`.
 - You can get help on any command by running `solace-agent-mesh [COMMAND] --help`.
-:::
+  :::
 
 ## Usage
 
-
 ### Global Options
+
 These options apply globally to all commands and provide basic information or customization options:
+
 ```sh
 sam --version               # Displays the installed version of the CLI and exits.
 sam -c, --config-file PATH  # Specifies a custom configuration file to use.
@@ -31,6 +34,7 @@ sam -h, --help              # Displays the help message and exits.
 ## Commands
 
 ### `init` - Initialize a SAM Application
+
 ```sh
 sam init [OPTIONS]
 ```
@@ -45,8 +49,8 @@ Optionally, you can skip all the questions by providing the `--skip` option. Thi
 Use the `--skip` option and provide the necessary options to run the command in non-interactive mode, useful for automated workflows.
 :::
 
-
 ##### Options:
+
 - `--skip` – Runs in non-interactive mode, using default values where available.
 - `--namespace TEXT` – Defines a custom project namespace for better organization.
 - `--config-dir TEXT` – Specifies the base directory where configuration files are stored.
@@ -88,6 +92,7 @@ sam add [agent|gateway] [OPTIONS] NAME
 ```
 
 #### Add `agent`
+
 Use `agent` to add an agent component.
 
 - `-c, --copy-from TEXT` – Copies the configuration from an existing plugin for easier setup. (e.g., `--copy-from my-plugin:my-agent`)
@@ -96,6 +101,7 @@ Use `agent` to add an agent component.
 For more information, see [Agents](../concepts/agents.md).
 
 #### Add `gateway`
+
 Use `gateway` to add a gateway component.
 
 - `-i, --interface TEXT` – Adds interfaces (e.g., `--interface rest-api`) to expand functionality.
@@ -104,7 +110,7 @@ Use `gateway` to add a gateway component.
 
 For more information, see [Gateways](../concepts/gateways.md).
 
-### `build` - Build a  SAM Application
+### `build` - Build a SAM Application
 
 To build an instance of Solace Agent Mesh (a SAM application), use the `build` command.
 
@@ -117,10 +123,10 @@ The `build` command runs the `init` command if the file `solace-agent-mesh.yaml`
 :::
 
 ##### Options:
+
 - `-y` – Skips confirmation prompts for automated workflows. (Adds `--skip` for `init` command as well)
 - `-N, --no-init` – Prevents running `init` automatically if not already executed.
 - `-h, --help` – Displays the help message and exits.
-
 
 ### `run` - Run the SAM Application
 
@@ -135,9 +141,9 @@ Use the `-e` or `--use-env` option to load environment variables from the config
 :::
 
 :::tip[none to run]
-The `run` command automatically runs the `build` command if the build directory is missing, which also runs the `init` command if the configuration file is not found.
+The `run` command includes built-in dependency handling. If the build directory is missing, it automatically executes the `build` command. Similarly, if the configuration file is not found, it automatically executes the `init` command.
 
-So you can directly run the `run` command without running `build` or `init` for a quick start. (Use -`q` or `--quick-build` for default behavior).
+To quickly get started, you can simply use the `run` command without manually executing `build` or `init`. To use default values during the `build` and `init` phases, add the `-q` or `--quick-build` option.
 :::
 
 While running the `run` command, you can also skip specific files by providing the `-s` or `--skip` option.
@@ -151,6 +157,7 @@ solace-agent-mesh run -e build/configs/config1.yaml build/configs/config2.yaml
 ```
 
 ##### Options:
+
 - `-e, --use-env` – Loads environment variables from the configuration for execution.
 - `-s, --skip TEXT` – Skips specified files during execution.
 - `-q, --quick-build` – Uses default behavior for `init` and `build` steps.
@@ -158,8 +165,8 @@ solace-agent-mesh run -e build/configs/config1.yaml build/configs/config2.yaml
 - `-b, --force-build` – Forces `build` execution before running the SAM application.
 - `-h, --help` – Displays the help message and exits.
 
-
 ### `chat` - Chat with a SAM Application
+
 The `chat` command allows starting a chat with the SAM application using command line interface.
 
 ```sh
@@ -175,7 +182,6 @@ sam chat login SERVER
 ```
 
 The `SERVER` is the authentication server.
-
 
 #### `logout` - Log out from a SAM
 
@@ -194,12 +200,12 @@ sam chat start [OPTIONS]
 ```
 
 ##### Options:
+
 - `-s, --stream` – Enables streaming mode. (default is non-streaming mode)
 - `-f, --file TEXT` – The path of attached file.
 - `-a, --auth` – Enables authentication.
 - `-u, --url` TEXT` – The chat service provider url.
 - `-h, --help` – Displays the help message and exits.
-
 
 ### `plugin` - Manage Plugins
 
@@ -226,12 +232,12 @@ You can skip some questions by providing the appropriate options for that step.
 Optionally, you can skip all the questions by providing the `--skip` option. This option uses the provided or default values for all the questions, which is useful for automated workflows.
 
 ##### Options:
+
 - `-s, --skip` – Runs in non-interactive mode, using default values where applicable.
 - `-n, --name TEXT` – Plugin name. (A path if it shouldn't be created in the current directory)
 - `-d, --description TEXT` – Plugin description.
 - `-a, --author TEXT` – Plugin author.
 - `-h, --help` – Displays the help message and exits.
-
 
 #### `build` - Build the Plugin
 
@@ -242,8 +248,8 @@ sam plugin build [OPTIONS]
 ```
 
 ##### Options:
-- `-h, --help` – Displays the help message and exits.
 
+- `-h, --help` – Displays the help message and exits.
 
 #### `add` - Add an Existing Plugin
 
@@ -254,6 +260,7 @@ sam plugin add [OPTIONS] NAME
 ```
 
 ##### Options:
+
 - `--add-all` – Adds the plugin with the default of loading all exported files from the plugin.
 - `--pip` – Install with pip.
 - `--uv` - Install with uv pip.
@@ -261,7 +268,6 @@ sam plugin add [OPTIONS] NAME
 - `--conda` – Install with conda.
 - `-u, --from-url TEXT` – Install the plugin from a given URL instead of the given name. The URL can be a file path or a Git URL.
 - `-h, --help` – Displays the help message and exits.
-
 
 #### `remove` - Remove an Installed Plugin
 
@@ -279,7 +285,6 @@ sam plugin remove [OPTIONS] NAME
 - `--conda-uninstall` – Removes the plugin module using conda.
 - `-h, --help` – Displays the help message and exits.
 
-
 ### `visualize` - Run a Web GUI Visualizer
 
 Runs a web GUI visualizer for inspecting stimuli inside Solace Agent Mesh.
@@ -289,6 +294,7 @@ sam visualize [OPTIONS]
 ```
 
 ##### Options:
+
 - `-p, --port INTEGER` – Specifies the port number for the web GUI.
 - `-f, --find-unused-port` – Automatically selects the next available port if the specified one is in use.
 - `-h, --host` – Exposes the visualizer to the network.
@@ -296,7 +302,6 @@ sam visualize [OPTIONS]
 - `--help` – Displays the help message and exits.
 
 For more information, see [Observability](../deployment/observability.md).
-
 
 ### `config` - Update the Configuration File
 
@@ -306,9 +311,10 @@ Updates the `solace-agent-mesh.yaml` configuration file with the latest default 
 sam config [OPTIONS]
 ```
 
-You only need to run the command when a new version of  Solace Agent Mesh is released, and you want to update your configuration file to include the latest settings and options.
+You only need to run the command when a new version of Solace Agent Mesh is released, and you want to update your configuration file to include the latest settings and options.
 
 ##### Options:
+
 - `-h, --help` – Displays the help message and exits.
 
 For more information, see [Configuration](../getting-started/configuration.md).

@@ -5,7 +5,7 @@ sidebar_position: 50
 
 # Component Overview
 
-The Solace Agent Mesh (SAM) is built on event-driven architecture principles, where all components communicate through events flowing through a central event broker. This architectural choice enables loose coupling between components, making the system highly flexible and scalable.
+The Solace Agent Mesh (SAM) is built on event-driven architecture principles, with all components communicating via events flowing through a central event broker. This architectural choice enables loose coupling between components, making the system highly flexible and scalable.
 
 Each component in SAM is designed to perform specific roles while working together seamlessly through event-based communication. This approach allows the system to handle everything from simple AI tasks to complex workflows that combine multiple AI and conventional processing steps.
 

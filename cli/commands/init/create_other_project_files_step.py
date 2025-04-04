@@ -17,6 +17,57 @@ def add_pair_to_file_if_not_exists(file_path, pairs):
                 f.write(f"{key}{value}\n")
 
 
+def update_or_add_pairs_to_file(file_path, pairs):
+    """
+    Updates existing key-value pairs in a file or adds them if they don't exist.
+    
+    Args:
+        file_path (str): The path to the file to update
+        pairs (list): A list of (key, value) tuples to update or add
+    """
+    # Check if file exists
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+    else:
+        lines = []
+    
+    # Create a dictionary of key-value pairs for quick lookup
+    pair_dict = {key: value for key, value in pairs}
+    updated_keys = set()
+    
+    # Process each line
+    new_lines = []
+    for line in lines:
+        line = line.rstrip()
+        if not line or line.startswith("#"):
+            # Keep comments and empty lines
+            new_lines.append(line)
+            continue
+            
+        # Check if line contains any of our keys
+        found_key = None
+        for key in pair_dict:
+            if line.startswith(key + "=") or line.startswith(key + " ="):
+                found_key = key
+                updated_keys.add(key)
+                new_lines.append(f"{key}{pair_dict[key]}")
+                break
+                
+        if not found_key:
+            # Keep lines that don't match our keys
+            new_lines.append(line)
+    
+    # Add any new variables that weren't found
+    for key, value in pairs:
+        if key not in updated_keys:
+            new_lines.append(f"{key}{value}")
+    
+    # Write the updated content back to the file
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(new_lines) + "\n")
+
+
 def create_other_project_files_step(options, default_options, none_interactive, abort):
     """
     Creates the other project files. i.e. .gitignore, .env, requirements.txt, etc.
@@ -92,5 +143,5 @@ def create_other_project_files_step(options, default_options, none_interactive, 
             required_env_variables.append((key, f"={value}"))
 
     create_if_not_exists(options["env_file"], "")
-    add_pair_to_file_if_not_exists(options["env_file"], required_env_variables)
+    update_or_add_pairs_to_file(options["env_file"], required_env_variables)
     add_gateway_command(options["rest_api_gateway_name"],["rest-api"])

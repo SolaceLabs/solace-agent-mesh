@@ -7,7 +7,7 @@ sidebar_position: 30
 
 In this tutorial, you will integrate a Slack interface into Solace Agent Mesh, enabling interaction with the system directly from your Slack workspace and channels.
 
-:::info[Learn about agents]
+:::info[Learn about gateways]
 We recommend you read about [Gateways](../concepts/gateways.md) before you start this tutorial.
 :::
 
@@ -21,7 +21,7 @@ Next, create a [Slack Application](https://api.slack.com/apps) in your workspace
 
 1. Go to the [Slack Application](https://api.slack.com/apps) website.
 2. Select **Your Apps** and click **Create New App**.
-3. Choose **From a manifest** and apply the following configuration.  
+3. Choose **From a manifest** and apply the following configuration.
    - You can customize the name and description, but keep the rest of the configuration and settings unchanged.
 
 ```yaml
@@ -88,7 +88,7 @@ settings:
   org_deploy_enabled: false
   socket_mode_enabled: true
   token_rotation_enabled: false
-  ```
+```
 
 Then select `Create` and your new App will be created.
 
@@ -102,9 +102,9 @@ Make note of the resulting application token (beginning with `xapp-`) - you will
 
 ### Installing the App in Your Slack Workspace
 
-Next, select **Install App** under **Settings** and following the installation flow to install the App in your workspace.
+Next, select **Install App** under **Settings** and follow the installation flow to install the App in your workspace.
 
-After installation, the bot token (beginning with `-xoxb`) will be visible. Make note of this token.
+After installation, the bot token (beginning with `xoxb-`) will be visible. Make note of this token.
 
 ## Installing the Slack Interface and Gateway
 
@@ -159,4 +159,3 @@ To test your installation:
 4. You should see:
    - A "Chatbot is thinking..." status message
    - A response from the chatbot within a few seconds
-

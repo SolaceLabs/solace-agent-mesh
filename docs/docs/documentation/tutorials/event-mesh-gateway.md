@@ -25,11 +25,13 @@ You will create an Event Mesh Gateway that:
 This creates a streamlined workflow where bug reports are automatically enhanced with clear, AI-generated summaries.
 
 ## Setting Up the Environment
+
 First, you need to [install Solace Agent Mesh and the Solace Agent Mesh (SAM) CLI](../getting-started/installation.md), and then you'll want to [create a new Solace Agent Mesh project](../getting-started/quick-start.md)
 
 For this tutorial, you will need to create or use an existing [Solace Event Broker](https://solace.com/products/event-broker/) or [event mesh](https://solace.com/solutions/initiative/event-mesh/) created using PubSub+ event brokers.
 
 ## Creating the Event Mesh Gateway
+
 Once you have your project set up, you can add the plugin to Solace Agent Mesh:
 
 ```sh
@@ -59,47 +61,50 @@ The Event Mesh Gateway configuration is located in `./configs/gateways/jira/sola
 First, let's configure the input processor, with the instruction to create summaries from newly created Jira tickets:
 
 ```yaml
-  - event_mesh_input_config: &event_mesh_input_config
-        identity: jira_event_mesh
-        event_handlers:
-        - name: jira_event_handler
-          subscriptions:
-            - topic: jira/issue/created/>
-              qos: 1
-          input_expression: >
-           template:Create a concise summary for the newly created jira: title:{{text://input.payload:title}} body:{{text://input.payload:body}} id:{{text://input.payload:id}}. Return a json file with fields `id`, `type` (value is "summary") and `summary`.
-          payload_encoding: utf-8
-          payload_format: json
-          output_handler_name: jira_summary_emitter
+- event_mesh_input_config: &event_mesh_input_config
+    identity: jira_event_mesh
+    event_handlers:
+      - name: jira_event_handler
+        subscriptions:
+          - topic: jira/issue/created/>
+            qos: 1
+        input_expression: >
+          template:Create a concise summary for the newly created jira: title:{{text://input.payload:title}} body:{{text://input.payload:body}} id:{{text://input.payload:id}}. Return a json file with fields `id`, `type` (value is "summary") and `summary`.
+        payload_encoding: utf-8
+        payload_format: json
+        output_handler_name: jira_summary_emitter
 ```
 
-This input processor subscribes on the topic for newly created JIRAs (`jira/issue/created/>`), and creates a prompt using an input_expression that instructs Solace Event Mesh to create a summary of the Jira based on the title and body fields in the event. The response is returned as a JSON file.
+This input processor subscribes on the topic for newly created Jiras (`jira/issue/created/>`), and creates a prompt using an input_expression that instructs Solace Event Mesh to create a summary of the Jira based on the title and body fields in the event. The response is returned as a JSON file.
 
 ### Output Processor
 
 Next, you configure the output processor to publish the summary to the update topic:
 
 ```yaml
-  - event_mesh_output_config: &event_mesh_output_config
-      output_handlers:
-        - name: jira_summary_emitter
-          attach_file_as_payload: true
-          topic: jira/issue/update
-          payload_encoding: none
-          payload_format: text
+- event_mesh_output_config: &event_mesh_output_config
+    output_handlers:
+      - name: jira_summary_emitter
+        attach_file_as_payload: true
+        topic: jira/issue/update
+        payload_encoding: none
+        payload_format: text
 ```
 
-The `jira_summary_emitter` output handler takes the json file with the summary, and adds it to the event payload. The event topic is `jira/issue/update`. By default, the file contents are added in base64 encoded format, so no additional payload encoding is required.
+The `jira_summary_emitter` output handler takes the json file with the summary, and adds it to the event payload. The event topic is `jira/issue/update`. The file contents added to the event payload using the specified encoding and format configuration parameters.
 
-## Configuring the Gateway
+### Response Format
 
-To ensure the gateway functions as a programmatic interface, configure it to return JSON responses only.
-Update the system_purpose in `./configs/gateways/jira/gateway.yaml`
+Finally, set up the response prompt so that the final output meets our expectations. For this example, we want only formatted JSON. Update the `response_format_prompt_config` with the following:
 
 ```yaml
-      system_purpose: >
-        This is a programmatic interface. Return all responses as valid JSON objects without any additional formatting or markdown.
+- response_format_prompt_config: &response_format_prompt >
+    The response should be a valid, well-formed JSON object with no markdown formatting or additional wrappers.
 ```
+
+### Gateway
+
+No customization is required for `./configs/gateways/jira/gateway.yaml`
 
 ## Building and Running the Event Mesh Gateway
 
@@ -117,9 +122,10 @@ Now that the system is running, let's test the Event Mesh Gateway.
 
 1. Open the **Try Me!** tab of the [Solace PubSub+ Broker Manager](https://docs.solace.com/Admin/Broker-Manager/PubSub-Manager-Overview.htm).
 
-2. Connect both the *Publisher* and *Subscriber* panels by clicking their respective `Connect` buttons.
+2. Connect both the **Publisher** and **Subscriber** panels by clicking their respective **Connect** buttons.
 
 3. In the Subscriber panel:
+
    - Enter `jira/issue/update` in the `Topic Subscriber` field
    - Click `Subscribe`
 
@@ -129,26 +135,20 @@ Now that the system is running, let's test the Event Mesh Gateway.
 
 ```json
 {
-    "id": "JIRA-143321",
-    "title": "Exception when reading customer record",
-    "body": "I got a DatabaseReadException when trying to get the data for customer ABC. The error indicated that the customer didn't exist, while they are our biggest customer!"
+  "id": "JIRA-143321",
+  "title": "Exception when reading customer record",
+  "body": "I got a DatabaseReadException when trying to get the data for customer ABC. The error indicated that the customer didn't exist, while they are our biggest customer!"
 }
 ```
 
-Next, click `Publish`.
+Next, click **Publish**.
 
 After a few seconds, you will see a new message in the **Subscriber** messages with topic `jira/issue/update` and a body similar to below:
 
-```plain
-ewogICAgImlkIjogIkpJUkEtMTQzMzIxIiwKICAgICJ0eXBlIjogInN1bW1hcnkiLAogICAgInN1bW1hcnkiOiAiRGF0YWJhc2VSZWFkRXhjZXB0aW9uIGVuY291bnRlcmVkIHdoaWxlIHJldHJpZXZpbmcgY3VzdG9tZXIgQUJDIGRhdGEiCn0=
-```
-
-Base64 decoding this message payload produces the json body with the expected field, `id`, `type`and `summary`.
-
 ```json
 {
-    "id": "JIRA-143321",
-    "type": "summary",
-    "summary": "DatabaseReadException encountered while retrieving customer ABC data"
+  "id": "JIRA-143321",
+  "type": "summary",
+  "summary": "Database read error: Unable to retrieve record for key customer ABC despite confirmed existence"
 }
 ```

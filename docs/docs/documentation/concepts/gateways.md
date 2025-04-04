@@ -7,8 +7,8 @@ sidebar_position: 10
 
 Gateways are a crucial component of the Solace Agent Mesh framework and provide the user interface to the Solace Agent Mesh that controls the system persona. Gateways provide the following functions:
 
-* serves as the primary interface between Solace Agent Mesh and the outside world
-* manage the flow of information in and out of the system, ensuring secure and efficient communication
+- serve as the primary interface between Solace Agent Mesh and the outside world
+- manage the flow of information in and out of the system, ensuring secure and efficient communication
 
 :::tip[In one sentence]
 Gateways are essentially the user interface to Solace Agent Mesh that controls the system persona.
@@ -33,7 +33,7 @@ sequenceDiagram
     participant External as External System/User
     participant Gateway
     participant Mesh as Solace Agent Mesh
-    
+
     rect rgba(128, 128, 128, 0.2)
         Note over External,Gateway: Authentication Phase [Optional]
         External->>Gateway: Send Request
@@ -54,7 +54,7 @@ sequenceDiagram
         Gateway->>Gateway: Format Response
         Gateway->>Gateway: Transform to Stimulus
         Gateway->>Mesh: Send Stimulus
-        
+
         alt Response Expected
             Mesh-->>Gateway: Return Response
             Gateway-->>External: Send Formatted Response
@@ -62,23 +62,17 @@ sequenceDiagram
     end
 ```
 
-
 ## Available Gateways
 
 Solace Agent Mesh comes with two built-in gateway interfaces called `REST Endpoint` and `Web UI`. Additionally, you can use other official core plugins to utilize other gateway types or create your own custom gateways.
 
-Fore more information about plugins and how to configure them, see [Plugins](./plugins/index.md).
+For more information about plugins and how to configure them, see [Plugins](./plugins/index.md).
 
-Some of the official core plugins gateways interfaces include:
-- [Slack Gateway](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/cm-slack): Allows integration with Slack workspaces and channels.
-- [MS Teams Gateway](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/cm-ms-teams): Provides integration with Microsoft Teams for chat-based interactions.
-- [Solace Event Mesh Gateway](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/solace-event-mesh): Enables communication with the PubSub+ event broker directly as an input interface. 
+One of the official core plugin gateway interfaces is the [Solace Event Mesh Gateway](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/solace-event-mesh), which enables communication with the PubSub+ event broker directly as an input interface.
 
 :::note
 Each gateway type has its own configuration options and specific features. See the individual gateway documentation pages for detailed information on setup and usage.
 :::
-
-
 
 ## Create a Gateway
 
@@ -93,23 +87,22 @@ solace-agent-mesh add gateway --interface rest-api my-rest-api
 ```
 
 :::tip
-Don't use the word `gateway` in the name for the gateway as it will be automatically get prefixed at build time.
+Don't use the word `gateway` in the name for the gateway as it will automatically get prefixed at build time.
 :::
 
-This command creates two files. One for the gateway configuration and another for the interface configuration. 
+This command creates two files. One for the gateway configuration and another for the interface configuration.
 
 You can find them in the `configs/gateways/my_rest_api` directory. (The `configs` directory is specific to your configuration, so it might be another name in your case.)
-
 
 That's it!
 
 :::info[Using interfaces from plugins]
-Once a plugin is added to a project, it is automatically loaded in the list of available interfaces. So it'd be the same steps to add a new gateway from a plugin interface.
+Once a plugin is added to a project, it is automatically loaded into the list of available interfaces. So it'd be the same steps to add a new gateway from a plugin interface.
 :::
 
 ### Gateway from Scratch
 
-To create a gateway from scratch, you need to use the CLI `add gateway` command without any interfaces. This command creates a *python gateway template file* which you can then customize to your needs.
+To create a gateway from scratch, you need to use the CLI `add gateway` command without any interfaces. This command creates a _python gateway template file_ which you can then customize to your needs.
 
 ```sh
 solace-agent-mesh add gateway my-interface

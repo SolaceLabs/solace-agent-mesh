@@ -10,6 +10,7 @@ This tutorial will set up a SQL database agent in Solace Agent Mesh (SAM), which
 ## Prerequisites
 
 Before starting this tutorial, ensure that you have installed and configured Solace Agent Mesh:
+
 - [Installed Solace Agent Mesh and the SAM CLI](../getting-started/installation.md)
 - [Created a new Solace Agent Mesh project](../getting-started/quick-start.md)
 
@@ -44,7 +45,7 @@ For this tutorial, you can use a sample SQLite database for a fictional coffee c
 
 ## Configuring the Agent
 
-Now, you update the agent configuration to use the SQLite database and import the CSV files. 
+Now, update the agent configuration to use the SQLite database and import the CSV files.
 Open the `configs/agents/abc_coffee_info.yaml` file and make the following changes:
 
 1. Set the database type to `SQLite`.
@@ -53,15 +54,15 @@ Open the `configs/agents/abc_coffee_info.yaml` file and make the following chang
 Here's what you need to modify in the configuration file:
 
 ```yaml
-      # Find the component_config section for the action_request_processor and update these values:
-      - component_name: action_request_processor
-        component_config: 
-            # Other configuration options (mostly specified via env vars)...
-            csv_directories:
-                - /path/to/your/unzipped/data
+# Find the component_config section for the action_request_processor and update these values:
+- component_name: action_request_processor
+  component_config:
+    # Other configuration options (mostly specified via env vars)...
+    csv_directories:
+      - /path/to/your/unzipped/data
 ```
 
-Ensure you replace `/path/to/your/unzipped/data` with the path of where the extracted the example data is located. In this example, if you put the ZIP file in the root directory of your Solace Agent Mesh project, you can use `abc_coffee_co`.
+Ensure you replace `/path/to/your/unzipped/data` with the path where the extracted the example data is located. In this example, if you put the ZIP file in the root directory of your Solace Agent Mesh project, you can use `abc_coffee_co`.
 
 ## Setting the Environment Variables
 
@@ -90,7 +91,6 @@ The `-e` flag loads environment variables from the `.env` file, and the `-b` fla
 ## Interacting with the Database
 
 After Solace Agent Mesh is running, you can interact with the ABC Coffee database through the web interface at `http://127.0.0.1:5001`.
-
 
 You can ask natural language questions about the ABC Coffee Co. database, such as:
 

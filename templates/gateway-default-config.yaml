@@ -1,8 +1,8 @@
 - history_policy: &default_history_policy
-    type: "memory" # "memory", "redis", or your custom module name
+    type: "memory" # "memory", "redis", "file", "mongodb" or your custom module name
     module_path: . # Path to module, Only needed if you are using a custom module
-    time_to_live: 3600 # 1 hour
-    expiration_check_interval: 300 # 5 minutes
+    time_to_live: 3600 # in seconds
+    expiration_check_interval: 300 # in seconds
     history_policy: # History provider configs (Passed to the history type provider)
       max_turns: 40
       max_characters: 50000

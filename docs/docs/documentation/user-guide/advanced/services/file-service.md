@@ -22,7 +22,7 @@ The key features of the File service include:
 
 6. **Security**: On upload, files are tagged with the session ID. A file is only available for download by entities with the same ID. The download mechanism verifies the ID to prevent AI injection attacks.  
 
-The following are example use cases this service: 
+The following are example use cases for this service: 
 
 - A gateway receives a large data file from an external source, such as a file uploaded into Slack.  
 - The gateway uploads the file to the File service and includes the generated file URL in the event payload.  

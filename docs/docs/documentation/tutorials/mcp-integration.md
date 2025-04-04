@@ -5,7 +5,7 @@ sidebar_position: 20
 
 # MCP Integration
 
-In this tutorial, we will walk you through the process of integrating an Model Context Protocol (MCP) Server into Solace Agent Mesh.
+In this tutorial, we will walk you through the process of integrating a Model Context Protocol (MCP) Server into Solace Agent Mesh.
 
 :::info[Learn about agents and plugins]
 You should have an understanding of agents and plugins in the Solace Agent Mesh. For more information, see [Agents](../concepts/agents.md) and [Using Plugins](../concepts/plugins/use-plugins.md).
@@ -31,8 +31,8 @@ solace-agent-mesh plugin add sam_mcp_server --pip -u git+https://github.com/Sola
 
 This plugin requires two environment variables to be set:
 
-* `MCP_SERVER_NAME`: The name of the MCP Server
-* `MCP_SERVER_COMMAND`: The command used to run the MCP Server
+- `MCP_SERVER_NAME`: The name of the MCP Server
+- `MCP_SERVER_COMMAND`: The command used to run the MCP Server
 
 To use the `fileserver` MCP Server, update your `.env` file with the following values:
 
@@ -91,7 +91,7 @@ curl --location 'http://localhost:5050/api/v1/request' \
 
 The response includes the file you created in a previous step as expected:
 
-```json
+````json
 {
   "created": 1739378715,
   "id": "restapi-3570a20d-d4a8-4780-946b-5e1ea3b11ee4",
@@ -101,7 +101,7 @@ The response includes the file you created in a previous step as expected:
   },
   "session_id": "3dbd8425-2962-45e1-be2a-ec7f2cd4a09c"
 }
-```
+````
 
 Next, create a simple JSON file.
 
@@ -112,7 +112,7 @@ curl --location 'http://localhost:5050/api/v1/request' \
 --form 'stream="false"'
 ```
 
-You will get the following response that  indicates that the requested file was created:
+You will get the following response indicating the requested file was created:
 
 ```json
 {

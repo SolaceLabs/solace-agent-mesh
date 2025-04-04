@@ -1,0 +1,29 @@
+plugin_gateway_default_config:
+  interaction_type: "interactive" # interactive, autonomous
+
+  system_purpose: "The system is an AI Chatbot with agentic capabilities. It will use the agents available to provide information, reasoning and general assistance for the users in this system."
+
+  history: 
+    enabled: true
+
+    type: "file"
+    type_config:
+      path: /tmp/sam-history
+
+    time_to_live: 1000
+    expiration_check_interval: 300
+    max_turns: 40
+    max_characters: 50000
+    enforce_alternate_message_roles: true
+
+    long_term_memory:
+      enabled: true
+
+      llm_config:
+        model: ${LLM_SERVICE_PLANNING_MODEL_NAME}
+        api_key: ${LLM_SERVICE_API_KEY}
+        base_url: ${LLM_SERVICE_ENDPOINT}
+
+      store_config:
+        type: "file"
+        path: /tmp/history

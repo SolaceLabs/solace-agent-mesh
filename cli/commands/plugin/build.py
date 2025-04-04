@@ -11,7 +11,7 @@ def build_command():
     subprocess.check_call(["python", "-m", "build"])
 
 
-def get_all_plugin_gateway_interfaces(config, abort): 
+def get_all_plugin_gateway_interfaces(config, abort, return_plugin_config=False):
     plugins = config.get("plugins", [])
     gateway_interfaces = {}
 
@@ -27,6 +27,8 @@ def get_all_plugin_gateway_interfaces(config, abort):
             if not os.path.exists(interface_path):
                 continue
 
+            interface_gateway_configs = (Config.load_config(os.path.join(plugin_path, Config.user_plugin_config_file)) or {}).get("solace_agent_mesh_plugin", {}).get("interface_gateway_configs", {})
+            interface_gateway_config = None
             # Ensuring flow and default pair exist
             interface_pairs = {}
             for file in os.listdir(interface_path):
@@ -44,7 +46,14 @@ def get_all_plugin_gateway_interfaces(config, abort):
             
             for name, files in interface_pairs.items():
                 if len(files) == 2:
-                    gateway_interfaces[name] = interface_path
+                    if return_plugin_config:
+                        for interface_name, interface_config in interface_gateway_configs.items():
+                            if interface_name == name.replace("-", "_"):
+                                interface_gateway_config = interface_config
+                                break
+                        gateway_interfaces[name] = (interface_path, interface_gateway_config)
+                    else:
+                        gateway_interfaces[name] = interface_path
         
     return gateway_interfaces
 

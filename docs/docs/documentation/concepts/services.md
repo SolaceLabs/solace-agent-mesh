@@ -1,5 +1,5 @@
 ---
-title: Services 
+title: Services
 sidebar_position: 50
 ---
 
@@ -7,21 +7,17 @@ sidebar_position: 50
 
 Solace Agent Mesh comes with a series of built-in system-wide services that provide essential capabilities for the system to operate efficiently and securely. These services are designed to be used by all or specific components within the system to perform common tasks such as file management, history management, LLM handling, and more.
 
-
 :::tip[In one sentence]
 Services are essentially system-wide task specific capabilities.
 :::
 
-Some service are extensible and the user can implement their own version by extending the base service classes.
-
+Some services are extensible and the user can implement their own version by extending the base service classes.
 
 ## File Service
 
 The File service is a global service that provides short-term file storage capabilities for Solace Agent Mesh. This service enables efficient handling of large files within the system without overloading the PubSub+ event broker or the LLM context.
 
 For more information, see [File Service](../user-guide/advanced/services/file-service.md).
-
-
 
 ## History Service
 

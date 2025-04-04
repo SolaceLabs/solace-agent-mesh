@@ -8,12 +8,13 @@ sidebar_position: 40
 You can create custom agents for Solace Agent Mesh.
 
 :::info[Learn about agents]
-Before you create a custom agent, we recommend learn about about agents. For more information, see [Agents](../concepts/agents.md).
+Before you create a custom agent, we recommend learn about agents. For more information, see [Agents](../concepts/agents.md).
 :::
 
 As an example, you will build an agent that can perform sentiment analysis and entity extraction on incoming requests.
 
 ## Setting Up the Environment
+
 First, you need to [install the Solace Agent Mesh and Solace Agent Mesh (SAM) CLI](../getting-started/installation.md), and then you'll want to [create a new project](../getting-started/quick-start.md) or [create a new plugin](../concepts/plugins/create-plugin.md).
 
 After you have your project set up, you can create an agent called `message-analyzer` using the following command:
@@ -23,13 +24,14 @@ solace-agent-mesh add agent message-analyzer
 ```
 
 The following files are created in your project:
+
 - `./configs/agents/message_analyzer.yaml`: Includes the agent configuration. Learn more about configs [here 🔗](../user-guide/solace-ai-connector.md).
 - `./modules/agents/message_analyzer/message_analyzer_agent_component.py`: Includes the agent component.
 - `./modules/agents/message_analyzer/actions/sample_action.py`: Includes a sample action, which you will replace with your own action.
 
 ## Planning the Agent
 
-Your are going to build an agent that will have two actions: one for sentiment analysis and another for entity extraction. Each action will require configuration. 
+You are going to build an agent that will have two actions: one for sentiment analysis and another for entity extraction. Each action will require configuration.
 
 :::tip[AI access]
 Solace Agent Mesh provides access to [LLM Service](../user-guide/advanced/services/llm-service.md) and [Embedding Service](../user-guide/advanced/services/embedding-service.md) to agents.
@@ -145,6 +147,7 @@ agent = self.get_agent()
 strings = ["hello", "world"]
 vectors = agent.do_embedding_service_request(strings)
 ```
+
 :::
 
 Now, get the content from the LLM Service response and parse it to JSON.
@@ -279,7 +282,7 @@ class EntityExtractionAction(Action):
             },
             **kwargs,
         )
-            
+
         # Loading the entity types from the yaml config file
         entity_extraction_config = self.get_config("entity_extraction_action", {})
         self.entity_types = entity_extraction_config.get("entity_types")
@@ -297,7 +300,7 @@ class EntityExtractionAction(Action):
         # TODO: Implement the action
 ```
 
-Similar to the sentiment analysis action, you  will need to access the LLM service to extract entities from the message. YOu will then use the same `do_llm_service_request` method to make a request to the LLM service.
+Similar to the sentiment analysis action, you will need to access the LLM service to extract entities from the message. You will then use the same `do_llm_service_request` method to make a request to the LLM service.
 
 ```python
 SYSTEM_PROMPT = (
@@ -363,7 +366,7 @@ class EntityExtractionAction(Action):
             },
             **kwargs,
         )
-            
+
         # Loading the entity types from the yaml config file
         entity_extraction_config = self.get_config("entity_extraction_action", {})
         self.entity_types = entity_extraction_config.get("entity_types")
@@ -415,6 +418,7 @@ class EntityExtractionAction(Action):
             log.error("Error in entity extraction: %s", e)
             return ActionResponse(message="error: Error in entity extraction")
 ```
+
 ## Updating the Agent
 
 Now that you have the actions implemented, you must update the agent to include these actions. To accomplish this, update the `./modules/agents/message_analyzer/message_analyzer_agent_component.py` file:
@@ -464,7 +468,7 @@ You can try the following two prompts to test your new actions:
 
 > Extract entities from the message: Hi, This John from ABC Company. We are looking to buy 100 units of your product. Can you provide a quote?
 
-You can test these prompts through any gateway. Here, you wil use a REST endpoint.
+You can test these prompts through any gateway. Here, you will use a REST endpoint.
 
 ```sh
 curl --location 'http://localhost:5050/api/v1/request' \
@@ -474,6 +478,7 @@ curl --location 'http://localhost:5050/api/v1/request' \
 ```
 
 Action Response (As text):
+
 ```
 {
   "sentiment": "positive",
@@ -509,6 +514,7 @@ curl --location 'http://localhost:5050/api/v1/request' \
 ```
 
 Action Output (As a file):
+
 ```json
 {
   "Name": "John",

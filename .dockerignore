@@ -3,6 +3,7 @@
 *.pyd
 __pycache__
 .pytest_cache
+.env*
 .env
 .env_template
 docker-compose-local.yaml

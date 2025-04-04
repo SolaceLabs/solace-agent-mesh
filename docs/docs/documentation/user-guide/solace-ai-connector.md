@@ -25,35 +25,36 @@ Solace AI Event Connector operates through a series of interconnected components
 
 ![SAC Flow Diagram](../../../static/img/sac-flows.png)
 
-
 1. **Flow Structure**
+
    - Each flow has one input component
    - Multiple processing components
    - One output component
    - Components are connected via queues for buffering
 
 2. **Component Processing**
+
    - Each component runs in its own thread
    - Processes one message at a time
    - Supports input transforms and selections
    - Can be scaled with multiple instances for parallel processing
-  
-![SAC Component Diagram](../../../static/img/sac_parts_of_a_component.png)
 
+   ![SAC Component Diagram](../../../static/img/sac_parts_of_a_component.png)
 
-1. **Event Management**
+3. **Event Management**
    - Tracks events throughout the processing pipeline
    - Uses acknowledgment system for reliable delivery
    - Ensures no event loss during processing
 
 ## Configuration
 
-The Solace AI Event Connector is configured through YAML files that allows you to:
+The Solace AI Event Connector is configured through YAML files that allow you to:
+
 - Define flow components and their sequence
 - Set queue depths between components
 - Configure the number of parallel instances
 - Specify input/output parameters
 - Define processing logic and transformations
-- Passing the source path for the custom python components
+- Pass the source path for the custom python components
 
 For more information about the connector, see [Solace AI Event Connector](https://github.com/SolaceLabs/solace-ai-connector/blob/main/docs/index.md).

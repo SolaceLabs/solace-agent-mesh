@@ -99,6 +99,7 @@ def get_file_handling_prompt(tp: str) -> str:
     For all files, there's `encoding` parameter, this is used to encode the file format. The supported values are `datauri`, `base64`, `zip`, and `gzip`. Use this to convert a file to ZIP or datauri for HTML encoding.
         For example (return a file as zip): `{FS_PROTOCOL}://c27e6908-55d5-4ce0-bc93-a8e28f84be12_annual_report.csv?encoding=zip&resolve=true`
         Example 2 (HTML tag must be datauri encoded): `<img src="{FS_PROTOCOL}://c9183b0f-fd11-48b4-ad8f-df221bff3da9_generated_image.png?encoding=datauri&resolve=true" alt="image">`
+        Example 3 (return a regular image directly): `amfs://a1b2c3d4-5e6f-7g8h-9i0j-1k2l3m4n5o6p_photo.png?resolve=true` - When returning images directly in messaging platforms like Slack, don't use any encoding parameter
 
     For all files, there's `resolve=true` parameter, this is used to resolve the url to the actual data before processing.
         For example: `{FS_PROTOCOL}://577c928c-c126-42d8-8a48-020b93096110_names.csv?resolve=true`
@@ -159,7 +160,9 @@ def create_examples(
 
 
 def SystemPrompt(info: Dict[str, Any], action_examples: List[str]) -> str:
-    response_format_prompt = info.get("response_format_prompt", "")
+    tp = info["tag_prefix"]
+    response_format_prompt = info.get("response_format_prompt", "") or ""
+    response_format_prompt = response_format_prompt.replace("{{tag_prefix}}", tp)
     response_guidelines_prompt = (
         f"<response_guidelines>\nConsider the following when generating a response to the originator:\n"
         f"{response_format_prompt}</response_guidelines>"
@@ -182,7 +185,6 @@ def SystemPrompt(info: Dict[str, Any], action_examples: List[str]) -> str:
         )
 
     # Merged
-    tp = info["tag_prefix"]
     examples = create_examples(fixed_examples, action_examples, tp)
 
     handling_files = get_file_handling_prompt(tp)
@@ -215,7 +217,21 @@ The assistant's behavior aligns with the system purpose specified below:
     5. Do not perform any other actions besides opening the required agents in this step.
   - Report generation:
     1. If a report is requested and no format is specified, create the report in an HTML file.
-    2. Generate each section of the report independently and store it in the file service with create_file action. When finishing the report, combine the sections using amfs urls with the resolve=true query parameter to insert the sections into the main document. When generating HTML, create the header first with all the necessary CSS and JS links so that it is clear what css the rest of the document will use.
+    2. Generate each section of the report independently and store it in the file service with create_file action. When finishing the report, combine the sections using amfs urls with the resolve=true query parameter to insert the sections into the main document. When inserting amfs HTML URLs into the HTML document, place them directly in the document without any surrounding tags or brackets. Here is an example of the body section of an HTML report combining multiple sections:
+        <body>
+            <!-- Title -->
+            <h1>Report Title</h1>
+
+            <!-- Section 1 -->
+            amfs://xxxxxx.html?resolve=true
+
+            <!-- Section 2 -->
+            amfs://yyyyyy.html?resolve=true
+
+            <!-- Section 3 -->
+            amfs://zzzzzz.html?resolve=true
+        </body>
+        When generating HTML, create the header first with all the necessary CSS and JS links so that it is clear what css the rest of the document will use.
     3. Images are always very useful in reports, so the assistant will add them when appropriate. If images are embedded in html, they must be resolved and converted to datauri format or they won't render in the final document. This can be done by using the encoding=datauri&resolve=true in the amfs link. For example, <img src="amfs://xxxxxx.png?encoding=datauri&resolve=true". The assistant will take care of the rest. Images can be created in parallel
     4. During report generation in interactive sessions, the assistant will send lots of status messages to indicate what is happening. 
   - Handling stimuli with open agents:
@@ -329,7 +345,7 @@ def UserStimulusPrompt(
         f"\tExample of returning a file as zip: <{info['tag_prefix']}file><url>{FS_PROTOCOL}://519321d8-3506-4f8d-9377-e5d6ce74d917_filename.csv?encoding=zip</url></{info['tag_prefix']}file>.\n"
         f"You can also optionally return a non-persistent temporary file using the format <{info['tag_prefix']}file name=\"filename.csv\" mime_type=\"text/csv\">\n<data> data </data>\n</{info['tag_prefix']}file>.\n"
         f" can't nest `<{info['tag_prefix']}file>` tags inside the `<data>` tag. If you need to address another file within the data, use the URL with the `resolve=true` query parameter.\n"
-        "When using a {FS_PROTOCOL} URL outside of a file block, always include the 'resolve=true' query parameter to ensure the URL is resolved to the actual data.\n"
+        f"When using a {FS_PROTOCOL} URL outside of a file block, always include the 'resolve=true' query parameter to ensure the URL is resolved to the actual data.\n"
         f"</{info['tag_prefix']}file_instructions>"
     )
 
@@ -515,3 +531,5 @@ def format_example_for_anthropic(example: dict) -> str:
     """
 
     return xml_content
+
+LONG_TERM_MEMORY_PROMPT = " - You are capable of remembering things and have long-term memory, this happens automatically."

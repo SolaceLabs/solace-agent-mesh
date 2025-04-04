@@ -392,6 +392,11 @@ class FileService(AutoExpiry, metaclass=AutoExpirySingletonMeta):
             url = url[5:-6].strip()
         if url.endswith('"') or url.endswith("'") or url.endswith(","):
             url = url[:-1]
+        if url.endswith(")"):
+            open_parenthesis_count = url.count("(")
+            close_parenthesis_count = url.count(")")
+            if close_parenthesis_count > open_parenthesis_count:
+                url = url[:-1]
         return url
 
     @staticmethod

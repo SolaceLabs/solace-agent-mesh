@@ -14,19 +14,20 @@ To get started with Solace Agent Mesh, you must first create a project.
 ## Prerequisites
 
 1. You have installed the Solace Agent Mesh CLI. If not, see the [Installation](./installation.md) page.
-2. You have an available AI provider and API key. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 3.7 or OpenAI GPT-4o
+2. You have an available AI provider and API key. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 3.7 or OpenAI GPT-4o.
 
 ## Create a Project
 
-Ensure you have the Solace Agent Mesh (SAM) CLI ( run `solace-agent-mesh --version` or `sam `) available. If not, see  [Installation](./installation.md).
+Ensure you have the Solace Agent Mesh (SAM) CLI (run `solace-agent-mesh --version` or `sam `) available. If not, see [Installation](./installation.md).
 
 Create a directory for your project and navigate to it.
+
 ```sh
 mkdir my-agent-mesh
 cd my-agent-mesh
 ```
 
-Run the `init` command and follow the prompts to create your project. Ensure you enable REST API interface when prompted.
+Run the `init` command and follow the prompts to create your project.
 
 ```sh
 solace-agent-mesh init
@@ -41,7 +42,7 @@ To get a list of all the available options, run `solace-agent-mesh init --help`
 :::info[Model name format]
 When passing the model names, you need to use the format `provider/name` where provider is the provider API interface definition name for example `openai` if the model is using the standard OpenAI API interface and `name` is the model name like `gpt-4o`.
 
-If you're using a non-openai model but hosting it on a custom API that follows the OpenAI standards, like Ollama or LiteLLM, you can still use the `openai` provider. 
+If you're using a non-openai model but hosting it on a custom API that follows the OpenAI standards, like Ollama or LiteLLM, you can still use the `openai` provider.
 
 For example: `openai/llama-3.3-7b`
 
@@ -49,7 +50,6 @@ This is the case for all the model names, such as LLMs, image generators, embedd
 :::
 
 Your project configurations have been written to the `solace-agent-mesh.yaml` file. To learn more about this file and its configurations, see the [configurations](./configuration.md) page.
-
 
 ## Building the Project
 
@@ -65,8 +65,6 @@ solace-agent-mesh build
 You must run the `solace-agent-mesh` commands at the root directory of your project where the `solace-agent-mesh.yaml` file is located.
 :::
 
- 
-
 ## Running the Project
 
 To run the project, you can use the `run` command to execute all the components in a single, multi-threaded application. It's possible to split the components into separate processes. See the [deployment](../deployment/deploy.md) page for more information.
@@ -74,8 +72,9 @@ To run the project, you can use the `run` command to execute all the components 
 ```sh
 solace-agent-mesh run -e
 ```
+
 :::tip
-you can use `-e` flag to load the local `.env` file when running the project.
+You can use `-e` flag to load the local `.env` file when running the project.
 :::
 
 :::tip
@@ -86,10 +85,9 @@ To learn more about the other CLI commands, see the [CLI documentation](../conce
 
 ## Interacting with SAM
 
-You can use different gateway interfaces to communicate with the system such REST, Web UI, Slack, MS Teams, etc. To keep it simple for this demo, we will use the browser UI. To connect to the browser UI, open a browser and navigate to `http://127.0.0.1:5001`. If you chose another port during the `init` step, use that port instead.
+You can use different gateway interfaces to communicate with the system such as REST, Web UI, Slack, MS Teams, etc. To keep it simple for this demo, we will use the browser UI. To connect to the browser UI, open a browser and navigate to `http://127.0.0.1:5001`. If you chose another port during the `init` step, use that port instead.
 
-This will provide a simple chat interface where you can interact with the Agent Mesh. Try some commands like `What is the capital of France?` or `Give me a diagram of the oAuth process`.
-
+This will provide a simple chat interface where you can interact with the Agent Mesh. Try some commands like `Suggest some good outdoor activities in London given the season and current weather conditions.` or `Generate a mermaid diagram of the OAuth login flow`.
 
 ## Sending a Request via REST API
 
@@ -102,7 +100,7 @@ For example, send a request using `curl`:
 ```sh
 curl --location 'http://localhost:5050/api/v1/request' \
 --header 'Authorization: Bearer None' \
---form 'prompt="What is the capital of France?"' \
+--form 'prompt="Suggest some good outdoor activities in London given the season and current weather conditions."' \
 --form 'stream="false"'
 ```
 
@@ -117,7 +115,7 @@ Sample output:
   "created": 1797746509,
   "id": "restapi-81c30d2c-4943-449a-8d4c-65d0f86ee70a",
   "response": {
-    "content": "The capital of France is Paris.",
+    "content": "Outdoor Activities in London: Spring Edition. Today's Perfect Activities (13°C, Light Cloud): - Royal Parks Exploration : Hyde Park and Kensington Gardens...",
     "files": []
   },
   "session_id": "c4d46aec-78d6-4a82-9c92-bcf4546f6f84"
@@ -126,6 +124,7 @@ Sample output:
 
 :::info
 Files would be returned as base64-encoded strings, with the following structure:
+
 ```json
 "files": [
   {
@@ -139,17 +138,15 @@ Files would be returned as base64-encoded strings, with the following structure:
 For example, here's a prompt to retrieve a file: `prompt="Give me a random bar chart"`
 :::
 
-
 ## Try a Tutorial
 
 Try adding a new agent to the system by following the tutorial on adding an [SQL database agent](../tutorials/sql-database.md). This tutorial guides you through the process of adding the SQL agent plugin and adding some sample data to the database.
-
 
 ## Next Steps
 
 Solace Agent Mesh requires two types of components, **agents** and **gateways**. The system comes with a set of built-in agents and a REST API gateway (which you enabled during the `init` step) include a browser UI running on top of it.
 
-You can learn more about [gateways](../concepts/gateways.md). Alternatively, you learn about [adding a pre-built gateway interfaces](../concepts/gateways.md#gateway-from-interfaces) or [creating your own new gateways](../user-guide/custom-gateways.md).
+You can learn more about [gateways](../concepts/gateways.md). Alternatively, you can learn about [adding a pre-built gateway interfaces](../concepts/gateways.md#gateway-from-interfaces) or [creating your own new gateways](../user-guide/custom-gateways.md).
 
 Also, you can learn more about [agents](../concepts/agents.md) or about [creating your own agents](../user-guide/custom-agents.md).
 
@@ -159,6 +156,5 @@ If you said no to the REST API gateway during the `init` step, you can add it af
 ```sh
 solace-agent-mesh add gateway my-rest-endpoint --interface rest-api
 ```
-::: 
 
-
+:::

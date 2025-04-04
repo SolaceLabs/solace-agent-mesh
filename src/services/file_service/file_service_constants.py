@@ -40,7 +40,7 @@ BLOCK_TAG_KEYS = [
 Keys to be treated as tags in the file block, and not file attributes.
 """
 
-FS_URL_REGEX = r"""<url>\s*({protocol}:\/\/.+?)\s*<\/url>|{protocol}:\/\/[^\s\?]+(\s|$)|{protocol}:\/\/[^\n\?]+\?.*?(?=\n|$)|\"({protocol}:\/\/[^\"]+?)(\"|\n)|'({protocol}:\/\/[^']+?)('|\n)""".format(
+FS_URL_REGEX = r"""<url>\s*({protocol}:\/\/.+?)\s*<\/url>|{protocol}:\/\/[^\s\?]+(\s|$)|{protocol}:\/\/[^\n\?]+\?.*?(?=\n|$|>)|\"({protocol}:\/\/[^\"]+?)(\"|\n)|'({protocol}:\/\/[^']+?)('|\n)""".format(
     protocol=FS_PROTOCOL
 )
 """

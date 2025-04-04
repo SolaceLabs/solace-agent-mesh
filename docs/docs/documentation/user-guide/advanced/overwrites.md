@@ -1,38 +1,39 @@
 ---
-title: Overwrites  
-sidebar_position: 10  
+title: Overwrites
+sidebar_position: 10
 ---
 
-# Overwrites  
+# Overwrites
 
-Solace Agent Mesh is powered by the [Solace AI Event Connector](../../user-guide/solace-ai-connector.md), which is configured through YAML config files.  
+Solace Agent Mesh is powered by the [Solace AI Event Connector](../../user-guide/solace-ai-connector.md), which is configured through YAML config files.
 
 :::tip[Prerequisites]  
 Before you create overwrites, you should have a good understanding of the Solace AI Event Connector. For more information, see [Solace AI Event Connector](../../user-guide/solace-ai-connector.md).  
-:::  
+:::
 
-There are two cases where you might need to use the `overwrites` feature:  
-- Overwriting system configurations  
-- Adding custom workflows  
+There are two cases where you might need to use the `overwrites` feature:
 
-## Overwriting System Configurations  
+- Overwriting system configurations
+- Adding custom workflows
 
-All Solace Agent Mesh internal components are configured through YAML files. When building a project, you will see these files in the build directory. In some cases, you may want to customize certain files, but **the build directory should never be manually edited**. All content in the build directory is generated and overwritten at build time.  
+## Overwriting System Configurations
 
-By placing a file with the same name in the `overwrites` directory, you can overwrite the content of the original system file.  
+All internal components in Solace Agent Mesh are configured through YAML files. When building a project, you will see these files in the build directory. In some cases, you may want to customize certain files, but **the build directory should never be manually edited**. All content in the build directory is generated and overwritten at build time.
 
-The most common use case for this feature is customizing the configurations for the [LLM Service](./services/llm-service.md) or [Embedding Service](./services/embedding-service.md).  
+By placing a file with the same name in the `overwrites` directory, you can overwrite the content of the original system file.
 
-Check their respective pages for more information on configurations.  
+The most common use case for this feature is customizing the configurations for the [LLM Service](./services/llm-service.md) or [Embedding Service](./services/embedding-service.md).
 
-## Adding Custom Workflows  
+Check their respective pages for more information on configurations.
 
-There may be cases where you need a specific workflow that does not fall under one of the Solace Agent Mesh components (agents, gateways, etc.). In such cases, you can create your own custom [Solace AI Event Connector](../../user-guide/solace-ai-connector.md) workflow and place it in the `overwrites` directory.  
+## Adding Custom Workflows
 
-Make sure to use a unique name for your workflow to avoid conflicts with system components.  
+There may be cases where you need a specific workflow that does not fall under one of the components in Solace Agent Mesh (agents, gateways, etc.). In such cases, you can create your own custom [Solace AI Event Connector](../../user-guide/solace-ai-connector.md) workflow and place it in the `overwrites` directory.
 
-Your files will be included in the build directory and will run alongside other components, provided you are using the `sam run` command. For custom deployments, check the [Deployments](../../deployment/deploy.md) page.  
+Ensure sure to use a unique name for your workflow to avoid conflicts with system components.
+
+Your files will be included in the build directory and will run alongside other components, provided you are using the `sam run` command. For more information about custom deployments, check the [Deployments](../../deployment/deploy.md) page.
 
 :::warning  
 Avoid placing any YAML files in the `overwrites` directory that are not [Solace AI Event Connector](../../user-guide/solace-ai-connector.md) workflows, as this will cause a runtime error.  
-:::  
+:::

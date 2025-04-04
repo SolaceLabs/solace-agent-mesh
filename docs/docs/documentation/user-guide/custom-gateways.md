@@ -1,57 +1,57 @@
 ---
-title: Create Custom Gateways  
-sidebar_position: 30  
+title: Create Custom Gateways
+sidebar_position: 30
 ---
 
-# Custom Gateways  
+# Custom Gateways
 
-## Creating Custom Gateways  
+## Creating Custom Gateways
 
-To create a custom gateway, you can use the following command:  
+To create a custom gateway, you can use the following command:
 
 ```bash
 solace-agent-mesh add gateway <gateway-name>
-```  
+```
 
-This command generates multiple files:  
+This command generates multiple files:
 
-- `configs/gateways/<gateway-name>/gateway.yaml`: A shared gateway configuration file.  
-- `configs/gateways/<gateway-name>/<gateway-name>.yaml`: A custom interface configuration file, where you define specific settings.  
-- `src/gateways/<gateway-name>/<gateway-name>_input.py`: A Python class file for the gateway input stream.  
-- `src/gateways/<gateway-name>/<gateway-name>_output.py`: A Python class file for the gateway output stream.  
-- `src/gateways/<gateway-name>/<gateway-name>_base.py`: A parent class for both input and output to abstract common logic and share resources.  
+- `configs/gateways/<gateway-name>/gateway.yaml`: A shared gateway configuration file.
+- `configs/gateways/<gateway-name>/<gateway-name>.yaml`: A custom interface configuration file, where you define specific settings.
+- `src/gateways/<gateway-name>/<gateway-name>_input.py`: A Python class file for the gateway input stream.
+- `src/gateways/<gateway-name>/<gateway-name>_output.py`: A Python class file for the gateway output stream.
+- `src/gateways/<gateway-name>/<gateway-name>_base.py`: A parent class for both input and output to abstract common logic and share resources.
 
-For example, you can create a custom gateway named `dir-watcher`, which activates when a file is added to a directory and generates a summary of its contents.  
+For example, you can create a custom gateway named `dir-watcher`, which activates when a file is added to a directory and generates a summary of its contents.
 
 ```bash
 solace-agent-mesh add gateway dir-watcher
-```  
+```
 
-The following files are created:  
+The following files are created:
 
-- `./configs/gateways/dir_watcher/gateway.yaml`  
-- `./configs/gateways/dir_watcher/dir_watcher.yaml`  
-- `./src/gateways/dir_watcher/__init__.py`  
-- `./src/gateways/dir_watcher/dir_watcher_base.py`  
-- `./src/gateways/dir_watcher/dir_watcher_input.py`  
-- `./src/gateways/dir_watcher/dir_watcher_output.py`  
+- `./configs/gateways/dir_watcher/gateway.yaml`
+- `./configs/gateways/dir_watcher/dir_watcher.yaml`
+- `./src/gateways/dir_watcher/__init__.py`
+- `./src/gateways/dir_watcher/dir_watcher_base.py`
+- `./src/gateways/dir_watcher/dir_watcher_input.py`
+- `./src/gateways/dir_watcher/dir_watcher_output.py`
 
-### YAML Configuration {#gateway-yaml}  
+### YAML Configuration {#gateway-yaml}
 
-#### Gateway YAML Configuration  
+#### Gateway YAML Configuration
 
-Inside the `gateway.yaml` file, you can define the gateway's configuration, including:  
+Inside the `gateway.yaml` file, you can define the gateway's configuration, including:
 
-- Authorization  
-- History  
-- Identity  
-- System purpose  
+- Authorization
+- History
+- Identity
+- System purpose
 
-For more information about history configurations, see [History service](../user-guide/advanced/services/history-service.md). To disable history, set `retain_history` to `false`.  
+For more information about history configurations, see [History service](../user-guide/advanced/services/history-service.md). To disable history, set `retain_history` to `false`.
 
-`system_purpose` is a string describing the gateway's role. It helps the orchestrator determine how to respond.  
+`system_purpose` is a string describing the gateway's role. It helps the orchestrator determine how to respond.
 
-For the `dir_watcher` example, you can define the gateway configuration as follows:  
+For the `dir_watcher` example, you can define the gateway configuration as follows:
 
 ```yaml
 - identity_config: &default_identity_config
@@ -73,13 +73,13 @@ For the `dir_watcher` example, you can define the gateway configuration as follo
     retain_history: false
     history_config: {}
 
-```  
+```
 
-- The history configuration is omitted because this gateway does not require history.  
+- The history configuration is omitted because this gateway does not require history.
 
-#### Gateway Interface YAML Configuration  
+#### Gateway Interface YAML Configuration
 
-The `<gateway-name>.yaml` file defines the gateway's custom configurations. For the `dir_watcher` example, the configuration is:  
+The `<gateway-name>.yaml` file defines the gateway's custom configurations. For the `dir_watcher` example, the configuration is:
 
 ```yaml
 - dir_watcher_config: &gateway_interface_config
@@ -87,9 +87,9 @@ The `<gateway-name>.yaml` file defines the gateway's custom configurations. For 
 
 - response_format_prompt: &response_format_prompt >
     Summary of the given file. Markdown formatting is supported.
-```  
+```
 
-- `directory_to_watch` is a configuration value used in the gateway implementation. Its value is set via an environment variable.  
+- `directory_to_watch` is a configuration value used in the gateway implementation. Its value is set via an environment variable.
 
 ### Python Implementation {#gateway-python}
 
@@ -117,7 +117,7 @@ class DirWatcherBase(ComponentBase, ABC):
         """Get a session from the session map"""
         return DirWatcherBase._session_map.get(session_id)
 
-    def remove_session_data(self, session_id): 
+    def remove_session_data(self, session_id):
         """Remove a session from the session map"""
         DirWatcherBase._session_map.pop(session_id)
 
@@ -125,7 +125,6 @@ class DirWatcherBase(ComponentBase, ABC):
     def invoke(self, message, data):
         pass
 ```
-
 
 #### Gateway Input Class
 
@@ -196,6 +195,7 @@ For simplicity, you can use the `watchdog` library to monitor the directory.
 ```bash
 pip install watchdog
 ```
+
 :::note
 Ensure that all dependencies are added to the `pyproject.toml` file.
 :::
@@ -216,7 +216,7 @@ def start_dir_watcher(self, on_new_file):
     observer = Observer()
     observer.schedule(Handler(), self.directory_to_watch, recursive=False)
     observer.start()
-    
+
     try:
         while True:
             time.sleep(1)
@@ -341,11 +341,11 @@ class DirWatcherInput(DirWatcherBase):
             def on_created(self, event):
                 if not event.is_directory:
                     on_new_file(event.src_path)
-        
+
         observer = Observer()
         observer.schedule(Handler(), directory_to_watch, recursive=False)
         observer.start()
-        
+
         try:
             while True:
                 time.sleep(1)
@@ -403,12 +403,12 @@ In the following example, summarized content is appended to the end of the file.
 # previous lines have been removed for brevity
 def invoke(self, message:Message, data:dict):
     log.debug("DirWatcherOutput invoked, %s", data)
-    
+
     user_properties = message.get_user_properties()
     session_id = user_properties.get("session_id")
 
     file_path = self.get_session_data(session_id)
-    
+
     content = data.get("content")
     chunk = content.get("chunk", "")
     first_chunk = content.get("first_chunk")
@@ -431,6 +431,7 @@ This function appends the response incrementally as it is streamed.
 
 :::info
 The `data.content` dictionary may contain the following attributes:
+
 - `streaming`: Indicates whether the content is being streamed.
 - `chunk`: A segment of the content.
 - `text`: The complete content from the beginning.
@@ -439,7 +440,7 @@ The `data.content` dictionary may contain the following attributes:
 - `status_update`: Specifies if the `text` field contains a status message rather than content. Status updates are not part of the response.
 - `response_complete`: Indicates whether the response is complete.
 - `uuid`: A unique identifier for the response.
-:::
+  :::
 
 The complete `dir_watcher_output.py` file looks like this:
 
@@ -512,12 +513,12 @@ class DirWatcherOutput(DirWatcherBase):
 
     def invoke(self, message:Message, data:dict):
         log.debug("DirWatcherOutput invoked, %s", data)
-        
+
         user_properties = message.get_user_properties()
         session_id = user_properties.get("session_id")
 
         file_path = self.get_session_data(session_id)
-        
+
         content = data.get("content")
         chunk = content.get("chunk", "")
         first_chunk = content.get("first_chunk")
@@ -526,7 +527,7 @@ class DirWatcherOutput(DirWatcherBase):
         if first_chunk:
             with open(file_path, "a", encoding="utf-8") as file:
                 file.write("\n\n### Summary\n\n")
-    
+
         if chunk:
             with open(file_path, "a", encoding="utf-8") as file:
                 file.write(chunk)
@@ -535,7 +536,6 @@ class DirWatcherOutput(DirWatcherBase):
             log.info("Summary added to the file %s", file_path)
             self.remove_session_data(session_id)
 ```
-
 
 ### Building and Running the Gateway
 
@@ -571,7 +571,7 @@ If you would like to share your custom gateway with the community or reuse it in
 
 ## Creating Gateway Interfaces
 
-Creating a gateway interface is very similar to a normal gateway with the difference being that an interface is used to instantiate a gateway. You can not run an interface directly.
+Creating a gateway interface is very similar to a normal gateway with the difference being that an interface is used to instantiate a gateway. You cannot run an interface directly.
 
 :::info
 Gateway interfaces can only be created inside a plugin project.
@@ -580,11 +580,12 @@ Gateway interfaces can only be created inside a plugin project.
 To create a new gateway interface, run the following command:
 
 ```bash
-solace-agent-mesh add <interface-name> --new-interface
+solace-agent-mesh add gateway <interface-name> --new-interface
 ```
 
 This command creates the following files:
-- `./interfaces/<interface-name>-flows.yaml`: 
+
+- `./interfaces/<interface-name>-flows.yaml`:
 - `./interfaces/<interface-name>-default-config.yaml`:
 - `./src/gateways/<interface-name>/__init__.py`
 - `./src/gateways/<interface-name>/<interface-name>_base.py`
