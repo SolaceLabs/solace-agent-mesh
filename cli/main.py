@@ -211,15 +211,21 @@ def visualize(port, find_unused_port, host, use_env):
 )
 @click.option(
     "--embedding-model-name",
-    help="Embedding model name to use",
+    help="Embedding model name to use (only used if embedding service is enabled)",
 )
 @click.option(
     "--embedding-endpoint-url",
-    help="Embedding endpoint URL",
+    help="Embedding endpoint URL (only used if embedding service is enabled)",
 )
 @click.option(
     "--embedding-api-key",
-    help="Embedding API Key",
+    help="Embedding API Key (only used if embedding service is enabled)",
+)
+@click.option(
+    "--embedding-service-enabled",
+    is_flag=True,
+    default=None,
+    help="Enable/disable Embedding Service for vector embeddings",
 )
 @click.option(
     "--built-in-agent",
