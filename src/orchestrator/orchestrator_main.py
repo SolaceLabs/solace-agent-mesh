@@ -46,8 +46,9 @@ class OrchestratorState:
         with self._lock:
             agent_name = agent.get("agent_name")
             agent["state"] = "closed"
-            if agent_name not in self.registered_agents:
-                self.registered_agents[agent_name] = agent
+
+            # Always update the agent information
+            self.registered_agents[agent_name] = agent
 
             # Reset its TTL
             self.registered_agents[agent_name][
@@ -145,7 +146,9 @@ class OrchestratorState:
 
         for agent_name, agent in self.registered_agents.items():
             actions = agent.get("actions", [])
-            filtered_actions = middleware_service.get("filter_action")(user_properties, actions)
+            filtered_actions = middleware_service.get("filter_action")(
+                user_properties, actions
+            )
 
             if filtered_actions:
                 agent_state = self.get_agent_state(session_id).get(agent_name, {})
