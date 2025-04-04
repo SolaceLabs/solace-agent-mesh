@@ -19,29 +19,34 @@ from ..common.constants import ORCHESTRATOR_COMPONENT_NAME
 
 ACTION_REQUEST_TIMEOUT = 180
 
-
 class ActionManager:
     """This class manages all the ActionRequests that are pending"""
+    
+    # Class-level variable to store the singleton instance
+    _instance = None
+    _initialized = False
 
     def __new__(cls, kv_store, lock_manager):
-        lock = lock_manager.get_lock("action_manager")
-        with lock:
-            instance = kv_store.get("action_manager_instance")
-            if instance is None:
-                instance = super(ActionManager, cls).__new__(cls)
-                kv_store.set("action_manager_instance", instance)
+        if cls._instance is None:
+            cls._instance = super(ActionManager, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
         return instance
 
     def __init__(self, kv_store, lock_manager):
-        self.action_requests = {}
-        self.lock = lock_manager.get_lock("action_manager")
+        # Only initialize once
+        if not self._initialized:
+            self.action_requests = {}
+            self.lock = lock_manager.get_lock("action_manager")
+            self.kv_store = kv_store
 
-        with self.lock:
-            action_requests = kv_store.get("action_requests")
-            if not action_requests:
-                action_requests = {}
-                kv_store.set("action_requests", action_requests)
-        self.action_requests = action_requests
+            with self.lock:
+                action_requests = kv_store.get("action_requests")
+                if not action_requests:
+                    action_requests = {}
+                    kv_store.set("action_requests", action_requests)
+            self.action_requests = action_requests
+            self._initialized = True
 
     def add_action_request(self, action_requestlist, user_properties):
         """Add an action request to the list"""

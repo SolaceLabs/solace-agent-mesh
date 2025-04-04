@@ -21,6 +21,7 @@ class BaseStorageProvider(ABC):
         task_id_list: List[str],
         creation_time: datetime,
         status: str,
+        user_properties: Dict = None,  # Add user_properties parameter
     ) -> None:
         """Create a task group."""
         pass

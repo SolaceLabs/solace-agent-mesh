@@ -92,21 +92,40 @@ class PlotlyGraph(Action):
                 )
         obj = params["plotly_figure_config"]
 
-        try:
-            # Add a user approval
-            form = create_approval_form("Plotly Graph Approval", "Please approve the plotly graph generation.", fields={"plotly_definition": obj})
+        # Check for the presence of user approval
+        user_responses = meta.get("user_responses", [])
 
+        # If the user_responses list is empty, it means no user approval has been given
+        if not user_responses:
+            try:
+
+                # Add a user approval
+                form = create_approval_form("Plotly Graph Approval", "Please approve the plotly graph generation.", fields={"plotly_definition": obj})
+
+                return ActionResponse(
+                    message="Please approve the plotly graph generation.",
+                    user_form=form,
+                    is_async=True,
+                    async_response_id="plotly_graph_approval",
+                )
+            except Exception as e:
+                log.error(f"Error creating approval form: {e}")
+                return ActionResponse(
+                    message="Could not create plotly graph. Please check the plotly figure configuration. plotly error: " + str(e),
+                )
+            
+        # If the user_responses list is not empty, it means user approval has been given
+        # Check if the user approved the action
+        user_approved = False
+        for response in user_responses:
+            if response.get("decision", "").lower() == "approve":
+                user_approved = True
+                break
+        if not user_approved:
             return ActionResponse(
-                message="Please approve the plotly graph generation.",
-                user_form=form,
-                is_async=True,
-                async_response_id="plotly_graph_approval",
+                message="User did not approve the plotly graph generation.",
             )
-        except Exception as e:
-            log.error(f"Error creating approval form: {e}")
-            return ActionResponse(
-                message="Could not create plotly graph. Please check the plotly figure configuration. plotly error: " + str(e),
-            )
+        
         if isinstance(obj, str):
             # Remove any leading/trailing quote characters
             obj = obj.strip("'\" ")

@@ -28,6 +28,7 @@ class MemoryStorageProvider(BaseStorageProvider):
         task_id_list: List[str],
         creation_time: datetime,
         status: str,
+        user_properties: Dict = None,  # Add user_properties parameter
     ) -> None:
         """Create a task group."""
         self.task_groups[task_group_id] = {
@@ -41,6 +42,7 @@ class MemoryStorageProvider(BaseStorageProvider):
             "task_id_list": task_id_list,
             "creation_time": creation_time,
             "status": status,
+            "user_properties": user_properties or {},  # Store user_properties
         }
         log.debug(f"Created task group: {task_group_id}")
     

@@ -149,6 +149,9 @@ class AsyncServiceComponent(ComponentBase):
         }
         
         requester_list = [originator]
+        
+        # Get the original user properties from the message
+        user_properties = message.get_user_properties() or {}
             
         # Create task group
         task_group_id = str(uuid.uuid4())
@@ -188,7 +191,8 @@ class AsyncServiceComponent(ComponentBase):
                         "user_form": user_form,
                         "stimulus_uuid": stimulus_uuid,
                         "session_id": session_id,
-                    }
+                    },
+                    "user_properties" : user_properties,
                 })
         
         # Create task group
@@ -203,6 +207,7 @@ class AsyncServiceComponent(ComponentBase):
             task_id_list=task_id_list,
             creation_time=datetime.now(),
             status="pending",
+            user_properties=user_properties,  # Store the original user properties
         )
         
         log.info(f"Created task group {task_group_id} with {len(task_id_list)} tasks for stimulus {stimulus_uuid}")
@@ -220,9 +225,9 @@ class AsyncServiceComponent(ComponentBase):
         """Handle user response event"""
         
         task_id = data.get("task_id")
-        user_response = data.get("user_response")
+        form_data = data.get("form_data")
         
-        if not task_id or not user_response:
+        if not task_id or not form_data:
             log.error("Missing required fields for user_response")
             self.discard_current_message()
             return None
@@ -236,7 +241,7 @@ class AsyncServiceComponent(ComponentBase):
             
         # Update task
         task["status"] = "completed"
-        task["user_response"] = user_response
+        task["user_response"] = form_data
         self.storage_provider.update_task(task)
         
         # Get task group
@@ -247,7 +252,7 @@ class AsyncServiceComponent(ComponentBase):
             return None
             
         # Update task group
-        task_group["user_responses"][task_id] = user_response
+        task_group["user_responses"][task_id] = form_data
         self.storage_provider.update_task_group(task_group)
         
         # Check if all tasks are completed
@@ -263,31 +268,39 @@ class AsyncServiceComponent(ComponentBase):
             task_group["status"] = "completed"
             self.storage_provider.update_task_group(task_group)
             
+            # Get the original user properties
+            original_user_properties = task_group.get("user_properties", {})
+            
             # Prepare user responses with action information
             detailed_user_responses = {}
-            for task_id, user_response in task_group["user_responses"].items():
+            for task_id, form_data in task_group["user_responses"].items():
                 task = self.storage_provider.get_task(task_id)
                 if task:
                     async_response = task["async_response"]
                     detailed_user_responses[task_id] = {
-                        "user_response": user_response,
+                        "user_response": form_data,
                         "action_name": async_response.get("action_name"),
                         "action_params": async_response.get("action_params"),
                         "action_idx": async_response.get("action_idx"),
                         "action_list_id": async_response.get("action_list_id"),
                         "originator": async_response.get("originator"),
                         "async_response_id": async_response.get("async_response_id"),
+                        "agent_name": async_response.get("agent_name"),  # Add agent_name
+                        "task_id": task_id,
                     }
             
             # Create event to send back to orchestrator
             events = [{
-                "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/stimulus/orchestrator/async-response",
+                "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/async/orchestrator/async-response",
                 "payload": {
                     "stimulus_uuid": task_group["stimulus_uuid"],
                     "session_id": task_group["session_id"],
                     "gateway_id": task_group["gateway_id"],
                     "user_responses": detailed_user_responses,
+                    "agent_responses": task_group["agent_responses"],  # Include all agent responses
+                    "stimulus_state": task_group["stimulus_state"],    # Include stimulus state for history
                 },
+                "user_properties": original_user_properties,  # Include the original user properties
             }]
             
             log.info(f"All tasks completed for task group {task_group['task_group_id']}, sending response back to orchestrator")
@@ -335,7 +348,7 @@ class AsyncServiceComponent(ComponentBase):
                         
                         # Create event to send back to orchestrator
                         events = [{
-                            "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/stimulus/orchestrator/async-response",
+                            "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/async/orchestrator/async-response",
                             "payload": {
                                 "stimulus_uuid": task_group["stimulus_uuid"],
                                 "session_id": task_group["session_id"],

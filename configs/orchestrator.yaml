@@ -241,3 +241,47 @@ flows:
           copy_user_properties: true
         component_input:
           source_expression: previous
+
+  # Flow to handle async responses from the async service
+  - name: orchestrator_async_response
+    components:
+      # Input from a Solace broker
+      - component_name: solace_sw_broker
+        component_module: broker_input
+        component_config:
+          <<: *broker_connection
+          broker_queue_name: ${SOLACE_AGENT_MESH_NAMESPACE}orchestrator_async_response
+          broker_subscriptions:
+            - topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/async/orchestrator/async-response
+              qos: 1
+          payload_encoding: utf-8
+          payload_format: json
+
+      # Process the async response with a custom component
+      - component_name: async_response_processor
+        component_base_path: .
+        component_module: src.orchestrator.components.orchestrator_async_response_component
+        input_transforms:
+          - type: copy
+            source_expression: input.payload
+            dest_expression: user_data.component_input
+          - type: copy
+            source_expression: input.user_properties
+            dest_expression: user_data.component_input:user_properties
+        component_input:
+          source_expression: user_data.component_input
+
+      # Break the async response into individual responses
+      - component_name: split_async_response
+        component_module: iterate
+
+      # Send to the broker
+      - component_name: broker_output
+        component_module: broker_output
+        component_config:
+          <<: *broker_connection
+          payload_encoding: utf-8
+          payload_format: json
+          copy_user_properties: false
+        component_input:
+          source_expression: previous

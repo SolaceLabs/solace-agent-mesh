@@ -60,15 +60,37 @@ class ApprovalRequestAction(Action):
                 - description: Description of what needs approval
                 - additional_info: Additional information to include (optional)
                 - require_comment: Whether to require a comment (optional)
+                - user_responses: List of user responses (optional)
             meta: Additional metadata
             
         Returns:
-            ActionResponse containing the approval form
+            ActionResponse containing the approval form or the result
         """
         title = params["title"]
         description = params["description"]
         additional_info = params.get("additional_info")
         require_comment = params.get("require_comment", False)
+        
+        # Check if there are user responses
+        user_responses = meta.get("user_responses", [])
+        
+        if user_responses:
+            # Process the user response
+            user_response = user_responses[0]  # Get the first (and only) user response
+            
+            # Extract the decision and comment from the user response
+            decision = user_response.get("decision")
+            comment = user_response.get("comment", "")
+            
+            # Create a response based on the user's decision
+            if decision == "approve":
+                return ActionResponse(
+                    message=f"Approval request '{title}' was approved. Comment: {comment}",
+                )
+            else:
+                return ActionResponse(
+                    message=f"Approval request '{title}' was rejected. Comment: {comment}",
+                )
         
         log.debug(
             "Creating approval request: %s (require_comment=%s)",

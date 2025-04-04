@@ -62,7 +62,7 @@ flows:
         component_module: broker_output
         component_config:
           <<: *broker_connection
-          copy_user_properties: true
+          copy_user_properties: false
         input_transforms:
           - type: copy
             source_expression: previous:payload
@@ -71,4 +71,4 @@ flows:
             source_expression: previous:topic
             dest_expression: user_data.output:topic
         input_selection:
-          source_expression: user_data.output
+          source_expression: previous

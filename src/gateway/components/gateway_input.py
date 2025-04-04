@@ -165,14 +165,6 @@ class GatewayInput(GatewayBase):
             copied_data["user_response"] = form_data
             
             log.info(f"Processing user form submission with task_id: {task_id}")
-        else:
-            # For regular user queries, ensure user_form is None
-            # This makes the conditional check in the gateway flow simpler
-            copied_data["user_form"] = None
-            
-            # If there was a task_id but no valid user_form, log a warning
-            if task_id:
-                log.warning(f"Received task_id {task_id} but no valid user_form")
 
         try:
             if not self._authenticate_user(user_properties):
@@ -191,7 +183,7 @@ class GatewayInput(GatewayBase):
             session_id = user_properties.get("session_id")
 
             # De-clutter the data and user_properties by moving some properties to a nested sub-object
-            top_level_data_properties = {"text", "files"}
+            top_level_data_properties = {"text", "files", "task_id", "form_data", "event_type"}
             self.demote_interface_properties(copied_data, top_level_data_properties)
 
             top_level_user_properties = {
