@@ -8,22 +8,9 @@ from solace_ai_connector.common.log import log
 from ...common.time import ONE_HOUR, FIVE_MINUTES, ONE_DAY
 from ...common.constants import HISTORY_MEMORY_ROLE, HISTORY_ACTION_ROLE, HISTORY_USER_ROLE, HISTORY_ASSISTANT_ROLE
 from ..common import AutoExpiry, AutoExpirySingletonMeta
-from .history_providers.memory_history_provider import MemoryHistoryProvider
-from .history_providers.redis_history_provider import RedisHistoryProvider
-from .history_providers.file_history_provider import FileHistoryProvider
-from .history_providers.mongodb_history_provider import MongoDBHistoryProvider
-from .history_providers.sql_history_provider import SQLHistoryProvider
+from .history_providers.index import HistoryProviderFactory
 from .history_providers.base_history_provider import BaseHistoryProvider
 from .long_term_memory.long_term_memory import LongTermMemory
-
-HISTORY_PROVIDERS = {
-    "redis": RedisHistoryProvider,
-    "memory": MemoryHistoryProvider,
-    "file": FileHistoryProvider,
-    "mongodb": MongoDBHistoryProvider,
-    "sql": SQLHistoryProvider,
-}
-
 
 DEFAULT_PROVIDER = "memory"
 
@@ -89,8 +76,8 @@ class HistoryService(AutoExpiry, metaclass=AutoExpirySingletonMeta):
         """
         Get the history provider based on the provider type.
         """
-        if provider_type in HISTORY_PROVIDERS:
-            return HISTORY_PROVIDERS[provider_type](config)
+        if HistoryProviderFactory.has_provider(provider_type):
+            return HistoryProviderFactory.get_provider_class(provider_type)(config)
         else:
             if not module_path:
                 raise ValueError(
