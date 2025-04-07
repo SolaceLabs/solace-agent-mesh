@@ -90,7 +90,7 @@ The `-e` flag loads environment variables from the `.env` file, and the `-b` fla
 
 ## Interacting with the Database
 
-After Solace Agent Mesh is running, you can interact with the ABC Coffee database through the web interface at `http://127.0.0.1:5001`.
+After Solace Agent Mesh is running, you can interact with the ABC Coffee database through the web interface at `http://localhost:5001`.
 
 You can ask natural language questions about the ABC Coffee Co. database, such as:
 
