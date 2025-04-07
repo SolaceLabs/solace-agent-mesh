@@ -216,7 +216,7 @@ export default function InitializationFlow() {
             steps={setupPath === 'quick' ? quickInitSteps : (setupPath === 'advanced' ? advancedInitSteps : [])}
             currentStepIndex={currentStepIndex > 0 ? currentStepIndex - 1 : 0}
             onStepClick={(index) => {
-              // Optional: Allow clicking on steps to navigate
+              // TODO: Allow clicking on steps to navigate
             }}
           />
         </div>

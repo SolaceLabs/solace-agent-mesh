@@ -34,7 +34,6 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
   const [showTestErrorDialog, setShowTestErrorDialog] = useState<boolean>(false);
   const [llmModelSuggestions, setLlmModelSuggestions] = useState<string[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState<boolean>(false);
-  // Store previous provider to detect changes
   const [previousProvider, setPreviousProvider] = useState<string | null>(null);
 
   // Initialize provider if not set
@@ -184,7 +183,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
       'anthropic': 'anthropic',
       'google': 'vertex_ai',
       'aws': 'bedrock',
-      'openai_compatible': 'openai' // For OpenAI compatible endpoints
+      'openai_compatible': 'openai'
     };
     
     // Get the correct provider prefix
@@ -443,11 +442,10 @@ This may indicate an issue with your LLM provider settings. Please check your en
 Would you like to ignore this warning and continue anyway?`}
           onConfirm={() => {
             setShowTestErrorDialog(false);
-            onNext(); // Ignore the error and proceed
+            onNext();
           }}
           onCancel={() => {
             setShowTestErrorDialog(false);
-            // Stay on the current page to let the user fix the configuration
           }}
         />
       )}
