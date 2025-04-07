@@ -36,6 +36,26 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
   const [isLoadingModels, setIsLoadingModels] = useState<boolean>(false);
   const [previousProvider, setPreviousProvider] = useState<string | null>(null);
 
+  const LLM_PROVIDER_OPTIONS = [
+    { value: 'openai', label: 'OpenAI' },
+    { value: 'anthropic', label: 'Anthropic' },
+    { value: 'google', label: 'Google Vertex AI' },
+    { value: 'bedrock', label: 'AWS Bedrock' },
+    { value: 'azure', label: 'Azure' },
+    { value: 'openai_compatible', label: 'OpenAI Compatible' },
+    { value: 'custom', label: 'Custom Provider' },
+  ]
+
+  // Map provider names to litellm provider prefixes
+  const PROVIDER_PREFIX_MAP: Record<string, string> = {
+    'openai': 'openai',
+    'anthropic': 'anthropic',
+    'google': 'vertex_ai',
+    'bedrock': 'bedrock',
+    'openai_compatible': 'openai',
+    'azure': 'azure',
+  };
+
   // Initialize provider if not set
   useEffect(() => {
     if (!data.llm_provider) {
@@ -176,18 +196,9 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
     if (modelName.includes('/')) {
       return modelName;
     }
-    
-    // Map provider names to litellm provider prefixes
-    const providerPrefixMap: Record<string, string> = {
-      'openai': 'openai',
-      'anthropic': 'anthropic',
-      'google': 'vertex_ai',
-      'aws': 'bedrock',
-      'openai_compatible': 'openai'
-    };
-    
+        
     // Get the correct provider prefix
-    const providerPrefix = providerPrefixMap[provider] || provider;
+    const providerPrefix = PROVIDER_PREFIX_MAP[provider] || provider;
     return `${providerPrefix}/${modelName}`;
   };
 
@@ -274,19 +285,12 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
               name="llm_provider"
               value={data.llm_provider || ''}
               onChange={handleChange}
-              options={[
-                { value: 'openai', label: 'OpenAI' },
-                { value: 'anthropic', label: 'Anthropic' },
-                { value: 'google', label: 'Google Vertex AI' },
-                { value: 'bedrock', label: 'AWS Bedrock' },
-                { value: 'openai_compatible', label: 'OpenAI Compatible' },
-                { value: 'custom', label: 'Custom Provider' },
-              ]}
+              options={LLM_PROVIDER_OPTIONS}
             />
           </FormField>
           
           {/* Show endpoint URL for custom provider and OpenAI compatible */}
-          {(data.llm_provider === 'custom' || data.llm_provider === 'openai_compatible') && (
+          {(data.llm_provider === 'custom' || data.llm_provider === 'openai_compatible' || data.llm_provider === 'azure') && (
             <FormField
               label="LLM Endpoint URL"
               htmlFor="llm_endpoint_url"
@@ -323,12 +327,21 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
           {data.llm_provider === 'custom' && (
             <div className="p-4 bg-yellow-50 rounded-md mb-4">
               <p className="text-sm text-yellow-800">
-                <strong>Important:</strong> For custom providers, you must use the format <code>provider/model-name</code> (e.g., <code>azure/gpt-4</code>)
+                <strong>Important:</strong> For custom providers, you must use the format <code>provider/model-name</code> (e.g., <code>mistral/mistral-tiny</code>)
                 following the <a href="https://docs.litellm.ai/docs/providers" target="_blank" rel="noopener noreferrer" className="underline">litellm documentation</a>.
               </p>
             </div>
           )}
-          
+
+          {data.llm_provider === 'azure' && (
+            <div className="p-4 bg-yellow-50 rounded-md mb-4">
+              <p className="text-sm text-yellow-800">
+              <strong>Important:</strong> For Azure, in the "LLM Model Name" field, enter your <strong>deployment name</strong> (not the underlying model name). 
+              Your Azure deployment name is the name you assigned when you deployed the model in Azure OpenAI Service.
+              For more details, refer to the <a href="https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model" target="_blank" rel="noopener noreferrer" className="underline">Azure documentation</a>.
+              </p>
+            </div>
+          )}
           <FormField
             label="LLM Model Name"
             htmlFor="llm_model_name"
