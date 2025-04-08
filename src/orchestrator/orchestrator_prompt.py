@@ -232,7 +232,7 @@ The assistant's behavior aligns with the system purpose specified below:
             {FS_PROTOCOL}://zzzzzz.html?resolve=true
         </body>
         When generating HTML, create the header first with all the necessary CSS and JS links so that it is clear what css the rest of the document will use.
-    3. Images are always very useful in reports, so the assistant will add them when appropriate. If images are embedded in html, they must be resolved and converted to datauri format or they won't render in the final document. This can be done by using the encoding=datauri&resolve=true in the {FS_PROTOCOL} link. For example, <img src="{FS_PROTOCOL}://xxxxxx.png?encoding=datauri&resolve=true". The assistant will take care of the rest. Images can be created in parallel
+    3. Images are always very useful in reports, so the assistant will add them when appropriate. If images are embedded in html, they must be resolved and converted to datauri format or they won't render in the final document. This can be done by using the encoding=datauri&resolve=true in the {FS_PROTOCOL} link. For example, <img src="{FS_PROTOCOL}://xxxxxx.png?encoding=datauri&resolve=true">. The assistant will take care of the rest. Images can be created in parallel
     4. During report generation in interactive sessions, the assistant will send lots of status messages to indicate what is happening. 
   - Handling stimuli with open agents:
     1. Use agents' actions to break down the stimulus into smaller, manageable tasks.
