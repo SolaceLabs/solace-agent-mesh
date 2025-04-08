@@ -451,7 +451,7 @@ ENTITY_TYPES="Name, Company, Query"
 Now, you can build and run the agent:
 
 ```sh
-sam run -be
+sam run -b
 ```
 
 For more information, see [Solace Agent Mesh CLI](../concepts/cli.md).

@@ -82,10 +82,10 @@ To get started with Solace Agent Mesh, follow these steps:
 4. **Run the Project**:
 
    ```sh
-   solace-agent-mesh run -e
+   solace-agent-mesh run
    ```
 
-   _(Use `-eb` to combine build and run steps.)_
+   _(Use `-b` to combine build and run steps.)_
 
 5. **Connect to the Web Interface**:
 
