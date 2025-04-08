@@ -43,7 +43,7 @@ export SOLACE_BROKER_REST_MESSAGING_URL="your-rest-messaging-url"
 export SOLACE_BROKER_BASIC_AUTH="your-auth-credentials"
 ```
 
-These settings can also be defined in an .env file for easier management.
+These settings can also be defined in an `.env` file for easier management.
 
 ```
 WEBUI_PORT=5001
