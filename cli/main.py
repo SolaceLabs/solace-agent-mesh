@@ -66,11 +66,11 @@ def build(y, no_init):
 
 @cli.command()
 @click.option(
-    "-e",
-    "--use-env",
+    "-u",
+    "--use-system-env",
     default=False,
     is_flag=True,
-    help="Loads the environment variables file defined in the config.",
+    help="Use only system environment variables (ignore environment variables defined in the config).",
 )
 @click.option(
     "-s",
@@ -100,13 +100,13 @@ def build(y, no_init):
     is_flag=True,
     help="Runs the build command first regardless of the build directory. Mutually exclusive with --ignore-build.",
 )
-def run(use_env, files, skip, quick_build, ignore_build, force_build):
+def run(use_system_env, files, skip, quick_build, ignore_build, force_build):
     """Run the Solace Agent Mesh application.
 
     FILES: Config files to run. Uses all the yaml files in the build directory if not provided.
     """
     return run_command(
-        use_env, list(files), list(skip), quick_build, ignore_build, force_build
+        use_system_env, list(files), list(skip), quick_build, ignore_build, force_build
     )
 
 
