@@ -542,7 +542,7 @@ class DirWatcherOutput(DirWatcherBase):
 To build and run the gateway, use the following command:
 
 ```bash
-solace-agent-mesh run -eb
+solace-agent-mesh run -b
 ```
 
 This command builds and runs the gateway in one step. Alternatively, you can execute these steps separately.
@@ -654,5 +654,5 @@ This creates the gateway with the interface configurations.
 Now, you can build and run the SAM project with the new gateway:
 
 ```bash
-solace-agent-mesh run -eb
+solace-agent-mesh run -b
 ```
