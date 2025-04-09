@@ -1,6 +1,5 @@
 from typing import Dict, Any, List
 import yaml
-from langchain_core.messages import HumanMessage
 from ..services.file_service import FS_PROTOCOL, Types, LLM_QUERY_OPTIONS, TRANSFORMERS
 from solace_ai_connector.common.log import log
 
@@ -409,7 +408,7 @@ reputation is on the line.
 """
 
 
-def ContextQueryPrompt(query: str, context: str) -> HumanMessage:
+def ContextQueryPrompt(query: str, context: str) -> str:
     return f"""
 You (orchestrator) are being asked to query, comment on or edit the following text following the originator's request.
 Do your best to give a complete and accurate answer using only the context given below. Ensure that you
