@@ -542,7 +542,7 @@ class DirWatcherOutput(DirWatcherBase):
 To build and run the gateway, use the following command:
 
 ```bash
-solace-agent-mesh run
+solace-agent-mesh run -b
 ```
 
 This command builds and runs the gateway in one step. Alternatively, you can execute these steps separately.
