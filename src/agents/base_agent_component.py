@@ -137,7 +137,6 @@ class BaseAgentComponent(LLMServiceComponentBase, ABC):
                         resolver=file_service.resolve_all_resolvable_urls,
                         session_id=session_id,
                     )
-                    user_responses = (message.get_user_properties() or {}).get("user_responses", {})
                 except Exception as e:
                     log.error(
                         "Error resolving file service URLs: %s. Data: %s",
@@ -152,6 +151,7 @@ class BaseAgentComponent(LLMServiceComponentBase, ABC):
                 middleware_service = MiddlewareService()
                 if middleware_service.get("base_agent_filter")(message.user_properties or {}, action):
                     try:
+                        user_responses = (message.get_user_properties() or {}).get("user_responses", {})
                         meta = {
                             "session_id": session_id,
                             "user_responses": user_responses

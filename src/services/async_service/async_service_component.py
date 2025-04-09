@@ -2,7 +2,11 @@
 
 import os
 import uuid
+import threading
+import time
 from datetime import datetime, timedelta
+
+from solace_ai_connector.common.event import Event, EventType
 
 from solace_ai_connector.components.component_base import ComponentBase
 from solace_ai_connector.common.log import log
@@ -44,6 +48,12 @@ info = {
             "description": "The timeout for tasks in seconds",
             "type": "integer",
             "default": 3600,  # 1 hour
+        },
+        {
+            "name": "timeout_check_interval",
+            "description": "The interval in seconds between timeout checks",
+            "type": "integer",
+            "default": 60,  # Default: check every 60 seconds
         },
     ],
     "input_schema": {
@@ -99,7 +109,12 @@ class AsyncServiceComponent(ComponentBase):
             raise ValueError(f"Unsupported storage provider: {storage_provider}")
         
         # Set task timeout
-        self.task_timeout = self.config.get("task_timeout", 3600)  # Default 1 hour
+        self.task_timeout = self.config.get("task_timeout", 60)  # Default 1 hour
+        
+        # Set timeout checker parameters
+        self.timeout_check_interval = self.config.get("timeout_check_interval", 60)  # Default: check every 60 seconds
+        self.timeout_checker_running = False
+        self.timeout_checker_thread = None
         
         # Start timeout checker
         self.start_timeout_checker()
@@ -313,9 +328,25 @@ class AsyncServiceComponent(ComponentBase):
     
     def start_timeout_checker(self):
         """Start timeout checker"""
-        # This would be implemented with a background thread or scheduler
-        # For now, we'll just check timeouts on each invoke call
-        pass
+        self.timeout_checker_running = True
+        self.timeout_checker_thread = threading.Thread(
+            target=self._timeout_checker_loop,
+            daemon=True  # Make it a daemon thread so it doesn't block program exit
+        )
+        self.timeout_checker_thread.start()
+        log.info("Started timeout checker thread")
+        
+    def _timeout_checker_loop(self):
+        """Background loop to check for timeouts"""
+        while self.timeout_checker_running:
+            try:
+                # Check for timeouts
+                self._process_timeouts()
+            except Exception as e:
+                log.error(f"Error in timeout checker: {e}")
+            
+            # Sleep for a while before checking again
+            time.sleep(self.timeout_check_interval)
     
     def check_timeouts(self):
         """Check for timed out tasks"""
@@ -323,6 +354,8 @@ class AsyncServiceComponent(ComponentBase):
         
         # Get all pending tasks
         pending_tasks = self.storage_provider.get_pending_tasks()
+        
+        events = []
         
         for task in pending_tasks:
             if task["timeout_time"] < now:
@@ -346,19 +379,118 @@ class AsyncServiceComponent(ComponentBase):
                         task_group["status"] = "timed_out"
                         self.storage_provider.update_task_group(task_group)
                         
+                        # Get the original user properties
+                        original_user_properties = task_group.get("user_properties", {})
+                        
                         # Create event to send back to orchestrator
-                        events = [{
+                        events.append({
                             "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/async/orchestrator/async-response",
                             "payload": {
                                 "stimulus_uuid": task_group["stimulus_uuid"],
                                 "session_id": task_group["session_id"],
                                 "gateway_id": task_group["gateway_id"],
                                 "user_responses": task_group["user_responses"],
+                                "agent_responses": task_group["agent_responses"],
+                                "stimulus_state": task_group["stimulus_state"],
                                 "timed_out": True,
                             },
-                        }]
+                            "user_properties": original_user_properties,
+                        })
                         
-                        # Send events
                         log.info(f"Task group timed out: {task_group['task_group_id']}")
-                        # In a real implementation, we would return these events
-                        # But since this is called from a background thread, we can't return them
+        
+        # Send events if any
+        if events:
+            self._send_events(events)
+            
+    def _send_events(self, events):
+        """Send events from the background thread"""
+        for event in events:
+            try:
+                # Create a message to send
+                message = Message(
+                    payload=event["payload"],
+                    topic=event["topic"]
+                )
+                
+                # Set user properties if available
+                if "user_properties" in event:
+                    message.set_user_properties(event["user_properties"])
+                
+                message.set_previous({"topic": event["topic"], "payload": event["payload"], "user_properties": event["user_properties"]})
+                
+                # Send the message
+                self.send_to_flow("send-spontaneous-message", message)
+                log.info(f"Sent timeout event to {event['topic']}")
+            except Exception as e:
+                log.error(f"Error sending timeout event: {e}")
+                
+    def stop_timeout_checker(self):
+        """Stop the timeout checker thread"""
+        if hasattr(self, 'timeout_checker_running'):
+            self.timeout_checker_running = False
+            if hasattr(self, 'timeout_checker_thread') and self.timeout_checker_thread is not None:
+                self.timeout_checker_thread.join(timeout=1.0)  # Wait for thread to finish
+                log.info("Stopped timeout checker thread")
+                
+    def __del__(self):
+        """Clean up resources when the component is destroyed"""
+        try:
+            self.stop_timeout_checker()
+        except:
+            pass  # Ignore errors during cleanup
+            
+    def _process_timeouts(self):
+        """Process timed out tasks and send events"""
+        now = datetime.now()
+        
+        # Get all pending tasks
+        pending_tasks = self.storage_provider.get_pending_tasks()
+        
+        events = []
+        
+        for task in pending_tasks:
+            if task["timeout_time"] < now:
+                # Task has timed out
+                task["status"] = "timed_out"
+                self.storage_provider.update_task(task)
+                
+                # Get task group
+                task_group = self.storage_provider.get_task_group(task["task_group_id"])
+                if task_group:
+                    # Check if all tasks are now completed or timed out
+                    all_done = True
+                    for task_id in task_group["task_id_list"]:
+                        task = self.storage_provider.get_task(task_id)
+                        if task["status"] == "pending":
+                            all_done = False
+                            break
+                            
+                    if all_done:
+                        # All tasks are completed or timed out, send response back to orchestrator
+                        task_group["status"] = "timed_out"
+                        self.storage_provider.update_task_group(task_group)
+                        
+                        # Get the original user properties
+                        original_user_properties = task_group.get("user_properties", {})
+                        
+                        # Create event to send back to orchestrator
+                        events.append({
+                            "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/async/orchestrator/async-response",
+                            "payload": {
+                                "stimulus_uuid": task_group["stimulus_uuid"],
+                                "session_id": task_group["session_id"],
+                                "gateway_id": task_group["gateway_id"],
+                                "user_responses": task_group["user_responses"],
+                                "agent_responses": task_group["agent_responses"],
+                                "stimulus_state": task_group["stimulus_state"],
+                                "timed_out": True,
+                            },
+                            "user_properties": original_user_properties,
+                        })
+                        
+                        log.info(f"Task group timed out: {task_group['task_group_id']}")
+        
+        # Send events if any
+        if events:
+            self._send_events(events)

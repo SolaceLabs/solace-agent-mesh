@@ -63,6 +63,17 @@ flows:
         component_config:
           <<: *broker_connection
           copy_user_properties: false
+        input_selection:
+          source_expression: previous
+  
+  # Handling spontaneous send events
+  - name: send-spontaneous-message
+    components:
+      - component_name: broker_output
+        component_module: broker_output
+        component_config:
+          <<: *broker_connection
+          copy_user_properties: true
         input_transforms:
           - type: copy
             source_expression: previous:payload
@@ -70,5 +81,8 @@ flows:
           - type: copy
             source_expression: previous:topic
             dest_expression: user_data.output:topic
+          - type: copy
+            source_expression: previous:user_properties
+            dest_expression: user_data.output:user_properties
         input_selection:
-          source_expression: previous
+          source_expression: user_data.output

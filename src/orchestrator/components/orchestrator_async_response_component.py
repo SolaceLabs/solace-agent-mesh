@@ -91,117 +91,168 @@ class OrchestratorAsyncResponseComponent(ComponentBase):
             
             log.info(f"Restored conversation history for stimulus {stimulus_uuid}")
         
-        # Process user responses and create a response to send back to the model
-        response_text = "User responses received:\n\n"
-        
-        # Create a set of action_idx values that have corresponding user responses
-        user_response_action_indices = set()
-        for task_id, response_data in user_responses.items():
-            action_idx = response_data.get("action_idx")
-            if action_idx is not None:
-                user_response_action_indices.add(action_idx)
-        
-        # Prepare all actions for the action manager
-        all_actions = []
-        
-        # Process all agent responses
-        for i, agent_response in enumerate(agent_responses):
-            action_name = agent_response.get("action_name")
-            action_params = agent_response.get("action_params")
-            agent_name = agent_response.get("agent_name")
+        # === START: Prioritize Timeout Check ===
+        if timed_out:
+            log.warning(f"Timeout detected for stimulus {stimulus_uuid}. Reinvoking model with error.")
+            response_text = "Some tasks timed out while waiting for input:\n"
             
-            # Add all actions to the list
-            all_actions.append({
-                "agent_name": agent_name,
-                "action_name": action_name,
-                "action_params": action_params,
-                "action_idx": i,
-                "originator": ORCHESTRATOR_COMPONENT_NAME,  # Use the imported constant
-            })
-            
-            # Check if this agent response has a corresponding user response
-            if i in user_response_action_indices:
-                # Find the task_id for this action_idx
-                for task_id, response_data in user_responses.items():
-                    if response_data.get("action_idx") == i:
-                        user_response = response_data.get("user_response")
-                        response_text += f"Action {action_name} with params {action_params} received user response: {user_response}\n\n"
-                        break
-            else:
-                response_text += f"Action {action_name} with params {action_params} did not require user input\n\n"
-        
-        # Add all actions to the action manager
-        action_list_id = None
-        if all_actions:
-            # Add all actions to the action manager
-            self.action_manager.add_action_request(all_actions, message.get_user_properties())
-            
-            # Get the action_list_id from the first action (they all have the same ID)
-            action_list_id = all_actions[0].get("action_list_id")
-            
-            log.info(f"Added {len(all_actions)} actions to the action manager with action_list_id {action_list_id}")
-            
-            # For actions that didn't require user input, add responses to mark them as completed
+            # Create a set of action_idx values that have corresponding user responses
+            user_response_action_indices = set()
+            for task_id, response_data in user_responses.items():
+                action_idx = response_data.get("action_idx")
+                if action_idx is not None:
+                    user_response_action_indices.add(action_idx)
+                    
             for i, agent_response in enumerate(agent_responses):
                 if i not in user_response_action_indices:
-                    # This action didn't require user input, so mark it as completed
-                    action_response_obj = {
-                        "action_name": agent_response.get("action_name"),
-                        "action_params": agent_response.get("action_params"),
-                        "action_idx": i,
-                        "action_list_id": action_list_id,
-                        "originator": ORCHESTRATOR_COMPONENT_NAME,
-                    }
-                    
-                    # Get the response from the agent_response
-                    response_text_and_files = {
-                        "text": agent_response.get("response", {}).get("text", ""),
-                        "files": agent_response.get("response", {}).get("files", []),
-                    }
-                    
-                    # Add the response to the action manager
-                    self.action_manager.add_action_response(action_response_obj, response_text_and_files)
-                    
-                    log.info(f"Marked action {i} as completed")
-        
-        # Re-send action requests for actions that required user feedback
-        action_events = []
-        for task_id, response_data in user_responses.items():
-            user_response = response_data.get("user_response")
-            action_name = response_data.get("action_name")
-            action_params = response_data.get("action_params")
-            agent_name = response_data.get("agent_name")
-            action_idx = response_data.get("action_idx")
+                    action_name = agent_response.get("action_name")
+                    action_params = agent_response.get("action_params")
+                    response_text += f"- Action {action_name} with params {action_params}\n"
             
-            # Get the original user properties from the message
-            original_user_properties = message.get_user_properties() or {}
+            response_text += "\nDue to the timeout, any pending actions were cancelled. Please try again or rephrase your request."
+
+            # Send only the error message back to the model
+            user_properties = message.get_user_properties()
+            user_properties['timestamp_end'] = time()
+            message.set_user_properties(user_properties)
             
-            # Create a copy of the original user properties and add the user_responses
-            event_user_properties = original_user_properties.copy()
-            event_user_properties["user_responses"] = [user_response]
-            
-            # Create an event to re-send the action request
-            action_events.append({
-                "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/actionRequest/orchestrator/agent/{agent_name}/{action_name}",
+            events = [{
+                "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/stimulus/orchestrator/reinvokeModel",
                 "payload": {
+                    "text": response_text,
+                    "files": [],
+                    "identity": user_properties.get("identity"),
+                    "channel": user_properties.get("channel"),
+                    "thread_ts": user_properties.get("thread_ts"),
+                    "action_response_reinvoke": True,
+                },
+                "user_properties": user_properties,
+            }]
+            
+            # # Optionally, clean up the action list if it exists
+            # action_list_id = None
+            
+            # # Prepare all actions for the action manager to get the action_list_id
+            # all_actions = []
+            # for i, agent_response in enumerate(agent_responses):
+            #     all_actions.append({
+            #         "agent_name": agent_response.get("agent_name"),
+            #         "action_name": agent_response.get("action_name"),
+            #         "action_params": agent_response.get("action_params"),
+            #         "action_idx": i,
+            #         "originator": ORCHESTRATOR_COMPONENT_NAME,
+            #     })
+            
+            # if all_actions:
+            #     # Add all actions to the action manager
+            #     self.action_manager.add_action_request(all_actions, message.get_user_properties())
+                
+            #     # Get the action_list_id from the first action (they all have the same ID)
+            #     action_list_id = all_actions[0].get("action_list_id")
+                
+            #     # Delete the action request from the action manager
+            #     self.action_manager.delete_action_request(action_list_id)
+            #     log.info(f"Deleted action list {action_list_id} due to timeout.")
+
+            return events
+        # === END: Prioritize Timeout Check ===
+        
+        # === START: Handle Non-Timeout Case ===
+        else:
+            log.info(f"No timeout detected for stimulus {stimulus_uuid}. Processing user responses.")
+            
+            # Create a set of action_idx values that have corresponding user responses
+            user_response_action_indices = set()
+            for task_id, response_data in user_responses.items():
+                action_idx = response_data.get("action_idx")
+                if action_idx is not None:
+                    user_response_action_indices.add(action_idx)
+            
+            # Prepare all actions for the action manager
+            all_actions = []
+            
+            # Process all agent responses
+            for i, agent_response in enumerate(agent_responses):
+                action_name = agent_response.get("action_name")
+                action_params = agent_response.get("action_params")
+                agent_name = agent_response.get("agent_name")
+                
+                # Add all actions to the list
+                all_actions.append({
                     "agent_name": agent_name,
                     "action_name": action_name,
                     "action_params": action_params,
-                    "action_list_id": action_list_id,
-                    "action_idx": action_idx,
-                    "originator": ORCHESTRATOR_COMPONENT_NAME,
-                },
-                "user_properties": event_user_properties,
-            })
+                    "action_idx": i,
+                    "originator": ORCHESTRATOR_COMPONENT_NAME,  # Use the imported constant
+                })
             
-            response_text += f"Re-sending action request for {action_name} with user response: {user_response}\n\n"
-        
-        if timed_out:
-            response_text += "\nSome tasks timed out and did not receive a response."
-        
-        # Send the result back to the model
-        user_properties = message.get_user_properties()
-        user_properties['timestamp_end'] = time()
-        message.set_user_properties(user_properties)
-        
-        return action_events
+            # Add all actions to the action manager
+            action_list_id = None
+            if all_actions:
+                # Add all actions to the action manager
+                self.action_manager.add_action_request(all_actions, message.get_user_properties())
+                
+                # Get the action_list_id from the first action (they all have the same ID)
+                action_list_id = all_actions[0].get("action_list_id")
+                
+                log.info(f"Added {len(all_actions)} actions to the action manager with action_list_id {action_list_id}")
+                
+                # For actions that didn't require user input, add responses to mark them as completed
+                for i, agent_response in enumerate(agent_responses):
+                    if i not in user_response_action_indices:
+                        # This action didn't require user input, so mark it as completed
+                        action_response_obj = {
+                            "action_name": agent_response.get("action_name"),
+                            "action_params": agent_response.get("action_params"),
+                            "action_idx": i,
+                            "action_list_id": action_list_id,
+                            "originator": ORCHESTRATOR_COMPONENT_NAME,
+                        }
+                        
+                        # Get the response from the agent_response
+                        response_text_and_files = {
+                            "text": agent_response.get("response", {}).get("text", ""),
+                            "files": agent_response.get("response", {}).get("files", []),
+                        }
+                        
+                        # Add the response to the action manager
+                        self.action_manager.add_action_response(action_response_obj, response_text_and_files)
+                        
+                        log.info(f"Marked action {i} as completed")
+            
+            # Re-send action requests for actions that required user feedback
+            action_events = []
+            for task_id, response_data in user_responses.items():
+                user_response = response_data.get("user_response")
+                action_name = response_data.get("action_name")
+                action_params = response_data.get("action_params")
+                agent_name = response_data.get("agent_name")
+                action_idx = response_data.get("action_idx")
+                
+                # Get the original user properties from the message
+                original_user_properties = message.get_user_properties() or {}
+                
+                # Create a copy of the original user properties and add the user_responses
+                event_user_properties = original_user_properties.copy()
+                event_user_properties["user_responses"] = [user_response]
+                
+                # Create an event to re-send the action request
+                action_events.append({
+                    "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/actionRequest/orchestrator/agent/{agent_name}/{action_name}",
+                    "payload": {
+                        "agent_name": agent_name,
+                        "action_name": action_name,
+                        "action_params": action_params,
+                        "action_list_id": action_list_id,
+                        "action_idx": action_idx,
+                        "originator": ORCHESTRATOR_COMPONENT_NAME,
+                    },
+                    "user_properties": event_user_properties,
+                })
+                
+                log.info(f"Re-sending action request for {action_name} with user response: {user_response}")
+            
+            # Return only the action events
+            log.info(f"Returning {len(action_events)} action events for processing.")
+            return action_events
+        # === END: Handle Non-Timeout Case ===
