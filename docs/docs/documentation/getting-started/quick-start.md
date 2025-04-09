@@ -70,15 +70,15 @@ You must run the `solace-agent-mesh` commands at the root directory of your proj
 To run the project, you can use the `run` command to execute all the components in a single, multi-threaded application. It's possible to split the components into separate processes. See the [deployment](../deployment/deploy.md) page for more information.
 
 ```sh
-solace-agent-mesh run -e
+solace-agent-mesh run
 ```
 
 :::tip
-You can use `-e` flag to load the local `.env` file when running the project.
+Environment variables are loaded from your configuration file (typically a `.env` file at the project root) by default. To use system environment variables instead, use the `-u` or `--use-system-env` option.
 :::
 
 :::tip
-You can combine the build and run steps by using `solace-agent-mesh run -eb`.
+You can combine the build and run steps by using `solace-agent-mesh run -b`.
 :::
 
 To learn more about the other CLI commands, see the [CLI documentation](../concepts/cli.md).

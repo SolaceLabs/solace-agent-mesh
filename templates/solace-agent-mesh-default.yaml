@@ -16,6 +16,15 @@ solace_agent_mesh:
         # Slack agent, send messages to Slack channels
       - name: slack
         enabled: true
+    # Configuring the built-in services
+    services:
+      # Embedding service for vector embeddings
+      # If enabled, the following environment variables are required:
+      # - EMBEDDING_SERVICE_MODEL_NAME
+      # - EMBEDDING_SERVICE_API_KEY
+      # - EMBEDDING_SERVICE_ENDPOINT
+      - name: embedding
+        enabled: false
 
   # Directory to component yaml config files, this directory would have a sub directory for each component type
   config_directory: configs

@@ -83,10 +83,11 @@ SQLite stores the database in a local file and doesn't require a username or pas
 Now, you can start Solace Agent Mesh with your new SQL database agent:
 
 ```sh
-sam run -eb
+sam run -b
 ```
-
-The `-e` flag loads environment variables from the `.env` file, and the `-b` flag will rebuild the sam config files
+:::info
+The `-b` option will rebuild the Solace Agent Mesh config files.
+:::
 
 ## Interacting with the Database
 

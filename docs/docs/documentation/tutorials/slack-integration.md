@@ -144,7 +144,7 @@ After configuring your Slack App, the next step is to add the Slack interface an
 Launch the interface and gateway with:
 
 ```sh
-sam run -be
+sam run -b
 ```
 
 For detailed information about available SAM CLI commands, see [Solace Agent Mesh CLI](../concepts/cli.md).

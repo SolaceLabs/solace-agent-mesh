@@ -7,10 +7,10 @@ sidebar_position: 10
 
 ## Development
 
-In a development environment, you can use the Solace Agent Mesh CLI to run the project as a single application. Store environment variables in a `.env` file at the project root and load them at runtime using the `-e` flag:
+In a development environment, you can use the Solace Agent Mesh CLI to run the project as a single application. By default, environment variables are loaded from your configuration file (typically a `.env` file at the project root):
 
 ```bash
-sam run -eb
+sam run -b
 ```
 
 :::note
@@ -57,7 +57,7 @@ RUN chown -R samapp:samapp /app /tmp
 USER samapp
 
 # Default entry point
-ENTRYPOINT ["solace-agent-mesh", "run"]
+ENTRYPOINT ["solace-agent-mesh", "run", "--use-system-env"]
 
 # Default command for running multiple configurations
 CMD [
@@ -97,7 +97,7 @@ spec:
           - secretRef:
               name: solace-agent-mesh-secrets # Configure secrets in a Kubernetes Secret
 
-          command: ["solace-agent-mesh", "run"]
+          command: ["solace-agent-mesh", "run", "--use-system-env"]
           args:
             - "build/configs/orchestrator.yaml"
             - "build/configs/service_llm.yaml"

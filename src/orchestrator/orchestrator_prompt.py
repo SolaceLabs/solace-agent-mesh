@@ -1,6 +1,5 @@
 from typing import Dict, Any, List
 import yaml
-from langchain_core.messages import HumanMessage
 from ..services.file_service import FS_PROTOCOL, Types, LLM_QUERY_OPTIONS, TRANSFORMERS
 from solace_ai_connector.common.log import log
 
@@ -99,7 +98,7 @@ def get_file_handling_prompt(tp: str) -> str:
     For all files, there's `encoding` parameter, this is used to encode the file format. The supported values are `datauri`, `base64`, `zip`, and `gzip`. Use this to convert a file to ZIP or datauri for HTML encoding.
         For example (return a file as zip): `{FS_PROTOCOL}://c27e6908-55d5-4ce0-bc93-a8e28f84be12_annual_report.csv?encoding=zip&resolve=true`
         Example 2 (HTML tag must be datauri encoded): `<img src="{FS_PROTOCOL}://c9183b0f-fd11-48b4-ad8f-df221bff3da9_generated_image.png?encoding=datauri&resolve=true" alt="image">`
-        Example 3 (return a regular image directly): `amfs://a1b2c3d4-5e6f-7g8h-9i0j-1k2l3m4n5o6p_photo.png?resolve=true` - When returning images directly in messaging platforms like Slack, don't use any encoding parameter
+        Example 3 (return a regular image directly): `{FS_PROTOCOL}://a1b2c3d4-5e6f-7g8h-9i0j-1k2l3m4n5o6p_photo.png?resolve=true` - When returning images directly in messaging platforms like Slack, don't use any encoding parameter
 
     For all files, there's `resolve=true` parameter, this is used to resolve the url to the actual data before processing.
         For example: `{FS_PROTOCOL}://577c928c-c126-42d8-8a48-020b93096110_names.csv?resolve=true`
@@ -190,18 +189,18 @@ def SystemPrompt(info: Dict[str, Any], action_examples: List[str]) -> str:
     handling_files = get_file_handling_prompt(tp)
 
     return f"""
-Note to avoid unintended collisions, all tag names in the assistant response will start with the value {tp}
+Note to avoid unintended collisions, all tag names in the assistant response will start with the value `{tp}`
 <orchestrator_info>
 You are an assistant serving as the orchestrator in an AI agentic system. Your primary functions are to:
 1. Receive stimuli from external sources via the system Gateway
 2. Invoke actions within system agents to address these stimuli
 3. Formulate responses based on agent actions
 
-This process is iterative, with the assistant being reinvoked at each step.
+This process is iterative, where the assistant is reinvoked at each step.
 
 The Stimulus represents user or application requests.
 
-The assistant receives a history of all gateway-orchestrator exchanges, excluding its own action invocations and reasoning.
+The assistant receives a history of all gateway-orchestrator exchanges, excluding responses from agents' action invocations and reasoning.
 
 The assistant's behavior aligns with the system purpose specified below:
   <system_purpose>
@@ -217,22 +216,22 @@ The assistant's behavior aligns with the system purpose specified below:
     5. Do not perform any other actions besides opening the required agents in this step.
   - Report generation:
     1. If a report is requested and no format is specified, create the report in an HTML file.
-    2. Generate each section of the report independently and store it in the file service with create_file action. When finishing the report, combine the sections using amfs urls with the resolve=true query parameter to insert the sections into the main document. When inserting amfs HTML URLs into the HTML document, place them directly in the document without any surrounding tags or brackets. Here is an example of the body section of an HTML report combining multiple sections:
+    2. Generate each section of the report independently and store it in the file service with create_file action. When finishing the report, combine the sections using {FS_PROTOCOL} urls with the resolve=true query parameter to insert the sections into the main document. When inserting {FS_PROTOCOL} HTML URLs into the HTML document, place them directly in the document without any surrounding tags or brackets. Here is an example of the body section of an HTML report combining multiple sections:
         <body>
             <!-- Title -->
             <h1>Report Title</h1>
 
             <!-- Section 1 -->
-            amfs://xxxxxx.html?resolve=true
+            {FS_PROTOCOL}://xxxxxx.html?resolve=true
 
             <!-- Section 2 -->
-            amfs://yyyyyy.html?resolve=true
+            {FS_PROTOCOL}://yyyyyy.html?resolve=true
 
             <!-- Section 3 -->
-            amfs://zzzzzz.html?resolve=true
+            {FS_PROTOCOL}://zzzzzz.html?resolve=true
         </body>
         When generating HTML, create the header first with all the necessary CSS and JS links so that it is clear what css the rest of the document will use.
-    3. Images are always very useful in reports, so the assistant will add them when appropriate. If images are embedded in html, they must be resolved and converted to datauri format or they won't render in the final document. This can be done by using the encoding=datauri&resolve=true in the amfs link. For example, <img src="amfs://xxxxxx.png?encoding=datauri&resolve=true". The assistant will take care of the rest. Images can be created in parallel
+    3. Images are always very useful in reports, so the assistant will add them when appropriate. If images are embedded in html, they must be resolved and converted to datauri format or they won't render in the final document. This can be done by using the encoding=datauri&resolve=true in the {FS_PROTOCOL} link. For example, <img src="{FS_PROTOCOL}://xxxxxx.png?encoding=datauri&resolve=true">. The assistant will take care of the rest. Images can be created in parallel
     4. During report generation in interactive sessions, the assistant will send lots of status messages to indicate what is happening. 
   - Handling stimuli with open agents:
     1. Use agents' actions to break down the stimulus into smaller, manageable tasks.
@@ -241,7 +240,7 @@ The assistant's behavior aligns with the system purpose specified below:
       a) Use its own knowledge to respond, or
       b) Ask the user for additional information, or
       c) Inform the user that it cannot fulfill the request.
-  - The first user message contains the history of all exchanges between the gateway and the orchestrator before now. Note that this history list has removed all the assistant's action invocation and reasoning. 
+  - The first user message contains the history of all exchanges between the gateway and the orchestrator before now. Note that this history list has removed all the agent's action invocation outputs and reasoning.
   - The assistant will not guess at an answer. No answer is better than a wrong answer.
   - The assistant will invoke the actions and specify the parameters for each action, following the rules of the action. If there is not sufficient context to fill in an action parameter, the assistant will ask the user for more information.
   - After invoking the actions, the assistant will end the response and wait for the action responses. It will not guess at the answers.
@@ -350,7 +349,7 @@ def UserStimulusPrompt(
     )
 
     prompt = (
-        "NOTE - this history represents the conversation as seen by the user on the other side of the gateway. It does not include the assistant's invoke actions or reasoning. All of that has been removed, so don't use this history as an example for how the assistant should behave\n"
+        "NOTE - this history represents the conversation as seen by the user on the other side of the gateway. It does not include the responses from invoked actions or reasoning. All of that has been removed, so don't use this history as an example for how the assistant should behave\n"
         f"{gateway_history_str}\n"
         f"<{info['tag_prefix']}stimulus>\n"
         f"{stimulus}\n"
@@ -408,7 +407,7 @@ reputation is on the line.
 """
 
 
-def ContextQueryPrompt(query: str, context: str) -> HumanMessage:
+def ContextQueryPrompt(query: str, context: str) -> str:
     return f"""
 You (orchestrator) are being asked to query, comment on or edit the following text following the originator's request.
 Do your best to give a complete and accurate answer using only the context given below. Ensure that you
