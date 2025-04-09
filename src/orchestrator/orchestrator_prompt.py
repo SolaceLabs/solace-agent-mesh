@@ -9,58 +9,53 @@ MAX_SYSTEM_PROMPT_EXAMPLES = 6
 
 # Examples that should always be included in the prompt
 fixed_examples = [
-                    {
-                        "docstring": "This example shows a stimulus from a chatbot gateway in which a user is asking about the top stories on the website hacker news. The web_request is not yet open, so the change_agent_status action is invoked to open the web_request agent.",
-                        "tag_prefix_placeholder": "{tp}",
-                        "starting_id": "1",
-                        "user_input": "What is the top story on hacker news?",
-                        "metadata": [
-                            "local_time: 2024-11-06 15:58:04 EST-0500 (Wednesday)"
-                        ],
-                        "reasoning": [
-                            "- User is asking for the top story on Hacker News",
-                            "- We need to use the web_request agent to fetch the latest information",
-                            "- The web_request agent is currently closed, so we need to open it first",
-                            "- After opening the agent, we'll need to make a web request to Hacker News"
-                        ],
-                        "response_text": "",
-                        "status_update": "To get the latest top story from Hacker News, I'll need to access the web. I'm preparing to do that now.",
-                        "action": {
-                            "agent": "global",
-                            "name": "change_agent_status",
-                            "parameters": {
-                                "agent_name": "web_request",
-                                "new_state": "open"
-                            }
-                        }
-                    }
-                  ]
+    {
+        "docstring": "This example shows a stimulus from a chatbot gateway in which a user is asking about the top stories on the website hacker news. The web_request is not yet open, so the change_agent_status action is invoked to open the web_request agent.",
+        "tag_prefix_placeholder": "{tp}",
+        "starting_id": "1",
+        "user_input": "What is the top story on hacker news?",
+        "metadata": ["local_time: 2024-11-06 15:58:04 EST-0500 (Wednesday)"],
+        "reasoning": [
+            "- User is asking for the top story on Hacker News",
+            "- We need to use the web_request agent to fetch the latest information",
+            "- The web_request agent is currently closed, so we need to open it first",
+            "- After opening the agent, we'll need to make a web request to Hacker News",
+        ],
+        "response_text": "",
+        "status_update": "To get the latest top story from Hacker News, I'll need to access the web. I'm preparing to do that now.",
+        "action": {
+            "agent": "global",
+            "name": "change_agent_status",
+            "parameters": {"agent_name": "web_request", "new_state": "open"},
+        },
+    }
+]
 
 
 def get_file_handling_prompt(tp: str) -> str:
-  parameters_desc = ""
-  parameter_examples = ""
+    parameters_desc = ""
+    parameter_examples = ""
 
-  for transformer in TRANSFORMERS:
-      if transformer.description:
-        parameters_desc += "\n" + transformer.description.strip() + "\n"
+    for transformer in TRANSFORMERS:
+        if transformer.description:
+            parameters_desc += "\n" + transformer.description.strip() + "\n"
 
-      if transformer.examples:
-        for example in transformer.examples:
-          parameter_examples += "\n" + example.strip() + "\n"
+        if transformer.examples:
+            for example in transformer.examples:
+                parameter_examples += "\n" + example.strip() + "\n"
 
-  parameters_desc = "\n     ".join(parameters_desc.split("\n"))
-  parameter_examples = "\n     ".join(parameter_examples.split("\n"))
+    parameters_desc = "\n     ".join(parameters_desc.split("\n"))
+    parameter_examples = "\n     ".join(parameter_examples.split("\n"))
 
-  parameters_desc = parameters_desc.replace("{tp}", tp)
-  parameter_examples = parameter_examples.replace("{tp}", tp)
+    parameters_desc = parameters_desc.replace("{tp}", tp)
+    parameter_examples = parameter_examples.replace("{tp}", tp)
 
-  if parameter_examples:
-    parameter_examples = f"""
+    if parameter_examples:
+        parameter_examples = f"""
     Here are some examples of how to use the query parameters:
     {parameter_examples}"""
 
-  prompt = f"""
+    prompt = f"""
    XML tags are used to represent files. The assistant will use the <{tp}file> tag to represent a file. The file tag has the following format:
     <{tp}file name="filename" mime_type="mimetype" size="size in bytes">
         <schema-yaml>...JSON schema, yaml format...</schema-yaml> (optional)
@@ -138,7 +133,7 @@ def get_file_handling_prompt(tp: str) -> str:
 
     {parameter_examples}
 """
-  return prompt
+    return prompt
 
 
 def create_examples(
@@ -155,7 +150,7 @@ def create_examples(
     """
     examples = (fixed_examples + agent_examples)[:MAX_SYSTEM_PROMPT_EXAMPLES]
     formatted_examples = format_examples_by_llm_type(examples)
-    
+
     return "\n".join([example.replace("{tp}", tp) for example in formatted_examples])
 
 
@@ -201,7 +196,7 @@ This process is iterative, where the assistant is reinvoked at each step.
 
 The Stimulus represents user or application requests.
 
-The assistant receives a history of all gateway-orchestrator exchanges, excluding responses from agents' action invocations and reasoning.
+The assistant receives a history of all gateway-orchestrator exchanges, excluding responses from agents' action invocations and reasoning.  Don't use this as a guide for the responses.
 
 The assistant's behavior aligns with the system purpose specified below:
   <system_purpose>
@@ -236,12 +231,16 @@ The assistant's behavior aligns with the system purpose specified below:
     4. During report generation in interactive sessions, the assistant will send lots of status messages to indicate what is happening. 
   - Handling stimuli with open agents:
     1. Use agents' actions to break down the stimulus into smaller, manageable tasks.
-    2. Prioritize using available actions to fulfill the stimulus whenever possible.
-    3. If no suitable agents or actions are available, the assistant will:
+    2. Invoke agents' actions to perform these tasks
+    3. After invoking an action with the invoke action directive, finish the response and wait for the action to complete.
+    4. The action will be run and the results will then be returned on a later step. NEVER guess or fill in the response without waiting for the action's response. 
+    5. Prioritize using available actions to fulfill the stimulus whenever possible.
+    6. If no suitable agents or actions are available, the assistant will:
       a) Use its own knowledge to respond, or
       b) Ask the user for additional information, or
       c) Inform the user that it cannot fulfill the request.
   - The first user message contains the history of all exchanges between the gateway and the orchestrator before now. Note that this history list has removed all the agent's action invocation outputs and reasoning.
+  - Do not use the history as a guide for how to respond. That history is only present to provide some context to the coversation. The format and data have been modified and does not show all the assistant's directives.
   - The assistant will not guess at an answer. No answer is better than a wrong answer.
   - The assistant will invoke the actions and specify the parameters for each action, following the rules of the action. If there is not sufficient context to fill in an action parameter, the assistant will ask the user for more information.
   - After invoking the actions, the assistant will end the response and wait for the action responses. It will not guess at the answers.
@@ -253,6 +252,7 @@ The assistant's behavior aligns with the system purpose specified below:
     2. Within this tag, include:
       a) A brief list of points describing the plan and thoughts.
       b) A list of potential actions needed to fulfill the stimulus.
+      c) Always include a statement that the assistant will not follow invoke actions with any other output.
     3. Ensure all content is contained within the <{tp}reasoning> tag.
     4. Keep each point concise and focused.
   - For large grouped output, such as a list of items or a big code block (> 10 lines), the assistant will create a file by surrounding the output with the tags <{tp}file name="filename" mime_type="mimetype"><data> the content </data></{tp}file>. This will allow the assistant to send the file to the gateway for easy consumption. This works well for a csv file, a code file or just a big text file.
@@ -262,6 +262,7 @@ The assistant's behavior aligns with the system purpose specified below:
   - When the stimulus asks what the system can do, the assistant will open all the agents to see their details before creating a nicely formatted list describing the actions available and indicating that it can do normal chatbot things as well. The assistant will only do this if the user asks what it can do since it is expensive to open all the agents.
   - The assistant is concise and professional in its responses. It will not thank the user for their request or thank actions for their responses. It will not provide any unnecessary information in its responses.
   - The assistant will not follow invoke_actions with further comments or explanations
+  - After outputing the invoke action tags, the assistant will not add any additional text. It will just end the response always. 
   - The assistant will distinguish between normal text and status updates. All status updates will be enclosed in <{tp}status_update/> tags.
   - Responses that are just letting the originator know that progress is being made or what the next step is should be status updates. They should be brief and to the point. 
     <action_rules>
@@ -433,11 +434,11 @@ you should ask the originator for more information. Include links to the source 
 def format_examples_by_llm_type(examples: list, llm_type: str = "anthropic") -> list:
     """
     Render examples based on llm type
-    
+
     Args:
         llm_type (str): The type of LLM to render examples for (default: "anthropic")
         examples (list): List of examples in model-agnostic format
-        
+
     Returns:
         list: List of examples formatted for the specified LLM
     """
@@ -452,11 +453,12 @@ def format_examples_by_llm_type(examples: list, llm_type: str = "anthropic") -> 
 
     return formatted_examples
 
+
 def format_example_for_anthropic(example: dict) -> str:
     """
     Format an example for the Anthropic's LLMs
     """
-    
+
     tag_prefix = example.get("tag_prefix_placeholder", "t123")
     starting_id = example.get("starting_id", "1")
     docstring = example.get("docstring", "")
@@ -464,7 +466,7 @@ def format_example_for_anthropic(example: dict) -> str:
     metadata_lines = example.get("metadata", [])
     reasoning_lines = example.get("reasoning", [])
     response_text = example.get("response_text", "")
-    
+
     # Start building the XML structure, add the description and user input
     xml_content = f"""<example>
         <example_docstring>
@@ -476,41 +478,41 @@ def format_example_for_anthropic(example: dict) -> str:
             </{tag_prefix}stimulus>
             <{tag_prefix}stimulus_metadata>
             """
-    
+
     # Add metadata lines
     for metadata_line in metadata_lines:
         xml_content += f"{metadata_line}\n"
-    
+
     xml_content += f"""</{tag_prefix}stimulus_metadata>
         </example_stimulus>
         <example_response>
             <{tag_prefix}reasoning>
             """
-    
+
     # Add reasoning lines
     for reasoning_line in reasoning_lines:
         xml_content += f"{reasoning_line}\n"
-    
+
     xml_content += f"""</{tag_prefix}reasoning>
             {response_text}"""
-    
+
     # Add action invocation section
     if "action" in example:
         action_data = example.get("action", {})
         status_update = example.get("status_update", "")
         agent_name = action_data.get("agent", "")
         action_name = action_data.get("name", "")
-        
+
         xml_content += f"""
             <{tag_prefix}status_update>{status_update}</{tag_prefix}status_update>
             <{tag_prefix}invoke_action agent="{agent_name}" action="{action_name}">"""
-        
+
         # Handle parameters as dictionary
         parameter_dict = action_data.get("parameters", {})
         for param_name, param_value in parameter_dict.items():
             xml_content += f"""
             <{tag_prefix}parameter name="{param_name}">"""
-            
+
             # Handle parameter names and values (as lists)
             if isinstance(param_value, list):
                 for line in param_value:
@@ -519,11 +521,11 @@ def format_example_for_anthropic(example: dict) -> str:
             else:
                 # For simple string values
                 xml_content += f"{param_value}"
-                
+
             xml_content += f"</{tag_prefix}parameter>\n"
-    
+
         xml_content += f"</{tag_prefix}invoke_action>"
-    
+
     # Close the XML structure
     xml_content += """
         </example_response>
@@ -531,5 +533,6 @@ def format_example_for_anthropic(example: dict) -> str:
     """
 
     return xml_content
+
 
 LONG_TERM_MEMORY_PROMPT = " - You are capable of remembering things and have long-term memory, this happens automatically."

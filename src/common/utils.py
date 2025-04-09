@@ -324,6 +324,7 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
     current_param_value = []
     open_tags = []
     current_text = []
+    seen_invoke_action = False
 
     for line in response.split("\n"):
 
@@ -381,6 +382,7 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
             if in_invoke_action:
                 parsed_data["errors"].append("Nested <invoke_action> tags")
             in_invoke_action = True
+            seen_invoke_action = True
             open_tags.append("invoke_action")
             current_action = {
                 "agent": None,
@@ -464,7 +466,11 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                 current_param_value.append(line.strip())
 
         else:
-            current_text.append(line)
+            # NOTE that we are intentionally ignoring all output text that occurs
+            # after any <invoke_action> tag. It has been told to never do this and
+            # if it does, then there is a good chance it is hallucinating responses
+            if not seen_invoke_action:
+                current_text.append(line)
 
     if open_tags:
         parsed_data["errors"].append(f"Unclosed tags: {', '.join(open_tags)}")
