@@ -7,14 +7,6 @@
 <h4 align="center">Open-source framework for building event driven multi-agent AI systems</h3>
 
 <p align="center">
-  <a href="https://github.com/SolaceLabs/solace-agent-mesh/issues/new" target="_blank">
-    <img src="https://img.shields.io/badge/Create-Issue-blue?style=for-the-badge" alt="Create Issue">
-  </a>
-  <a href="https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/" target="_blank">
-    <img src="https://img.shields.io/badge/View-Docs-green?style=for-the-badge" alt="View Docs">
-  </a>
-</p>
-<p align="center">
   <a href="https://github.com/SolaceLabs/solace-agent-mesh/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/SolaceLabs/solace-agent-mesh" alt="License">
   </a>
@@ -28,7 +20,7 @@
 <p align="center">
     <a href="#-key-features">Key Features</a> •
     <a href="#-quick-start-5-minutes">Quickstart</a> •
-     <a href="https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/" target="_blank">Documentation</a>
+    <a href="https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/">Documentation</a>
 </p>
 
 
@@ -125,6 +117,7 @@ See [CHANGELOG.md](CHANGELOG.md) for a full history of updates.
 Solace Agent Mesh is built with the help of our amazing community.  
 Thanks to everyone who has contributed ideas, code, and time to make this project better.  
 👀 View the full list of contributors → [GitHub Contributors](https://github.com/SolaceLabs/solace-agent-mesh/graphs/contributors)
+🤝 **Looking to contribute?** Check out [CONTRIBUTING.md](CONTRIBUTING.md) to get started and see how you can help.
 
 ---
 
