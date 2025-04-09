@@ -490,6 +490,19 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
     return parsed_data
 
 
+def strip_text_after_invoke_action(text):
+    """
+    Remove any text after the last </invoke_action> tag.
+    This is to prevent hallucinations from the LLM.
+    """
+    # Find the last instance of </t\d+_invoke_action> regexp and remove everything after it.
+    matches = list(re.finditer(r"</t\d+_invoke_action>", text))
+    if matches:
+        last_match_end = matches[-1].end()
+        return text[:last_match_end]
+    return text
+
+
 def remove_incomplete_tags_at_end(text):
     """If the end of the text is in the middle of a <tag> or </tag> then remove it."""
     # remove any open tags at the end

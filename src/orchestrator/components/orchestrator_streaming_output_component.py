@@ -5,7 +5,7 @@ from datetime import datetime
 from solace_ai_connector.components.component_base import ComponentBase
 from solace_ai_connector.common.log import log
 from solace_ai_connector.common.message import Message
-from ...common.utils import parse_orchestrator_response
+from ...common.utils import parse_orchestrator_response, strip_text_after_invoke_action
 from ...services.history_service import HistoryService
 from ...services.file_service import FileService
 from ...orchestrator.orchestrator_main import (
@@ -87,7 +87,11 @@ class OrchestratorStreamingOutputComponent(ComponentBase):
             if last_chunk:
                 self.delete_response_state(response_uuid)
                 if stimulus_uuid:
-                    self.history.store_history(stimulus_uuid, "assistant", text)
+                    # Temporary change to remove any bare text and files after the last invoke_action tag
+                    stripped_text = strip_text_after_invoke_action(text)
+                    self.history.store_history(
+                        stimulus_uuid, "assistant", stripped_text
+                    )
 
         obj = parse_orchestrator_response(text, last_chunk=last_chunk)
 
@@ -112,7 +116,7 @@ class OrchestratorStreamingOutputComponent(ComponentBase):
                     response_state,
                     response_uuid,
                     last_chunk,
-                    session_id
+                    session_id,
                 )
                 if item_text:
                     full_text += item_text
@@ -158,7 +162,14 @@ class OrchestratorStreamingOutputComponent(ComponentBase):
         return outputs
 
     def process_content_item(
-        self, item_idx, num_items, item, response_state, response_uuid, last_chunk, session_id
+        self,
+        item_idx,
+        num_items,
+        item,
+        response_state,
+        response_uuid,
+        last_chunk,
+        session_id,
     ):
         """Process a content item"""
         streaming_content_idx = response_state.get("streaming_content_idx", 0)
