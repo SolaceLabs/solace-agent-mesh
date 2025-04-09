@@ -351,7 +351,8 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                 file_line = line[: file_end_index + len(f"</{tp}file>")]
                 file_content = [file_line]
                 current_file = parse_file_content("\n".join(file_content))
-                add_content_entry(parsed_data["content"], "file", current_file)
+                if not seen_invoke_action:
+                    add_content_entry(parsed_data["content"], "file", current_file)
                 in_file = False
                 current_file = {}
                 file_content = []
@@ -369,7 +370,8 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                 file_line = line[: file_end_index + len(f"</{tp}file>")]
                 file_content.append(file_line)
                 current_file = parse_file_content("\n".join(file_content))
-                add_content_entry(parsed_data["content"], "file", current_file)
+                if not seen_invoke_action:
+                    add_content_entry(parsed_data["content"], "file", current_file)
                 in_file = False
                 current_file = {}
                 file_content = []
@@ -475,7 +477,7 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
     if open_tags:
         parsed_data["errors"].append(f"Unclosed tags: {', '.join(open_tags)}")
 
-    if in_file:
+    if in_file and not seen_invoke_action:
         content = "\n".join(file_content)
         # Add a status update for this
         parsed_data["status_updates"].append(
