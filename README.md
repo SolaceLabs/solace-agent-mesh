@@ -18,11 +18,10 @@
   </a>
 </p>
 <p align="center">
-    <a href="#-key-features">Key Features</a> •
-    <a href="#-quick-start-5-minutes">Quickstart</a> •
-    <a href="https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/">Documentation</a>
+  <a href="#-key-features">Key Features</a> •
+  <a href="#-quick-start-5-minutes">Quickstart</a> •
+  <a href="#️-next-steps">Next Steps</a>
 </p>
-
 
 ---
 
@@ -39,10 +38,10 @@ Whether you're prototyping an 🤖 AI assistant or deploying a 🌎 production-g
 - 🤖 **[Composable Agents](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/agents)** – Combine specialized AI agents to solve complex, multi-step workflows.
 - 🌐 **[Flexible Interfaces](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/gateways)** – Interact with SAM via the REST API, browser UI, or [Slack Integration](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/slack-integration).
 - 🧠 **[Built-in Orchestration](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/orchestrator)** – Tasks are automatically broken down and delegated across agents by a built-in orchestrator.
-- 📊 **[Live Observability](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/deployment/observability)** – Monitor, trace, and debug agent interactions and workflows in real time. <!-- 🔗 Missing link -->
+- 📊 **[Live Observability](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/deployment/observability)** – Monitor, trace, and debug agent interactions and workflows in real time.
 - 🧩 **[Plugin-Extensible](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/plugins)** – Add your own agents, gateways, or services with minimal boilerplate.
 - 🏢 **[Production-Ready](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/deployment/deploy)** – Backed by [Solace’s enterprise-grade event broker](https://solace.com/products/event-broker/) for reliability and performance.
-- 🔧 **[Services](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/services)** – Learn about the services that facilitate interactions within the Solace Agent Mesh.
+- 🔧 **[Services](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/services)** –  File storage, memory, and embeddings, all extensible, and built-in.
 
 ---
 
@@ -94,14 +93,14 @@ solace-agent-mesh run -b      # Shortcut for `build` + `run`
 
 ---
 
-## ➡️ What’s Next?
+## ➡️ Next Steps
 
 Looking to go further? Check out our tutorials for deeper integrations and real-world examples:
 
 - 💬 [Slack Integration](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/slack-integration) – Use Slack to chat with your agents directly.
 - 🗃️ [SQL Database Integration](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/sql-database) – Connect agents to real-time structured data sources.
 
-📚 Full documentation → [solacelabs.github.io/solace-agent-mesh](https://solacelabs.github.io/solace-agent-mesh)
+- 📚 Learn more about what Solace Agent Mesh can do in our [full documentation](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/).
 
 ---
 
