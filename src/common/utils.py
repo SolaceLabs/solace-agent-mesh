@@ -438,7 +438,7 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
         elif in_invoke_action and f"<{tp}parameter" in line:
             if current_param_name:
                 param_value = "\n".join(current_param_value)
-                current_action["parameters"][current_param_name] = remove_cdata_wrapper(
+                current_action["parameters"][current_param_name] = clean_parameter_value(
                     param_value
                 )
                 current_param_value = []
@@ -483,7 +483,7 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                 if content_before_close:
                     current_param_value.append(content_before_close)
                 param_value = "\n".join(current_param_value)
-                current_action["parameters"][current_param_name] = remove_cdata_wrapper(
+                current_action["parameters"][current_param_name] = clean_parameter_value(
                     param_value
                 )
                 current_param_name = None
@@ -608,16 +608,18 @@ def match_solace_topic(subscription: str, topic: str) -> bool:
     )
 
 
-def remove_cdata_wrapper(param_value):
+def clean_parameter_value(param_value):
     """
-    Removes CDATA wrapper from a parameter value if present and resolves XML entities.
+    Cleans a parameter value by:
+    1. Removing CDATA wrapper if present
+    2. Resolving XML entities like &gt;, &lt;, etc.
 
     Parameters:
     - param_value (str): The parameter value that might contain a CDATA wrapper
-                         and XML entities like &gt;, &lt;, etc.
+                         and/or XML entities
 
     Returns:
-    - str: The parameter value with CDATA wrapper removed and XML entities resolved
+    - str: The cleaned parameter value
     """
     if isinstance(param_value, str):
         # Remove CDATA wrapper if present
