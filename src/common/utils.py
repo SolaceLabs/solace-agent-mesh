@@ -284,9 +284,9 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
     stripped_response = response.lstrip()
     code_block_match = re.match(r"^```(\w*\s*\n)", stripped_response)
     if code_block_match:
-        print("found code block:", language)
         # Extract content after the ```language
         language = code_block_match.group(1)
+        print("found code block:", language)
         response = stripped_response.split(f"```{language}", 1)[1]
 
         # Only remove the trailing ``` if it's at the end of the response
