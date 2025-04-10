@@ -113,40 +113,55 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
     if (!type) return null;
 
     return (
-      <div className="text-gray-700">
-        Type: {getBrokerTypeText(type)}
+      <div>
+        <div className="mb-1">
+          <span className="text-gray-600">Type:</span>
+          <span className="font-medium text-gray-900 ml-2">{getBrokerTypeText(type)}</span>
+        </div>
+        
         {type === 'container' && (
-          <div className="pl-4 border-l-2 border-gray-200">
-            <div className="ml-2">
-              Container Engine: {data.container_engine || 'Docker'}
+          <div className="pl-4 border-l-2 border-gray-300 mb-2">
+            <div className="flex mb-1">
+              <span className="text-gray-600">Container Engine:</span>
+              <span className="font-medium text-gray-900 ml-2">{data.container_engine || 'Docker'}</span>
             </div>
           </div>
         )}
+        
         {(type === 'solace' || type === 'container') && (
-          <div className="pl-4 border-l-2 border-gray-200">
-            <div className="ml-2">Broker URL: {data.broker_url}</div>
-            <div className="ml-2">Broker VPN: {data.broker_vpn}</div>
-            <div className="ml-2">Username: {data.broker_username}</div>
-            <div className="ml-2">
-              Password: {formatValue('broker_password', data.broker_password)}
+          <div className="pl-4 border-l-2 border-gray-300">
+            <div className="flex mb-1">
+              <span className="text-gray-600">Broker URL:</span>
+              <span className="font-medium text-gray-900 ml-2">{data.broker_url}</span>
+            </div>
+            <div className="flex mb-1">
+              <span className="text-gray-600">Broker VPN:</span>
+              <span className="font-medium text-gray-900 ml-2">{data.broker_vpn}</span>
+            </div>
+            <div className="flex mb-1">
+              <span className="text-gray-600">Username:</span>
+              <span className="font-medium text-gray-900 ml-2">{data.broker_username}</span>
+            </div>
+            <div className="flex mb-1">
+              <span className="text-gray-600">Password:</span>
+              <span className="font-medium text-gray-900 ml-2">{formatValue('broker_password', data.broker_password)}</span>
             </div>
           </div>
         )}
       </div>
     );
   };
-
   /** Render built-in agents. */
   const renderBuiltInAgents = (agentIds: string[]) => {
     return (
-      <div className="space-y-2">
+      <div className="space-y-2 pl-1">
         {agentIds.map((agentId: string) => {
           const agentInfo = agentMapping[agentId] || { name: agentId };
           return (
-            <div key={agentId} className="flex items-center text-gray-700">
+            <div key={agentId} className="flex items-center">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 text-green-500 mr-2"
+                className="h-4 w-4 text-green-600 mr-2"
                 viewBox="0 0 20 20"
                 fill="currentColor"
               >
@@ -157,7 +172,7 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
                 />
               </svg>
               <div>
-                <span className="font-medium">{agentInfo.name}</span>
+                <span className="font-medium text-gray-900">{agentInfo.name}</span>
               </div>
             </div>
           );
@@ -165,23 +180,23 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
       </div>
     );
   };
-
   /** Render file service configuration. */
   const renderFileServiceConfig = (configArray: string[]) => {
     const isVolume = configArray.some((conf) => conf.startsWith('directory='));
     const isBucket = configArray.some((conf) => conf.startsWith('bucket_name='));
-
     if (isVolume) {
       const volumePath = configArray
         .find((conf) => conf.startsWith('directory='))
         ?.split('=')[1];
       return (
-        <div className="text-gray-700 pl-4 border-l-2 border-gray-200">
-          <div className="ml-2">Volume Path: {volumePath}</div>
+        <div className="pl-4 border-l-2 border-gray-300">
+          <div className="flex mb-1">
+            <span className="text-gray-600">Volume Path:</span>
+            <span className="font-medium text-gray-900 ml-2">{volumePath}</span>
+          </div>
         </div>
       );
     }
-
     if (isBucket) {
       const bucketName = configArray
         .find((conf) => conf.startsWith('bucket_name='))
@@ -190,21 +205,25 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
         .find((conf) => conf.startsWith('endpoint_url='))
         ?.split('=')[1];
       return (
-        <div className="text-gray-700 pl-4 border-l-2 border-gray-200">
-          <div className="ml-2">Bucket Name: {bucketName}</div>
-          <div className="ml-2">Endpoint URL: {endpointUrl}</div>
+        <div className="pl-4 border-l-2 border-gray-300">
+          <div className="flex mb-1">
+            <span className="text-gray-600">Bucket Name:</span>
+            <span className="font-medium text-gray-900 ml-2">{bucketName}</span>
+          </div>
+          <div className="flex mb-1">
+            <span className="text-gray-600">Endpoint URL:</span>
+            <span className="font-medium text-gray-900 ml-2">{endpointUrl}</span>
+          </div>
         </div>
       );
     }
-
     // Otherwise just display a joined list
     return (
-      <div className="text-gray-700">
+      <div className="font-medium text-gray-900">
         {configArray.join(', ')}
       </div>
     );
   };
-
   /** Render a single group (e.g. "Broker", "LLM Providers"). */
   const renderGroup = (groupName: string, keys: string[]) => {
     // Check if there's at least one non-empty value in the group
@@ -213,13 +232,13 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
     return (
       <div
         key={groupName}
-        className="pb-2 border-b border-gray-200 last:border-0"
+        className="pb-4 mb-4 border-b border-gray-300 last:border-0 last:mb-0 last:pb-0"
       >
-        <h4 className="font-medium text-solace-blue">{groupName}</h4>
-        <div className="mt-2 space-y-1">
+        <h4 className="font-semibold text-solace-blue mb-3">{groupName}</h4>
+        <div className="space-y-3">
           {keys.map((key) => {
             if (isValueEmpty(data[key])) return null;
-
+            
             // Special handling for certain keys
             if (key === 'broker_type') return <div key={key}>{renderBrokerDetails()}</div>;
             if (key === 'built_in_agent' && Array.isArray(data[key])) {
@@ -236,11 +255,12 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
                 </div>
               );
             }
-
+            
             // Default display
             return (
-              <div key={key} className="text-gray-700">
-                {formatDisplayLabel(key)}: {formatValue(key, data[key])}
+              <div key={key} className="flex mb-1">
+                <span className="text-gray-600">{formatDisplayLabel(key)}:</span>
+                <span className="font-medium text-gray-900 ml-2">{formatValue(key, data[key])}</span>
               </div>
             );
           })}
@@ -358,7 +378,7 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
       {!isSubmitted ? (
         <form onSubmit={onSubmit}>
             {/* Configuration Summary */}
-            <div className="bg-white border border-gray-200 rounded-md p-4 space-y-4">
+            <div className="bg-gray-100 border border-gray-300 rounded-md p-5 space-y-4">
               {Object.entries(CONFIG_GROUPS).map(([groupName, keys]) =>
                 renderGroup(groupName, keys)
               )}
@@ -376,7 +396,15 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
               Previous
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Initializing...' : 'Initialize Project'}
+              {isSubmitting ? (
+                <div className="flex items-center space-x-2">
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Initializing...</span>
+                </div>
+              ) : 'Initialize Project'}
             </Button>
           </div>
         </form>
