@@ -461,7 +461,7 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                 if f"</{tp}parameter>" in line:
                     param_value = "\n".join(current_param_value)
                     current_action["parameters"][current_param_name] = (
-                        remove_cdata_wrapper(param_value)
+                        clean_parameter_value(param_value)
                     )
                     current_param_name = None
                     current_param_value = []
