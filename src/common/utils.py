@@ -610,18 +610,28 @@ def match_solace_topic(subscription: str, topic: str) -> bool:
 
 def remove_cdata_wrapper(param_value):
     """
-    Removes CDATA wrapper from a parameter value if present.
+    Removes CDATA wrapper from a parameter value if present and resolves XML entities.
 
     Parameters:
     - param_value (str): The parameter value that might contain a CDATA wrapper
+                         and XML entities like &gt;, &lt;, etc.
 
     Returns:
-    - str: The parameter value with CDATA wrapper removed if it was present
+    - str: The parameter value with CDATA wrapper removed and XML entities resolved
     """
     if isinstance(param_value, str):
+        # Remove CDATA wrapper if present
         cdata_match = re.match(r"\s*<!\[CDATA\[(.*?)\]\]>\s*$", param_value, re.DOTALL)
         if cdata_match:
-            return cdata_match.group(1)
+            param_value = cdata_match.group(1)
+        
+        # Resolve XML entities
+        param_value = param_value.replace("&lt;", "<")
+        param_value = param_value.replace("&gt;", ">")
+        param_value = param_value.replace("&amp;", "&")
+        param_value = param_value.replace("&quot;", "\"")
+        param_value = param_value.replace("&apos;", "'")
+        
     return param_value
 
 
