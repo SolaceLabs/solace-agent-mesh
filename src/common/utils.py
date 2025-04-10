@@ -273,12 +273,16 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
     # Check if the response is wrapped in ```language tags and remove them
     # Only do this for the first chunk (when we see the start of the code block)
     stripped_response = response.lstrip()
-    code_block_match = re.match(r'^```(\w*)', stripped_response)
+    code_block_match = re.match(r"^```(\w*)", stripped_response)
     if code_block_match:
         # Extract content after the ```language
         language = code_block_match.group(1)
         response = stripped_response.split(f"```{language}", 1)[1]
-        
+
+        # <inst>
+        # Only remove the ``` if it is the first chunk and right at the end of the response
+        # </inst>
+
         # Only remove the trailing ``` if this is the last chunk
         # Otherwise we might cut off content in the middle of the response
         if last_chunk and "```" in response:
