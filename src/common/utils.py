@@ -165,6 +165,15 @@ def parse_llm_output(llm_output: str) -> dict:
     # We need to save all the strings that we replace so that we can put them back
     # after we parse the yaml. Use a sequence number to create a unique placeholder
     # for each string.
+
+    # <inst>
+    # This parser is receiving LLM output and that output contains XML tags. Sometimes
+    # the LLM puts ```xml around the entire response, so we need to remove that. Note
+    # that we only want to do that if it is at the beginning of the response and then remember
+    # to remove the ``` at the end of the response. Also note that the trailing ``` might be
+    # split across chunks
+    # </inst>
+
     string_placeholders = {}
     string_count = 0
     sanity = 100
@@ -416,7 +425,9 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
         elif in_invoke_action and f"<{tp}parameter" in line:
             if current_param_name:
                 param_value = "\n".join(current_param_value).strip()
-                current_action["parameters"][current_param_name] = remove_cdata_wrapper(param_value)
+                current_action["parameters"][current_param_name] = remove_cdata_wrapper(
+                    param_value
+                )
                 current_param_value = []
 
             param_name_match = re.search(r'name\s*=\s*[\'"](\w+)[\'"]', line)
@@ -436,7 +447,9 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                 # Check if parameter closes on same line
                 if f"</{tp}parameter>" in line:
                     param_value = "\n".join(current_param_value).strip()
-                    current_action["parameters"][current_param_name] = remove_cdata_wrapper(param_value)
+                    current_action["parameters"][current_param_name] = (
+                        remove_cdata_wrapper(param_value)
+                    )
                     current_param_name = None
                     current_param_value = []
 
@@ -457,7 +470,9 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                 if content_before_close.strip():
                     current_param_value.append(content_before_close.strip())
                 param_value = "\n".join(current_param_value).strip()
-                current_action["parameters"][current_param_name] = remove_cdata_wrapper(param_value)
+                current_action["parameters"][current_param_name] = remove_cdata_wrapper(
+                    param_value
+                )
                 current_param_name = None
                 current_param_value = []
                 if "parameter" in open_tags:
@@ -577,18 +592,19 @@ def match_solace_topic(subscription: str, topic: str) -> bool:
 def remove_cdata_wrapper(param_value):
     """
     Removes CDATA wrapper from a parameter value if present.
-    
+
     Parameters:
     - param_value (str): The parameter value that might contain a CDATA wrapper
-    
+
     Returns:
     - str: The parameter value with CDATA wrapper removed if it was present
     """
     if isinstance(param_value, str):
-        cdata_match = re.match(r'\s*<!\[CDATA\[(.*?)\]\]>\s*$', param_value, re.DOTALL)
+        cdata_match = re.match(r"\s*<!\[CDATA\[(.*?)\]\]>\s*$", param_value, re.DOTALL)
         if cdata_match:
             return cdata_match.group(1)
     return param_value
+
 
 def clean_text(text_array):
     # Any leading blank lines are removed
