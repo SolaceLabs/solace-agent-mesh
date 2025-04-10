@@ -140,6 +140,12 @@ def parse_file_content(file_xml: str) -> dict:
     Parse the xml tags in the content and return a dictionary of the content.
     """
     try:
+        # It is possible that the content of the file mistakenly has t###_ prefixes on the
+        # tags, so we need to strip them off. This is a bit of a hack to work around LLM errors
+
+        file_xml = re.sub(r"<t\d+_", "<", file_xml)
+        file_xml = re.sub(r"</t\d+_", "</", file_xml)
+
         ignore_content_tags = ["data"]
         file_dict = xml_to_dict(file_xml, ignore_content_tags)
         dict_keys = list(file_dict.keys())
@@ -165,14 +171,6 @@ def parse_llm_output(llm_output: str) -> dict:
     # We need to save all the strings that we replace so that we can put them back
     # after we parse the yaml. Use a sequence number to create a unique placeholder
     # for each string.
-
-    # <inst>
-    # This parser is receiving LLM output and that output contains XML tags. Sometimes
-    # the LLM puts ```xml around the entire response, so we need to remove that. Note
-    # that we only want to do that if it is at the beginning of the response and then remember
-    # to remove the ``` at the end of the response. Also note that the trailing ``` might be
-    # split across chunks
-    # </inst>
 
     string_placeholders = {}
     string_count = 0
@@ -270,20 +268,6 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
     if not response:
         return parsed_data
 
-    # Check if the response is wrapped in ```language tags and remove them
-    # Only do this for the first chunk (when we see the start of the code block)
-    stripped_response = response.lstrip()
-    code_block_match = re.match(r"^```(\w*)", stripped_response)
-    if code_block_match:
-        # Extract content after the ```language
-        language = code_block_match.group(1)
-        response = stripped_response.split(f"```{language}", 1)[1]
-
-        # Only remove the trailing ``` if it's at the end of the response
-        # This prevents cutting off content in the middle of a response
-        if "```" in response and response.strip().endswith("```"):
-            response = response.rsplit("```", 1)[0]
-
     if not tp:
         # Learn the tag prefix from the response
         match = re.search(r"<(t[\d]+_)", response)
@@ -294,6 +278,21 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
 
     if not last_chunk:
         response = remove_incomplete_tags_at_end(response)
+
+    # Check if the response is wrapped in ```language tags and remove them
+    # Only do this for the first chunk (when we see the start of the code block)
+    stripped_response = response.lstrip()
+    code_block_match = re.match(r"^```(\w*\s*\n)", stripped_response)
+    if code_block_match:
+        print("found code block:", language)
+        # Extract content after the ```language
+        language = code_block_match.group(1)
+        response = stripped_response.split(f"```{language}", 1)[1]
+
+        # Only remove the trailing ``` if it's at the end of the response
+        # This prevents cutting off content in the middle of a response
+        if "```" in response and response.strip().endswith("```"):
+            response = response.rsplit("```", 1)[0]
 
     # Parse out the <reasoning> tag - they are always first, so just do a
     # simple search and remove them from the response
