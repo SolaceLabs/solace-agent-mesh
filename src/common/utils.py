@@ -267,16 +267,19 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
         "send_last_status_update": False,
     }
 
-    # Check if the response is wrapped in ```xml tags and remove them
     if not response:
         return parsed_data
-        
+
+    # <inst>
+    # Change this check to remove any ```\w+``` tags that are around the response
+    # </inst>
+
     # Check if the response is wrapped in ```xml tags and remove them
     # Only do this for the first chunk (when we see the start of the XML block)
     if response.lstrip().startswith("```xml"):
         # Extract content after the ```xml
         response = response.lstrip().split("```xml", 1)[1]
-        
+
         # Only remove the trailing ``` if this is the last chunk
         # Otherwise we might cut off content in the middle of the response
         if last_chunk and "```" in response:
@@ -428,7 +431,7 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                 if current_param_name:
                     current_action["parameters"][current_param_name] = "\n".join(
                         current_param_value
-                    ).strip()
+                    )
                 parsed_data["actions"].append(current_action)
                 current_action = {}
                 current_param_name = None
@@ -436,7 +439,7 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
 
         elif in_invoke_action and f"<{tp}parameter" in line:
             if current_param_name:
-                param_value = "\n".join(current_param_value).strip()
+                param_value = "\n".join(current_param_value)
                 current_action["parameters"][current_param_name] = remove_cdata_wrapper(
                     param_value
                 )
@@ -452,13 +455,13 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                     r">(.*?)(?:</" + tp + "parameter>|$)", line
                 )
                 if content_after_open:
-                    initial_content = content_after_open.group(1).strip()
+                    initial_content = content_after_open.group(1)
                     if initial_content:
                         current_param_value.append(initial_content)
 
                 # Check if parameter closes on same line
                 if f"</{tp}parameter>" in line:
-                    param_value = "\n".join(current_param_value).strip()
+                    param_value = "\n".join(current_param_value)
                     current_action["parameters"][current_param_name] = (
                         remove_cdata_wrapper(param_value)
                     )
@@ -479,9 +482,9 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
             if f"</{tp}parameter>" in line:
                 # Handle content before closing tag on final line
                 content_before_close = re.sub(f"</{tp}parameter>.*", "", line)
-                if content_before_close.strip():
-                    current_param_value.append(content_before_close.strip())
-                param_value = "\n".join(current_param_value).strip()
+                if content_before_close:
+                    current_param_value.append(content_before_close)
+                param_value = "\n".join(current_param_value)
                 current_action["parameters"][current_param_name] = remove_cdata_wrapper(
                     param_value
                 )
@@ -490,7 +493,7 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                 if "parameter" in open_tags:
                     open_tags.remove("parameter")
             else:
-                current_param_value.append(line.strip())
+                current_param_value.append(line)
 
         else:
             # NOTE that we are intentionally ignoring all output text that occurs
@@ -513,6 +516,12 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
 
     if len(current_text) > 0:
         add_content_entry(parsed_data["content"], "text", current_text)
+
+    # Final check - if there is no reasoning, then the LLM is not complying with the
+    # request and we should return an error
+    if not parsed_data["reasoning"]:
+        parsed_data["errors"].append("No <t###_reasoning> tag found")
+        parsed_data["content"] = []
 
     return parsed_data
 
