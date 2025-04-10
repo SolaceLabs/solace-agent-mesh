@@ -3,6 +3,7 @@ import FormField from '../ui/FormField';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Button from '../ui/Button';
+import { InfoBox, WarningBox } from '../ui/InfoBoxes';
 
 type FileServiceSetupProps = {
   data: Record<string, any>;
@@ -169,11 +170,9 @@ export default function FileServiceSetup({ data, updateData, onNext, onPrevious 
   return (
     <form onSubmit={handleSubmit}>
       <div className="space-y-6">
-        <div className="p-4 bg-blue-50 rounded-md mb-4">
-          <p className="text-sm text-blue-800">
-            Choose how you want to store files in your Solace Agent Mesh system.
-          </p>
-        </div>
+        <InfoBox className="mb-4">
+          Choose how you want to store files in your Solace Agent Mesh system.
+        </InfoBox>
         
         <FormField 
           label="File Service Provider" 
@@ -242,11 +241,9 @@ export default function FileServiceSetup({ data, updateData, onNext, onPrevious 
               />
             </FormField>
             
-            <div className="p-4 bg-yellow-50 rounded-md">
-              <p className="text-sm text-yellow-800">
-                <strong>Note:</strong> You can setup the Boto3 authentication configuration in the ./solace-agent-mesh.yaml file
-              </p>
-            </div>
+            <WarningBox>
+              <strong>Note:</strong> You can setup the Boto3 authentication configuration in the ./solace-agent-mesh.yaml file
+            </WarningBox>
           </>
         )}
       </div>

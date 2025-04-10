@@ -1,6 +1,7 @@
 import FormField from '../ui/FormField';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
+import { InfoBox } from '../ui/InfoBoxes';
 
 type ProjectSetupProps = {
   data: { namespace: string; [key: string]: any };
@@ -13,20 +14,18 @@ export default function ProjectSetup({ data, updateData, onNext, onPrevious }: P
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     updateData({ [e.target.name]: e.target.value });
   };
-
+  
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onNext();
   };
-
+  
   return (
     <form onSubmit={handleSubmit}>
       <div className="space-y-4">
-        <div className="p-4 bg-blue-50 rounded-md mb-4">
-          <p className="text-sm text-blue-800">
-            The namespace will be used as the topic prefix for all events in your Solace Agent Mesh.
-          </p>
-        </div>
+        <InfoBox className="mb-4">
+          The namespace will be used as the topic prefix for all events in your Solace Agent Mesh.
+        </InfoBox>
         
         <FormField 
           label="Project Namespace" 
@@ -36,6 +35,7 @@ export default function ProjectSetup({ data, updateData, onNext, onPrevious }: P
         >
           <Input
             id="namespace"
+            name="namespace"
             value={data.namespace}
             onChange={handleChange}
             placeholder="Enter a namespace for your project"
@@ -48,13 +48,13 @@ export default function ProjectSetup({ data, updateData, onNext, onPrevious }: P
         <Button 
           onClick={onPrevious}
           variant="outline"
-          disabled={true} // Disabled on first step
+          disabled={true}
         >
           Previous
         </Button>
         <Button 
-          onClick={onNext}
-          disabled={!data.namespace.trim()}
+          type="submit"
+          disabled={!data.namespace?.trim()}
         >
           Next
         </Button>

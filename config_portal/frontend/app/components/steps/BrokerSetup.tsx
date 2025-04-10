@@ -3,6 +3,7 @@ import FormField from '../ui/FormField';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Button from '../ui/Button';
+import { WarningBox, StatusBox } from '../ui/InfoBoxes';
 
 type BrokerSetupProps = {
   data: { 
@@ -51,8 +52,6 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
     if (data.container_engine && data.broker_type !== 'container') {
       updateData({ container_engine: '' });
     }
-    
-    // Removed automatic success setting here
     
     // Set dev_mode to false if it's not the selected broker type
     if (data.broker_type !== 'dev_mode') {
@@ -281,13 +280,15 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
             )}
             
             {containerStatus.message && (
-              <div className={`p-3 rounded-md ${
-                containerStatus.isRunning ? 'bg-blue-50 text-blue-800' : 
-                containerStatus.success ? 'bg-green-50 text-green-800' : 
-                'bg-red-50 text-red-800'
-              }`}>
+              <StatusBox 
+                variant={
+                  containerStatus.isRunning ? 'loading' : 
+                  containerStatus.success ? 'success' : 
+                  'error'
+                }
+              >
                 {containerStatus.message}
-              </div>
+              </StatusBox>
             )}
             
             <div className="mt-2">
@@ -305,11 +306,9 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
         )}
         
         {brokerType === 'dev_mode' && (
-          <div className="p-4 bg-yellow-50 rounded-md">
-            <p className="text-sm text-yellow-800">
-              <strong>Warning:</strong> Dev mode runs everything in a single process and is not recommended for production use.
-            </p>
-          </div>
+          <WarningBox>
+            <strong>Warning:</strong> Dev mode runs everything in a single process and is not recommended for production use.
+          </WarningBox>
         )}
       </div>
       

@@ -3,6 +3,7 @@ import FormField from '../ui/FormField';
 import Input from '../ui/Input';
 import Toggle from '../ui/Toggle';
 import Button from '../ui/Button';
+import { InfoBox } from '../ui/InfoBoxes';
 
 type Agent = {
   id: string;
@@ -80,7 +81,7 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [envVars, setEnvVars] = useState<Record<string, string>>({});
   const [initialized, setInitialized] = useState(false);
-
+  
   // Initialize form data
   useEffect(() => {
     if (initialized) return;
@@ -113,11 +114,11 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
     setEnvVars(initialEnvVars);
     setInitialized(true);
   }, [data, initialized]);
-
+  
   const isAgentEnabled = (agentId: string) => {
     return (data.built_in_agent || []).includes(agentId);
   };
-
+  
   const handleEnvVarChange = (key: string, value: string) => {
     const newEnvVars = {
       ...envVars,
@@ -142,7 +143,7 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
       });
     }
   };
-
+  
   const handleToggle = (agentId: string, value: boolean) => {
     // If disabling, clear related env vars and errors
     if (!value) {
@@ -188,7 +189,7 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
       built_in_agent: updatedAgents
     });
   };
-
+  
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     let isValid = true;
@@ -222,22 +223,20 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
     setErrors(newErrors);
     return isValid;
   };
-
+  
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateForm()) {
       onNext();
     }
   };
-
+  
   return (
     <form onSubmit={handleSubmit}>
       <div className="space-y-6">
-        <div className="p-4 bg-solace-light-blue/10 rounded-md mb-4">
-          <p className="text-sm text-solace-blue">
-            Enable and configure built-in agents to extend your system's capabilities.
-          </p>
-        </div>
+        <InfoBox className="mb-4">
+          Enable and configure built-in agents to extend your system's capabilities.
+        </InfoBox>
         
         <div className="space-y-4">
           {builtinAgents.map(agent => (
@@ -273,7 +272,7 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
                         onChange={(e) => handleEnvVarChange(env.key, e.target.value)}
                         placeholder={env.placeholder}
                         required={!!env.required && isAgentEnabled(agent.id)}
-                        autoFocus={agent?.envVars?.indexOf(env) === 0}  // Focuses on first input field of an built in agent
+                        autoFocus={agent?.envVars?.indexOf(env) === 0}
                       />
                     </FormField>
                   ))}
@@ -293,11 +292,10 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
           Previous
         </Button>
         <Button 
-        onClick={handleSubmit}
-        type="submit"
+          type="submit"
         >
           Next
-      </Button>
+        </Button>
       </div>
     </form>
   );

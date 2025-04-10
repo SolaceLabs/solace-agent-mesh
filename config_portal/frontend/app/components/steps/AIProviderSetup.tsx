@@ -5,6 +5,8 @@ import Select from '../ui/Select';
 import Button from '../ui/Button';
 import ConfirmationModal from '../ui/ConfirmationModal';
 import AutocompleteInput from '../ui/AutocompleteInput';
+import { InfoBox, WarningBox } from '../ui/InfoBoxes';
+
 import {
   PROVIDER_ENDPOINTS,
   PROVIDER_MODELS,
@@ -264,12 +266,10 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
   return (
     <form onSubmit={handleSubmit}>
       <div className="space-y-6 ">
-        <div className="p-4 bg-blue-50 rounded-md mb-4">
-          <p className="text-sm text-blue-800">
-            Configure your AI service providers for language models and embeddings.
-            Select a provider from the dropdown or choose "Custom Provider" to use your own endpoint.
-          </p>
-        </div>
+        <InfoBox className="mb-4">
+          Configure your AI service providers for language models and embeddings.
+          Select a provider from the dropdown or choose "Custom Provider" to use your own endpoint.
+        </InfoBox>
         
         <div className="border-b border-gray-200 pb-4 mb-4 ">
           <h3 className="text-lg font-medium mb-4 text-gray-700 font-semibold">Language Model Configuration</h3>
@@ -325,22 +325,18 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
           </FormField>
           
           {data.llm_provider === 'custom' && (
-            <div className="p-4 bg-yellow-50 rounded-md mb-4">
-              <p className="text-sm text-yellow-800">
-                <strong>Important:</strong> For custom providers, you must use the format <code>provider/model-name</code> (e.g., <code>mistral/mistral-tiny</code>)
-                following the <a href="https://docs.litellm.ai/docs/providers" target="_blank" rel="noopener noreferrer" className="underline">litellm documentation</a>.
-              </p>
-            </div>
+            <WarningBox className="mb-4">
+              <strong>Important:</strong> For custom providers, you must use the format <code>provider/model-name</code> (e.g., <code>mistral/mistral-tiny</code>)
+              following the <a href="https://docs.litellm.ai/docs/providers" target="_blank" rel="noopener noreferrer" className="underline">litellm documentation</a>.
+            </WarningBox>
           )}
 
           {data.llm_provider === 'azure' && (
-            <div className="p-4 bg-yellow-50 rounded-md mb-4">
-              <p className="text-sm text-yellow-800">
+            <WarningBox className="mb-4">
               <strong>Important:</strong> For Azure, in the "LLM Model Name" field, enter your <strong>deployment name</strong> (not the underlying model name). 
               Your Azure deployment name is the name you assigned when you deployed the model in Azure OpenAI Service.
               For more details, refer to the <a href="https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model" target="_blank" rel="noopener noreferrer" className="underline">Azure documentation</a>.
-              </p>
-            </div>
+            </WarningBox>
           )}
           <FormField
             label="LLM Model Name"
