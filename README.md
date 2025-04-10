@@ -72,7 +72,7 @@ mkdir my-agent-mesh && cd my-agent-mesh
 solace-agent-mesh init        # Follow the steps in the interactive init
 
 # 4. Build and run the project
-solace-agent-mesh run -b      # Shortcut for `build` + `run`
+solace-agent-mesh run -b      # Shortcut for build + run
 ```
 
 #### Once running:
