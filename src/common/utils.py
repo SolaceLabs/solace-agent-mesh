@@ -279,13 +279,9 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
         language = code_block_match.group(1)
         response = stripped_response.split(f"```{language}", 1)[1]
 
-        # <inst>
-        # Only remove the ``` if it is the first chunk and right at the end of the response
-        # </inst>
-
-        # Only remove the trailing ``` if this is the last chunk
-        # Otherwise we might cut off content in the middle of the response
-        if last_chunk and "```" in response:
+        # Only remove the trailing ``` if it's at the end of the response
+        # This prevents cutting off content in the middle of a response
+        if "```" in response and response.strip().endswith("```"):
             response = response.rsplit("```", 1)[0]
 
     if not tp:
