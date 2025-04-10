@@ -267,16 +267,15 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
         "send_last_status_update": False,
     }
 
-    # <inst>
-    # This parser is receiving LLM output and that output contains XML tags. Sometimes
-    # the LLM puts ```xml around the entire response, so we need to remove that. Note
-    # that we only want to do that if it is at the beginning of the response and then remember
-    # to remove the ``` at the end of the response. Also note that the trailing ``` might be
-    # split across chunks
-    # </inst>
-
+    # Check if the response is wrapped in ```xml tags and remove them
     if not response:
         return parsed_data
+        
+    # Check if the response is wrapped in ```xml tags and remove them
+    if response.lstrip().startswith("```xml"):
+        # Extract content between ```xml and the last ```
+        response = response.lstrip().split("```xml", 1)[1]
+        response = response.rsplit("```", 1)[0]
 
     if not tp:
         # Learn the tag prefix from the response
