@@ -415,9 +415,14 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
 
         elif in_invoke_action and f"<{tp}parameter" in line:
             if current_param_name:
-                current_action["parameters"][current_param_name] = "\n".join(
-                    current_param_value
-                ).strip()
+                param_value = "\n".join(current_param_value).strip()
+                
+                # Remove CDATA wrapper if present
+                cdata_match = re.match(r'\s*<!\[CDATA\[(.*?)\]\]>\s*$', param_value, re.DOTALL)
+                if cdata_match:
+                    param_value = cdata_match.group(1)
+                
+                current_action["parameters"][current_param_name] = param_value
                 current_param_value = []
 
             param_name_match = re.search(r'name\s*=\s*[\'"](\w+)[\'"]', line)
@@ -436,15 +441,16 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
 
                 # Check if parameter closes on same line
                 if f"</{tp}parameter>" in line:
-                    current_action["parameters"][current_param_name] = "\n".join(
-                        current_param_value
-                    ).strip()
+                    param_value = "\n".join(current_param_value).strip()
+                    
+                    # Remove CDATA wrapper if present
+                    cdata_match = re.match(r'\s*<!\[CDATA\[(.*?)\]\]>\s*$', param_value, re.DOTALL)
+                    if cdata_match:
+                        param_value = cdata_match.group(1)
+                    
+                    current_action["parameters"][current_param_name] = param_value
                     current_param_name = None
                     current_param_value = []
-                    # <inst>
-                    # The parameter value might start with \s*<![CDATA[ and end with ]]>
-                    # so we need to remove that if it is there
-                    # </inst>
 
                     if "parameter" in open_tags:
                         open_tags.remove("parameter")
@@ -462,9 +468,14 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                 content_before_close = re.sub(f"</{tp}parameter>.*", "", line)
                 if content_before_close.strip():
                     current_param_value.append(content_before_close.strip())
-                current_action["parameters"][current_param_name] = "\n".join(
-                    current_param_value
-                ).strip()
+                param_value = "\n".join(current_param_value).strip()
+                
+                # Remove CDATA wrapper if present
+                cdata_match = re.match(r'\s*<!\[CDATA\[(.*?)\]\]>\s*$', param_value, re.DOTALL)
+                if cdata_match:
+                    param_value = cdata_match.group(1)
+                
+                current_action["parameters"][current_param_name] = param_value
                 current_param_name = None
                 current_param_value = []
                 if "parameter" in open_tags:
