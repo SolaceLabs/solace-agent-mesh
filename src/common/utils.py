@@ -272,10 +272,15 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
         return parsed_data
         
     # Check if the response is wrapped in ```xml tags and remove them
+    # Only do this for the first chunk (when we see the start of the XML block)
     if response.lstrip().startswith("```xml"):
-        # Extract content between ```xml and the last ```
+        # Extract content after the ```xml
         response = response.lstrip().split("```xml", 1)[1]
-        response = response.rsplit("```", 1)[0]
+        
+        # Only remove the trailing ``` if this is the last chunk
+        # Otherwise we might cut off content in the middle of the response
+        if last_chunk and "```" in response:
+            response = response.rsplit("```", 1)[0]
 
     if not tp:
         # Learn the tag prefix from the response
