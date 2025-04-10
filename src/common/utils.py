@@ -441,6 +441,11 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                     ).strip()
                     current_param_name = None
                     current_param_value = []
+                    # <inst>
+                    # The parameter value might start with \s*<![CDATA[ and end with ]]>
+                    # so we need to remove that if it is there
+                    # </inst>
+
                     if "parameter" in open_tags:
                         open_tags.remove("parameter")
                 elif line.endswith("/>"):
