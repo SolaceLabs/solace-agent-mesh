@@ -416,13 +416,7 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
         elif in_invoke_action and f"<{tp}parameter" in line:
             if current_param_name:
                 param_value = "\n".join(current_param_value).strip()
-                
-                # Remove CDATA wrapper if present
-                cdata_match = re.match(r'\s*<!\[CDATA\[(.*?)\]\]>\s*$', param_value, re.DOTALL)
-                if cdata_match:
-                    param_value = cdata_match.group(1)
-                
-                current_action["parameters"][current_param_name] = param_value
+                current_action["parameters"][current_param_name] = remove_cdata_wrapper(param_value)
                 current_param_value = []
 
             param_name_match = re.search(r'name\s*=\s*[\'"](\w+)[\'"]', line)
@@ -442,13 +436,7 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                 # Check if parameter closes on same line
                 if f"</{tp}parameter>" in line:
                     param_value = "\n".join(current_param_value).strip()
-                    
-                    # Remove CDATA wrapper if present
-                    cdata_match = re.match(r'\s*<!\[CDATA\[(.*?)\]\]>\s*$', param_value, re.DOTALL)
-                    if cdata_match:
-                        param_value = cdata_match.group(1)
-                    
-                    current_action["parameters"][current_param_name] = param_value
+                    current_action["parameters"][current_param_name] = remove_cdata_wrapper(param_value)
                     current_param_name = None
                     current_param_value = []
 
@@ -469,13 +457,7 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                 if content_before_close.strip():
                     current_param_value.append(content_before_close.strip())
                 param_value = "\n".join(current_param_value).strip()
-                
-                # Remove CDATA wrapper if present
-                cdata_match = re.match(r'\s*<!\[CDATA\[(.*?)\]\]>\s*$', param_value, re.DOTALL)
-                if cdata_match:
-                    param_value = cdata_match.group(1)
-                
-                current_action["parameters"][current_param_name] = param_value
+                current_action["parameters"][current_param_name] = remove_cdata_wrapper(param_value)
                 current_param_name = None
                 current_param_value = []
                 if "parameter" in open_tags:
@@ -591,6 +573,22 @@ def match_solace_topic(subscription: str, topic: str) -> bool:
         for i in range(len(sub_levels))
     )
 
+
+def remove_cdata_wrapper(param_value):
+    """
+    Removes CDATA wrapper from a parameter value if present.
+    
+    Parameters:
+    - param_value (str): The parameter value that might contain a CDATA wrapper
+    
+    Returns:
+    - str: The parameter value with CDATA wrapper removed if it was present
+    """
+    if isinstance(param_value, str):
+        cdata_match = re.match(r'\s*<!\[CDATA\[(.*?)\]\]>\s*$', param_value, re.DOTALL)
+        if cdata_match:
+            return cdata_match.group(1)
+    return param_value
 
 def clean_text(text_array):
     # Any leading blank lines are removed
