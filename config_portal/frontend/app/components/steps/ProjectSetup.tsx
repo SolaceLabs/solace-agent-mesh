@@ -48,7 +48,6 @@ export default function ProjectSetup({ data, updateData, onNext, onPrevious }: P
         <Button 
           onClick={onPrevious}
           variant="outline"
-          disabled={true}
         >
           Previous
         </Button>

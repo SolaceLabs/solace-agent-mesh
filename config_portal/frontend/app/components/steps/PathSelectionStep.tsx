@@ -110,11 +110,6 @@ export default function PathSelectionStep({ data, updateData, onNext, onPrevious
 
   return (
     <div className="space-y-6">
-      <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold text-solace-blue mb-2">Choose Your Setup Path</h2>
-        <p className="text-gray-600">Select the setup option that best fits your needs</p>
-      </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {(Object.keys(pathOptions) as PathType[]).map((pathType) => (
           <PathOptionCard

@@ -204,7 +204,7 @@ export default function InitializationFlow() {
   const StepComponent = currentStep.component;
   
   // Only show step indicator after path selection
-  const showStepIndicator = currentStepIndex > 0 || setupPath !== null;
+  const showStepIndicator = currentStepIndex > 0;
   
   return (
     <div className="max-w-4xl mx-auto p-6">

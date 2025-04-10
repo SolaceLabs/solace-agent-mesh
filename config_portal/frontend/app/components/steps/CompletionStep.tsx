@@ -357,22 +357,12 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
 
       {!isSubmitted ? (
         <form onSubmit={onSubmit}>
-          <div className="p-6 bg-solace-light-blue/10 rounded-md mb-4">
-            <h3 className="text-xl font-bold text-solace-blue mb-3">
-              Review Your Configuration
-            </h3>
-            <p className="text-gray-700 mb-4">
-              Review your configuration below. When you're ready, click the
-              &quot;Initialize Project&quot; button to complete the setup.
-            </p>
-
             {/* Configuration Summary */}
             <div className="bg-white border border-gray-200 rounded-md p-4 space-y-4">
               {Object.entries(CONFIG_GROUPS).map(([groupName, keys]) =>
                 renderGroup(groupName, keys)
               )}
             </div>
-          </div>
 
           {submitError && (
             <div className="p-4 bg-red-50 text-red-700 rounded-md border border-red-200">
