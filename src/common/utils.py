@@ -270,16 +270,15 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
     if not response:
         return parsed_data
 
-    # <inst>
-    # Change this check to remove any ```\w+``` tags that are around the response
-    # </inst>
-
-    # Check if the response is wrapped in ```xml tags and remove them
-    # Only do this for the first chunk (when we see the start of the XML block)
-    if response.lstrip().startswith("```xml"):
-        # Extract content after the ```xml
-        response = response.lstrip().split("```xml", 1)[1]
-
+    # Check if the response is wrapped in ```language tags and remove them
+    # Only do this for the first chunk (when we see the start of the code block)
+    stripped_response = response.lstrip()
+    code_block_match = re.match(r'^```(\w*)', stripped_response)
+    if code_block_match:
+        # Extract content after the ```language
+        language = code_block_match.group(1)
+        response = stripped_response.split(f"```{language}", 1)[1]
+        
         # Only remove the trailing ``` if this is the last chunk
         # Otherwise we might cut off content in the middle of the response
         if last_chunk and "```" in response:
