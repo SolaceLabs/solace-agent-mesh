@@ -267,6 +267,14 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
         "send_last_status_update": False,
     }
 
+    # <inst>
+    # This parser is receiving LLM output and that output contains XML tags. Sometimes
+    # the LLM puts ```xml around the entire response, so we need to remove that. Note
+    # that we only want to do that if it is at the beginning of the response and then remember
+    # to remove the ``` at the end of the response. Also note that the trailing ``` might be
+    # split across chunks
+    # </inst>
+
     if not response:
         return parsed_data
 
