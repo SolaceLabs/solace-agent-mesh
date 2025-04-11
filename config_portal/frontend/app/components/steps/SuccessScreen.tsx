@@ -34,7 +34,7 @@ export default function SuccessScreen() {
             To start Solace Agent Mesh directly, you can run:
           </p>
           <div className="bg-gray-800 text-gray-200 p-3 rounded font-mono text-sm mb-4">
-            $ solace-agent-mesh run -eb
+            $ solace-agent-mesh run -b
           </div>
           <p className="mb-4">
             To get started adding components, use the{' '}
