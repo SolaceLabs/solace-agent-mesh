@@ -81,7 +81,8 @@ def init_command(options={}):
 
                 #if web configuration portal is used, skip the steps that are already done
                 #TODO REMOVE PRINT
-                print(options)
+                # print(options)
+                # print(config_from_portal)
                 steps_if_web_setup_used = [
                     ("", create_config_file_step),
                     ("", create_other_project_files_step),

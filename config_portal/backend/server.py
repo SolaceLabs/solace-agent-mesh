@@ -1,5 +1,5 @@
 import sys
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory, send_file
 from flask_cors import CORS
 import os
 import sys
@@ -202,6 +202,26 @@ def create_app(shared_config=None):
         os._exit(0) 
         return response
         
+
+
+    @app.route("/assets/<path:path>")
+    def serve_assets(path):
+        return send_from_directory("../frontend/static/client/assets", path)
+
+    @app.route("/static/client/<path:path>")
+    def serve_client_files(path):
+        return send_from_directory("../frontend/static/client", path)
+
+    @app.route("/", defaults={"path": ""})
+    def serve(path):
+        return send_file("../frontend/static/client/index.html")
+
+    @app.route("/<path:path>")
+    def serve_files(path):
+        if path.endswith(('.png', '.jpg', '.jpeg', '.gif', '.ico')):
+            return send_from_directory("../frontend/static/client", path)
+        return send_file("../frontend/static/client/index.html")
+    
     return app
 
 def run_flask(host="127.0.0.1", port=5002, shared_config=None):
