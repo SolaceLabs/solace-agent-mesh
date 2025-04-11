@@ -293,6 +293,15 @@ The assistant's behavior aligns with the system purpose specified below:
 {examples}
 </examples>
 
+Do not surround XML directives with ```xml or any other code block:
+<negative-example>
+```xml
+<{tp}reasoning>
+....
+</{tp}reasoning>
+```
+</negative-example>
+
 <stimulus_originator_metadata>
 {info["originator_info_yaml"]}
 </stimulus_originator_metadata>
