@@ -9,6 +9,7 @@
 # The specific subscriptions are:
 # - <namespace>/solace-agent-mesh/v1/stimulus/async-service/create-task-group/>
 # - <namespace>/solace-agent-mesh/v1/stimulus/async-service/user-response/>
+# - <namespace>/solace-agent-mesh/v1/stimulus/async-service/get-pending-forms/>
 
 ---
 log:
@@ -41,6 +42,8 @@ flows:
             - topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/stimulus/async-service/create-task-group/>
               qos: 1
             - topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/stimulus/async-service/user-response/>
+              qos: 1
+            - topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/stimulus/async-service/get-pending-forms/>
               qos: 1
 
       - component_name: async_service_component

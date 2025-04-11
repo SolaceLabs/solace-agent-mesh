@@ -181,90 +181,93 @@ class GatewayOutput(GatewayBase):
             else ""
         )
 
-        if self.use_history and session_id:
-            other_history_props = {
-                "identity": identity_value,
-            }
+        event_type = data.get("event_type", "")
 
-            topic = message.get_topic()
-            content = data.get("text") or ""
-
-            file_text_blocks = files_to_block_text(files)
-            if file_text_blocks:
-                content += file_text_blocks
-
-            if (
-                "/streamingResponse/" in topic
-                and data.get("last_chunk")
-                and "text" in data
-            ):
-                actions_called = user_properties.get("actions_called", [])
-                if actions_called:
-                    self.history_instance.store_actions(session_id, actions_called)
-                
-                if content:
-                    self.history_instance.store_history(
-                        session_id, HISTORY_ASSISTANT_ROLE, content, other_history_props
-                    )
-
-            for file in files:
-                self.history_instance.store_history(
-                    session_id, HISTORY_ASSISTANT_ROLE, f'\n[Returned file: {{name: {file.get("name")}, url: {file.get("url")}}}]\n', other_history_props
-                )
-                self.history_instance.store_file(session_id, file)
-
-            clear_history_tuple = user_properties.get("clear_gateway_history", [])
-            if clear_history_tuple and clear_history_tuple[0]:
-                keep_depth = clear_history_tuple[1]
-                self.history_instance.clear_history(session_id, keep_depth)
-
-        if files:
-            downloaded_files = []
-            for file in files:
-                output_file = {
-                    "name": file.get("name"),
+        if event_type != "get_pending_forms_response":
+            if self.use_history and session_id:
+                other_history_props = {
+                    "identity": identity_value,
                 }
-                # inline file
-                if file.get("data"):
-                    data_content = file_service.resolve_all_resolvable_urls(
-                        file.get("data"), session_id
-                    )
-                    inline_data = base64.b64encode(data_content.encode()).decode()
-                    output_file["content"] = inline_data
-                    output_file["mime_type"] = file.get("mime_type", "text/plain")
-                elif file.get("url"):
-                    url = file.get("url")
-                    try:
-                        resolved_content = file_service.resolve_url(url, session_id)
-                        buffer_content = (
-                            resolved_content
-                            if type(resolved_content) == bytes
-                            else resolved_content.encode()
+
+                topic = message.get_topic()
+                content = data.get("text") or ""
+
+                file_text_blocks = files_to_block_text(files)
+                if file_text_blocks:
+                    content += file_text_blocks
+
+                if (
+                    "/streamingResponse/" in topic
+                    and data.get("last_chunk")
+                    and "text" in data
+                ):
+                    actions_called = user_properties.get("actions_called", [])
+                    if actions_called:
+                        self.history_instance.store_actions(session_id, actions_called)
+                    
+                    if content:
+                        self.history_instance.store_history(
+                            session_id, HISTORY_ASSISTANT_ROLE, content, other_history_props
                         )
-                        output_file["content"] = base64.b64encode(
-                            buffer_content
-                        ).decode("utf-8")
 
-                        # If the file name or mime type is not provided, try to get it from the resolved URL
-                        if not output_file.get("name") or not output_file.get(
-                            "mime_type"
-                        ):
-                            metadata = file_service.get_metadata(url)
-                            output_file["name"] = output_file.get(
-                                "name"
-                            ) or metadata.get("name")
-                            output_file["mime_type"] = output_file.get(
+                for file in files:
+                    self.history_instance.store_history(
+                        session_id, HISTORY_ASSISTANT_ROLE, f'\n[Returned file: {{name: {file.get("name")}, url: {file.get("url")}}}]\n', other_history_props
+                    )
+                    self.history_instance.store_file(session_id, file)
+
+                clear_history_tuple = user_properties.get("clear_gateway_history", [])
+                if clear_history_tuple and clear_history_tuple[0]:
+                    keep_depth = clear_history_tuple[1]
+                    self.history_instance.clear_history(session_id, keep_depth)
+
+            if files:
+                downloaded_files = []
+                for file in files:
+                    output_file = {
+                        "name": file.get("name"),
+                    }
+                    # inline file
+                    if file.get("data"):
+                        data_content = file_service.resolve_all_resolvable_urls(
+                            file.get("data"), session_id
+                        )
+                        inline_data = base64.b64encode(data_content.encode()).decode()
+                        output_file["content"] = inline_data
+                        output_file["mime_type"] = file.get("mime_type", "text/plain")
+                    elif file.get("url"):
+                        url = file.get("url")
+                        try:
+                            resolved_content = file_service.resolve_url(url, session_id)
+                            buffer_content = (
+                                resolved_content
+                                if type(resolved_content) == bytes
+                                else resolved_content.encode()
+                            )
+                            output_file["content"] = base64.b64encode(
+                                buffer_content
+                            ).decode("utf-8")
+
+                            # If the file name or mime type is not provided, try to get it from the resolved URL
+                            if not output_file.get("name") or not output_file.get(
                                 "mime_type"
-                            ) or metadata.get("mime_type")
-                    except Exception as e:
-                        log.error(f"Failed to download file {file.get('name')}: {e}")
+                            ):
+                                metadata = file_service.get_metadata(url)
+                                output_file["name"] = output_file.get(
+                                    "name"
+                                ) or metadata.get("name")
+                                output_file["mime_type"] = output_file.get(
+                                    "mime_type"
+                                ) or metadata.get("mime_type")
+                        except Exception as e:
+                            log.error(f"Failed to download file {file.get('name')}: {e}")
+                            continue
+                    else:
+                        log.error(f"No file content found for {file.get('name')}")
                         continue
-                else:
-                    log.error(f"No file content found for {file.get('name')}")
-                    continue
-                downloaded_files.append(output_file)
+                    downloaded_files.append(output_file)
 
-            data["files"] = downloaded_files
+                data["files"] = downloaded_files
         data["server_input_id"] = server_input_id
 
         # Promote the interface properties back to the top level of the user_properties

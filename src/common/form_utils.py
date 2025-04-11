@@ -141,7 +141,10 @@ def create_approval_form(
             "enum": ["approve", "deny"],
             "enumNames": [approve_label, deny_label],
         },
- #       "comment": None  # Empty field to be filled by user
+        "comment": {
+            "type": "string",
+            "title": comment_label,
+        }
     }
     
     # Combine with additional fields if provided
@@ -152,17 +155,17 @@ def create_approval_form(
     
     # Define required fields
     required_fields = ["decision"]
-    # if require_comment:
-    #     required_fields.append("comment")
+    if require_comment:
+        required_fields.append("comment")
     
     # Define base UI schema
     base_ui_schema = {
         "decision": {
             "ui:widget": "radio"
         },
-        # "comment": {
-        #     "ui:widget": "textarea"
-        # }
+        "comment": {
+            "ui:widget": "textarea"
+        }
     }
     
     # Combine with additional UI schema if provided

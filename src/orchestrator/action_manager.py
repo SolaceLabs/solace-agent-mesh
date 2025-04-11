@@ -31,7 +31,6 @@ class ActionManager:
             cls._instance = super(ActionManager, cls).__new__(cls)
             cls._instance._initialized = False
         return cls._instance
-        return instance
 
     def __init__(self, kv_store, lock_manager):
         # Only initialize once
@@ -104,7 +103,11 @@ class ActionManager:
                 )
                 return None
 
-            action_list.add_response(action_response_obj, response_text_and_files)
+            is_complete = action_list.add_response(action_response_obj, response_text_and_files)
+            
+            # If all actions are complete, remove the action list from the dictionary
+            if is_complete:
+                del self.action_requests[action_list_id]
 
         return action_list
 

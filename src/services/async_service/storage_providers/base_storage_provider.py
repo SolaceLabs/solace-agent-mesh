@@ -52,7 +52,7 @@ class BaseStorageProvider(ABC):
         status: str,
         user_response: Optional[Dict],
         originator: Dict = None,  # Add originator parameter
-        requester_list: List[Dict] = None,  # Add requester_list parameter
+        approver_list: List[Dict] = None,  # Add approver_list parameter
     ) -> None:
         """Create a task."""
         pass
@@ -75,4 +75,9 @@ class BaseStorageProvider(ABC):
     @abstractmethod
     def get_pending_tasks(self) -> List[Dict]:
         """Get all pending tasks."""
+        pass
+        
+    @abstractmethod
+    def get_pending_tasks_by_gateway_id(self, gateway_id: str) -> List[Dict]:
+        """Get all pending tasks for a specific gateway_id."""
         pass

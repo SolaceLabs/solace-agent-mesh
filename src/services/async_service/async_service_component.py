@@ -66,11 +66,22 @@ info = {
             "stimulus_uuid": {"type": "string"},
             "session_id": {"type": "string"},
             "gateway_id": {"type": "string"},
+            "identity": {"type": "string"},
             "stimulus_state": {"type": "array"},
             "agent_responses": {"type": "array"},
             "async_responses": {"type": "array"},
         },
         "required": ["event_type"],
+        "allOf": [
+            {
+                "if": {
+                    "properties": {"event_type": {"enum": ["get_pending_forms"]}}
+                },
+                "then": {
+                    "required": ["gateway_id", "identity"]
+                }
+            }
+        ]
     },
     "output_schema": {
         "type": "array",
@@ -131,8 +142,10 @@ class AsyncServiceComponent(ComponentBase):
         
         if event_type == "create_task_group":
             return self.handle_create_task_group(message, data)  # Pass message parameter
-        elif event_type == "user_response":
+        elif event_type == "post_user_form":
             return self.handle_user_response(data)
+        elif event_type == "get_pending_forms":
+            return self.handle_get_pending_forms(message, data)  # New handler
         else:
             log.error(f"Unknown event type: {event_type}")
             self.discard_current_message()
@@ -157,13 +170,13 @@ class AsyncServiceComponent(ComponentBase):
         interface_properties = message.user_properties.get("interface_properties", {})
         identity = message.user_properties.get("identity", {})
         
-        # Create originator and requester_list
+        # Create originator and approver_list
         originator = {
             "interface_properties": interface_properties,
             "identity": identity
         }
         
-        requester_list = [originator]
+        approver_list = [originator]
         
         # Get the original user properties from the message
         user_properties = message.get_user_properties() or {}
@@ -190,7 +203,7 @@ class AsyncServiceComponent(ComponentBase):
                 status="pending",
                 user_response=None,
                 originator=originator,  # Add originator
-                requester_list=requester_list  # Add requester_list
+                approver_list=approver_list  # Add approver_list
             )
             
             # Extract user_form from async_response
@@ -304,8 +317,21 @@ class AsyncServiceComponent(ComponentBase):
                         "task_id": task_id,
                     }
             
-            # Create event to send back to orchestrator
+            # Create 2 events:
+            # 1. Send response to gateway to update the status that processing has resumed
+            # 2. Send response to orchestrator with all user responses
+            gateway_id = task_group["gateway_id"]
             events = [{
+                    "payload": {
+                        "status_update": True,
+                        "streaming": True,
+                        "text": "Request processing resumed.",
+                    },
+                    "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/streamingResponse/orchestrator/{gateway_id}",
+                    "user_properties": original_user_properties,  # Include the original user properties
+
+                },
+                {
                 "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/async/orchestrator/async-response",
                 "payload": {
                     "stimulus_uuid": task_group["stimulus_uuid"],
@@ -325,6 +351,69 @@ class AsyncServiceComponent(ComponentBase):
         # Not all tasks are completed yet
         self.discard_current_message()
         return None
+        
+    def handle_get_pending_forms(self, message, data):
+        """Handle get pending forms event"""
+        
+        user_properties = message.get_user_properties() or {}
+        gateway_id = user_properties.get("gateway_id", None)
+        identity = user_properties.get("identity", None)
+        
+        if not gateway_id:
+            log.error("Missing required field 'gateway_id' for get_pending_forms")
+            self.discard_current_message()
+            return None
+            
+        if not identity:
+            log.error("Missing required field 'identity' for get_pending_forms")
+            self.discard_current_message()
+            return None
+        
+        # Get all pending tasks for the gateway_id
+        pending_tasks = self.storage_provider.get_pending_tasks_by_gateway_id(gateway_id)
+        
+        # Format the response, filtering by identity
+        pending_forms = []
+        for task in pending_tasks:
+            # Check if the identity matches any identity in the approver_list
+            approver_list = task.get("approver_list", [])
+            identity_match = False
+            
+            for approver in approver_list:
+                if approver.get("identity") == identity:
+                    identity_match = True
+                    break
+            
+            # Only include tasks where the identity matches
+            if identity_match:
+                # Extract the user_form from the async_response
+                async_response = task.get("async_response", {})
+                user_form = async_response.get("response", {}).get("user_form")
+                
+                if user_form:
+                    pending_forms.append({
+                        "task_id": task.get("task_id"),
+                        "session_id": task.get("session_id"),
+                        "stimulus_uuid": task.get("stimulus_uuid"),
+                        "user_form": user_form
+                    })
+        
+        # Get the original user properties from the message
+        user_properties = message.get_user_properties() or {}
+        
+        # Create the event to send back
+        event = {
+            "topic": f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/formsResponse/async-service/{gateway_id}",
+            "payload": {
+                "event_type": "get_pending_forms_response",
+                "pending_forms": pending_forms
+            },
+            "user_properties": user_properties
+        }
+        
+        log.info(f"Sending {len(pending_forms)} pending forms for gateway {gateway_id} and identity {identity}")
+        
+        return [event]
     
     def start_timeout_checker(self):
         """Start timeout checker"""

@@ -1,6 +1,7 @@
 from typing import Dict, Any
 import base64
 import json
+import os
 from uuid import uuid4
 
 from solace_ai_connector.common.message import Message
@@ -149,23 +150,8 @@ class GatewayInput(GatewayBase):
 
         errors = []
         available_files = []
-        
-        # Check if this is a user form submission
-        form_data = data.get("form_data")
-        task_id = data.get("task_id")
-        
-        if form_data and isinstance(form_data, dict) and len(form_data) > 0 and task_id:
-            # This is a user form submission
-            # Add task_id to user properties
-            user_properties["task_id"] = task_id
-            
-            # Create the payload for the async service
-            copied_data["event_type"] = "user_response"
-            copied_data["task_id"] = task_id
-            copied_data["user_response"] = form_data
-            
-            log.info(f"Processing user form submission with task_id: {task_id}")
 
+        topic = f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/stimulus/gateway/gateway_input/{self.gateway_id}"
         try:
             if not self._authenticate_user(user_properties):
                 log.error("User authentication failed")
@@ -181,71 +167,98 @@ class GatewayInput(GatewayBase):
             user_info = self.identity_component.get_user_info(identity_value)
 
             session_id = user_properties.get("session_id")
-
-            # De-clutter the data and user_properties by moving some properties to a nested sub-object
-            top_level_data_properties = {"text", "files", "task_id", "form_data", "event_type"}
-            self.demote_interface_properties(copied_data, top_level_data_properties)
-
-            top_level_user_properties = {
-                "input_type",
-                "session_id",
-            }
-            self.demote_interface_properties(user_properties, top_level_user_properties)
-
-            prompt = data.get("text", "")
-            files = data.get("files", [])
-
-            attached_files = []
-            if len(files) > 0:
-                file_service = FileService()
-                for file in files:
-                    content = file["content"]
-                    if type(content) == str:
-                        try:
-                            byte_buffer = base64.b64decode(content)
-                        except Exception as e:
-                            byte_buffer = content.encode("utf-8")
-                    elif type(content) == bytes:
-                        byte_buffer = content
-                    else:
-                        log.error(
-                            "Invalid content type for file %s: %s",
-                            file["name"],
-                            type(content),
-                        )
-                        continue
-
-                    file_metadata = file_service.upload_from_buffer(
-                        byte_buffer,
-                        file["name"],
-                        session_id,
-                        file_size=file["size"],
-                        data_source=f"User provided file - {self.gateway_id} Gateway",
-                    )
-                    attached_files.append(file_metadata)
-            copied_data["files"] = attached_files
-
-            copied_data["history"] = []
-            if self.use_history:
-                other_history_props = {
-                    "identity": identity_value,
-                }
-                prompt = data.get("text", "")
-                self.history_instance.store_history(session_id, HISTORY_USER_ROLE, prompt, other_history_props)
-
-                for file in attached_files:
-                    self.history_instance.store_file(session_id, file )
-
-                # retrieve all files for the session
-                available_files = self.history_instance.get_files(session_id)
-
-                # Add history to the data
-                copied_data["history"] = self.history_instance.get_history(session_id, other_history_props)
-
-            available_files = json.dumps(available_files)
         except Exception as e:
-            log.error("Error processing input: %s", e)
+            log.error("Authentication error: %s", e)
             errors.append(str(e))
+
+        event_type = data.get("event_type", "user_input")
+
+        if event_type == "post_user_form":
+        #if form_data and isinstance(form_data, dict) and len(form_data) > 0 and task_id:
+            form_data = data.get("form_data")
+            task_id = data.get("task_id")
+
+            user_properties["task_id"] = task_id
+            
+            # Create the payload for the async service
+            copied_data["event_type"] = "post_user_form"
+            copied_data["task_id"] = task_id
+            copied_data["user_response"] = form_data
+            
+            topic = f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/stimulus/async-service/user-response/{self.gateway_id}"
+
+            log.info(f"Processing user form submission with task_id: {task_id}")
+
+        # Check if this is a form request
+        elif event_type == "get_pending_forms":
+            topic = f"{os.getenv('SOLACE_AGENT_MESH_NAMESPACE')}solace-agent-mesh/v1/stimulus/async-service/get-pending-forms/{self.gateway_id}"
+        else:
+            try:
+
+                # De-clutter the data and user_properties by moving some properties to a nested sub-object
+                top_level_data_properties = {"text", "files", "task_id", "form_data", "event_type"}
+                self.demote_interface_properties(copied_data, top_level_data_properties)
+
+                prompt = data.get("text", "")
+                files = data.get("files", [])
+
+                attached_files = []
+                if len(files) > 0:
+                    file_service = FileService()
+                    for file in files:
+                        content = file["content"]
+                        if type(content) == str:
+                            try:
+                                byte_buffer = base64.b64decode(content)
+                            except Exception as e:
+                                byte_buffer = content.encode("utf-8")
+                        elif type(content) == bytes:
+                            byte_buffer = content
+                        else:
+                            log.error(
+                                "Invalid content type for file %s: %s",
+                                file["name"],
+                                type(content),
+                            )
+                            continue
+
+                        file_metadata = file_service.upload_from_buffer(
+                            byte_buffer,
+                            file["name"],
+                            session_id,
+                            file_size=file["size"],
+                            data_source=f"User provided file - {self.gateway_id} Gateway",
+                        )
+                        attached_files.append(file_metadata)
+                copied_data["files"] = attached_files
+
+                copied_data["history"] = []
+                if self.use_history:
+                    other_history_props = {
+                        "identity": identity_value,
+                    }
+                    prompt = data.get("text", "")
+                    self.history_instance.store_history(session_id, HISTORY_USER_ROLE, prompt, other_history_props)
+
+                    for file in attached_files:
+                        self.history_instance.store_file(session_id, file )
+
+                    # retrieve all files for the session
+                    available_files = self.history_instance.get_files(session_id)
+
+                    # Add history to the data
+                    copied_data["history"] = self.history_instance.get_history(session_id, other_history_props)
+
+                available_files = json.dumps(available_files)
+            except Exception as e:
+                log.error("Error processing input: %s", e)
+                errors.append(str(e))
+
+        top_level_user_properties = {
+            "input_type",
+            "session_id",
+        }
+        self.demote_interface_properties(user_properties, top_level_user_properties)
 
         stimulus_uuid = self.gateway_id + str(uuid4())
 
@@ -269,7 +282,7 @@ class GatewayInput(GatewayBase):
         message.set_user_properties(user_properties)
         message.set_payload(copied_data)
 
-        return copied_data
+        return {"payload": copied_data, "topic": topic, "user_properties": user_properties}
 
     def demote_interface_properties(
         self, dict_properties: Dict[str, Any], top_level_properties: set

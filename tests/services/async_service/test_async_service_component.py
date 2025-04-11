@@ -38,8 +38,13 @@ class TestAsyncServiceComponent(unittest.TestCase):
             ],
         }
 
-        # Call the method
-        result = self.component.handle_create_task_group(data)
+        # Create a mock message with necessary properties
+        mock_message = MagicMock()
+        mock_message.user_properties = {"interface_properties": {}, "identity": "test-identity"}
+        mock_message.get_user_properties = MagicMock(return_value={})
+        
+        # Call the method with both message and data parameters
+        result = self.component.handle_create_task_group(mock_message, data)
 
         # Check the result
         self.assertIsNone(result)
@@ -112,7 +117,7 @@ class TestAsyncServiceComponent(unittest.TestCase):
         # Create test data
         data = {
             "task_id": task_id,
-            "user_response": {"decision": "approve", "comment": "Looks good!"},
+            "form_data": {"decision": "approve", "comment": "Looks good!"},
         }
 
         # Call the method
@@ -121,10 +126,10 @@ class TestAsyncServiceComponent(unittest.TestCase):
 
         # Check the result
         self.assertIsNotNone(result)
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["payload"]["stimulus_uuid"], "test-uuid")
-        self.assertEqual(result[0]["payload"]["session_id"], "test-session")
-        self.assertEqual(result[0]["payload"]["gateway_id"], "test-gateway")
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[1]["payload"]["stimulus_uuid"], "test-uuid")
+        self.assertEqual(result[1]["payload"]["session_id"], "test-session")
+        self.assertEqual(result[1]["payload"]["gateway_id"], "test-gateway")
         
         # Check that the task was updated
         task = self.component.storage_provider.get_task(task_id)

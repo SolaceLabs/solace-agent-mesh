@@ -23,24 +23,6 @@
           payload_encoding: utf-8
           payload_format: json
           copy_user_properties: true
-        input_transforms:
-          - type: copy
-            source_expression: previous
-            dest_expression: user_data.output:payload
-          - type: copy
-            source_expression:
-              invoke:
-                module: invoke_functions
-                function: if_else
-                params:
-                  positional:
-                    # Check if form_data exists (not null)
-                    - source_expression(previous:form_data)
-                    - source_expression(template:${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/stimulus/async-service/user-response/{{text://input.user_properties:gateway_id}})
-                    - source_expression(template:${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/stimulus/gateway/gateway_input/{{GATEWAY_ID}})
-            dest_expression: user_data.output:topic
-        component_input:
-          source_expression: user_data.output
 
   # Solace output Gateway
   - name: gateway_output_flow
@@ -59,6 +41,8 @@
             - topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/responseComplete/orchestrator/{{GATEWAY_ID}}
               qos: 1
             - topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/userRequest/async-service/{{GATEWAY_ID}}
+              qos: 1
+            - topic: ${SOLACE_AGENT_MESH_NAMESPACE}solace-agent-mesh/v1/formsResponse/async-service/{{GATEWAY_ID}}
               qos: 1
           payload_encoding: utf-8
           payload_format: json
