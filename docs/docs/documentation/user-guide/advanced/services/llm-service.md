@@ -5,16 +5,16 @@ sidebar_position: 30
 
 # LLM Service
 
-The LLM (Large Language Model) service is a global service that acts as an abstraction layer between the LLM configurations and models and the user.
+The LLM (Large Language Model) service is a global service that acts as an abstraction layer between the LLM configurations/models and the user.
 
-
-The LLM service runs as an independent centralized service which provides LLM access to the [orchestrator](../../../concepts/orchestrator.md) and [agents](../../../concepts/agents.md) in Solace Agent Mesh through the PubSub+ event broker.
+The LLM service runs as an independent centralized service that provides LLM access to the [orchestrator](../../../concepts/orchestrator.md) and [agents](../../../concepts/agents.md) in Solace Agent Mesh through the PubSub+ event broker.
 
 ## Usage
 
 The LLM service allows users to call the model based on category and not the model names.
 
 For example, instead of a component calling a specific model like `openai/gpt-4o`, they can choose from one of the following categories:
+
 - planning
 - reasoning-expensive
 - reasoning-normal
@@ -25,7 +25,7 @@ For example, instead of a component calling a specific model like `openai/gpt-4o
 
 Each one of these values corresponds to a specific model and configuration.
 
-To simplify the usage of the LLM service, by default configuration all categories are mapped to the same model. This can be changed in the configuration file. For more information, see [Custom Configuration](#custom-configuration).
+To simplify usage, the default configuration maps all categories to the same model. This can be changed in the configuration file. For more information, see [Custom Configuration](#custom-configuration).
 
 ### Usage in Agents
 
@@ -79,7 +79,7 @@ from solace_agent_mesh.services.llm_service.components.llm_service_component_bas
 Then, you can use the `do_llm_service_request` method provided by the `LLMServiceComponentBase` class to send a request to the LLM service.
 
 ## Custom Configuration
-8
+
 The LLM service configuration file can be found in your build directory under `configs/service_llm.yaml`.
 
 To use multiple models or different configurations, duplicate the flow, and apply changes as needed.

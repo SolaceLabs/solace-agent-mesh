@@ -3,7 +3,6 @@ title: Introduction
 sidebar_position: 10
 ---
 
-
 # Introduction
 
 Modern AI development faces a fundamental challenge: while powerful AI models are readily available, the real complexity lies in connecting them to the data and systems where they can provide value. Data exists in isolated silos - spread across databases, SaaS platforms, APIs, and legacy systems - making it difficult to build AI applications that can work across these boundaries.
@@ -17,7 +16,7 @@ Solace Agent Mesh (SAM) is an open-source framework that tackles this challenge 
 
 Rather than trying to be a monolithic AI platform, SAM focuses on being an excellent integration layer. It brings together specialized agents - whether they're using local databases, accessing cloud APIs, or interfacing with enterprise systems - and helps them collaborate to solve complex problems.
 
-Built on event-driven architecture technology from Solace, SAM provides robust foundation needed for both experimental and production deployments.
+Built on event-driven architecture technology from Solace, SAM provides the robust foundation needed for both experimental and production deployments.
 
 ![Solace Agent Mesh Overview](../../../static/img/Solace_AI_Framework_With_Broker.png)
 
@@ -30,10 +29,9 @@ Building production-ready AI applications presents unique challenges. While it's
 - **Addition of agents to increase capabilities**: Each new agent adds more capabilities to the system. Adding a new agent isn't additive - it is exponential. With each agent being able to enhance all other agents as they collaborate for more and more complex tasks.
 
 - **Addition of gateways to increase the supported use cases**: Each new gateway opens up new use cases for the system. A new gateway can provide a new interface to the system, with a different system purpose and response rules.
-  
 - **Event-driven design**: Built on proven event-driven architecture principles, providing complete decoupling of components. This makes the system highly flexible and resilient, while enabling real-time monitoring of every interaction.
 
-- **Enterprise-ready**: Designed from the ground up for production deployments that incorporates the experience from Solace in building mission-critical distributed systems.
+- **Enterprise-ready**: Engineered from the ground up for production deployment, this solution leverages expertise from Solace in building mission-critical distributed systems.
 
 ## Real-World Applications
 
@@ -68,4 +66,3 @@ Whether you're building a proof-of-concept or planning a production deployment, 
 - [Installation](./installation.md): For installing and setting up Solace Agent Mesh.
 - [Quick Start](./quick-start.md): For creating a project, build, and run Solace Agent Mesh.
 - [Components Overview](./component-overview.md): Understand the parts of Solace Agent Mesh.
-

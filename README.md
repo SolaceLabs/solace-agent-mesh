@@ -82,14 +82,14 @@ To get started with Solace Agent Mesh, follow these steps:
 4. **Run the Project**:
 
    ```sh
-   solace-agent-mesh run -e
+   solace-agent-mesh run
    ```
 
-   _(Use `-eb` to combine build and run steps.)_
+   _(Use `-b` to combine build and run steps.)_
 
 5. **Connect to the Web Interface**:
 
-   Open the web interface at [http://127.0.0.1:5001](http://127.0.0.1:5001) or with the port specified during `init`.
+   Open the web interface at [http://localhost:5001](http://localhost:5001) or with the port specified during `init`.
 
 6. **Send a REST Request**:
 

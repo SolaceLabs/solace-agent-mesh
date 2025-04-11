@@ -50,7 +50,7 @@ flows:
         component_base_path: .
         component_module: src.orchestrator.components.orchestrator_register_component
         component_config:
-          agent_ttl_ms: 60000000
+          agent_ttl_ms: 60000
         component_input:
           source_expression: input.payload
 

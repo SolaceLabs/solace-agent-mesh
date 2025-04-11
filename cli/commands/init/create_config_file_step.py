@@ -21,6 +21,14 @@ def create_config_file_step(options, default_options, none_interactive, abort):
     builtin_agents = options.get("built_in_agent", [])
     for agent in builtin_agents_ref:
         agent["enabled"] = agent["name"] in builtin_agents or agent["name"] == "global"
+        
+    # Set up the built-in services
+    builtin_services_ref = (
+        sam_config.get("solace_agent_mesh", {}).get("built_in", {}).get("services", [])
+    )
+    for service in builtin_services_ref:
+        if service["name"] == "embedding":
+            service["enabled"] = options.get("embedding_service_enabled", False)
 
     # Set up the project structure
     sam_config.get("solace_agent_mesh", {})["config_directory"] = options.get("config_dir")

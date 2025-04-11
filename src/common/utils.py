@@ -324,6 +324,7 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
     current_param_value = []
     open_tags = []
     current_text = []
+    seen_invoke_action = False
 
     for line in response.split("\n"):
 
@@ -350,7 +351,8 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                 file_line = line[: file_end_index + len(f"</{tp}file>")]
                 file_content = [file_line]
                 current_file = parse_file_content("\n".join(file_content))
-                add_content_entry(parsed_data["content"], "file", current_file)
+                if not seen_invoke_action:
+                    add_content_entry(parsed_data["content"], "file", current_file)
                 in_file = False
                 current_file = {}
                 file_content = []
@@ -368,7 +370,8 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                 file_line = line[: file_end_index + len(f"</{tp}file>")]
                 file_content.append(file_line)
                 current_file = parse_file_content("\n".join(file_content))
-                add_content_entry(parsed_data["content"], "file", current_file)
+                if not seen_invoke_action:
+                    add_content_entry(parsed_data["content"], "file", current_file)
                 in_file = False
                 current_file = {}
                 file_content = []
@@ -381,6 +384,7 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
             if in_invoke_action:
                 parsed_data["errors"].append("Nested <invoke_action> tags")
             in_invoke_action = True
+            seen_invoke_action = True
             open_tags.append("invoke_action")
             current_action = {
                 "agent": None,
@@ -464,12 +468,16 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                 current_param_value.append(line.strip())
 
         else:
-            current_text.append(line)
+            # NOTE that we are intentionally ignoring all output text that occurs
+            # after any <invoke_action> tag. It has been told to never do this and
+            # if it does, then there is a good chance it is hallucinating responses
+            if not seen_invoke_action:
+                current_text.append(line)
 
     if open_tags:
         parsed_data["errors"].append(f"Unclosed tags: {', '.join(open_tags)}")
 
-    if in_file:
+    if in_file and not seen_invoke_action:
         content = "\n".join(file_content)
         # Add a status update for this
         parsed_data["status_updates"].append(
@@ -482,6 +490,19 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
         add_content_entry(parsed_data["content"], "text", current_text)
 
     return parsed_data
+
+
+def strip_text_after_invoke_action(text):
+    """
+    Remove any text after the last </invoke_action> tag.
+    This is to prevent hallucinations from the LLM.
+    """
+    # Find the last instance of </t\d+_invoke_action> regexp and remove everything after it.
+    matches = list(re.finditer(r"</t\d+_invoke_action>", text))
+    if matches:
+        last_match_end = matches[-1].end()
+        return text[:last_match_end]
+    return text
 
 
 def remove_incomplete_tags_at_end(text):

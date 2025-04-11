@@ -42,7 +42,7 @@ def literal_format_template(template, literals):
     return template
 
 
-def load_template(name, format_pair={}):
+def load_template(name, format_pair={}, parser=None):
     """Load a template file and format it with the given key-value pairs."""
     # Construct the path to the template file using a relative path
     template_file = os.path.normpath(
@@ -53,7 +53,10 @@ def load_template(name, format_pair={}):
         return None
 
     with open(template_file, "r", encoding="utf-8") as f:
-        file = f.read()
+        if parser:
+            file = parser(f)
+        else:
+            file = f.read()
 
     file = literal_format_template(file, format_pair)
 
@@ -75,6 +78,8 @@ def get_display_path(path):
 def log_error(message):
     click.echo(click.style(message, fg="red"), err=True)
 
+def log_warning(message):
+    click.echo(click.style(message, fg="yellow"), err=False)
 
 def log_link(message):
     click.echo(click.style(message, fg="blue"), err=False)

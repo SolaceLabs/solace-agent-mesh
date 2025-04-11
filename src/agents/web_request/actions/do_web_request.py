@@ -121,8 +121,15 @@ class DoWebRequest(Action):
             ]
 
             agent = self.get_agent()
-            response = agent.do_llm_service_request(messages=messages)
-            content = response.get("content")
+            try:
+                response = agent.do_llm_service_request(messages=messages)
+                content = response.get("content")
+            except TimeoutError as e:
+                log.error("LLM request timed out: %s", str(e))
+                return ActionResponse(message="LLM request timed out")
+            except Exception as e:
+                log.error("Failed to process content with LLM: %s", str(e))
+                return ActionResponse(message="Failed to process content with LLM")
 
         # Code to create the image using the provided content
         return ActionResponse(message=content)

@@ -1,5 +1,5 @@
 ---
-title: Orchestrator 
+title: Orchestrator
 sidebar_position: 40
 ---
 
@@ -7,12 +7,9 @@ sidebar_position: 40
 
 The orchestrator is the central system in Solace Agent Mesh that plays a crucial role in managing the overall workflow of requests. It acts as the central coordinator for processing complex, multi-step workflows while maintaining security, efficiency, and scalability.
 
-
 :::tip[In one sentence]
-Orchestrator is essentially the central intelligence that manages the overall workflow of requests in Solace Agent Mesh.
+The orchestrator is essentially the central intelligence that manages the overall workflow of requests in Solace Agent Mesh.
 :::
-
-
 
 ```mermaid
 flowchart TD
@@ -30,7 +27,7 @@ flowchart TD
 
     B[Realtime Sales Assistant] -->|Gateway| SEM
 
-    SEM -->|Agent| E[Jira / Confluence] 
+    SEM -->|Agent| E[Jira / Confluence]
 
     SEM -->|Agent| G[Internal Documents]
 
@@ -46,28 +43,29 @@ flowchart TD
     class M llm;
 ```
 
-
-
-
 ## Key Functions
+
 The orchestrator provides the following key functions:
 
-1. **Request Analysis and Action Planning**: 
+1. **Request Analysis and Action Planning**:
+
    - Receives high-level goals or requests
    - Analyzes them in the context of available actions registered by agents in the system
    - Uses state-of-the-art generative AI techniques to plan a sequence of actions to fulfill the request
 
-2. **Task Creation and Distribution**: 
+2. **Task Creation and Distribution**:
+
    - Creates tasks based on the action plan
    - Distributes tasks to appropriate agents
    - Enables efficient parallel processing and optimal resource utilization
 
-3. **Workflow Management**: 
+3. **Workflow Management**:
+
    - Tracks outstanding tasks
    - Aggregates responses from various agents
    - Ensures all parts of a complex request are processed and combined coherently
 
-4. **Response Formatting**: 
+4. **Response Formatting**:
    - Formats aggregated responses suitable for the gateway
    - Ensures the final output meets the requirements of the specific use case or interface
 
@@ -78,4 +76,4 @@ The orchestrator interacts closely with several other components in Solace Agent
 - **[Agents](./agents.md)**: Distributes tasks to and receives responses from various agents.
 - **[Gateways](./gateways.md)**: Receives initial requests from and sends final responses to gateways.
 
-By centralizing these critical functions, the orchestrator enables  Solace Agent Mesh to handle complex, multi-step workflows while maintaining efficiency, and scalability.
+By centralizing these critical functions, the orchestrator enables Solace Agent Mesh to handle complex, multi-step workflows while maintaining efficiency, and scalability.

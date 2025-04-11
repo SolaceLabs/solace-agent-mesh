@@ -7,20 +7,21 @@ sidebar_position: 40
 
 The Embedding service is a global service that acts as an abstraction layer between the embedding models and the user.
 
-The Embedding service runs as an independent centralized service which provides embedding access to the [agents](../../../concepts/agents.md) in Solace Agent Mesh through the PubSub+ event broker.
+The Embedding service runs as an independent centralized service that provides embedding access to the [agents](../../../concepts/agents.md) in Solace Agent Mesh through the PubSub+ event broker.
 
 ## Usage
 
-Embedding service allows users to call the model based on category/type and not the model names.
+Embedding service allows users to call the model based on the category/type and not the model names.
 
 For example, instead of a component calling a specific model like `openai/text-embedding-3-small`, they can choose from one of the following types:
+
 - text
 - image
 - multi-modal
 
 Each one of these values corresponds to a specific model and configuration.
 
-To simplify the usage of the Embedding service, by default configuration all types are mapped to the same model. This can be changed in the configuration file. Check the [Custom Configuration](#custom-configuration) section for more information.
+To simplify usage, the default configuration maps all types to the same model. This can be changed in the configuration file. Check the [Custom Configuration](#custom-configuration) section for more information.
 
 :::warning
 If your embedding model doesn't support images, you should not use the `image` type.
@@ -68,8 +69,8 @@ data = [ file_url, file_url_2 ]
 
 embeddings = agent.do_embedding_service_request(data, resolve_files=True)
 ```
-:::
 
+:::
 
 ### Usage in Other Solace AI Event Connector Components
 
@@ -83,7 +84,7 @@ For example:
 from solace_agent_mesh.services.llm_service.components.llm_service_component_base import LLMServiceComponentBase
 ```
 
-Then, you can use the `do_llm_service_request` method provided by the `LLMServiceComponentBase` class to send a request to the LLM Service.
+Then, you can use the `do_embedding_service_request` method provided by the `LLMServiceComponentBase` class to send a request to the LLM Service.
 
 ## Custom Configuration
 
@@ -92,7 +93,7 @@ The Embedding service config file can be found in your build directory under `co
 To use multiple models or different configurations, duplicate the flow, and apply changes as needed.
 
 :::info
-Check [Overwrite](../overwrites.md) page to learn how to overwrite the LLM Service.
+To learn about how to overwrite the Embedding service, see [Overwrite](../overwrites.md).
 :::
 
 Sample embedding flow - duplicate the flow as many times as needed:
@@ -147,5 +148,5 @@ Sample embedding flow - duplicate the flow as many times as needed:
 ```
 
 :::tip
-For more information about the available configuration options, see [LiteLLMChatModel](https://github.com/SolaceLabs/solace-ai-connector/blob/main/docs/components/litellm_chat_model.md) in the Solace AI Event Connector documentation.
+For more information about the available configuration options, see [LiteLLMChatModel](https://github.com/SolaceLabs/solace-ai-connector/blob/main/docs/components/litellm_embeddings.md) in the Solace AI Event Connector documentation.
 :::

@@ -18,7 +18,7 @@ Agents are essentially the system capabilities beyond basic LLM responses.
 
 1. **Task Specialization**: Agents subscribe to specific task types and process them based on their specialized capabilities.
 
-2. **AI-Enabled**: Agents can be AI-enabled, and directly access large language or embedding models from the system.
+2. **AI-Enabled**: Agents can be AI-enabled and directly access large language or embedding models from the system.
 
 3. **Dynamic**: New agents can self-register/deregister and be added to the system dynamically without requiring any changes to the running system.
 
@@ -69,13 +69,13 @@ For example, if you have a SQL Database agent, it might have actions like `query
 
 An agent in Solace Agent Mesh interacts with the [orchestrator](./orchestrator.md) and goes through the following four stages:
 
-- **Register**: The agent is registered with the orchestrator. At this stage the agent description and the list of it's available actions are registered with the orchestrator.
+- **Register**: The agent is registered with the orchestrator. At this stage the agent description and the list of its available actions are registered with the orchestrator.
 
 - **Close**: This is the idle state of the agent. When an agent is closed, its actions are hidden from the orchestrator. The orchestrator can decide to open an agent should it need to use one of its actions.
 
-- **Open**: This is the active state of the agent. When an agent is open, its actions are visible to the orchestrator. The orchestrator can see the name, description, and required parameters of the each action, and then choose to invoke an action.
+- **Open**: This is the active state of the agent. When an agent is open, its actions are visible to the orchestrator. The orchestrator can see the name, description, and required parameters of each action, and then choose to invoke an action.
 
-- **Deregister**: The agent is deregistered from the orchestrator if it doesn't receive a heartbeat signal within a period of time. At this stage the agent description and the list of it's available actions are removed from the orchestrator.
+- **Deregister**: The agent is deregistered from the orchestrator if it doesn't receive a heartbeat signal within a period of time. At this stage the agent description and the list of its available actions are removed from the orchestrator.
 
 
 ### Potential Agent Examples
@@ -109,7 +109,7 @@ Some of these agents are:
 
 Using Solace Agent Mesh and Solace Agent Mesh CLI, you can create your own agents to extend the system's capabilities. You can develop these agents in Python and dynamically add them to the system.
 
-The following Solace Agent Mesh (SAM) CLI command creates an agent template for you agent, action, and YAML config file:
+The following Solace Agent Mesh (SAM) CLI command creates an agent template for your agent, action, and YAML config file:
 
 ```sh
 solace-agent-mesh add agent my-tool

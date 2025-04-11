@@ -14,7 +14,7 @@ import yaml
 from solace_ai_connector.common.log import log
 from solace_ai_connector.common.message import Message
 
-from ...common.constants import ORCHESTRATOR_COMPONENT_NAME
+from ...common.constants import ORCHESTRATOR_COMPONENT_NAME, HISTORY_MEMORY_ROLE
 from ...services.llm_service.components.llm_request_component import LLMRequestComponent, info as base_info
 from ...services.middleware_service.middleware_service import MiddlewareService
 from ...services.file_service import FileService
@@ -128,6 +128,18 @@ class OrchestratorStimulusProcessorComponent(LLMRequestComponent):
 
         user_properties = message.get_user_properties()
         user_properties['timestamp_end'] = time()
+
+        actions_called = []
+        if results:
+            for result in results:
+                if result.get("payload", {}).get("action_name"):
+                    actions_called.append({
+                        "agent_name": result.get("payload", {}).get("agent_name"),
+                        "action_name": result.get("payload", {}).get("action_name"),
+                        "action_params": result.get("payload", {}).get("action_params"),
+                    })
+        user_properties['actions_called'] = actions_called
+
         message.set_user_properties(user_properties)
 
         return results
@@ -206,7 +218,7 @@ class OrchestratorStimulusProcessorComponent(LLMRequestComponent):
         }
 
         # Get the prompts
-        gateway_history = self.get_gateway_history(data)
+        gateway_history, memory_history = self.get_gateway_history(data)
         system_prompt = SystemPrompt(full_input, examples)
         if action_response_reinvoke:
             user_prompt = ActionResponsePrompt(
@@ -217,6 +229,9 @@ class OrchestratorStimulusProcessorComponent(LLMRequestComponent):
             user_prompt = UserStimulusPrompt(
                 full_input, gateway_history, errors, has_files
             )
+            if memory_history:
+                self.history.store_history(stimulus_uuid, "system", memory_history)
+
 
         # Store the user prompt in the history
         self.history.store_history(stimulus_uuid, "user", user_prompt)
@@ -375,6 +390,9 @@ class OrchestratorStimulusProcessorComponent(LLMRequestComponent):
 
     def get_gateway_history(self, data):
         gateway_history = data.get("history", [])
+        memory_history = None
+        if gateway_history and gateway_history[0].get("role") == HISTORY_MEMORY_ROLE:
+            memory_history =gateway_history[0].get("content")
         # Returning the history from the last user message
         first_user_idx = None
         last_user_idx = None
@@ -385,13 +403,13 @@ class OrchestratorStimulusProcessorComponent(LLMRequestComponent):
                 last_user_idx = idx
 
         if first_user_idx is None:
-            return []  # No user query found
+            return [], memory_history  # No user query found
 
         if not last_user_idx > first_user_idx:
             # Latest user message is already handled by orchestator history
-            return []
+            return [], memory_history
 
-        return gateway_history[first_user_idx:last_user_idx]
+        return gateway_history[first_user_idx:last_user_idx], memory_history
 
     def get_user_input(self, chat_text):
 

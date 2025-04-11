@@ -20,7 +20,7 @@ If you want to install the plugin with the add command as well, you can use one 
 solace-agent-mesh plugin add <plugin-name> --pip
 ```
 
-The following Solace Agent Mesh CLI command installs the plugin using the mentioned package manager first.
+The following Solace Agent Mesh CLI command will first install the plugin using the specified package manager, and then add it to your project.
 If the package is not available on the default package manager registry, you can pass a specific local directory or remote URL path using the `-u` (or `--from-url`) option.
 
 ```bash

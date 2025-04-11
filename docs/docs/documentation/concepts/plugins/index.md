@@ -25,7 +25,7 @@ Run `solace-agent-mesh plugin --help` to see the list of available commands for 
 
 Solace Agent Mesh comes with a set of official core plugins that can be used to extend the functionality of the system. You can find repository of the official core plugins [here 🔗](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins).
 
-Fore more information about how to use the official core plugins, see [Use Plugins](./use-plugins.md).
+For more information about how to use the official core plugins, see [Use Plugins](./use-plugins.md).
 
 
 ## Getting Started with Plugins
