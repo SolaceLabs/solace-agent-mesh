@@ -43,8 +43,8 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
   const LLM_PROVIDER_OPTIONS = [
     { value: 'openai', label: 'OpenAI' },
     { value: 'anthropic', label: 'Anthropic' },
-    { value: 'google', label: 'Google Vertex AI' },
-    { value: 'bedrock', label: 'AWS Bedrock' },
+    { value: 'google', label: 'Google Gemini' },
+    //{ value: 'bedrock', label: 'AWS Bedrock' }, //TODO: need to figure out if we can use this directly
     { value: 'azure', label: 'Azure' },
     { value: 'openai_compatible', label: 'OpenAI Compatible Provider' },
     //{ value: 'custom', label: 'Custom Provider' },
@@ -54,7 +54,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
   const PROVIDER_PREFIX_MAP: Record<string, string> = {
     'openai': 'openai',
     'anthropic': 'anthropic',
-    'google': 'vertex_ai',
+    'google': 'gemini',
     'bedrock': 'bedrock',
     'openai_compatible': 'openai',
     'azure': 'azure',
@@ -248,7 +248,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
     try {
       // For standard providers, use the predefined endpoint URL
       // For custom and OpenAI compatible providers, use the user-provided endpoint URL
-      const baseUrl = (data.llm_provider !== 'custom' && data.llm_provider !== 'openai_compatible')
+      const baseUrl = (data.llm_provider !== 'custom' && data.llm_provider !== 'openai_compatible') //TODO: use new helper
         ? PROVIDER_ENDPOINTS[data.llm_provider] || data.llm_endpoint_url
         : data.llm_endpoint_url;
       
@@ -321,7 +321,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
           </FormField>
           
           {/* Show endpoint URL for custom provider and OpenAI compatible */}
-          {(data.llm_provider === 'custom' || data.llm_provider === 'openai_compatible' || data.llm_provider === 'azure') && (
+          {(data.llm_provider === 'custom' || data.llm_provider === 'openai_compatible' || data.llm_provider === 'azure') && (  // todo : update this based on what we support
             <FormField
               label="LLM Endpoint URL"
               htmlFor="llm_endpoint_url"
