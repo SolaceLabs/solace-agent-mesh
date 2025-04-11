@@ -41,10 +41,6 @@ export default function Input({
         disabled:bg-gray-100 disabled:text-gray-500 
         ${className}
       `}
-      style={{
-        WebkitBoxShadow: `0 0 0 100px black inset`,
-        boxShadow: `0 0 0 100px black inset`
-      }}
     />
   );
 }

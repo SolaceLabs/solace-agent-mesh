@@ -126,10 +126,6 @@ export default function AutocompleteInput({
           disabled:bg-gray-100 disabled:text-gray-500
           ${className}
         `}
-        style={{
-          WebkitBoxShadow: `0 0 0 100px black inset`,
-          boxShadow: `0 0 0 100px black inset`
-        }}
         autoComplete="off"
       />
       
@@ -144,14 +140,14 @@ export default function AutocompleteInput({
       {showSuggestions && filteredSuggestions.length > 0 && (
         <div 
           ref={suggestionsRef}
-          className="absolute z-10 w-full mt-1 bg-black border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
+          className="absolute z-10 w-full mt-1 border bg-white border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
         >
           <ul>
             {filteredSuggestions.map((suggestion, index) => (
               <li 
                 key={index}
                 onClick={() => handleSuggestionClick(suggestion)}
-                className="px-3 py-2 cursor-pointer hover:bg-stone-700"
+                className="px-3 py-2 cursor-pointer hover:bg-stone-300"
               >
                 {suggestion}
               </li>
