@@ -107,7 +107,7 @@ export default function InitializationFlow() {
             const options = data.default_options;
 
             preProcessOptions(options);
-            setFormData(options);
+            setFormData({ ...formData, ...options });
             setIsLoading(false);
           } else {
             throw new Error('Invalid response format');
@@ -119,7 +119,7 @@ export default function InitializationFlow() {
           setIsLoading(false);
         });
     }
-  }, []);
+  }, [setupPath]);
 
   // Pre-process options for certain fields
   //remove llm model name from data

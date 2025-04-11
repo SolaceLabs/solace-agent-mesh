@@ -46,8 +46,8 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
     { value: 'google', label: 'Google Vertex AI' },
     { value: 'bedrock', label: 'AWS Bedrock' },
     { value: 'azure', label: 'Azure' },
-    { value: 'openai_compatible', label: 'OpenAI Compatible' },
-    { value: 'custom', label: 'Custom Provider' },
+    { value: 'openai_compatible', label: 'OpenAI Compatible Provider' },
+    //{ value: 'custom', label: 'Custom Provider' },
   ]
   
   // Map provider names to litellm provider prefixes
@@ -298,8 +298,8 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
     <form onSubmit={handleSubmit}>
       <div className="space-y-6">
         <InfoBox className="mb-4">
-          Configure your AI service providers for language models and embeddings.
-          Select a provider from the dropdown or choose "Custom Provider" to use your own endpoint.
+          Configure your AI service provider for language models.
+          To use a LLM provider not in the dropdown choose "OpenAI Compatible Provider" and enter your base URL, API key and model name.
         </InfoBox>
         
         <div className="border-b border-gray-200 pb-4 mb-4">
