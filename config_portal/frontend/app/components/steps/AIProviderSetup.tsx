@@ -3,6 +3,7 @@ import FormField from '../ui/FormField';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Button from '../ui/Button';
+import Toggle from '../ui/Toggle';
 import ConfirmationModal from '../ui/ConfirmationModal';
 import AutocompleteInput from '../ui/AutocompleteInput';
 import { InfoBox, WarningBox } from '../ui/InfoBoxes';
@@ -22,6 +23,7 @@ type AIProviderSetupProps = {
     embedding_endpoint_url: string;
     embedding_api_key: string;
     embedding_model_name: string;
+    embedding_service_enabled: boolean;
     [key: string]: any
   };
   updateData: (data: Record<string, any>) => void;
@@ -37,7 +39,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
   const [llmModelSuggestions, setLlmModelSuggestions] = useState<string[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState<boolean>(false);
   const [previousProvider, setPreviousProvider] = useState<string | null>(null);
-
+  
   const LLM_PROVIDER_OPTIONS = [
     { value: 'openai', label: 'OpenAI' },
     { value: 'anthropic', label: 'Anthropic' },
@@ -47,7 +49,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
     { value: 'openai_compatible', label: 'OpenAI Compatible' },
     { value: 'custom', label: 'Custom Provider' },
   ]
-
+  
   // Map provider names to litellm provider prefixes
   const PROVIDER_PREFIX_MAP: Record<string, string> = {
     'openai': 'openai',
@@ -57,14 +59,26 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
     'openai_compatible': 'openai',
     'azure': 'azure',
   };
-
-  // Initialize provider if not set
+  
+  // Initialize provider and embedding toggle if not set
   useEffect(() => {
+    console.log(data.setupPath)
+    const updates: Record<string, any> = {};
+    
     if (!data.llm_provider) {
-      updateData({ llm_provider: 'openai' });
+      updates.llm_provider = 'openai';
     }
-  }, [data.llm_provider, updateData]);
-
+    
+    // Initialize embedding_service_enabled if it doesn't exist
+    if (data.embedding_service_enabled === undefined) {
+      updates.embedding_service_enabled = true;
+    }
+    
+    if (Object.keys(updates).length > 0) {
+      updateData(updates);
+    }
+  }, [data, updateData]);
+  
   // Update endpoint URL and clear model when provider changes
   useEffect(() => {
     if (data.llm_provider) {
@@ -95,7 +109,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
       setPreviousProvider(data.llm_provider);
     }
   }, [data.llm_provider, previousProvider, updateData]);
-
+  
   // Update model suggestions based on provider
   useEffect(() => {
     if (data.llm_provider && data.llm_provider !== 'custom' && data.llm_provider !== 'openai_compatible') {
@@ -104,11 +118,26 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
       setLlmModelSuggestions([]);
     }
   }, [data.llm_provider]);
-
+  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     updateData({ [e.target.name]: e.target.value });
   };
-
+  
+  // Handle embedding toggle change
+  const handleEmbeddingToggle = (checked: boolean) => {
+    updateData({ embedding_service_enabled: checked });
+    
+    // Clear validation errors for embedding fields when disabling
+    if (!checked) {
+      setErrors({
+        ...errors,
+        embedding_endpoint_url: '',
+        embedding_api_key: '',
+        embedding_model_name: ''
+      });
+    }
+  };
+  
   // Fetch models from custom endpoint
   const fetchCustomModels = useCallback(async () => {
     if ((data.llm_provider === 'custom' || data.llm_provider === 'openai_compatible') &&
@@ -128,7 +157,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
     }
     return [];
   }, [data.llm_provider, data.llm_endpoint_url, data.llm_api_key]);
-  
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     let isValid = true;
@@ -149,36 +178,38 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
       newErrors.llm_model_name = 'LLM model name is required';
       isValid = false;
     }
-
     if(!data.llm_api_key) {
       newErrors.llm_api_key = 'LLM API key is required';
       isValid = false;
     }
     
-    if (!data.embedding_endpoint_url) {
-      newErrors.embedding_endpoint_url = 'Embedding endpoint is required';
-      isValid = false;
-    }
-    
-    if (!data.embedding_model_name) {
-      newErrors.embedding_model_name = 'Embedding model name is required';
-      isValid = false;
-    }
-
-    if(!data.embedding_api_key) {
-      newErrors.embedding_api_key = 'Embedding API key is required';
-      isValid = false;
+    // Only validate embedding fields if embedding service is enabled and in advanced mode
+    if (data.setupPath === 'advanced' && data.embedding_service_enabled) {
+      if (!data.embedding_endpoint_url) {
+        newErrors.embedding_endpoint_url = 'Embedding endpoint is required';
+        isValid = false;
+      }
+      
+      if (!data.embedding_model_name) {
+        newErrors.embedding_model_name = 'Embedding model name is required';
+        isValid = false;
+      }
+      if(!data.embedding_api_key) {
+        newErrors.embedding_api_key = 'Embedding API key is required';
+        isValid = false;
+      }
+      
+      // Validate embedding model name format
+      if (data.embedding_model_name && !data.embedding_model_name.includes('/')) {
+        newErrors.embedding_model_name = 'Model name should follow the format provider/model-name';
+        isValid = false;
+      }
     }
     
     // For custom providers, users need to provide the model name with provider prefix
     // following litellm docs: https://docs.litellm.ai/docs/providers
     if (data.llm_provider === 'custom' && data.llm_model_name && !data.llm_model_name.includes('/')) {
       newErrors.llm_model_name = 'For custom providers, model name must follow the format provider/model-name (see litellm docs)';
-      isValid = false;
-    }
-    
-    if (data.embedding_model_name && !data.embedding_model_name.includes('/')) {
-      newErrors.embedding_model_name = 'Model name should follow the format provider/model-name';
       isValid = false;
     }
     
@@ -203,7 +234,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
     const providerPrefix = PROVIDER_PREFIX_MAP[provider] || provider;
     return `${providerPrefix}/${modelName}`;
   };
-
+  
   const testLLMConfig = async () => {
     // Exclude certain providers from testing as these require more auth than just a key
     const EXCLUSION_LIST = ['bedrock']
@@ -265,13 +296,13 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
   
   return (
     <form onSubmit={handleSubmit}>
-      <div className="space-y-6 ">
+      <div className="space-y-6">
         <InfoBox className="mb-4">
           Configure your AI service providers for language models and embeddings.
           Select a provider from the dropdown or choose "Custom Provider" to use your own endpoint.
         </InfoBox>
         
-        <div className="border-b border-gray-200 pb-4 mb-4 ">
+        <div className="border-b border-gray-200 pb-4 mb-4">
           <h3 className="text-lg font-medium mb-4 text-gray-700 font-semibold">Language Model Configuration</h3>
           
           <FormField
@@ -361,57 +392,87 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
             />
           </FormField>
         </div>
-        
-        <div>
-          <h3 className="text-lg font-medium mb-4 text-gray-700 font-semibold">Embedding Model Configuration</h3>
-          
-          <FormField 
-            label="Embedding Endpoint URL" 
-            htmlFor="embedding_endpoint_url"
-            error={errors.embedding_endpoint_url}
-            required
-          >
-            <Input
-              id="embedding_endpoint_url"
-              name="embedding_endpoint_url"
-              value={data.embedding_endpoint_url}
-              onChange={handleChange}
-              placeholder="https://api.example.com/v1"
-            />
-          </FormField>
-          
-          <FormField 
-            label="Embedding API Key" 
-            htmlFor="embedding_api_key"
-            error={errors.embedding_api_key}
-            required
-          >
-            <Input
-              id="embedding_api_key"
-              name="embedding_api_key"
-              type="password"
-              value={data.embedding_api_key}
-              onChange={handleChange}
-              placeholder="Enter your API key"
-            />
-          </FormField>
-          
-          <FormField 
-            label="Embedding Model Name" 
-            htmlFor="embedding_model_name"
-            helpText="Format: provider/model-name (e.g., openai/text-embedding-ada-002)"
-            error={errors.embedding_model_name}
-            required
-          >
-            <Input
-              id="embedding_model_name"
-              name="embedding_model_name"
-              value={data.embedding_model_name}
-              onChange={handleChange}
-              placeholder="provider/model-name"
-            />
-          </FormField>
-        </div>
+        {data.setupPath === 'advanced' && (
+          <>
+            <InfoBox>
+              <a 
+                href="https://solacelabs.github.io/solace-agent-mesh/docs/documentation/user-guide/advanced/services/embedding-service" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="font-medium underline inline-flex items-center"
+              >
+                The Embedding Service
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+              {' '}provides a unified interface for agents to request text, image, or multi-modal embeddings through the Solace Agent Mesh.
+            </InfoBox>   
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-700 font-semibold">Embedding Model Configuration</h3>
+                <div className="flex items-center">
+                  <span className="mr-3 text-sm text-gray-600">Enable Embedding Service</span>
+                  <Toggle
+                    id="embedding_service_enabled"
+                    checked={data.embedding_service_enabled}
+                    onChange={handleEmbeddingToggle}
+                  />
+                </div>
+              </div>
+              {data.embedding_service_enabled && (
+                <div className="space-y-4">
+                  <FormField 
+                    label="Embedding Endpoint URL" 
+                    htmlFor="embedding_endpoint_url"
+                    error={errors.embedding_endpoint_url}
+                    required
+                  >
+                    <Input
+                      id="embedding_endpoint_url"
+                      name="embedding_endpoint_url"
+                      value={data.embedding_endpoint_url || ''}
+                      onChange={handleChange}
+                      placeholder="https://api.example.com/v1"
+                    />
+                  </FormField>
+                  
+                  <FormField 
+                    label="Embedding API Key" 
+                    htmlFor="embedding_api_key"
+                    error={errors.embedding_api_key}
+                    required
+                  >
+                    <Input
+                      id="embedding_api_key"
+                      name="embedding_api_key"
+                      type="password"
+                      value={data.embedding_api_key || ''}
+                      onChange={handleChange}
+                      placeholder="Enter your API key"
+                    />
+                  </FormField>
+                  
+                  <FormField 
+                    label="Embedding Model Name" 
+                    htmlFor="embedding_model_name"
+                    helpText="Format: provider/model-name (e.g., openai/text-embedding-ada-002)"
+                    error={errors.embedding_model_name}
+                    required
+                  >
+                    <Input
+                      id="embedding_model_name"
+                      name="embedding_model_name"
+                      value={data.embedding_model_name || ''}
+                      onChange={handleChange}
+                      placeholder="provider/model-name"
+                    />
+                  </FormField>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
       
       <div className="mt-8 flex justify-end space-x-4">
@@ -427,7 +488,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
           Next
         </Button>
       </div>
-
+      
       {/* Loading indicator */}
       {isTestingConfig && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -445,9 +506,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
       {showTestErrorDialog && (
         <ConfirmationModal
           message={`LLM Configuration Test Failed: ${testError}
-
 This may indicate an issue with your LLM provider settings. Please check your endpoint URL, API key, and model name.
-
 Would you like to ignore this warning and continue anyway?`}
           onConfirm={() => {
             setShowTestErrorDialog(false);

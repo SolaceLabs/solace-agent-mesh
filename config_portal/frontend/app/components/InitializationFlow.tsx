@@ -119,7 +119,7 @@ export default function InitializationFlow() {
           setIsLoading(false);
         });
     }
-  }, [setupPath]);
+  }, []);
 
   // Pre-process options for certain fields
   //remove llm model name from data
@@ -144,7 +144,6 @@ export default function InitializationFlow() {
     // Check if the setupPath is being updated
     if (newData.setupPath && newData.setupPath !== setupPath) {
       setSetupPath(newData.setupPath);
-      return;
     }
     
     setFormData({ ...formData, ...newData });
