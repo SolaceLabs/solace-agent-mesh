@@ -127,6 +127,9 @@ export default function InitializationFlow() {
     if (options.llm_model_name) {
       delete options.llm_model_name;
     }
+    if (options.embedding_model_name){
+      delete options.embedding_model_name;
+    }
   };
 
   // Update active steps when setup path changes

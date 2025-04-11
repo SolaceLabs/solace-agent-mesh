@@ -11,7 +11,11 @@ import { InfoBox, WarningBox } from '../ui/InfoBoxes';
 import {
   PROVIDER_ENDPOINTS,
   PROVIDER_MODELS,
-  fetchModelsFromCustomEndpoint
+  fetchModelsFromCustomEndpoint,
+  LLM_PROVIDER_OPTIONS,
+  EMBEDDING_PROVIDER_OPTIONS,
+  PROVIDER_PREFIX_MAP,
+  EMBEDDING_PROVIDER_MODELS,
 } from '../../lib/providerModels';
 
 type AIProviderSetupProps = {
@@ -20,6 +24,7 @@ type AIProviderSetupProps = {
     llm_endpoint_url: string;
     llm_api_key: string;
     llm_model_name: string;
+    embedding_provider: string;
     embedding_endpoint_url: string;
     embedding_api_key: string;
     embedding_model_name: string;
@@ -37,28 +42,11 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
   const [testError, setTestError] = useState<string | null>(null);
   const [showTestErrorDialog, setShowTestErrorDialog] = useState<boolean>(false);
   const [llmModelSuggestions, setLlmModelSuggestions] = useState<string[]>([]);
+  const [embeddingModelSuggestions, setEmbeddingModelSuggestions] = useState<string[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState<boolean>(false);
   const [previousProvider, setPreviousProvider] = useState<string | null>(null);
-  
-  const LLM_PROVIDER_OPTIONS = [
-    { value: 'openai', label: 'OpenAI' },
-    { value: 'anthropic', label: 'Anthropic' },
-    { value: 'google', label: 'Google Gemini' },
-    //{ value: 'bedrock', label: 'AWS Bedrock' }, //TODO: need to figure out if we can use this directly
-    { value: 'azure', label: 'Azure' },
-    { value: 'openai_compatible', label: 'OpenAI Compatible Provider' },
-    //{ value: 'custom', label: 'Custom Provider' },
-  ]
-  
-  // Map provider names to litellm provider prefixes
-  const PROVIDER_PREFIX_MAP: Record<string, string> = {
-    'openai': 'openai',
-    'anthropic': 'anthropic',
-    'google': 'gemini',
-    'bedrock': 'bedrock',
-    'openai_compatible': 'openai',
-    'azure': 'azure',
-  };
+  const [previousEmbeddingProvider, setPreviousEmbeddingProvider] = useState<string | null>(null);
+
   
   // Initialize provider and embedding toggle if not set
   useEffect(() => {
@@ -67,6 +55,10 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
     
     if (!data.llm_provider) {
       updates.llm_provider = 'openai';
+    }
+    
+    if (!data.embedding_provider) {
+      updates.embedding_provider = 'openai';
     }
     
     // Initialize embedding_service_enabled if it doesn't exist
@@ -109,6 +101,37 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
       setPreviousProvider(data.llm_provider);
     }
   }, [data.llm_provider, previousProvider, updateData]);
+
+  // Update embedding endpoint URL and clear model when embedding provider changes
+  useEffect(() => {
+    if (data.embedding_provider && data.embedding_service_enabled) {
+      const updates: Record<string, any> = {};
+      
+      // Only handle provider changes
+      if (previousEmbeddingProvider !== null && previousEmbeddingProvider !== data.embedding_provider) {
+        // Clear model name when switching providers
+        updates.embedding_model_name = '';
+        
+        // Set appropriate endpoint URL based on provider
+        if (data.embedding_provider !== 'openai_compatible') {
+          // For standard providers, set the endpoint URL
+          const endpointUrl = PROVIDER_ENDPOINTS[data.embedding_provider] || '';
+          updates.embedding_endpoint_url = endpointUrl;
+        } else {
+          // For OpenAI compatible, clear the endpoint URL
+          updates.embedding_endpoint_url = '';
+        }
+        
+        // Apply updates
+        if (Object.keys(updates).length > 0) {
+          updateData(updates);
+        }
+      }
+      
+      // Remember current provider for next time
+      setPreviousEmbeddingProvider(data.embedding_provider);
+    }
+  }, [data.embedding_provider, previousEmbeddingProvider, updateData, data.embedding_service_enabled]);
   
   // Update model suggestions based on provider
   useEffect(() => {
@@ -118,6 +141,15 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
       setLlmModelSuggestions([]);
     }
   }, [data.llm_provider]);
+
+  // Update embedding model suggestions based on provider
+  useEffect(() => {
+    if (data.embedding_provider && data.embedding_provider !== 'openai_compatible') {
+      setEmbeddingModelSuggestions(EMBEDDING_PROVIDER_MODELS[data.embedding_provider] || []);
+    } else {
+      setEmbeddingModelSuggestions([]);
+    }
+  }, [data.embedding_provider]);
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     updateData({ [e.target.name]: e.target.value });
@@ -131,6 +163,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
     if (!checked) {
       setErrors({
         ...errors,
+        embedding_provider: '',
         embedding_endpoint_url: '',
         embedding_api_key: '',
         embedding_model_name: ''
@@ -185,6 +218,11 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
     
     // Only validate embedding fields if embedding service is enabled and in advanced mode
     if (data.setupPath === 'advanced' && data.embedding_service_enabled) {
+      if (!data.embedding_provider) {
+        newErrors.embedding_provider = 'Embedding provider is required';
+        isValid = false;
+      }
+      
       if (!data.embedding_endpoint_url) {
         newErrors.embedding_endpoint_url = 'Embedding endpoint is required';
         isValid = false;
@@ -196,12 +234,6 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
       }
       if(!data.embedding_api_key) {
         newErrors.embedding_api_key = 'Embedding API key is required';
-        isValid = false;
-      }
-      
-      // Validate embedding model name format
-      if (data.embedding_model_name && !data.embedding_model_name.includes('/')) {
-        newErrors.embedding_model_name = 'Model name should follow the format provider/model-name';
         isValid = false;
       }
     }
@@ -234,6 +266,19 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
     const providerPrefix = PROVIDER_PREFIX_MAP[provider] || provider;
     return `${providerPrefix}/${modelName}`;
   };
+
+  //helper if we dynamically fetch embedding models, not sure if its possible right now
+  // // Format embedding model name for litellm
+  // const formatEmbeddingModelName = (modelName: string, provider: string): string => {
+  //   // If model name already includes a provider prefix (contains '/'), return as is
+  //   if (modelName.includes('/')) {
+  //     return modelName;
+  //   }
+        
+  //   // Get the correct provider prefix
+  //   const providerPrefix = EMBEDDING_PROVIDER_PREFIX_MAP[provider] || provider;
+  //   return `${providerPrefix}/${modelName}`;
+  // };
   
   const testLLMConfig = async () => {
     // Exclude certain providers from testing as these require more auth than just a key
@@ -423,19 +468,37 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
               {data.embedding_service_enabled && (
                 <div className="space-y-4">
                   <FormField 
-                    label="Embedding Endpoint URL" 
-                    htmlFor="embedding_endpoint_url"
-                    error={errors.embedding_endpoint_url}
+                    label="Embedding Provider" 
+                    htmlFor="embedding_provider"
+                    error={errors.embedding_provider}
                     required
                   >
-                    <Input
-                      id="embedding_endpoint_url"
-                      name="embedding_endpoint_url"
-                      value={data.embedding_endpoint_url || ''}
+                    <Select
+                      id="embedding_provider"
+                      name="embedding_provider"
+                      value={data.embedding_provider || ''}
                       onChange={handleChange}
-                      placeholder="https://api.example.com/v1"
+                      options={EMBEDDING_PROVIDER_OPTIONS}
                     />
                   </FormField>
+
+                  {/* Only show endpoint URL for OpenAI Compatible Provider */}
+                  {data.embedding_provider === 'openai_compatible' && (
+                    <FormField 
+                      label="Embedding Endpoint URL" 
+                      htmlFor="embedding_endpoint_url"
+                      error={errors.embedding_endpoint_url}
+                      required
+                    >
+                      <Input
+                        id="embedding_endpoint_url"
+                        name="embedding_endpoint_url"
+                        value={data.embedding_endpoint_url || ''}
+                        onChange={handleChange}
+                        placeholder="https://api.example.com/v1"
+                      />
+                    </FormField>
+                  )}
                   
                   <FormField 
                     label="Embedding API Key" 
@@ -456,16 +519,17 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
                   <FormField 
                     label="Embedding Model Name" 
                     htmlFor="embedding_model_name"
-                    helpText="Format: provider/model-name (e.g., openai/text-embedding-ada-002)"
                     error={errors.embedding_model_name}
                     required
                   >
-                    <Input
+                    <AutocompleteInput
                       id="embedding_model_name"
                       name="embedding_model_name"
-                      value={data.embedding_model_name || ''}
+                      value={data.embedding_model_name}
                       onChange={handleChange}
-                      placeholder="provider/model-name"
+                      placeholder="Select or type a model name"
+                      suggestions={embeddingModelSuggestions}
+                      showLoadingIndicator={isLoadingModels}
                     />
                   </FormField>
                 </div>

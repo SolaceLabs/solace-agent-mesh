@@ -3,6 +3,10 @@ import Button from '../ui/Button';
 import ConfirmationModal from '../ui/ConfirmationModal';
 import { builtinAgents } from './BuiltinAgentSetup';
 import SuccessScreen from './SuccessScreen';
+import {
+  PROVIDER_PREFIX_MAP,
+  EMBEDDING_PROVIDER_PREFIX_MAP,
+} from '../../lib/providerModels';
 
 type CompletionStepProps = {
   data: Record<string, any>;
@@ -278,17 +282,36 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
       //remove container_started from data
       delete data.container_started;
     }
+
+    // first dereference the providers to the actual prefixes
+    if (data.llm_provider) {
+      data.llm_provider = PROVIDER_PREFIX_MAP[data.llm_provider];
+    }
+    if (data.embedding_provider) {
+      data.embedding_provider = EMBEDDING_PROVIDER_PREFIX_MAP[data.embedding_provider];
+    }
     
     //join provider and model name
     if (data.llm_model_name && data.llm_provider){
       data.llm_model_name = `${data.llm_provider}/${data.llm_model_name}`;
       delete data.llm_provider
     }
+    if (!data.embedding_service_enabled){
+      data.embedding_api_key = "";
+      data.embedding_model_name = "";
+      data.embedding_endpoint_url = "";
+      
+    }
+    if (data.embedding_model_name && data.embedding_provider){
+      data.embedding_model_name = `${data.embedding_provider}/${data.embedding_model_name}`;
+      delete data.embedding_provider
+    }
   };
 
   //  Submission Logic
   const submitConfiguration = async (force = false) => {
     cleanDataBeforeSubmit(data);
+    console.log('Submitting configuration:', data);
     try {
       const response = await fetch('api/save_config', {
         method: 'POST',
