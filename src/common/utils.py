@@ -279,21 +279,6 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
     if not last_chunk:
         response = remove_incomplete_tags_at_end(response)
 
-    # Check if the response is wrapped in ```language tags and remove them
-    # Only do this for the first chunk (when we see the start of the code block)
-    stripped_response = response.lstrip()
-    code_block_match = re.match(r"^```(\w*\s*\n)", stripped_response)
-    if code_block_match:
-        # Extract content after the ```language
-        language = code_block_match.group(1)
-        print("found code block:", language)
-        response = stripped_response.split(f"```{language}", 1)[1]
-
-        # Only remove the trailing ``` if it's at the end of the response
-        # This prevents cutting off content in the middle of a response
-        if "```" in response and response.strip().endswith("```"):
-            response = response.rsplit("```", 1)[0]
-
     # Parse out the <reasoning> tag - they are always first, so just do a
     # simple search and remove them from the response
     reasoning_match = re.search(
@@ -438,8 +423,8 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
         elif in_invoke_action and f"<{tp}parameter" in line:
             if current_param_name:
                 param_value = "\n".join(current_param_value)
-                current_action["parameters"][current_param_name] = clean_parameter_value(
-                    param_value
+                current_action["parameters"][current_param_name] = (
+                    clean_parameter_value(param_value)
                 )
                 current_param_value = []
 
@@ -483,8 +468,8 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                 if content_before_close:
                     current_param_value.append(content_before_close)
                 param_value = "\n".join(current_param_value)
-                current_action["parameters"][current_param_name] = clean_parameter_value(
-                    param_value
+                current_action["parameters"][current_param_name] = (
+                    clean_parameter_value(param_value)
                 )
                 current_param_name = None
                 current_param_value = []
@@ -626,14 +611,14 @@ def clean_parameter_value(param_value):
         cdata_match = re.match(r"\s*<!\[CDATA\[(.*?)\]\]>\s*$", param_value, re.DOTALL)
         if cdata_match:
             param_value = cdata_match.group(1)
-        
+
         # Resolve XML entities
         param_value = param_value.replace("&lt;", "<")
         param_value = param_value.replace("&gt;", ">")
         param_value = param_value.replace("&amp;", "&")
-        param_value = param_value.replace("&quot;", "\"")
+        param_value = param_value.replace("&quot;", '"')
         param_value = param_value.replace("&apos;", "'")
-        
+
     return param_value
 
 
