@@ -47,7 +47,7 @@ class PlotlyGraph(Action):
                         ],
                         "reasoning": [
                             "- user has requested a random bar graph",
-                            "- invoke the plotly action from the global agent to generate a bar graph with random data"
+                            "- invoke the plotly action from the global agent to generate a bar graph with random data",
                         ],
                         "response_text": "Certainly! I'd be happy to generate a random bar graph for you.",
                         "status_update": "I'll use our plotting tool to create this for you right away.",
@@ -57,23 +57,23 @@ class PlotlyGraph(Action):
                             "parameter_name": "plotly_figure_config",
                             "parameters": {
                                 "plotly_figure_config": [
-                                    "{{",
-                                    "    \"data\": [",
-                                    "    {{",
-                                    "        \"x\": [\"A\", \"B\", \"C\", \"D\", \"E\"],",
-                                    "        \"y\": [23, 45, 56, 78, 90],",
-                                    "        \"type\": \"bar\"",
-                                    "    }}",
+                                    "{",
+                                    '    "data": [',
+                                    "    {",
+                                    '        "x": ["A", "B", "C", "D", "E"],',
+                                    '        "y": [23, 45, 56, 78, 90],',
+                                    '        "type": "bar"',
+                                    "    }",
                                     "    ],",
-                                    "    \"layout\": {{",
-                                    "    \"title\": \"Random Bar Graph\",",
-                                    "    \"xaxis\": {{\"title\": \"Categories\"}},",
-                                    "    \"yaxis\": {{\"title\": \"Values\"}}",
-                                    "    }}",
-                                    "}}"
+                                    '    "layout": {',
+                                    '    "title": "Random Bar Graph",',
+                                    '    "xaxis": {"title": "Categories"},',
+                                    '    "yaxis": {"title": "Values"}',
+                                    "    }",
+                                    "}",
                                 ]
-                            }
-                        }
+                            },
+                        },
                     }
                 ],
             },
@@ -82,15 +82,38 @@ class PlotlyGraph(Action):
 
     def invoke(self, params, meta={}) -> ActionResponse:
         if platform.system() == "Windows":
-            kaleido_version = version('kaleido')
-            min_version = parse('0.1.0.post1')
-            max_version = parse('0.2.0')
-            if parse(kaleido_version) < min_version or parse(kaleido_version) >= max_version:
+            kaleido_version = version("kaleido")
+            min_version = parse("0.1.0.post1")
+            max_version = parse("0.2.0")
+            if (
+                parse(kaleido_version) < min_version
+                or parse(kaleido_version) >= max_version
+            ):
                 return ActionResponse(
                     message="For Windows users, the plotting functionality requires a specific version of Kaleido. Please refer to the documentation."
                 )
         obj = params["plotly_figure_config"]
         if isinstance(obj, str):
+            # First remove any leading/trailing whitespace
+            obj = obj.strip()
+
+            # Next remove ```yaml or ```json
+            if obj.startswith("```yaml") or obj.startswith("```json"):
+                obj = obj[7:]
+            elif obj.startswith("```"):
+                obj = obj[3:]
+            # Remove any trailing ``` characters
+            if obj.endswith("```"):
+                obj = obj[:-3]
+            # Remove any leading/trailing whitespace again
+            obj = obj.strip()
+
+            # If the string starts with a quote and ends with that same quote, remove them
+            if obj.startswith("'") and obj.endswith("'"):
+                obj = obj[1:-1]
+            elif obj.startswith('"') and obj.endswith('"'):
+                obj = obj[1:-1]
+
             # Remove any leading/trailing quote characters
             obj = obj.strip("'\" ")
             try:
@@ -110,7 +133,9 @@ class PlotlyGraph(Action):
             pio.write_image(fig, byte_io)
             byte_io.seek(0)
             file_service = FileService()
-            image_name = "generated_graph_" + str(random.randint(100000, 999999)) + ".png"
+            image_name = (
+                "generated_graph_" + str(random.randint(100000, 999999)) + ".png"
+            )
             image_meta = file_service.upload_from_buffer(
                 byte_io.read(),
                 image_name,
@@ -120,7 +145,8 @@ class PlotlyGraph(Action):
             files.append(image_meta)
         except Exception as e:
             return ActionResponse(
-                message="Could not create plotly graph. Please check the plotly figure configuration. plotly error: " + str(e),
+                message="Could not create plotly graph. Please check the plotly figure configuration. plotly error: "
+                + str(e),
             )
 
         return ActionResponse(files=files)
