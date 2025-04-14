@@ -79,10 +79,13 @@ class OrchestratorState:
     def age_out_agents(self):
         with self._lock:
             now = datetime.now()
+            agents_to_remove = []
             for agent_name, agent in self.registered_agents.items():
-                if agent.get("expire_time") < now:
+                if agent.get("expire_time", datetime.max) < now:
                     log.warning("Agent %s has expired. Removing.", agent_name)
-                    del self.registered_agents[agent_name]
+                    agents_to_remove.append(agent_name)
+            for agent_name in agents_to_remove:
+                del self.registered_agents[agent_name]
 
     def delete_agent(self, agent_name):
         with self._lock:
