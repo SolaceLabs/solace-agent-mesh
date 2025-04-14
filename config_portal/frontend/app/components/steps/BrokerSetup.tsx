@@ -233,7 +233,6 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
                 onChange={handleChange}
                 placeholder="default"
                 required
-                autoFocus={true}
               />
             </FormField>
             

@@ -6,6 +6,7 @@ import SuccessScreen from './SuccessScreen';
 import {
   PROVIDER_PREFIX_MAP,
   EMBEDDING_PROVIDER_PREFIX_MAP,
+  IMAGE_GEN_PROVIDER_PREFIX_MAP,
 } from '../../lib/providerModels';
 
 type CompletionStepProps = {
@@ -273,6 +274,8 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
     );
   };
 
+  //this helper clears out all the UI state that is not needed before submitting
+  //TODO: Use context provider to pass this data around.
   const cleanDataBeforeSubmit = (data: Record<string, any>) => {
     // if namespace does not end with / add it
     if (data.namespace && !data.namespace.endsWith('/')) {
@@ -296,6 +299,8 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
       data.llm_model_name = `${data.llm_provider}/${data.llm_model_name}`;
       delete data.llm_provider
     }
+
+    // if embedding service is not enabled, put empty strings for embedding fields
     if (!data.embedding_service_enabled){
       data.embedding_api_key = "";
       data.embedding_model_name = "";
@@ -305,6 +310,42 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
     if (data.embedding_model_name && data.embedding_provider){
       data.embedding_model_name = `${data.embedding_provider}/${data.embedding_model_name}`;
       delete data.embedding_provider
+    }
+
+    // Handle image generation provider and model in env_var
+    if (data.env_var && Array.isArray(data.env_var)) {
+      let imageGenProvider = '';
+      let imageGenModel = '';
+      
+      // Extract provider and model from env_var
+      data.env_var.forEach((env: string) => {
+        if (env.startsWith('IMAGE_GEN_PROVIDER=')) {
+          imageGenProvider = env.split('=')[1];
+        }
+        if (env.startsWith('IMAGE_GEN_MODEL=')) {
+          imageGenModel = env.split('=')[1];
+        }
+      });
+      
+      // If both provider and model exist, format and update
+      if (imageGenProvider && imageGenModel) {
+        // Get the provider prefix
+        const providerPrefix = IMAGE_GEN_PROVIDER_PREFIX_MAP[imageGenProvider] || imageGenProvider;
+        
+        // Format the model name
+        const formattedModel = `${providerPrefix}/${imageGenModel}`;
+        
+        // Update env_var array
+        data.env_var = data.env_var.map((env: string) => {
+          if (env.startsWith('IMAGE_GEN_MODEL=')) {
+            return `IMAGE_GEN_MODEL=${formattedModel}`;
+          }
+          if (env.startsWith('IMAGE_GEN_PROVIDER=')) {
+            return null;
+          }
+          return env;
+        }).filter(Boolean);
+      }
     }
   };
 
