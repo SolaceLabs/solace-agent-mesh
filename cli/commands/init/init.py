@@ -51,7 +51,7 @@ def init_command(options={}):
     check_if_already_done(options, default_options, skip, abort)
 
     click.echo(click.style("Initializing Solace Agent Mesh", bold=True, fg="blue"))
-    use_web_based_init = ask_yes_no_question("Do you want to use the web-based configuration portal?", True)
+    use_web_based_init = ask_yes_no_question("Would you like to configure your project through a web interface in your browser?", True)
 
     if use_web_based_init and not skip:
 
@@ -60,17 +60,17 @@ def init_command(options={}):
             shared_config = manager.dict()
             
             # Start the Flask server with the shared config
-            p = multiprocessing.Process(
+            init_gui_process = multiprocessing.Process(
                 target=run_flask,
                 args=("127.0.0.1", 5002, shared_config)
             )
-            p.start()
+            init_gui_process.start()
 
             click.echo(click.style("Web configuration portal is running at http://127.0.0.1:5002", fg="green"))
             click.echo("Complete the configuration in your browser to continue...")
 
             # Wait for the Flask server to finish
-            p.join()
+            init_gui_process.join()
             
             # Get the configuration from the shared dictionary
             if shared_config:
@@ -80,16 +80,14 @@ def init_command(options={}):
                 click.echo(click.style("Configuration received from portal", fg="green"))
 
                 #if web configuration portal is used, skip the steps that are already done
-                #TODO REMOVE PRINT
-                # print(options)
-                # print(config_from_portal)
                 steps_if_web_setup_used = [
                     ("", create_config_file_step),
                     ("", create_other_project_files_step),
                 ]
                 steps = steps_if_web_setup_used
             else:
-                click.echo(click.style("Web configuration failed, please continue in the command line", fg="red"))
+                click.echo(click.style("Web configuration failed, please try again.", fg="red"))
+                return
             
 
     non_hidden_steps_count = len([step for step in steps if step[0]])
