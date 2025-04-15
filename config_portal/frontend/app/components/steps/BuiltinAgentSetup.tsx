@@ -9,7 +9,7 @@ import AutocompleteInput from '../ui/AutocompleteInput';
 import {
   IMAGE_GEN_PROVIDER_OPTIONS,
   IMAGE_GEN_PROVIDER_MODELS,
-  IMAGE_GEN_PROVIDER_ENDPOINTS
+  PROVIDER_ENDPOINTS
 } from '../../lib/providerModels';
 
 type Agent = {
@@ -204,7 +204,7 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
         if (endpointEnvVar) {
           if (currentProvider !== 'openai_compatible') {
             // For standard providers, set the endpoint URL
-            const endpointUrl = IMAGE_GEN_PROVIDER_ENDPOINTS[currentProvider] || '';
+            const endpointUrl = PROVIDER_ENDPOINTS[currentProvider] || '';
             handleEnvVarChange(endpointEnvVar.key, endpointUrl);
           } else {
             // For OpenAI compatible, clear the endpoint URL
