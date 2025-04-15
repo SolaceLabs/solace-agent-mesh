@@ -7,6 +7,7 @@ import AIProviderSetup from './steps/AIProviderSetup';
 import BuiltinAgentSetup from './steps/BuiltinAgentSetup';
 import FileServiceSetup from './steps/FileServiceSetup';
 import CompletionStep from './steps/CompletionStep';
+import SuccessScreen from './steps/SuccessScreen';
 
 // Define step
 export type Step = {
@@ -86,10 +87,11 @@ export default function InitializationFlow() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [setupPath, setSetupPath] = useState<'quick' | 'advanced' | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
   
   // Determine which steps to show based on the selected path
   const [activeSteps, setActiveSteps] = useState<Step[]>([pathSelectionStep]);
-
+  
   // Fetch default options only after path selection
   useEffect(() => {
     if (setupPath) {
@@ -105,7 +107,6 @@ export default function InitializationFlow() {
         .then(data => {
           if (data && data.default_options) {
             const options = data.default_options;
-
             preProcessOptions(options);
             setFormData({ ...formData, ...options });
             setIsLoading(false);
@@ -122,7 +123,6 @@ export default function InitializationFlow() {
   }, [setupPath]);
 
   // Pre-process options for certain fields
-  //remove llm model name from data
   const preProcessOptions = (options: Record<string, any>) => {
     if (options.llm_model_name) {
       delete options.llm_model_name;
@@ -149,6 +149,11 @@ export default function InitializationFlow() {
       setSetupPath(newData.setupPath);
     }
     
+    // Check if we should show success screen
+    if (newData.showSuccess === true) {
+      setShowSuccess(true);
+    }
+    
     setFormData({ ...formData, ...newData });
   };
   
@@ -164,7 +169,7 @@ export default function InitializationFlow() {
     }
   };
 
-  // TODO check if this is needed I think not
+  // Loading state
   if (isLoading && currentStepIndex > 0) {
     return (
       <div className="max-w-4xl mx-auto p-6 flex flex-col items-center justify-center min-h-[400px]">
@@ -203,6 +208,16 @@ export default function InitializationFlow() {
     );
   }
 
+  // If we're showing the success screen, render it without any other UI
+  if (showSuccess) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <SuccessScreen />
+      </div>
+    );
+  }
+
+  // For all other steps, show the regular flow
   const StepComponent = currentStep.component;
   
   // Only show step indicator after path selection

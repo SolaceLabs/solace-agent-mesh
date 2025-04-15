@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import Button from '../ui/Button'; // Assuming Button component is available from previous steps
+import Button from '../ui/Button';
 
 // Tutorial card component for the next steps
 interface TutorialCardProps {
@@ -16,9 +16,9 @@ const TutorialCard = ({ icon, title, description, time, link }: TutorialCardProp
       href={link} 
       target="_blank" 
       rel="noopener noreferrer"
-      className="block bg-white rounded-lg shadow-sm border border-gray-100 hover:shadow-md transition-all duration-200 hover:border-solace-blue/30 group"
+      className="block bg-white rounded-lg shadow-sm border border-gray-100 hover:shadow-md transition-all duration-200 hover:border-solace-blue/30 group h-full"
     >
-      <div className="p-5">
+      <div className="p-5 flex flex-col h-full">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center">
             <span className="text-2xl mr-3">{icon}</span>
@@ -28,8 +28,12 @@ const TutorialCard = ({ icon, title, description, time, link }: TutorialCardProp
             {time}
           </div>
         </div>
-        <p className="text-gray-600 text-sm">{description}</p>
-        <div className="mt-4 flex justify-end">
+        
+        <p className="text-gray-600 text-sm flex-grow mb-4">
+          {description}
+        </p>
+        
+        <div className="mt-auto flex justify-end">
           <span className="text-solace-blue text-sm font-medium flex items-center group-hover:translate-x-1 transition-transform">
             View Tutorial
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -68,6 +72,59 @@ const DocResourceCard = ({ icon, title, description, link }: DocResourceCardProp
     </a>
   );
 };
+
+//copy button component with copy state animation
+function CopyButton({ text }: { text: string }) {
+  const [isCopied, setIsCopied] = useState(false);
+  
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy text:', err);
+    }
+  };
+  
+  return (
+    <button 
+      onClick={handleCopy}
+      className="text-white transition-colors opacity-100"
+      aria-label={isCopied ? "Copied" : "Copy to clipboard"}
+    >
+      {isCopied ? (
+        <svg 
+          className="w-5 h-5 text-green-500 transition-all duration-300" 
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+        >
+          <path 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            strokeWidth={2} 
+            d="M5 13l4 4L19 7"
+          />
+        </svg>
+      ) : (
+        <svg 
+          className="w-5 h-5 transition-all duration-300" 
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+        >
+          <path 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            strokeWidth={2} 
+            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" 
+          />
+        </svg>
+      )}
+    </button>
+  );
+}
 
 export default function SuccessScreen() {
   const [activeTab, setActiveTab] = useState('getting-started');
@@ -125,7 +182,7 @@ export default function SuccessScreen() {
       ),
       title: 'Architecture',
       description: 'System architecture and design',
-      link: 'https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/component-overview'
+      link: 'https://solacelabs.github.io/solace-agent-mesh/docs/documentation/agent-mesh-architecture/'
     },
     {
       icon: (
@@ -135,7 +192,7 @@ export default function SuccessScreen() {
       ),
       title: 'Tutorials',
       description: 'Step-by-step guides',
-      link: 'https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/event-mesh-gateway'
+      link: 'https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/'
     },
     {
       icon: (
@@ -145,7 +202,7 @@ export default function SuccessScreen() {
       ),
       title: 'User Guides',
       description: 'User Guides for various components',
-      link: 'https://solacelabs.github.io/solace-agent-mesh/docs/documentation/user-guide/custom-agents'
+      link: 'https://solacelabs.github.io/solace-agent-mesh/docs/documentation/reference/'
     }
   ];
 
@@ -207,7 +264,7 @@ export default function SuccessScreen() {
         </div>
         {/* Decorative background elements */}
         <div className="absolute top-0 right-0 -mt-10 -mr-10 h-40 w-40 bg-green-200 opacity-50 rounded-full"></div>
-        <div className="absolute bottom-0 left-0 -mb-10 -ml-10 h-32 w-32 bg-green-200 opacity-50 rounded-full"></div>
+        <div className="absolute bottom-0 left-0 -mb-10 -ml-10 h-32 w-32 bg-blue-200 opacity-50 rounded-full"></div>
       </div>
 
       {/* Tabs navigation with page indicators */}
@@ -288,15 +345,7 @@ export default function SuccessScreen() {
             </p>
             <div className="bg-gray-800 text-gray-200 p-4 rounded-md font-mono text-sm mb-4 flex items-center justify-between group relative">
               <code>sam run -b</code>
-              <button 
-                className="text-gray-400 hover:text-white transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                onClick={() => navigator.clipboard.writeText('sam run -b')}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
-                  <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
-                </svg>
-              </button>
+              <CopyButton text="sam run -b" />
             </div>
             
             <p className="text-gray-600">
@@ -394,6 +443,7 @@ export default function SuccessScreen() {
       {/* Navigation buttons */}
       <div className="mt-8 flex justify-between items-center">
         <div className="text-sm text-gray-500">
+          {/* Page indicator text for mobile */}
           <span className="md:hidden">Page {currentTabIndex + 1} of {tabCount}</span>
         </div>
         <div className="flex space-x-4">

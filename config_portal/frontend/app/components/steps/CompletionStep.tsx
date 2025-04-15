@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react';
 import Button from '../ui/Button';
 import ConfirmationModal from '../ui/ConfirmationModal';
 import { builtinAgents } from './BuiltinAgentSetup';
-import SuccessScreen from './SuccessScreen';
 import {
   PROVIDER_PREFIX_MAP,
   EMBEDDING_PROVIDER_PREFIX_MAP,
@@ -12,11 +11,14 @@ import {
 
 type CompletionStepProps = {
   data: Record<string, any>;
+  updateData: (data: Record<string, any>) => void;
+  onNext: () => void;
   onPrevious: () => void;
 };
 
 // Words that should always be capitalized
 const CAPITALIZED_WORDS = ['llm', 'ai', 'api', 'url', 'vpn'];
+
 // Sensitive fields that should be hidden
 const SENSITIVE_FIELDS = ['broker_password', 'llm_api_key', 'embedding_api_key'];
 // Group configuration items by category
@@ -35,9 +37,8 @@ const CONFIG_GROUPS: Record<string, string[]> = {
   'File Service': ['file_service_provider', 'file_service_config'],
 };
 
-export default function CompletionStep({ data, onPrevious }: CompletionStepProps) {
+export default function CompletionStep({ data, updateData, onPrevious }: CompletionStepProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [confirmationMessage, setConfirmationMessage] = useState('');
@@ -238,7 +239,7 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
     return provider ? provider.label : providerValue;
   };
 
-/** Render a single group (e.g. "Broker", "LLM Providers"). */
+  /** Render a single group (e.g. "Broker", "LLM Providers"). */
   const renderGroup = (groupName: string, keys: string[]) => {
     // Check if there's at least one non-empty value in the group
     const hasValues = keys.some((key) => !isValueEmpty(data[key]));
@@ -332,46 +333,46 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
       );
     }
   
-  // Standard rendering for other groups
-  return (
-    <div
-      key={groupName}
-      className="pb-4 mb-4 border-b border-gray-300 last:border-0 last:mb-0 last:pb-0"
-    >
-      <h4 className="font-semibold text-solace-blue mb-3">{groupName}</h4>
-      <div className="space-y-3">
-        {keys.map((key) => {
-          if (isValueEmpty(data[key])) return null;
-          
-          // Special handling for certain keys
-          if (key === 'broker_type') return <div key={key}>{renderBrokerDetails()}</div>;
-          if (key === 'built_in_agent' && Array.isArray(data[key])) {
+    // Standard rendering for other groups
+    return (
+      <div
+        key={groupName}
+        className="pb-4 mb-4 border-b border-gray-300 last:border-0 last:mb-0 last:pb-0"
+      >
+        <h4 className="font-semibold text-solace-blue mb-3">{groupName}</h4>
+        <div className="space-y-3">
+          {keys.map((key) => {
+            if (isValueEmpty(data[key])) return null;
+            
+            // Special handling for certain keys
+            if (key === 'broker_type') return <div key={key}>{renderBrokerDetails()}</div>;
+            if (key === 'built_in_agent' && Array.isArray(data[key])) {
+              return (
+                <div key={key}>
+                  {renderBuiltInAgents(data[key])}
+                </div>
+              );
+            }
+            if (key === 'file_service_config' && Array.isArray(data[key])) {
+              return (
+                <div key={key}>
+                  {renderFileServiceConfig(data[key])}
+                </div>
+              );
+            }
+            
+            // Default display
             return (
-              <div key={key}>
-                {renderBuiltInAgents(data[key])}
+              <div key={key} className="flex mb-1">
+                <span className="text-gray-600">{formatDisplayLabel(key)}:</span>
+                <span className="font-medium text-gray-900 ml-2">{formatValue(key, data[key])}</span>
               </div>
             );
-          }
-          if (key === 'file_service_config' && Array.isArray(data[key])) {
-            return (
-              <div key={key}>
-                {renderFileServiceConfig(data[key])}
-              </div>
-            );
-          }
-          
-          // Default display
-          return (
-            <div key={key} className="flex mb-1">
-              <span className="text-gray-600">{formatDisplayLabel(key)}:</span>
-              <span className="font-medium text-gray-900 ml-2">{formatValue(key, data[key])}</span>
-            </div>
-          );
-        })}
+          })}
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
   //this helper clears out all the UI state that is not needed before submitting
   //TODO: Use context provider to pass this data around.
@@ -461,7 +462,7 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
       });
 
       const result = await response.json();
-
+      
       // Check if confirmation is needed
       //  TODO: This currently breaks the review process if the user says no, this will be added later
       // if (response.status === 400 && result.status === 'ask_confirmation') {
@@ -469,17 +470,19 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
       //   setShowConfirmation(true);
       //   return;
       // }
-
+      
       if (!response.ok) {
         throw new Error(
           `HTTP error ${response.status}: ${result.message || 'Unknown error'}`
         );
       }
-
+      
       if (result.status === 'success') {
         console.log('Configuration sent successfully!');
-        setIsSubmitted(true);
-
+        
+        // Signal to parent to show success screen
+        updateData({ showSuccess: true });
+        
         try {
           const shutdownResponse = await fetch('api/shutdown', {
             method: 'POST',
@@ -539,48 +542,41 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
           onCancel={handleCancel}
         />
       )}
-
-      {!isSubmitted ? (
-        <form onSubmit={onSubmit}>
-          <div className="bg-gray-100 border border-gray-300 rounded-md p-5 space-y-4">
-            {data.setupPath === "quick" ? (
-              // In quick mode, only render the "AI Providers" section
-              renderGroup('AI Providers', CONFIG_GROUPS['AI Providers'])
-            ) : (
-              // In advanced mode, render all sections
-              Object.entries(CONFIG_GROUPS).map(([groupName, keys]) =>
-                renderGroup(groupName, keys)
-              )
-            )}
-          </div>
-
-          {submitError && (
-            <div className="p-4 bg-red-50 text-red-700 rounded-md border border-red-200">
-              <p className="font-medium">Error initializing project</p>
-              <p>{submitError}</p>
-            </div>
+      <form onSubmit={onSubmit}>
+        <div className="bg-gray-100 border border-gray-300 rounded-md p-5 space-y-4">
+          {data.setupPath === "quick" ? (
+            // In quick mode, only render the "AI Providers" section
+            renderGroup('AI Providers', CONFIG_GROUPS['AI Providers'])
+          ) : (
+            // In advanced mode, render all sections
+            Object.entries(CONFIG_GROUPS).map(([groupName, keys]) =>
+              renderGroup(groupName, keys)
+            )
           )}
-
-          <div className="mt-8 flex justify-end space-x-4">
-            <Button onClick={onPrevious} variant="outline" type="button">
-              Previous
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <div className="flex items-center space-x-2">
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span>Initializing...</span>
-                </div>
-              ) : 'Initialize Project'}
-            </Button>
+        </div>
+        {submitError && (
+          <div className="p-4 bg-red-50 text-red-700 rounded-md border border-red-200">
+            <p className="font-medium">Error initializing project</p>
+            <p>{submitError}</p>
           </div>
-        </form>
-      ) : (
-        <SuccessScreen />
-      )}
+        )}
+        <div className="mt-8 flex justify-end space-x-4">
+          <Button onClick={onPrevious} variant="outline" type="button">
+            Previous
+          </Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <div className="flex items-center space-x-2">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Initializing...</span>
+              </div>
+            ) : 'Initialize Project'}
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }
