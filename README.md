@@ -28,7 +28,6 @@
 Whether you're prototyping an 🤖 AI assistant or deploying a 🌎 production-grade solution, **Solace Agent Mesh (SAM)** provides the infrastructure to:
   - Connect AI agents to real-world data sources and systems.
   - Add gateways to expose capabilities via REST, a browser-based UI, Slack, and many more.
-  - Monitor and debug every interaction in real time.
   - Scale from local development to distributed, enterprise deployments.
 
 ---
@@ -94,12 +93,17 @@ solace-agent-mesh run -b      # Shortcut for build + run
 
 ## ➡️ Next Steps
 
-Looking to go further? Check out our tutorials for deeper integrations and real-world examples:
+Want to go further? Here are some hands-on tutorials to help you get started:
 
-- 💬 [Slack Integration](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/slack-integration) – Use Slack to chat with your agents directly.
-- 🗃️ [SQL Database Integration](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/sql-database) – Connect agents to real-time structured data sources.
+| 🔧 Integration | ⏱️ Est. Time | 📘 Tutorial |
+|----------------|--------------|-------------|
+| 🌤️ **Weather Agent**<br>Build an agent that gives Solace Agent Mesh  the ability to access real-time weather information.  | **~5 min** | [Weather Agent Plugin](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/sam-geo-information) |
+| 🗃️ **SQL Database Integration**<br>Enable Solace Agent Mesh to answer company-specific questions using a sample coffee company database.| **~10–15 min** | [SQL Database Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/sql-database) |
+| 🧠 **MCP Integration**<br>Integrating a Model Context Protocol (MCP) Server into Solace Agent Mesh. | **~10–15 min** | [MCP Integration Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/mcp-integration) |
+| 💬 **Slack Integration**<br>Chat with Solace Agent Mesh directly from Slack. | **~20–30 min** | [Slack Integration Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/slack-integration) |
 
-- 📚 Learn more about what Solace Agent Mesh can do in our [full documentation](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/).
+
+📚 Want to explore more? Check out the full [Solace Agent Mesh documentation](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/).
 
 ---
 
