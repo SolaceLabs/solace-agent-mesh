@@ -623,7 +623,7 @@ def format_agent_response(actions):
     for action in actions:
         found_ai_response = True
         ai_response += f"\n  {action.get('action_idx')}: {action.get('agent_name')}.{action.get('action_name')}:\n"
-        params = action.get("action_params", {})
+        params = action.get("action_params") or {}
         response_files = action.get("response", {}).get("files", [])
         for param, value in params.items():
             if isinstance(value, str):

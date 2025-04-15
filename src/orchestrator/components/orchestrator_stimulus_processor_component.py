@@ -132,6 +132,8 @@ class OrchestratorStimulusProcessorComponent(LLMRequestComponent):
         actions_called = []
         if results:
             for result in results:
+                if not isinstance(result, dict):
+                    continue
                 if result.get("payload", {}).get("action_name"):
                     actions_called.append({
                         "agent_name": result.get("payload", {}).get("agent_name"),
