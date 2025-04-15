@@ -569,9 +569,10 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
       {/* Error dialog */}
       {showTestErrorDialog && (
         <ConfirmationModal
-          message={`LLM Configuration Test Failed: ${testError}
-This may indicate an issue with your LLM provider settings. Please check your endpoint URL, API key, and model name.
-Would you like to ignore this warning and continue anyway?`}
+          title="Connection Test Failed"
+          message={`We couldn't connect to your AI provider: ${testError}
+          Please check your API key, model name, and endpoint URL (if applicable).
+          Do you want to skip this check and continue anyway?`}
           onConfirm={() => {
             setShowTestErrorDialog(false);
             onNext();
