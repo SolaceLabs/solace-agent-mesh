@@ -7,6 +7,7 @@ import {
   PROVIDER_PREFIX_MAP,
   EMBEDDING_PROVIDER_PREFIX_MAP,
   IMAGE_GEN_PROVIDER_PREFIX_MAP,
+  LLM_PROVIDER_OPTIONS,
 } from '../../lib/providerModels';
 
 type CompletionStepProps = {
@@ -185,6 +186,7 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
       </div>
     );
   };
+
   /** Render file service configuration. */
   const renderFileServiceConfig = (configArray: string[]) => {
     const isVolume = configArray.some((conf) => conf.startsWith('directory='));
@@ -229,50 +231,147 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
       </div>
     );
   };
-  /** Render a single group (e.g. "Broker", "LLM Providers"). */
+
+  /** Helper function to get provider label from value */
+  const getProviderLabel = (providerValue: string): string => {
+    const provider = LLM_PROVIDER_OPTIONS.find(p => p.value === providerValue);
+    return provider ? provider.label : providerValue;
+  };
+
+/** Render a single group (e.g. "Broker", "LLM Providers"). */
   const renderGroup = (groupName: string, keys: string[]) => {
     // Check if there's at least one non-empty value in the group
     const hasValues = keys.some((key) => !isValueEmpty(data[key]));
+    
     if (!hasValues) return null;
-    return (
-      <div
-        key={groupName}
-        className="pb-4 mb-4 border-b border-gray-300 last:border-0 last:mb-0 last:pb-0"
-      >
-        <h4 className="font-semibold text-solace-blue mb-3">{groupName}</h4>
-        <div className="space-y-3">
-          {keys.map((key) => {
-            if (isValueEmpty(data[key])) return null;
+    
+    // Special handling for AI Providers section
+    if (groupName === 'AI Providers') {
+      return (
+        <div
+          key={groupName}
+          className="pb-4 mb-4 border-b border-gray-300 last:border-0 last:mb-0 last:pb-0"
+        >
+          <h4 className="font-semibold text-solace-blue mb-3">{groupName}</h4>
+          <div className="space-y-3">
+            {/* LLM Model and Provider - common for both quick and advanced */}
+            {data.llm_model_name && (
+              <div className="flex mb-1">
+                <span className="text-gray-600">LLM Model Name:</span>
+                <span className="font-medium text-gray-900 ml-2">{data.llm_model_name}</span>
+              </div>
+            )}
             
-            // Special handling for certain keys
-            if (key === 'broker_type') return <div key={key}>{renderBrokerDetails()}</div>;
-            if (key === 'built_in_agent' && Array.isArray(data[key])) {
-              return (
-                <div key={key}>
-                  {renderBuiltInAgents(data[key])}
-                </div>
-              );
-            }
-            if (key === 'file_service_config' && Array.isArray(data[key])) {
-              return (
-                <div key={key}>
-                  {renderFileServiceConfig(data[key])}
-                </div>
-              );
-            }
+            {data.llm_provider && (
+              <div className="flex mb-1">
+                <span className="text-gray-600">LLM Provider:</span>
+                <span className="font-medium text-gray-900 ml-2">{getProviderLabel(data.llm_provider)}</span>
+              </div>
+            )}
             
-            // Default display
+            {/* Show endpoint URL only if provider is openai_compatible */}
+            {data.llm_provider === "openai_compatible" && data.llm_endpoint_url && (
+              <div className="flex mb-1">
+                <span className="text-gray-600">LLM Endpoint URL:</span>
+                <span className="font-medium text-gray-900 ml-2">{data.llm_endpoint_url}</span>
+              </div>
+            )}
+            
+            {/* LLM API Key - show in both quick and advanced setup */}
+            {data.llm_api_key && (
+              <div className="flex mb-1">
+                <span className="text-gray-600">LLM API Key:</span>
+                <span className="font-medium text-gray-900 ml-2">
+                  {formatValue('llm_api_key', data.llm_api_key)}
+                </span>
+              </div>
+            )}
+            
+            {/* For advanced mode, show embedding details */}
+            {data.setupPath === "advanced" && (
+              <>              
+                {/* Only show embedding details if embedding_service_enabled is true */}
+                {data.embedding_service_enabled === true && (
+                  <>
+                    {data.embedding_model_name && (
+                      <div className="flex mb-1">
+                        <span className="text-gray-600">Embedding Model Name:</span>
+                        <span className="font-medium text-gray-900 ml-2">{data.embedding_model_name}</span>
+                      </div>
+                    )}
+                    
+                    {data.embedding_provider && (
+                      <div className="flex mb-1">
+                        <span className="text-gray-600">Embedding Provider:</span>
+                        <span className="font-medium text-gray-900 ml-2">{getProviderLabel(data.embedding_provider)}</span>
+                      </div>
+                    )}
+                    
+                    {/* Show embedding endpoint URL only if provider is openai_compatible */}
+                    {data.embedding_provider === "openai_compatible" && data.embedding_endpoint_url && (
+                      <div className="flex mb-1">
+                        <span className="text-gray-600">Embedding Endpoint URL:</span>
+                        <span className="font-medium text-gray-900 ml-2">{data.embedding_endpoint_url}</span>
+                      </div>
+                    )}
+                    
+                    {data.embedding_api_key && (
+                      <div className="flex mb-1">
+                        <span className="text-gray-600">Embedding API Key:</span>
+                        <span className="font-medium text-gray-900 ml-2">
+                          {formatValue('embedding_api_key', data.embedding_api_key)}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
+  
+  // Standard rendering for other groups
+  return (
+    <div
+      key={groupName}
+      className="pb-4 mb-4 border-b border-gray-300 last:border-0 last:mb-0 last:pb-0"
+    >
+      <h4 className="font-semibold text-solace-blue mb-3">{groupName}</h4>
+      <div className="space-y-3">
+        {keys.map((key) => {
+          if (isValueEmpty(data[key])) return null;
+          
+          // Special handling for certain keys
+          if (key === 'broker_type') return <div key={key}>{renderBrokerDetails()}</div>;
+          if (key === 'built_in_agent' && Array.isArray(data[key])) {
             return (
-              <div key={key} className="flex mb-1">
-                <span className="text-gray-600">{formatDisplayLabel(key)}:</span>
-                <span className="font-medium text-gray-900 ml-2">{formatValue(key, data[key])}</span>
+              <div key={key}>
+                {renderBuiltInAgents(data[key])}
               </div>
             );
-          })}
-        </div>
+          }
+          if (key === 'file_service_config' && Array.isArray(data[key])) {
+            return (
+              <div key={key}>
+                {renderFileServiceConfig(data[key])}
+              </div>
+            );
+          }
+          
+          // Default display
+          return (
+            <div key={key} className="flex mb-1">
+              <span className="text-gray-600">{formatDisplayLabel(key)}:</span>
+              <span className="font-medium text-gray-900 ml-2">{formatValue(key, data[key])}</span>
+            </div>
+          );
+        })}
       </div>
-    );
-  };
+    </div>
+  );
+};
 
   //this helper clears out all the UI state that is not needed before submitting
   //TODO: Use context provider to pass this data around.
@@ -350,7 +449,8 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
   };
 
   //  Submission Logic
-  const submitConfiguration = async (force = false) => {
+  // TODO: Ask confirmation before overwriting REST API files
+  const submitConfiguration = async (force = true) => {
     cleanDataBeforeSubmit(data);
     console.log('Submitting configuration:', data);
     try {
@@ -363,11 +463,12 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
       const result = await response.json();
 
       // Check if confirmation is needed
-      if (response.status === 400 && result.status === 'ask_confirmation') {
-        setConfirmationMessage(result.message);
-        setShowConfirmation(true);
-        return;
-      }
+      //  TODO: This currently breaks the review process if the user says no, this will be added later
+      // if (response.status === 400 && result.status === 'ask_confirmation') {
+      //   setConfirmationMessage(result.message);
+      //   setShowConfirmation(true);
+      //   return;
+      // }
 
       if (!response.ok) {
         throw new Error(
@@ -441,12 +542,17 @@ export default function CompletionStep({ data, onPrevious }: CompletionStepProps
 
       {!isSubmitted ? (
         <form onSubmit={onSubmit}>
-            {/* Configuration Summary */}
-            <div className="bg-gray-100 border border-gray-300 rounded-md p-5 space-y-4">
-              {Object.entries(CONFIG_GROUPS).map(([groupName, keys]) =>
+          <div className="bg-gray-100 border border-gray-300 rounded-md p-5 space-y-4">
+            {data.setupPath === "quick" ? (
+              // In quick mode, only render the "AI Providers" section
+              renderGroup('AI Providers', CONFIG_GROUPS['AI Providers'])
+            ) : (
+              // In advanced mode, render all sections
+              Object.entries(CONFIG_GROUPS).map(([groupName, keys]) =>
                 renderGroup(groupName, keys)
-              )}
-            </div>
+              )
+            )}
+          </div>
 
           {submitError && (
             <div className="p-4 bg-red-50 text-red-700 rounded-md border border-red-200">
