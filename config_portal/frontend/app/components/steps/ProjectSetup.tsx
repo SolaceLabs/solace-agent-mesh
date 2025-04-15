@@ -24,13 +24,14 @@ export default function ProjectSetup({ data, updateData, onNext, onPrevious }: P
     <form onSubmit={handleSubmit}>
       <div className="space-y-4">
         <InfoBox className="mb-4">
-          The namespace will be used as the topic prefix for all events in your Solace Agent Mesh.
+          The namespace is a unique identifier that will be prefixed to all your event topics in the Solace Agent Mesh.
+          Choose something meaningful to your organization or project.
         </InfoBox>
         
         <FormField 
           label="Project Namespace" 
           htmlFor="namespace"
-          helpText="This will be used as the topic prefix for all events."
+          helpText="Any simple text identifier that makes sense for your project (e.g., 'my-project', 'acme-corp')"
           required
         >
           <Input
@@ -38,7 +39,7 @@ export default function ProjectSetup({ data, updateData, onNext, onPrevious }: P
             name="namespace"
             value={data.namespace}
             onChange={handleChange}
-            placeholder="Enter a namespace for your project"
+            placeholder="Enter a namespace (e.g., my-project)"
             required
           />
         </FormField>
@@ -48,6 +49,7 @@ export default function ProjectSetup({ data, updateData, onNext, onPrevious }: P
         <Button 
           onClick={onPrevious}
           variant="outline"
+          disabled={true}  // if we want to allow going back then data needs to be cleared on every time path selection is altered
         >
           Previous
         </Button>
