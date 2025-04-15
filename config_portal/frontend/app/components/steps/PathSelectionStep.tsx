@@ -31,7 +31,7 @@ const pathOptions: Record<PathType, {
     timeColor: 'green',
     description: 'Simple setup with recommended defaults',
     features: [
-      'Configure AI provider',
+      'Connect AI provider',
       'Uses sensible defaults for everything else'
     ]
   },
@@ -41,14 +41,21 @@ const pathOptions: Record<PathType, {
     timeColor: 'blue',
     description: 'Full control over all configuration options',
     features: [
-      'Configure project structure',
-      'Configure broker settings',
-      'Configure AI provider',
-      'Configure built-in agents',
+      'Set namespace for topic prefixes',
+      'Specify broker settings',
+      'Connect AI provider',
+      'Customize built-in agents',
       'Configure file service'
     ]
   }
 };
+
+// Common outcomes for all paths
+const commonOutcomes = [
+  'Ready-to-use Solace Agent Mesh with basic capabilities',
+  'Chat interface and REST API for immediate testing',
+  'Foundation for adding more agents later'
+];
 
 // Path option card component
 const PathOptionCard = ({
@@ -61,7 +68,6 @@ const PathOptionCard = ({
   onSelect: () => void;
 }) => {
   const option = pathOptions[pathType];
-  
   return (
     <div
       className={`
@@ -79,14 +85,17 @@ const PathOptionCard = ({
         </span>
       </div>
       <p className="text-gray-600 mb-4">{option.description}</p>
-      <ul className="space-y-2 text-sm text-gray-600 mb-4">
-        {option.features.map((feature, index) => (
-          <li key={index} className="flex items-center">
-            <CheckIcon />
-            {feature}
-          </li>
-        ))}
-      </ul>
+      
+      <div>
+        <ul className="space-y-2 text-sm text-gray-600">
+          {option.features.map((feature) => (
+            <li key={feature} className="flex items-center">
+              <CheckIcon />
+              {feature}
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 };
@@ -110,6 +119,7 @@ export default function PathSelectionStep({ data, updateData, onNext, onPrevious
 
   return (
     <div className="space-y-6">
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {(Object.keys(pathOptions) as PathType[]).map((pathType) => (
           <PathOptionCard
@@ -119,6 +129,19 @@ export default function PathSelectionStep({ data, updateData, onNext, onPrevious
             onSelect={() => handlePathSelect(pathType)}
           />
         ))}
+      </div>
+      
+      {/* Common outcomes section */}
+      <div className="mt-6 p-4 border rounded-lg">
+        <h3 className="text-lg font-semibold text-solace-blue mb-3">What you'll get after setup:</h3>
+        <ul className="space-y-2 text-gray-700">
+          {commonOutcomes.map((outcome) => (
+            <li key={outcome} className="flex items-center">
+              <CheckIcon />
+              {outcome}
+            </li>
+          ))}
+        </ul>
       </div>
 
       <div className="mt-8 flex justify-end">
