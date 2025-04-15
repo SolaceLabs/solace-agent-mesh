@@ -116,7 +116,7 @@ export default function InitializationFlow() {
         })
         .catch(err => {
           console.error('Error fetching default options:', err);
-          setError('Failed to load configuration options. Please refresh or try again later.');
+          setError('Failed to connect to server, is the init process still running?');
           setIsLoading(false);
         });
     }
