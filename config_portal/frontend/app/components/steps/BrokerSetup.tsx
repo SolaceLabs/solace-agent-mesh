@@ -3,7 +3,7 @@ import FormField from '../ui/FormField';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Button from '../ui/Button';
-import { WarningBox, StatusBox } from '../ui/InfoBoxes';
+import { InfoBox, WarningBox } from '../ui/InfoBoxes';
 
 type BrokerSetupProps = {
   data: { 
@@ -23,8 +23,8 @@ type BrokerSetupProps = {
 
 const brokerOptions = [
   { value: 'solace', label: 'Existing Solace Pub/Sub+ broker' },
-  { value: 'container', label: 'New local Solace PubSub+ broker container (podman/docker)' },
-  { value: 'dev_mode', label: 'Run in \'dev mode\' - all in one process (not recommended for production)' },
+  { value: 'container', label: 'New local Solace PubSub+ broker container' },
+  { value: 'dev_mode', label: 'Dev mode (simplified setup)' },
 ];
 
 const containerEngineOptions = [
@@ -170,6 +170,7 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
   return (
     <form onSubmit={handleSubmit}>
       <div className="space-y-6">
+        
         <FormField 
           label="Broker Type" 
           htmlFor="broker_type"
@@ -188,6 +189,10 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
         
         {showBrokerDetails && (
           <div className="space-y-4 p-4 border border-gray-200 rounded-md">
+            <InfoBox className="mb-4">
+              Connect to an existing Solace PubSub+ broker running locally or in the cloud. You will need your broker credentials.
+            </InfoBox>
+            
             <FormField 
               label="Broker URL" 
               htmlFor="broker_url"
@@ -257,9 +262,15 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
         
         {showContainerDetails && (
           <div className="space-y-4 p-4 border border-gray-200 rounded-md">
+            <InfoBox className="mb-4">
+              This option will download and run a local Solace PubSub+ broker container on your machine using Docker or Podman.
+              You need to have Docker or Podman installed on your system.
+            </InfoBox>
+            
             <FormField 
               label="Container Engine" 
               htmlFor="container_engine"
+              helpText="Select the container engine installed on your system"
               required
             >
               <Select
@@ -273,33 +284,70 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
             </FormField>
             
             {errors.container && (
-              <div className="text-sm text-red-600 mt-1">
+              <div className="text-sm text-red-600 mt-1 bg-red-50 p-2 border-l-4 border-red-500">
                 {errors.container}
               </div>
             )}
             
-            {containerStatus.message && (
-              <StatusBox 
-                variant={
-                  containerStatus.isRunning ? 'loading' : 
-                  containerStatus.success ? 'success' : 
-                  'error'
-                }
-              >
-                {containerStatus.message}
-              </StatusBox>
-            )}
-            
-            <div className="mt-2">
-              <Button 
-                onClick={handleRunContainer}
-                disabled={isRunningContainer || containerStatus.success}
-                variant="primary"
-                type="button"
-              >
-                {isRunningContainer ? 'Starting Container...' : 
-                 containerStatus.success ? 'Container Running ✓' : 'Run Container'}
-              </Button>
+            <div className="relative">
+              <div className="flex flex-col">
+                {!containerStatus.success && !isRunningContainer && (
+                  <div className="mb-2 text-sm font-medium flex items-center">
+                  </div>
+                )}
+                
+                <Button 
+                  onClick={handleRunContainer}
+                  disabled={isRunningContainer || containerStatus.success}
+                  variant="primary"
+                  type="button"
+                  className="flex items-center justify-center gap-2"
+                >
+                  {isRunningContainer ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Starting Container...
+                    </>
+                  ) : containerStatus.success ? (
+                    <>
+                      <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Container Running
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download and Run Container
+                    </>
+                  )}
+                </Button>
+                
+                {containerStatus.success && (
+                  <div className="mt-2 flex items-center text-sm text-green-600">
+                    <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Container is running. You may proceed to the next step.
+                  </div>
+                )}
+                
+                {!containerStatus.success && !isRunningContainer && (
+                  <div className="mt-2 flex items-center text-sm text-blue-600">
+                    <svg className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="16" x2="12" y2="12" />
+                      <line x1="12" y1="8" x2="12" y2="8" />
+                    </svg>
+                    You must start the container before proceeding to the next step
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -319,11 +367,21 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
         >
           Previous
         </Button>
+        
         <Button 
           type='submit'
-          disabled={isRunningContainer}
+          disabled={isRunningContainer || (brokerType === 'container' && !containerStatus.success)}
+          variant={brokerType === 'container' && !containerStatus.success ? "secondary" : "primary"}
         >
-          Next
+          {brokerType === 'container' && !containerStatus.success && !isRunningContainer && (
+            <span className="flex items-center">
+              <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              Run Container First
+            </span>
+          )}
+          {!(brokerType === 'container' && !containerStatus.success && !isRunningContainer) && "Next"}
         </Button>
       </div>
     </form>
