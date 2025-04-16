@@ -240,10 +240,32 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
     }
   }, [envVars, isAgentEnabled]);
   
+  // Helper to update environment variables and notify parent
+  const updateEnvironmentVarsAndNotify = (newEnvVars: Record<string, string>) => {
+    setEnvVars(newEnvVars);
+    
+    // Update parent data with the new env vars
+    const envVarArray = Object.entries(newEnvVars)
+      .filter(([_, val]) => val !== '')
+      .map(([k, v]) => `${k}=${v}`);
+    
+    updateData({ env_var: envVarArray });
+  };
+
   const handleToggle = (agentId: string, value: boolean) => {
+    // Update the built_in_agent array 
+    const currentAgents = data.built_in_agent ?? [];
+    const updatedAgents = value
+      ? (currentAgents.includes(agentId) ? currentAgents : [...currentAgents, agentId])
+      : currentAgents.filter((id: string) => id !== agentId);
+    
+    updateData({ built_in_agent: updatedAgents });
+    
+    // Handle environment variables based on toggle state
+    const agent = builtinAgents.find(a => a.id === agentId);
+    
     // If disabling, clear related env vars and errors
     if (!value) {
-      const agent = builtinAgents.find(a => a.id === agentId);
       if (agent?.envVars && agent.envVars.length > 0) {
         const updatedEnvVars = { ...envVars };
         const updatedErrors = { ...errors };
@@ -253,73 +275,32 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
           delete updatedErrors[env.key];
         });
         
-        setEnvVars(updatedEnvVars);
         setErrors(updatedErrors);
-        
-        // Update parent data with the new env vars
-        const envVarArray = Object.entries(updatedEnvVars)
-          .filter(([_, val]) => val !== '')
-          .map(([k, v]) => `${k}=${v}`);
-        
-        updateData({
-          env_var: envVarArray
-        });
+        updateEnvironmentVarsAndNotify(updatedEnvVars);
       }
-    } else if (agentId === 'image_processing') {
-      // If enabling the image processing agent, initialize model suggestions
-      const agent = builtinAgents.find(a => a.id === agentId);
-      if (agent?.envVars) {
-        // Find the provider env var
-        const providerEnvVar = agent.envVars.find(env => env.key === 'IMAGE_GEN_PROVIDER');
-        if (providerEnvVar) {
-          // Get the default provider value
-          const provider = providerEnvVar.defaultValue;
-          
+    } 
+    // If enabling image processing agent
+    else if (agentId === 'image_processing' && agent?.envVars) {
+      const providerEnvVar = agent.envVars.find(env => env.key === 'IMAGE_GEN_PROVIDER');
+      if (providerEnvVar) {
+        const provider = providerEnvVar.defaultValue;
+        
           // Initialize model suggestions based on the provider
-          if (provider && provider !== 'openai_compatible') {
-            setImageGenModelSuggestions(IMAGE_GEN_PROVIDER_MODELS[provider] || []);
-          }
-          
-          // Also initialize the envVars with default values if they don't exist
-          const newEnvVars = { ...envVars };
-          agent.envVars.forEach(env => {
-            if (!newEnvVars[env.key]) {
-              newEnvVars[env.key] = env.defaultValue;
-            }
-          });
-          
-          // Update envVars
-          setEnvVars(newEnvVars);
-          
-          // Update parent data
-          const envVarArray = Object.entries(newEnvVars)
-            .filter(([_, val]) => val !== '')
-            .map(([k, v]) => `${k}=${v}`);
-          
-          updateData({
-            env_var: envVarArray
-          });
+        if (provider && provider !== 'openai_compatible') {
+          setImageGenModelSuggestions(IMAGE_GEN_PROVIDER_MODELS[provider] || []);
         }
+        
+          // initialize the envVars with default values if they don't exist
+        const newEnvVars = { ...envVars };
+        agent.envVars.forEach(env => {
+          if (!newEnvVars[env.key]) {
+            newEnvVars[env.key] = env.defaultValue;
+          }
+        });
+        
+        updateEnvironmentVarsAndNotify(newEnvVars);
       }
     }
-    
-    // Update the built_in_agent array directly
-    const currentAgents = data.built_in_agent || [];
-    let updatedAgents;
-    
-    if (value) {
-      // Add agent if not already in the list
-      updatedAgents = currentAgents.includes(agentId)
-        ? currentAgents
-        : [...currentAgents, agentId];
-    } else {
-      // Remove agent from the list
-      updatedAgents = currentAgents.filter((id: string) => id !== agentId);
-    }
-    
-    updateData({
-      built_in_agent: updatedAgents
-    });
   };
   
   const validateForm = () => {
