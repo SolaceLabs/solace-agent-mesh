@@ -268,7 +268,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
     try {
       // For standard providers, use the predefined endpoint URL
       // For OpenAI compatible providers, use the user-provided endpoint URL
-      const baseUrl = (data.llm_provider !== 'openai_compatible') //TODO: use new helper
+      const baseUrl = (data.llm_provider !== 'openai_compatible')
         ? PROVIDER_ENDPOINTS[data.llm_provider] || data.llm_endpoint_url
         : data.llm_endpoint_url;
       
@@ -295,13 +295,17 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
         onNext();
       } else {
         // Test failed, show error dialog
-        setTestError(result.message || 'Failed to test LLM configuration');
+        setTestError(result.message ?? 'Failed to test LLM configuration');
         setShowTestErrorDialog(true);
         setIsTestingConfig(false);
       }
     } catch (error) {
       // Handle network or other errors
-      setTestError('An error occurred while testing the LLM configuration');
+      setTestError(
+        error instanceof Error 
+          ? `Error: ${error.message}` 
+          : 'An unexpected error occurred while testing the LLM configuration'
+      );
       setShowTestErrorDialog(true);
       setIsTestingConfig(false);
     }
@@ -506,6 +510,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
       <div className="mt-8 flex justify-end space-x-4">
         <Button 
           onClick={onPrevious}
+          disabled={data.setupPath === "quick"}
           variant="outline"
         >
           Previous

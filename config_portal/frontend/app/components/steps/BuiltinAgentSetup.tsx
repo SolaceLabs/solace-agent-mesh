@@ -93,7 +93,7 @@ export const builtinAgents: Agent[] = [
   },
 ];
 
-export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious }: BuiltinAgentSetupProps) {
+export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious }: Readonly<BuiltinAgentSetupProps>) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [envVars, setEnvVars] = useState<Record<string, string>>({});
   const [initialized, setInitialized] = useState(false);
@@ -117,7 +117,7 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
     }
     
     // Initialize env vars for enabled agents
-    const enabledAgents = data.built_in_agent || [];
+    const enabledAgents = data.built_in_agent ?? [];
     builtinAgents.forEach(agent => {
       if (agent.envVars && enabledAgents.includes(agent.id)) {
         agent.envVars.forEach(env => {
@@ -149,7 +149,7 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
   }, [data, initialized]);
   
   const isAgentEnabled = (agentId: string) => {
-    return (data.built_in_agent || []).includes(agentId);
+    return (data.built_in_agent ?? []).includes(agentId);
   };
   
   const handleEnvVarChange = (key: string, value: string) => {
@@ -217,7 +217,7 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
       setPreviousImageGenProvider(currentProvider);
     }
   }, [envVars, isAgentEnabled, previousImageGenProvider, handleEnvVarChange]);
-
+  
   // Update model suggestions based on provider
   useEffect(() => {
     // Find the image processing agent
@@ -251,13 +251,23 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
     
     updateData({ env_var: envVarArray });
   };
-
+  
+  const getUpdatedAgents = (currentAgents: string[], agentId: string, value: boolean) => {
+    if (value) {
+      if (currentAgents.includes(agentId)) {
+        return currentAgents;
+      } else {
+        return [...currentAgents, agentId];
+      }
+    } else {
+      return currentAgents.filter((id: string) => id !== agentId);
+    }
+  };
+  
   const handleToggle = (agentId: string, value: boolean) => {
-    // Update the built_in_agent array 
+    // Update the built_in_agent array using the extracted function
     const currentAgents = data.built_in_agent ?? [];
-    const updatedAgents = value
-      ? (currentAgents.includes(agentId) ? currentAgents : [...currentAgents, agentId])
-      : currentAgents.filter((id: string) => id !== agentId);
+    const updatedAgents = getUpdatedAgents(currentAgents, agentId, value);
     
     updateData({ built_in_agent: updatedAgents });
     
@@ -285,12 +295,12 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
       if (providerEnvVar) {
         const provider = providerEnvVar.defaultValue;
         
-          // Initialize model suggestions based on the provider
+        // Initialize model suggestions based on the provider
         if (provider && provider !== 'openai_compatible') {
           setImageGenModelSuggestions(IMAGE_GEN_PROVIDER_MODELS[provider] || []);
         }
         
-          // initialize the envVars with default values if they don't exist
+        // initialize the envVars with default values if they don't exist
         const newEnvVars = { ...envVars };
         agent.envVars.forEach(env => {
           if (!newEnvVars[env.key]) {
@@ -344,6 +354,68 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
     }
   };
   
+  // Function to get autocomplete focus handler
+  const getAutocompleteFocusHandler = (envKey: string) => {
+    if (envKey === 'IMAGE_GEN_MODEL') {
+      return () => {
+        // Ensure model suggestions are loaded when focusing on the field
+        const provider = envVars['IMAGE_GEN_PROVIDER'] || 'openai';
+        if (provider && provider !== 'openai_compatible') {
+          setImageGenModelSuggestions(IMAGE_GEN_PROVIDER_MODELS[provider] || []);
+        }
+      };
+    }
+    return undefined;
+  };
+  
+  // Function to render the appropriate input field based on type
+  const renderInputField = (env: any, agent: Agent) => {
+    if (env.type === 'select') {
+      return (
+        <Select
+          id={env.key}
+          name={env.key}
+          value={envVars[env.key] || ''}
+          onChange={(e) => handleEnvVarChange(env.key, e.target.value)}
+          options={env.options ?? []}
+          required={!!env.required && isAgentEnabled(agent.id)}
+        />
+      );
+    }
+    
+    if (env.type === 'autocomplete') {
+      const suggestions = env.key === 'IMAGE_GEN_MODEL' ? imageGenModelSuggestions : [];
+      const focusHandler = getAutocompleteFocusHandler(env.key);
+      
+      return (
+        <AutocompleteInput
+          id={env.key}
+          name={env.key}
+          value={envVars[env.key] || ''}
+          onChange={(e) => handleEnvVarChange(env.key, e.target.value)}
+          placeholder={env.placeholder}
+          suggestions={suggestions}
+          required={!!env.required && isAgentEnabled(agent.id)}
+          onFocus={focusHandler}
+        />
+      );
+    }
+    
+    // Default to regular input
+    return (
+      <Input
+        id={env.key}
+        name={env.key}
+        type={env.type}
+        value={envVars[env.key] || ''}
+        onChange={(e) => handleEnvVarChange(env.key, e.target.value)}
+        placeholder={env.placeholder}
+        required={!!env.required && isAgentEnabled(agent.id)}
+        autoFocus={agent?.envVars?.indexOf(env) === 0}
+      />
+    );
+  };
+  
   return (
     <form onSubmit={handleSubmit}>
       <div className="space-y-6">
@@ -383,47 +455,7 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
                         error={errors[env.key]}
                         required={!!env.required}
                       >
-                        {env.type === 'select' ? (
-                          <Select
-                            id={env.key}
-                            name={env.key}
-                            value={envVars[env.key] || ''}
-                            onChange={(e) => handleEnvVarChange(env.key, e.target.value)}
-                            options={env.options || []}
-                            required={!!env.required && isAgentEnabled(agent.id)}
-                          />
-                        ) : env.type === 'autocomplete' ? (
-                          <AutocompleteInput
-                            id={env.key}
-                            name={env.key}
-                            value={envVars[env.key] || ''}
-                            onChange={(e) => handleEnvVarChange(env.key, e.target.value)}
-                            placeholder={env.placeholder}
-                            suggestions={env.key === 'IMAGE_GEN_MODEL' ? imageGenModelSuggestions : []}
-                            required={!!env.required && isAgentEnabled(agent.id)}
-                            onFocus={
-                              env.key === 'IMAGE_GEN_MODEL' ?
-                              () => {
-                                // Ensure model suggestions are loaded when focusing on the field
-                                const provider = envVars['IMAGE_GEN_PROVIDER'] || 'openai';
-                                if (provider && provider !== 'openai_compatible') {
-                                  setImageGenModelSuggestions(IMAGE_GEN_PROVIDER_MODELS[provider] || []);
-                                }
-                              } : undefined
-                            }
-                          />
-                        ) : (
-                          <Input
-                            id={env.key}
-                            name={env.key}
-                            type={env.type}
-                            value={envVars[env.key] || ''}
-                            onChange={(e) => handleEnvVarChange(env.key, e.target.value)}
-                            placeholder={env.placeholder}
-                            required={!!env.required && isAgentEnabled(agent.id)}
-                            autoFocus={agent?.envVars?.indexOf(env) === 0}
-                          />
-                        )}
+                        {renderInputField(env, agent)}
                       </FormField>
                     );
                   })}

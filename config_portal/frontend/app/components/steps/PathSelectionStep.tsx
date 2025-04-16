@@ -100,9 +100,9 @@ const PathOptionCard = ({
   );
 };
 
-export default function PathSelectionStep({ data, updateData, onNext, onPrevious }: PathSelectionStepProps) {
+export default function PathSelectionStep({ data, updateData, onNext, onPrevious }: Readonly<PathSelectionStepProps>) {
   const [selectedPath, setSelectedPath] = useState<PathType | null>(
-    data.setupPath || null
+    data.setupPath ?? null
   );
 
   const handlePathSelect = (path: PathType) => {

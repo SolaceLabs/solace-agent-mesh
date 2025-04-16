@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import Button from '../ui/Button';
-import ConfirmationModal from '../ui/ConfirmationModal';
 import { builtinAgents } from './BuiltinAgentSetup';
 import {
   PROVIDER_PREFIX_MAP,
@@ -12,7 +11,6 @@ import {
 type CompletionStepProps = {
   data: Record<string, any>;
   updateData: (data: Record<string, any>) => void;
-  onNext: () => void;
   onPrevious: () => void;
 };
 
@@ -37,11 +35,9 @@ const CONFIG_GROUPS: Record<string, string[]> = {
   'File Service': ['file_service_provider', 'file_service_config'],
 };
 
-export default function CompletionStep({ data, updateData, onPrevious }: CompletionStepProps) {
+export default function CompletionStep({ data, updateData, onPrevious }: Readonly<CompletionStepProps>) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [confirmationMessage, setConfirmationMessage] = useState('');
 
   // Create a mapping of agent IDs to their information
   const agentMapping = useMemo(() => {
@@ -130,7 +126,7 @@ export default function CompletionStep({ data, updateData, onPrevious }: Complet
           <div className="pl-4 border-l-2 border-gray-300 mb-2">
             <div className="flex mb-1">
               <span className="text-gray-600">Container Engine:</span>
-              <span className="font-medium text-gray-900 ml-2">{data.container_engine || 'Docker'}</span>
+              <span className="font-medium text-gray-900 ml-2">{data.container_engine ?? 'Docker'}</span>
             </div>
           </div>
         )}
@@ -450,7 +446,7 @@ export default function CompletionStep({ data, updateData, onPrevious }: Complet
   };
 
   //  Submission Logic
-  // TODO: Ask confirmation before overwriting REST API files
+  // TODO: Ask confirmation before overwriting REST API files this function allows for it but we have other ui issues to handle before this can be implemented
   const submitConfiguration = async (force = true) => {
     cleanDataBeforeSubmit(data);
     console.log('Submitting configuration:', data);
@@ -462,18 +458,10 @@ export default function CompletionStep({ data, updateData, onPrevious }: Complet
       });
 
       const result = await response.json();
-      
-      // Check if confirmation is needed
-      //  TODO: This currently breaks the review process if the user says no, this will be added later
-      // if (response.status === 400 && result.status === 'ask_confirmation') {
-      //   setConfirmationMessage(result.message);
-      //   setShowConfirmation(true);
-      //   return;
-      // }
-      
+           
       if (!response.ok) {
         throw new Error(
-          `HTTP error ${response.status}: ${result.message || 'Unknown error'}`
+          `HTTP error ${response.status}: ${result.message ?? 'Unknown error'}`
         );
       }
       
@@ -496,7 +484,7 @@ export default function CompletionStep({ data, updateData, onPrevious }: Complet
           console.error('Error sending shutdown request:', shutdownError);
         }
       } else {
-        throw new Error(result.message || 'Failed to save configuration');
+        throw new Error(result.message ?? 'Failed to save configuration');
       }
     } catch (error) {
       setSubmitError(
@@ -514,18 +502,6 @@ export default function CompletionStep({ data, updateData, onPrevious }: Complet
     await submitConfiguration();
   };
 
-  // Confirmation Modal handlers
-  const handleConfirm = () => {
-    setShowConfirmation(false);
-    setIsSubmitting(true);
-    submitConfiguration(true);
-  };
-
-  const handleCancel = () => {
-    setShowConfirmation(false);
-    setIsSubmitting(false);
-  };
-
   // Handle form submission
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -535,13 +511,6 @@ export default function CompletionStep({ data, updateData, onPrevious }: Complet
   //  Rendering
   return (
     <div className="space-y-6">
-      {showConfirmation && (
-        <ConfirmationModal
-          message={confirmationMessage}
-          onConfirm={handleConfirm}
-          onCancel={handleCancel}
-        />
-      )}
       <form onSubmit={onSubmit}>
         <div className="bg-gray-100 border border-gray-300 rounded-md p-5 space-y-4">
           {data.setupPath === "quick" ? (

@@ -105,7 +105,7 @@ export default function InitializationFlow() {
           return response.json();
         })
         .then(data => {
-          if (data && data.default_options) {
+          if (data?.default_options) {
             const options = data.default_options;
             preProcessOptions(options);
             setFormData({ ...formData, ...options });
@@ -222,6 +222,12 @@ export default function InitializationFlow() {
   
   // Only show step indicator after path selection
   const showStepIndicator = currentStepIndex > 0;
+
+  const getStepsForPath = () => {
+    if (setupPath === 'quick') return quickInitSteps;
+    if (setupPath === 'advanced') return advancedInitSteps;
+    return [];
+  };
   
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -230,7 +236,7 @@ export default function InitializationFlow() {
       {showStepIndicator && (
         <div className="mb-8">
           <StepIndicator
-            steps={setupPath === 'quick' ? quickInitSteps : (setupPath === 'advanced' ? advancedInitSteps : [])}
+            steps={getStepsForPath()}
             currentStepIndex={currentStepIndex > 0 ? currentStepIndex - 1 : 0}
             onStepClick={(index) => {
               // TODO: Allow clicking on steps to navigate

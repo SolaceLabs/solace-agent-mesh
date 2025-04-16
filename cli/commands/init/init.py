@@ -107,8 +107,7 @@ def init_command(options={}):
         abort("\n\nAborted by user")
 
     click.echo(click.style("Solace Agent Mesh has been initialized", fg="green"))
-    #TODO REMOVE PRINT
-    #print(options)
+
     if not skip:
         click.echo(
             click.style(

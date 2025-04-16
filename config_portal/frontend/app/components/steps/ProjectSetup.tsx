@@ -10,7 +10,7 @@ type ProjectSetupProps = {
   onPrevious: () => void;
 };
 
-export default function ProjectSetup({ data, updateData, onNext, onPrevious }: ProjectSetupProps) {
+export default function ProjectSetup({ data, updateData, onNext, onPrevious }: Readonly<ProjectSetupProps>) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     updateData({ [e.target.name]: e.target.value });
   };
