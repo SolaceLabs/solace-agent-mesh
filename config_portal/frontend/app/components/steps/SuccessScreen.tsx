@@ -264,7 +264,7 @@ export default function SuccessScreen() {
         </div>
         {/* Decorative background elements */}
         <div className="absolute top-0 right-0 -mt-10 -mr-10 h-40 w-40 bg-green-200 opacity-50 rounded-full"></div>
-        <div className="absolute bottom-0 left-0 -mb-10 -ml-10 h-32 w-32 bg-blue-200 opacity-50 rounded-full"></div>
+        <div className="absolute bottom-0 left-0 -mb-10 -ml-10 h-32 w-32 bg-green-200 opacity-50 rounded-full"></div>
       </div>
 
       {/* Tabs navigation with page indicators */}

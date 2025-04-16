@@ -3,7 +3,7 @@ import FormField from '../ui/FormField';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Button from '../ui/Button';
-import { InfoBox, WarningBox } from '../ui/InfoBoxes';
+import { InfoBox, WarningBox, StatusBox } from '../ui/InfoBoxes';
 
 type BrokerSetupProps = {
   data: { 
@@ -289,13 +289,21 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
               </div>
             )}
             
+            {/* Display container status message using StatusBox component */}
+            {containerStatus.message && (
+              <StatusBox 
+                variant={
+                  containerStatus.isRunning ? 'loading' : 
+                  containerStatus.success ? 'success' : 
+                  'error'
+                }
+              >
+                {containerStatus.message}
+              </StatusBox>
+            )}
+            
             <div className="relative">
               <div className="flex flex-col">
-                {!containerStatus.success && !isRunningContainer && (
-                  <div className="mb-2 text-sm font-medium flex items-center">
-                  </div>
-                )}
-                
                 <Button 
                   onClick={handleRunContainer}
                   disabled={isRunningContainer || containerStatus.success}
@@ -337,7 +345,7 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
                   </div>
                 )}
                 
-                {!containerStatus.success && !isRunningContainer && (
+                {!containerStatus.success && !isRunningContainer && !containerStatus.message && (
                   <div className="mt-2 flex items-center text-sm text-blue-600">
                     <svg className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="12" cy="12" r="10" />
@@ -353,9 +361,9 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Br
         )}
         
         {brokerType === 'dev_mode' && (
-          <WarningBox>
+            <WarningBox>
             <strong>Warning:</strong> Dev mode runs everything in a single process and is not recommended for production use.
-          </WarningBox>
+            </WarningBox>
         )}
       </div>
       
