@@ -46,8 +46,9 @@ class OrchestratorState:
         with self._lock:
             agent_name = agent.get("agent_name")
             agent["state"] = "closed"
-            if agent_name not in self.registered_agents:
-                self.registered_agents[agent_name] = agent
+
+            # Always update the agent information
+            self.registered_agents[agent_name] = agent
 
             # Reset its TTL
             self.registered_agents[agent_name][
@@ -79,10 +80,13 @@ class OrchestratorState:
     def age_out_agents(self):
         with self._lock:
             now = datetime.now()
+            agents_to_remove = []
             for agent_name, agent in self.registered_agents.items():
-                if agent.get("expire_time") < now:
+                if agent.get("expire_time", datetime.max) < now:
                     log.warning("Agent %s has expired. Removing.", agent_name)
-                    del self.registered_agents[agent_name]
+                    agents_to_remove.append(agent_name)
+            for agent_name in agents_to_remove:
+                del self.registered_agents[agent_name]
 
     def delete_agent(self, agent_name):
         with self._lock:
@@ -145,7 +149,9 @@ class OrchestratorState:
 
         for agent_name, agent in self.registered_agents.items():
             actions = agent.get("actions", [])
-            filtered_actions = middleware_service.get("filter_action")(user_properties, actions)
+            filtered_actions = middleware_service.get("filter_action")(
+                user_properties, actions
+            )
 
             if filtered_actions:
                 agent_state = self.get_agent_state(session_id).get(agent_name, {})

@@ -1,7 +1,11 @@
 # tests to verify that the action_manager.py file is working as expected:
 import unittest
 
-from src.common.utils import parse_file_content, parse_orchestrator_response
+from src.common.utils import (
+    parse_file_content,
+    parse_orchestrator_response,
+    strip_text_after_invoke_action,
+)
 
 
 class TestParser(unittest.TestCase):
@@ -123,3 +127,41 @@ I've created a CSV file named "numbers_1_to_10.csv" with a single column labeled
         }
 
         self.assertEqual(result, expected_dict)
+
+    def test_strip_text_after_invoke_action_no_tag(self):
+        text = "This is some text without any invoke action."
+        result = strip_text_after_invoke_action(text)
+        self.assertEqual(result, text)
+
+    def test_strip_text_after_invoke_action_single_tag(self):
+        text = "Some text before <t123_invoke_action agent='test' action='do'></t123_invoke_action> and some text after."
+        expected = "Some text before <t123_invoke_action agent='test' action='do'></t123_invoke_action>"
+        result = strip_text_after_invoke_action(text)
+        self.assertEqual(result, expected)
+
+    def test_strip_text_after_invoke_action_multiple_tags(self):
+        text = "First action <t1_invoke_action></t1_invoke_action> then some text. Second action <t2_invoke_action></t2_invoke_action> and final text."
+        expected = "First action <t1_invoke_action></t1_invoke_action> then some text. Second action <t2_invoke_action></t2_invoke_action>"
+        result = strip_text_after_invoke_action(text)
+        self.assertEqual(result, expected)
+
+    def test_strip_text_after_invoke_action_tag_at_end(self):
+        text = "Some text ending with an action <t99_invoke_action></t99_invoke_action>"
+        expected = (
+            "Some text ending with an action <t99_invoke_action></t99_invoke_action>"
+        )
+        result = strip_text_after_invoke_action(text)
+        self.assertEqual(result, expected)
+
+    def test_strip_text_after_invoke_action_multiline(self):
+        text = """Some text.
+<t1_invoke_action agent='a' action='b'></t1_invoke_action>
+More text.
+<t2_invoke_action agent='c' action='d'></t2_invoke_action>
+Final line of text."""
+        expected = """Some text.
+<t1_invoke_action agent='a' action='b'></t1_invoke_action>
+More text.
+<t2_invoke_action agent='c' action='d'></t2_invoke_action>"""
+        result = strip_text_after_invoke_action(text)
+        self.assertEqual(result, expected)

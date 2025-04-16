@@ -1,6 +1,4 @@
 from typing import List
-from langchain_core.messages import HumanMessage
-
 import yaml
 
 
@@ -22,7 +20,7 @@ matching_locations:
 """
 
 
-def FilterLocationsUserPrompt(location_filter: str) -> HumanMessage:
+def FilterLocationsUserPrompt(location_filter: str) -> str:
     return f"""
 <user-location-filter>
 {location_filter}

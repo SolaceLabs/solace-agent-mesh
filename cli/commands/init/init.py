@@ -44,7 +44,7 @@ default_options = {
     "rest_api_gateway_name": "rest-api",
     "webui_enabled": True,
     "webui_listen_port": "5001",
-    "webui_host": "127.0.0.1"
+    "webui_host": "localhost"
 }
 """
 Default options for the init command.

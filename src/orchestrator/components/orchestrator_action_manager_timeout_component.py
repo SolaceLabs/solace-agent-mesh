@@ -30,6 +30,10 @@ class OrchestratorActionManagerTimeoutComponent(ComponentBase):
         # Need to go through all the active action_requests and check if any of them have timed out
         timeout_events = self.action_manager.do_timeout_check()
 
+        # Also check on agents
+        orchestrator_state = self.kv_store_get("orchestrator_state")
+        orchestrator_state.age_out_agents()
+
         # Now turn these into messages
         messages = []
         for event in timeout_events:
