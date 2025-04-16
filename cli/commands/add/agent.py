@@ -4,7 +4,7 @@ import click
 from cli.utils import get_display_path, load_template, log_error, get_formatted_names
 
 
-def add_agent_command(name):
+def add_agent_command(name, config=None):
     """
     Creates a template for an agent
     """
@@ -27,7 +27,13 @@ def add_agent_command(name):
         log_error(f"Error reading template file: {e}")
         return 1
 
-    config = click.get_current_context().obj
+    if config is None:
+        try:
+            config = click.get_current_context().obj
+        except RuntimeError:
+            log_error("Error: Config not provided.")
+            return 1
+
     config_directory = config["solace_agent_mesh"]["config_directory"]
 
     try:
