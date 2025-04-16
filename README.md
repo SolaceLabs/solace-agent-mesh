@@ -30,6 +30,8 @@ Whether you're prototyping an 🤖 AI assistant or deploying a 🌎 production-g
   - Add gateways to expose capabilities via REST, a browser-based UI, Slack, and many more.
   - Scale from local development to distributed, enterprise deployments.
 
+![Solace Agent Mesh Overview](./docs/static/img/Solace_AI_Framework_README.png)
+
 ---
 
 ## ✨ Key Features 
