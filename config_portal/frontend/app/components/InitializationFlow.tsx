@@ -7,7 +7,7 @@ import AIProviderSetup from './steps/AIProviderSetup';
 import BuiltinAgentSetup from './steps/BuiltinAgentSetup';
 import FileServiceSetup from './steps/FileServiceSetup';
 import CompletionStep from './steps/CompletionStep';
-import SuccessScreen from './steps/SuccessScreen';
+import SuccessScreen from './steps/InitSuccessScreen/SuccessScreen';
 
 // Define step
 export type Step = {

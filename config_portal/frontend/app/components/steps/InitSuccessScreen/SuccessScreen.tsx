@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import Button from '../ui/Button';
+import Button from '../../ui/Button';
 
 // Tutorial card component for the next steps
 interface TutorialCardProps {
