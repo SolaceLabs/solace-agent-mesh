@@ -36,7 +36,7 @@ type AIProviderSetupProps = {
   onPrevious: () => void;
 };
 
-export default function AIProviderSetup({ data, updateData, onNext, onPrevious }: AIProviderSetupProps) {
+export default function AIProviderSetup({ data, updateData, onNext, onPrevious }: Readonly<AIProviderSetupProps>) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isTestingConfig, setIsTestingConfig] = useState<boolean>(false);
   const [testError, setTestError] = useState<string | null>(null);
@@ -82,12 +82,12 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
         updates.llm_model_name = '';
         
         // Set appropriate endpoint URL based on provider
-        if (data.llm_provider !== 'custom' && data.llm_provider !== 'openai_compatible') {
+        if (data.llm_provider !== 'openai_compatible') {
           // For standard providers, set the endpoint URL
           const endpointUrl = PROVIDER_ENDPOINTS[data.llm_provider] || '';
           updates.llm_endpoint_url = endpointUrl;
         } else {
-          // For custom provider and OpenAI compatible, clear the endpoint URL
+          // For OpenAI compatible, clear the endpoint URL
           updates.llm_endpoint_url = '';
         }
         
@@ -135,7 +135,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
   
   // Update model suggestions based on provider
   useEffect(() => {
-    if (data.llm_provider && data.llm_provider !== 'custom' && data.llm_provider !== 'openai_compatible') {
+    if (data.llm_provider && data.llm_provider !== 'openai_compatible') {
       setLlmModelSuggestions(PROVIDER_MODELS[data.llm_provider] || []);
     } else {
       setLlmModelSuggestions([]);
@@ -173,7 +173,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
   
   // Fetch models from custom endpoint
   const fetchCustomModels = useCallback(async () => {
-    if ((data.llm_provider === 'custom' || data.llm_provider === 'openai_compatible') &&
+    if ((data.llm_provider === 'openai_compatible') &&
         data.llm_endpoint_url && data.llm_api_key) {
       setIsLoadingModels(true);
       try {
@@ -201,9 +201,9 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
       isValid = false;
     }
     
-    // Validate endpoint URL for custom provider and OpenAI compatible
-    if ((data.llm_provider === 'custom' || data.llm_provider === 'openai_compatible') && !data.llm_endpoint_url) {
-      newErrors.llm_endpoint_url = `LLM endpoint is required for ${data.llm_provider === 'custom' ? 'custom provider' : 'OpenAI compatible endpoint'}`;
+    // Validate endpoint URL for OpenAI compatible endpoint
+    if ((data.llm_provider === 'openai_compatible') && !data.llm_endpoint_url) {
+      newErrors.llm_endpoint_url = `LLM endpoint is required for OpenAI compatible endpoint}`;
       isValid = false;
     }
     
@@ -238,25 +238,13 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
       }
     }
     
-    // For custom providers, users need to provide the model name with provider prefix
-    // following litellm docs: https://docs.litellm.ai/docs/providers
-    if (data.llm_provider === 'custom' && data.llm_model_name && !data.llm_model_name.includes('/')) {
-      newErrors.llm_model_name = 'For custom providers, model name must follow the format provider/model-name (see litellm docs)';
-      isValid = false;
-    }
-    
     setErrors(newErrors);
     return isValid;
   };
   
   // Format model name for litellm
   const formatModelName = (modelName: string, provider: string): string => {
-    // For custom provider, always return the model name as is
-    // User is expected to provide the full model name with provider prefix
-    if (provider === 'custom') {
-      return modelName;
-    }
-    
+  
     // If model name already includes a provider prefix (contains '/'), return as is
     if (modelName.includes('/')) {
       return modelName;
@@ -267,19 +255,6 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
     return `${providerPrefix}/${modelName}`;
   };
 
-  //helper if we dynamically fetch embedding models, not sure if its possible right now
-  // // Format embedding model name for litellm
-  // const formatEmbeddingModelName = (modelName: string, provider: string): string => {
-  //   // If model name already includes a provider prefix (contains '/'), return as is
-  //   if (modelName.includes('/')) {
-  //     return modelName;
-  //   }
-        
-  //   // Get the correct provider prefix
-  //   const providerPrefix = EMBEDDING_PROVIDER_PREFIX_MAP[provider] || provider;
-  //   return `${providerPrefix}/${modelName}`;
-  // };
-  
   const testLLMConfig = async () => {
     // Exclude certain providers from testing as these require more auth than just a key
     const EXCLUSION_LIST = ['bedrock']
@@ -292,8 +267,8 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
     
     try {
       // For standard providers, use the predefined endpoint URL
-      // For custom and OpenAI compatible providers, use the user-provided endpoint URL
-      const baseUrl = (data.llm_provider !== 'custom' && data.llm_provider !== 'openai_compatible') //TODO: use new helper
+      // For OpenAI compatible providers, use the user-provided endpoint URL
+      const baseUrl = (data.llm_provider !== 'openai_compatible') //TODO: use new helper
         ? PROVIDER_ENDPOINTS[data.llm_provider] || data.llm_endpoint_url
         : data.llm_endpoint_url;
       
@@ -365,8 +340,8 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
             />
           </FormField>
           
-          {/* Show endpoint URL for custom provider and OpenAI compatible */}
-          {(data.llm_provider === 'custom' || data.llm_provider === 'openai_compatible' || data.llm_provider === 'azure') && (  // todo : update this based on what we support
+          {/* Show endpoint URL for OpenAI compatible */}
+          {(data.llm_provider === 'openai_compatible' || data.llm_provider === 'azure') && (
             <FormField
               label="LLM Endpoint URL"
               htmlFor="llm_endpoint_url"
@@ -399,13 +374,6 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
               placeholder="Enter your API key"
             />
           </FormField>
-          
-          {data.llm_provider === 'custom' && (
-            <WarningBox className="mb-4">
-              <strong>Important:</strong> For custom providers, you must use the format <code>provider/model-name</code> (e.g., <code>mistral/mistral-tiny</code>)
-              following the <a href="https://docs.litellm.ai/docs/providers" target="_blank" rel="noopener noreferrer" className="underline">litellm documentation</a>.
-            </WarningBox>
-          )}
 
           {data.llm_provider === 'azure' && (
             <WarningBox className="mb-4">
@@ -418,11 +386,7 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
             label="LLM Model Name"
             htmlFor="llm_model_name"
             error={errors.llm_model_name}
-            helpText={
-              data.llm_provider === 'custom'
-                ? "For custom providers, you must use format: provider/model-name (see litellm docs)"
-                : "Select or type a model name"
-            }
+            helpText="Select or type a model name"
             required
           >
             <AutocompleteInput
@@ -430,9 +394,9 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
               name="llm_model_name"
               value={data.llm_model_name}
               onChange={handleChange}
-              placeholder={data.llm_provider === 'custom' ? "provider/model-name (e.g., azure/gpt-4)" : "Select or type a model name"}
+              placeholder="Select or type a model name"
               suggestions={llmModelSuggestions}
-              onFocus={(data.llm_provider === 'custom' || data.llm_provider === 'openai_compatible') ? fetchCustomModels : undefined}
+              onFocus={(data.llm_provider === 'openai_compatible') ? fetchCustomModels : undefined}
               showLoadingIndicator={isLoadingModels}
             />
           </FormField>
