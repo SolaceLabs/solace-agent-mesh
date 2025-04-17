@@ -1,7 +1,7 @@
 import unittest
 import time
 
-from src.services.history_service import HistoryService
+from solace_agent_mesh.services.history_service import HistoryService
 
 
 class TestHistoryService(unittest.TestCase):

@@ -3,13 +3,13 @@ from time import sleep
 import json
 import time
 
-from src.services.file_service import (
+from solace_agent_mesh.services.file_service import (
     FileService,
     FS_PROTOCOL,
     Types,
     FileServicePermissionError,
 )
-from src.services.file_service import file_utils
+from solace_agent_mesh.services.file_service import file_utils
 
 file_manager_config = {
     "type": "memory",
