@@ -10,7 +10,7 @@ import {
   IMAGE_GEN_PROVIDER_OPTIONS,
   IMAGE_GEN_PROVIDER_MODELS,
   PROVIDER_ENDPOINTS
-} from '../../lib/providerModels';
+} from '../../common/providerModels';
 
 type Agent = {
   id: string;

@@ -16,7 +16,7 @@ import {
   EMBEDDING_PROVIDER_OPTIONS,
   PROVIDER_PREFIX_MAP,
   EMBEDDING_PROVIDER_MODELS,
-} from '../../lib/providerModels';
+} from '../../common/providerModels';
 
 type AIProviderSetupProps = {
   data: {

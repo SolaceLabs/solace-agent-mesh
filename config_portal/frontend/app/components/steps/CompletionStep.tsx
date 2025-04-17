@@ -6,7 +6,7 @@ import {
   EMBEDDING_PROVIDER_PREFIX_MAP,
   IMAGE_GEN_PROVIDER_PREFIX_MAP,
   LLM_PROVIDER_OPTIONS,
-} from '../../lib/providerModels';
+} from '../../common/providerModels';
 
 type CompletionStepProps = {
   data: Record<string, any>;
