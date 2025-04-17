@@ -4,11 +4,14 @@ sidebar_position: 20
 ---
 
 # Prerequisites
-Before you begin, you need the following installed on your computer:
 
-- Python 3.11 or later
-- PIP (if you have `pip3`, you can alias it to `pip` with the command `alias pip=pip3`).
-  
+Before you begin, make sure you have the following:
+
+- **Python 3.10+**
+- **pip** (usually included with Python)
+- **Operating System**: macOS, Linux, or Windows (via [WSL](https://learn.microsoft.com/en-us/windows/wsl/))
+- **LLM API key** from any major provider or your own custom endpoint.
+
 # Installation
 
 [Solace Agent Mesh Module](https://pypi.org/project/solace-agent-mesh) comes with two components:

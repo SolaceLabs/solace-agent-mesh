@@ -1,152 +1,131 @@
-# Solace Agent Mesh
+<p align="center">
+  <img src="./docs/static/img/logo.png" alt="Solace Agent Mesh Logo" width="100"/>
+</p>
+<h2 align="center">
+  Solace Agent Mesh
+</h2>
+<h4 align="center">Open-source framework for building event driven multi-agent AI systems</h3>
 
-[![License](https://img.shields.io/github/license/SolaceLabs/solace-agent-mesh)](https://github.com/SolaceLabs/solace-agent-mesh/blob/main/LICENSE)
-[![GitHub issues](https://img.shields.io/github/issues/SolaceLabs/solace-agent-mesh?color=red)](https://github.com/SolaceLabs/solace-agent-mesh/issues)
-[![GitHub pull requests](https://img.shields.io/github/issues-pr/SolaceLabs/solace-agent-mesh?color=red)](https://github.com/SolaceLabs/solace-agent-mesh/pulls)
-[![GitHub stars](https://img.shields.io/github/stars/SolaceLabs/solace-agent-mesh?style=social)](https://github.com/SolaceLabs/solace-agent-mesh/stargazers)
-[![PyPI - Version](https://img.shields.io/pypi/v/solace-agent-mesh.svg)](https://pypi.org/project/solace-agent-mesh)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/solace-agent-mesh.svg)](https://pypi.org/project/solace-agent-mesh)
+<p align="center">
+  <a href="https://github.com/SolaceLabs/solace-agent-mesh/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/SolaceLabs/solace-agent-mesh" alt="License">
+  </a>
+  <a href="https://pypi.org/project/solace-agent-mesh">
+    <img src="https://img.shields.io/pypi/v/solace-agent-mesh.svg" alt="PyPI - Version">
+  </a>
+  <a href="https://pypi.org/project/solace-agent-mesh">
+    <img src="https://img.shields.io/pypi/pyversions/solace-agent-mesh.svg" alt="PyPI - Python Version">
+  </a>
+</p>
+<p align="center">
+  <a href="#-key-features">Key Features</a> •
+  <a href="#-quick-start-5-minutes">Quickstart</a> •
+  <a href="#️-next-steps">Next Steps</a>
+</p>
 
-- [Solace Agent Mesh](#solace-agent-mesh)
-   * [Installation](#installation)
-   * [Quick Start](#quick-start)
-   * [Why Use Solace Agent Mesh?](#why-use-solace-agent-mesh)
-   * [Next Steps](#next-steps)
-   * [Contributing](#contributing)
-   * [Authors](#authors)
-   * [Release Notes](#release-notes)
-   * [License](#license)
+---
 
-The Solace Agent Mesh (SAM) is an open-source platform that tackles a fundamental challenge in modern AI development: while powerful AI models are readily available, the real complexity lies in connecting them to the data and systems where they can provide value. Data is often siloed across databases, SaaS platforms, APIs, and legacy systems, making it difficult to build AI applications that operate seamlessly across these boundaries. SAM provides a flexible foundation for AI applications where multiple agents can collaborate, each bringing their own specialized capabilities and data access. Whether you're an AI enthusiast experimenting with new models, or an enterprise developer building production systems, SAM gives you the tools to:
+Whether you're prototyping an 🤖 AI assistant or deploying a 🌎 production-grade solution, **Solace Agent Mesh (SAM)** provides the infrastructure to:
+  - Connect AI agents to real-world data sources and systems.
+  - Add gateways to expose capabilities via REST, a browser-based UI, Slack, and many more.
+  - Scale from local development to distributed, enterprise deployments.
 
-- Connect AI agents to real-world data sources and systems.
-- Add SAM Gateways to provide event-based integrations or interactive UI connections.
-- Monitor and debug AI interactions in real-time.
-- Deploy solutions that scale from prototype to production.
+![Solace Agent Mesh Overview](./docs/static/img/Solace_AI_Framework_README.png)
 
-Rather than trying to be a monolithic AI platform, SAM focuses on being an excellent integration layer. It brings together specialized agents - whether they're using local databases, accessing cloud APIs, or interfacing with enterprise systems - and helps them collaborate to solve complex problems.
+---
 
-Built on event-driven architecture technology from Solace, SAM provides the robust foundation needed for both experimental and production deployments.
+## ✨ Key Features 
+- ⚙️ **[Modular, Event-Driven Architecture](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/component-overview)** – All components communicate via events through a central event mesh, enabling loose coupling and high scalability.
+- 🤖 **[Composable Agents](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/agents)** – Combine specialized AI agents to solve complex, multi-step workflows.
+- 🌐 **[Flexible Interfaces](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/gateways)** – Interact with SAM via the REST API, browser UI, or [Slack Integration](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/slack-integration).
+- 🧠 **[Built-in Orchestration](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/orchestrator)** – Tasks are automatically broken down and delegated across agents by a built-in orchestrator.
+- 🧩 **[Plugin-Extensible](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/plugins)** – Add your own agents, gateways, or services with minimal boilerplate.
+- 🏢 **[Production-Ready](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/deployment/deploy)** – Backed by [Solace’s enterprise-grade event broker](https://solace.com/products/event-broker/) for reliability and performance.
+- 🔧 **[Services](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/services)** –  File storage, memory, and embeddings, all extensible, and built-in.
 
-![Solace Agent Mesh Overview](./docs/static/img/Solace_AI_Framework_With_Broker.png)
+---
 
-## Installation
+## 🚀 Quick Start (5 minutes)
 
-1. [Optional] Set up Python Virtual Environment using `virtualenv` and activate it
+Set up Solace Agent Mesh in just a few steps.
 
-```sh
-## Install virtualenv if not already installed
-python3 -m pip install --user virtualenv
-## Setup python virtual environment
+### ⚙️ System Requirements
+
+To run Solace Agent Mesh locally, you’ll need:
+
+- **Python 3.10+**
+- **pip** (comes with Python)
+- **OS**: MacOS, Linux, or Windows (with [WSL](https://learn.microsoft.com/en-us/windows/wsl/))
+- **LLM API key** (any major provider or custom endpoint)
+
+### 💻 Setup Steps
+
+```bash
+# 1. (Optional) Create and activate a Python virtual environment
 python3 -m venv venv
-## Activate virtual environment:
-### MacOS/Linux:
 source venv/bin/activate
-### Windows:
-venv/Scripts/activate
-```
 
-2. The following command installs the Solace Agent Mesh CLI in your environment:
-
-```sh
+# 2. Install the Solace Agent Mesh
 pip install solace-agent-mesh
+
+# 3. Initialize a new project
+mkdir my-agent-mesh && cd my-agent-mesh
+solace-agent-mesh init        # Follow the steps in the interactive init
+
+# 4. Build and run the project
+solace-agent-mesh run -b      # Shortcut for build + run
 ```
 
-3. Run the following SAM CLI command (`solace-agent-mesh` or `sam`) to verify your installation:
+#### Once running:
 
-```sh
-solace-agent-mesh --version
-```
+- Open the Web UI at [http://localhost:5001](http://localhost:5001) to talk with a chat interface.
+<details>
+  <summary>Use the REST API directly via curl</summary>
 
-## Quick Start
+  ```bash
+  curl --location 'http://127.0.0.1:5050/api/v1/request' \
+    --form 'prompt="What is the capital of France?"' \
+    --form 'stream="false"'
+  ```
 
-To get started with Solace Agent Mesh, follow these steps:
+</details>
 
-1. **Install the CLI**: Ensure `solace-agent-mesh` is installed.
-2. **Create a Project**:  
-    Follow the prompts to create your project.
 
-   ```sh
-   mkdir my-agent-mesh && cd my-agent-mesh
-   solace-agent-mesh init
-   ```
+---
 
-   _Enable the REST API interface when prompted._
+## ➡️ Next Steps
 
-3. **Build the Project**:
+Want to go further? Here are some hands-on tutorials to help you get started:
 
-   ```sh
-   solace-agent-mesh build
-   ```
+| 🔧 Integration | ⏱️ Est. Time | 📘 Tutorial |
+|----------------|--------------|-------------|
+| 🌤️ **Weather Agent**<br>Build an agent that gives Solace Agent Mesh  the ability to access real-time weather information.  | **~5 min** | [Weather Agent Plugin](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/sam-geo-information) |
+| 🗃️ **SQL Database Integration**<br>Enable Solace Agent Mesh to answer company-specific questions using a sample coffee company database.| **~10–15 min** | [SQL Database Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/sql-database) |
+| 🧠 **MCP Integration**<br>Integrating a Model Context Protocol (MCP) Server into Solace Agent Mesh. | **~10–15 min** | [MCP Integration Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/mcp-integration) |
+| 💬 **Slack Integration**<br>Chat with Solace Agent Mesh directly from Slack. | **~20–30 min** | [Slack Integration Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/slack-integration) |
 
-4. **Run the Project**:
 
-   ```sh
-   solace-agent-mesh run
-   ```
+📚 Want to explore more? Check out the full [Solace Agent Mesh documentation](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/).
 
-   _(Use `-b` to combine build and run steps.)_
+---
 
-5. **Connect to the Web Interface**:
+## 📦 Release Notes
 
-   Open the web interface at [http://localhost:5001](http://localhost:5001) or with the port specified during `init`.
+Stay up to date with the latest changes, features, and fixes.  
+See [CHANGELOG.md](CHANGELOG.md) for a full history of updates.
 
-6. **Send a REST Request**:
+---
 
-   Try the system by sending a request to the REST API gateway interface.
+## 👥 Contributors
 
-   ```sh
-   curl --location 'http://localhost:5050/api/v1/request' \
-   --header 'Authorization: Bearer None' \
-   --form 'prompt="What is the capital of France?"' \
-   --form 'stream="false"'
-   ```
+Solace Agent Mesh is built with the help of our amazing community.  
+Thanks to everyone who has contributed ideas, code, and time to make this project better.  
+👀 View the full list of contributors → [GitHub Contributors](https://github.com/SolaceLabs/solace-agent-mesh/graphs/contributors)
+🤝 **Looking to contribute?** Check out [CONTRIBUTING.md](CONTRIBUTING.md) to get started and see how you can help.
 
-Learn about [Agents](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/agents) and [Gateways](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/gateways) to add more functionalities to your project.
+---
 
-For full details, see the [Quick Start Guide](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/quick-start).
+## 📄 License
 
-## Why Use Solace Agent Mesh?
-
-Building production-ready AI applications presents unique challenges. While it's relatively easy to create AI prototypes, deploying them in enterprise environments requires solving complex problems around integration, scalability, and observability. The Solace Agent Mesh addresses these challenges through:
-
-- **Composable Architecture**: Start with a small number of agents and gateways. You can add more over time.
-
-- **Add Agents to Increase Capabilities**: Each new agent adds more capabilities to the system. Adding a new agent isn't additive - it is exponential. With each agent being able to enhance all other agents as they collaborate for more and more complex tasks.
-
-- **Add Gateways to Increase Use Cases**: Each new gateway opens up new use cases for the system. A new gateway can provide a new interface to the system, with a different system purpose and response rules.
-- **Event-Driven Design**: Built on proven event-driven architecture principles, providing complete decoupling of components. This makes the system highly flexible and resilient, while enabling real-time monitoring of every interaction.
-
-- **Enterprise-Ready**: Designed from the ground up for production deployments that incorporates the experience from Solace in building mission-critical distributed systems.
-
-## Next Steps
-
-Check [Solace Agent Mesh Documentation](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction) to learn more about the Solace Agent Mesh.
-
-|                                                                                                                                                  |                                                                                    |
-| ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| [Components Overview](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/component-overview) | Learn about the components that make up the Solace Agent Mesh.                     |
-| [Gateways](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/gateways)                             | Understand how gateways provide interfaces to the Solace Agent Mesh.               |
-| [Agents](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/agents)                                 | Explore the agents that provide specialized capabilities in the Solace Agent Mesh. |
-| [Services](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/services)                             | Learn about the services that facilitate interaction within the Solace Agent Mesh. |
-| [Plugins](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/plugins)                               | Discover the plugins that extend the functionality of the Solace Agent Mesh.       |
-
-## Contributing
-
-Contributions are encouraged! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct, and the process for submitting pull requests to us.
-
-You can report any issues by opening an issue on the GitHub repository.
-
-## Authors
-
-See the list of [contributors](https://github.com/SolaceLabs/solace-agent-mesh/graphs/contributors) who participated in this project.
-
-## Release Notes
-
-Check out the [CHANGELOG](CHANGELOG.md) for details on changes in each release.
-
-## License
-
-The Solace Agent Mesh is licensed under the Apache-2.0 license.
-
-See the [LICENSE](LICENSE) file for details.
+This project is licensed under the **Apache 2.0 License**.  
+See the full license text in the [LICENSE](LICENSE) file.
