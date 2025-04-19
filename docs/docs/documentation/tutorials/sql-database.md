@@ -53,7 +53,7 @@ wget https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/raw/refs/heads
 
 ### Using curl
 ```sh
-curl https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/raw/refs/heads/main/sam-sql-database/example-data/abc_coffee_co.ßzip -o abc_coffee_co.zip
+curl -LO https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/raw/refs/heads/main/sam-sql-database/example-data/abc_coffee_co.zip
 ```
 
 After downloading the ZIP file, extract it to a directory of your choice. You can use the following command to extract the ZIP file:
