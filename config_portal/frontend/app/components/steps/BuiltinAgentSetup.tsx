@@ -409,7 +409,6 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
                             value={envVars[env.key] || ''}
                             onChange={(e) => handleEnvVarChange(env.key, e.target.value)}
                             options={env.options || []}
-                            required={!!env.required && isAgentEnabled(agent.id)}
                           />
                         ) : env.type === 'autocomplete' ? (
                           <AutocompleteInput
@@ -419,7 +418,6 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
                             onChange={(e) => handleEnvVarChange(env.key, e.target.value)}
                             placeholder={env.placeholder}
                             suggestions={env.key === 'IMAGE_GEN_MODEL' ? imageGenModelSuggestions : []}
-                            required={!!env.required && isAgentEnabled(agent.id)}
                             onFocus={
                               env.key === 'IMAGE_GEN_MODEL' ?
                               () => {
@@ -439,7 +437,6 @@ export default function BuiltinAgentSetup({ data, updateData, onNext, onPrevious
                             value={envVars[env.key] || ''}
                             onChange={(e) => handleEnvVarChange(env.key, e.target.value)}
                             placeholder={env.placeholder}
-                            required={!!env.required && isAgentEnabled(agent.id)}
                             autoFocus={agent?.envVars?.indexOf(env) === 0}
                           />
                         )}

@@ -223,7 +223,6 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
             value={brokerType}
             onChange={handleChange}
             disabled={containerStatus.success && data.broker_type==='container'}
-            required
           />
         </FormField>
         
@@ -245,7 +244,6 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
                 value={data.broker_url || ''}
                 onChange={handleChange}
                 placeholder="ws://localhost:8008"
-                required
               />
             </FormField>
             
@@ -261,7 +259,6 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
                 value={data.broker_vpn || ''}
                 onChange={handleChange}
                 placeholder="default"
-                required
               />
             </FormField>
             
@@ -277,7 +274,6 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
                 value={data.broker_username || ''}
                 onChange={handleChange}
                 placeholder="default"
-                required
               />
             </FormField>
             
@@ -294,7 +290,6 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
                 value={data.broker_password || ''}
                 onChange={handleChange}
                 placeholder="Enter password"
-                required
               />
             </FormField>
           </div>
