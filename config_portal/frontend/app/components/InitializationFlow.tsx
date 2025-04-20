@@ -47,7 +47,7 @@ export const advancedInitSteps: Step[] = [
   },
   {
     id: 'builtin-agent-setup',
-    title: 'Builtin Agents',
+    title: 'Built-in Agents',
     description: 'Enable and configure built-in agents',
     component: BuiltinAgentSetup,
   },
