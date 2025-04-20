@@ -18,7 +18,7 @@ jobs:
   ci:
     uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_ci.yml@main
     with:
-      min-python-version: "3.11"
+      min-python-version: "3.10"
       max-python-version: "3.13"
       whitesource_product_name: "solace-agent-mesh"
       whitesource_config_file: "wss-unified-agent.config"

@@ -12,9 +12,10 @@ authors = [
 ]
 description = "Solace Agent Mesh is an EDA AI-first platform powered by Solace"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10.16"
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -41,9 +42,9 @@ dependencies = [
     "solace-ai-connector~=1.0.3",
     "solace-ai-connector[websocket]~=1.0.3",
     "solace-ai-connector[llm]~=1.0.3",
-    "solace-ai-connector-web~=0.2.1",
-    "solace-ai-connector-rest~=0.0.2",
-    "solace-ai-connector-slack~=0.0.1",
+    "solace-ai-connector-web~=0.2.2",
+    "solace-ai-connector-rest~=0.0.3",
+    "solace-ai-connector-slack~=0.0.2",
   ]
 
 [project.urls]
@@ -94,4 +95,4 @@ installer = "pip"
 
 
 [[tool.hatch.envs.hatch-test.matrix]]
-python = ["3.11", "3.12", "3.13"]
+python = ["3.10", "3.13"]

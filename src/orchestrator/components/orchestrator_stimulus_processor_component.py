@@ -15,7 +15,10 @@ from solace_ai_connector.common.log import log
 from solace_ai_connector.common.message import Message
 
 from ...common.constants import ORCHESTRATOR_COMPONENT_NAME, HISTORY_MEMORY_ROLE
-from ...services.llm_service.components.llm_request_component import LLMRequestComponent, info as base_info
+from ...services.llm_service.components.llm_request_component import (
+    LLMRequestComponent,
+    info as base_info,
+)
 from ...services.middleware_service.middleware_service import MiddlewareService
 from ...services.file_service import FileService
 from ...services.history_service import HistoryService
@@ -112,10 +115,9 @@ class OrchestratorStimulusProcessorComponent(LLMRequestComponent):
         self.action_manager = ActionManager(self.flow_kv_store, self.flow_lock_manager)
         self.stream_to_flow = self.get_config("stream_to_flow")
 
-
     def invoke(self, message: Message, data: Dict[str, Any]) -> Dict[str, Any]:
         user_properties = message.get_user_properties()
-        user_properties['timestamp_start'] = time()
+        user_properties["timestamp_start"] = time()
         message.set_user_properties(user_properties)
 
         results = self.pre_llm(message, data)
@@ -127,18 +129,22 @@ class OrchestratorStimulusProcessorComponent(LLMRequestComponent):
         results = self.post_llm(message, results)
 
         user_properties = message.get_user_properties()
-        user_properties['timestamp_end'] = time()
+        user_properties["timestamp_end"] = time()
 
         actions_called = []
         if results:
             for result in results:
                 if result.get("payload", {}).get("action_name"):
-                    actions_called.append({
-                        "agent_name": result.get("payload", {}).get("agent_name"),
-                        "action_name": result.get("payload", {}).get("action_name"),
-                        "action_params": result.get("payload", {}).get("action_params"),
-                    })
-        user_properties['actions_called'] = actions_called
+                    actions_called.append(
+                        {
+                            "agent_name": result.get("payload", {}).get("agent_name"),
+                            "action_name": result.get("payload", {}).get("action_name"),
+                            "action_params": result.get("payload", {}).get(
+                                "action_params"
+                            ),
+                        }
+                    )
+        user_properties["actions_called"] = actions_called
 
         message.set_user_properties(user_properties)
 
@@ -232,7 +238,6 @@ class OrchestratorStimulusProcessorComponent(LLMRequestComponent):
             if memory_history:
                 self.history.store_history(stimulus_uuid, "system", memory_history)
 
-
         # Store the user prompt in the history
         self.history.store_history(stimulus_uuid, "user", user_prompt)
 
@@ -271,7 +276,11 @@ class OrchestratorStimulusProcessorComponent(LLMRequestComponent):
             if response_obj:
                 content = response_obj.get("content", [])
                 actions = response_obj.get("actions", [])
-                if len(content) == 0 and len(actions) == 0:
+                errors = response_obj.get("errors", [])
+                if len(errors) > 0:
+                    msg = "There were errors in the response: " + ", ".join(errors)
+                    msg += "\n\nPlease try again and ensure your formatting is correct."
+                elif len(content) == 0 and len(actions) == 0 and len(errors) == 0:
                     msg = "There were no actions and no text or files in the response. Please try again and ensure your formatting is correct."
                 elif len(actions):
                     # Loop through the actions and make sure they all have an action and agent
@@ -376,7 +385,9 @@ class OrchestratorStimulusProcessorComponent(LLMRequestComponent):
             Dict[str, Any]: The response from the LLM service.
         """
         messages = data.get("messages", [])
-        llm_message = self._create_llm_message(message, messages, {"type": "orchestrator"})
+        llm_message = self._create_llm_message(
+            message, messages, {"type": "orchestrator"}
+        )
         response_uuid = str(uuid.uuid4())
 
         try:
@@ -392,7 +403,7 @@ class OrchestratorStimulusProcessorComponent(LLMRequestComponent):
         gateway_history = data.get("history", [])
         memory_history = None
         if gateway_history and gateway_history[0].get("role") == HISTORY_MEMORY_ROLE:
-            memory_history =gateway_history[0].get("content")
+            memory_history = gateway_history[0].get("content")
         # Returning the history from the last user message
         first_user_idx = None
         last_user_idx = None
@@ -467,7 +478,9 @@ class OrchestratorStimulusProcessorComponent(LLMRequestComponent):
                     f"Action not found in agent: {agent_name}, {action_name}"
                 )
             middleware_service = MiddlewareService()
-            if middleware_service.get("validate_action_request")(user_properties, action_details):
+            if middleware_service.get("validate_action_request")(
+                user_properties, action_details
+            ):
                 action_params = action.get("parameters", {})
 
                 action_requests.append(

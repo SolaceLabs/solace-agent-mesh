@@ -140,6 +140,12 @@ def parse_file_content(file_xml: str) -> dict:
     Parse the xml tags in the content and return a dictionary of the content.
     """
     try:
+        # It is possible that the content of the file mistakenly has t###_ prefixes on the
+        # tags, so we need to strip them off. This is a bit of a hack to work around LLM errors
+
+        file_xml = re.sub(r"<t\d+_", "<", file_xml)
+        file_xml = re.sub(r"</t\d+_", "</", file_xml)
+
         ignore_content_tags = ["data"]
         file_dict = xml_to_dict(file_xml, ignore_content_tags)
         dict_keys = list(file_dict.keys())
@@ -165,6 +171,7 @@ def parse_llm_output(llm_output: str) -> dict:
     # We need to save all the strings that we replace so that we can put them back
     # after we parse the yaml. Use a sequence number to create a unique placeholder
     # for each string.
+
     string_placeholders = {}
     string_count = 0
     sanity = 100
@@ -407,7 +414,7 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                 if current_param_name:
                     current_action["parameters"][current_param_name] = "\n".join(
                         current_param_value
-                    ).strip()
+                    )
                 parsed_data["actions"].append(current_action)
                 current_action = {}
                 current_param_name = None
@@ -415,9 +422,10 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
 
         elif in_invoke_action and f"<{tp}parameter" in line:
             if current_param_name:
-                current_action["parameters"][current_param_name] = "\n".join(
-                    current_param_value
-                ).strip()
+                param_value = "\n".join(current_param_value)
+                current_action["parameters"][current_param_name] = (
+                    clean_parameter_value(param_value)
+                )
                 current_param_value = []
 
             param_name_match = re.search(r'name\s*=\s*[\'"](\w+)[\'"]', line)
@@ -430,17 +438,19 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
                     r">(.*?)(?:</" + tp + "parameter>|$)", line
                 )
                 if content_after_open:
-                    initial_content = content_after_open.group(1).strip()
+                    initial_content = content_after_open.group(1)
                     if initial_content:
                         current_param_value.append(initial_content)
 
                 # Check if parameter closes on same line
                 if f"</{tp}parameter>" in line:
-                    current_action["parameters"][current_param_name] = "\n".join(
-                        current_param_value
-                    ).strip()
+                    param_value = "\n".join(current_param_value)
+                    current_action["parameters"][current_param_name] = (
+                        clean_parameter_value(param_value)
+                    )
                     current_param_name = None
                     current_param_value = []
+
                     if "parameter" in open_tags:
                         open_tags.remove("parameter")
                 elif line.endswith("/>"):
@@ -455,17 +465,18 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
             if f"</{tp}parameter>" in line:
                 # Handle content before closing tag on final line
                 content_before_close = re.sub(f"</{tp}parameter>.*", "", line)
-                if content_before_close.strip():
-                    current_param_value.append(content_before_close.strip())
-                current_action["parameters"][current_param_name] = "\n".join(
-                    current_param_value
-                ).strip()
+                if content_before_close:
+                    current_param_value.append(content_before_close)
+                param_value = "\n".join(current_param_value)
+                current_action["parameters"][current_param_name] = (
+                    clean_parameter_value(param_value)
+                )
                 current_param_name = None
                 current_param_value = []
                 if "parameter" in open_tags:
                     open_tags.remove("parameter")
             else:
-                current_param_value.append(line.strip())
+                current_param_value.append(line)
 
         else:
             # NOTE that we are intentionally ignoring all output text that occurs
@@ -488,6 +499,12 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
 
     if len(current_text) > 0:
         add_content_entry(parsed_data["content"], "text", current_text)
+
+    # Final check - if there is no reasoning, then the LLM is not complying with the
+    # request and we should return an error
+    if not parsed_data["reasoning"]:
+        parsed_data["errors"].append("No <t###_reasoning> tag found")
+        parsed_data["content"] = []
 
     return parsed_data
 
@@ -574,6 +591,35 @@ def match_solace_topic(subscription: str, topic: str) -> bool:
         match_solace_topic_level(sub_levels[i], topic_levels[i])
         for i in range(len(sub_levels))
     )
+
+
+def clean_parameter_value(param_value):
+    """
+    Cleans a parameter value by:
+    1. Removing CDATA wrapper if present
+    2. Resolving XML entities like &gt;, &lt;, etc.
+
+    Parameters:
+    - param_value (str): The parameter value that might contain a CDATA wrapper
+                         and/or XML entities
+
+    Returns:
+    - str: The cleaned parameter value
+    """
+    if isinstance(param_value, str):
+        # Remove CDATA wrapper if present
+        cdata_match = re.match(r"\s*<!\[CDATA\[(.*?)\]\]>\s*$", param_value, re.DOTALL)
+        if cdata_match:
+            param_value = cdata_match.group(1)
+
+        # Resolve XML entities
+        param_value = param_value.replace("&lt;", "<")
+        param_value = param_value.replace("&gt;", ">")
+        param_value = param_value.replace("&amp;", "&")
+        param_value = param_value.replace("&quot;", '"')
+        param_value = param_value.replace("&apos;", "'")
+
+    return param_value
 
 
 def clean_text(text_array):
