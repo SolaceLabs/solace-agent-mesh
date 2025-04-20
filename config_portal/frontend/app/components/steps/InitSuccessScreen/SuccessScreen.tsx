@@ -157,7 +157,7 @@ export default function SuccessScreen() {
       ),
       title: 'Architecture',
       description: 'System architecture and design',
-      link: 'https://solacelabs.github.io/solace-agent-mesh/docs/documentation/agent-mesh-architecture/'
+      link: 'https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/component-overview'
     },
     {
       icon: (
@@ -167,7 +167,7 @@ export default function SuccessScreen() {
       ),
       title: 'Tutorials',
       description: 'Step-by-step guides',
-      link: 'https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/'
+      link: 'https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/event-mesh-gateway'
     },
     {
       icon: (
@@ -177,7 +177,7 @@ export default function SuccessScreen() {
       ),
       title: 'User Guides',
       description: 'User Guides for various components',
-      link: 'https://solacelabs.github.io/solace-agent-mesh/docs/documentation/reference/'
+      link: 'https://solacelabs.github.io/solace-agent-mesh/docs/documentation/user-guide/solace-ai-connector'
     }
   ];
   
