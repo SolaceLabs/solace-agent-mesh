@@ -65,7 +65,7 @@ unzip abc_coffee_co.zip
 ## Configuring the Agent
 
 Now, update the agent configuration to use the SQLite database and import the CSV files.
-Open the `configs/agents/abc_coffee_info.yaml` file and add the `cvs_directories` option to the `action_request_processor` component configuration. This option specifies the directory where the CSV files are located.
+Open the `configs/agents/abc_coffee_info.yaml` file and add the `csv_directories` option to the `action_request_processor` component configuration. This option specifies the directory where the CSV files are located.
 
 Here's what you need to modify in the configuration file:
 
