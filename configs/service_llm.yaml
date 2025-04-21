@@ -90,7 +90,7 @@ flows:
               litellm_params:
                 <<: *llm_auth
                 model: ${LLM_SERVICE_PLANNING_MODEL_NAME}
-                temperature: 0.02
+                temperature: 0.0
         <<: *llm_input_transforms_and_select
 
       - component_name: broker_output
