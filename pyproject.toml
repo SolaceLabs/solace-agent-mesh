@@ -58,9 +58,17 @@ documentation = "https://github.com/SolaceLabs/solace-agent-mesh/blob/main/docs/
 "templates" = "solace_agent_mesh/templates"
 "cli" = "solace_agent_mesh/cli"
 "web-visualizer/dist" = "solace_agent_mesh/assets/web-visualizer"
+"config_portal/frontend/static" = "solace_agent_mesh/config_portal/frontend/static"
+"config_portal/backend" = "solace_agent_mesh/config_portal/backend"
+"config_portal/__init__.py" = "solace_agent_mesh/config_portal/__init__.py"
+
 
 [tool.hatch.build.targets.sdist.force-include]
 "web-visualizer/dist" = "/assets/web-visualizer"
+"config_portal/frontend/static" = "/assets/config_portal"
+
+
+
 
 [project.scripts]
 solace-agent-mesh = "solace_agent_mesh.cli.main:main"
@@ -69,6 +77,11 @@ sam = "solace_agent_mesh.cli.main:main"
 [tool.hatch.build.targets.wheel]
 packages = ["solace_agent_mesh"]
 
+[tool.hatch.build.targets.sdist.hooks.custom]
+path = ".github/helper_scripts/build_frontend.py"
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = ".github/helper_scripts/build_frontend.py"
 
 [tool.hatch.version]
 path = "cli/__init__.py"
