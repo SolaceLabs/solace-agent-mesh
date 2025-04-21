@@ -75,6 +75,7 @@ class OrchestratorStreamingOutputComponent(ComponentBase):
         response_uuid = data.get("response_uuid")
         first_chunk = data.get("first_chunk")
         last_chunk = data.get("last_chunk")
+        check_reasoning = data.get("check_reasoning", True)
 
         if first_chunk:
             response_state = self.add_response_state(response_uuid)
@@ -93,7 +94,9 @@ class OrchestratorStreamingOutputComponent(ComponentBase):
                         stimulus_uuid, "assistant", stripped_text
                     )
 
-        obj = parse_orchestrator_response(text, last_chunk=last_chunk)
+        obj = parse_orchestrator_response(
+            text, last_chunk=last_chunk, check_reasoning=check_reasoning
+        )
 
         if not obj or isinstance(obj, str) or not obj.get("content"):
             log.debug("Error parsing LLM output: %s", obj)

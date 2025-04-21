@@ -253,7 +253,9 @@ def parse_llm_output(llm_output: str) -> dict:
     return obj
 
 
-def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
+def parse_orchestrator_response(
+    response, last_chunk=False, tag_prefix="", check_reasoning=True
+):
     tp = tag_prefix
     parsed_data = {
         "actions": [],
@@ -502,7 +504,7 @@ def parse_orchestrator_response(response, last_chunk=False, tag_prefix=""):
 
     # Final check - if there is no reasoning, then the LLM is not complying with the
     # request and we should return an error
-    if not parsed_data["reasoning"]:
+    if check_reasoning and not parsed_data["reasoning"]:
         parsed_data["errors"].append("No <t###_reasoning> tag found")
         parsed_data["content"] = []
 

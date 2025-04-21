@@ -51,6 +51,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                 "first_chunk": True,
                 "last_chunk": True,
                 "response_uuid": "1234",
+                "check_reasoning": False,
             },
         )
 
@@ -94,6 +95,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                     "first_chunk": True,
                     "last_chunk": False,
                     "response_uuid": "1234",
+                    "check_reasoning": False,
                 },
                 {
                     "content": "Hello World",
@@ -101,6 +103,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                     "first_chunk": False,
                     "last_chunk": True,
                     "response_uuid": "1234",
+                    "check_reasoning": False,
                 },
             ],
         )
@@ -182,6 +185,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                     "first_chunk": True,
                     "last_chunk": True,
                     "response_uuid": "1234",
+                    "check_reasoning": False,
                 },
             ],
         )
@@ -274,7 +278,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                         {
                             "status_update": True,
                             "streaming": True,
-                            "text": "File file1.txt loading (46 characters)...",
+                            "text": "File file1.txt loading (51 characters)...",
                             "uuid": "1234-status",
                         },
                     ],
@@ -329,10 +333,13 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                 {
                     "content": strip_lines(
                         """
-                                                    Hi
-                                                    <file name="file1.txt" mime_type="text/plain">
-                                                    <dat
-                                                    """
+                        <t321_reasoning>
+                        This is some reasoning
+                        </t321_reasoning>
+                        Hi
+                        <t321_file name="file1.txt" mime_type="text/plain">
+                        <dat
+                        """
                     ),
                     "streaming": True,
                     "first_chunk": True,
@@ -342,12 +349,15 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                 {
                     "content": strip_lines(
                         """
-                                                    Hi
-                                                    <file name="file1.txt" mime_type="text/plain">
-                                                    <data>My file content</data>
-                                                    </file>
-                                                    Bye
-                                                    """
+                        <t321_reasoning>
+                        This is some reasoning
+                        </t321_reasoning>
+                        Hi
+                        <t321_file name="file1.txt" mime_type="text/plain">
+                        <data>My file content</data>
+                        </t321_file>
+                        Bye
+                        """
                     ),
                     "streaming": True,
                     "first_chunk": False,
@@ -357,10 +367,13 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                 {
                     "content": strip_lines(
                         """
+                        <t321_reasoning>
+                        This is some reasoning
+                        </t321_reasoning>
                         Hi
-                        <file name="file1.txt" mime_type="text/plain">
+                        <t321_file name="file1.txt" mime_type="text/plain">
                         <data>My file content</data>
-                        </file>
+                        </t321_file>
                         Bye Bye
                         """
                     ),
@@ -446,6 +459,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                     "first_chunk": True,
                     "last_chunk": False,
                     "response_uuid": "1234",
+                    "check_reasoning": False,
                 },
                 {
                     "content": "Hello\n<t123_reasoning>Some reasoning</t123_reasoning><t123_status_update>hi</t123_sta",
@@ -453,6 +467,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                     "first_chunk": False,
                     "last_chunk": False,
                     "response_uuid": "1234",
+                    "check_reasoning": False,
                 },
                 {
                     "content": "Hello\n<t123_reasoning>Some reasoning</t123_reasoning><t123_status_update>hi</t123_status_update>\n"
@@ -462,6 +477,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                     "first_chunk": False,
                     "last_chunk": False,
                     "response_uuid": "1234",
+                    "check_reasoning": False,
                 },
                 {
                     "content": "Hello\n<t123_reasoning>Some reasoning</t123_reasoning><t123_status_update>hi</t123_status_update>\n"
@@ -472,6 +488,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                     "first_chunk": False,
                     "last_chunk": False,
                     "response_uuid": "1234",
+                    "check_reasoning": False,
                 },
                 {
                     "content": "Hello\n<t123_reasoning>Some reasoning</t123_reasoning><t123_status_update>hi</t123_status_update>\n"
@@ -483,6 +500,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                     "first_chunk": False,
                     "last_chunk": False,
                     "response_uuid": "1234",
+                    "check_reasoning": False,
                 },
             ],
         )
@@ -519,7 +537,6 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
             input_data={
                 "content": strip_lines(
                     """
-                    <t321_reasoning>
                     <t321_reasoning>
                     This is some reasoning
                     </t321_reasoning>
@@ -577,7 +594,6 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                 "content": strip_lines(
                     """
                     <t321_reasoning>
-                    <t321_reasoning>
                     This is some reasoning
                     </t321_reasoning>
                     <t321_current_subject starting_id="123"/>
@@ -634,7 +650,6 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
             input_data={
                 "content": strip_lines(
                     """
-                    <t321_reasoning>
                     <t321_reasoning>
                     This is some reasoning
                     </t321_reasoning>
