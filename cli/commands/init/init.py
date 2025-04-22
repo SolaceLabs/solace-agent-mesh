@@ -53,10 +53,10 @@ def init_command(options={}):
     click.echo(click.style("Initializing Solace Agent Mesh", bold=True, fg="blue"))
     if not skip:
         use_web_based_init = options.get("use_web_based_init", False)
-        
         if not use_web_based_init:
             use_web_based_init = ask_yes_no_question("Would you like to configure your project through a web interface in your browser?", True)
-        else:
+
+        if use_web_based_init:
             with multiprocessing.Manager() as manager:
                 # Create a shared configuration dictionary
                 shared_config = manager.dict()
