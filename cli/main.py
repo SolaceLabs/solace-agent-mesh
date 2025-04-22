@@ -154,6 +154,12 @@ def visualize(port, find_unused_port, host, use_env):
     help="Non-interactive mode. Skip all the prompts, Uses provided options and default values.",
 )
 @click.option(
+    "--use-web-based-init",
+    is_flag=True,
+    default=False,
+    help="Launch the browser-based initialization interface directly, skipping the prompt.",
+)
+@click.option(
     "--namespace",
     help="project namespace",
 )

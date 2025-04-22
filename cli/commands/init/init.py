@@ -51,45 +51,46 @@ def init_command(options={}):
     check_if_already_done(options, default_options, skip, abort)
 
     click.echo(click.style("Initializing Solace Agent Mesh", bold=True, fg="blue"))
-    use_web_based_init = ask_yes_no_question("Would you like to configure your project through a web interface in your browser?", True)
+    if not skip:
+        use_web_based_init = options.get("use_web_based_init", False)
+        
+        if not use_web_based_init:
+            use_web_based_init = ask_yes_no_question("Would you like to configure your project through a web interface in your browser?", True)
+        else:
+            with multiprocessing.Manager() as manager:
+                # Create a shared configuration dictionary
+                shared_config = manager.dict()
+                
+                # Start the Flask server with the shared config
+                init_gui_process = multiprocessing.Process(
+                    target=run_flask,
+                    args=("127.0.0.1", 5002, shared_config)
+                )
+                init_gui_process.start()
 
-    if use_web_based_init and not skip:
+                click.echo(click.style("Web configuration portal is running at http://127.0.0.1:5002", fg="green"))
+                click.echo("Complete the configuration in your browser to continue...")
 
-        with multiprocessing.Manager() as manager:
-            # Create a shared configuration dictionary
-            shared_config = manager.dict()
+                # Wait for the Flask server to finish
+                init_gui_process.join()
+                
+                # Get the configuration from the shared dictionary
+                if shared_config:
+                    # Convert from manager.dict to regular dict
+                    config_from_portal = dict(shared_config)
+                    options.update(config_from_portal)
+                    click.echo(click.style("Configuration received from portal", fg="green"))
+
+                    #if web configuration portal is used, skip the steps that are already done
+                    steps_if_web_setup_used = [
+                        ("", create_config_file_step),
+                        ("", create_other_project_files_step),
+                    ]
+                    steps = steps_if_web_setup_used
+                else:
+                    click.echo(click.style("Web configuration failed, please try again.", fg="red"))
+                    return
             
-            # Start the Flask server with the shared config
-            init_gui_process = multiprocessing.Process(
-                target=run_flask,
-                args=("127.0.0.1", 5002, shared_config)
-            )
-            init_gui_process.start()
-
-            click.echo(click.style("Web configuration portal is running at http://127.0.0.1:5002", fg="green"))
-            click.echo("Complete the configuration in your browser to continue...")
-
-            # Wait for the Flask server to finish
-            init_gui_process.join()
-            
-            # Get the configuration from the shared dictionary
-            if shared_config:
-                # Convert from manager.dict to regular dict
-                config_from_portal = dict(shared_config)
-                options.update(config_from_portal)
-                click.echo(click.style("Configuration received from portal", fg="green"))
-
-                #if web configuration portal is used, skip the steps that are already done
-                steps_if_web_setup_used = [
-                    ("", create_config_file_step),
-                    ("", create_other_project_files_step),
-                ]
-                steps = steps_if_web_setup_used
-            else:
-                click.echo(click.style("Web configuration failed, please try again.", fg="red"))
-                return
-            
-
     non_hidden_steps_count = len([step for step in steps if step[0]])
 
     step = 0
