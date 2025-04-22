@@ -175,3 +175,5 @@ wip/
 solace-agent-mesh.yaml
 playground.py
 tmp
+
+config_portal/frontend/static/*
