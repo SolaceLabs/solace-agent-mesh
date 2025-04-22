@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import Button from '../ui/Button';
-import { builtinAgents } from './BuiltinAgentSetup';
+import { AGENTS } from './BuiltinAgentSetup';
 import {
   PROVIDER_PREFIX_MAP,
   EMBEDDING_PROVIDER_PREFIX_MAP,
@@ -19,6 +19,7 @@ const CAPITALIZED_WORDS = ['llm', 'ai', 'api', 'url', 'vpn'];
 
 // Sensitive fields that should be hidden
 const SENSITIVE_FIELDS = ['broker_password', 'llm_api_key', 'embedding_api_key'];
+
 // Group configuration items by category
 const CONFIG_GROUPS: Record<string, string[]> = {
   Project: ['namespace'],
@@ -39,18 +40,16 @@ export default function CompletionStep({ data, updateData, onPrevious }: Readonl
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Create a mapping of agent IDs to their information
   const agentMapping = useMemo(() => {
-    const mapping: Record<
-      string,
-      { name: string; envVars?: string[] }
-    > = {};
-    builtinAgents.forEach((agent) => {
+    const mapping: Record<string, { name: string }> = {};
+    
+    // Map each agent ID to its name
+    Object.values(AGENTS).forEach((agent) => {
       mapping[agent.id] = {
-        name: agent.name,
-        envVars: agent.envVars?.map((env) => env.key),
+        name: agent.name
       };
     });
+    
     return mapping;
   }, []);
 
