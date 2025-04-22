@@ -39,9 +39,11 @@ sam -h, --help              # Displays the help message and exits.
 sam init [OPTIONS]
 ```
 
-When this command is run with no options, it runs in interactive mode and prompts you to provide the necessary information to set up a SAM application.
+When this command is run with no options, it runs in interactive mode. It will first prompt you to choose between configuring your project in the terminal or through a browser-based interface.
 
-You can skip some questions by providing the appropriate options for that step.
+If you choose to use the browser, the CLI starts a local web configuration portal, available at `http://127.0.0.1:5002`
+
+You can skip some questions by providing the appropriate options for that step during the CLI-based setup.
 
 Optionally, you can skip all the questions by providing the `--skip` option. This option uses the provided or default values for all the questions.
 
@@ -52,6 +54,7 @@ Use the `--skip` option and provide the necessary options to run the command in 
 ##### Options:
 
 - `--skip` – Runs in non-interactive mode, using default values where available.
+- `--use-web-based-init` - Launch the browser-based initialization interface directly, skipping the prompt.
 - `--namespace TEXT` – Defines a custom project namespace for better organization.
 - `--config-dir TEXT` – Specifies the base directory where configuration files are stored.
 - `--module-dir TEXT` – Sets the base directory for storing Python modules used in the system.

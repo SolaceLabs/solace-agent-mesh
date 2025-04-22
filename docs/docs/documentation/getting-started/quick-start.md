@@ -32,6 +32,8 @@ Run the `init` command and follow the prompts to create your project.
 ```sh
 solace-agent-mesh init
 ```
+During initialization, you can choose to configure your project directly in the terminal or through a web-based interface launched at `http://127.0.0.1:5002`. You will
+be asked for your preference once you run `solace-agent-mesh init`.
 
 :::tip[Non-Interactive Mode]
 You can run the `init` command in a non-interactive mode by passing `--skip` and all the other configurations as arguments.
@@ -40,7 +42,10 @@ To get a list of all the available options, run `solace-agent-mesh init --help`
 :::
 
 :::info[Model name format]
-When passing the model names, you need to use the format `provider/name` where provider is the provider API interface definition name for example `openai` if the model is using the standard OpenAI API interface and `name` is the model name like `gpt-4o`.
+When using the browser-based configuration, you only need to provide the model name (such as `gpt-4o`).
+The system automatically handles setting the provider (such as `openai`) based on your selection.
+
+If configuring via the CLI, you need to explicitly specify the model in the format provider/name. For example, `openai/gpt-4o`
 
 If you're using a non-openai model but hosting it on a custom API that follows the OpenAI standards, like Ollama or LiteLLM, you can still use the `openai` provider.
 
