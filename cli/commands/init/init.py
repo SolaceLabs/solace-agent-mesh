@@ -9,11 +9,8 @@ from .create_config_file_step import create_config_file_step
 from .file_service_step import file_service_step
 from .project_structure_step import project_structure_step
 from .create_other_project_files_step import create_other_project_files_step
-from solace_agent_mesh.config_portal.backend.server import run_flask
-import click
-import multiprocessing
-import sys
-import time
+from .web_init_step import web_init_step
+
 from cli.utils import (
     log_error,
     ask_yes_no_question,
@@ -36,9 +33,16 @@ def init_command(options={}):
     if "skip" in options and options["skip"]:
         skip = True
 
+    click.echo(click.style("Initializing Solace Agent Mesh", bold=True, fg="blue"))
+    check_if_already_done(options, default_options, skip, abort)
+
+    if not skip:
+        use_web_based_init = options.get("use_web_based_init", False)
+        if not use_web_based_init:
+            use_web_based_init = ask_yes_no_question("Would you like to configure your project through a web interface in your browser?", True)
+
     # no description for hidden steps
-    steps = [
-        ("", check_if_already_done),
+    cli_steps = [
         ("Project structure setup", project_structure_step),
         ("Broker setup", broker_step),
         ("AI provider setup", ai_provider_step),
@@ -48,49 +52,14 @@ def init_command(options={}):
         ("Setting up project", create_other_project_files_step),
     ]
 
-    check_if_already_done(options, default_options, skip, abort)
+    web_steps = [
+        ("Initilize in web", web_init_step),
+        ("", create_config_file_step),
+        ("", create_other_project_files_step),
+    ]
 
-    click.echo(click.style("Initializing Solace Agent Mesh", bold=True, fg="blue"))
-    if not skip:
-        use_web_based_init = options.get("use_web_based_init", False)
-        if not use_web_based_init:
-            use_web_based_init = ask_yes_no_question("Would you like to configure your project through a web interface in your browser?", True)
-
-        if use_web_based_init:
-            with multiprocessing.Manager() as manager:
-                # Create a shared configuration dictionary
-                shared_config = manager.dict()
-                
-                # Start the Flask server with the shared config
-                init_gui_process = multiprocessing.Process(
-                    target=run_flask,
-                    args=("127.0.0.1", 5002, shared_config)
-                )
-                init_gui_process.start()
-
-                click.echo(click.style("Web configuration portal is running at http://127.0.0.1:5002", fg="green"))
-                click.echo("Complete the configuration in your browser to continue...")
-
-                # Wait for the Flask server to finish
-                init_gui_process.join()
-                
-                # Get the configuration from the shared dictionary
-                if shared_config:
-                    # Convert from manager.dict to regular dict
-                    config_from_portal = dict(shared_config)
-                    options.update(config_from_portal)
-                    click.echo(click.style("Configuration received from portal", fg="green"))
-
-                    #if web configuration portal is used, skip the steps that are already done
-                    steps_if_web_setup_used = [
-                        ("", create_config_file_step),
-                        ("", create_other_project_files_step),
-                    ]
-                    steps = steps_if_web_setup_used
-                else:
-                    click.echo(click.style("Web configuration failed, please try again.", fg="red"))
-                    return
-            
+    steps = web_steps if use_web_based_init else cli_steps
+         
     non_hidden_steps_count = len([step for step in steps if step[0]])
 
     step = 0
