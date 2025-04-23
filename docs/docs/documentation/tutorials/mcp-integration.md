@@ -11,35 +11,59 @@ In this tutorial, we will walk you through the process of integrating a Model Co
 You should have an understanding of agents and plugins in the Solace Agent Mesh. For more information, see [Agents](../concepts/agents.md) and [Using Plugins](../concepts/plugins/use-plugins.md).
 :::
 
-As an example, you are going to integrate the [MCP server-filesystem Server](https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem) into the Solace Agent Mesh Framework to perform simple filesystem commands.
+This plugin adds capabilities to Solace Agent Mesh (SAM) for interacting with servers that implement the Model Context Protocol (MCP). It provides:
 
-## Setting Up the Environment
+- An Agent (mcp_server): Allows SAM to act as an MCP client, connecting to an external MCP server (like server-filesystem or server-everything) and exposing its tools, resources, and prompts as SAM actions.
+- A Gateway Interface: Allows SAM itself to act as an MCP server, exposing its own agents and capabilities to external MCP clients (This part might be less commonly used but is included in the plugin structure).
 
-You must [install Solace Agent Mesh and Solace Mesh Agent (SAM) CLI](../getting-started/installation.md), and then you'll want to [create a new Solace Agent Mesh project](../getting-started/quick-start.md).
+For this tutorial we will be adding the [Filesystem MCP Server](https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem) as an agent into the Solace Agent Mesh Framework to perform simple filesystem commands.
 
-This project also requires the installation of Node.js and the NPM package manager.
+## Prerequisites
 
-## Creating the `sam-mcp-server` Plugin
+Before starting this tutorial, ensure that you have installed and configured Solace Agent Mesh:
 
-You will be using the `sam-mcp-server` plugin from the [solace-agent-mesh-core-plugins](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins) repo for this tutorial. This plugin creates an agent that communicates with the MCP Server.
+- [Installed Solace Agent Mesh and the SAM CLI](../getting-started/installation.md)
+- [Created a new Solace Agent Mesh project](../getting-started/quick-start.md)
 
-Once you have your project set up, you can add the `sam_mcp_server` plugin to the project using the following command:
+## Adding the `sam-mcp-server` Plugin
+
+You will be using the `sam-mcp-server` plugin from the [solace-agent-mesh-core-plugins](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins) repository for this tutorial. This plugin creates an agent that communicates with the MCP Server.
+
+You can add the `sam_mcp_server` plugin to your project using the following command:
 
 ```sh
 solace-agent-mesh plugin add sam_mcp_server --pip -u git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-mcp-server
 ```
 
-This plugin requires two environment variables to be set:
-
-- `MCP_SERVER_NAME`: The name of the MCP Server
-- `MCP_SERVER_COMMAND`: The command used to run the MCP Server
-
-To use the `fileserver` MCP Server, update your `.env` file with the following values:
+Next, create an agent instance based on the MCP server template. In this example we will call the agent `filesystem_docs`. Though you are free to choose any name of your liking!
 
 ```sh
-MCP_SERVER_NAME=filesystem
-MCP_SERVER_COMMAND=npx -y @modelcontextprotocol/server-filesystem ${HOME}/sandbox
+solace-agent-mesh add agent filesystem_docs --copy-from sam_mcp_server:mcp_server
 ```
+
+This command generates a new configuration file under `configs/agents/filesystem_docs.yaml`. The agent name will be automatically substituted throughout the config.
+
+
+To configure the plugin, set the appropriate environment variables for your agent. Since we named the agent `filesystem_docs`, you will need to supply the following environment variables.
+
+- `FILESYSTEM_DOCS_SERVER_DESCRIPTION`: The description of the MCP Server.
+- `FILESYSTEM_DOCS_SERVER_COMMAND`: The command used to run the MCP Server.
+
+<details>
+    <summary>What if I used a different name for my agent?</summary>
+
+If you chose another name then you need to provide the environment variables according to your agent's name. If you are confused about which environment variables need to be updated check out the agent's config file (`configs/agents/filesystem_docs.yaml`)
+
+</details>
+
+
+In our case lets update the `.env` file with the following values:
+
+```sh
+FILESYSTEM_DOCS_SERVER_COMMAND="npx -y @modelcontextprotocol/server-filesystem ${HOME}/sandbox"
+FILESYSTEM_DOCS_SERVER_DESCRIPTION="Provides access to project sandbox files via MCP."
+```
+
 
 The `MCP_SERVER_COMMAND` runs the `filesystem` MCP Server and allows it to manage files in the `${HOME}/sandbox` directory.
 
@@ -50,25 +74,6 @@ mkdir ${HOME}/sandbox
 touch ${HOME}/sandbox/my_file
 ```
 
-Finally, add `mcp_server` to the plugin agents list in the `solace-agent-mesh.yaml` file:
-
-```yaml
-...
-  plugins:
-
-  ...
-
-  - name: sam_mcp_server
-    load_unspecified_files: false
-    includes_gateway_interface: true
-    load:
-      agents:
-        - mcp_server
-      gateways: []
-      overwrites: []
-
-   ...
-```
 
 Now, you can build and run the plugin:
 
@@ -78,9 +83,79 @@ sam run -b
 
 For more information, see [Solace Agent Mesh CLI](../concepts/cli.md).
 
+## Step 1: Add the `sam-mcp-server` Plugin
+
+You will be using the `sam-mcp-server` plugin from the [solace-agent-mesh-core-plugins](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins) repository for this tutorial. This plugin creates an agent that communicates with the MCP Server.
+
+Add the plugin to your project using the following command:
+
+```sh
+solace-agent-mesh plugin add sam_mcp_server --pip -u git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-mcp-server
+```
+
+---
+
+## Step 2: Create an MCP Agent
+
+Next, create an agent instance based on the MCP server template. In this example, we'll call the agent `filesystem_docs`. You are free to choose any name you like!
+
+```sh
+solace-agent-mesh add agent filesystem_docs --copy-from sam_mcp_server:mcp_server
+```
+
+This command generates a new configuration file under `configs/agents/filesystem_docs.yaml`. The agent name will be automatically substituted throughout the config.
+
+---
+
+## Step 3: Configure Environment Variables
+
+To configure the plugin, set the appropriate environment variables for your agent.
+
+Since we named the agent `filesystem_docs`, you will need to supply the following environment variables:
+
+- `FILESYSTEM_DOCS_SERVER_DESCRIPTION`: A description of the MCP Server.
+- `FILESYSTEM_DOCS_SERVER_COMMAND`: The command used to run the MCP Server.
+
+<details>
+    <summary>What if I used a different name for my agent?</summary>
+
+If you chose another name, make sure to prefix your environment variables accordingly. You can always check the correct variable names in the agent's config file (`configs/agents/your_agent_name.yaml`).
+</details>
+
+Now update your `.env` file with the following values:
+
+```sh
+FILESYSTEM_DOCS_SERVER_COMMAND="npx -y @modelcontextprotocol/server-filesystem ${HOME}/sandbox"
+FILESYSTEM_DOCS_SERVER_DESCRIPTION="Provides access to project sandbox files via MCP."
+```
+
+This command starts the `filesystem` MCP Server and allows it to manage files in the `${HOME}/sandbox` directory.
+
+Then, create the sandbox directory and a sample file:
+
+```sh
+mkdir ${HOME}/sandbox
+touch ${HOME}/sandbox/my_file
+```
+
+---
+
+## Step 4: Run the Agent
+
+Now, you can build and run the plugin:
+
+```sh
+sam run -b
+```
+
+This will launch all active agents, including your new `filesystem_docs` MCP agent.
+
+For more information, see [Solace Agent Mesh CLI](../concepts/cli.md).
+
+
 ## Testing the Plugin
 
-First, you must retrieve a list of the files from the filesystem.
+First, let's retrieve a list of the files from the filesystem.
 
 ```sh
 curl --location 'http://localhost:5050/api/v1/request' \
