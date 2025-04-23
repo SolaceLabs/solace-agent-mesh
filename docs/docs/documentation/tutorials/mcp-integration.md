@@ -25,6 +25,8 @@ Before starting this tutorial, ensure that you have installed and configured Sol
 - [Installed Solace Agent Mesh and the SAM CLI](../getting-started/installation.md)
 - [Created a new Solace Agent Mesh project](../getting-started/quick-start.md)
 
+In addtion, you will also need to have Node.js and the NPM package manager.
+
 ## Adding the `sam-mcp-server` Plugin
 
 You will be using the `sam-mcp-server` plugin from the [solace-agent-mesh-core-plugins](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins) repository for this tutorial. This plugin creates an agent that communicates with the MCP Server.
