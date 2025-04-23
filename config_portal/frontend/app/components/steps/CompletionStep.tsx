@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import Button from '../ui/Button';
-import { AGENTS } from './BuiltinAgentSetup';
+import {BUILTIN_AGENTS } from './BuiltinAgentSetup';
 import {
   PROVIDER_PREFIX_MAP,
   EMBEDDING_PROVIDER_PREFIX_MAP,
@@ -44,7 +44,7 @@ export default function CompletionStep({ data, updateData, onPrevious }: Readonl
     const mapping: Record<string, { name: string }> = {};
     
     // Map each agent ID to its name
-    Object.values(AGENTS).forEach((agent) => {
+    Object.values(BUILTIN_AGENTS).forEach((agent) => {
       mapping[agent.id] = {
         name: agent.name
       };

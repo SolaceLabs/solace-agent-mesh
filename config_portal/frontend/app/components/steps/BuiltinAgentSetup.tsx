@@ -13,7 +13,7 @@ import {
 } from '../../common/providerModels';
 
 // Configuration for agent names and descriptions
-export const AGENTS = {
+export const BUILTIN_AGENTS = {
   webRequest: {
     id: 'web_request',
     name: 'Web Request Agent',
@@ -93,7 +93,7 @@ export default function BuiltinAgentSetup({
     }
     
     // Set default values for image processing if enabled
-    if (enabledAgents.includes(AGENTS.imageProcessing.id)) {
+    if (enabledAgents.includes(BUILTIN_AGENTS.imageProcessing.id)) {
       // Set default provider if not set
       if (!initialEnvironmentVariables[IMAGE_AGENT_ENV_VARS.provider]) {
         initialEnvironmentVariables[IMAGE_AGENT_ENV_VARS.provider] = 'openai';
@@ -156,8 +156,8 @@ export default function BuiltinAgentSetup({
         : [...enabledAgents, agentId];
       
       // Initialize Image Processing fields when enabled
-      if (agentId === AGENTS.imageProcessing.id && 
-          !enabledAgents.includes(AGENTS.imageProcessing.id)) {
+      if (agentId === BUILTIN_AGENTS.imageProcessing.id && 
+          !enabledAgents.includes(BUILTIN_AGENTS.imageProcessing.id)) {
         const newEnvironmentVariables = { ...environmentVariables };
         const defaultProvider = 'openai';
         
@@ -177,7 +177,7 @@ export default function BuiltinAgentSetup({
       updatedAgents = enabledAgents.filter(id => id !== agentId);
       
       // Clear image processing fields when disabled
-      if (agentId === AGENTS.imageProcessing.id) {
+      if (agentId === BUILTIN_AGENTS.imageProcessing.id) {
         const newEnvironmentVariables = { ...environmentVariables };
         const newValidationErrors = { ...validationErrors };
         
@@ -247,7 +247,7 @@ export default function BuiltinAgentSetup({
     let isValid = true;
     
     // Validate Image Processing Agent
-    if (enabledAgents.includes(AGENTS.imageProcessing.id)) {
+    if (enabledAgents.includes(BUILTIN_AGENTS.imageProcessing.id)) {
       // Validate provider
       if (!environmentVariables[IMAGE_AGENT_ENV_VARS.provider]) {
         newValidationErrors[IMAGE_AGENT_ENV_VARS.provider] = 'Image Generation Provider is required';
@@ -297,13 +297,13 @@ export default function BuiltinAgentSetup({
         <div className="flex flex-col p-4 border border-gray-200 rounded-md">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-medium text-solace-blue">{AGENTS.webRequest.name}</h3>
-              <p className="text-sm text-gray-500">{AGENTS.webRequest.description}</p>
+              <h3 className="font-medium text-solace-blue">{BUILTIN_AGENTS.webRequest.name}</h3>
+              <p className="text-sm text-gray-500">{BUILTIN_AGENTS.webRequest.description}</p>
             </div>
             <Toggle
-              id={`toggle_${AGENTS.webRequest.id}`}
-              checked={enabledAgents.includes(AGENTS.webRequest.id)}
-              onChange={(checked) => toggleAgent(AGENTS.webRequest.id, checked)}
+              id={`toggle_${BUILTIN_AGENTS.webRequest.id}`}
+              checked={enabledAgents.includes(BUILTIN_AGENTS.webRequest.id)}
+              onChange={(checked) => toggleAgent(BUILTIN_AGENTS.webRequest.id, checked)}
             />
           </div>
         </div>
@@ -312,18 +312,18 @@ export default function BuiltinAgentSetup({
         <div className="flex flex-col p-4 border border-gray-200 rounded-md">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-medium text-solace-blue">{AGENTS.imageProcessing.name}</h3>
-              <p className="text-sm text-gray-500">{AGENTS.imageProcessing.description}</p>
+              <h3 className="font-medium text-solace-blue">{BUILTIN_AGENTS.imageProcessing.name}</h3>
+              <p className="text-sm text-gray-500">{BUILTIN_AGENTS.imageProcessing.description}</p>
             </div>
             <Toggle
-              id={`toggle_${AGENTS.imageProcessing.id}`}
-              checked={enabledAgents.includes(AGENTS.imageProcessing.id)}
-              onChange={(checked) => toggleAgent(AGENTS.imageProcessing.id, checked)}
+              id={`toggle_${BUILTIN_AGENTS.imageProcessing.id}`}
+              checked={enabledAgents.includes(BUILTIN_AGENTS.imageProcessing.id)}
+              onChange={(checked) => toggleAgent(BUILTIN_AGENTS.imageProcessing.id, checked)}
             />
           </div>
           
           {/* Show configuration fields when enabled */}
-          {enabledAgents.includes(AGENTS.imageProcessing.id) && (
+          {enabledAgents.includes(BUILTIN_AGENTS.imageProcessing.id) && (
             <div className="space-y-4 mt-4 pt-4 border-t border-gray-200">
               {/* Provider selection */}
               <FormField
