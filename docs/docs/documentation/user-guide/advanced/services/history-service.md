@@ -132,6 +132,7 @@ Solace Agent Mesh provides the following built-in history providers:
 - **Redis History Provider** (`redis`): Stores history in a Redis database.  
 - **File History Provider** (`file`): Stores history in files on the local filesystem.  
 - **MongoDB History Provider** (`mongodb`): Stores history in a MongoDB database.
+- **SQL History Provider** (`sql`): Stores history in a SQL database. (MySQL, PostgreSQL)
 - **Custom History Provider**: Allows for the implementation of user-defined history storage solutions.
 
 ### Built-in History Providers
@@ -178,6 +179,24 @@ The MongoDB provider requires the `pymongo` package. To install the package, run
 ```bash
 pip install pymongo
 ```
+
+#### **Provider: `sql`**
+The SQL history provider stores history in a SQL database. This provider is useful for storing history data that needs to be persisted across restarts and shared across multiple instances of the application.
+
+The SQL provider requires the following configuration:
+- db_type (*required* - *string*): The type of SQL database to use. Supported values are `postgres` and `mysql`.
+- sql_host (*required* - *string*): The hostname of the SQL server.
+- sql_user (*required* - *string*): The username to use to connect to the SQL server.
+- sql_password (*required* - *string*): The password to use to connect to the SQL server.
+- sql_database (*required* - *string*): The name of the database to use in the SQL server.
+- table_name (*optional* - *string* - *default*: `session_history`): The name of the table to use in the SQL database.
+
+The SQL provider requires the `psycopg2` package for PostgreSQL or the `mysql-connector-python` package for MySQL. To install the packages, run the following commands:
+
+```bash
+pip install psycopg2_binary mysql-connector-python
+```
+
 
 ### Custom History Provider
 

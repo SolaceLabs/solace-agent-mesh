@@ -8,7 +8,7 @@ from cli.utils import log_error, ask_question
 
 DEFAULT_DESCRIPTION = "A solace-agent-mesh plugin project."
 DEFAULT_AUTHOR = "Author Name"
-EMPTY_FILE_MSG = "THIS WILL IS ONLY HERE TO PREVENT GIT FROM IGNORING THIS DIRECTORY"
+EMPTY_FILE_MSG = ""
 
 def create_command(
     path: str, description: str = None, author: str = None, skip: bool = False
@@ -87,10 +87,10 @@ def create_command(
         with open(os.path.join(py_path, "__init__.py"), "w", encoding="utf-8") as f:
             f.write("")
 
-    with open(os.path.join("configs", "__TEMPLATES_WILL_BE_HERE__"), "w", encoding="utf-8") as f:
+    with open(os.path.join("configs", ".gitkeep"), "w", encoding="utf-8") as f:
         f.write(EMPTY_FILE_MSG)
 
-    with open(os.path.join("interfaces", "__INTERFACES_WILL_BE_HERE__"), "w", encoding="utf-8") as f:
+    with open(os.path.join("interfaces", ".gitkeep"), "w", encoding="utf-8") as f:
         f.write(EMPTY_FILE_MSG)
 
     with open(os.path.join("src", "__init__.py"), "w", encoding="utf-8") as f:

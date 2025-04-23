@@ -15,7 +15,7 @@ Running only the necessary components in isolation can help pinpoint issues. The
 For example:
 
 ```bash
-sam run -e build/configs/agent_my_tool_1.yaml build/configs/agent_my_tool_2.yaml
+sam run build/configs/agent_my_tool_1.yaml build/configs/agent_my_tool_2.yaml
 ```
 
 This command runs only the agents defined in `agent_my_tool_1.yaml` and `agent_my_tool_2.yaml`, reducing noise from unrelated components.
@@ -61,7 +61,7 @@ If you're using VSCode, configure debugging in `.vscode/launch.json`:
       "envFile": "${workspaceFolder}/.env",
       "args": [
         "run",
-        "-eb",
+        "-b",
         "build/configs/orchestrator.yaml",
         "build/configs/service_llm.yaml",
         "build/configs/service_embedding.yaml",

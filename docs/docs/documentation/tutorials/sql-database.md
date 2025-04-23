@@ -36,20 +36,36 @@ This command will create a new configuration file at `configs/agents/abc_coffee_
 
 ## Downloading Example Data
 
-For this tutorial, you can use a sample SQLite database for a fictional coffee company called ABC Coffee Co. Follow these steps to download the example data:
+For this tutorial, you can use a sample SQLite database for a fictional coffee company called ABC Coffee Co. 
 
-1. Visit [this link](https://download-directory.github.io/?url=https%3A%2F%2Fgithub.com%2FSolaceLabs%2Fsolace-agent-mesh-core-plugins%2Ftree%2Fmain%2Fsam-sql-database%2Fexample-data) to download the example data.
-2. The link will open a page allowing you to download the ZIP file containing the example data.
-3. Save the ZIP file to your computer.
-4. Extract the file to a directory you want. For the purposes of this tutorial, we recommend the root directory in your Solace Agent Mesh project.After you extract the file, you should see an `abc_coffee_co` directory with multiple CSV files inside.
+First you should download the example data. 
+
+You can either visit this link to download with your browser:
+
+  https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/raw/refs/heads/main/sam-sql-database/example-data/abc_coffee_co.zip
+
+Or you can use the command line to download the ZIP file:
+
+### Using wget
+```sh
+wget https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/raw/refs/heads/main/sam-sql-database/example-data/abc_coffee_co.zip
+```
+
+### Using curl
+```sh
+curl -LO https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/raw/refs/heads/main/sam-sql-database/example-data/abc_coffee_co.zip
+```
+
+After downloading the ZIP file, extract it to a directory of your choice. You can use the following command to extract the ZIP file:
+
+```sh
+unzip abc_coffee_co.zip
+```
 
 ## Configuring the Agent
 
 Now, update the agent configuration to use the SQLite database and import the CSV files.
-Open the `configs/agents/abc_coffee_info.yaml` file and make the following changes:
-
-1. Set the database type to `SQLite`.
-2. Point to the directory where you extracted the example data.
+Open the `configs/agents/abc_coffee_info.yaml` file and add the `csv_directories` option to the `action_request_processor` component configuration. This option specifies the directory where the CSV files are located.
 
 Here's what you need to modify in the configuration file:
 
@@ -83,14 +99,15 @@ SQLite stores the database in a local file and doesn't require a username or pas
 Now, you can start Solace Agent Mesh with your new SQL database agent:
 
 ```sh
-sam run -eb
+sam run -b
 ```
-
-The `-e` flag loads environment variables from the `.env` file, and the `-b` flag will rebuild the sam config files
+:::info
+The `-b` option will rebuild the Solace Agent Mesh config files.
+:::
 
 ## Interacting with the Database
 
-After Solace Agent Mesh is running, you can interact with the ABC Coffee database through the web interface at `http://127.0.0.1:5001`.
+After Solace Agent Mesh is running, you can interact with the ABC Coffee database through the web interface at `http://localhost:5001`.
 
 You can ask natural language questions about the ABC Coffee Co. database, such as:
 

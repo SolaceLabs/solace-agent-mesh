@@ -107,11 +107,25 @@ def _update_gateway_yaml(yaml_string, interface_gateway_config):
 
         # Inject long-term memory before history_policy
         if history_config.get("long_term_memory", {}).get("enabled", False):
-            llm_config = f"\n        {''.join(f'{key}: {value}\n        ' for key, value in history_config['long_term_memory'].get('llm_config', {}).items())}\n" \
-                if history_config["long_term_memory"].get("llm_config", {}) else " {} \n"
+            # Build llm_config string
+            llm_config_items = history_config['long_term_memory'].get('llm_config', {})
+            if llm_config_items:
+                llm_config_parts = []
+                for key, value in llm_config_items.items():
+                    llm_config_parts.append(f"{key}: {value}")
+                llm_config = "\n        " + "\n        ".join(llm_config_parts) + "\n"
+            else:
+                llm_config = " {} \n"
             
-            store_config = f"\n        {''.join(f'{key}: {value}\n        ' for key, value in history_config['long_term_memory'].get('store_config', {}).items())}\n" \
-                if history_config["long_term_memory"].get("store_config", {}) else " {} \n"
+            # Build store_config string
+            store_config_items = history_config['long_term_memory'].get('store_config', {})
+            if store_config_items:
+                store_config_parts = []
+                for key, value in store_config_items.items():
+                    store_config_parts.append(f"{key}: {value}")
+                store_config = "\n        " + "\n        ".join(store_config_parts) + "\n"
+            else:
+                store_config = " {} \n"
             long_term_yaml = (
                 'long_term_memory: true\n'
                 '    long_term_memory_config:\n'
@@ -275,7 +289,7 @@ def add_gateway_command(name, interfaces):
 
         created_file_names.append(gateway_config_path)
             
-        temp_file = os.path.join(config_directory, "__TEMPLATES_WILL_BE_HERE__")
+        temp_file = os.path.join(config_directory, ".gitkeep")
         if os.path.exists(temp_file):
             os.remove(temp_file)
 
@@ -314,7 +328,7 @@ def add_interface_command(name):
     try:
         os.makedirs(interfaces_directory, exist_ok=True)
 
-        temp_file = os.path.join(interfaces_directory, "__INTERFACES_WILL_BE_HERE__")
+        temp_file = os.path.join(interfaces_directory, ".gitkeep")
         if os.path.exists(temp_file):
             os.remove(temp_file)
 
