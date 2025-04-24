@@ -408,7 +408,7 @@ export default function CompletionStep({ data, updateData, onPrevious }: Readonl
       data.embedding_model_name = formatModelName(data.embedding_model_name, data.embedding_provider);
       delete data.embedding_provider;
     }
-    
+
     // Handle image generation provider and model in env_var
     if (data.env_var && Array.isArray(data.env_var)) {
       let imageGenProvider = '';
