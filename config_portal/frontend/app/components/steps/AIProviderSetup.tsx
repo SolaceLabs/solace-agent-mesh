@@ -14,8 +14,8 @@ import {
   fetchModelsFromCustomEndpoint,
   LLM_PROVIDER_OPTIONS,
   EMBEDDING_PROVIDER_OPTIONS,
-  PROVIDER_PREFIX_MAP,
   EMBEDDING_PROVIDER_MODELS,
+  formatModelName,
 } from '../../common/providerModels';
 
 type AIProviderSetupProps = {
@@ -242,26 +242,9 @@ export default function AIProviderSetup({ data, updateData, onNext, onPrevious }
     return isValid;
   };
   
-  // Format model name for litellm
-  const formatModelName = (modelName: string, provider: string): string => {
-  
-    // If model name already includes a provider prefix (contains '/'), return as is
-    if (modelName.includes('/')) {
-      return modelName;
-    }
-        
-    // Get the correct provider prefix
-    const providerPrefix = PROVIDER_PREFIX_MAP[provider] || provider;
-    return `${providerPrefix}/${modelName}`;
-  };
+
 
   const testLLMConfig = async () => {
-    // Exclude certain providers from testing as these require more auth than just a key
-    const EXCLUSION_LIST = ['bedrock']
-    if (EXCLUSION_LIST.includes(data.llm_provider)) {
-      onNext();
-      return;
-    }
     setIsTestingConfig(true);
     setTestError(null);
     

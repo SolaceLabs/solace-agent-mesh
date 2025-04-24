@@ -193,3 +193,16 @@ export async function fetchModelsFromCustomEndpoint(
     return [];
   }
 }
+
+  // Format model name for litellm
+  export const formatModelName = (modelName: string, provider: string): string => {
+  
+    // If model name already includes a provider prefix (contains '/'), return as is
+    if (modelName.includes('/')) {
+      return modelName;
+    }
+        
+    // Get the correct provider prefix
+    const providerPrefix = PROVIDER_PREFIX_MAP[provider] || provider;
+    return `${providerPrefix}/${modelName}`;
+  };
