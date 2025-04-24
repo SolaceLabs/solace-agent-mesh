@@ -16,7 +16,7 @@ This plugin adds capabilities to Solace Agent Mesh (SAM) for interacting with se
 - An Agent (mcp_server): Allows SAM to act as an MCP client, connecting to an external MCP server (like server-filesystem or server-everything) and exposing its tools, resources, and prompts as SAM actions.
 - A Gateway Interface: Allows SAM itself to act as an MCP server, exposing its own agents and capabilities to external MCP clients (This part might be less commonly used but is included in the plugin structure).
 
-For this tutorial we will be adding the [Filesystem MCP Server](https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem) as an agent into the Solace Agent Mesh Framework to perform simple filesystem commands.
+For this tutorial we'll add the the [Filesystem MCP Server](https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem) as an agent into the Solace Agent Mesh Framework to perform simple filesystem commands.
 
 ## Prerequisites
 
@@ -47,7 +47,7 @@ Next, create an agent instance based on the MCP server template. In this example
 solace-agent-mesh add agent filesystem_docs --copy-from sam_mcp_server:mcp_server
 ```
 
-This command generates a new configuration file under `configs/agents/filesystem_docs.yaml`. The agent name will be automatically substituted throughout the config.
+This command generates a new configuration file under `configs/agents/filesystem_docs.yaml`. The agent name is automatically substituted through the `config` file.
 
 ---
 
@@ -55,7 +55,7 @@ This command generates a new configuration file under `configs/agents/filesystem
 
 To configure the plugin, set the appropriate environment variables for your agent.
 
-Since we named the agent `filesystem_docs`, you will need to supply the following environment variables:
+Since we named the agent `filesystem_docs`, you must set the following environment variables:
 
 - `FILESYSTEM_DOCS_SERVER_DESCRIPTION`: A description of the MCP Server.
 - `FILESYSTEM_DOCS_SERVER_COMMAND`: The command used to run the MCP Server.
@@ -63,7 +63,7 @@ Since we named the agent `filesystem_docs`, you will need to supply the followin
 <details>
     <summary>What if I used a different name for my agent?</summary>
 
-If you chose another name, make sure to prefix your environment variables accordingly. You can always check the correct variable names in the agent's config file (`configs/agents/your_agent_name.yaml`).
+If you chose another name, ensure you prefix your environment variables accordingly. You can always check the correct variable names in the agent's config file (`configs/agents/your_agent_name.yaml`).
 </details>
 
 Now update your `.env` file with the following values:
