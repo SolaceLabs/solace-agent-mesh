@@ -1,0 +1,39 @@
+# Agent Plugin Manager Configuration
+#
+# This file defines the agents to be created by the Agent Plugin Manager.
+# Each agent has a name, a plugin URL, a configuration object, and optional environment variables.
+
+agents:
+  # - name: filesystem
+  #   plugin: https://github.com/SolaceLabs/solace-agent-mesh-core-plugins@ed/ai-658/make-all-agents-easily-copyable#subdirectory=sam-mcp-server
+  #   config:
+  #     server_description: "This agent handles actions for a fileservice"
+  #     server_name: filesystem
+  #     server_command: "npx -y @modelcontextprotocol/server-filesystem /private/tmp/greg123"
+  #   env-vars:
+  #     MCP_SERVER_DEBUG: "true"
+  #     MCP_SERVER_LOG_LEVEL: "info"
+
+  - name: mcp-run-python
+    plugin: https://github.com/SolaceLabs/solace-agent-mesh-core-plugins@ed/ai-658/make-all-agents-easily-copyable#subdirectory=sam-mcp-server
+    config:
+      server_description: "This agent allows running python code"
+      server_name: mcp-run-python
+      server_command: "deno run -N -R=node_modules -W=node_modules --node-modules-dir=auto jsr:@pydantic/mcp-run-python stdio"
+    env-vars:
+      MCP_SERVER_DEBUG: "true"
+      MCP_SERVER_LOG_LEVEL: "info"
+
+  # - name: acme-sales
+  #   plugin: https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-sql-database
+  #   config:
+  #     db_type: sqlite
+  #     database: acme_sales
+  #     database_purpose: "Database of sales data for ACME Corp"
+  #     data_description: "Contains the sales data for ACME Corp"
+  #     csv_directories:
+  #       - /tmp/example/csv/files
+  #   env-vars:
+  #     DATABASE_DEBUG: "true"
+  #     GOOGLE_API_KEY: "ak4dd23453"
+  #     GOOGLE_LLM_URL: "https://api.google.com/v1/llm"

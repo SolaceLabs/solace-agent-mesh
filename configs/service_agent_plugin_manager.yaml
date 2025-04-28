@@ -1,0 +1,25 @@
+# This is the configuration file for the Agent Plugin Manager service.
+#
+# The Agent Plugin Manager service manages agent plugins, including:
+# - Installing plugins if they're not already installed
+# - Loading flow templates from plugins
+# - Creating and starting agent applications
+# - Setting environment variables for agents
+
+---
+log:
+  stdout_log_level: INFO
+  log_file_level: INFO
+  log_file: solace_agent_mesh.log
+
+flows:
+  - name: agent-plugin-manager-service
+    components:
+      # Agent Plugin Manager component (standalone)
+      - component_name: agent_plugin_manager
+        component_base_path: .
+        component_module: src.services.agent_plugin_manager.components.agent_plugin_manager_component
+        component_config:
+          module_directory: ${MODULE_DIRECTORY, src}
+          agents_definition_file: ${AGENT_DEFINITION_FILE, configs/agents.yaml}
+          auto_create: ${AGENT_PLUGIN_MANAGER_AUTO_CREATE, true}

@@ -39,6 +39,12 @@ solace_agent_mesh:
 
   # Runtime configuration
   runtime:
+    # Agent Plugin Manager configuration
+    agent_plugin_manager:
+      # Path to the agent definition file
+      definition_file: configs/agents.yaml
+      # Whether to automatically create agents on startup
+      auto_create: true
     # Runtime Services
     services:
       # File service configuration
