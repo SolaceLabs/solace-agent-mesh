@@ -111,7 +111,7 @@ No customization is required for `./configs/gateways/jira/gateway.yaml`
 Now, you can build and run the Event Mesh Gateway:
 
 ```sh
-sam run -be
+sam run -b
 ```
 
 For more information, see [Solace Agent Mesh CLI](../concepts/cli.md).

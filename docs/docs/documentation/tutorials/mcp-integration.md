@@ -73,7 +73,7 @@ Finally, add `mcp_server` to the plugin agents list in the `solace-agent-mesh.ya
 Now, you can build and run the plugin:
 
 ```sh
-sam run -be
+sam run -b
 ```
 
 For more information, see [Solace Agent Mesh CLI](../concepts/cli.md).

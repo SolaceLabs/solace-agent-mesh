@@ -101,7 +101,7 @@ def add_agent_command(name):
 
         click.echo(f"Created sample action at: {get_display_path(action_path)}")
 
-        temp_file = os.path.join(config_directory, "__TEMPLATES_WILL_BE_HERE__")
+        temp_file = os.path.join(config_directory, ".gitkeep")
         if os.path.exists(temp_file):
             os.remove(temp_file)
     except IOError as e:

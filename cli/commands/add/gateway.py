@@ -289,7 +289,7 @@ def add_gateway_command(name, interfaces):
 
         created_file_names.append(gateway_config_path)
             
-        temp_file = os.path.join(config_directory, "__TEMPLATES_WILL_BE_HERE__")
+        temp_file = os.path.join(config_directory, ".gitkeep")
         if os.path.exists(temp_file):
             os.remove(temp_file)
 
@@ -328,7 +328,7 @@ def add_interface_command(name):
     try:
         os.makedirs(interfaces_directory, exist_ok=True)
 
-        temp_file = os.path.join(interfaces_directory, "__INTERFACES_WILL_BE_HERE__")
+        temp_file = os.path.join(interfaces_directory, ".gitkeep")
         if os.path.exists(temp_file):
             os.remove(temp_file)
 

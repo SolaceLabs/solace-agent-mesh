@@ -14,9 +14,9 @@ file_manager_config = {
 
 FileService(file_manager_config)
 
+
 def strip_lines(text):
     return "\n".join([line.strip() for line in text.strip().split("\n")]).strip()
-
 
 class TestOrchestratorStreamingOutput(unittest.TestCase):
 
@@ -50,6 +50,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                 "first_chunk": True,
                 "last_chunk": True,
                 "response_uuid": "1234",
+                "check_reasoning": False,
             },
         )
 
@@ -93,6 +94,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                     "first_chunk": True,
                     "last_chunk": False,
                     "response_uuid": "1234",
+                    "check_reasoning": False,
                 },
                 {
                     "content": "Hello World",
@@ -100,6 +102,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                     "first_chunk": False,
                     "last_chunk": True,
                     "response_uuid": "1234",
+                    "check_reasoning": False,
                 },
             ],
         )
@@ -181,6 +184,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                     "first_chunk": True,
                     "last_chunk": True,
                     "response_uuid": "1234",
+                    "check_reasoning": False,
                 },
             ],
         )
@@ -273,7 +277,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                         {
                             "status_update": True,
                             "streaming": True,
-                            "text": "File file1.txt loading (46 characters)...",
+                            "text": "File file1.txt loading (51 characters)...",
                             "uuid": "1234-status",
                         },
                     ],
@@ -328,10 +332,13 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                 {
                     "content": strip_lines(
                         """
-                                                    Hi
-                                                    <file name="file1.txt" mime_type="text/plain">
-                                                    <dat
-                                                    """
+                        <t321_reasoning>
+                        This is some reasoning
+                        </t321_reasoning>
+                        Hi
+                        <t321_file name="file1.txt" mime_type="text/plain">
+                        <dat
+                        """
                     ),
                     "streaming": True,
                     "first_chunk": True,
@@ -341,12 +348,15 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                 {
                     "content": strip_lines(
                         """
-                                                    Hi
-                                                    <file name="file1.txt" mime_type="text/plain">
-                                                    <data>My file content</data>
-                                                    </file>
-                                                    Bye
-                                                    """
+                        <t321_reasoning>
+                        This is some reasoning
+                        </t321_reasoning>
+                        Hi
+                        <t321_file name="file1.txt" mime_type="text/plain">
+                        <data>My file content</data>
+                        </t321_file>
+                        Bye
+                        """
                     ),
                     "streaming": True,
                     "first_chunk": False,
@@ -356,10 +366,13 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                 {
                     "content": strip_lines(
                         """
+                        <t321_reasoning>
+                        This is some reasoning
+                        </t321_reasoning>
                         Hi
-                        <file name="file1.txt" mime_type="text/plain">
+                        <t321_file name="file1.txt" mime_type="text/plain">
                         <data>My file content</data>
-                        </file>
+                        </t321_file>
                         Bye Bye
                         """
                     ),
@@ -445,6 +458,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                     "first_chunk": True,
                     "last_chunk": False,
                     "response_uuid": "1234",
+                    "check_reasoning": False,
                 },
                 {
                     "content": "Hello\n<t123_reasoning>Some reasoning</t123_reasoning><t123_status_update>hi</t123_sta",
@@ -452,6 +466,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                     "first_chunk": False,
                     "last_chunk": False,
                     "response_uuid": "1234",
+                    "check_reasoning": False,
                 },
                 {
                     "content": "Hello\n<t123_reasoning>Some reasoning</t123_reasoning><t123_status_update>hi</t123_status_update>\n"
@@ -461,6 +476,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                     "first_chunk": False,
                     "last_chunk": False,
                     "response_uuid": "1234",
+                    "check_reasoning": False,
                 },
                 {
                     "content": "Hello\n<t123_reasoning>Some reasoning</t123_reasoning><t123_status_update>hi</t123_status_update>\n"
@@ -471,6 +487,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                     "first_chunk": False,
                     "last_chunk": False,
                     "response_uuid": "1234",
+                    "check_reasoning": False,
                 },
                 {
                     "content": "Hello\n<t123_reasoning>Some reasoning</t123_reasoning><t123_status_update>hi</t123_status_update>\n"
@@ -482,6 +499,7 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                     "first_chunk": False,
                     "last_chunk": False,
                     "response_uuid": "1234",
+                    "check_reasoning": False,
                 },
             ],
         )
@@ -519,6 +537,61 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                 "content": strip_lines(
                     """
                     <t321_reasoning>
+                    This is some reasoning
+                    </t321_reasoning>
+                    <t321_current_subject starting_id="123"/>
+                    Hello
+                    <t321_status_update>Things are underway</t321_status_update>
+                    <t321_invoke_action agent="agent1" action="action1">
+                    <t321_parameter name="param1">value1</t321_parameter>
+                    <t321_parameter name="param2">
+                    value2
+                    </t321_parameter>
+                    </t321_invoke_action>
+                    <t321_status_update>
+                    Things are now complete
+                    </t321_status_update>
+                    """
+                ),
+                "streaming": True,
+                "first_chunk": True,
+                "last_chunk": True,
+                "response_uuid": "1234",
+            },
+        )
+
+    def test_strip_after_invoke_action(self):
+        """Test that all text is ignored after the <t321_invoke_action> tag"""
+
+        def validation_func(output_data, _output_message, _input_message):
+            self.assertEqual(
+                output_data,
+                [
+                    [
+                        {
+                            "text": "Hello\n",
+                            "chunk": "Hello\n",
+                            "streaming": True,
+                            "first_chunk": True,
+                            "last_chunk": True,
+                            "uuid": "1234-0",
+                        },
+                        {
+                            "status_update": True,
+                            "streaming": True,
+                            "text": "Things are now complete",
+                            "uuid": "1234-status",
+                        },
+                    ]
+                ],
+            )
+
+        run_component_test(
+            "src.orchestrator.components.orchestrator_streaming_output_component",
+            validation_func,
+            input_data={
+                "content": strip_lines(
+                    """
                     <t321_reasoning>
                     This is some reasoning
                     </t321_reasoning>
@@ -534,6 +607,67 @@ class TestOrchestratorStreamingOutput(unittest.TestCase):
                     <t321_status_update>
                     Things are now complete
                     </t321_status_update>
+                    This should be ignored
+                    """
+                ),
+                "streaming": True,
+                "first_chunk": True,
+                "last_chunk": True,
+                "response_uuid": "1234",
+            },
+        )
+
+    def test_strip_file_after_invoke_action(self):
+        """Test that all text is ignored after the <t321_invoke_action> tag"""
+
+        def validation_func(output_data, _output_message, _input_message):
+            self.assertEqual(
+                output_data,
+                [
+                    [
+                        {
+                            "text": "Hello\n",
+                            "chunk": "Hello\n",
+                            "streaming": True,
+                            "first_chunk": True,
+                            "last_chunk": True,
+                            "uuid": "1234-0",
+                        },
+                        {
+                            "status_update": True,
+                            "streaming": True,
+                            "text": "Things are now complete",
+                            "uuid": "1234-status",
+                        },
+                    ]
+                ],
+            )
+
+        run_component_test(
+            "src.orchestrator.components.orchestrator_streaming_output_component",
+            validation_func,
+            input_data={
+                "content": strip_lines(
+                    """
+                    <t321_reasoning>
+                    This is some reasoning
+                    </t321_reasoning>
+                    <t321_current_subject starting_id="123"/>
+                    Hello
+                    <t321_status_update>Things are underway</t321_status_update>
+                    <t321_invoke_action agent="agent1" action="action1">
+                    <t321_parameter name="param1">value1</t321_parameter>
+                    <t321_parameter name="param2">
+                    value2
+                    </t321_parameter>
+                    </t321_invoke_action>
+                    <t321_status_update>
+                    Things are now complete
+                    </t321_status_update>
+                    This should be ignored
+                    <file name="file1.txt" mime_type="text/plain">
+                    <data>My file content</data>
+                    </file>
                     """
                 ),
                 "streaming": True,

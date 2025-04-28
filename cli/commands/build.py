@@ -378,7 +378,22 @@ def build_solace_agent_mesh(config, build_config_dir, abort, parsers):
         if f.endswith(".yaml")
         and not any(f.startswith(prefix) for prefix in skip_prefixes)
     ]
+    
+    # Check if embedding service is enabled
+    embedding_enabled = True  # Default to True for backward compatibility
+    built_in_services = config.get("built_in", {}).get("services", [])
+    if built_in_services:  # Only check if services section exists
+        embedding_enabled = False
+        for service in built_in_services:
+            if service.get("name") == "embedding" and service.get("enabled"):
+                embedding_enabled = True
+                break
+    
     for config_file in config_files:
+        # Skip embedding service if not enabled
+        if config_file == "service_embedding.yaml" and not embedding_enabled:
+            click.echo(f"Skipping embedding service as it is disabled.")
+            continue
         try:
             # Read config file
             config_file_path = os.path.join(configs_source_path, config_file)

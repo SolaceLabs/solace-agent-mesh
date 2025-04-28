@@ -136,8 +136,10 @@ To run the SAM application, use the `run` command.
 sam run [OPTIONS] [FILES]...
 ```
 
-:::tip[Load environment variables]
-Use the `-e` or `--use-env` option to load environment variables from the configuration file.
+:::info[Environment variables]
+The `sam run` command automatically loads environment variables from your configuration file (typically a `.env` file at the project root) by default.
+
+If you want to use your system's environment variables instead, you can add the `-u` or `--use-system-env` option.
 :::
 
 :::tip[none to run]
@@ -153,12 +155,12 @@ Or, you can only run the provided files by providing them as arguments. You migh
 For example:
 
 ```sh
-solace-agent-mesh run -e build/configs/config1.yaml build/configs/config2.yaml
+solace-agent-mesh run build/configs/config1.yaml build/configs/config2.yaml
 ```
 
 ##### Options:
 
-- `-e, --use-env` – Loads environment variables from the configuration for execution.
+- `-u, --use-system-env` – Loads environment variables from your system instead of from the configuration file.
 - `-s, --skip TEXT` – Skips specified files during execution.
 - `-q, --quick-build` – Uses default behavior for `init` and `build` steps.
 - `-i, --ignore-build` – Skips `build` if the build directory is missing.

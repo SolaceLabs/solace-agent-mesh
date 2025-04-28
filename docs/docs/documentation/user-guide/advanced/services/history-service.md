@@ -194,7 +194,7 @@ The SQL provider requires the following configuration:
 The SQL provider requires the `psycopg2` package for PostgreSQL or the `mysql-connector-python` package for MySQL. To install the packages, run the following commands:
 
 ```bash
-pip install psycopg2 mysql-connector-python
+pip install psycopg2_binary mysql-connector-python
 ```
 
 

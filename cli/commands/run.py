@@ -21,7 +21,7 @@ FILES_TO_EXCLUDE = []
 
 
 def run_command(
-    use_env, config_files, exclude_files, quick_build, ignore_build, force_build
+    use_system_env, config_files, exclude_files, quick_build, ignore_build, force_build
 ):
     """Run the Solace Agent Mesh application."""
 
@@ -34,7 +34,7 @@ def run_command(
 
     click.echo("Running Solace Agent Mesh application")
 
-    if use_env:
+    if not use_system_env:
         try:
             from dotenv import load_dotenv
 
