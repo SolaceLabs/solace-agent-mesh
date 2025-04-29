@@ -36,10 +36,9 @@ def init_command(options={}):
     click.echo(click.style("Initializing Solace Agent Mesh", bold=True, fg="blue"))
     check_if_already_done(options, default_options, skip, abort)
 
-    if not skip:
-        use_web_based_init = options.get("use_web_based_init", False)
-        if not use_web_based_init:
-            use_web_based_init = ask_yes_no_question("Would you like to configure your project through a web interface in your browser?", True)
+    use_web_based_init = options.get("use_web_based_init", False)
+    if not use_web_based_init and not skip:
+        use_web_based_init = ask_yes_no_question("Would you like to configure your project through a web interface in your browser?", True)
 
     # no description for hidden steps
     cli_steps = [
