@@ -10,11 +10,19 @@ export default defineConfig({
   ],
   server: {
     proxy: {
+      // Proxy to main config_portal backend
       "/api": {
-        target: "http://localhost:5002", // Go backend URL
+        target: "http://localhost:5002", // Config Portal backend URL
         changeOrigin: true,
-        secure: false, // Disable SSL verification if not using HTTPS
+        secure: false,
         rewrite: (path) => path.replace(/^\/api/, "/api"),
+      },
+      // Proxy to wizard Flask server
+      "/wizard_api": {
+        target: "http://localhost:5005", // Wizard backend URL
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/wizard_api/, "/api"),
       },
     },
   },
