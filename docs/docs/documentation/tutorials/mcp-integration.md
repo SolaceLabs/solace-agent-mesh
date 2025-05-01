@@ -41,7 +41,7 @@ solace-agent-mesh plugin add sam_mcp_server --pip -u git+https://github.com/Sola
 
 ## Step 2: Create an MCP Agent
 
-Next, create an agent instance based on the MCP server template. In this example, we'll call the agent `filesystem_docs`. You are free to choose any name you like!
+Next, create an agent instance based on the MCP server template. In this example, we'll call the agent `filesystem_docs`. You can choose any name you want.
 
 ```sh
 solace-agent-mesh add agent filesystem_docs --copy-from sam_mcp_server:mcp_server
