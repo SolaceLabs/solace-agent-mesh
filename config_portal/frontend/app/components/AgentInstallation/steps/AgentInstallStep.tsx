@@ -88,7 +88,6 @@ export default function AgentInstallStep({
         <Button
            onClick={handleInstallClick}
            disabled={installStatus.loading || installStatus.success === true}
-           variant={installStatus.success === false ? 'danger' : 'primary'}
            className="flex items-center justify-center min-w-[150px]"
         >
            {getButtonContent()}

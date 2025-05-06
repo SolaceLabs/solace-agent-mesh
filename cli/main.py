@@ -14,6 +14,7 @@ from cli.commands.visualizer import visualizer_command
 from cli.commands.init import init_command
 from cli.commands.plugin import plugin_command
 from cli.commands.chat import chat_command
+from cli.commands.wizard import wizard_command
 from cli import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
@@ -287,6 +288,11 @@ def init(**kwargs):
     Initialize the Solace Agent Mesh application.
     """
     return init_command(kwargs)
+
+@cli.command()
+def wizard():
+    """Interactive wizard to install plugins."""
+    return wizard_command()
 
 
 @cli.group()

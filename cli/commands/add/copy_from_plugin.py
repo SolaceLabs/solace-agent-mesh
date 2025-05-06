@@ -2,7 +2,7 @@ import os
 import click
 
 from cli.utils import log_error, load_plugin, get_display_path, get_formatted_names
-
+from cli.config import Config
 
 def copy_from_plugin(name, plugin_name, entity_type):
     """
@@ -41,8 +41,10 @@ def copy_from_plugin(name, plugin_name, entity_type):
     if not os.path.exists(template_path):
         log_error(f"Could not find '{src_entity_name}' in '{plugin_name}' plugin.")
         return 1
-
-    config = click.get_current_context().obj
+    if not click.get_current_context(silent=True):
+        config = Config.get_user_config()
+    else:
+        config = click.get_current_context().obj
     config_directory = config["solace_agent_mesh"]["config_directory"]
     target_directory = os.path.join(config_directory, entity_type)
     os.makedirs(target_directory, exist_ok=True)

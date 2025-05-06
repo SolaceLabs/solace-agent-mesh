@@ -1,4 +1,3 @@
-// app/components/AgentInstallation/AgentInstallationFlow.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import StepIndicator from '../StepIndicator';
 import AgentSelectionStep from './steps/AgentSelectionStep';
@@ -166,7 +165,6 @@ export default function AgentInstallationFlow() {
   const handleExit = () => {
     console.log("Exiting agent installation flow.");
     alert("Exiting agent installation flow.");
-    // Example: navigate('/'); or close modal state
   };
 
   const currentStep = agentInstallationSteps[currentStepIndex];
@@ -203,6 +201,7 @@ export default function AgentInstallationFlow() {
 
       <div className="mb-8">
           <StepIndicator
+          //TODO: Fix steps type error
             steps={agentInstallationSteps}
             currentStepIndex={currentStepIndex}
             onStepClick={(index) => {
