@@ -1,4 +1,12 @@
-import React, { createContext, useState, useEffect, useCallback, useMemo, useContext } from 'react';
+import {
+  createContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useContext,
+} from "react";
+import PropTypes from "prop-types";
 
 // Constants for agent registration management
 const AGENT_TIMEOUT = 120000; // 2 minutes in milliseconds
@@ -11,12 +19,12 @@ const AgentRegistrationsContext = createContext(null);
 export const AgentRegistrationsProvider = ({ children }) => {
   // State for storing agent registrations and search filter
   const [registrations, setRegistrations] = useState({});
-  const [searchFilter, setSearchFilter] = useState('');
+  const [searchFilter, setSearchFilter] = useState("");
 
   // Handler for new agent registrations
   const handleRegistration = useCallback((registration) => {
     if (!registration?.agent_name) {
-      console.warn('Invalid registration message received:', registration);
+      console.warn("Invalid registration message received:", registration);
       return;
     }
 
@@ -24,15 +32,15 @@ export const AgentRegistrationsProvider = ({ children }) => {
 
     // Loop through the actions and remove any empty ones
     if (registration.actions) {
-      registration.actions = registration.actions.filter(action => action);
+      registration.actions = registration.actions.filter((action) => action);
     }
 
-    setRegistrations(prev => ({
+    setRegistrations((prev) => ({
       ...prev,
       [agentName]: {
         ...registration,
-        lastUpdate: Date.now()
-      }
+        lastUpdate: Date.now(),
+      },
     }));
   }, []);
 
@@ -42,15 +50,16 @@ export const AgentRegistrationsProvider = ({ children }) => {
       handleRegistration(event.detail);
     };
 
-    window.addEventListener('agentRegistration', handleRegistrationEvent);
-    return () => window.removeEventListener('agentRegistration', handleRegistrationEvent);
+    window.addEventListener("agentRegistration", handleRegistrationEvent);
+    return () =>
+      window.removeEventListener("agentRegistration", handleRegistrationEvent);
   }, [handleRegistration]);
 
   // Effect for cleaning up stale agent registrations
   useEffect(() => {
     const cleanup = setInterval(() => {
       const now = Date.now();
-      setRegistrations(prev => {
+      setRegistrations((prev) => {
         const updated = { ...prev };
         let hasChanges = false;
 
@@ -72,16 +81,23 @@ export const AgentRegistrationsProvider = ({ children }) => {
   const filteredAgents = useMemo(() => {
     const searchTerm = searchFilter.toLowerCase();
     return Object.fromEntries(
-      Object.entries(registrations).filter(([name, agent]) =>
-        name.toLowerCase().includes(searchTerm) ||
-        agent.description?.toLowerCase().includes(searchTerm) ||
-        agent.actions?.some(action => {
-          const actionKey = Object.keys(action)[0];
-          const actionValue = action[actionKey];
-          return actionKey.toLowerCase().includes(searchTerm) ||
-                 actionValue?.desc?.toLowerCase().includes(searchTerm);
-        })
-      )
+      Object.entries(registrations).filter(([name, agent]) => {
+        return (
+          name.toLowerCase().includes(searchTerm) ||
+          (typeof agent.description === "string" &&
+            agent.description.toLowerCase().includes(searchTerm)) ||
+          agent.actions?.some((action) => {
+            if (!action) return false;
+            const actionKey = Object.keys(action)[0];
+            const actionValue = action[actionKey];
+            return (
+              actionKey.toLowerCase().includes(searchTerm) ||
+              (typeof actionValue?.desc === "string" &&
+                actionValue.desc.toLowerCase().includes(searchTerm))
+            );
+          })
+        );
+      })
     );
   }, [registrations, searchFilter]);
 
@@ -91,7 +107,7 @@ export const AgentRegistrationsProvider = ({ children }) => {
     filteredAgents,
     handleRegistration,
     searchFilter,
-    setSearchFilter
+    setSearchFilter,
   };
 
   return (
@@ -101,11 +117,17 @@ export const AgentRegistrationsProvider = ({ children }) => {
   );
 };
 
+AgentRegistrationsProvider.propTypes = {
+  children: PropTypes.node.isRequired,
+};
+
 // Custom hook for accessing agent registrations context
 export const useAgentRegistrations = () => {
   const context = useContext(AgentRegistrationsContext);
   if (!context) {
-    throw new Error('useAgentRegistrations must be used within an AgentRegistrationsProvider');
+    throw new Error(
+      "useAgentRegistrations must be used within an AgentRegistrationsProvider"
+    );
   }
   return context;
 };
