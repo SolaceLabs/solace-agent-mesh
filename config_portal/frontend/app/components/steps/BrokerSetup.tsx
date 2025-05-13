@@ -4,6 +4,7 @@ import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Button from '../ui/Button';
 import { InfoBox, WarningBox, StatusBox } from '../ui/InfoBoxes';
+import ConfirmationModal from '../ui/ConfirmationModal';
 
 type BrokerSetupProps = {
   data: { 
@@ -35,6 +36,13 @@ const containerEngineOptions = [
 export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Readonly<BrokerSetupProps>) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isRunningContainer, setIsRunningContainer] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
+  const [connectionTestStatus, setConnectionTestStatus] = useState<{
+    success: boolean;
+    message: string;
+    isTested: boolean;
+  } | null>(null);
+  const [showConnectionErrorDialog, setShowConnectionErrorDialog] = useState<boolean>(false);
   const [containerStatus, setContainerStatus] = useState<{
     isRunning: boolean;
     success: boolean;
@@ -60,6 +68,14 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
       updateData({ dev_mode: true });
     }
     
+  }, [data.broker_type, updateData]);
+
+  useEffect(() => {
+    if (data.broker_type !== 'solace') {
+      setConnectionTestStatus(null);
+      setShowConnectionErrorDialog(false);
+      setIsTestingConnection(false);
+    }
   }, [data.broker_type]);
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -153,11 +169,67 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
       setIsRunningContainer(false);
     }
   };
+
+  const handleTestConnection = async (isTriggeredBySubmit: boolean = false): Promise<boolean> => {
+    setIsTestingConnection(true);
+    setConnectionTestStatus(null);
+    setShowConnectionErrorDialog(false);
+
+    const { broker_url, broker_vpn, broker_username, broker_password } = data;
+    if (!broker_url || !broker_vpn || !broker_username || !broker_password) {
+        setConnectionTestStatus({
+            success: false,
+            message: 'Please fill in all broker connection details before testing.',
+            isTested: true,
+        });
+        setIsTestingConnection(false);
+        return false;
+    }
+
+    try {
+      const response = await fetch('/api/test_broker_connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          broker_url: data.broker_url,
+          broker_vpn: data.broker_vpn,
+          broker_username: data.broker_username,
+          broker_password: data.broker_password,
+        }),
+      });
+      const result = await response.json();
+
+      if (result.status === 'success') {
+        setConnectionTestStatus({ success: true, message: result.message ?? 'Connection successful!', isTested: true });
+        setIsTestingConnection(false);
+        if (isTriggeredBySubmit) {
+          onNext();
+        }
+        return true;
+      } else {
+        setConnectionTestStatus({ success: false, message: result.message ?? 'Connection failed.', isTested: true });
+        setShowConnectionErrorDialog(true);
+        setIsTestingConnection(false);
+        return false;
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected network error occurred.';
+      setConnectionTestStatus({ success: false, message: errorMessage, isTested: true });
+      setShowConnectionErrorDialog(true);
+      setIsTestingConnection(false);
+      return false;
+    }
+  };
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (validateForm()) {
-      onNext();
+      if (data.broker_type === 'solace') {
+        // Always attempt test connection on submit for 'solace' type
+        await handleTestConnection(true);
+      } else {
+        onNext();
+      }
     }
   };
   
@@ -208,10 +280,11 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
   };
   
   return (
-    <form onSubmit={handleSubmit}>
-      <div className="space-y-6">
+    <>
+      <form onSubmit={handleSubmit}>
+        <div className="space-y-6">
         
-        <FormField 
+          <FormField
           label="Broker Type" 
           htmlFor="broker_type"
           required
@@ -295,7 +368,7 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
           </div>
         )}
         
-        {showContainerDetails && (
+      {showContainerDetails && (
           <div className="space-y-4 p-4 border border-gray-200 rounded-md">
             <InfoBox className="mb-4">
               This option will download and run a local Solace PubSub+ broker container on your machine using Docker or Podman.
@@ -383,9 +456,9 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
           Previous
         </Button>
         
-        <Button 
+        <Button
           type='submit'
-          disabled={isRunningContainer || (brokerType === 'container' && !containerStatus.success)}
+          disabled={isTestingConnection || isRunningContainer || (brokerType === 'container' && !containerStatus.success)}
           variant={brokerType === 'container' && !containerStatus.success ? "secondary" : "primary"}
         >
           {brokerType === 'container' && !containerStatus.success && !isRunningContainer && (
@@ -399,6 +472,34 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
           {!(brokerType === 'container' && !containerStatus.success && !isRunningContainer) && "Next"}
         </Button>
       </div>
-    </form>
+      </form>
+
+      {/* Loading indicator for connection test */}
+      {isTestingConnection && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full text-center">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Testing Broker Connection</h3>
+            <div className="flex justify-center mb-4">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-solace-green"></div>
+            </div>
+            <p>Please wait while we test your broker configuration...</p>
+          </div>
+        </div>
+      )}
+
+      {showConnectionErrorDialog && (
+        <ConfirmationModal
+          title="Connection Test Failed"
+          message={`We couldn't connect to your Solace broker: ${connectionTestStatus?.message || 'Unknown error.'}\n\nPlease check your Broker URL, VPN Name, Username, and Password.\n\nDo you want to skip this check and continue anyway?`}
+          onConfirm={() => {
+            setShowConnectionErrorDialog(false);
+            onNext();
+          }}
+          onCancel={() => {
+            setShowConnectionErrorDialog(false);
+          }}
+        />
+      )}
+    </>
   );
 }

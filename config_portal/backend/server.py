@@ -7,6 +7,10 @@ from solace_agent_mesh.config_portal.backend.common import default_options, CONT
 from cli.utils import get_formatted_names
 import shutil
 import litellm
+from solace.messaging.messaging_service import MessagingService
+from solace.messaging.config.retry_strategy import RetryStrategy
+from solace.messaging.errors.pubsubplus_client_error import PubSubPlusClientError
+import certifi
 
 litellm.suppress_debug_info = True
 
@@ -127,6 +131,43 @@ def create_app(shared_config=None):
         except Exception:  
             return jsonify({"status": "error", "message": "No response from LLM."}), 400
 
+    @app.route('/api/test_broker_connection', methods=['POST'])
+    def test_broker_connection():
+        try:
+            broker_details = request.json
+            if not all(k in broker_details for k in ["broker_url", "broker_vpn", "broker_username", "broker_password"]):
+                return jsonify({"status": "error", "message": "Missing required broker details."}), 400
+
+            broker_props = {
+                "solace.messaging.transport.host": broker_details.get("broker_url"),
+                "solace.messaging.service.vpn-name": broker_details.get("broker_vpn"),
+                "solace.messaging.authentication.scheme.basic.username": broker_details.get("broker_username"),
+                "solace.messaging.authentication.scheme.basic.password": broker_details.get("broker_password"),
+                "solace.messaging.tls.trust-store-path":  os.environ.get("TRUST_STORE")
+                                                        or os.path.dirname(certifi.where())
+                                                        or "/usr/share/ca-certificates/mozilla/",
+            }
+
+            retry_count = 1
+            retry_interval = 3000
+
+            messaging_service = MessagingService.builder().from_properties(broker_props) \
+                .with_connection_retry_strategy(
+                    RetryStrategy.parametrized_retry(retry_count, retry_interval)
+                ).build()
+
+            try:
+                messaging_service.connect()
+                messaging_service.disconnect()
+                return jsonify({"status": "success", "message": "Successfully connected to the Solace broker."}), 200
+            except PubSubPlusClientError as e:
+                return jsonify({"status": "error", "message": f"Connection failed: {str(e)}"}), 400
+            except Exception as e:
+                return jsonify({"status": "error", "message": f"An unexpected error occurred: {str(e)}"}), 500
+
+        except Exception as e:
+            # Catch errors in request processing or setup
+            return jsonify({"status": "error", "message": f"Server error: {str(e)}"}), 500
 
 
     @app.route('/api/runcontainer', methods=['POST'])
