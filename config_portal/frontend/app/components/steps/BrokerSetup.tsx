@@ -171,14 +171,6 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
     setConnectionTestMessage(null);
     setShowConnectionErrorDialog(false);
 
-    const { broker_url, broker_vpn, broker_username, broker_password } = data;
-    if (!broker_url || !broker_vpn || !broker_username || !broker_password) {
-        setConnectionTestMessage('Please fill in all broker connection details before testing.');
-        setShowConnectionErrorDialog(true); // Show dialog for form validation errors too
-        setIsTestingConnection(false);
-        return false;
-    }
-
     try {
       const response = await fetch('/api/test_broker_connection', {
         method: 'POST',
