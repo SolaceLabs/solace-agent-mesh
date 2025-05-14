@@ -45,8 +45,13 @@ sam chat start -a
 Where:
 
 - `-a`: Specifies an argument that ensures each chat session is authenticated in the background. This argument is not required if authentication is not configured.
-
 During your first chat session after login, the command makes a request for endppoint of the REST interface. Subsequent chats reuse the saved endpoint information until you log out.
+
+**(option)** You can specify the server API endpoint by `-u ENDPOINT` argument. The default API endpoint for a self-hosted SAM is `http://127.0.0.1:5050/api/v1/request`.
+```sh
+sam chat start -u ENDPOINT
+```
+
 The token is automatically renewed using the refresh token in the background, so you only need to log in once. If you no longer need the token, you can log out using:
 
 ```sh
@@ -54,4 +59,9 @@ sam chat logout
 ```
 
 This command permanently deletes the token. After logging out, you'll need to log in again to start a new chat.
+
+**(option)** You can upload a file to SAM and add it to the context by `-f FILE_PATH` argument.
+```sh
+sam chat start -u ENDPOINT -f FILE_PATH
+```
 
