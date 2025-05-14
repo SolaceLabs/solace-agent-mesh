@@ -166,7 +166,7 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
     }
   };
 
-  const handleTestConnection = async (isTriggeredBySubmit: boolean = false): Promise<boolean> => {
+  const handleTestConnection = async (): Promise<boolean> => {
     setIsTestingConnection(true);
     setConnectionTestMessage(null);
     setShowConnectionErrorDialog(false);
@@ -186,9 +186,7 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
 
       if (result.status === 'success') {
         setIsTestingConnection(false);
-        if (isTriggeredBySubmit) {
           onNext();
-        }
         return true;
       } else {
         setConnectionTestMessage(result.message ?? 'Connection failed.');
@@ -210,7 +208,7 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
     if (validateForm()) {
       if (data.broker_type === 'solace') {
         // Always attempt test connection on submit for 'solace' type
-        await handleTestConnection(true);
+        await handleTestConnection();
       } else {
         onNext();
       }
