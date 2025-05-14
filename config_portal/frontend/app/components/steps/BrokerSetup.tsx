@@ -37,11 +37,7 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isRunningContainer, setIsRunningContainer] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
-  const [connectionTestStatus, setConnectionTestStatus] = useState<{
-    success: boolean;
-    message: string;
-    isTested: boolean;
-  } | null>(null);
+  const [connectionTestMessage, setConnectionTestMessage] = useState<string | null>(null);
   const [showConnectionErrorDialog, setShowConnectionErrorDialog] = useState<boolean>(false);
   const [containerStatus, setContainerStatus] = useState<{
     isRunning: boolean;
@@ -72,7 +68,7 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
 
   useEffect(() => {
     if (data.broker_type !== 'solace') {
-      setConnectionTestStatus(null);
+      setConnectionTestMessage(null);
       setShowConnectionErrorDialog(false);
       setIsTestingConnection(false);
     }
@@ -172,16 +168,13 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
 
   const handleTestConnection = async (isTriggeredBySubmit: boolean = false): Promise<boolean> => {
     setIsTestingConnection(true);
-    setConnectionTestStatus(null);
+    setConnectionTestMessage(null);
     setShowConnectionErrorDialog(false);
 
     const { broker_url, broker_vpn, broker_username, broker_password } = data;
     if (!broker_url || !broker_vpn || !broker_username || !broker_password) {
-        setConnectionTestStatus({
-            success: false,
-            message: 'Please fill in all broker connection details before testing.',
-            isTested: true,
-        });
+        setConnectionTestMessage('Please fill in all broker connection details before testing.');
+        setShowConnectionErrorDialog(true); // Show dialog for form validation errors too
         setIsTestingConnection(false);
         return false;
     }
@@ -200,21 +193,20 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
       const result = await response.json();
 
       if (result.status === 'success') {
-        setConnectionTestStatus({ success: true, message: result.message ?? 'Connection successful!', isTested: true });
         setIsTestingConnection(false);
         if (isTriggeredBySubmit) {
           onNext();
         }
         return true;
       } else {
-        setConnectionTestStatus({ success: false, message: result.message ?? 'Connection failed.', isTested: true });
+        setConnectionTestMessage(result.message ?? 'Connection failed.');
         setShowConnectionErrorDialog(true);
         setIsTestingConnection(false);
         return false;
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An unexpected network error occurred.';
-      setConnectionTestStatus({ success: false, message: errorMessage, isTested: true });
+      setConnectionTestMessage(errorMessage);
       setShowConnectionErrorDialog(true);
       setIsTestingConnection(false);
       return false;
@@ -490,7 +482,7 @@ export default function BrokerSetup({ data, updateData, onNext, onPrevious }: Re
       {showConnectionErrorDialog && (
         <ConfirmationModal
           title="Connection Test Failed"
-          message={`We couldn't connect to your Solace broker: ${connectionTestStatus?.message || 'Unknown error.'}\n\nPlease check your Broker URL, VPN Name, Username, and Password.\n\nDo you want to skip this check and continue anyway?`}
+          message={`We couldn't connect to your Solace broker: ${connectionTestMessage || 'Unknown error.'}\n\nPlease check your Broker URL, VPN Name, Username, and Password.\n\nDo you want to skip this check and continue anyway?`}
           onConfirm={() => {
             setShowConnectionErrorDialog(false);
             onNext();
