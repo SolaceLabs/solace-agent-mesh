@@ -38,10 +38,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Get Commit Sha
-        id: get_commit_sha
+      - name: Get Latest Tag
+        id: get_latest_tag
         run: |
-          echo "commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "latest_tag=$(git describe --tags --abbrev=0)" >> $GITHUB_OUTPUT
 
       - name: Setup Qemu
         uses: docker/setup-qemu-action@v3.6.0
@@ -62,8 +62,7 @@ jobs:
           file: Dockerfile
           push: true
           tags: |
-            solace/solace-agent-mesh:${{ steps.get_commit_sha.outputs.commit_sha }}
-            solace/solace-agent-mesh:${{ github.event.inputs.version }}
+            solace/solace-agent-mesh:${{ steps.get_latest_tag.outputs.latest_tag }}
             solace/solace-agent-mesh:latest
           cache-from: type=gha
           cache-to: type=gha
