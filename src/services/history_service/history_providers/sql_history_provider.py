@@ -87,7 +87,7 @@ class SQLHistoryProvider(BaseHistoryProvider):
     
     def delete_session(self, session_id: str):
         """
-        Delete a session by ID, ensuring only one row is deleted.
+        Delete a session by ID. Since session_id is a PRIMARY KEY, only one row will be deleted.
         """
-        query = f"DELETE FROM {self.table_name} WHERE session_id = %s LIMIT 1"
+        query = f"DELETE FROM {self.table_name} WHERE session_id = %s"
         self.db.execute(query, (session_id,))

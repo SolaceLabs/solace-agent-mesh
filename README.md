@@ -4,7 +4,8 @@
 <h2 align="center">
   Solace Agent Mesh
 </h2>
-<h4 align="center">Open-source framework for building event driven multi-agent AI systems</h3>
+<h3 align="center">Open-source framework for building event driven multi-agent AI systems</h3>
+<h5 align="center">Star ⭐️ this repo to stay updated as we ship new features and improvements.</h5>
 
 <p align="center">
   <a href="https://github.com/SolaceLabs/solace-agent-mesh/blob/main/LICENSE">
@@ -15,6 +16,9 @@
   </a>
   <a href="https://pypi.org/project/solace-agent-mesh">
     <img src="https://img.shields.io/pypi/pyversions/solace-agent-mesh.svg" alt="PyPI - Python Version">
+  </a>
+  <a href="https://pypi.org/project/solace-agent-mesh">
+      <img alt="PyPI - Downloads" src="https://img.shields.io/pypi/dm/solace-agent-mesh?color=00C895">
   </a>
 </p>
 <p align="center">
