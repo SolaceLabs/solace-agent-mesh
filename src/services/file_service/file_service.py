@@ -92,7 +92,7 @@ class FileService(AutoExpiry, metaclass=AutoExpirySingletonMeta):
                 try:
                     filename, _ = self.get_parsed_url(metadata["url"])
                     self.file_manager.delete_by_name(filename)
-                    log.info(
+                    log.debug(
                         f"Deleted expired file: {metadata['url']} {current_time} > {expiration_timestamp}"
                     )
                 except FileNotFoundError:
