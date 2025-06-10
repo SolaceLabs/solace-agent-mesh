@@ -42,7 +42,6 @@ dependencies = [
     "solace-ai-connector~=1.1.4",
     "solace-ai-connector[websocket]~=1.1.4",
     "solace-ai-connector[llm]~=1.1.4",
-    "solace-ai-connector-web @ file:///home/hugopare/solace-ai-connector-web/dist/solace_ai_connector_web-0.2.2-py3-none-any.whl",
     "solace-ai-connector-rest @ git+https://github.com/SolaceLabs/solace-ai-connector-rest.git@hugo/clean-logs",
     "solace-ai-connector-slack~=0.0.2",
   ]
