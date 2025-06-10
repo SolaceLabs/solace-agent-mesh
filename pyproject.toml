@@ -42,8 +42,8 @@ dependencies = [
     "solace-ai-connector~=1.1.4",
     "solace-ai-connector[websocket]~=1.1.4",
     "solace-ai-connector[llm]~=1.1.4",
-    "solace-ai-connector-web @ git+https://github.com/SolaceDev/solace-ai-connector-web.git@hugo/cleanup-logs",
-    "solace-ai-connector-rest @ git+https://github.com/SolaceDev/solace-ai-connector-rest.git@hugo/clean-logs",
+    "solace-ai-connector-web @ git+https://github.com/SolaceLabs/solace-ai-connector-web.git@hugo/cleanup-logs",
+    "solace-ai-connector-rest @ git+https://github.com/SolaceLabs/solace-ai-connector-rest.git@hugo/clean-logs",
     "solace-ai-connector-slack~=0.0.2",
   ]
 
