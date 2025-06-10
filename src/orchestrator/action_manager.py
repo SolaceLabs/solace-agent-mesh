@@ -219,7 +219,7 @@ class ActionRequestList:
             self.num_pending_actions -= 1
 
         if self.is_complete():
-            log.info("Action request %s is complete", self.action_list_id)
+            log.debug("Action request %s is complete", self.action_list_id)
             return True
 
         return False
