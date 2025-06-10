@@ -42,7 +42,8 @@ dependencies = [
     "solace-ai-connector~=1.1.4",
     "solace-ai-connector[websocket]~=1.1.4",
     "solace-ai-connector[llm]~=1.1.4",
-    "solace-ai-connector-rest @ git+https://github.com/SolaceLabs/solace-ai-connector-rest.git@hugo/clean-logs",
+    "solace-ai-connector-web~=0.2.2",
+    "solace-ai-connector-rest~=0.0.3",
     "solace-ai-connector-slack~=0.0.2",
   ]
 
@@ -66,8 +67,7 @@ documentation = "https://github.com/SolaceLabs/solace-agent-mesh/blob/main/docs/
 "web-visualizer/dist" = "/assets/web-visualizer"
 "config_portal/frontend/static" = "/assets/config_portal"
 
-[tool.hatch.metadata]
-allow-direct-references = true
+
 
 
 [project.scripts]
