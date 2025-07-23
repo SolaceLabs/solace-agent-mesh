@@ -27,6 +27,9 @@ data_tools_config:
 ## 2. Available Tools
 
 ### `query_data_with_sql`
+:::info[Enterprise Only]
+This feature is available in the Enterprise Edition only.
+:::
 Executes a SQL query against data stored in a CSV or SQLite artifact.
 
 - **Parameters**:
@@ -41,6 +44,9 @@ Executes a SQL query against data stored in a CSV or SQLite artifact.
 ---
 
 ### `create_sqlite_db`
+:::info[Enterprise Only]
+This feature is available in the Enterprise Edition only.
+:::
 Converts a CSV or JSON artifact into a persistent SQLite database artifact. This is the recommended approach for executing multiple queries on the same dataset, as it avoids repeated parsing of the source file.
 
 - **Parameters**:
@@ -52,6 +58,9 @@ Converts a CSV or JSON artifact into a persistent SQLite database artifact. This
 ---
 
 ### `transform_data_with_jq`
+:::info[Enterprise Only]
+This feature is available in the Enterprise Edition only.
+:::
 Applies a JQ expression to transform data from a JSON, YAML, or CSV artifact.
 
 - **Parameters**:

@@ -149,7 +149,7 @@ tools:
     connection_params:
       type: stdio
       command: "npx"
-      args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp/samv2"]
 ```
 
 ### Environment Variables
