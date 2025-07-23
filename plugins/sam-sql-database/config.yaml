@@ -123,9 +123,7 @@ apps:
         interval_seconds: 30
 
       agent_discovery:
-        enabled: true
+        enabled: false
 
       inter_agent_communication:
-        allow_list: ["*"]
-        deny_list: []
-        request_timeout_seconds: 60
+        allow_list: []

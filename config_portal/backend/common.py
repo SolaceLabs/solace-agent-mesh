@@ -24,6 +24,8 @@ INIT_DEFAULT = {
 USE_DEFAULT_SHARED_SESSION = "use_default_shared_session"
 USE_DEFAULT_SHARED_ARTIFACT = "use_default_shared_artifact"
 
+DEFAULT_COMMUNICATION_TIMEOUT = 600  # 10 minutes
+
 AGENT_DEFAULTS = {
     "supports_streaming": True,
     "model_type": "general",
@@ -45,7 +47,7 @@ AGENT_DEFAULTS = {
     "agent_discovery_enabled": True,
     "inter_agent_communication_allow_list": ["*"],
     "inter_agent_communication_deny_list": [],
-    "inter_agent_communication_timeout": 180,
+    "inter_agent_communication_timeout": DEFAULT_COMMUNICATION_TIMEOUT,
     "namespace": "${NAMESPACE}",
 }
 
