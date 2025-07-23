@@ -1,0 +1,72 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        type: choice
+        required: true
+        description: "Version bump type for PyPI package & Git tag"
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  id-token: write
+  checks: write
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_pypi.yml@main
+    with:
+      ENVIRONMENT: pypi
+      version: ${{ github.event.inputs.version }}
+      whitesource_project_name: "solace-agent-mesh"
+      whitesource_product_name: "solaceai"
+      whitesource_config_file: "wss-unified-agent.config"
+      slack_notification_profile: "ai-connector"
+      npm_package_path: client/webui/frontend
+      node_version: 20
+      npm_lock_file: package-lock.json
+      pypi-project: solace-agent-mesh
+
+    secrets:
+      COMMIT_KEY: ${{ secrets.COMMIT_KEY }}
+      PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+      WHITESOURCE_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
+      MANIFEST_AWS_REGION: ${{ secrets.MANIFEST_AWS_REGION }}
+      MANIFEST_AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_READ_ONLY_AWS_ACCESS_KEY_ID }}
+      MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
+
+
+  build_and_push_docker:
+    name: Build and Push Docker Image
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Get Latest Tag
+        id: get_latest_tag
+        run: |
+          latest_tag=$(git describe --tags --abbrev=0)
+          if [[ -z "${latest_tag}" ]]; then
+            echo "No git tags found. The semver_release_pypi job might have failed to create a tag."
+            exit 1
+          fi
+          echo "latest_tag=${latest_tag}" >> $GITHUB_OUTPUT
+          echo "Using latest tag for Docker image: ${latest_tag}"
+
+      - name: Push Docker Image using Composite Action
+        uses: ./.github/actions/push-docker
+        with:
+          version_tag: ${{ steps.get_latest_tag.outputs.latest_tag }}
+          push_latest: true # Or false, depending on your preference for release tags
+          docker_username: ${{ secrets.DOCKER_USERNAME }}
+          docker_password: ${{ secrets.DOCKER_PASSWORD }}

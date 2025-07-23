@@ -1,0 +1,52 @@
+name: Push Docker Image (Manual Dispatch)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The version tag for the Docker image (e.g., 1.0.0). If not provided, it will attempt to use the latest git tag."
+        required: false
+        type: string
+      push_latest:
+        description: 'Whether to also tag and push as "latest"'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Determine Version Tag
+        id: get_version
+        shell: bash
+        run: |
+          if [[ -n "${{ github.event.inputs.version }}" ]]; then
+            echo "version_tag=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "Using provided version: ${{ github.event.inputs.version }}"
+          else
+            latest_tag=$(git describe --tags --abbrev=0)
+            if [[ -z "${latest_tag}" ]]; then
+              echo "::error::No git tags found and no version specified as input."
+              exit 1
+            fi
+            echo "version_tag=${latest_tag}" >> $GITHUB_OUTPUT
+            echo "Using latest git tag: ${latest_tag}"
+          fi
+
+      - name: Push Docker Image
+        uses: ./.github/actions/push-docker
+        with:
+          version_tag: ${{ steps.get_version.outputs.version_tag }}
+          push_latest: ${{ github.event.inputs.push_latest }}
+          docker_username: ${{ secrets.DOCKER_USERNAME }}
+          docker_password: ${{ secrets.DOCKER_PASSWORD }}
