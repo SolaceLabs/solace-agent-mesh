@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 
-import { ArrowDown, ArrowLeft, FileText } from "lucide-react";
+import { ArrowDown, ArrowLeft, Ellipsis, FileText } from "lucide-react";
 
 import { Button } from "@/lib/components";
 import { useChatContext } from "@/lib/hooks";
@@ -10,6 +10,8 @@ import { ArtifactCard } from "./ArtifactCard";
 import { ArtifactDeleteDialog } from "./ArtifactDeleteDialog";
 import { ArtifactPreviewContent } from "./ArtifactPreviewContent";
 import { SortOption, SortPopover, type SortOptionType } from "./ArtifactSortPopover";
+import { MorePopover } from "./ArtifactMorePopover";
+import { ArtifactDeleteAllDialog } from "./ArtifactDeleteAllDialog";
 
 const sortFunctions: Record<SortOptionType, (a1: ArtifactInfo, a2: ArtifactInfo) => number> = {
     [SortOption.NameAsc]: (a1, a2) => a1.filename.localeCompare(a2.filename),
@@ -47,10 +49,15 @@ export const ArtifactPanel: React.FC = () => {
                             <div>Sort By</div>
                         </Button>
                     </SortPopover>
+                    <MorePopover key="more-popover">
+                        <Button variant="ghost" tooltip="More" >
+                            <Ellipsis className="h-5 w-5" />
+                        </Button>
+                    </MorePopover>
                 </div>
             )
         );
-    }, [previewArtifact, setPreviewArtifact, sortedArtifacts, sortOption]);
+    }, [previewArtifact, sortedArtifacts.length, sortOption, setPreviewArtifact]);
 
     return (
         <div className="flex h-full flex-col">
@@ -84,8 +91,9 @@ export const ArtifactPanel: React.FC = () => {
                 )}
             </div>
 
-            {/* Delete Modal */}
+            {/* Delete Modals */}
             <ArtifactDeleteDialog />
+            <ArtifactDeleteAllDialog />
         </div>
     );
 };

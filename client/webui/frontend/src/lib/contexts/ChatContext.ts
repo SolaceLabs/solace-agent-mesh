@@ -13,7 +13,6 @@ export interface ChatState {
     isCancelling: boolean;
     // Chat Side Panel State
     artifacts: ArtifactInfo[];
-    isLoadingArtifacts: boolean;
     taskIdInSidePanel: string | null;
     // Side Panel Control State
     isSidePanelCollapsed: boolean;
@@ -41,7 +40,6 @@ export interface ChatActions {
     handleCancel: () => void;
     addNotification: (message: string, type?: "success" | "info" | "error") => void;
     setSelectedAgentName: React.Dispatch<React.SetStateAction<string>>;
-    fetchArtifacts: () => Promise<void>;
     uploadArtifactFile: (file: File) => Promise<void>;
     /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;

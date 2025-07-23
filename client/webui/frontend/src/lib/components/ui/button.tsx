@@ -4,7 +4,8 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
-// Button component has custom styling for Solace specific styling
+import {  Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
+
 const commonButtonStyles =
     "text-[var(--color-primary-wMain)] hover:text-[var(--color-primary-text-w60)] hover:bg-[var(--color-primary-w10)] dark:text-[var(--color-primary-w20)] dark:hover:text-[var(--color-primary-text-w10)] dark:hover:bg-[var(--color-primary-w60)]";
 
@@ -39,14 +40,30 @@ function Button({
     variant,
     size,
     asChild = false,
+    tooltip = "",
     ...props
 }: React.ComponentProps<"button"> &
     VariantProps<typeof buttonVariants> & {
         asChild?: boolean;
+        tooltip?: string;
     }) {
     const Comp = asChild ? Slot : "button";
+    const ButtonComponent = <Comp data-slot="button" className={cn(buttonVariants({ variant, size, className }))} {...props} />;
 
-    return <Comp data-slot="button" className={cn(buttonVariants({ variant, size, className }))} {...props} />;
+    if (tooltip) {
+        return (
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    {ButtonComponent}
+                </TooltipTrigger>
+                <TooltipContent>
+                    {tooltip}
+                </TooltipContent>
+            </Tooltip>
+        );
+    }
+
+    return ButtonComponent;
 }
 
 export { Button };

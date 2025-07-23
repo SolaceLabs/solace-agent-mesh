@@ -72,7 +72,7 @@ export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({
                             e.preventDefault();
                             setIsExpanded(!isExpanded);
                         }}
-                        title={isExpanded ? "Collapse Details" : "Expand Details"}
+                        tooltip={isExpanded ? "Collapse Details" : "Expand Details"}
                     >
                         <Info className="h-4 w-4" />
                     </Button>
@@ -86,7 +86,7 @@ export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({
                             e.preventDefault();
                             await onDownload(artifactInfo);
                         }}
-                        title="Download"
+                        tooltip="Download"
                     >
                         <Download className="h-4 w-4" />
                     </Button>
@@ -100,7 +100,7 @@ export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({
                             e.stopPropagation();
                             onDelete(artifactInfo);
                         }}
-                        title="Delete"
+                        tooltip="Delete"
                     >
                         <Trash className="h-4 w-4" />
                     </Button>

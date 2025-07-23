@@ -83,12 +83,9 @@ const ChatBubbleMessage = React.forwardRef<HTMLDivElement, ChatBubbleMessageProp
             <div className="flex items-center space-x-3">
                 <MessageLoading />
                 <div className="flex items-center min-w-0 flex-1">
-                    {statusText && <span className="text-sm text-muted-foreground animate-pulse truncate" title={statusText}>{statusText}</span>}
+                    {statusText && <span className="text-sm mr-4 text-muted-foreground animate-pulse truncate" title={statusText}>{statusText}</span>}
                     {showInProgressLink && (
-                        <ViewWorkflowButton
-                            onClick={onViewProgressClick!}
-                            className="ml-4"
-                        />
+                        <ViewWorkflowButton onClick={onViewProgressClick!} />
                     )}
                 </div>
             </div>
