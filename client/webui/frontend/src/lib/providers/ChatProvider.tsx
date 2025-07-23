@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
-import { useConfigContext } from "@/lib/hooks/useConfigContext";
+
+import { useConfigContext, useArtifacts } from "@/lib/hooks";
 import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
 import type { ArtifactInfo, DataPart, FileAttachment, FilePart, JSONRPCError, JSONRPCResponse, MessageFE, Notification, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart, ToolEvent } from "@/lib/types";
@@ -29,8 +30,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const sseEventSequenceRef = useRef<number>(0);
 
     // Chat Side Panel State
-    const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
-    const [isLoadingArtifacts, setIsLoadingArtifacts] = useState<boolean>(false);
+    const {
+        artifacts,
+        isLoading: artifactsLoading,
+        refetch: artifactsRefetch,
+        error: artifactsError,
+    } = useArtifacts();
+
+    const artifactsRefetchIfNeeded = useCallback(
+        async (files: FileAttachment[]) => {
+            const needsRefetch = !artifactsLoading && files?.some(file => !artifacts.some(artifact => artifact.filename === file.name));
+            if (needsRefetch) {
+                await artifactsRefetch();
+            }
+        },
+        [artifacts, artifactsLoading, artifactsRefetch]
+    );
 
     // Side Panel Control State
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
@@ -72,26 +87,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, []);
 
     // Chat Side Panel Functions
-    const fetchArtifacts = useCallback(async () => {
-        console.log("ChatProvider: Fetching artifacts...");
-        setIsLoadingArtifacts(true);
-        try {
-            const response = await authenticatedFetch(`${apiPrefix}/artifacts/`, { credentials: "include" });
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ detail: "Unknown error fetching artifacts" }));
-                throw new Error(errorData.detail || `HTTP error ${response.status}`);
-            }
-            const data: ArtifactInfo[] = await response.json();
-            setArtifacts(data);
-        } catch (error) {
-            console.error("ChatProvider: Error fetching artifacts:", error);
-            addNotification(`Error fetching artifacts: ${error instanceof Error ? error.message : "Unknown error"}`);
-            setArtifacts([]);
-        } finally {
-            setIsLoadingArtifacts(false);
-        }
-    }, [apiPrefix, addNotification]);
-
     const uploadArtifactFile = useCallback(
         async (file: File) => {
             const formData = new FormData();
@@ -107,12 +102,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
                 addNotification(`Artifact "${file.name}" uploaded successfully.`);
-                await fetchArtifacts();
+                await artifactsRefetch();
             } catch (error) {
                 addNotification(`Error uploading artifact "${file.name}": ${error instanceof Error ? error.message : "Unknown error"}`);
             }
         },
-        [apiPrefix, addNotification, fetchArtifacts]
+        [apiPrefix, addNotification, artifactsRefetch]
     );
 
     const deleteArtifactInternal = useCallback(
@@ -127,12 +122,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
                 addNotification(`Artifact "${filename}" deleted successfully.`);
-                await fetchArtifacts();
+                await artifactsRefetch();
             } catch (error) {
                 addNotification(`Error deleting artifact "${filename}": ${error instanceof Error ? error.message : "Unknown error"}`);
             }
         },
-        [apiPrefix, addNotification, fetchArtifacts]
+        [apiPrefix, addNotification, artifactsRefetch]
     );
 
     const openDeleteModal = useCallback((artifact: ArtifactInfo) => {
@@ -163,7 +158,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const confirmBatchDeleteArtifacts = useCallback(async () => {
         setIsBatchDeleteModalOpen(false);
         const filenamesToDelete = Array.from(selectedArtifactFilenames);
-        addNotification(`Deleting ${filenamesToDelete.length} artifact(s)...`);
         let successCount = 0;
         let errorCount = 0;
         for (const filename of filenamesToDelete) {
@@ -181,10 +175,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }
         if (successCount > 0) addNotification(`${successCount} artifact(s) deleted successfully.`);
         if (errorCount > 0) addNotification(`Failed to delete ${errorCount} artifact(s).`);
-        await fetchArtifacts();
+        await artifactsRefetch();
         setSelectedArtifactFilenames(new Set());
         setIsArtifactEditMode(false);
-    }, [selectedArtifactFilenames, apiPrefix, addNotification, fetchArtifacts]);
+    }, [selectedArtifactFilenames, apiPrefix, addNotification, artifactsRefetch]);
 
     const openArtifactForPreview = useCallback(
         async (artifactFilename: string): Promise<FileAttachment | null> => {
@@ -284,10 +278,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             );
         }
     }, []);
-
-    useEffect(() => {
-        fetchArtifacts();
-    }, [fetchArtifacts]);
 
     const handleSseMessage = useCallback(
         (event: MessageEvent) => {
@@ -453,7 +443,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 // Helper to add a new main content bubble and set the flag
                 const addNewMainBubble = (newMessageData: Partial<MessageFE>, sequence: number) => {
-                    newMessages.push({ taskId: currentTaskId ?? undefined, isUser: false, isComplete: false, metadata: { sessionId, messageId: currentMessageId, lastProcessedEventSequence: sequence }, ...newMessageData });
+                    const newMessage = { taskId: currentTaskId ?? undefined, isUser: false, isComplete: false, metadata: { sessionId, messageId: currentMessageId, lastProcessedEventSequence: sequence }, ...newMessageData }
+                    newMessages.push(newMessage);
+                    
                     // Ensure error messages are marked complete if they are added as new bubbles
                     if (newMessageData.text && errorContent) {
                         newMessages[newMessages.length - 1].isComplete = true;
@@ -490,9 +482,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         }
                     }
                     // These always create new bubbles if content is present and not a final response event (errorContent handles its own finality)
-                    if (currentToolEvents.length > 0 && !isFinalResponseEvent) addNewMainBubble({ toolEvents: currentToolEvents }, currentEventSequence);
-                    if (receivedFiles.length > 0 && !isFinalResponseEvent) addNewMainBubble({ files: receivedFiles }, currentEventSequence);
-                    if (artifactNotificationData && !isFinalResponseEvent) addNewMainBubble({ artifactNotification: artifactNotificationData }, currentEventSequence);
+                    if (currentToolEvents.length > 0 && !isFinalResponseEvent) {
+                        addNewMainBubble({ toolEvents: currentToolEvents }, currentEventSequence);
+                    }
+                    if (receivedFiles.length > 0 && !isFinalResponseEvent) {
+                        addNewMainBubble({ files: receivedFiles }, currentEventSequence);
+                        artifactsRefetchIfNeeded(receivedFiles);
+                    }
+                    if (artifactNotificationData && !isFinalResponseEvent) {
+                        addNewMainBubble({ artifactNotification: artifactNotificationData }, currentEventSequence);
+                    }
                     if (errorContent) {
                         console.log("DEBUG: Creating error bubble", { messageContent, errorContent, currentEventSequence });
                         addNewMainBubble({ text: messageContent, isComplete: true, isError: true }, currentEventSequence); // Error content also sets the flag and isComplete
@@ -567,13 +566,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
                 setCurrentTaskId(null);
                 isFinalizing.current = true;
-                fetchArtifacts(); 
+                artifactsRefetch(); 
                 setTimeout(() => {
                     isFinalizing.current = false;
                 }, 100);
             }
         },
-        [sessionId, currentTaskId, addNotification, fetchArtifacts, isCancelling]
+        [currentTaskId, isCancelling, addNotification, sessionId, artifactsRefetchIfNeeded, artifactsRefetch]
     );
 
     const closeCurrentEventSource = useCallback(() => {
@@ -682,7 +681,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // 6. Refresh artifacts (should now be empty for new session)
             console.log(`${log_prefix} Refreshing artifacts for new session...`);
-            await fetchArtifacts();
+            await artifactsRefetch();
 
             // 7. Success notification
             addNotification("New session started successfully.");
@@ -730,7 +729,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 })
             );
         }
-    }, [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, configWelcomeMessage, addNotification, fetchArtifacts, sessionId]);
+    }, [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, configWelcomeMessage, addNotification, artifactsRefetch, sessionId]);
 
     const handleCancel = useCallback(async () => {
         if ((!isResponding && !isCancelling) || !currentTaskId || !selectedAgentName) {
@@ -857,7 +856,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [userInput, isResponding, isCancelling, sessionId, selectedAgentName, apiPrefix, addNotification, closeCurrentEventSource]
     );
 
-    // New useEffect to manage EventSource lifecycle based on currentTaskId
+    useEffect(() => {
+        if (artifactsError) {
+            addNotification(`Error fetching artifacts: ${artifactsError}`, "error");
+        }
+    }, [addNotification, artifactsError]);
+
     useEffect(() => {
         if (currentTaskId && apiPrefix) {
             console.log(`ChatProvider Effect: currentTaskId is ${currentTaskId}. Setting up EventSource.`);
@@ -900,8 +904,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         selectedAgentName,
         setSelectedAgentName,
         artifacts,
-        isLoadingArtifacts,
-        fetchArtifacts,
         uploadArtifactFile,
         isSidePanelCollapsed,
         activeSidePanelTab,

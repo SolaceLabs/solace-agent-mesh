@@ -30,14 +30,14 @@ export const useArtifacts = (): UseArtifactsReturn => {
         try {
             const response = await authenticatedFetch(`${apiPrefix}/artifacts/`, { credentials: "include" });
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ message: `Failed to fetch artifacts: ${response.statusText}` }));
-                throw new Error(errorData.message || `Failed to fetch artifacts: ${response.statusText}`);
+                const errorData = await response.json().catch(() => ({ message: `Failed to fetch artifacts. ${response.statusText}` }));
+                throw new Error(errorData.message || `Failed to fetch artifacts. ${response.statusText}`);
             }
             const data: ArtifactInfo[] = await response.json();
             setArtifacts(data);
         } catch (err: unknown) {
-            console.error("Error fetching artifacts:", err);
-            setError(err instanceof Error ? err.message : "Could not load artifact information.");
+            const errorMessage = err instanceof Error ? err.message : "Failed to fetch artifacts.";
+            setError(errorMessage);
             setArtifacts([]);
         } finally {
             setIsLoading(false);

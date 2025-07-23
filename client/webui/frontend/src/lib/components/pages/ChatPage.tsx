@@ -183,7 +183,7 @@ export function ChatPage() {
                     title={sessionPreview}
                     leadingAction={
                         isSessionSidePanelCollapsed ? (
-                            <Button variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" title="Show Sessions Panel">
+                            <Button variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Sessions Panel">
                                 <Menu className="h-5 w-5" />
                             </Button>
                         ) : null
