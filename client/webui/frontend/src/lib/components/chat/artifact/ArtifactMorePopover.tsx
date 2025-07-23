@@ -14,7 +14,7 @@ export const MorePopover: React.FC<MorePopoverProps> = ({ children }) => {
 
     const menuActions: MenuAction[] = [{
         id: "deleteAll",
-        label: "Delete All Artifacts",
+        label: "Delete All",
         onClick: () => { setIsBatchDeleteModalOpen(true); },
         icon: <Trash />,
         iconPosition: "right",
