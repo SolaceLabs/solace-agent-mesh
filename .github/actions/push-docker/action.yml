@@ -1,0 +1,53 @@
+name: "Docker Push"
+description: "Builds and pushes a Docker image with specified tags"
+inputs:
+  version_tag:
+    description: "The primary version tag for the image (e.g., 1.0.0)"
+    required: true
+  push_latest:
+    description: 'Whether to also tag and push as "latest"'
+    required: false
+    default: "true"
+  docker_username:
+    description: "Docker Hub username"
+    required: true
+  docker_password:
+    description: "Docker Hub password"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Qemu
+      uses: docker/setup-qemu-action@v3.6.0
+
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3.10.0
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3.4.0
+      with:
+        username: ${{ inputs.docker_username }}
+        password: ${{ inputs.docker_password }}
+
+    - name: Prepare Docker tags
+      id: docker_tags
+      shell: bash
+      run: |
+        image_name="solace/solace-agent-mesh"
+        tags="${image_name}:${{ inputs.version_tag }}"
+        if [[ "${{ inputs.push_latest }}" == "true" ]]; then
+          tags="$tags,${image_name}:latest"
+        fi
+        echo "TAGS_LIST=$tags" >> $GITHUB_OUTPUT
+        echo "Prepared tags: $tags"
+
+    - name: Build And Push Docker Image
+      uses: docker/build-push-action@v6.16.0
+      with:
+        context: "."
+        file: "Dockerfile"
+        push: true
+        tags: ${{ steps.docker_tags.outputs.TAGS_LIST }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
