@@ -15,6 +15,7 @@ from ...common.types import (
     FilePart,
     AgentCard,
 )
+from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 
 PEER_TOOL_PREFIX = "peer_"
 CORRELATION_DATA_PREFIX = "a2a_subtask_"
@@ -214,7 +215,7 @@ class PeerAgentTool(BaseTool):
             invocation_id = tool_context._invocation_context.invocation_id
             timeout_sec = self.host_component.get_config(
                 "inter_agent_communication", {}
-            ).get("request_timeout_seconds", 30)
+            ).get("request_timeout_seconds", DEFAULT_COMMUNICATION_TIMEOUT)
 
             task_context_obj = None
             with self.host_component.active_tasks_lock:
