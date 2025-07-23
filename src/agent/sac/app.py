@@ -22,6 +22,7 @@ from ...common.a2a_protocol import (
     get_agent_response_subscription_topic,
     get_agent_status_subscription_topic,
 )
+from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...agent.sac.component import SamAgentComponent
 from ...agent.utils.artifact_helpers import DEFAULT_SCHEMA_MAX_KEYS
 
@@ -444,7 +445,7 @@ class SamAgentApp(App):
                     "request_timeout_seconds": {
                         "type": "integer",
                         "required": False,
-                        "default": 30,
+                        "default": DEFAULT_COMMUNICATION_TIMEOUT,
                         "description": "Timeout for peer requests (seconds).",
                     },
                 },
