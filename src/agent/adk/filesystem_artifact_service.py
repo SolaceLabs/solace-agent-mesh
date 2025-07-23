@@ -7,6 +7,7 @@ import json
 import shutil
 import logging
 import asyncio
+import unicodedata
 from typing import Optional, List
 
 from google.adk.artifacts import BaseArtifactService
@@ -115,6 +116,8 @@ class FilesystemArtifactService(BaseArtifactService):
         artifact: adk_types.Part,
     ) -> int:
         log_prefix = f"[FSArtifact:Save:{filename}] "
+
+        filename = self._normalize_filename_unicode(filename)
         artifact_dir = self._get_artifact_dir(app_name, user_id, session_id, filename)
         try:
             await asyncio.to_thread(os.makedirs, artifact_dir, exist_ok=True)
@@ -190,6 +193,7 @@ class FilesystemArtifactService(BaseArtifactService):
         version: Optional[int] = None,
     ) -> Optional[adk_types.Part]:
         log_prefix = f"[FSArtifact:Load:{filename}] "
+        filename = self._normalize_filename_unicode(filename)
         artifact_dir = self._get_artifact_dir(app_name, user_id, session_id, filename)
 
         if not await asyncio.to_thread(os.path.isdir, artifact_dir):
@@ -367,3 +371,12 @@ class FilesystemArtifactService(BaseArtifactService):
         sorted_versions = sorted(versions)
         logger.debug("%sFound versions: %s", log_prefix, sorted_versions)
         return sorted_versions
+    
+    def _normalize_filename_unicode(self, filename: str) -> str:
+        """
+        Normalizes Unicode characters in a filename to their standard form.
+        Specifically targets compatibility characters like non-breaking spaces (\u202f)
+        and converts them to their regular ASCII equivalents (a standard space).
+        """
+        # Uses NFKC (Normalization Form KC)
+        return unicodedata.normalize('NFKC', filename)
