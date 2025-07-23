@@ -88,6 +88,7 @@ from ...agent.tools.peer_agent_tool import (
 )
 from ...agent.adk.invocation_monitor import InvocationMonitor
 from ...common.middleware.registry import MiddlewareRegistry
+from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...agent.tools.registry import tool_registry
 
 if TYPE_CHECKING:
@@ -711,7 +712,7 @@ class SamAgentComponent(ComponentBase):
             return
 
         timeout_value = self.inter_agent_communication_config.get(
-            "request_timeout_seconds", 30
+            "request_timeout_seconds", DEFAULT_COMMUNICATION_TIMEOUT
         )
         all_sub_tasks_completed = task_context.handle_peer_timeout(
             sub_task_id, correlation_data, timeout_value, invocation_id

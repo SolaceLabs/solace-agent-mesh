@@ -121,10 +121,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     const errorData = await response.json().catch(() => ({ detail: `Failed to delete ${filename}` }));
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
-                addNotification(`Artifact "${filename}" deleted successfully.`);
+                addNotification(`File "${filename}" deleted successfully.`);
                 await artifactsRefetch();
             } catch (error) {
-                addNotification(`Error deleting artifact "${filename}": ${error instanceof Error ? error.message : "Unknown error"}`);
+                addNotification(`Error deleting file "${filename}": ${error instanceof Error ? error.message : "Unknown error"}`);
             }
         },
         [apiPrefix, addNotification, artifactsRefetch]
@@ -149,7 +149,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const handleDeleteSelectedArtifacts = useCallback(() => {
         if (selectedArtifactFilenames.size === 0) {
-            addNotification("No artifacts selected for deletion.");
+            addNotification("No files selected for deletion.");
             return;
         }
         setIsBatchDeleteModalOpen(true);
@@ -173,8 +173,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 errorCount++;
             }
         }
-        if (successCount > 0) addNotification(`${successCount} artifact(s) deleted successfully.`);
-        if (errorCount > 0) addNotification(`Failed to delete ${errorCount} artifact(s).`);
+        if (successCount > 0) addNotification(`${successCount} files(s) deleted successfully.`);
+        if (errorCount > 0) addNotification(`Failed to delete ${errorCount} files(s).`);
         await artifactsRefetch();
         setSelectedArtifactFilenames(new Set());
         setIsArtifactEditMode(false);
@@ -858,7 +858,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     useEffect(() => {
         if (artifactsError) {
-            addNotification(`Error fetching artifacts: ${artifactsError}`, "error");
+            addNotification(`Error fetching files: ${artifactsError}`, "error");
         }
     }, [addNotification, artifactsError]);
 

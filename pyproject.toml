@@ -125,7 +125,6 @@ allow-direct-references = true
 "src" = "solace_agent_mesh/"
 "templates" = "solace_agent_mesh/templates"
 "cli" = "solace_agent_mesh/cli"
-"plugins" = "solace_agent_mesh/plugins"
 "evaluation" = "solace_agent_mesh/evaluation"
 "config_portal/frontend/static" = "solace_agent_mesh/config_portal/frontend/static"
 "config_portal/backend" = "solace_agent_mesh/config_portal/backend"
