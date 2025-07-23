@@ -311,7 +311,6 @@ async def get_latest_artifact(
             io.BytesIO(data_bytes),
             media_type=mime_type,
             headers={
-                # Use RFC 5987 for Unicode filenames
                 "Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"
             },
         )

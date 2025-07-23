@@ -378,5 +378,4 @@ class FilesystemArtifactService(BaseArtifactService):
         Specifically targets compatibility characters like non-breaking spaces (\u202f)
         and converts them to their regular ASCII equivalents (a standard space).
         """
-        # Uses NFKC (Normalization Form KC)
         return unicodedata.normalize('NFKC', filename)
