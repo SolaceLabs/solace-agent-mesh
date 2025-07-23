@@ -17,7 +17,7 @@ def get_official_plugins() -> Dict[str, str]:
     """
     try:
         from config_portal.backend.plugin_catalog.constants import (
-            DEFAULT_OFFICIAL_REGISTRY_URL,
+            DEFAULT_OFFICIAL_REGISTRY_URL, OFFICIAL_REGISTRY_GIT_BRANCH
         )
     except ImportError:
         click.echo(
@@ -29,11 +29,12 @@ def get_official_plugins() -> Dict[str, str]:
         DEFAULT_OFFICIAL_REGISTRY_URL = (
             "https://github.com/SolaceLabs/solace-agent-mesh-core-plugins"
         )
+        OFFICIAL_REGISTRY_GIT_BRANCH = "main"
 
     registry_url = DEFAULT_OFFICIAL_REGISTRY_URL
 
     if _is_github_url(registry_url):
-        return _fetch_github_plugins(registry_url)
+        return _fetch_github_plugins(registry_url, branch=OFFICIAL_REGISTRY_GIT_BRANCH)
     else:
         return _fetch_local_plugins(registry_url)
 
@@ -43,7 +44,7 @@ def _is_github_url(url: str) -> bool:
     return url.startswith("https://github.com/") or url.startswith("http://github.com/")
 
 
-def _fetch_github_plugins(github_url: str) -> Dict[str, str]:
+def _fetch_github_plugins(github_url: str, branch: str = None) -> Dict[str, str]:
     """
     Fetch plugin list from GitHub repository using the GitHub API.
 
@@ -81,7 +82,10 @@ def _fetch_github_plugins(github_url: str) -> Dict[str, str]:
         for item in contents:
             if item.get("type") == "dir" and item["name"] not in IGNORE_SUB_DIRS:
                 plugin_name = item["name"]
-                plugin_url = f"git+{github_url}#subdirectory={plugin_name}"
+                plugin_url = f"git+{github_url}"
+                if branch:
+                    plugin_url += f"@{branch}"
+                plugin_url += f"#subdirectory={plugin_name}"
                 plugins[plugin_name] = plugin_url
 
         return plugins
