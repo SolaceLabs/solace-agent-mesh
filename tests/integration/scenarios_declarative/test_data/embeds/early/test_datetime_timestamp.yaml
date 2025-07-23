@@ -1,0 +1,16 @@
+test_case_id: "embed_datetime_timestamp_001"
+description: "Tests «datetime:timestamp» embed."
+skip_intermediate_events: true
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_tester@example.com"
+  parts: [{type: "text", text: "What is the current timestamp?"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "Timestamp is «datetime:timestamp»."}}]
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        # Integer or float
+        text_matches_regex: "Timestamp is \\d+(\\.\\d+)?"

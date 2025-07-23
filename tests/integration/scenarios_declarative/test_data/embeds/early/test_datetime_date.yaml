@@ -1,0 +1,16 @@
+test_case_id: "embed_datetime_date_001"
+description: "Tests «datetime:date» embed."
+skip_intermediate_events: true
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_tester@example.com"
+  parts: [{type: "text", text: "What is today's date?"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "Today's date is «datetime:date»."}}]
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        # YYYY-MM-DD format
+        text_matches_regex: "Today's date is \\d{4}-\\d{2}-\\d{2}."

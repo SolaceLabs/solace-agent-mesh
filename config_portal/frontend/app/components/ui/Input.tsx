@@ -1,29 +1,28 @@
 type InputProps = {
   id: string;
-  type?: string;
   name?: string;
   value: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   placeholder?: string;
   required?: boolean;
   disabled?: boolean;
+  type?: "text" | "password" | "number" | "email";
   className?: string;
-  autoFocus?: boolean;
 };
 
 export default function Input({
   id,
-  type = 'text',
   name,
   value,
   onChange,
-  placeholder = '',
+  placeholder = "",
   required = false,
   disabled = false,
-  className = '',
-  autoFocus = false,
+  type = "text",
+  className = "",
+  onKeyDown,
 }: InputProps) {
-  
   return (
     <input
       id={id}
@@ -31,14 +30,14 @@ export default function Input({
       type={type}
       value={value}
       onChange={onChange}
+      onKeyDown={onKeyDown}
       placeholder={placeholder}
       required={required}
       disabled={disabled}
-      autoFocus={autoFocus}
       className={`
         w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm 
-        focus:outline-none focus:ring-blue-500 focus:border-blue-500 
-        disabled:bg-gray-100 disabled:text-gray-500 
+        focus:outline-none focus:ring-blue-500 focus:border-blue-500
+        disabled:bg-gray-100 disabled:text-gray-500
         ${className}
       `}
     />

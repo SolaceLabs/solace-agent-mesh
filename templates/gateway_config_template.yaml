@@ -1,0 +1,43 @@
+# Solace Agent Mesh: __GATEWAY_NAME_SNAKE_CASE__ Gateway Configuration
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: "__GATEWAY_NAME_SNAKE_CASE___gateway.log"
+
+!include ../shared_config.yaml
+
+apps:
+  - name: __GATEWAY_NAME_SNAKE_CASE___gateway_app
+    app_base_path: .
+    app_module: src.__GATEWAY_NAME_SNAKE_CASE__.app
+
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: __APP_CONFIG_NAMESPACE__
+      gateway_id: __GATEWAY_ID__
+      
+      artifact_service: __ARTIFACT_SERVICE__
+
+      authorization_service:
+        type: "none" # Or "default_rbac"
+        # role_definitions_path: "config/auth/roles.yaml"
+        # user_assignments_path: "config/auth/users.yaml"
+
+      system_purpose: >
+        __SYSTEM_PURPOSE__
+
+      response_format: >
+        __RESPONSE_FORMAT__
+
+      
+      # enable_embed_resolution: true # Default is true
+      # gateway_artifact_content_limit_bytes: 10485760 # 10MB
+      # gateway_recursive_embed_depth: 3
+
+      # --- __GATEWAY_NAME_PASCAL_CASE__ Specific Parameters (Define schema in src/__GATEWAY_NAME_SNAKE_CASE__/app.py) ---
+      # example_parameter: "default_value"
+      # api_key: "${__GATEWAY_NAME_UPPER_CASE__}_API_KEY" 
+      # endpoint_url: "https://api.example.com/__GATEWAY_NAME_SNAKE_CASE__"

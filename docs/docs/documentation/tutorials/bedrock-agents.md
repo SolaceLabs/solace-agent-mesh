@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 # Amazon Bedrock Agents Integration
 
-In this tutorial, we will walk you through the process of integrating Amazon Bedrock Agents and Flows into Solace Agent Mesh (SAM). This integration allows you to create agents that can interact with one or multiple Bedrock Agents or Flows, extending your SAM project with powerful AI capabilities from AWS.
+This tutorial walks you through the process of integrating Amazon Bedrock Agents and Flows into Solace Agent Mesh (SAM). This integration allows you to create agents that can interact with one or multiple Bedrock Agents or Flows, extending your SAM project with powerful AI capabilities from AWS.
 
 ## What are Amazon Bedrock Agents and Flows?
 
@@ -15,10 +15,10 @@ Amazon Bedrock Agents are AI assistants that can be customized to perform specif
 Amazon Bedrock Flows are visual workflows that orchestrate multiple foundation models to solve complex problems. They allow you to chain together different AI capabilities without writing code.
 
 By integrating these services with SAM, you can:
-- Use SAM's extensible framework to combine Bedrock agents and flows with other plugins
-- Create conversational interfaces that leverage Bedrock agents and flows
-- Connect your SAM agents to enterprise data sources through Bedrock
-- Maintain a consistent experience across different agent providers by centralizing them in SAM
+- Use the extensible SAM framework to combine Bedrock agents and flows with other agents.
+- Create conversational interfaces that leverage Bedrock agents and flows.
+- Connect your SAM agents to enterprise data sources through Bedrock.
+- Maintain a consistent experience across different agent providers by centralizing them in SAM.
 
 :::info[Learn about Bedrock Agents and Flows]
 Check the official documentation for [Amazon Bedrock Agents](https://aws.amazon.com/bedrock/agents/) and [Amazon Bedrock Flows](https://aws.amazon.com/bedrock/flows/) to learn more about these features.
@@ -67,40 +67,29 @@ You must [install Solace Agent Mesh and Solace Mesh Agent (SAM) CLI](../getting-
 
 ## Integrating Bedrock with SAM
 
-### Adding the `sam-bedrock-agent` Plugin
+### Adding the Bedrock Agent Plugin
 
-The `sam-bedrock-agent` plugin from the [solace-agent-mesh-core-plugins](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/sam-bedrock-agent) repository creates a bridge between SAM and Amazon Bedrock services. This plugin allows your SAM agents to invoke Bedrock Agents and Flows as actions.
+The `sam-bedrock-agent` plugin from the [solace-agent-mesh-core-plugins](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/sam-bedrock-agent) repository creates a bridge between SAM and Amazon Bedrock services. This plugin allows your SAM agents to invoke Bedrock Agents and Flows as tools.
 
 1. **Add the plugin to your SAM project**:
 
 ```sh
-solace-agent-mesh plugin add sam-bedrock-agent --pip -u git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-bedrock-agent
+sam plugin add aws-agent --plugin sam-bedrock-agent
 ```
 
-This command downloads and installs the plugin into your SAM project using the `pip` package manager. (Optionally, you can use `--poetry`, `--conda`, or `--uv` to specify the package manager.)
+Replace `aws-agent` with a descriptive name for your agent, such as `bedrock-summarizer` or `bedrock-customer-service`.
 
-:::warning[Requires Git]
-Make sure you have Git installed on your system, as the command uses Git to fetch the plugin from GitHub.
-:::
+This command:
+- Installs the `sam-bedrock-agent` plugin
+- Creates a new agent configuration file in `configs/agents/aws-agent.yaml`
 
-### Creating a Bedrock Agent Configuration
-
-After adding the plugin, you need to create a configuration file for your specific Bedrock agent instance:
-
-1. **Create the agent configuration**:
-
-```sh
-solace-agent-mesh add agent <new_agent_name> --copy-from sam_bedrock_agent:bedrock_agent
-```
-
-Replace `<new_agent_name>` with a descriptive name for your agent, such as `bedrock_summarizer` or `bedrock_customer_service`.
 
 2. **Locate the configuration file**:
 
-This command creates a `<new_agent_name>.yaml` file in the `configs/agents/` directory of your SAM project.
+The command creates an `aws-agent.yaml` file in the `configs/agents/` directory of your SAM project.
 
 :::tip[Naming Convention]
-Choose a descriptive name that reflects the purpose of your Bedrock integration. This name will be used to reference the agent in your SAM project.
+Choose a descriptive name that reflects the purpose of your Bedrock integration. This name is used to reference the agent in your SAM project.
 :::
 
 ## Configuring the Bedrock Agent
@@ -109,65 +98,94 @@ The configuration file you created needs to be edited to connect to your specifi
 
 ### Understanding the Configuration Structure
 
-Open the `<new_agent_name>.yaml` file in your editor. The core of the agent's configuration consists of three main sections:
+Open the `aws-agent.yaml` file in your editor. The core of the agent's configuration consists of:
 
 1. **amazon_bedrock_runtime_config**: AWS connection settings
-2. **bedrock_agents**: List of Bedrock agents to expose as actions
-3. **bedrock_flows**: List of Bedrock flows to expose as actions
+2. **tools**: List of Bedrock agents and flows to expose as tools
+3. **agent_card**: Agent capabilities and skills definition
 
 ### Example Configuration
 
-Here's an annotated example of the configuration file:
+Here's an annotated example based on the actual plugin structure:
 
 ```yaml
-# ... other config ...
-flows:
-  - name: {{SNAKE_CASE_NAME}}_action_request_processor
-    components:
-      # ... broker_input section (handles incoming messages) ...
-      - component_name: action_request_processor
-        component_module: {{MODULE_DIRECTORY}}.agents.bedrock_agent.bedrock_agent_agent_component
-        component_config:
-          agent_name: {{SNAKE_CASE_NAME}} # Your agent name as seen by SAM
-          # ... other component settings ...
-          
-          # AWS Connection Configuration
-          amazon_bedrock_runtime_config:
-            # Optional: Custom AWS endpoint URL (usually not needed)
-            endpoint_url:
-            
-            # AWS credentials and region configuration
-            boto3_config:
-              # The AWS region where your Bedrock resources are located
-              region_name: "us-east-1"
-              
-              # AWS credentials (alternatively, use AWS profiles)
-              aws_access_key_id:
-              aws_secret_access_key:
-              # aws_session_token: # If using temporary credentials
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: aws-agent.log
 
-          # Bedrock Agents Configuration
-          bedrock_agents:
-            - name: summarize_text # The name of this action in SAM
-              description: "Summarize text using Bedrock agent" # User-friendly description
-              param_description: "Text to summarize" # Description of the input parameter
-              bedrock_agent_id: "abcdef123456" # Your actual Bedrock agent ID
-              bedrock_agent_alias_id: "xyz789" # Your actual Bedrock agent alias ID
-              allow_files: true # Enable file uploads to the agent
+!include ../shared_config.yaml
 
-              # --- Add more agents ---
+apps:
+  - name: aws-agent-app
+    app_base_path: . 
+    app_module: solace_agent_mesh.agent.sac.app 
+    broker:
+      <<: *broker_connection
 
-          # Bedrock Flows Configuration
-          bedrock_flows:
-            - name: analyze_sentiment # The name of this action in SAM
-              description: "Analyze sentiment using Bedrock flow" # User-friendly description
-              param_description: "Text to analyze" # Description of the input parameter
-              bedrock_flow_id: "flow123456" # Your actual Bedrock flow ID
-              bedrock_flow_alias_id: "flowalias789" # Your actual Bedrock flow alias ID
+    app_config:
+      namespace: ${NAMESPACE} 
+      supports_streaming: true 
+      agent_name: "AwsAgent" 
+      display_name: "AwsAgent Component" 
+      model: *general_model 
 
-              # -- Add more flows --
-              
-      # ... broker_request_response, broker_output sections ...
+      instruction: |
+        You're AwsAgent responsible for handling user queries by 
+        interacting with Amazon Bedrock agents or flows.
+
+      # AWS Connection Configuration
+      amazon_bedrock_runtime_config: &amazon_bedrock_runtime_config
+        endpoint_url: # Optional: Custom AWS endpoint URL
+        boto3_config:
+          region_name: "us-east-1" # AWS region where your Bedrock resources are located
+          aws_access_key_id: # Your AWS access key (or use profiles/env vars)
+          aws_secret_access_key: # Your AWS secret key
+
+      tools:
+        # Bedrock Agent Tool
+        - tool_type: python
+          component_module: sam_bedrock_agent.bedrock_agent
+          component_base_path: . 
+          function_name: invoke_bedrock_agent
+          tool_name: "text_transformer" # Customizable, Name exposed to the LLM
+          tool_description: "Transforms text using the Text Transformer agent which summarizes the given text and extracts key points." # Customizable, Optional description
+          tool_config:
+            amazon_bedrock_runtime_config: *amazon_bedrock_runtime_config
+            bedrock_agent_id: "XXXXXXXXXX" # Your actual Bedrock agent ID
+            bedrock_agent_alias_id: "XXXXXXXXXX" # Your actual Bedrock agent alias ID
+            allow_files: true # Whether to allow file uploads (5 files, 10MB total max)
+
+        # Bedrock Flow Tool
+        - tool_type: python
+          component_module: sam_bedrock_agent.bedrock_flow
+          component_base_path: .
+          function_name: invoke_bedrock_flow
+          tool_name: "poem_writer" # Name exposed to the LLM
+          tool_config: 
+            amazon_bedrock_runtime_config: *amazon_bedrock_runtime_config
+            bedrock_flow_id: "XXXXXXXXXX" # Your actual Bedrock flow ID
+            bedrock_flow_alias_id: "XXXXXXXXXX" # Your actual Bedrock flow alias ID
+
+      # Agent capabilities
+      agent_card:
+        description: "Agent that integrates with Amazon Bedrock agents and flows for various AI tasks."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text"]
+        skills: 
+          - id: "text_transformer"
+            name: "Text Transformer"
+            description: "Transforms text using the Text Transformer agent."
+          - id: "poem_writer"
+            name: "Poem Writer"
+            description: "Generates poems based on user input."
+
+      # A2A Protocol settings
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+      inter_agent_communication:
+        allow_list: ["*"]
+        request_timeout_seconds: 30
 ```
 
 ### Customizing Your Configuration
@@ -177,31 +195,39 @@ Follow these steps to customize your configuration:
 1. **Configure AWS Connection**:
    - Set the `region_name` to the AWS region where your Bedrock resources are located
    - Choose one of these authentication methods:
-     - Set `aws_access_key_id` and `aws_secret_access_key` directly in the config
-     - Use AWS profiles by removing these fields and configuring your AWS CLI profile
-     - Use environment variables (see Environment Variables section below)
+     - Set `aws_access_key_id` and `aws_secret_access_key` directly in the config.
+     - Use AWS profiles by removing these fields and configuring your AWS CLI profile.
+     - Use environment variables (see Environment Variables section below).
 
 Check the [boto3 documentation](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/core/session.html) for more details.
 
-2. **Configure Bedrock Agents**:
-   - For each Bedrock agent you want to expose:
-     - Set a descriptive `name` for the action (e.g., `answer_questions`, `generate_content`)
-     - Provide a clear `description` of what the agent does
-     - Set `param_description` to explain what input the user should provide
-     - Replace `bedrock_agent_id` with your actual Bedrock agent ID
-     - Replace `bedrock_agent_alias_id` with your actual Bedrock agent alias ID
-     - Set `allow_files` to `true` if your agent can process file uploads
+2. **Configure Bedrock Agent Tools**:
+   - For each Bedrock agent you want to expose, add a tool entry:
+     - Set a descriptive `tool_name` (for example, `text_summarizer`, `content_generator`).
+     - Provide a clear `tool_description` of what the agent does.
+     - Replace `bedrock_agent_id` with your actual Bedrock agent ID.
+     - Replace `bedrock_agent_alias_id` with your actual Bedrock agent alias ID.
+     - Set `allow_files` to `true` if your agent can process file uploads.
 
-3. **Configure Bedrock Flows**:
-   - For each Bedrock flow you want to expose:
-     - Set a descriptive `name` for the action
-     - Provide a clear `description` of what the flow does
-     - Set `param_description` to explain what input the user should provide
-     - Replace `bedrock_flow_id` with your actual Bedrock flow ID
-     - Replace `bedrock_flow_alias_id` with your actual Bedrock flow alias ID
+3. **Configure Bedrock Flow Tools**:
+   - For each Bedrock flow you want to expose, add a tool entry:
+     - Set a descriptive `tool_name` for the flow.
+     - Provide a clear `tool_description` of what the flow does (optional).
+     - Replace `bedrock_flow_id` with your actual Bedrock flow ID.
+     - Replace `bedrock_flow_alias_id` with your actual Bedrock flow alias ID.
+
+4. **Update Agent Card Skills**:
+   - Update the `agent_card.description` to reflect the purpose of your Bedrock agent (This is what other agents see).
+   - For each tool you add, create a corresponding skill entry in the `agent_card.skills` section.
+   - Use the same `id` as the `tool_name`.
+   - Provide a user-friendly `name` and `description`.
+
+5. **Update Agent Instructions**:
+   - Modify the `instruction` field to provide clear guidance on how the agent should respond to user queries.
+   - This instruction is used by the Agent's LLM to understand its role and capabilities.
 
 :::info
-You must provide at least one Bedrock agent or flow configuration. If you're only using agents, you can remove the `bedrock_flows` section, and vice versa.
+You must provide at least one Bedrock agent or flow tool. You can mix and match agents and flows in the same configuration.
 :::
 
 ### Environment Variables
@@ -234,44 +260,56 @@ AWS credentials are loaded in this order:
 
 ### Starting Your SAM Project
 
-After configuring your Bedrock agent integration, build and run your SAM project:
+After configuring your Bedrock agent integration, run your SAM project:
 
 ```sh
-sam run -b
+sam run configs/agents/aws-agent.yaml
 ```
 
-The `-b` flag rebuilds the project before running it, ensuring that your configuration changes are applied.
+This command starts the Bedrock agent with your specific configuration.
 
 ### Testing the Integration
 
-There are several ways to test your Bedrock agent integration, the simplest way to test is through the SAM web UI:
+You can test your Bedrock agent integration through any gateway in your SAM project:
 
-1. Open your browser and navigate to the SAM web interface (typically at http://localhost:5001)
+#### Using the Web UI Gateway
+
+1. Ensure you have a Web UI gateway running (typically at http://localhost:8000)
 2. Start a conversation with your agent
 3. Ask a question that would trigger your Bedrock agent or flow
 
-**Example**: If you configured a Bedrock agent for text summarization:
+**Example**: If you configured a Bedrock agent for text transformation:
 ```
-Summarize the following text: "The quick brown fox jumps over the lazy dog. The lazy dog did not chase the fox. The fox was brown and quick, while the dog was lazy and slow. Despite their differences, they both enjoyed the sunny day in the meadow."
+Transform this text: "The quick brown fox jumps over the lazy dog. The lazy dog did not chase the fox. The fox was brown and quick, while the dog was lazy and slow. Despite their differences, they both enjoyed the sunny day in the meadow."
+```
+
+**Example**: If you configured a Bedrock flow for poem writing:
+```
+Write a poem about a sunset over the ocean.
 ```
 
 #### Testing with File Uploads
 
-If you've enabled file uploads for your Bedrock agent (`allow_files: true`), you can test file processing:
+If you have enabled file uploads for your Bedrock agent (`allow_files: true`), you can test file processing:
 
-1. In the SAM web UI, use the file upload button to attach a supported file
-2. Include a prompt that references the file, such as "Summarize this document"
-3. The file will be sent to the Bedrock agent along with your prompt
+1. In the Web UI, use the file upload button to attach a supported file
+2. Include a prompt that references the file, such as "Analyze this document" or "Summarize the content of this file"
+3. The file is sent to the Bedrock agent along with your prompt
+
+**Example with file upload**:
+```
+Please analyze the attached document and provide key insights.
+```
 
 :::info[Supported File Types]
 Bedrock agents support these file types for uploads:
 - PDF documents (.pdf)
 - Text files (.txt)
-- Word documents (.doc)
+- Word documents (.doc, .docx)
 - CSV files (.csv)
 - Excel spreadsheets (.xls, .xlsx)
 
-There's a limit of 5 files with a total size of 10MB.
+There's a limit of 5 files with a total size of 10MB per request.
 :::
 
 ## Troubleshooting
@@ -310,17 +348,3 @@ There's a limit of 5 files with a total size of 10MB.
 - Check that your file type is supported
 - Ensure the file size is under the 10MB limit
 - Check the model context length
-
-## Conclusion
-
-You've now successfully integrated Amazon Bedrock Agents and Flows with your Solace Agent Mesh project. This integration allows you to leverage AWS's powerful AI services while maintaining the flexibility and extensibility of the SAM framework.
-
-### Next Steps
-
-After completing this integration, you might want to:
-
-1. **Explore advanced configurations** - Customize your Bedrock agent integration with more complex configurations
-2. **Combine with other SAM plugins** - Integrate your Bedrock agent with other SAM plugins for more comprehensive solutions
-3. **Create specialized agents** - Build multiple Bedrock agent integrations with different specializations
-
-For more information on other SAM integrations, check out the other tutorials in this documentation section.

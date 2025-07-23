@@ -1,0 +1,72 @@
+test_case_id: "builtin_load_artifact_filename_embed_behavior_001"
+description: |
+  Tests the 'load_artifact' tool's behavior when the 'filename' argument
+  contains embed-like syntax. Expects the embed syntax to be treated literally
+  as part of the filename, likely resulting in an artifact not found error,
+  as the 'load_artifact' tool itself is not decorated with @resolve_embeds.
+skip_intermediate_events: true
+
+# No specific setup_artifacts needed for the target filename "«state_var».txt",
+# as we expect it to be treated literally and not found.
+# We can set up a different file to ensure the artifact service is working.
+setup_artifacts:
+  - filename: "unrelated_doc.txt"
+    content: "This file exists but is not the target."
+    mime_type: "text/plain"
+    metadata:
+      description: "An unrelated document"
+      mime_type: "text/plain"
+      size_bytes: 41
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_load_embed_fname_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please try to load an artifact using a filename with embed syntax: '«state_var».txt', version 0."
+  external_context:
+    a2a_session_id: "session_load_embed_fname_artifact_001"
+
+llm_interactions:
+  # Step 1: LLM calls load_artifact with a filename containing embed-like syntax
+  - step_id: "llm_calls_load_artifact_with_embed_filename"
+    static_response:
+      id: "chatcmpl-load-embed-fname-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_load_embed_fname"
+                type: "function"
+                function:
+                  name: "load_artifact"
+                  arguments: '{"filename": "«state_var».txt", "version": 0}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool error result and formulates final response
+  - step_id: "llm_final_response_after_load_embed_fname_error"
+    expected_request: # After load_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "not_found" # Expecting "not_found" as the literal filename "«state_var».txt" won't exist
+          # The actual message from the tool when file/version is not found or has no data.
+          response_contains: "Artifact '«state_var».txt' version 0 not found or has no data."
+    static_response:
+      id: "chatcmpl-load-embed-fname-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I couldn't load '«state_var».txt' because a file with that literal name was not found. Embeds in filenames are not resolved by this tool."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "I couldn't load '«state_var».txt' because a file with that literal name was not found. Embeds in filenames are not resolved by this tool."
+    task_state: "completed"

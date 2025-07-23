@@ -1,0 +1,50 @@
+#!/bin/bash
+
+echo "Running pre-push hook: Building project with hatch..."
+
+# Check if hatch is installed
+if ! command -v hatch &> /dev/null;
+then
+    echo "❌ hatch could not be found. Please install hatch first."
+    exit 1
+fi
+
+# Change to the repository root directory
+cd "$(git rev-parse --show-toplevel)"
+
+if ! hatch build > build.log; then
+    echo "❌ Build failed! Push aborted."
+    echo "Please fix the build errors before pushing."
+    exit 1
+fi
+
+if command -v uv &> /dev/null;
+then
+    if ! uv lock; then
+        echo "❌ uv.lock update failed! Push aborted."
+        echo "Please fix the errors before pushing."
+        exit 1
+    fi
+
+    echo "✅ uv.lock update successful! Proceeding with requirements.txt update..."
+
+    if ! uv export -q --format requirements.txt > requirements.txt; then
+        echo "❌ uv.lock export to requirements.txt failed! Push aborted."
+        echo "Please fix the errors before pushing."
+        exit 1
+    fi
+
+    echo "✅ uv.lock update successful! Proceeding with pylock.toml update..."
+
+    if ! uv export -q --format pylock.toml > pylock.toml; then
+        echo "❌ uv.lock export to pylock.toml failed! Push aborted."
+        echo "Please fix the errors before pushing."
+        exit 1
+    fi
+
+    echo "✅ Build successful and dependencies locked! Proceeding with push..."
+    exit 0
+fi
+
+echo "⚠️ Dependency files not updated!(uv not installed)\n✅ Build successful! Proceeding with push..."
+exit 0

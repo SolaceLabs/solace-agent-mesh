@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAM-Evals Benchmark Report</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-boxplot"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            font-weight: 400;
+        }
+        
+        .section {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .section h2 {
+            color: #2c3e50;
+            border-bottom: 3px solid #27ae60;
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+            font-size: 1.4rem;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.2rem;
+            margin-bottom: 1rem;
+        }
+        
+        .info-item {
+            background: #f8f9fa;
+            padding: 0.8rem;
+            border-radius: 5px;
+            border-left: 4px solid #27ae60;
+        }
+        
+        .info-item strong {
+            color: #2c3e50;
+            display: block;
+            margin-bottom: 0.3rem;
+            font-size: 0.9rem;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin: 1.5rem 0;
+        }
+        
+        .model-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-top: 0.4rem;
+        }
+        
+        .model-tag {
+            background: #27ae60;
+            color: white;
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+        }
+        
+        .test-files {
+            background: #f8f9fa;
+            padding: 0.8rem;
+            border-radius: 5px;
+            margin-top: 0.8rem;
+        }
+        
+        .test-files ul {
+            margin: 0.4rem 0 0 0;
+            padding-left: 1.2rem;
+        }
+        
+        .test-files li {
+            font-size: 0.9rem;
+        }
+        
+        .evaluation-status {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+        
+        .enabled {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .disabled {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .breakdown-container {
+            margin-top: 1rem;
+        }
+        
+        .category-section {
+            margin-bottom: 1.5rem;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .category-header {
+            background: #f8f9fa;
+            padding: 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+        
+        .category-header:hover {
+            background: #e9ecef;
+        }
+        
+        .category-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin: 0;
+        }
+        
+        .category-toggle {
+            font-size: 1.2rem;
+            color: #2c3e50;
+            transition: transform 0.2s;
+        }
+        
+        .category-content {
+            display: none;
+            padding: 0.8rem;
+        }
+        
+        .category-content.active {
+            display: block;
+        }
+        
+        .test-item {
+            background: #f8f9fa;
+            padding: 0.4rem 0.6rem;
+            margin-bottom: 0.3rem;
+            border-radius: 4px;
+            border-left: 3px solid #6c757d;
+            font-size: 0.85rem;
+        }
+        
+        .test-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.2rem;
+        }
+        
+        .test-name {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 0.95rem;
+        }
+        
+        .test-description {
+            font-size: 0.8rem;
+            color: #6c757d;
+            font-style: italic;
+        }
+        
+        .model-scores {
+            display: flex;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+            margin-top: 0.3rem;
+        }
+        
+        .model-score {
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            color: white;
+            font-weight: 600;
+        }
+        
+        .score-high {
+            background: #27ae60; /* Green background for scores >= 0.7 */
+        }
+        
+        .score-medium {
+            background: #f39c12; /* Yellow/Orange background for scores 0.4-0.69 */
+        }
+        
+        .score-low {
+            background: #e74c3c; /* Red background for scores < 0.4 */
+        }
+        
+        /* Detailed breakdown styles */
+        .model-result {
+            padding: 0.6rem;
+            margin-bottom: 0;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+        }
+        
+        .model-result.score-high {
+            background: #27ae60;
+            border-color: #1e8449;
+        }
+        
+        .model-result.score-medium {
+            background: #f39c12;
+            border-color: #d68910;
+        }
+        
+        .model-result.score-low {
+            background: #e74c3c;
+            border-color: #c0392b;
+        }
+        
+        .model-result .model-score {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            color: white;
+            font-weight: 600;
+            margin-bottom: 0;
+            background: rgba(0,0,0,0.2);
+        }
+        
+        .model-result .score-value {
+            background: rgba(255,255,255,0.9);
+            padding: 0.2rem 0.5rem;
+            border-radius: 3px;
+            font-weight: 600;
+            border: 1px solid rgba(255,255,255,0.3);
+            font-size: 0.8rem;
+            color: #2c3e50;
+        }
+        
+        .model-result .avg-duration {
+            background: rgba(255,255,255,0.9);
+            padding: 0.2rem 0.5rem;
+            border-radius: 3px;
+            font-weight: 600;
+            border: 1px solid rgba(255,255,255,0.3);
+            font-size: 0.8rem;
+            color: #2c3e50;
+        }
+        
+        .score-value {
+            color: #2c3e50 !important;
+            font-weight: 600 !important;
+        }
+        
+        .success-rate {
+            color: #27ae60 !important;
+        }
+        
+        .avg-duration {
+            color: #2c3e50 !important;
+            font-weight: 600 !important;
+        }
+        
+        .run-count {
+            color: #6c757d !important;
+            font-style: italic;
+        }
+        
+        .model-results {
+            margin-top: 0.5rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 0.8rem;
+        }
+        
+        @media (max-width: 768px) {
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .model-scores {
+                flex-direction: column;
+                gap: 0.3rem;
+            }
+            
+            .test-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>SAM-Evals Benchmark Report</h1>
+    </div>

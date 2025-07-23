@@ -1,0 +1,45 @@
+test_case_id: edit_image_gemini_api_no_image_in_response
+description: "Tests the tool's behavior when the Gemini API returns no image data."
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "image_for_no_image_response.jpg"
+    content_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    mime_type: "image/jpeg"
+
+gateway_input:
+  user_identity: "test_user@example.com"
+  target_agent_name: "TestAgent"
+  prompt: "Edit image_for_no_image_response.jpg"
+  tool_names: ["edit_image_with_gemini"]
+  external_context:
+    a2a_session_id: "session_edit_image_gemini_api_no_image_in_response"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_gnir1"
+                type: "function"
+                function:
+                  name: "edit_image_with_gemini"
+                  arguments: '{"image_filename": "image_for_no_image_response.jpg", "edit_prompt": "this will also fail"}'
+  - expected_request:
+      messages:
+        - role: "tool"
+          content_contains: "No edited image data received from Gemini API"
+          tool_call_id: "call_gnir1"
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "The image editing service did not return an image. Please try again."
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_contains: "The image editing service did not return an image. Please try again."

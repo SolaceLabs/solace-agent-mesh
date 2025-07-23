@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complex HTML Sample</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        form {
+            margin-top: 20px;
+        }
+        input[type="text"], input[type="email"] {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0 10px 0;
+            display: inline-block;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        input[type="submit"] {
+            width: 100%;
+            background-color: #4CAF50;
+            color: white;
+            padding: 14px 20px;
+            margin: 8px 0;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Complex HTML Sample</h1>
+
+    <p>This is a more complex HTML file for testing purposes. It includes a table and a form.</p>
+
+    <h2>Data Table</h2>
+    <table>
+        <tr>
+            <th>First Name</th>
+            <th>Last Name</th>
+            <th>Age</th>
+        </tr>
+        <tr>
+            <td>John</td>
+            <td>Doe</td>
+            <td>30</td>
+        </tr>
+        <tr>
+            <td>Jane</td>
+            <td>Smith</td>
+            <td>25</td>
+        </tr>
+    </table>
+
+    <h2>Contact Form</h2>
+    <form action="#">
+        <label for="fname">First Name</label>
+        <input type="text" id="fname" name="firstname" placeholder="Your name..">
+
+        <label for="lname">Last Name</label>
+        <input type="text" id="lname" name="lastname" placeholder="Your last name..">
+
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="Your email..">
+
+        <input type="submit" value="Submit">
+    </form>
+
+</body>
+</html>

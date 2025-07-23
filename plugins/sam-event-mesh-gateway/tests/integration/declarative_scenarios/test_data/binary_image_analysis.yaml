@@ -1,0 +1,28 @@
+test_case_id: "em_gateway_binary_001"
+description: "Verifies the EM Gateway can process a binary image, create an artifact, and publish a text response."
+
+llm_interactions:
+  - choices:
+      - message:
+          role: "assistant"
+          content: "The image appears to be a simple red dot."
+        finish_reason: "stop"
+
+em_gateway_input:
+  topic: "test/em_gateway/binary/in"
+  payload_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+  user_properties:
+    file_id: "red-dot-image"
+
+assert_artifact_state:
+  - session_id: "ANY"
+    user_id: "sam_dev_user"
+    filename: "test-image-red-dot-image.jpg"
+    version: 0
+    expected_content_bytes_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    expected_metadata_contains:
+      mime_type: "image/jpeg"
+
+expected_em_gateway_outputs:
+  - topic: "test/em_gateway/binary/out/red-dot-image"
+    payload_contains: "The image appears to be a simple red dot."

@@ -1,6 +1,0 @@
-- {{SNAKE_CASE_NAME}}_config: &gateway_interface_config
-    key: "value" # Add your configuration here
-
-- response_format_prompt: &response_format_prompt >
-    Return all responses in markdown format. When returning files or images, use the <{{tag_prefix}}file> tags.
-    Do not return files as links or with generic <file> tags.

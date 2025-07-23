@@ -1,0 +1,55 @@
+# Solace Agent Mesh Orchestrator Agent Configurations
+
+log:
+  stdout_log_level: INFO
+  log_file_level: INFO
+  log_file: __LOG_FILE_NAME__
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+  - name: __APP_NAME__
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: __NAMESPACE__ 
+      supports_streaming: __SUPPORTS_STREAMING__
+      agent_name: "__AGENT_NAME__"
+      display_name: "__AGENT_NAME__"
+      model: *planning_model 
+
+      instruction: |
+        __INSTRUCTION__
+      inject_system_purpose: true
+      inject_response_format: true
+      inject_user_profile: true
+      session_service: __SESSION_SERVICE__
+      artifact_service: __ARTIFACT_SERVICE__
+      artifact_handling_mode: "__ARTIFACT_HANDLING_MODE__" 
+      enable_embed_resolution: __ENABLE_EMBED_RESOLUTION__ 
+      enable_artifact_content_instruction: __ENABLE_ARTIFACT_CONTENT_INSTRUCTION__ 
+      data_tools_config: *default_data_tools_config
+      tools: 
+        - group_name: artifact_management
+          tool_type: builtin-group
+        - tool_type: builtin-group
+          group_name: "data_analysis"
+
+      agent_card:
+        description: "__AGENT_CARD_DESCRIPTION__"
+        defaultInputModes: __DEFAULT_INPUT_MODES__
+        defaultOutputModes: __DEFAULT_OUTPUT_MODES__
+        skills: [] 
+
+      agent_card_publishing: 
+        interval_seconds: __AGENT_CARD_PUBLISHING_INTERVAL__
+      agent_discovery: 
+        enabled: __AGENT_DISCOVERY_ENABLED__
+      inter_agent_communication:
+        allow_list: __INTER_AGENT_COMMUNICATION_ALLOW_LIST__
+        __INTER_AGENT_COMMUNICATION_DENY_LIST_LINE__
+        request_timeout_seconds: __INTER_AGENT_COMMUNICATION_TIMEOUT__

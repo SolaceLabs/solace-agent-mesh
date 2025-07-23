@@ -1,0 +1,58 @@
+test_case_id: web_request_content_type_json
+description: "Test that web_request tool correctly handles application/json content type."
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "test_user@example.com"
+  gateway_request_id: "request-130"
+  external_context:
+    a2a_session_id: "session-463"
+  prompt:
+    parts:
+      - text: "Please fetch the JSON data from https://jsonplaceholder.typicode.com/todos/1"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_130"
+                type: "function"
+                function:
+                  name: "web_request"
+                  arguments: '{"url": "https://jsonplaceholder.typicode.com/todos/1"}'
+    expected_request:
+      messages:
+        - role: "user"
+          content: "Please fetch the JSON data from https://jsonplaceholder.typicode.com/todos/1"
+      tools_present:
+        - "web_request"
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have successfully fetched the content."
+    expected_request:
+      messages:
+        - role: "user"
+          content: "Please fetch the JSON data from https://jsonplaceholder.typicode.com/todos/1"
+        - role: "tool"
+          content_matches_regex: '.*"status": "success", "message": "Successfully fetched content from https://jsonplaceholder.typicode.com/todos/1 \(status: 200\). Saved as artifact.*'
+          tool_call_id: "call_130"
+
+expected_gateway_output:
+  - type: final_response
+    task_state: "completed"
+    content_parts:
+      - type: text
+        text_contains: "I have successfully fetched the content."
+
+expected_artifacts:
+  - filename_matches_regex: "^web_content_.*\\.json(?<!\\.metadata\\.json)$"
+    metadata_contains:
+      original_content_type: "application/json"
+      processed_content_type: "application/json"
+  - filename_matches_regex: "^web_content_.*\\.json\\.metadata\\.json$"
+    mime_type: "application/json"

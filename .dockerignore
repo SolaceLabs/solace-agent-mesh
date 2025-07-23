@@ -11,6 +11,7 @@ Makefile
 Dockerfile
 venv
 .venv
+.venv*
 .vscode
 .git
 .DS_Store

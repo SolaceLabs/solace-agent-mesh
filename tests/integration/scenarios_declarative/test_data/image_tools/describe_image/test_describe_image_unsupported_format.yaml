@@ -1,0 +1,49 @@
+# tests/integration/scenarios_declarative/test_data/image_tools/describe_image/test_describe_image_unsupported_format.yaml
+test_case_id: "describe_image_unsupported_format"
+description: "Tests the tool's rejection of unsupported image file extensions."
+skip_intermediate_events: true
+
+gateway_input:
+  user_prompt: "Can you tell me what is in document.tiff?"
+  user_identity: "test_user@example.com"
+  target_agent_name: "TestAgent"
+  tool_names: ["describe_image"]
+
+llm_interactions:
+  # First LLM call: Agent decides to use the describe_image tool
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_describe_image_789"
+                type: "function"
+                function:
+                  name: "describe_image"
+                  arguments: '{"image_filename": "document.tiff"}'
+    expected_request:
+      tools_present: ["describe_image"]
+
+  # Second LLM call: Agent processes the tool's error output
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I'm sorry, but I cannot process that file. The supported image formats are .png, .jpg, .jpeg, .webp, .gif."
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "error"
+            message: "Unsupported image format. Supported formats: .png, .jpg, .jpeg, .webp, .gif"
+
+expected_gateway_output:
+  - type: "status_update"
+    event_purpose: "tool_invocation_start"
+    expected_tool_name: "describe_image"
+
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_contains: "cannot process that file"

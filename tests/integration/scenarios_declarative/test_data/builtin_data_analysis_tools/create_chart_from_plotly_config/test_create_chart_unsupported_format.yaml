@@ -1,0 +1,51 @@
+test_case_id: create_chart_unsupported_format
+description: "Tests failed chart creation due to an unsupported output format."
+skip_intermediate_events: true
+
+gateway_input:
+  request_text: "Create a chart in an unsupported format."
+  target_agent_name: "TestAgent"
+  user_identity: "chart_tester@example.com"
+  external_context:
+    a2a_session_id: "chart_creation_session_unsupported"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_chart_tool_unsupported"
+                type: "function"
+                function:
+                  name: "create_chart_from_plotly_config"
+                  arguments: '{"config_content": "{\"data\": [{\"type\": \"bar\", \"x\": [\"a\", \"b\", \"c\"], \"y\": [1, 2, 3]}]}", "config_format": "json", "output_filename": "my_chart.gif", "output_format": "gif"}'
+  - expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "error"
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I'm sorry, I cannot create a chart in the 'gif' format. Please choose a supported format like 'png', 'jpg', 'svg', or 'pdf'."
+
+expected_gateway_output:
+  - type: "status_update"
+    event_purpose: "llm_invocation"
+  - type: "status_update"
+    event_purpose: "llm_response"
+  - type: "status_update"
+    event_purpose: "tool_invocation_start"
+  - type: "status_update"
+    event_purpose: "llm_invocation"
+  - type: "status_update"
+    event_purpose: "llm_response"
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_contains: "cannot create a chart in the 'gif' format"
+
+expected_artifacts: []

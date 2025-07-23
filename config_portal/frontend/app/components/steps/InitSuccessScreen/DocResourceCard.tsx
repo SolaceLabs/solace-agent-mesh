@@ -5,11 +5,16 @@ interface DocResourceCardProps {
   link: string;
 }
 
-const DocResourceCard = ({ icon, title, description, link }: DocResourceCardProps) => {
+const DocResourceCard = ({
+  icon,
+  title,
+  description,
+  link,
+}: DocResourceCardProps) => {
   return (
-    <a 
-      href={link} 
-      target="_blank" 
+    <a
+      href={link}
+      target="_blank"
       rel="noopener noreferrer"
       className="flex p-4 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors group"
     >

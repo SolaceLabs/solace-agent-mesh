@@ -1,0 +1,20 @@
+test_case_id: "embed_ac_jsonpath_no_match_001"
+description: "Tests «artifact_content:obj.json>>>jsonpath:$.c>>>format:text» when path does not exist."
+skip_intermediate_events: true
+setup_artifacts:
+  - filename: "obj.json"
+    mime_type: "application/json"
+    content: '{"a":{"b":"value"}}'
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_late_tester@example.com"
+  parts: [{type: "text", text: "Get obj.json $.c"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "Result: «artifact_content:obj.json>>>jsonpath:$.c>>>format:text»"}}]
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "Result: []" # Expecting an empty list string after "Result: "
+        text_exact: "Result: []" # Ensure it's exactly this

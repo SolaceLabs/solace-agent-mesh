@@ -1,5 +1,4 @@
-import React from 'react';
-import Button from './Button';
+import Button from "./Button";
 
 type ConfirmationModalProps = {
   title?: string;
@@ -23,9 +22,7 @@ export default function ConfirmationModal({
           <Button variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button onClick={onConfirm}>
-            Continue
-          </Button>
+          <Button onClick={onConfirm}>Continue</Button>
         </div>
       </div>
     </div>

@@ -1,0 +1,15 @@
+test_case_id: "embed_math_invalid_expression_001"
+description: "Tests «math:5+three» with an invalid expression."
+skip_intermediate_events: true
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_tester@example.com"
+  parts: [{type: "text", text: "Calculate 5+three"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "Result: «math:5+three»"}}]
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "Result: [Error: Math evaluation error: name 'three' is not defined]" # Or similar error from asteval

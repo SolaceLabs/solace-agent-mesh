@@ -6,7 +6,7 @@ sidebar_position: 30
 # Quick Start
 
 :::note[Plugins]
-Looking to get started with plugins? For more information, see the [Plugins](../concepts/plugins/index.md).
+Looking to get started with plugins? For more information, see the [Plugins](../concepts/plugins.md).
 :::
 
 To get started with Solace Agent Mesh, you must first create a project.
@@ -14,11 +14,10 @@ To get started with Solace Agent Mesh, you must first create a project.
 ## Prerequisites
 
 1. You have installed the Solace Agent Mesh CLI. If not, see the [Installation](./installation.md) page.
-2. You have an available AI provider and API key. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 3.7 or OpenAI GPT-4o.
+2. You have activated the virtual environment you created following the [Installation](./installation.md) page. For containerized deployment such as Docker, ignore this prerequisite.
+3. You have an available AI provider and API key. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 3.7, Google Gemini 2.5 pro, or OpenAI GPT-4o.
 
 ## Create a Project
-
-Ensure you have the Solace Agent Mesh (SAM) CLI (run `solace-agent-mesh --version` or `sam `) available. If not, see [Installation](./installation.md).
 
 Create a directory for your project and navigate to it.
 
@@ -32,8 +31,13 @@ Run the `init` command and follow the prompts to create your project.
 ```sh
 solace-agent-mesh init
 ```
-During initialization, you can choose to configure your project directly in the terminal or through a web-based interface launched at `http://127.0.0.1:5002`. You will
-be asked for your preference once you run `solace-agent-mesh init`.
+During initialization, you can choose to configure your project directly in the terminal or through a web-based interface launched at `http://127.0.0.1:5002`. You are asked for your preference once you run `solace-agent-mesh init`.
+
+Alternatively, you can use the `--gui` flag to skip the prompt and directly open the web-based configuration interface:
+
+```sh
+solace-agent-mesh init --gui
+```
 
 <details>
   <summary>Docker Alternative for Initialization</summary>
@@ -41,8 +45,10 @@ be asked for your preference once you run `solace-agent-mesh init`.
 You can also initialize your Solace Agent Mesh project using the official Docker image. This is helpful if you want to avoid local Python/SAM CLI installation or prefer a containerized workflow from the start.
 
 ```sh
-docker run --rm -it -v "$(pwd):/app" -p 5002:5002 solace/solace-agent-mesh:latest init --use-web-based-init
+docker run --rm -it -v "$(pwd):/app" -p 5002:5002 solace/solace-agent-mesh:latest init --gui
 ```
+
+If the OS architecture on your host is not `linux/amd64`, you would need to add `--platform linux/amd64` when running container.
 
 </details>
 
@@ -52,46 +58,34 @@ You can run the `init` command in a non-interactive mode by passing `--skip` and
 To get a list of all the available options, run `solace-agent-mesh init --help`
 :::
 
-:::info[Model name format]
-When using the browser-based configuration, you only need to provide the model name (such as `gpt-4o`).
-The system automatically handles setting the provider (such as `openai`) based on your selection.
+<details>
+  <summary>Configurations</summary>
 
-If configuring via the CLI, you need to explicitly specify the model in the format provider/name. For example, `openai/gpt-4o`
+:::info[Model name format]
+<details>
+  <summary>Browser-based Configurations</summary>
+
+You need to select the LLM Provider first and supported models are populated under LLM Model Name.
+
+If you're using a non-openai model but hosting it on a custom API that follows the OpenAI standards, like Ollama or LiteLLM, you can select the `OpenAI Compatible Provider`.
+
+</details>
+
+<details >
+  <summary>CLI-based Configurations</summary>
+
+You need to explicitly specify the model in the format provider/name. For example, `openai/gpt-4o`.
 
 If you're using a non-openai model but hosting it on a custom API that follows the OpenAI standards, like Ollama or LiteLLM, you can still use the `openai` provider.
 
 For example: `openai/llama-3.3-7b`
 
+</details>
+
 This is the case for all the model names, such as LLMs, image generators, embedding models, etc.
 :::
 
-Your project configurations have been written to the `solace-agent-mesh.yaml` file. To learn more about this file and its configurations, see the [configurations](./configuration.md) page.
-
-## Building the Project
-
-The build command generates all the respective [solace-ai-connector](../user-guide/solace-ai-connector.md) configuration files. Solace AI Event Connector is the underlying library that runs all the components and connects Solace Agent Mesh to a Solace PubSub+ event broker.
-
-To build the project, run the following command:
-
-
-<details>
-  <summary>Docker Alternative for Building</summary>
-
-```sh
-docker run --rm -v "$(pwd):/app" solace/solace-agent-mesh:latest build
-```
-
-The `build/` directory will be created in your project directory on your host machine, containing all the generated configuration files.
-
 </details>
-
-```sh
-solace-agent-mesh build
-```
-
-:::warning
-You must run the `solace-agent-mesh` commands at the root directory of your project where the `solace-agent-mesh.yaml` file is located.
-:::
 
 ## Running the Project
 
@@ -102,69 +96,51 @@ solace-agent-mesh run
 ```
 
 :::tip
-Environment variables are loaded from your configuration file (typically a `.env` file at the project root) by default. To use system environment variables instead, use the `-u` or `--use-system-env` option.
-:::
-
-:::tip
-You can combine the build and run steps by using `solace-agent-mesh run -b`.
+Environment variables are loaded from your configuration file (typically a `.env` file at the project root) by default. To use system environment variables instead, use the `-u` or `--system-env` option.
 :::
 
 To learn more about the other CLI commands, see the [CLI documentation](../concepts/cli.md).
 
-## Interacting with SAM
+<details>
+  <summary>Docker Alternative for Running the Project</summary>
 
-You can use different gateway interfaces to communicate with the system such as REST, Web UI, Slack, MS Teams, etc. To keep it simple for this demo, we will use the browser UI. To connect to the browser UI, open a browser and navigate to `http://localhost:5001`. If you chose another port during the `init` step, use that port instead.
-
-This will provide a simple chat interface where you can interact with the Agent Mesh. Try some commands like `Suggest some good outdoor activities in London given the season and current weather conditions.` or `Generate a mermaid diagram of the OAuth login flow`.
-
-## Sending a Request via REST API
-
-You can also interact with SAM via a **REST API**.
-
-The REST API gateway runs on `http://localhost:5050` by default. You can send a **POST** request to the `/api/v1/request`.
-
-For example, send a request using `curl`:
+You can also run your Solace Agent Mesh project using the official Docker image. This is helpful if you want to avoid local Python/SAM CLI installation or prefer a containerized workflow from the start.
 
 ```sh
-curl --location 'http://localhost:5050/api/v1/request' \
---header 'Authorization: Bearer None' \
---form 'prompt="Suggest some good outdoor activities in London given the season and current weather conditions."' \
---form 'stream="false"'
+docker run --rm -it -v "$(pwd):/app" -p 8000:8000 solace/solace-agent-mesh:latest run
 ```
 
 :::warning
-It might take a while for the system to respond. See the [observability](../deployment/observability.md) page for more information about monitoring the system while it's processing the request.
-:::
+If you are using third-party Python packages or Solace Agent Mesh plugins, you need to build a custom Docker image off the official image and install the required packages there, and then run that custom image instead.
 
-Sample output:
+```Dockerfile
+FROM solace/solace-agent-mesh:latest
+# Option 1: Install a specific package
+RUN python3.11 -m pip install --no-cache-dir <your-package>
+# Option 2: use a requirements.txt file
+COPY requirements.txt .
+RUN python3.11 -m pip install --no-cache-dir -r requirements.txt
 
-```json
-{
-  "created": 1797746509,
-  "id": "restapi-81c30d2c-4943-449a-8d4c-65d0f86ee70a",
-  "response": {
-    "content": "Outdoor Activities in London: Spring Edition. Today's Perfect Activities (13°C, Light Cloud): - Royal Parks Exploration : Hyde Park and Kensington Gardens...",
-    "files": []
-  },
-  "session_id": "c4d46aec-78d6-4a82-9c92-bcf4546f6f84"
-}
+ENTRYPOINT ["solace-agent-mesh"]
 ```
 
-:::info
-Files would be returned as base64-encoded strings, with the following structure:
+Then build and run your custom image:
 
-```json
-"files": [
-  {
-    "name": "diagram.png",
-    "content": "base64 encoded string",
-    "mime_type":"image/png"
-  }
-]
+```sh
+docker build -t my-custom-image .
+docker run --rm -it -v "$(pwd):/app" -p 8000:8000 my-custom-image run
 ```
-
-For example, here's a prompt to retrieve a file: `prompt="Give me a random bar chart"`
 :::
+</details>
+
+## Interacting with SAM
+
+You can use different gateway interfaces to communicate with the system such as REST, Web UI, Slack, MS Teams, and so on. To keep it simple for this demo, we use the browser UI.
+
+To connect to the browser UI, open a browser and navigate to `http://localhost:8000`. If you chose another port during the `init` step, use that port instead.
+
+Try some commands like `Suggest some good outdoor activities in London given the season and current weather conditions.` or `Generate a mermaid diagram of the OAuth login flow`.
+
 
 ## Try a Tutorial
 
@@ -172,17 +148,8 @@ Try adding a new agent to the system by following the tutorial on adding an [SQL
 
 ## Next Steps
 
-Solace Agent Mesh requires two types of components, **agents** and **gateways**. The system comes with a set of built-in agents and a REST API gateway (which you enabled during the `init` step) include a browser UI running on top of it.
+Solace Agent Mesh uses two main types of components, **agents** and **gateways**. The system comes with a built-in orchestrator agent and a web user interface gateway (which you enabled during the `init` step).
 
-You can learn more about [gateways](../concepts/gateways.md). Alternatively, you can learn about [adding a pre-built gateway interfaces](../concepts/gateways.md#gateway-from-interfaces) or [creating your own new gateways](../user-guide/custom-gateways.md).
+You can learn more about [gateways](../concepts/gateways.md). Alternatively, you can learn about [using plugins](../concepts/plugins.md#use-a-plugins) or [creating your own new gateways](../user-guide/create-gateways.md).
 
-Also, you can learn more about [agents](../concepts/agents.md) or about [creating your own agents](../user-guide/custom-agents.md).
-
-:::note
-If you said no to the REST API gateway during the `init` step, you can add it after using the following command:
-
-```sh
-solace-agent-mesh add gateway my-rest-endpoint --interface rest-api
-```
-
-:::
+Also, you can learn more about [agents](../concepts/agents.md) or about [creating your own agents](../user-guide/create-agents.md).

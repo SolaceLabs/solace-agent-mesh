@@ -1,0 +1,95 @@
+test_case_id: "multi_agent_three_deep_delegation_001"
+description: "Tests a three-agent delegation chain: Top -> A -> D. Top asks A to ask D to say hi."
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "delegation_tester@example.com"
+  prompt:
+    parts:
+      - text: "Please ask TestPeerAgentA to ask TestPeerAgentD to say hi."
+
+llm_interactions:
+  # Turn 1: TestAgent (Top) receives the request and delegates to TestPeerAgentA.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Okay, I will ask TestPeerAgentA to contact TestPeerAgentD."
+            tool_calls:
+              - id: "call_peer_a_for_delegation"
+                type: "function"
+                function:
+                  name: "peer_TestPeerAgentA"
+                  arguments: '{"task_description": "Please ask TestPeerAgentD to say hi."}'
+    expected_request:
+      messages_contain:
+        - role: "user"
+          content_contains: "ask TestPeerAgentA to ask TestPeerAgentD to say hi"
+      tools_present:
+        - "peer_TestPeerAgentA"
+
+  # Turn 2: TestPeerAgentA receives the task and delegates to TestPeerAgentD.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Understood. I will now ask TestPeerAgentD to say hi."
+            tool_calls:
+              - id: "call_peer_d_for_hi"
+                type: "function"
+                function:
+                  name: "peer_TestPeerAgentD"
+                  arguments: '{"task_description": "Please say hi."}'
+    expected_request:
+      # This is the LLM request for TestPeerAgentA
+      messages_contain:
+        - role: "user"
+          content_contains: "ask TestPeerAgentD to say hi"
+      tools_present:
+        - "peer_TestPeerAgentD"
+
+  # Turn 3: TestPeerAgentD receives the task and responds.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Hi from Agent D!"
+    expected_request:
+      # This is the LLM request for TestPeerAgentD
+      messages_contain:
+        - role: "user"
+          content_contains: "Please say hi."
+
+  # Turn 4: TestPeerAgentA receives the response from D and formulates its own response.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "TestPeerAgentD says: Hi from Agent D!"
+    expected_request:
+      # This is the second LLM request for TestPeerAgentA
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0 # Matches the tool call from the second LLM interaction
+          response_contains: "Hi from Agent D!"
+
+  # Turn 5: TestAgent receives the response from A and formulates the final response.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "The task is complete. TestPeerAgentA reported that TestPeerAgentD said: Hi from Agent D!"
+    expected_request:
+      # This is the second LLM request for TestAgent
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0 # Matches the tool call from the first LLM interaction
+          response_contains: "TestPeerAgentD says: Hi from Agent D!"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "TestPeerAgentD said: Hi from Agent D!"
+    task_state: "completed"
+
+expected_artifacts: []

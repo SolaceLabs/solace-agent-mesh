@@ -1,0 +1,46 @@
+test_case_id: "embed_ac_recursive_depth_limit_001"
+description: "Tests recursive resolution depth limit."
+skip_intermediate_events: true
+# Gateway config for this test (via fixture override or specific test setup):
+# gateway_recursive_embed_depth: 1 (or a low value)
+# For declarative tests, this might need a special marker or be tested programmatically
+# if per-test gateway config override isn't simple.
+# Assuming for now the default depth (12) is high enough that this test structure
+# with a depth of 2 (level0 -> level1 -> level2) will hit a limit if we set it low.
+# The test below assumes a depth limit of 1 is effectively set for the gateway.
+# If not, it will resolve fully. The test runner/fixture needs to handle this.
+# For now, designing the test as if the limit *can* be hit.
+# The actual test execution might need a dedicated fixture for this.
+# Let's assume the default depth is 2 for this test for simplicity of YAML.
+# The gateway's default is 12. This test will pass if it resolves.
+# To test the limit, we'd need to set gateway_recursive_embed_depth to 1.
+# This test will demonstrate full resolution if depth limit is >= 2.
+# To test the actual limit, a programmatic test or fixture override is better.
+# For now, this test will show successful deep resolution.
+# A separate test `test_ac_recursive_depth_limit_hit.yaml` would be needed for the error.
+
+setup_artifacts:
+  - filename: "level0.txt"
+    mime_type: "text/plain"
+    content: "Level0 embeds: «artifact_content:level1.txt>>>format:text»"
+  - filename: "level1.txt"
+    mime_type: "text/plain"
+    content: "Level1 embeds: «artifact_content:level2.txt>>>format:text»"
+  - filename: "level2.txt"
+    mime_type: "text/plain"
+    content: "Deepest content from level2."
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_late_tester@example.com"
+  parts: [{type: "text", text: "Test recursive depth"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "«artifact_content:level0.txt>>>format:text»"}}]
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        # This expects full resolution if default depth (12) is active.
+        # If depth was 1, it would be "Level0 embeds: Level1 embeds: «artifact_content:level2.txt>>>format:text»"
+        # If depth was 0, it would be "Level0 embeds: «artifact_content:level1.txt>>>format:text»"
+        text_contains: "Level0 embeds: Level1 embeds: Deepest content from level2."

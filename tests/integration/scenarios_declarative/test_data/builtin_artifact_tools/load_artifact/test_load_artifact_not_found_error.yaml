@@ -1,0 +1,72 @@
+test_case_id: "builtin_load_artifact_not_found_error_001"
+description: |
+  Tests the 'load_artifact' tool's error handling when the specified
+  artifact filename does not exist.
+skip_intermediate_events: true
+
+# No setup_artifacts for the target file, as it's intended to be non-existent.
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_load_error_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please try to load 'non_existent_doc.txt', version 0."
+  external_context:
+    a2a_session_id: "session_load_error_artifact_001"
+
+llm_interactions:
+  # Step 1: LLM calls load_artifact for a non-existent file
+  - step_id: "llm_calls_load_non_existent_artifact"
+    static_response:
+      id: "chatcmpl-load-nonexistent-artifact-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_load_nonexistent"
+                type: "function"
+                function:
+                  name: "load_artifact"
+                  arguments: '{"filename": "non_existent_doc.txt", "version": 0}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool error result and formulates final response
+  - step_id: "llm_final_response_after_load_error"
+    expected_request: # After load_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          # The load_artifact tool wraps errors from load_artifact_content_or_metadata.
+          # If helper returns {"status": "not_found", "message": ...}, tool returns that.
+          # If helper raises FileNotFoundError, tool catches and returns {"status": "error", "message": ...}
+          # Based on load_artifact_content_or_metadata, it returns a dict with "status":"not_found"
+          # and the message from the FileNotFoundError.
+          # The load_artifact tool itself then returns this dict.
+          response_json_matches:
+            status: "not_found" # Or "error" depending on exact wrapping in load_artifact
+            # filename: "non_existent_doc.txt" # filename might not be in the top-level error response from the tool
+            # version: 0
+          # The message from FileNotFoundError in the helper is like:
+          # "Artifact 'non_existent_doc.txt' has no versions available to determine 'latest'." (if version="latest")
+          # or "Version 0 for artifact 'non_existent_doc.txt' not found."
+          # or "Artifact file 'non_existent_doc.txt' does not exist (no versions found)."
+          # Let's use a general contains for the filename.
+          response_contains: "non_existent_doc.txt"
+    static_response:
+      id: "chatcmpl-load-nonexistent-artifact-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I couldn't load 'non_existent_doc.txt' because it was not found."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "I couldn't load 'non_existent_doc.txt' because it was not found."
+    task_state: "completed"

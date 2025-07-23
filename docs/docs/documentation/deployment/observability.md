@@ -5,22 +5,26 @@ sidebar_position: 20
 
 # Observability
 
-Solace Agent Mesh provides a comprehensive set of tools for real-time system monitoring and key insights to help you to understand system states, request flows, and key insights for debugging and optimizing your system.
+Solace Agent Mesh provides a comprehensive set of tools for real-time system monitoring and key insights to help you understand system states, request flows, and key insights for debugging and optimizing your system.
 
-## Visualizer
+## Workflow Viewer
 
-The Solace Agent Mesh CLI includes a built-in visualizer, which provides an interactive web-based UI. This visualizer allows you to:
+The Solace Agent Mesh web UI includes a built-in workflow viewer, which provides an interactive web-based UI for each user query and its corresponding response. This visualizer allows you to:
 
 - Track the complete life cycle of a stimulus (request) as it moves through the system.
-- Monitor all registered agents and their activity in real-time.
+- Visualize the flow of requests/responses among agents, the user gateway and LLM.
+- Monitor all participating agents and their activity in real-time.
 
-To launch the visualizer, run the following command:
+To launch the workflow viewer for a specific query/response pair, click the **View Agent Workflow** icon located at the bottom left of the final response. The complete workflow chart appears in the side panel on the right.
 
-```bash
-sam visualize
-```
+## Agents View
 
-For information about the available command options, see [Solace Agent Mesh CLI](../concepts/cli.md#visualize---run-a-web-gui-visualizer).
+The Solace Agent Mesh web UI also includes an **Agents** view, which provides a comprehensive overview of all registered agents in the system in real-time. This view allows you to:
+- See all agents currently registered in the system.
+- View agents description, capabilities, and skills
+- View agent hierarchical topology and relationships.
+
+To access the Agents view, open the web interface in your browser and switch to the **Agents** tab.
 
 ## Broker Observability
 
@@ -33,7 +37,7 @@ Solace Agent Mesh relies on a PubSub+ event broker for all its communication. Va
 To observe all message flows within the event broker, subscribe to the following topic:
 
 ```
-[NAME_SPACES]solace-agent-mesh/v1/>
+[NAME_SPACES]a2a/v1/>
 ```
 
 Replace `[NAME_SPACES]` with the namespace you are using. If none, omit the `[NAME_SPACES]` part.
@@ -42,19 +46,14 @@ Replace `[NAME_SPACES]` with the namespace you are using. If none, omit the `[NA
 Agents periodically send registration messages, which may clutter your UI if you're using the STM VSCode extension. To filter out these messages, you can add the following topic to the ignore list:
 
 ```
-![NAME_SPACES]solace-agent-mesh/v1/register/agent/>
+[NAME_SPACES]/a2a/v1/discovery/agentcards
 ```
 :::
 
-## Custom Monitors
-
-In addition to built-in observability tools, you can create your own custom monitoring components to track system behavior according to your needs. 
-
-For more information, see [Monitors](../concepts/monitors.md).
 
 ## Stimulus Logs
 
-Solace Agent Mesh includes a default monitor that records each stimulus (request) life cycle. These logs are stored as `.stim` files using the [File service](../user-guide/advanced/services/file-service.md).
+Solace Agent Mesh includes a default monitor that records each request (stimulus) life cycle. These logs are stored as `.stim` files.
 
 Each `.stim` file captures a complete trace of a stimulus, including:
 
@@ -64,4 +63,4 @@ Each `.stim` file captures a complete trace of a stimulus, including:
 
 These logs provide a valuable data source for further visualization, troubleshooting, and performance analysis.
 
-By default, `.stim` files follow the [File Service](../user-guide/advanced/services/file-service.md) configuration, including automatic expiration settings to prevent unnecessary storage accumulation.
+By default, `.stim` files are written to the `/tmp/solace-agent-mesh/` directory.

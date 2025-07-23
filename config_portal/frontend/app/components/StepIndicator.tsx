@@ -1,4 +1,4 @@
-import { Step } from './InitializationFlow';
+import { Step } from "./InitializationFlow";
 
 type StepIndicatorProps = {
   steps: Step[];
@@ -6,28 +6,30 @@ type StepIndicatorProps = {
   onStepClick?: (index: number) => void;
 };
 
-export default function StepIndicator({ steps, currentStepIndex, onStepClick }: StepIndicatorProps) {
+export default function StepIndicator({
+  steps,
+  currentStepIndex,
+  onStepClick,
+}: StepIndicatorProps) {
   return (
     <div className="relative w-full">
-      {/* Progress Lines Layer */}
       <div className="absolute top-5 left-0 right-0 h-1 bg-gray-300 mr-9 ml-9">
-        {/* Progress line */}
-        <div 
+        <div
           className="h-full bg-solace-green transition-all duration-300 ease-in-out"
           style={{
-            width: currentStepIndex === 0 
-              ? '0%' 
-              : `${(currentStepIndex / (steps.length - 1) * 100)}%`
+            width:
+              currentStepIndex === 0
+                ? "0%"
+                : `${(currentStepIndex / (steps.length - 1)) * 100}%`,
           }}
         />
       </div>
-      
-      {/* Step Circles Layer */}
+
       <div className="flex items-center justify-between w-full relative z-10">
         {steps.map((step, index) => {
           const isActive = index === currentStepIndex;
           const isCompleted = index < currentStepIndex;
-          
+
           return (
             <div key={step.id} className="flex flex-col items-center">
               <button
@@ -36,10 +38,12 @@ export default function StepIndicator({ steps, currentStepIndex, onStepClick }: 
                 className={`
                   w-10 h-10 rounded-full flex items-center justify-center
                   font-bold transition-colors duration-300
-                  ${isActive ? 'bg-solace-green text-white' : ''}
-                  ${isCompleted ? 'bg-solace-dark-green text-white' : ''}
-                  ${!isActive && !isCompleted ? 'bg-gray-200 text-gray-600' : ''}
-                  ${onStepClick ? 'cursor-pointer' : 'cursor-default'}
+                  ${isActive ? "bg-solace-green text-white" : ""}
+                  ${isCompleted ? "bg-solace-dark-green text-white" : ""}
+                  ${
+                    !isActive && !isCompleted ? "bg-gray-200 text-gray-600" : ""
+                  }
+                  ${onStepClick ? "cursor-pointer" : "cursor-default"}
                 `}
               >
                 {isCompleted ? (
@@ -61,13 +65,13 @@ export default function StepIndicator({ steps, currentStepIndex, onStepClick }: 
                   index + 1
                 )}
               </button>
-              
+
               <span
                 className={`
                   mt-2 text-xs font-medium text-center
-                  ${isActive ? 'text-solace-green' : ''}
-                  ${isCompleted ? 'text-solace-dark-green' : ''}
-                  ${!isActive && !isCompleted ? 'text-gray-500' : ''}
+                  ${isActive ? "text-solace-green" : ""}
+                  ${isCompleted ? "text-solace-dark-green" : ""}
+                  ${!isActive && !isCompleted ? "text-gray-500" : ""}
                 `}
               >
                 {step.title}

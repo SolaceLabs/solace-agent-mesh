@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 # Solace Agent Mesh CLI
 
-Solace Agent Mesh comes with a comprehensive CLI tool that you can use to create, build, and run an instance of Solace Agent Mesh, which is referred to as a Solace Agent Mesh (SAM) application. The Solace Agent Mesh (SAM) CLI also allows you to add agents and gateways, update configurations, manage plugins, help you debug, and much more.
+Solace Agent Mesh comes with a comprehensive CLI tool that you can use to create, and run an instance of Solace Agent Mesh, which is referred to as a Solace Agent Mesh (SAM) application. The Solace Agent Mesh (SAM) CLI also allows you to add agents and gateways, manage plugins, help you debug, and much more.
 
 ## Installation
 
@@ -19,17 +19,6 @@ The SAM CLI is installed as part of the package for Solace Agent Mesh. For more 
 - You can get help on any command by running `solace-agent-mesh [COMMAND] --help`.
   :::
 
-## Usage
-
-### Global Options
-
-These options apply globally to all commands and provide basic information or customization options:
-
-```sh
-sam --version               # Displays the installed version of the CLI and exits.
-sam -c, --config-file PATH  # Specifies a custom configuration file to use.
-sam -h, --help              # Displays the help message and exits.
-```
 
 ## Commands
 
@@ -39,11 +28,11 @@ sam -h, --help              # Displays the help message and exits.
 sam init [OPTIONS]
 ```
 
-When this command is run with no options, it runs in interactive mode. It will first prompt you to choose between configuring your project in the terminal or through a browser-based interface.
+When this command is run with no options, it runs in interactive mode. It first prompts you to choose between configuring your project in the terminal or through a browser-based interface.
 
-If you choose to use the browser, the CLI starts a local web configuration portal, available at `http://127.0.0.1:5002`
+If you choose to use the browser, the SAM CLI starts a local web configuration portal, available at `http://127.0.0.1:5002`
 
-You can skip some questions by providing the appropriate options for that step during the CLI-based setup.
+You can skip some questions by providing the appropriate options for that step during the SAM CLI-based setup.
 
 Optionally, you can skip all the questions by providing the `--skip` option. This option uses the provided or default values for all the questions.
 
@@ -53,37 +42,48 @@ Use the `--skip` option and provide the necessary options to run the command in 
 
 ##### Options:
 
+- `--gui` – Launch the browser-based initialization interface directly, skipping the prompt. (Recommended way to configure SAM applications)
 - `--skip` – Runs in non-interactive mode, using default values where available.
-- `--use-web-based-init` - Launch the browser-based initialization interface directly, skipping the prompt.
-- `--namespace TEXT` – Defines a custom project namespace for better organization.
-- `--config-dir TEXT` – Specifies the base directory where configuration files are stored.
-- `--module-dir TEXT` – Sets the base directory for storing Python modules used in the system.
-- `--build-dir TEXT` – Defines the directory where build outputs are stored.
-- `--env-file TEXT` – Specifies the path to an environment file containing variable definitions.
-- `--broker-type TEXT` – Defines the broker type (options: container, solace, dev_broker).
-- `--broker-url TEXT` – Specifies the URL of the Solace broker for connectivity.
-- `--broker-vpn TEXT` – Defines the virtual private network (VPN) name used by the broker.
-- `--broker-username TEXT` – Sets the username for authenticating with the Solace broker.
-- `--broker-password TEXT` – Specifies the password required for broker authentication.
-- `--container-engine TEXT` – Defines which container engine to use (options: podman, docker).
-- `--llm-model-name TEXT` – Specifies the LLM model name to be used in AI-related functions.
-- `--llm-endpoint-url TEXT` – Sets the URL endpoint for the LLM model API.
-- `--llm-api-key TEXT` – Provides the necessary API key for accessing the LLM endpoint.
-- `--embedding-model-name TEXT` – Specifies the name of the embedding model to be used.
-- `--embedding-endpoint-url TEXT` – Defines the URL endpoint for embedding model queries.
-- `--embedding-api-key TEXT` – Provides the API key required for embedding model access.
-- `--built-in-agent TEXT` – [MULTI] Lists built-in agents to use, such as `global` or `image_processing`.
-- `--file-service-provider TEXT` – Specifies the file service provider (options: volume, bucket).
-- `--file-service-config TEXT` – Supplies key-value pairs for configuring file services.
-- `--env-var TEXT` – [MULTI] Defines key-value pairs to be included in the environment file.
-- `--rest-api-enabled` – Flag to enable the REST API interface.
-- `--rest-api-server-input-port TEXT` – Specifies the port number for the REST API server.
-- `--rest-api-server-host TEXT` – Sets the host address for the REST API server.
-- `--rest-api-server-input-endpoint TEXT` – Defines the endpoint path for REST API requests.
-- `--rest-api-gateway-name TEXT` – Sets the name for the REST API gateway.
-- `--webui-enabled` – Flag to enable the Web UI interface.
-- `--webui-listen-port TEXT` – Specifies the port number for the Web UI server.
-- `--webui-host TEXT` – Sets the host address for the Web UI server.
+- `--llm-service-endpoint TEXT` – LLM Service Endpoint URL.
+- `--llm-service-api-key TEXT` – LLM Service API Key.
+- `--llm-service-planning-model-name TEXT` – LLM Planning Model Name.
+- `--llm-service-general-model-name TEXT` – LLM General Model Name.
+- `--namespace TEXT` – Namespace for the project.
+- `--broker-type TEXT` – Broker type: 1/solace (existing), 2/container (new local), 3/dev (dev mode). Options: 1, 2, 3, solace, container, dev_mode, dev_broker, dev.
+- `--broker-url TEXT` – Solace broker URL endpoint.
+- `--broker-vpn TEXT` – Solace broker VPN name.
+- `--broker-username TEXT` – Solace broker username.
+- `--broker-password TEXT` – Solace broker password.
+- `--container-engine TEXT` – Container engine for local broker. Options: podman, docker.
+- `--dev-mode` – Shortcut to select dev mode for broker (equivalent to --broker-type 3/dev).
+- `--agent-name TEXT` – Agent name for the main orchestrator.
+- `--supports-streaming` – Enable streaming support for the agent.
+- `--session-service-type TEXT` – Session service type. Options: memory, vertex_rag.
+- `--session-service-behavior TEXT` – Session service behavior. Options: PERSISTENT, RUN_BASED.
+- `--artifact-service-type TEXT` – Artifact service type. Options: memory, filesystem, gcs.
+- `--artifact-service-base-path TEXT` – Artifact service base path (for filesystem type).
+- `--artifact-service-scope TEXT` – Artifact service scope. Options: namespace, app, custom.
+- `--artifact-handling-mode TEXT` – Artifact handling mode. Options: ignore, embed, reference.
+- `--enable-embed-resolution` – Enable embed resolution.
+- `--enable-artifact-content-instruction` – Enable artifact content instruction.
+- `--enable-builtin-artifact-tools` – Enable built-in artifact tools.
+- `--enable-builtin-data-tools` – Enable built-in data tools.
+- `--agent-card-description TEXT` – Agent card description.
+- `--agent-card-default-input-modes TEXT` – Agent card default input modes (comma-separated).
+- `--agent-card-default-output-modes TEXT` – Agent card default output modes (comma-separated).
+- `--agent-discovery-enabled` – Enable agent discovery.
+- `--agent-card-publishing-interval INTEGER` – Agent card publishing interval (seconds).
+- `--inter-agent-communication-allow-list TEXT` – Inter-agent communication allow list (comma-separated, use * for all).
+- `--inter-agent-communication-deny-list TEXT` – Inter-agent communication deny list (comma-separated).
+- `--inter-agent-communication-timeout INTEGER` – Inter-agent communication timeout (seconds).
+- `--add-webui-gateway` – Add a default Web UI gateway configuration.
+- `--webui-session-secret-key TEXT` – Session secret key for Web UI.
+- `--webui-fastapi-host TEXT` – Host for Web UI FastAPI server.
+- `--webui-fastapi-port INTEGER` – Port for Web UI FastAPI server.
+- `--webui-enable-embed-resolution` – Enable embed resolution for Web UI.
+- `--webui-frontend-welcome-message TEXT` – Frontend welcome message for Web UI.
+- `--webui-frontend-bot-name TEXT` – Frontend bot name for Web UI.
+- `--webui-frontend-collect-feedback` – Enable feedback collection in Web UI.
 - `-h, --help` – Displays the help message and exits.
 
 ### `add` - Create a New Component
@@ -98,7 +98,36 @@ sam add [agent|gateway] [OPTIONS] NAME
 
 Use `agent` to add an agent component.
 
-- `-c, --copy-from TEXT` – Copies the configuration from an existing plugin for easier setup. (e.g., `--copy-from my-plugin:my-agent`)
+```sh
+sam add agent [OPTIONS] [NAME]
+```
+
+##### Options:
+
+- `--gui` – Launch the browser-based configuration interface for agent setup. (Recommended way to configure agents)
+- `--skip` – Skip interactive prompts and use defaults (SAM CLI mode only).
+- `--namespace TEXT` – A2A namespace (for example, myorg/dev).
+- `--supports-streaming BOOLEAN` – Enable streaming support.
+- `--model-type TEXT` – Model type for the agent. Options: planning, general, image_gen, report_gen, multimodal, gemini_pro.
+- `--instruction TEXT` – Custom instruction for the agent.
+- `--session-service-type TEXT` – Session service type. Options: memory, vertex_rag.
+- `--session-service-behavior TEXT` – Session service behavior. Options: PERSISTENT, RUN_BASED.
+- `--artifact-service-type TEXT` – Artifact service type. Options: memory, filesystem, gcs.
+- `--artifact-service-base-path TEXT` – Base path for filesystem artifact service.
+- `--artifact-service-scope TEXT` – Artifact service scope. Options: namespace, app, custom.
+- `--artifact-handling-mode TEXT` – Artifact handling mode. Options: ignore, embed, reference.
+- `--enable-embed-resolution BOOLEAN` – Enable embed resolution.
+- `--enable-artifact-content-instruction BOOLEAN` – Enable artifact content instruction.
+- `--enable-builtin-artifact-tools BOOLEAN` – Enable built-in artifact tools.
+- `--enable-builtin-data-tools BOOLEAN` – Enable built-in data tools.
+- `--agent-card-description TEXT` – Description for the agent card.
+- `--agent-card-default-input-modes-str TEXT` – Comma-separated default input modes for agent card.
+- `--agent-card-default-output-modes-str TEXT` – Comma-separated default output modes for agent card.
+- `--agent-card-publishing-interval INTEGER` – Agent card publishing interval in seconds.
+- `--agent-discovery-enabled BOOLEAN` – Enable agent discovery.
+- `--inter-agent-communication-allow-list-str TEXT` – Comma-separated allow list for inter-agent communication.
+- `--inter-agent-communication-deny-list-str TEXT` – Comma-separated deny list for inter-agent communication.
+- `--inter-agent-communication-timeout INTEGER` – Timeout in seconds for inter-agent communication.
 - `-h, --help` – Displays the help message and exits.
 
 For more information, see [Agents](../concepts/agents.md).
@@ -107,29 +136,26 @@ For more information, see [Agents](../concepts/agents.md).
 
 Use `gateway` to add a gateway component.
 
-- `-i, --interface TEXT` – Adds interfaces (e.g., `--interface rest-api`) to expand functionality.
-- `-c, --copy-from TEXT` – Copies configuration from an existing plugin for quick deployment. (e.g., `--copy-from my-plugin:my-gateway`)
+```sh
+sam add gateway [OPTIONS] [NAME]
+```
+
+##### Options:
+
+- `--gui` – Launch the browser-based configuration interface for gateway setup. (Recommended way to configure gateways)
+- `--skip` – Skip interactive prompts and use defaults (SAM CLI mode only).
+- `--namespace TEXT` – A2A namespace for the gateway (for example, myorg/dev).
+- `--gateway-id TEXT` – Custom Gateway ID for the gateway.
+- `--artifact-service-type TEXT` – Artifact service type for the gateway. Options: memory, filesystem, gcs.
+- `--artifact-service-base-path TEXT` – Base path for filesystem artifact service (if type is 'filesystem').
+- `--artifact-service-scope TEXT` – Artifact service scope (if not using default shared artifact service). Options: namespace, app, custom.
+- `--system-purpose TEXT` – System purpose for the gateway (can be multi-line).
+- `--response-format TEXT` – Response format for the gateway (can be multi-line).
 - `-h, --help` – Displays the help message and exits.
 
 For more information, see [Gateways](../concepts/gateways.md).
 
-### `build` - Build a SAM Application
 
-To build an instance of Solace Agent Mesh (a SAM application), use the `build` command.
-
-```sh
-sam build [OPTIONS]
-```
-
-:::note
-The `build` command runs the `init` command if the file `solace-agent-mesh.yaml` is not found in the project root directory. You can skip running the `init` by providing the `-N` or `--no-init` option.
-:::
-
-##### Options:
-
-- `-y` – Skips confirmation prompts for automated workflows. (Adds `--skip` for `init` command as well)
-- `-N, --no-init` – Prevents running `init` automatically if not already executed.
-- `-h, --help` – Displays the help message and exits.
 
 ### `run` - Run the SAM Application
 
@@ -142,13 +168,7 @@ sam run [OPTIONS] [FILES]...
 :::info[Environment variables]
 The `sam run` command automatically loads environment variables from your configuration file (typically a `.env` file at the project root) by default.
 
-If you want to use your system's environment variables instead, you can add the `-u` or `--use-system-env` option.
-:::
-
-:::tip[none to run]
-The `run` command includes built-in dependency handling. If the build directory is missing, it automatically executes the `build` command. Similarly, if the configuration file is not found, it automatically executes the `init` command.
-
-To quickly get started, you can simply use the `run` command without manually executing `build` or `init`. To use default values during the `build` and `init` phases, add the `-q` or `--quick-build` option.
+If you want to use your system's environment variables instead, you can add the `-u` or `--system-env` option.
 :::
 
 While running the `run` command, you can also skip specific files by providing the `-s` or `--skip` option.
@@ -158,59 +178,33 @@ Or, you can only run the provided files by providing them as arguments. You migh
 For example:
 
 ```sh
-solace-agent-mesh run build/configs/config1.yaml build/configs/config2.yaml
+solace-agent-mesh run configs/config1.yaml configs/config2.yaml
 ```
 
 ##### Options:
 
-- `-u, --use-system-env` – Loads environment variables from your system instead of from the configuration file.
-- `-s, --skip TEXT` – Skips specified files during execution.
-- `-q, --quick-build` – Uses default behavior for `init` and `build` steps.
-- `-i, --ignore-build` – Skips `build` if the build directory is missing.
-- `-b, --force-build` – Forces `build` execution before running the SAM application.
+- `-u, --system-env` – Use system environment variables only; do not load .env file.
+- `-s, --skip TEXT` – File name(s) to exclude from the run (for example, -s my_agent.yaml).
 - `-h, --help` – Displays the help message and exits.
 
-### `chat` - Chat with a SAM Application
+### `docs` - Serve the documentation locally
 
-The `chat` command allows starting a chat with the SAM application using command line interface.
-
-```sh
-sam chat [COMMAND] [OPTIONS]
-```
-
-#### `login` - Authenticate to a SAM
-
-Authenticate to the Solace Agent Mesh application.
+Serves the project documentation on a local web server.
 
 ```sh
-sam chat login SERVER
+sam docs [OPTIONS]
 ```
 
-The `SERVER` is the authentication server.
+This command starts a web server to host the documentation, which is useful for offline viewing or development. By default, it serves the documentation at `http://localhost:8585/solace-agent-mesh/` and automatically opens your web browser to the getting started page.
 
-#### `logout` - Log out from a SAM
-
-Log out from the Solace Agent Mesh application and remove tokens.
-
-```sh
-sam chat logout
-```
-
-#### `start` - Establish a chat with a SAM
-
-Start a chat session with the Solace Agent Mesh application.
-
-```sh
-sam chat start [OPTIONS]
-```
+If a requested page is not found, it will redirect to the main documentation page.
 
 ##### Options:
 
-- `-s, --stream` – Enables streaming mode. (default is non-streaming mode)
-- `-f, --file TEXT` – The path of attached file.
-- `-a, --auth` – Enables authentication.
-- `-u, --url` TEXT` – The chat service provider url.
-- `-h, --help` – Displays the help message and exits.
+-   `-p, --port INTEGER` – Port to run the web server on. (default: 8585)
+-   `-h, --help` – Displays the help message and exits.
+
+
 
 ### `plugin` - Manage Plugins
 
@@ -220,7 +214,7 @@ The `plugin` command allows you to manage plugins for SAM application.
 sam plugin [COMMAND] [OPTIONS]
 ```
 
-For more information, see [Plugins](../concepts/plugins/index.md).
+For more information, see [Plugins](../concepts/plugins.md).
 
 #### `create` - Create a Plugin
 
@@ -238,10 +232,12 @@ Optionally, you can skip all the questions by providing the `--skip` option. Thi
 
 ##### Options:
 
-- `-s, --skip` – Runs in non-interactive mode, using default values where applicable.
-- `-n, --name TEXT` – Plugin name. (A path if it shouldn't be created in the current directory)
-- `-d, --description TEXT` – Plugin description.
-- `-a, --author TEXT` – Plugin author.
+- `--type TEXT` – Plugin type. Options: agent, gateway, custom.
+- `--author-name TEXT` – Author's name.
+- `--author-email TEXT` – Author's email.
+- `--description TEXT` – Plugin description.
+- `--version TEXT` – Initial plugin version.
+- `--skip` – Skip interactive prompts and use defaults or provided flags.
 - `-h, --help` – Displays the help message and exits.
 
 #### `build` - Build the Plugin
@@ -249,77 +245,41 @@ Optionally, you can skip all the questions by providing the `--skip` option. Thi
 Compiles and prepares the plugin for use.
 
 ```sh
-sam plugin build [OPTIONS]
+sam plugin build [PLUGIN_PATH]
 ```
+
+Builds the SAM plugin in the specified directory (defaults to current directory).
 
 ##### Options:
 
+- `PLUGIN_PATH` – Path to the plugin directory (defaults to current directory).
 - `-h, --help` – Displays the help message and exits.
 
 #### `add` - Add an Existing Plugin
 
-Adds an existing plugin to the configuration for Solace Agent Mesh.
+Creates a new component instance from a specified plugin source.
 
 ```sh
-sam plugin add [OPTIONS] NAME
+sam plugin add [OPTIONS] COMPONENT_NAME
 ```
 
 ##### Options:
 
-- `--add-all` – Adds the plugin with the default of loading all exported files from the plugin.
-- `--pip` – Install with pip.
-- `--uv` - Install with uv pip.
-- `--poetry` – Install with poetry.
-- `--conda` – Install with conda.
-- `-u, --from-url TEXT` – Install the plugin from a given URL instead of the given name. The URL can be a file path or a Git URL.
+- `--plugin TEXT` – Plugin source: installed module name, local path, or Git URL. (Required)
+- `--install-command TEXT` – Command to use to install a python package. Must follow the format `command {package} args`, by default `pip3 install {package}`. Can also be set through the environment variable SAM_PLUGIN_INSTALL_COMMAND.
 - `-h, --help` – Displays the help message and exits.
 
-#### `remove` - Remove an Installed Plugin
+#### `catalog` - Launch Plugin Catalog
 
-Removes an installed plugin from the system.
+Launch the SAM Plugin Catalog web interface.
 
 ```sh
-sam plugin remove [OPTIONS] NAME
+sam plugin catalog [OPTIONS]
 ```
 
 ##### Options:
 
-- `--pip-uninstall` – Removes the plugin module using pip.
-- `--uv-uninstall` – Removes the plugin module using uv pip.
-- `--poetry-uninstall` – Removes the plugin module using poetry.
-- `--conda-uninstall` – Removes the plugin module using conda.
+- `--port INTEGER` – Port to run the plugin catalog web server on. (default: 5003)
+- `--install-command TEXT` – Command to use to install a python package. Must follow the format `command {package} args`.
 - `-h, --help` – Displays the help message and exits.
 
-### `visualize` - Run a Web GUI Visualizer
-
-Runs a web GUI visualizer for inspecting stimuli inside Solace Agent Mesh.
-
-```sh
-sam visualize [OPTIONS]
-```
-
-##### Options:
-
-- `-p, --port INTEGER` – Specifies the port number for the web GUI.
-- `-f, --find-unused-port` – Automatically selects the next available port if the specified one is in use.
-- `-h, --host` – Exposes the visualizer to the network.
-- `-e, --use-env` – Loads environment variables from the configuration file.
-- `--help` – Displays the help message and exits.
-
-For more information, see [Observability](../deployment/observability.md).
-
-### `config` - Update the Configuration File
-
-Updates the `solace-agent-mesh.yaml` configuration file with the latest default settings.
-
-```sh
-sam config [OPTIONS]
-```
-
-You only need to run the command when a new version of Solace Agent Mesh is released, and you want to update your configuration file to include the latest settings and options.
-
-##### Options:
-
-- `-h, --help` – Displays the help message and exits.
-
-For more information, see [Configuration](../getting-started/configuration.md).

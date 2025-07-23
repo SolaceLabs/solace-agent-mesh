@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
 type ToggleProps = {
   id: string;
@@ -7,7 +7,12 @@ type ToggleProps = {
   disabled?: boolean;
 };
 
-export default function Toggle({ id, checked, onChange, disabled = false }: ToggleProps) {
+export default function Toggle({
+  id,
+  checked,
+  onChange,
+  disabled = false,
+}: ToggleProps) {
   const [isChecked, setIsChecked] = useState(checked);
 
   useEffect(() => {
@@ -24,8 +29,8 @@ export default function Toggle({ id, checked, onChange, disabled = false }: Togg
 
   return (
     <div className="inline-block">
-      <label 
-        htmlFor={id} 
+      <label
+        htmlFor={id}
         className="relative inline-flex items-center cursor-pointer"
       >
         <input
@@ -37,21 +42,21 @@ export default function Toggle({ id, checked, onChange, disabled = false }: Togg
           disabled={disabled}
           className="sr-only"
         />
-        <div 
+        <div
           className={`
             relative w-11 h-6 rounded-full transition-colors duration-300 ease-in-out
-            ${isChecked ? 'bg-solace-green' : 'bg-gray-300'}
-            ${disabled ? 'opacity-50' : ''}
+            ${isChecked ? "bg-solace-green" : "bg-gray-300"}
+            ${disabled ? "opacity-50" : ""}
           `}
         >
-          <span 
+          <span
             className={`
               absolute top-1 left-1 bg-white w-4 h-4 rounded-full shadow transform transition-transform duration-300 ease-in-out
-              ${isChecked ? 'translate-x-5' : 'translate-x-0'}
+              ${isChecked ? "translate-x-5" : "translate-x-0"}
             `}
           />
         </div>
-        <span className="sr-only">{isChecked ? 'Enabled' : 'Disabled'}</span>
+        <span className="sr-only">{isChecked ? "Enabled" : "Disabled"}</span>
       </label>
     </div>
   );

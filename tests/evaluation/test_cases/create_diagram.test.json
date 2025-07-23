@@ -1,0 +1,13 @@
+{
+    "test_case_id": "create_diagram",
+    "category": "Content Generation",
+    "description": "A test case to create a diagram.",
+    "query": "Create a sequence diagram with the following syntax: sequenceDiagram; A->>B: Hello B, how are you?; B-->>A: I am good thanks!",
+    "target_agent": "OrchestratorAgent",
+    "wait_time": 60,
+    "evaluation": {
+        "expected_tools": ["peer_MermaidAgent"],
+        "expected_response": "I have created the sequence diagram as requested.",
+        "criterion": "Evaluate if the agent successfully uses the MermaidAgent to create a mermaid diagram and confirms task completion."
+    }
+}

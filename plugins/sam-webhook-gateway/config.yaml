@@ -1,0 +1,188 @@
+# Plugin Metadata:
+# Name: sam-webhook-gateway
+# Version: 0.1.0
+# Description: A Universal Webhook Gateway for the Solace Agent Mesh that allows external systems to trigger A2A (Agent-to-Agent) tasks via HTTP webhooks.
+# Author: SolaceLabs <solacelabs@solace.com>
+#
+#
+# Environment Variables for Endpoint Secrets (examples):
+# - INGEST_API_TOKEN
+# - LOG_USER
+# - LOG_PASSWORD
+# - ALERT_API_KEY
+# - IMAGE_UPLOAD_SECRET
+
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: __COMPONENT_KEBAB_CASE_NAME__.log
+
+# To use the `shared_config.yaml` file, uncomment the following line and remove the `shared_config` section below.
+# !include ../shared_config.yaml
+
+shared_config:
+  - broker_connection: &broker_connection
+      dev_mode: ${SOLACE_DEV_MODE, false}
+      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8080}
+      broker_username: ${SOLACE_BROKER_USERNAME, default}
+      broker_password: ${SOLACE_BROKER_PASSWORD, default}
+      broker_vpn: ${SOLACE_BROKER_VPN, default}
+      temporary_queue: ${USE_TEMPORARY_QUEUES, true}
+
+  - services:
+    # Default artifact service configuration
+    artifact_service: &default_artifact_service
+      type: "filesystem"
+      base_path: "/tmp/samv2"
+      artifact_scope: namespace # Or "namespace", "app", "custom"
+
+apps:
+  # --- App Definition ---
+  - name: __COMPONENT_PASCAL_CASE_NAME____app # Unique name for this gateway app instance
+    app_module: sam_webhook_gateway.app # Points to the plugin's App class
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: "${NAMESPACE}" 
+      gateway_id: __COMPONENT_KEBAB_CASE_NAME__-gw-01
+      artifact_service: *default_artifact_service
+
+      authorization_service:
+        type: "none" # Or "default_rbac"
+
+      system_purpose: >
+            The system is an AI Chatbot with agentic capabilities.
+            It will use the agents available to provide information,
+            reasoning and general assistance for the users in this system.
+            **Always return useful artifacts and files that you create to the user.**
+            Provide a status update before each tool call.
+            Your external name is Agent Mesh.
+
+      response_format: >
+            Responses should be clear, concise, and professionally toned.
+            Format responses to the user in Markdown using appropriate formatting.
+
+      # --- WebhookGatewayApp Specific Config ---
+      webhook_server_host: ${__COMPONENT_UPPER_SNAKE_CASE_NAME___DB_HOST, "0.0.0.0"} 
+      webhook_server_port: ${__COMPONENT_UPPER_SNAKE_CASE_NAME___DB_PORT, 8088}       
+      cors_allowed_origins: ["*"]    # Or specify origins like ["http://localhost:3000", "https://myfrontend.com"]
+
+
+      ############################
+      #  UPDATE REQUIRED - START #
+      ############################
+
+      webhook_endpoints:
+        # --- Endpoint 1: Simple JSON payload, no auth ---
+        - path: "/hooks/simple_json_event"
+          method: "POST" 
+          target_agent_name: "echo_agent" # Agent that echoes back input
+          payload_format: "json" 
+          input_template: "Received JSON event. User: {{text://input.payload:user_name}}, Value: {{text://input.payload:value}}. From IP: {{text://user_data.client_host}}"
+          auth:
+            type: "none"
+          # assumed_user_identity: "public_json_endpoint_user" # Optional
+
+        # --- Endpoint 2: YAML payload, token auth in header ---
+        - path: "/hooks/yaml_data_feed"
+          method: "PUT"
+          target_agent_name: "data_processor_agent"
+          payload_format: "yaml"
+          input_template: "Processing YAML data for source: {{text://input.payload:metadata:source_system}}. Record count: {{text://input.payload:records.#}}"
+          auth:
+            type: "token"
+            token_config:
+              location: "header"
+              name: "X-Auth-Token" # Case-insensitive header name matching
+              value: "${YAML_FEED_TOKEN}" # Store actual token in this env var
+          assumed_user_identity: "yaml_feed_service"
+          save_payload_as_artifact: false
+
+        # --- Endpoint 3: Text payload, basic auth, save payload as artifact ---
+        - path: "/hooks/log_message"
+          method: "POST"
+          target_agent_name: "log_archiver_agent"
+          payload_format: "json"
+          input_template: "Archive log message. Source: {{text://user_data.headers:x-log-source}}. Artifact URI: {{text://user_data.webhook_payload_artifact_uri}}"
+          auth:
+            type: "none"
+            basic_auth_config:
+              credentials: "${LOG_USER}:${LOG_PASSWORD}" # e.g., "logger_user:secret_pass"
+          assumed_user_identity: "edward.funnekotter@solace.com"
+          save_payload_as_artifact: true
+          artifact_filename_template: "{{text://user_data.headers:x-log-source}}_{{text://input.user_properties:correlation_id}}.log"
+          artifact_mime_type_override: "text/plain; charset=utf-8"
+
+        # --- Endpoint 4: GET request with query params, token auth in query ---
+        - path: "/hooks/trigger_alert"
+          method: "GET"
+          target_agent_name: "alerting_agent"
+          payload_format: "text" # GET requests typically don't have bodies; payload will be empty.
+          input_template: "Trigger alert: Severity {{text://input.user_properties:severity | default:'INFO'}}. Message: {{text://input.user_properties:message}}. Triggered by: {{text://user_data.headers:user-agent}}"
+          auth:
+            type: "token"
+            token_config:
+              location: "query_param"
+              name: "apikey"
+              value: "${ALERT_API_KEY}"
+          # No assumed_user_identity, will use a generic token user ID
+
+        # --- Endpoint 5: Form data with file uploads ---
+        - path: "/hooks/submit_report"
+          method: "POST"
+          target_agent_name: "report_processor_agent"
+          payload_format: "form_data"
+          # save_payload_as_artifact: true # If true, non-file fields also saved as 'form_fields.json'
+          input_template: |
+            Process submitted report.
+            Report Title: {{text://input.payload:report_title}}
+            Submitter: {{text://input.payload:submitter_email}}
+            {{#if user_data.uploaded_files}}
+            Uploaded Files:
+            {{#each user_data.uploaded_files}}
+            - {{this.filename}} ({{this.mime_type}}): {{this.uri}} (Size: {{this.size}} bytes)
+            {{/each}}
+            {{else}}
+            No files uploaded.
+            {{/if}}
+            {{#if user_data.webhook_payload_artifact_uri}}
+            (Form fields also saved as artifact: {{text://user_data.webhook_payload_artifact_uri}})
+            {{/if}}
+          auth:
+            type: "none" # Example: internal service, or auth handled by network rules
+          assumed_user_identity: "report_submitter_system"
+
+        # --- Endpoint 6: Binary payload (e.g., image upload) ---
+        - path: "/hooks/upload_image"
+          method: "POST"
+          target_agent_name: "image_analysis_agent"
+          payload_format: "binary" # Payload is always saved as artifact
+          # save_payload_as_artifact: true # Implicitly true for 'binary'
+          artifact_filename_template: "images/{{invoke:uuid.uuid4.hex}}.jpg" # Example: use properties if available, e.g. {{text://input.user_properties:image_id}}
+          artifact_mime_type_override: "image/jpeg" # Helpful if Content-Type header might be missing/wrong
+          input_template: "Analyze uploaded image. Artifact URI: {{text://user_data.binary_payload_artifact_uri}}. Original filename from Content-Disposition (if any): {{text://user_data.headers:content-disposition}}"
+          auth:
+            type: "token"
+            token_config:
+              location: "header"
+              name: "X-Device-Signature" # Example: could be a signature or simple token
+              value: "${IMAGE_UPLOAD_SECRET}"
+          assumed_user_identity: "iot_device_uploader"
+
+        # --- Endpoint 7: XML payload treated as text, saved as artifact ---
+        - path: "/hooks/process_xml_order"
+          method: "POST"
+          target_agent_name: "order_parser_agent"
+          payload_format: "xml" # Treated as text for payload, but can be saved as artifact
+          input_template: "Process XML order. Artifact URI: {{text://user_data.webhook_payload_artifact_uri}}. Order ID from query: {{text://input.user_properties:orderId}}"
+          auth:
+            type: "none"
+          save_payload_as_artifact: true
+          artifact_filename_template: "orders/{{text://input.user_properties:orderId | default:'unknown_order'}}.xml"
+          # artifact_mime_type_override: "application/xml" # Can be set if needed
+
+      ##########################
+      #  UPDATE REQUIRED - END #
+      ##########################

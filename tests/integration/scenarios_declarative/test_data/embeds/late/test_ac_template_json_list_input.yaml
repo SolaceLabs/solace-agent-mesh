@@ -1,0 +1,22 @@
+test_case_id: "embed_ac_template_json_list_input_001"
+description: "Tests «artifact_content:items.json>>>apply_to_template:list.mustache>>>format:html»."
+skip_intermediate_events: true
+setup_artifacts:
+  - filename: "items.json"
+    mime_type: "application/json"
+    content: '[{"val":"X"},{"val":"Y"}]'
+  - filename: "list.mustache"
+    mime_type: "text/mustache"
+    content: "<ul>{{#items}}<li>{{val}}</li>{{/items}}</ul>"
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_late_tester@example.com"
+  parts: [{type: "text", text: "Render items.json with list.mustache"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "Result: «artifact_content:items.json>>>apply_to_template:list.mustache>>>format:html»"}}]
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "Result: <ul><li>X</li><li>Y</li></ul>"

@@ -1,0 +1,99 @@
+test_case_id: "builtin_extract_content_small_ignores_output_base_001"
+description: |
+  Tests 'extract_content_from_artifact' when extracted content is small
+  and 'output_filename_base' is provided but should be ignored (no save occurs).
+  Assumes save_threshold_bytes=50.
+skip_intermediate_events: true
+
+# tool_output_save_threshold_bytes: 50 (implicitly by agent config)
+
+setup_artifacts:
+  - filename: "source_for_small_extract.txt"
+    content: "This is a short source document." # Length 30
+    mime_type: "text/plain"
+    metadata:
+      description: "Source for small extract, output_filename_base test."
+      mime_type: "text/plain"
+      size_bytes: 30
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_extract_tester_thresholds@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Get the keywords from 'source_for_small_extract.txt'."
+  external_context:
+    a2a_session_id: "session_extract_small_ignore_base_001"
+
+llm_interactions:
+  # 1. Agent LLM calls extract_content_from_artifact with output_filename_base
+  - step_id: "agent_llm_calls_extract_tool_with_output_base"
+    static_response:
+      id: "chatcmpl-extract-smallig-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_extract_smallig"
+                type: "function"
+                function:
+                  name: "extract_content_from_artifact"
+                  arguments: '{"filename": "source_for_small_extract.txt", "extraction_goal": "Extract keywords.", "version": "0", "output_filename_base": "ignored_keywords_base"}'
+          finish_reason: "tool_calls"
+
+  # 2. Internal LLM returns small content (e.g., 25 bytes)
+  - step_id: "internal_llm_returns_small_content"
+    static_response:
+      id: "chatcmpl-extract-smallig-internal-1"
+      object: "chat.completion"
+      model: "test-llm-model-internal"
+      choices:
+        - message:
+            role: "assistant"
+            # Content < 50 bytes (save_threshold)
+            content: "short, source, document" # Length 25
+          finish_reason: "stop"
+      usage: {prompt_tokens: 30, completion_tokens: 5, total_tokens: 35}
+
+  # 3. Agent LLM receives the result from the tool
+  - step_id: "agent_llm_formulates_final_answer_small_extract"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success_content_returned" # Key status: content returned, not saved
+            extracted_data: "short, source, document"
+            source_filename: "source_for_small_extract.txt"
+            source_version_processed: 0
+            # IMPORTANT: saved_extracted_artifact_details should NOT be present
+            # We can't directly assert a key is NOT present with response_json_matches easily,
+            # but the status implies it.
+    static_response:
+      id: "chatcmpl-extract-smallig-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "The keywords are: short, source, document."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "The keywords are: short, source, document."
+    task_state: "completed"
+
+# No new artifact should be created.
+# We can check by trying to load an artifact with the ignored_keywords_base name and expecting it to fail,
+# but that's more complex. The absence of `expected_artifacts` for the new name is an implicit check.
+
+assert_artifact_state: # Original artifact should be unchanged
+  - filename: "source_for_small_extract.txt"
+    user_id: "declarative_extract_tester_thresholds@example.com"
+    session_id: "session_extract_small_ignore_base_001"
+    version: 0
+    expected_content_text: "This is a short source document."

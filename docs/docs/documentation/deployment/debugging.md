@@ -5,8 +5,8 @@ sidebar_position: 30
 
 # Debugging
 
-Debugging issues in Solace Agent Mesh starts with identifying the problem. You can monitor your system to better debug your system. For more information, see [Observability](./observability.md).
-The following sections provide common debugging approaches to help you to diagnose and resolve issues.
+Debugging issues in Solace Agent Mesh starts with identifying the problem. You can monitor your system to debug it more effectively. For more information, see [Observability](./observability.md).
+The following sections provide common debugging approaches to help you diagnose and resolve issues.
 
 ## Isolate Components
 
@@ -15,24 +15,14 @@ Running only the necessary components in isolation can help pinpoint issues. The
 For example:
 
 ```bash
-sam run build/configs/agent_my_tool_1.yaml build/configs/agent_my_tool_2.yaml
+sam run configs/agents/my_tool_1.yaml configs/agents/my_tool_2.yaml
 ```
 
-This command runs only the agents defined in `agent_my_tool_1.yaml` and `agent_my_tool_2.yaml`, reducing noise from unrelated components.
+This command runs only the agents defined in `my_tool_1.yaml` and `my_tool_2.yaml`, reducing noise from unrelated components.
 
 ## Examine STIM Files
 
-[STIM files](./observability.md#stimulus-logs) provide detailed traces of stimulus life cycles. If you have access to the storage location where the [File Service](../user-guide/advanced/services/file-service.md) stores these files, you can inspect them to analyze message flows.
-
-:::tip
-If you don’t have direct access to the File service storage, you can use the File service’s download method to retrieve STIM files:
-
-```python
-from solace_agent_mesh.common.constants import SOLACE_AGENT_MESH_SYSTEM_SESSION_ID
-```
-
-Use `SOLACE_AGENT_MESH_SYSTEM_SESSION_ID` as the session ID to download relevant STIM files.
-:::
+[STIM files](./observability.md#stimulus-logs) provide detailed traces of stimulus life cycles. If you have access to the storage location, you can inspect them to analyze message flows.
 
 Each `.stim` file contains all broker events related to a single stimulus, from the initial request to the final response.
 
@@ -42,7 +32,7 @@ For insights into message flows and event interactions, see [Broker Observabilit
 
 ## Debug Mode
 
-Since Solace Agent Mesh is a Python-based program and framework, you can run it in debug mode using an IDE with breakpoints.
+Because Solace Agent Mesh is a Python-based framework, you can run it in debug mode using an IDE with breakpoints.
 
 ### Debugging in VSCode
 
@@ -61,11 +51,8 @@ If you're using VSCode, configure debugging in `.vscode/launch.json`:
       "envFile": "${workspaceFolder}/.env",
       "args": [
         "run",
-        "-b",
-        "build/configs/orchestrator.yaml",
-        "build/configs/service_llm.yaml",
-        "build/configs/service_embedding.yaml",
-        "build/configs/agent_global.yaml"
+        "configs/agents/main_orchestrator.yaml",
+        "configs/gateways/webui.yaml"
         // Add any other components you want to run here
       ],
       "justMyCode": false
@@ -83,7 +70,7 @@ Set breakpoints in your code to pause execution and inspect variable states.
 
 ## Invoke the Agent Directly
 
-For debugging and testing, you can send direct messages to an agent using the PubSub+ event broker. This requires specifying the appropriate topic, user properties, and payload.
+For debugging and testing, you can send direct messages to an agent by directly selecting the agent in the web UI agent dropdown or by using the PubSub+ event broker. This requires specifying the appropriate topic, user properties, and payload.
 
 #### Tools for Sending Messages
 - **[Solace Try Me VSCode Extension](https://marketplace.visualstudio.com/items?itemName=solace-tools.solace-try-me-vsc-extension)**
@@ -94,34 +81,52 @@ For debugging and testing, you can send direct messages to an agent using the Pu
 **Topic**:
 
 ```
-[NAME_SPACES]solace-agent-mesh/v1/actionRequest/origin/agent/<agent_name>/<action_name>
+[NAME_SPACES]a2a/v1/agent/request/<agent_name>
 ```
 
 **User Properties**:
 
 ```
-session_id: test-0000
-stimulus_uuid: 0000000-0000-0000-0000-000000000000
+userId: test-0000
+clientId: test-0000
+replyTo: [NAME_SPACES]a2a/v1/gateway/response/0000000/task-0000000
+a2aUserConfig: {}
 ```
 
 **Payload**:
 
 ```json
 {
-    "agent_name": "<agent_name>",
-    "action_name": "<action_name>",
-    "action_params": {
-      "key": "action parameter"
-    },
-    "action_idx": 0,
-    "action_list_id": "0000000-0000-0000-0000-000000000000"
+    "jsonrpc": "2.0",
+    "id": "000000000",
+    "method": "tasks/sendSubscribe",
+    "params": {
+      "id": "task-0000000",
+      "sessionId": "web-session-00000000",
+      "message": {
+        "role": "user",
+        "parts": [
+          {
+            "type": "text",
+            "text": "Hello World!"
+          }
+        ]
+      },
+      "acceptedOutputModes": [
+        "text"
+      ],
+      "metadata": {
+        "system_purpose": "The system is an AI Chatbot with agentic capabilities. It uses the agents available to provide information, reasoning and general assistance for the users in this system. **Always return useful artifacts and files that you create to the user.** Provide a status update before each tool call. Your external name is Agent Mesh.\n",
+        "response_format": "Responses should be clear, concise, and professionally toned. Format responses to the user in Markdown using appropriate formatting.\n"
+      }
+  }
 }
 ```
 
 **Response Topic**:
 
 ```
-[NAME_SPACES]solace-agent-mesh/v1/actionResponse/agent/<agent_name>/<action_name>
+[NAME_SPACES]a2a/v1/gateway/response/0000000/task-0000000
 ```
 
 By sending a request and observing the response, you can verify an agent's behavior in isolation, making it easier to identify issues.
@@ -130,8 +135,5 @@ By sending a request and observing the response, you can verify an agent's behav
 
 System logs provide additional insights into the system's behavior. These logs are written to a log file at the root of the project directory.
 
-:::info
-The log level can be adjusted in the `solace-agent-mesh.yaml` configuration file. For more information, see [Configuration](../getting-started/configuration.md#build-settings).
-:::
 
-All input/output messages, warnings, and errors are logged to help your understanding of the the system's state and identify potential issues.
+All input/output messages, warnings, and errors are logged to help your understanding of the system's state and identify potential issues.

@@ -1,0 +1,45 @@
+test_case_id: edit_image_unsupported_format
+description: "Tests the tool with an unsupported input file format."
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "document.txt"
+    content: "This is not an image."
+    mime_type: "text/plain"
+
+gateway_input:
+  user_identity: "test_user@example.com"
+  target_agent_name: "TestAgent"
+  prompt: "Edit the image document.txt"
+  tool_names: ["edit_image_with_gemini"]
+  external_context:
+    a2a_session_id: "session_edit_image_unsupported_format"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_uf1"
+                type: "function"
+                function:
+                  name: "edit_image_with_gemini"
+                  arguments: '{"image_filename": "document.txt", "edit_prompt": "make it pretty"}'
+  - expected_request:
+      messages:
+        - role: "tool"
+          content_contains: "Unsupported image format"
+          tool_call_id: "call_uf1"
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I'm sorry, but the file 'document.txt' is not a supported image format. Please provide a valid image file."
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_contains: "I'm sorry, but the file 'document.txt' is not a supported image format. Please provide a valid image file."

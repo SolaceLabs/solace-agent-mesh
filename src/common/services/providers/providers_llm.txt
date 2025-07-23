@@ -1,0 +1,113 @@
+## Quick Summary
+This directory contains concrete implementations (providers) for the abstract services defined in the parent `services` package. These providers offer specific ways to fulfill service contracts, such as sourcing user identity information from a local file.
+
+## Files Overview
+- `__init__.py`: Marks the directory as a Python package.
+- `local_file_identity_service.py`: An identity service implementation that reads user data from a local JSON file.
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Initializes the `providers` package.
+**Import:** `from solace_ai_connector.common.services import providers`
+
+This file contains no public classes or functions.
+
+---
+
+### local_file_identity_service.py
+**Purpose:** Provides a simple, file-based identity service that reads user profiles from a local JSON file. It's ideal for development, testing, or small-scale deployments where a full-fledged identity provider is not available.
+**Import:** `from solace_ai_connector.common.services.providers.local_file_identity_service import LocalFileIdentityService`
+
+**Classes:**
+- `LocalFileIdentityService(config: Dict[str, Any])` - An identity service that sources user data from a local JSON file. The `config` dictionary must contain a `file_path` key.
+  - `async get_user_profile(auth_claims: Dict[str, Any]) -> Optional[Dict[str, Any]]` - Looks up a user profile from the in-memory index. The lookup is performed using the `lookup_key` (configured during initialization) present in the `auth_claims` dictionary.
+  - `async search_users(query: str, limit: int = 10) -> List[Dict[str, Any]]` - Performs a simple, case-insensitive search across user names and emails. Returns a list of matching user profiles.
+  - `file_path: str` - The path to the JSON file containing the user data.
+  - `lookup_key: str` - The key within the user profile objects and `auth_claims` used to identify a user. Defaults to `"id"`.
+  - `all_users: List[Dict[str, Any]]` - The complete list of all user profiles loaded from the file.
+  - `user_index: Dict[str, Dict[str, Any]]` - An in-memory dictionary mapping the `lookup_key` value to the corresponding user profile for fast lookups.
+
+**Usage Examples:**
+```python
+import asyncio
+import json
+import os
+from typing import Dict, Any, Optional, List
+
+# Assume this is the identity service class from the file
+from solace_ai_connector.common.services.providers.local_file_identity_service import LocalFileIdentityService
+
+# --- Setup: Create a dummy users.json for the example ---
+users_data = [
+  {
+    "id": "jdoe",
+    "email": "jane.doe@example.com",
+    "name": "Jane Doe",
+    "title": "Senior Engineer",
+    "manager_id": "ssmith"
+  },
+  {
+    "id": "ssmith",
+    "email": "sam.smith@example.com",
+    "name": "Sam Smith",
+    "title": "Engineering Manager",
+    "manager_id": None
+  }
+]
+file_path = "users.json"
+with open(file_path, "w") as f:
+    json.dump(users_data, f)
+# --- End Setup ---
+
+
+async def main():
+    # 1. Configure the service
+    # The 'file_path' is required. 'lookup_key' is optional (defaults to 'id').
+    config = {
+        "file_path": file_path,
+        "lookup_key": "id"
+    }
+
+    # 2. Initialize the service
+    identity_service = LocalFileIdentityService(config)
+    print(f"Service initialized. Loaded {len(identity_service.all_users)} users.")
+
+    # 3. Get a specific user profile
+    print("\n--- Getting user profile for id 'jdoe' ---")
+    auth_claims = {"id": "jdoe"}
+    profile = await identity_service.get_user_profile(auth_claims)
+    if profile:
+        print(f"Found profile: {profile}")
+    else:
+        print("Profile not found.")
+
+    # 4. Search for users by name
+    print("\n--- Searching for users with 'sam' in their name ---")
+    search_results = await identity_service.search_users(query="sam", limit=5)
+    print(f"Found {len(search_results)} user(s): {search_results}")
+
+    # 5. Handle a case where the user is not found
+    print("\n--- Getting user profile for non-existent id 'nobody' ---")
+    not_found_profile = await identity_service.get_user_profile({"id": "nobody"})
+    print(f"Profile for 'nobody': {not_found_profile}")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+    # Clean up the dummy file
+    os.remove(file_path)
+
+# Expected output:
+#
+# Service initialized. Loaded 2 users.
+#
+# --- Getting user profile for id 'jdoe' ---
+# Found profile: {'id': 'jdoe', 'email': 'jane.doe@example.com', 'name': 'Jane Doe', 'title': 'Senior Engineer', 'manager_id': 'ssmith'}
+#
+# --- Searching for users with 'sam' in their name ---
+# Found 1 user(s): [{'id': 'ssmith', 'name': 'Sam Smith', 'email': 'sam.smith@example.com', 'title': 'Engineering Manager'}]
+#
+# --- Getting user profile for non-existent id 'nobody' ---
+# Profile for 'nobody': None
+```

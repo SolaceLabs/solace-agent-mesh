@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.sam_rest_gateway.metadata]
+type = "gateway"
+
+[project]
+name = "sam_rest_gateway"
+version = "0.1.0"
+authors = [
+  { name="SolaceLabs", email="solacelabs@solace.com" },
+]
+description = "The Solace Agent Mesh (SAM) REST API Gateway provides a standard, robust, and secure HTTP-based entry point for programmatic and system-to-system integrations. It allows external clients to submit tasks to SAM agents, manage files, and discover agent capabilities using a familiar RESTful interface."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "solace_agent_mesh~=1.0.0",
+    # Add plugin-specific dependencies here
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sam_rest_gateway"]
+src-path = "src"
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/sam_rest_gateway" = "sam_rest_gateway/"
+"config.yaml" = "sam_rest_gateway/config.yaml"
+"README.md" = "sam_rest_gateway/README.md"
+"pyproject.toml" = "sam_rest_gateway/pyproject.toml"

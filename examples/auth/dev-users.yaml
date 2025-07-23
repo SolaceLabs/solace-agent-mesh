@@ -1,0 +1,9 @@
+# Development user assignments with permissive access
+# This configuration assigns the developer role to common development user patterns
+# DO NOT use this configuration in production environments
+
+users:
+  # SAM development user for explicit development access
+  sam_dev_user:
+    roles: ["developer"]
+    description: "SAM development user with full access for testing and development"

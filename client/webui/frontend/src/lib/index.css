@@ -1,0 +1,201 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  --radius: 0.625rem;
+  
+  /* Light theme - referencing Solace palette variables */
+  /* These variables are injected by applyCustomTheme() function */
+  --background: var(--color-background-w10);
+  --foreground: var(--color-primary-text-wMain);
+  --card: var(--color-background-w10);
+  --card-foreground: var(--color-primary-text-wMain);
+  --popover: var(--color-background-w10);
+  --popover-foreground: var(--color-primary-text-wMain);
+  --primary: var(--color-primary-wMain);
+  --primary-foreground: var(--color-primary-text-w10);
+  --secondary: var(--color-secondary-w10);
+  --secondary-foreground: var(--color-secondary-text-wMain);
+  --muted: var(--color-secondary-w10);
+  --muted-foreground: var(--color-secondary-text-wMain);
+  --accent: var(--color-secondary-w10);
+  --accent-foreground: var(--color-secondary-text-wMain);
+  --destructive: var(--color-error-wMain);
+  --border: var(--color-secondary-w40);
+  --input: var(--color-secondary-w40);
+  --ring: var(--color-brand-wMain);
+  --chart-1: var(--color-accent-n0-wMain);
+  --chart-2: var(--color-accent-n2-wMain);
+  --chart-3: var(--color-accent-n3-wMain);
+  --chart-4: var(--color-accent-n6-wMain);
+  --chart-5: var(--color-accent-n5-wMain);
+  --sidebar: var(--color-background-w20);
+  --sidebar-foreground: var(--color-primary-text-wMain);
+  --sidebar-primary: var(--color-primary-wMain);
+  --sidebar-primary-foreground: var(--color-primary-text-w10);
+  --sidebar-accent: var(--color-secondary-w10);
+  --sidebar-accent-foreground: var(--color-secondary-text-wMain);
+  --sidebar-border: var(--color-secondary-w40);
+  --sidebar-ring: var(--color-brand-wMain);
+  
+  /* Custom edge hover color for light theme */
+  --edge-hover-color: var(--color-secondary-w70);
+}
+
+.dark {
+  /* Dark theme - referencing Solace palette variables */
+  /* These variables are injected by applyCustomTheme() function */
+  --background: var(--color-background-w100);
+  --foreground: var(--color-primary-text-w10);
+  --card: var(--color-background-wMain);
+  --card-foreground: var(--color-primary-text-w10);
+  --popover: var(--color-background-wMain);
+  --popover-foreground: var(--color-primary-text-w10);
+  --primary: var(--color-primary-w60);
+  --primary-foreground: var(--color-primary-text-wMain);
+  --secondary: var(--color-secondary-w80);
+  --secondary-foreground: var(--color-secondary-text-w50);
+  --muted: var(--color-secondary-w80);
+  --muted-foreground: var(--color-secondary-text-w50);
+  --accent: var(--color-secondary-w80);
+  --accent-foreground: var(--color-secondary-text-w50);
+  --destructive: var(--color-error-w70);
+  --border: var(--color-secondary-w70);
+  --input: var(--color-secondary-w70);
+  --ring: var(--color-brand-w60);
+  
+  /* Custom edge hover color for dark theme */
+  --edge-hover-color: var(--color-secondary-w20);
+  
+  /* Custom shadow color for dark mode */
+  --shadow-color: var(--color-primary-w90);
+  --tw-shadow-colored: 0 4px 6px -1px var(--shadow-color), 0 2px 4px -2px var(--shadow-color);
+}
+
+/* Dark mode shadow override */
+.dark .hover\:shadow-md:hover {
+  --tw-shadow: var(--tw-shadow-colored);
+  box-shadow: var(--tw-shadow);
+}
+
+@layer base {
+  * {
+    @apply border-border focus-visible:border-0 focus-visible:ring-0 focus-visible:outline-1 focus-visible:outline-ring;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Rubik", sans-serif;
+    font-size: 14px;
+  }
+
+  /* Global scrollbar theming */
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-primary-w20) var(--color-background-w10);
+  }
+
+  .fade-both-mask {
+    position: relative;
+  }
+
+  .fade-both-mask::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(to top, rgba(255,255,255,0), var(--color-background-w10, white));
+    pointer-events: none;
+    z-index: 10;
+  }
+  
+  .fade-both-mask::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(to bottom, rgba(255,255,255,0), var(--color-background-w10, white));
+    pointer-events: none;
+    z-index: 10;
+  }
+  
+  .dark .fade-both-mask::before {
+    background: linear-gradient(to top, rgba(0,0,0,0), var(--color-background-w100, black));
+  }
+  
+  .dark .fade-both-mask::after {
+    background: linear-gradient(to bottom, rgba(0,0,0,0), var(--color-background-w100, black));
+  }
+
+  .dark * {
+    scrollbar-color: var(--color-primary-wMain) var(--color-background-w100);
+  }
+  /* Webkit browsers (Chrome, Safari, Edge) */
+  *::-webkit-scrollbar {
+    width: 8px; /* equivalent to w-2 */
+  }
+  
+  *::-webkit-scrollbar-track {
+    background-color: var(--color-background-w10);
+  }
+  
+  .dark *::-webkit-scrollbar-track {
+    background-color: var(--color-background-w100);
+  }
+  
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--color-primary-w20);
+    border-radius: 9999px; /* rounded-full */
+    border: 2px solid var(--color-primary-w20);
+  }
+  
+  .dark *::-webkit-scrollbar-thumb {
+    background-color: var(--color-primary-wMain);
+    border-color: var(--color-primary-wMain);
+  }
+}

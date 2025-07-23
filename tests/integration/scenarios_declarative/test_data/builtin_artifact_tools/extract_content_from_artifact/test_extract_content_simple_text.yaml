@@ -1,0 +1,97 @@
+test_case_id: "builtin_extract_content_simple_text_001"
+description: |
+  Tests 'extract_content_from_artifact' for a simple text extraction
+  where the extracted content is small and returned directly.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "source_to_extract.txt"
+    content: "The quick brown fox." # Length 20
+    mime_type: "text/plain"
+    metadata:
+      description: "Source text for extraction."
+      mime_type: "text/plain"
+      size_bytes: 20
+
+gateway_input:
+  target_agent_name: "TestAgent" # Assumes TestAgent is configured to use TestLLMServer for internal tool calls too
+  user_identity: "declarative_extract_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "From 'source_to_extract.txt', what color is the fox?"
+  external_context:
+    a2a_session_id: "session_extract_content_simple_001"
+
+llm_interactions:
+  # Interaction 1: Main agent's LLM decides to call the extract_content_from_artifact tool.
+  - step_id: "agent_llm_decides_to_call_extract_tool"
+    static_response:
+      id: "chatcmpl-extract-1"
+      object: "chat.completion"
+      model: "test-llm-model" # Main agent LLM
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_extract_content"
+                type: "function"
+                function:
+                  name: "extract_content_from_artifact"
+                  arguments: '{"filename": "source_to_extract.txt", "extraction_goal": "Identify the color of the fox.", "version": "0"}'
+          finish_reason: "tool_calls"
+
+  # Interaction 2: This is the mocked response for the *internal* LLM call
+  # made by the extract_content_from_artifact tool itself.
+  # The TestLLMServer will serve this when the tool calls it.
+  - step_id: "internal_llm_response_for_extraction_tool"
+    # No expected_request here as it's an internal call triggered by the tool.
+    # We assume the tool constructs its internal LLM prompt correctly based on artifact content and goal.
+    static_response:
+      id: "chatcmpl-extract-internal-1"
+      object: "chat.completion"
+      model: "test-llm-model" # Or specific model if tool config overrides
+      choices:
+        - message:
+            role: "assistant"
+            content: "brown" # The extracted color
+          finish_reason: "stop"
+      usage: {prompt_tokens: 50, completion_tokens: 1, total_tokens: 51} # Dummy usage
+
+  # Interaction 3: Main agent's LLM receives the tool's result (which contains "brown")
+  # and formulates the final answer.
+  - step_id: "agent_llm_formulates_final_answer"
+    expected_request: # After extract_content_from_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0 # Matches tool_call_extract_content
+          response_json_matches:
+            status: "success_content_returned" # Extracted data is small
+            extracted_data: "brown"
+            source_filename: "source_to_extract.txt"
+            # source_version_processed: 0 # This depends on how "latest" or int version is resolved
+    static_response:
+      id: "chatcmpl-extract-2"
+      object: "chat.completion"
+      model: "test-llm-model" # Main agent LLM
+      choices:
+        - message:
+            role: "assistant"
+            content: "The color of the fox is brown."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "The color of the fox is brown."
+    task_state: "completed"
+    assert_artifact_state:
+      # Source artifact should be unchanged
+      - filename: "source_to_extract.txt"
+        user_id: "declarative_extract_tester@example.com"
+        session_id: "session_extract_content_simple_001"
+        version: 0
+        expected_content_text: "The quick brown fox."
+        expected_metadata_contains:
+          mime_type: "text/plain"
+          size_bytes: 20
+      # No new artifact should be created in this scenario (extracted data is small)

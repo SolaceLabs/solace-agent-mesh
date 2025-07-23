@@ -1,0 +1,84 @@
+test_case_id: "builtin_apply_embed_csv_to_csv_001"
+description: |
+  Tests 'apply_embed_and_create_artifact' with a CSV source artifact and
+  the 'format:csv' directive. Expects the output artifact to be a CSV file
+  with content identical to the source (as no modifiers are applied).
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "source_data.csv"
+    content: |
+      Header1,Header2
+      Val1A,Val1B
+      Val2A,Val2B
+    mime_type: "text/csv"
+    metadata:
+      description: "CSV source for csv passthrough test"
+      mime_type: "text/csv"
+      # Size: H1,H2 (13+1) + V1A,V1B (10+1) + V2A,V2B (10) = 14+11+10 = 35
+      size_bytes: 41 # Length of the above content string including newlines
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_apply_embed_csv_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please process 'source_data.csv' as CSV and save it as 'output_data.csv'."
+  external_context:
+    a2a_session_id: "session_apply_embed_csv_to_csv_001"
+
+llm_interactions:
+  # Step 1: LLM calls apply_embed_and_create_artifact with format:csv
+  - step_id: "llm_calls_apply_embed_csv"
+    static_response:
+      id: "chatcmpl-applyembed-csv-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_apply_embed_csv"
+                type: "function"
+                function:
+                  name: "apply_embed_and_create_artifact"
+                  arguments: '{"output_filename": "output_data.csv", "embed_directive": "«artifact_content:source_data.csv>>>format:csv»"}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  - step_id: "llm_final_response_after_apply_embed_csv"
+    expected_request: # After apply_embed_and_create_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            output_filename: "output_data.csv"
+            output_version: 0
+            output_mime_type: "text/csv" # Determined by format:csv
+    static_response:
+      id: "chatcmpl-applyembed-csv-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Processed 'source_data.csv' and saved the result as 'output_data.csv'."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "Processed 'source_data.csv' and saved the result as 'output_data.csv'."
+    task_state: "completed"
+    assert_artifact_state:
+      # Check the newly created output artifact
+      - filename: "output_data.csv"
+        user_id: "declarative_apply_embed_csv_tester@example.com"
+        session_id: "session_apply_embed_csv_to_csv_001"
+        version: 0
+        expected_content_text: "Header1,Header2\r\nVal1A,Val1B\r\nVal2A,Val2B"
+        expected_metadata_contains:
+          mime_type: "text/csv"
+          size_bytes: 41 # Should match original if no transformation
+          source_directive: "«artifact_content:source_data.csv>>>format:csv»"

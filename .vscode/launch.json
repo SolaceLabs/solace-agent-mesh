@@ -1,60 +1,178 @@
 {
-  // Use IntelliSense to learn about possible attributes.
-  // Hover to view descriptions of existing attributes.
-  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "solace-agent-mesh",
-      "type": "debugpy",
-      "request": "launch",
-      // "program": ".venv/bin/solace-ai-connector",
-      "module": "cli.main",
-      "console": "integratedTerminal",
-      "args": [
-        "run",
-        "build/configs/orchestrator.yaml",
-        "build/configs/service_llm.yaml",
-        "build/configs/service_embedding.yaml",
-        "build/configs/agent_global.yaml",
-        "build/configs/agent_image_processing.yaml",
-        "build/configs/error_catcher.yaml",
-      ],
-      "justMyCode": false
-    },
-    {
-      "name": "monitor slack",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "cli.main",
-      "console": "integratedTerminal",
-      "args": [
-        "run",
-        "build/configs/orchestrator.yaml",
-        "configs/monitor_stim_and_errors_to_slack.yaml",
-        "configs/agent_slack.yaml",
-        "configs/error_catcher.yaml",
-      ],
-      "justMyCode": false
-    },
-    {
-      "name": "solace-agent-mesh - trace",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "solace_ai_connector.main",
-      "console": "integratedTerminal",
-      "args": [
-        "configs/conversation_to_file.yaml",
-      ],
-      "justMyCode": false
-    },
-    {
-      "name":"prompt-testing",
-      "type":"debugpy",
-      "request":"launch",
-      "program":"tools/prompt_tester.py",
-      "console":"integratedTerminal",
-      "args":["--env-file", ".env"]
-    },
-  ]
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "SAM",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml",
+            "justMyCode": false,
+        },
+        {
+            "name": "SAM (test)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml examples/test_agent.yaml examples/a2a_multimodal.yaml",
+            "justMyCode": false,
+        },
+        {
+            "name": "SAM (simple)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/a2a_orchestrator.yaml examples/webui_backend.yaml examples/test_agent.yaml",
+            "justMyCode": false,
+        },
+        {
+            "name": "SAM (with REST)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml examples/rest_gateway_example.yaml examples/test_agent.yaml examples/a2a_multimodal.yaml",
+            "justMyCode": false,
+        },
+        {
+            "name": "Employee",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/employee.yaml examples/webui_backend.yaml ",
+            "justMyCode": false,
+        },
+        {
+            "name": "Multimodal Agent (With UI)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/a2a_multimodal.yaml examples/webui_backend.yaml ",
+            "justMyCode": false,
+        },
+        {
+            "name": "Orchestrator",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/a2a_orchestrator.yaml",
+            "justMyCode": false,
+        },
+        {
+            "name": "Agents",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/a2a_agents.yaml",
+            "justMyCode": false,
+        },
+        {
+            "name": "MCP examples",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/a2a_mcp_example.yaml",
+            "justMyCode": false,
+        },
+        {
+            "name": "Slack",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/slack_gateway_example.yaml",
+            "justMyCode": false,
+        },
+        {
+            "name": "Webhook Gateway",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/webhook_gateway_example.yaml",
+            "justMyCode": false,
+        },
+        {
+            "name": "WebUI",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/webui_backend.yaml",
+            "justMyCode": false,
+        },
+        {
+            "name": "Full",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml",
+            "justMyCode": false,
+        },
+        {
+            "name": "Minimal",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/a2a_host_example.yaml examples/webui_backend.yaml",
+            "justMyCode": false,
+        },
+        {
+            "name": "Playwrite",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/a2a_mcp_example.yaml examples/webui_backend.yaml",
+            "justMyCode": false,
+        },
+        {
+            "name": "EM Gateway",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/sam_em_gateway.yaml examples/a2a_multimodal.yaml examples/a2a_orchestrator.yaml examples/webui_backend.yaml",
+            "justMyCode": false,
+        },
+        {
+            "name": "CLI",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.tools.a2a_cli_client.main",
+            "console": "integratedTerminal",
+            "args": "--env-file .env",
+            "justMyCode": false,
+        },
+        {
+            "name": "Python: Pytest",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/",
+                "-v",
+                "--tb=short"
+            ],
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "subProcess": true
+        },
+    ]
 }

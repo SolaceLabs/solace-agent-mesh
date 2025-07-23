@@ -1,0 +1,51 @@
+# tests/integration/scenarios_declarative/test_data/image_tools/describe_image/test_describe_image_file_not_found.yaml
+test_case_id: "describe_image_file_not_found"
+description: "Tests the tool's behavior when the requested image_filename does not exist."
+skip_intermediate_events: true
+
+# No setup_artifacts section, so no files are created.
+
+gateway_input:
+  user_prompt: "Please describe the image named 'non_existent_image.jpg'"
+  user_identity: "test_user@example.com"
+  target_agent_name: "TestAgent"
+  tool_names: ["describe_image"]
+
+llm_interactions:
+  # First LLM call: Agent decides to use the describe_image tool
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_describe_image_456"
+                type: "function"
+                function:
+                  name: "describe_image"
+                  arguments: '{"image_filename": "non_existent_image.jpg"}'
+    expected_request:
+      tools_present: ["describe_image"]
+
+  # Second LLM call: Agent processes the tool's error output
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "It seems there was an error. The image 'non_existent_image.jpg' could not be found."
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "error"
+            message: "Image artifact 'non_existent_image.jpg' not found."
+
+expected_gateway_output:
+  - type: "status_update"
+    event_purpose: "tool_invocation_start"
+    expected_tool_name: "describe_image"
+
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_contains: "The image 'non_existent_image.jpg' could not be found."

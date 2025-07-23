@@ -1,0 +1,43 @@
+## Quick Summary
+The `routers` directory contains FastAPI routers for the Universal Webhook Gateway. It is intended for any static or well-defined API endpoints the gateway might expose, such as health checks or administrative interfaces. Dynamic webhook endpoints are created directly in the main component, not here.
+
+## Files Overview
+- `__init__.py` - Initializes the `routers` directory as a Python package and documents its purpose.
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Initializes the `routers` directory as a Python package. This package serves as a container for FastAPI router modules.
+
+**Import:** `import sam_webhook_gateway.routers`
+
+**Classes:**
+None
+
+**Functions:**
+None
+
+**Constants/Variables:**
+None
+
+**Usage Examples:**
+This package itself does not export any members. It is a container for other router modules. A developer would import specific router objects from modules created within this directory and include them in a FastAPI application.
+
+```python
+# Hypothetical example assuming a 'health.py' router exists in this directory.
+
+# main_app.py
+from fastapi import FastAPI
+# from sam_webhook_gateway.routers.health import health_router # Hypothetical import
+
+app = FastAPI(
+    title="SAM Webhook Gateway",
+    description="A universal gateway for processing incoming webhooks.",
+)
+
+# The router would be included in the main FastAPI application
+# app.include_router(health_router, prefix="/management", tags=["Management"])
+
+# This allows for modular and organized routing. For example, a request to
+# /management/health would be handled by the health_router.
+```

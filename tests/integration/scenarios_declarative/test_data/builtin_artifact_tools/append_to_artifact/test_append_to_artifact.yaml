@@ -1,0 +1,96 @@
+test_case_id: "builtin_append_to_text_artifact_001"
+description: |
+  Tests the 'append_to_artifact' tool by appending a text chunk
+  to a pre-existing text artifact. Verifies new version creation,
+  content concatenation, and metadata updates.
+skip_intermediate_events: true
+
+# Setup an initial artifact directly in the TestInMemoryArtifactService
+setup_artifacts:
+  - filename: "append_target.txt"
+    content: "Line 1."
+    mime_type: "text/plain" # Sets the mime_type of the main artifact part
+    metadata: # This dictionary becomes the content of the .metadata.json file
+      description: "Initial content for append test"
+      mime_type: "text/plain" # Explicitly include for assertion via .metadata.json
+      size_bytes: 7         # Explicitly include for assertion via .metadata.json
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_append_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please append ' Line 2.' to the artifact 'append_target.txt'."
+  external_context:
+    a2a_session_id: "session_append_artifact_test_001"
+
+llm_interactions:
+  # Step 1: LLM decides to call append_to_artifact
+  - step_id: "llm_calls_append_to_artifact"
+    static_response:
+      id: "chatcmpl-append-artifact-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_append_chunk"
+                type: "function"
+                function:
+                  name: "append_to_artifact"
+                  arguments: '{"filename": "append_target.txt", "content_chunk": " Line 2.", "mime_type": "text/plain"}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  - step_id: "llm_final_response_after_append"
+    expected_request: # After append_to_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0 # From llm_interaction[0].tool_calls[0]
+          response_json_matches:
+            status: "success"
+            filename: "append_target.txt"
+            new_version: 1 # Expecting version 1 (original was v0 from setup)
+            # total_size_bytes: can be asserted if stable, e.g., length of "Line 1. Line 2."
+    static_response:
+      id: "chatcmpl-append-artifact-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Okay, I have appended ' Line 2.' to 'append_target.txt'. It is now version 1."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "Okay, I have appended ' Line 2.' to 'append_target.txt'. It is now version 1."
+    task_state: "completed"
+    assert_artifact_state:
+      # Check the initial artifact (version 0) - should be unchanged by append operation itself
+      - filename: "append_target.txt"
+        user_id: "declarative_append_tester@example.com"
+        session_id: "session_append_artifact_test_001"
+        version: 0
+        expected_content_text: "Line 1."
+        expected_metadata_contains:
+          mime_type: "text/plain" # Asserting the value from setup_artifacts.metadata
+          description: "Initial content for append test" # Asserting the value from setup_artifacts.metadata
+          size_bytes: 7         # Asserting the value from setup_artifacts.metadata
+
+      # Check the new artifact (version 1) - created by append
+      - filename: "append_target.txt"
+        user_id: "declarative_append_tester@example.com"
+        session_id: "session_append_artifact_test_001"
+        version: 1
+        expected_content_text: "Line 1. Line 2."
+        expected_metadata_contains:
+          mime_type: "text/plain" # Original MIME type preserved by append_to_artifact
+          appended_from_version: 0
+          appended_chunk_declared_mime_type: "text/plain"
+          size_bytes: 15 # "Line 1." (7) + " Line 2." (8) = 15
+          # Description from original metadata is not typically copied by append_to_artifact's save_artifact_with_metadata call,
+          # as it constructs new metadata. We can assert its absence or a new default if relevant.
+          # For now, not asserting 'description' for the appended version.

@@ -1,9 +1,14 @@
+import { readFileSync } from "fs";
+import { join } from "path";
 import { themes as prismThemes } from "prism-react-renderer";
 import type { Config } from "@docusaurus/types";
 import type * as Preset from "@docusaurus/preset-classic";
 
-// This runs in Node.js - Don't use client-side code here 
+// This runs in Node.js - Don't use client-side code here
 // https://docusaurus.io/docs/configuration
+
+const versionContent = readFileSync(join(__dirname, '..','cli','__init__.py'), 'utf-8');
+const version = versionContent.match(/__version__ = "([^"]+)"/)[1];
 
 const config: Config = {
   title: "Solace Agent Mesh",
@@ -131,7 +136,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Solace.`,
+      copyright: `Solace Agent Mesh. Copyright © ${new Date().getFullYear()} Solace. Version: ${version}`,
       logo: {
         alt: 'Solace Logo',
         src: 'img/solace-logo.png',

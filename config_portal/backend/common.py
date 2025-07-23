@@ -1,9 +1,7 @@
-default_options = {
-    "namespace": "",
-    "config_dir": "configs",
-    "module_dir": "modules",
-    "env_file": ".env",
-    "build_dir": "build",
+import sys
+
+INIT_DEFAULT = {
+    "namespace": "default_namespace",
     "broker_type": "solace",
     "broker_url": "ws://localhost:8008",
     "broker_vpn": "default",
@@ -13,23 +11,65 @@ default_options = {
     "llm_model_name": "openai/gpt-4o",
     "llm_endpoint_url": "https://api.openai.com/v1",
     "llm_api_key": "",
-    "embedding_model_name": "openai/text-embedding-ada-002",
-    "embedding_endpoint_url": "https://api.openai.com/v1",
-    "embedding_api_key": "",
-    "embedding_service_enabled": False,
-    "built_in_agent": ["web_request"],
-    "file_service_provider": "volume",
-    "file_service_config": ["directory=/tmp/solace-agent-mesh"],
-    "env_var": [],
-    "rest_api_enabled": True,
-    "rest_api_server_input_port": "5050",
-    "rest_api_server_host": "127.0.0.1",
-    "rest_api_server_input_endpoint": "/api/v1/request",
-    "rest_api_gateway_name": "rest-api",
-    "webui_enabled": True,
-    "webui_listen_port": "5001",
-    "webui_host": "localhost",
-    "dev_mode": True,
+    "dev_mode": False,
+    "add_webui_gateway": True,
+    "webui_frontend_welcome_message": "",
+    "webui_frontend_bot_name": "Solace Agent Mesh",
+    "webui_frontend_collect_feedback": False,
+    "webui_fastapi_host": "127.0.0.1",
+    "webui_fastapi_port": 8000,
+    "webui_enable_embed_resolution": True,
 }
 
-CONTAINER_RUN_COMMAND = " run -d -p 8080:8080 -p 55554:55555 -p 8008:8008 -p 1883:1883 -p 8000:8000 -p 5672:5672 -p 9000:9000 -p 2222:2222 --shm-size=2g --env username_admin_globalaccesslevel=admin --env username_admin_password=admin --name=solace solace/solace-pubsub-standard"
+USE_DEFAULT_SHARED_SESSION = "use_default_shared_session"
+USE_DEFAULT_SHARED_ARTIFACT = "use_default_shared_artifact"
+
+AGENT_DEFAULTS = {
+    "supports_streaming": True,
+    "model_type": "general",
+    "instruction": "You are a helpful AI assistant named __AGENT_NAME__.",
+    "artifact_handling_mode": "embed",
+    "enable_embed_resolution": True,
+    "enable_artifact_content_instruction": True,
+    "tools": "[]",
+    "session_service_type": USE_DEFAULT_SHARED_SESSION,
+    "session_service_behavior": "PERSISTENT",
+    "artifact_service_type": USE_DEFAULT_SHARED_ARTIFACT,
+    "artifact_service_base_path": "/tmp/samv2",
+    "artifact_service_scope": "namespace",
+    "agent_card_description": "A helpful AI assistant.",
+    "agent_card_default_input_modes": ["text"],
+    "agent_card_default_output_modes": ["text", "file"],
+    "agent_card_skills_str": "[]",
+    "agent_card_publishing_interval": 10,
+    "agent_discovery_enabled": True,
+    "inter_agent_communication_allow_list": ["*"],
+    "inter_agent_communication_deny_list": [],
+    "inter_agent_communication_timeout": 180,
+    "namespace": "${NAMESPACE}",
+}
+
+GATEWAY_DEFAULTS = {
+    "namespace": "${NAMESPACE}",
+    "gateway_id_suffix": "-gw-01",
+    "artifact_service_type": USE_DEFAULT_SHARED_ARTIFACT,
+    "artifact_service_scope": "namespace",
+    "artifact_service_base_path": "/tmp/samv2",
+    "system_purpose": (
+        "The system is an AI Chatbot with agentic capabilities.\n"
+        "It will use the agents available to provide information,\n"
+        "reasoning and general assistance for the users in this system.\n"
+        "**Always return useful artifacts and files that you create to the user.**\n"
+        "Provide a status update before each tool call.\n"
+        "Your external name is Agent Mesh."
+    ),
+    "response_format": (
+        "Responses should be clear, concise, and professionally toned.\n"
+        "Format responses to the user in Markdown using appropriate formatting."
+    ),
+}
+
+
+port_55555 = "-p 55554:55555" if sys.platform == "darwin" else "-p 55555:55555"
+
+CONTAINER_RUN_COMMAND = f" run -d --rm -p 8080:8080 {port_55555} -p 8008:8008 -u 1004 --shm-size=2g --env username_admin_globalaccesslevel=admin --env username_admin_password=admin --name=solace-broker solace/solace-pubsub-standard"

@@ -1,0 +1,82 @@
+test_case_id: "builtin_apply_embed_json_to_pretty_json_001"
+description: |
+  Tests 'apply_embed_and_create_artifact' with a JSON source artifact and
+  the 'format:json_pretty' directive. Expects the output artifact to be
+  pretty-printed JSON with an application/json MIME type.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "source_data.json"
+    # Minified JSON content
+    content: '{"name":"Test","value":123,"nested":{"key":"val"}}'
+    mime_type: "application/json"
+    metadata:
+      description: "Minified JSON source for pretty-print test"
+      mime_type: "application/json"
+      size_bytes: 46 # Length of the above content string
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_apply_embed_json_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please process 'source_data.json' with pretty JSON formatting and save as 'output_pretty.json'."
+  external_context:
+    a2a_session_id: "session_apply_embed_json_pretty_001"
+
+llm_interactions:
+  # Step 1: LLM calls apply_embed_and_create_artifact with format:json_pretty
+  - step_id: "llm_calls_apply_embed_json_pretty"
+    static_response:
+      id: "chatcmpl-applyembed-jsonpretty-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_apply_embed_json_pretty"
+                type: "function"
+                function:
+                  name: "apply_embed_and_create_artifact"
+                  arguments: '{"output_filename": "output_pretty.json", "embed_directive": "«artifact_content:source_data.json>>>format:json_pretty»"}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  - step_id: "llm_final_response_after_apply_embed_json_pretty"
+    expected_request: # After apply_embed_and_create_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            output_filename: "output_pretty.json"
+            output_version: 0
+            output_mime_type: "application/json" # Determined by format:json_pretty
+    static_response:
+      id: "chatcmpl-applyembed-jsonpretty-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Processed 'source_data.json' with pretty JSON formatting and saved as 'output_pretty.json'."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "Processed 'source_data.json' with pretty JSON formatting and saved as 'output_pretty.json'."
+    task_state: "completed"
+    assert_artifact_state:
+      # Check the newly created output artifact
+      - filename: "output_pretty.json"
+        user_id: "declarative_apply_embed_json_tester@example.com"
+        session_id: "session_apply_embed_json_pretty_001"
+        version: 0
+        # Expected pretty-printed JSON content
+        expected_content_text: "{\n  \"name\": \"Test\",\n  \"value\": 123,\n  \"nested\": {\n    \"key\": \"val\"\n  }\n}"
+        expected_metadata_contains:
+          mime_type: "application/json"
+          # size_bytes will be larger due to whitespace from pretty-printing
+          source_directive: "«artifact_content:source_data.json>>>format:json_pretty»"

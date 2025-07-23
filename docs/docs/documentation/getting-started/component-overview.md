@@ -1,26 +1,28 @@
 ---
 title: Component Overview
-sidebar_position: 50
+sidebar_position: 40
 ---
 
 # Component Overview
 
-The Solace Agent Mesh (SAM) is built on event-driven architecture principles, with all components communicating via events flowing through a central event broker. This architectural choice enables loose coupling between components, making the system highly flexible and scalable.
+The Solace Agent Mesh (SAM) is built on event-driven architecture principles using the A2A (Agent-to-Agent) protocol, with all components communicating through a standardized protocol over Solace PubSub+. This architectural choice enables loose coupling between components, making the system highly flexible and scalable.
 
-Each component in SAM is designed to perform specific roles while working together seamlessly through event-based communication. This approach allows the system to handle everything from simple AI tasks to complex workflows that combine multiple AI and conventional processing steps.
+SAM integrates the Google Agent Development Kit (ADK) with a Solace event mesh to provide a "Universal A2A Agent Host" that enables distributed AI agent communication. Each component is designed to perform specific roles while working together seamlessly through the A2A protocol.
 
 The key components that make up SAM are:
 
-1. **PubSub+ Event Broker or Event Mesh**: The central nervous system of the framework, facilitating pub/sub communication between all components. [more 🔗](https://solace.com/products/event-broker/)
+1. **PubSub+ Event Broker or Event Mesh**: The central nervous system of the framework, facilitating A2A protocol communication between all components. [more 🔗](https://solace.com/products/event-broker/)
 
-2. **Orchestrator**: A specialized agent responsible for breaking down requests into tasks and managing the overall workflow. [more 🔗](../concepts/orchestrator.md)
+2. **A2A Protocol & Agent Registry**: The standardized communication protocol that enables agent discovery, task delegation, and peer-to-peer communication.
 
-3. **Gateway**: The entry and exit points for the system, providing a custom interface for each use case. [more 🔗](../concepts/gateways.md)
+3. **Orchestrator**: A specialized agent responsible for breaking down requests into tasks and managing the overall workflow. [more 🔗](../concepts/orchestrator.md)
 
-4. **Agents**: Specialized processing units, which can be AI-enabled or conventional, that subscribe to and process specific tasks. [more 🔗](../concepts/agents.md)
+4. **Gateways**: The entry and exit points for the system, providing various interfaces (REST, HTTP SSE, webhooks, event mesh) that translate external requests into A2A protocol messages. [more 🔗](../concepts/gateways.md)
 
-5. **Monitors**: Passive components that observe system behavior, enforce policies, collect analytics, and raise notifications when needed. They subscribe to events flowing through the system to ensure compliance, gather metrics, and detect issues requiring attention. [more 🔗](../concepts/monitors.md)
+5. **Agents**: ADK-powered processing units that communicate through the A2A protocol, each bringing specialized capabilities and tools. [more 🔗](../concepts/agents.md)
 
-6. **Services**: Additional services that support the core components, such as LLMs, temporary file storage, and logging/monitoring. [more 🔗](../concepts/services.md)
+6. **ADK Runtime**: The Google Agent Development Kit provides the core intelligence layer with tool execution, session management, and artifact handling capabilities.
 
-7. **Real-time Monitoring and Debugging Component**: Enables real-time monitoring of system activities and provides interactive debugging capabilities for administrators. [more 🔗](../deployment/observability.md)
+8. **Built-in Tools**: Comprehensive tool ecosystem including artifact management, data analysis, web tools, and peer agent delegation capabilities.
+
+9.  **Real-time Monitoring and Debugging Component**: Enables real-time monitoring of system activities and provides interactive debugging capabilities for administrators. [more 🔗](../deployment/observability.md)

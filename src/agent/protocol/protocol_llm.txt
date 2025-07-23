@@ -1,0 +1,21 @@
+## Quick Summary
+The `protocol` directory implements the core logic for Agent-to-Agent (A2A) communication. It handles receiving and processing requests, responses, and discovery messages (Agent Cards) over the Solace event mesh. It acts as the bridge between the A2A protocol and the underlying Google ADK execution environment.
+
+## Files Overview
+- `__init__.py` - An empty file that marks the directory as a Python package.
+- `event_handlers.py` - Contains the primary logic for handling all A2A protocol events, including routing incoming messages to the correct processors, managing task execution, and handling agent discovery.
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Standard Python package initialization file.
+**Import:** `from src.agent.protocol import *`
+
+This is an empty package initialization file and has no public interfaces.
+
+### event_handlers.py
+**Purpose:** This file is the central hub for processing all events related to the A2A protocol. It receives events from the Solace AI Connector framework, determines their type (e.g., new task request, peer agent response, discovery message, timer), and routes them to the appropriate handler function. It manages the lifecycle of tasks, from initiation and cancellation to handling responses from peer agents.
+**Import:** `from src.agent.protocol.event_handlers import process_event, handle_a2a_request, handle_agent_card_message, handle_a2a_response, publish_agent_card`
+
+**Functions:**
+- `process_event(component: "SamAgentComponent", event: Event

@@ -10,18 +10,12 @@ sidebar_position: 10
 In a development environment, you can use the Solace Agent Mesh CLI to run the project as a single application. By default, environment variables are loaded from your configuration file (typically a `.env` file at the project root):
 
 ```bash
-sam run -b
+sam run
 ```
-
-:::note
-The `-b` flag builds the project before running it.
-:::
-
-For file storage in development, you can use the [Volume File Manager](../user-guide/advanced/services/file-service.md#file-managers) provided by the [File service](../user-guide/advanced/services/file-service.md).
 
 ## Production
 
-For a production environment, using a containerized and reproducible setup. We recommend Docker or Kubernetes.
+For a production environment, use a containerized and reproducible setup. We recommend Docker or Kubernetes.
 
 ### Docker Deployment
 
@@ -38,14 +32,10 @@ RUN python3.11 -m pip install --no-cache-dir -r /app/requirements.txt
 # Copy project files
 COPY . /app
 
-# Build Solace Agent Mesh
-RUN solace-agent-mesh build
-
-
-CMD ["run", "--use-system-env"]
+CMD ["run", "--system-env"]
 
 # To run one specific component, use:
-# CMD ["run", "--use-system-env", "build/configs/orchestrator.yaml"]
+# CMD ["run", "--system-env", "configs/agents/main_orchestrator.yaml"]
 
 ```
 
@@ -54,7 +44,7 @@ And the following `.dockerignore`
 ```
 .env
 *.log
-build
+dist
 .git
 .vscode
 .DS_Store
@@ -90,13 +80,14 @@ spec:
           - secretRef:
               name: solace-agent-mesh-secrets # Configure secrets in a Kubernetes Secret
 
-          command: ["solace-agent-mesh", "run", "--use-system-env"]
+          command: ["solace-agent-mesh", "run", "--system-env"]
           args:
-            - "build/configs/orchestrator.yaml"
-            - "build/configs/service_llm.yaml"
-            - "build/configs/service_embedding.yaml"
-            - "build/configs/agent_global.yaml"
+            - "configs/main_orchestrator.yaml"
+            - "configs/gateway/webui.yaml"
             # Add any other components you want to run here
+
+          ports:
+            - containerPort: 8000  # Adjust based on your service ports
 
           volumeMounts:
             - name: shared-storage
@@ -117,7 +108,6 @@ To adapt the setup:
 
 ### Storage Considerations
 
-For production storage, use a shared volume or configure an AWS S3 bucket for the [File service](../user-guide/advanced/services/file-service.md).
 
 :::warning
 If using multiple containers, ensure all instances access the same storage with identical configurations.
@@ -133,16 +123,4 @@ If using multiple containers, ensure all instances access the same storage with 
 
 For production environments, it's recommended to use a cloud-managed PubSub+ event broker (or event broker service). For more information, see  [Solace PubSub+ Cloud](https://solace.com/products/event-broker/).
 
-## Event Mesh Integration
 
-If you already have an [event mesh](https://solace.com/what-is-an-event-mesh/) in place, you can integrate Solace Agent Mesh into it. This allows you to leverage existing infrastructure while introducing intelligence and automation through Solace Agent Mesh.
-
-#### Benefits of Integrating with an Event Mesh
-
-- **Seamless Communication**: Solace Agent Mesh can subscribe to and publish events across the entire event mesh.
-- **Event-Driven Automation**: Intelligent event processing based on patterns and AI-driven insights.
-- **Scalability**: Solace Agent Mesh can dynamically participate in large-scale event-driven systems.
-
-#### Integration Steps
-
-To learn more about how to integrate Solace Agent Mesh with an existing Event Mesh, see [Event Mesh Integration](../tutorials/event-mesh-gateway.md).

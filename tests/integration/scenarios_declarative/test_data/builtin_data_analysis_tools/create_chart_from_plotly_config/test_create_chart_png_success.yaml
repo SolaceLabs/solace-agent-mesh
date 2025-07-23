@@ -1,0 +1,54 @@
+test_case_id: create_chart_png_success
+description: "Tests successful creation of a PNG chart from a JSON config."
+skip_intermediate_events: true
+
+gateway_input:
+  request_text: "Create a PNG chart from the provided Plotly JSON config."
+  target_agent_name: "TestAgent"
+  user_identity: "chart_tester@example.com"
+  external_context:
+    a2a_session_id: "chart_creation_session_png"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_chart_tool"
+                type: "function"
+                function:
+                  name: "create_chart_from_plotly_config"
+                  arguments: '{"config_content": "{\"data\": [{\"type\": \"bar\", \"x\": [\"giraffes\", \"orangutans\", \"monkeys\"], \"y\": [20, 14, 23]}], \"layout\": {\"title\": {\"text\": \"A Bar Chart\"}}}", "config_format": "json", "output_filename": "my_chart.png", "output_format": "png"}'
+  - expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            output_filename: "my_chart.png"
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have successfully created the chart and saved it as 'my_chart.png'."
+
+expected_gateway_output:
+  - type: "status_update"
+    event_purpose: "llm_invocation"
+  - type: "status_update"
+    event_purpose: "llm_response"
+  - type: "status_update"
+    event_purpose: "tool_invocation_start"
+  - type: "status_update"
+    event_purpose: "llm_invocation"
+  - type: "status_update"
+    event_purpose: "llm_response"
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_contains: "successfully created the chart"
+
+expected_artifacts:
+  - filename: "my_chart.png"
+    mime_type: "image/png"

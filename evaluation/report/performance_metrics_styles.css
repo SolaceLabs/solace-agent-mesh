@@ -1,0 +1,93 @@
+/* Performance Metrics Table Styles */
+.performance-summary {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid #e9ecef;
+}
+
+.performance-summary h3 {
+    color: #2c3e50;
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.metrics-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.metrics-table thead {
+    background: #f8f9fa;
+}
+
+.metrics-table th {
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: #2c3e50;
+    border-bottom: 2px solid #e9ecef;
+    cursor: pointer; /* Add cursor pointer to indicate clickability */
+}
+
+.metrics-table td {
+    padding: 0.8rem 1rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.metrics-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+.model-name {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.metric-value {
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+.estimated-cost {
+    color: #27ae60;
+    font-weight: 600;
+}
+
+@media (max-width: 768px) {
+    .metrics-table {
+        font-size: 0.9rem;
+    }
+    
+    .metrics-table th,
+    .metrics-table td {
+        padding: 0.6rem 0.8rem;
+    }
+}
+
+/* Ensure the performance metrics section appears below the chart */
+.performance-metrics-section {
+    margin-top: 2rem; /* Add space above the table */
+}
+
+/* Styles for individual run performance metrics */
+.run-performance {
+    text-align: right; /* Align content to the right */
+    font-size: 0.8rem; /* Make text smaller */
+    font-weight: bold; /* Make text bold */
+    margin-top: 0.5rem; /* Add some space above */
+    color: #555; /* Slightly muted color */
+}
+
+.run-execution-time {
+    display: inline-block; /* Display inline to be on the same line if space allows */
+    margin-left: 1rem; /* Add space for execution time */
+}

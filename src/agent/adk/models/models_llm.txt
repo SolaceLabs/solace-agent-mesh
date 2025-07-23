@@ -1,0 +1,94 @@
+Here is the developer guide for the `models` directory.
+
+## Quick Summary
+This directory contains concrete implementations of the `BaseLlm` interface, acting as wrappers or clients for various Large Language Model APIs. These classes translate the ADK's standard `LlmRequest` into the format required by the specific LLM backend and parse the backend's response back into a standard `LlmResponse`.
+
+## Files Overview
+- `lite_llm.py`: An LLM client that uses the `litellm` library to support a wide variety of models from different providers.
+
+## Developer API Reference
+
+### lite_llm.py
+**Purpose:** Provides the `LiteLlm` class, a `BaseLlm` implementation that interfaces with hundreds of LLM models through the `litellm` library. This allows developers to use models from providers like OpenAI, Anthropic, Vertex AI, etc., by simply changing the model string. Environment variables required by the target model provider must be set.
+
+**Import:** `from google.adk.models.lite_llm import LiteLlm`
+
+**Classes:**
+- `LiteLlm(model: str, **kwargs)` - Wrapper around `litellm` that can be used with any model it supports.
+  - `__init__(self, model: str, **kwargs)` - Initializes the `LiteLlm` client.
+    - **model**: The name of the model as recognized by `litellm` (e.g., `"vertex_ai/gemini-1.5-pro-preview-0409"`, `"claude-3-opus-20240229"`, `"gpt-4-turbo"`).
+    - **\*\*kwargs**: Additional arguments to pass directly to the `litellm.completion` or `litellm.acompletion` API on every call.
+  - `async generate_content_async(llm_request: LlmRequest, stream: bool = False) -> AsyncGenerator[LlmResponse, None]` - Sends a request to the configured LLM and yields one or more responses.
+    - **llm_request**: The request object containing conversation history, tool definitions, and configuration.
+    - **stream**: If `True`, yields partial responses as they become available. If `False`, yields a single, complete response.
+    - **Returns**: An async generator that yields `LlmResponse` objects.
+  - `supported_models() -> list[str]` - Provides a list of supported models. For `LiteLlm`, this returns an empty list because `litellm` supports a vast and dynamic set of models. Refer to the `litellm` documentation for a complete list.
+
+**Usage Examples:**
+```python
+import asyncio
+import os
+from google.adk.models.lite_llm import LiteLlm
+from google.adk.models.llm_request import LlmRequest, LlmConfig
+from google.adk.models.types import Content, Part
+
+# Example using a Vertex AI model via litellm.
+# Set environment variables required by the provider.
+# os.environ["VERTEXAI_PROJECT"] = "your-gcp-project-id"
+# os.environ["VERTEXAI_LOCATION"] = "your-gcp-location"
+
+# Example using an OpenAI model via litellm.
+# os.environ["OPENAI_API_KEY"] = "your-openai-api-key"
+
+async def main():
+    # Instantiate the LiteLlm client with a specific model.
+    # Any additional kwargs are passed to litellm's completion call.
+    llm = LiteLlm(
+        model="gpt-4-turbo",
+        temperature=0.5,
+        max_tokens=150
+    )
+
+    # Construct a request to the LLM
+    request = LlmRequest(
+        contents=[
+            Content(
+                role="user",
+                parts=[Part.from_text("Why is the sky blue?")]
+            )
+        ],
+        config=LlmConfig(
+            # The temperature set in the constructor can be overridden here
+            temperature=0.7
+        )
+    )
+
+    print("--- Non-streaming example ---")
+    # Get a single, complete response
+    async for response in llm.generate_content_async(request, stream=False):
+        if response.text:
+            print(response.text)
+        if response.usage_metadata:
+            print(f"Token usage: {response.usage_metadata.total_token_count}")
+
+    print("\n--- Streaming example ---")
+    # Get a stream of partial responses
+    full_response_text = ""
+    async for response in llm.generate_content_async(request, stream=True):
+        if response.text:
+            print(response.text, end="", flush=True)
+            full_response_text += response.text
+        if response.usage_metadata:
+            # Usage metadata is typically sent with the final chunk
+            print(f"\nToken usage: {response.usage_metadata.total_token_count}")
+
+if __name__ == "__main__":
+    # To run this example, you need to have the necessary environment variables set
+    # for the model you choose (e.g., OPENAI_API_KEY).
+    # You would also need to install the required provider packages, e.g.,
+    # pip install litellm[openai]
+    #
+    # Since this is an async function, we run it with asyncio.
+    # asyncio.run(main())
+    pass
+```

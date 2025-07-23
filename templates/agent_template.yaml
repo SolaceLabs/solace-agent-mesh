@@ -1,0 +1,53 @@
+# Solace Agent Mesh Agent Configuration
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: a2a_agent.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: "__AGENT_NAME____app"
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: "__NAMESPACE__"
+      supports_streaming: __SUPPORTS_STREAMING__
+      agent_name: "__AGENT_NAME__"
+      display_name: "__AGENT_NAME__ Agent"
+      model: __MODEL_ALIAS__ 
+
+      instruction: |
+        __INSTRUCTION__
+      
+      tools: __TOOLS_CONFIG__
+
+      session_service: __SESSION_SERVICE__
+      artifact_service: __ARTIFACT_SERVICE__
+      
+      artifact_handling_mode: "__ARTIFACT_HANDLING_MODE__"
+      enable_embed_resolution: __ENABLE_EMBED_RESOLUTION__
+      enable_artifact_content_instruction: __ENABLE_ARTIFACT_CONTENT_INSTRUCTION__
+      data_tools_config: *default_data_tools_config
+
+      # Agent Card Definition
+      agent_card:
+        description: |
+          __AGENT_CARD_DESCRIPTION__
+        defaultInputModes: __DEFAULT_INPUT_MODES__ 
+        defaultOutputModes: __DEFAULT_OUTPUT_MODES__ 
+        skills: __AGENT_CARD_SKILLS__
+      
+      # Discovery & Communication
+      agent_card_publishing: 
+        interval_seconds: __AGENT_CARD_PUBLISHING_INTERVAL__
+      agent_discovery: 
+        enabled: __AGENT_DISCOVERY_ENABLED__
+      inter_agent_communication:
+        allow_list: __INTER_AGENT_COMMUNICATION_ALLOW_LIST__ 
+        deny_list: __INTER_AGENT_COMMUNICATION_DENY_LIST__ 
+        request_timeout_seconds: __INTER_AGENT_COMMUNICATION_TIMEOUT__

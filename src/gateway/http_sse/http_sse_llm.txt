@@ -1,0 +1,63 @@
+Here is the comprehensive developer guide for the `http_sse` directory.
+
+## Quick Summary
+The `http_sse` directory implements a complete HTTP/SSE (Server-Sent Events) gateway for the A2A (Agent-to-Agent) system. Its primary purpose is to serve a web-based user interface and act as a bridge between standard web protocols (HTTP, WebSockets/SSE) and the backend A2A messaging fabric.
+
+The architecture is centered around the `WebUIBackendComponent`, a custom Solace AI Connector (SAC) component that hosts an embedded FastAPI web server. This component manages shared state and resources, such as the `SSEManager` for real-time updates, the `SessionManager` for user sessions, and the `AgentRegistry` for discovering available agents.
+
+Subdirectories organize the functionality:
+-   `routers/` defines the REST API endpoints (e.g., `/tasks`, `/agents`).
+-   `services/` contains the business logic that the API endpoints call.
+-   `dependencies.py` uses FastAPI's dependency injection system to provide the routers and services with safe access to the shared resources managed by the main component.
+-   `components/` contains specialized SAC components, for example, to forward A2A messages for real-time visualization.
+
+This design creates a clean separation of concerns, where the web layer (FastAPI) is decoupled from the core messaging and state management layer (SAC Component).
+
+## Files and Subdirectories Overview
+- **Direct files:**
+    - `__init__.py`: Standard Python package initializer.
+    - `app.py`: Defines the main SAC `WebUIBackendApp`, which specifies configuration and launches the component.
+    - `component.py`: The core SAC component that hosts the FastAPI server and manages all shared resources and A2A logic.
+    - `dependencies.py`: Provides FastAPI dependency injectors for accessing shared resources like services and managers.
+    - `main.py`: The main FastAPI application instance, including middleware, router mounting, and exception handling.
+    - `session_manager.py`: Manages web user sessions and maps them to unique A2A client and session IDs.
+    - `sse_manager.py`: Manages Server-Sent Event (SSE) connections for streaming real-time updates to clients.
+- **Subdirectories:**
+    - `components/`: Contains specialized SAC components, such as for forwarding messages to the visualization system.
+    - `routers/`: Defines the FastAPI `APIRouter` modules for all REST API endpoints.
+    - `services/`: Encapsulates business logic for agents, tasks, and other domain-specific operations.
+
+## Developer API Reference
+
+### Direct Files
+
+#### app.py
+**Purpose:** This file defines the `WebUIBackendApp`, a custom SAC (Solace AI Connector) App class. It is responsible for defining the configuration schema for the entire HTTP/SSE gateway and programmatically creating the `WebUIBackendComponent`.
+**Import:** `from gateway.http_sse.app import WebUIBackendApp`
+
+**Classes/Functions/Constants:**
+-   **`WebUIBackendApp(BaseGatewayApp)`**: The main application class. It extends `BaseGatewayApp` and adds a list of WebUI-specific configuration parameters to the application schema.
+-   **`SPECIFIC_APP_SCHEMA_PARAMS: List[Dict[str, Any]]`**: A constant list defining the configuration parameters specific to the HTTP/SSE gateway, such as `session_secret_key`, `fastapi_host`, `fastapi_port`, and various frontend-related settings.
+
+#### component.py
+**Purpose:** This is the core component of the gateway. It hosts the FastAPI server, manages all shared state (like the SSE and Session managers), handles the lifecycle of the web server, and implements the logic for translating between external HTTP requests and internal A2A messages.
+**Import:** `from gateway.http_sse.component import WebUIBackendComponent`
+
+**Classes/Functions/Constants:**
+-   **`WebUIBackendComponent(BaseGatewayComponent)`**: The main component class. Developers will primarily interact with its instances via the dependency injection system.
+    -   **Public Accessor Methods (for Dependencies):**
+        -   `get_sse_manager() -> SSEManager`: Returns the shared `SSEManager` instance.
+        -   `get_session_manager() -> SessionManager`: Returns the shared `SessionManager` instance.
+        -   `get_agent_registry() -> AgentRegistry`: Returns the shared `AgentRegistry` instance.
+        -   `get_core_a2a_service() -> CoreA2AService`: Returns the core service for creating A2A messages.
+        -   `get_shared_artifact_service() -> Optional[BaseArtifactService]`: Returns the service for artifact storage.
+        -   `get_namespace() -> str`: Returns the configured A2A namespace.
+        -   `get_gateway_id() -> str`: Returns the unique ID of this gateway.
+    -   **Core Logic Methods:**
+        -   `publish_a2a(topic: str, payload: Dict, user_properties: Optional[Dict] = None)`: Publishes a message onto the A2A messaging fabric. This is the primary method for sending data to agents.
+    -   **Gateway-Development-Kit (GDK) Hooks:** These methods implement the `BaseGatewayComponent` abstract interface.
+        -   `_start_listener()`: Starts the FastAPI/Uvicorn server.
+        -   `_stop_listener()`: Stops the FastAPI/Uvicorn server.
+        -   `_translate_external_input(...)`: Translates an incoming HTTP request (e.g., form data with files) into a structured A2A message (`List[A2APart]`).
+        -   `_send_update_to_external(...)`: Sends an intermediate status update from an agent back to the client via SSE.
+        -

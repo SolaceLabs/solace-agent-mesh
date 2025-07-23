@@ -1,0 +1,109 @@
+test_case_id: "builtin_extract_content_save_and_truncate_001"
+description: |
+  Tests 'extract_content_from_artifact' where extracted content is very large.
+  It should be saved, and a truncated preview returned to the LLM.
+  Assumes save_threshold_bytes=50, llm_return_max_bytes=100.
+skip_intermediate_events: true
+
+# Agent config needs to be implicitly set for these thresholds by the test environment.
+# tool_output_save_threshold_bytes: 50
+# tool_output_llm_return_max_bytes: 100
+
+setup_artifacts:
+  - filename: "source_for_save_truncate.txt"
+    content: "This is a very long original document that we intend to extract a substantial summary from, which will exceed all thresholds." # Length 120
+    mime_type: "text/plain"
+    metadata:
+      description: "Source for save_and_truncate test."
+      mime_type: "text/plain"
+      size_bytes: 120
+
+gateway_input:
+  target_agent_name: "TestAgent" # Needs the specific config for thresholds.
+  user_identity: "declarative_extract_tester_thresholds@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Extract a very long summary from 'source_for_save_truncate.txt'."
+  external_context:
+    a2a_session_id: "session_extract_save_truncate_001"
+
+llm_interactions:
+  # 1. Agent LLM calls extract_content_from_artifact
+  - step_id: "agent_llm_calls_extract_tool_for_large_output"
+    static_response:
+      id: "chatcmpl-extract-st-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_extract_st"
+                type: "function"
+                function:
+                  name: "extract_content_from_artifact"
+                  arguments: '{"filename": "source_for_save_truncate.txt", "extraction_goal": "Extract a very long and detailed piece of text from this document, make it about 150 characters.", "version": "0", "output_filename_base": "long_summary_st"}'
+          finish_reason: "tool_calls"
+
+  # 2. Internal LLM returns very large content (e.g., 150 bytes)
+  - step_id: "internal_llm_returns_very_large_content"
+    static_response:
+      id: "chatcmpl-extract-st-internal-1"
+      object: "chat.completion"
+      model: "test-llm-model-internal"
+      choices:
+        - message:
+            role: "assistant"
+            # New content, 306 bytes. Will be saved (306 > 50) and truncated (306 > 200).
+            content: "This is the very long, detailed, and extensive summary extracted from the original source material. It contains many crucial points and fine-grained details. We need to make this content significantly longer to ensure it properly exceeds the 200-byte llm_max_bytes threshold for TestAgent after recent configuration changes. More text, more text, just a bit more text now."
+          finish_reason: "stop"
+      usage: {prompt_tokens: 60, completion_tokens: 40, total_tokens: 100} # Usage may need update if content length affects it, but often fixed for mocks
+
+  # 3. Agent LLM receives the result from the tool (truncated preview)
+  - step_id: "agent_llm_formulates_final_answer_from_saved_truncated_return"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success_full_content_saved_preview_returned" # Changed: now saved AND preview returned
+            extracted_data_preview: "This is the very long, detailed, and extensive summary extracted from the original source material. It contains many crucial points and fine-grained details. We need to make thi... [Content truncated]" # Truncated to 178 chars + suffix
+            source_filename: "source_for_save_truncate.txt"
+            source_version_processed: 0
+            saved_extracted_artifact_details:
+              status: "success"
+              data_filename_matches_regex: "^long_summary_st_[a-f0-9]{8}\\.txt$"
+              data_version: 0
+    static_response:
+      id: "chatcmpl-extract-st-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have extracted a long summary. Here's a preview: 'This is the very long, detailed, and extensive summary extracted from the orig... [Content truncated]'. The full summary has been saved to a new file."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "Here's a preview: 'This is the very long, detailed, and extensive summary extracted from the orig... [Content truncated]'"
+        text_contains: "The full summary has been saved to a new file."
+    task_state: "completed"
+
+expected_artifacts: # Check the newly created artifact (full content)
+  - filename_matches_regex: "^long_summary_st_[a-f0-9]{8}\\.txt$"
+    version: 0
+    mime_type: "text/plain"
+    text_exact: "This is the very long, detailed, and extensive summary extracted from the original source material. It contains many crucial points and fine-grained details. We need to make this content significantly longer to ensure it properly exceeds the 200-byte llm_max_bytes threshold for TestAgent after recent configuration changes. More text, more text, just a bit more text now."
+    metadata_contains:
+      description: "Content extracted/transformed from artifact 'source_for_save_truncate.txt' (version 0) using goal: 'Extract a very long and detailed piece of text from this document, make it about 150 characters.'." # Goal in args is still 150 chars, but mocked response is longer
+      source_artifact_filename: "source_for_save_truncate.txt"
+      size_bytes: 372 # Full size of new content
+
+assert_artifact_state: # Original artifact should be unchanged
+  - filename: "source_for_save_truncate.txt"
+    user_id: "declarative_extract_tester_thresholds@example.com"
+    session_id: "session_extract_save_truncate_001"
+    version: 0
+    expected_content_text: "This is a very long original document that we intend to extract a substantial summary from, which will exceed all thresholds."

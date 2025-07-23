@@ -1,0 +1,31 @@
+test_case_id: "auto_continue_max_calls_limit_001"
+description: "Tests that auto-continue is prevented by max_llm_calls_per_task limit."
+skip_intermediate_events: true
+
+# This block will now be applied by the test runner via monkeypatching.
+test_runner_config_overrides:
+  agent_config:
+    max_llm_calls_per_task: 1
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "auto_continue_tester@example.com"
+  parts: [{type: "text", text: "Tell me a long story about a robot."}]
+
+llm_interactions:
+  # 1. The first and only allowed LLM call, which gets truncated.
+  # The test should fail if a second LLM interaction is attempted.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Once upon a time, there lived a robot named"
+          finish_reason: "length"
+      usage: {prompt_tokens: 10, completion_tokens: 50, total_tokens: 60}
+
+expected_gateway_output:
+  # The final event should be a JSONRPCError, not a Task.
+  # The agent should detect the limit is reached and call finalize_task_limit_reached.
+  - type: "error"
+    error_code: -32603 # InternalError
+    error_message_contains: "This interaction has reached its processing limit."

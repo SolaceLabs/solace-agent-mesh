@@ -1,0 +1,88 @@
+test_case_id: "builtin_apply_embed_jsonpath_no_match_001"
+description: |
+  Tests 'apply_embed_and_create_artifact' when a JSONPath modifier
+  in the embed_directive does not find a match. Expects the tool to succeed
+  and save a representation of 'None' or 'null' as the content.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "source_for_nomatch.json"
+    content: '{"name": "MyName", "value": 100}'
+    mime_type: "application/json"
+    metadata:
+      description: "JSON source for non-matching JSONPath test"
+      mime_type: "application/json"
+      size_bytes: 33
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_apply_embed_nomatch_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Extract '$.address' from 'source_for_nomatch.json' (it doesn't exist) and save it."
+  external_context:
+    a2a_session_id: "session_apply_embed_jsonpath_nomatch_001"
+
+llm_interactions:
+  # Step 1: LLM calls apply_embed_and_create_artifact with a non-matching jsonpath
+  - step_id: "llm_calls_apply_embed_jsonpath_nomatch"
+    static_response:
+      id: "chatcmpl-applyembed-jsonpathnomatch-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_apply_embed_jsonpath_nomatch"
+                type: "function"
+                function:
+                  name: "apply_embed_and_create_artifact"
+                  arguments: '{"output_filename": "output_nomatch.txt", "embed_directive": "«artifact_content:source_for_nomatch.json>>>jsonpath:$.address»"}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  - step_id: "llm_final_response_after_apply_embed_jsonpath_nomatch"
+    expected_request: # After apply_embed_and_create_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            output_filename: "output_nomatch.txt"
+            output_version: 0
+            output_mime_type: "text/plain" # Result of non-matching JSONPath serialized as text
+    static_response:
+      id: "chatcmpl-applyembed-jsonpathnomatch-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Tried to extract '$.address', which was not found. The result (likely 'None' or empty) has been saved to 'output_nomatch.txt'."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "Tried to extract '$.address', which was not found. The result (likely 'None' or empty) has been saved to 'output_nomatch.txt'."
+    task_state: "completed"
+    assert_artifact_state:
+      # Check the newly created output artifact
+      - filename: "output_nomatch.txt"
+        user_id: "declarative_apply_embed_nomatch_tester@example.com"
+        session_id: "session_apply_embed_jsonpath_nomatch_001"
+        version: 0
+        # The exact output depends on how serialize_data(None, ...) behaves.
+        # Common outputs are "None", "null", or an empty string.
+        # Let's assume it results in an empty string if the jsonpath result is None/empty list.
+        # This might need adjustment based on actual behavior of serialize_data(None, DataFormat.STRING, None, ...).
+        # If jsonpath returns an empty list, serialize_data might produce "[]".
+        # If jsonpath returns None, serialize_data might produce "None".
+        # The _apply_jsonpath modifier returns (None, None, original_mime_type) if no match.
+        # evaluate_embed then calls serialize_data with current_data=None.
+        # serialize_data(data=None, data_format=None, ...) likely returns str(None) = "None".
+        expected_content_text: "[]"
+        expected_metadata_contains:
+          mime_type: "text/plain"
+          source_directive: "«artifact_content:source_for_nomatch.json>>>jsonpath:$.address»"

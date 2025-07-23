@@ -1,0 +1,35 @@
+<div class="section">
+    <h2>📊 Benchmark Run Information</h2>
+    <div class="info-grid">
+        <div class="info-item">
+            <strong>Time of Execution</strong>
+            {{TIMESTAMP}}
+        </div>
+        <div class="info-item">
+            <strong>Number of Runs</strong>
+            {{RUNS}}
+        </div>
+        <div class="info-item">
+            <strong>Total Test Cases</strong>
+            {{TOTAL_TESTS}}
+        </div>
+        <div class="info-item">
+            <strong>Evaluation Duration</strong>
+            {{DURATION}}
+        </div>
+    </div>
+
+    <div class="info-item">
+        <strong>Tested Models ({{TOTAL_MODELS}})</strong>
+        <div class="model-list">
+            {{MODEL_TAGS}}
+        </div>
+    </div>
+
+    <div class="test-files">
+        <strong>Test Cases Executed:</strong>
+        <ul>
+            {{TEST_CASES_LIST}}
+        </ul>
+    </div>
+</div>

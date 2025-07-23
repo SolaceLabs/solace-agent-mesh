@@ -1,0 +1,19 @@
+{
+  "test_case_id": "convert_html_to_md",
+  "category": "Orchestration",
+  "description": "A test case to convert an HTML file to markdown.",
+  "target_agent": "OrchestratorAgent",
+  "query": "Please convert the attached HTML file to markdown.",
+  "artifacts": [
+    {
+      "type": "file",
+      "path": "artifacts/sample.html"
+    }
+  ],
+  "wait_time": 120,
+  "evaluation": {
+    "expected_tools": ["peer_MarkitdownAgent"],
+    "expected_response": "I have converted the HTML file to markdown and attached it.",
+    "criterion": "Evaluate if the agent successfully uses the MarkitdownAgent to convert the HTML file to a markdown file and confirms task completion."
+  }
+}

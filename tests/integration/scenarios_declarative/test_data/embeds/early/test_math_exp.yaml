@@ -1,0 +1,15 @@
+test_case_id: "embed_math_exp_001"
+description: "Tests «math:exp(1)» using dynamic evaluation."
+skip_intermediate_events: true
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_tester@example.com"
+  parts: [{type: "text", text: "Calculate exp(1)"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "Exponent is «math:exp(1)»."}}]
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "Exponent is eval_math:[exp(1)]."

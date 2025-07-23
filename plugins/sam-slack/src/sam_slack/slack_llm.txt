@@ -1,0 +1,153 @@
+# DEVELOPER GUIDE: slack
+
+## Quick Summary
+The Slack Gateway provides a complete integration between Slack and the A2A (Agent-to-Agent) ecosystem. It handles Slack events (messages, mentions), translates them to A2A tasks, manages real-time streaming responses, and provides interactive features like feedback buttons and task cancellation.
+
+## Files Overview
+- `__init__.py` - Package initialization for the Slack Gateway module
+- `app.py` - SlackGatewayApp class defining configuration schema and component creation
+- `component.py` - SlackGatewayComponent implementing core Slack integration logic
+- `handlers.py` - Event handlers for processing incoming Slack messages and mentions
+- `utils.py` - Utility functions for Slack API calls, formatting, and session management
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Package initialization file for the Slack Gateway module
+**Import:** `from gateway.slack import *`
+
+This file contains only package documentation and no public interfaces.
+
+### app.py
+**Purpose:** Defines the Slack Gateway application configuration and component factory
+**Import:** `from gateway.slack.app import SlackGatewayApp`
+
+**Classes:**
+- `SlackGatewayApp(app_info: Dict[str, Any], **kwargs)` - Custom App class for A2A Slack Gateway with automatic subscription generation
+  - `_get_gateway_component_class() -> type[BaseGatewayComponent]` - Returns SlackGatewayComponent class
+
+**Constants/Variables:**
+- `info: Dict[str, Any]` - Module information dictionary required by SAC
+- `SPECIFIC_APP_SCHEMA_PARAMS: List[Dict[str, Any]]` - Slack-specific configuration parameters
+
+**Usage Examples:**
+```python
+# Configuration parameters available in SlackGatewayApp
+app_config = {
+    "slack_bot_token": "${SLACK_BOT_TOKEN}",
+    "slack_app_token": "${SLACK_APP_TOKEN}",
+    "default_agent_name": "my_agent",
+    "slack_initial_status_message": "Processing your request...",
+    "correct_markdown_formatting": True,
+    "feedback_enabled": True,
+    "feedback_post_url": "https://api.example.com/feedback"
+}
+```
+
+### component.py
+**Purpose:** Core Slack Gateway component implementing the integration logic
+**Import:** `from gateway.slack.component import SlackGatewayComponent`
+
+**Classes:**
+- `SlackGatewayComponent(**kwargs)` - SAC Component implementing A2A Slack Gateway
+  - `handle_cancel_request_action(body: Dict[str, Any], client: Any) -> None` - Handles cancel button actions from Slack
+  - `get_slack_context(task_id: str) -> Optional[Dict[str, str]]` - Retrieves Slack context for a task
+  - `remove_slack_context(task_id: str) -> None` - Removes all state for a task
+  - `get_status_ts(task_id: str) -> Optional[str]` - Gets status message timestamp
+  - `set_status_ts(task_id: str, ts: Optional[str]) -> None` - Sets status message timestamp
+  - `get_content_ts(task_id: str) -> Optional[str]` - Gets content message timestamp
+  - `set_content_ts(task_id: str, ts: Optional[str]) -> None` - Sets content message timestamp
+  - `get_content_buffer(task_id: str) -> str` - Gets buffered content for a task
+  - `set_content_buffer(task_id: str, content: str) -> None` - Sets buffered content
+  - `resolve_and_format_for_slack(text: str, task_id: str) -> Tuple[str, int, List[Tuple[int, Any]]]` - Resolves embeds and formats text for Slack
+
+**Constants/Variables:**
+- `info: Dict[str, Any]` - Component information dictionary
+- `SLACK_BOLT_AVAILABLE: bool` - Whether slack_bolt library is available
+
+**Usage Examples:**
+```python
+# Component is typically instantiated by the SAC framework
+# Access via the app's component
+component = slack_app.get_component()
+
+# Check task context
+context = component.get_slack_context("task_123")
+if context:
+    channel_id = context.get("slack_channel_id")
+    thread_ts = context.get("slack_thread_ts")
+
+# Manage content buffering
+component.set_content_buffer("task_123", "Partial response...")
+current_content = component.get_content_buffer("task_123")
+```
+
+### handlers.py
+**Purpose:** Event handlers for processing Slack messages and mentions
+**Import:** `from gateway.slack.handlers import handle_slack_message, handle_slack_mention`
+
+**Functions:**
+- `handle_slack_message(component: SlackGatewayComponent, event: Dict, say: Any, client: Any) -> None` - Handles 'message' events from Slack (DMs, thread messages)
+- `handle_slack_mention(component: SlackGatewayComponent, event: Dict, say: Any, client: Any) -> None` - Handles 'app_mention' events from Slack
+
+**Usage Examples:**
+```python
+# These handlers are automatically registered by the component
+# They process incoming Slack events and translate them to A2A tasks
+
+# Example of how they're registered in the component:
+@slack_app.event("message")
+async def handle_message_events_async(event, say, client):
+    await handle_slack_message(component, event, say, client)
+
+@slack_app.event("app_mention")
+async def handle_mention_events_async(event, say, client):
+    await handle_slack_mention(component, event, say, client)
+```
+
+### utils.py
+**Purpose:** Utility functions for Slack API operations, formatting, and session management
+**Import:** `from gateway.slack.utils import generate_a2a_session_id, send_slack_message, correct_slack_markdown`
+
+**Functions:**
+- `generate_a2a_session_id(channel_id: str, thread_ts: str, agent_name: str) -> str` - Generates deterministic A2A session ID from Slack context
+- `extract_task_id_from_topic(topic: str, subscription_pattern: str) -> Optional[str]` - Extracts task ID from topic using subscription pattern
+- `correct_slack_markdown(text: str) -> str` - Converts common Markdown to Slack's mrkdwn format
+- `format_data_part_for_slack(data_part: DataPart) -> str` - Formats A2A DataPart for Slack display
+- `send_slack_message(component: SlackGatewayComponent, channel: str, thread_ts: Optional[str], text: str, blocks: Optional[List[Dict]] = None) -> Optional[str]` - Sends message to Slack with error handling
+- `update_slack_message(component: SlackGatewayComponent, channel: str, ts: str, text: str, blocks: Optional[List[Dict]] = None) -> None` - Updates existing Slack message
+- `upload_slack_file(component: SlackGatewayComponent, channel: str, thread_ts: Optional[str], filename: str, content_bytes: bytes, mime_type: Optional[str]) -> None` - Uploads file to Slack
+- `create_feedback_blocks(feedback_data: Dict, channel: str, thread_ts: Optional[str]) -> List[Dict]` - Creates Slack blocks for feedback buttons
+
+**Constants/Variables:**
+- `STATUS_BLOCK_ID: str` - Block ID for status messages
+- `CONTENT_BLOCK_ID: str` - Block ID for content messages  
+- `FEEDBACK_BLOCK_ID: str` - Block ID for feedback buttons
+- `CANCEL_BUTTON_ACTION_ID: str` - Action ID for cancel buttons
+- `CANCEL_ACTION_BLOCK_ID: str` - Block ID for cancel actions
+
+**Usage Examples:**
+```python
+# Generate session ID for A2A communication
+session_id = generate_a2a_session_id("C1234567890", "1234567890.123456", "my_agent")
+
+# Send a message to Slack
+message_ts = await send_slack_message(
+    component=slack_component,
+    channel="C1234567890", 
+    thread_ts="1234567890.123456",
+    text="Hello from A2A!",
+    blocks=[{"type": "section", "text": {"type": "mrkdwn", "text": "Hello!"}}]
+)
+
+# Format text for Slack
+slack_text = correct_slack_markdown("**Bold text** and [link](https://example.com)")
+# Result: "*Bold text* and <https://example.com|link>"
+
+# Create feedback buttons
+feedback_blocks = create_feedback_blocks(
+    feedback_data={"task_id": "task_123", "session_id": session_id},
+    channel="C1234567890",
+    thread_ts="1234567890.123456"
+)
+```

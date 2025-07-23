@@ -1,0 +1,27 @@
+# Plugin Metadata:
+# Name: __PLUGIN_KEBAB_CASE_NAME__
+# Version: __PLUGIN_VERSION__
+# Description: __PLUGIN_DESCRIPTION__
+# Author: __PLUGIN_AUTHOR_NAME__ <__PLUGIN_AUTHOR_EMAIL__>
+# 
+# --- Start of Custom Configuration Template ---
+# Solace Agent Mesh: Custom Configuration Template
+#
+# This file serves as a template for creating new custom configurations from this plugin.
+# Use placeholders like __COMPONENT_KEBAB_CASE_NAME__, __COMPONENT_PASCAL_CASE_NAME__,
+# and __COMPONENT_UPPER_SNAKE_CASE_NAME__ where the specific component name should be inserted.
+
+# To use the `shared_config.yaml` file, uncomment the following line and remove the `shared_config` section below.
+# !include ../shared_config.yaml
+
+shared_config:
+  - broker_connection: &broker_connection
+      dev_mode: ${SOLACE_DEV_MODE, false}
+      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8080}
+      broker_username: ${SOLACE_BROKER_USERNAME, default}
+      broker_password: ${SOLACE_BROKER_PASSWORD, default}
+      broker_vpn: ${SOLACE_BROKER_VPN, default}
+      temporary_queue: ${USE_TEMPORARY_QUEUES, true}
+
+
+__PLUGIN_SNAKE_CASE_NAME__: {}

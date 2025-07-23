@@ -1,0 +1,107 @@
+Here is the developer guide for the `services` directory.
+
+## Quick Summary
+
+The `services` directory contains modules that act as an abstraction layer for interacting with external systems and resources. The primary service in this directory, `MongoDatabaseService`, provides a dedicated interface for all communications with a MongoDB database, handling connection management, data querying, and schema discovery.
+
+## Files Overview
+
+-   `__init__.py`: Marks the `services` directory as a Python package.
+-   `database_service.py`: A service class for managing all interactions with a MongoDB database.
+
+## Developer API Reference
+
+### database_service.py
+
+**Purpose:** This file provides the `MongoDatabaseService` class, a comprehensive client for connecting to, querying, and inspecting a MongoDB database. It simplifies database operations into a set of well-defined methods.
+
+**Import:** `from sam_mongodb.services.database_service import MongoDatabaseService`
+
+**Classes:**
+
+-   `MongoDatabaseService(connection_params: Dict[str, Any], query_timeout: int = 30)` - A service to manage MongoDB connections and operations. It establishes a connection upon initialization.
+    -   `close()` - Closes the active MongoDB connection. It's crucial to call this to release resources.
+    -   `get_collections() -> List[str]` - Returns a list of all collection names in the connected database.
+    -   `get_fields(collection_name: str, num_docs_to_sample: int = 5) -> List[str]` - Scans a sample of documents in a collection to discover and return a sorted list of unique field names (keys).
+    -   `get_sample_values(collection_name: str, field: str, limit: int = 5) -> Tuple[List[Any], bool]` - Fetches a sample of unique values for a specific field in a collection. Returns a tuple containing the list of values and a boolean indicating if the list contains *all* distinct values (True) or just a sample (False).
+    -   `execute_query(collection_name: str, pipeline: List[Dict]) -> List[Dict]` - Executes a standard MongoDB aggregation pipeline on a specified collection and returns the results as a list of dictionaries.
+    -   `get_schema_summary_for_llm(collections_to_scan: Optional[List[str]] = None) -> str` - Generates a YAML-formatted string that summarizes the database schema. It includes collection names, their fields, and sample values for each field, designed to be easily understood by a Large Language Model (LLM). If `collections_to_scan` is omitted, it scans all collections.
+
+**Usage Examples:**
+
+```python
+# Show how to import and use the MongoDatabaseService
+
+from sam_mongodb.services.database_service import MongoDatabaseService
+
+# 1. Define connection parameters
+# Replace with your actual MongoDB connection details
+db_params = {
+    "host": "localhost",
+    "port": 27017,
+    "user": "myuser",
+    "password": "mypassword",
+    "database": "sales_data"
+}
+
+db_service = None
+try:
+    # 2. Initialize the service and connect to the database
+    db_service = MongoDatabaseService(connection_params=db_params, query_timeout=60)
+    print("Successfully connected to MongoDB.")
+
+    # 3. Get a list of all collections
+    collections = db_service.get_collections()
+    print(f"Available collections: {collections}")
+    # Expected output: Available collections: ['customers', 'orders']
+
+    if 'orders' in collections:
+        # 4. Get all fields from the 'orders' collection
+        fields = db_service.get_fields('orders')
+        print(f"Fields in 'orders' collection: {fields}")
+        # Expected output: Fields in 'orders' collection: ['_id', 'customer_id', 'order_date', 'status', 'total']
+
+        # 5. Get sample values for the 'status' field
+        sample_statuses, all_included = db_service.get_sample_values('orders', 'status', limit=3)
+        print(f"Sample order statuses: {sample_statuses} (All values included: {all_included})")
+        # Expected output: Sample order statuses: ['shipped', 'pending', 'delivered'] (All values included: False)
+
+        # 6. Execute an aggregation query to find total sales per status
+        pipeline = [
+            {"$group": {"_id": "$status", "total_sales": {"$sum": "$total"}}},
+            {"$sort": {"total_sales": -1}}
+        ]
+        query_results = db_service.execute_query('orders', pipeline)
+        print("Query Results (Total sales by status):")
+        for result in query_results:
+            print(result)
+        # Expected output:
+        # Query Results (Total sales by status):
+        # {'_id': 'shipped', 'total_sales': 5432.1}
+        # {'_id': 'delivered', 'total_sales': 4123.5}
+        # {'_id': 'pending', 'total_sales': 1234.9}
+
+    # 7. Generate a schema summary for an LLM
+    # This is useful for providing context to AI models
+    schema_summary = db_service.get_schema_summary_for_llm(collections_to_scan=['orders'])
+    print("\n--- Schema Summary for LLM ---")
+    print(schema_summary)
+    # Expected output:
+    # --- Schema Summary for LLM ---
+    # orders:
+    #   _id: (examples: 60c72b2f9b1e8b3b4c8b4567, 60c72b2f9b1e8b3b4c8b4568)
+    #   customer_id: (examples: 101, 102)
+    #   order_date: (examples: 2023-01-15T10:00:00Z, 2023-01-16T11:30:00Z)
+    #   status: (examples: shipped, pending, delivered)
+    #   total: (examples: 150.5, 75.25)
+
+
+except Exception as e:
+    print(f"An error occurred: {e}")
+
+finally:
+    # 8. Always ensure the connection is closed
+    if db_service:
+        db_service.close()
+        print("\nMongoDB connection closed.")
+```

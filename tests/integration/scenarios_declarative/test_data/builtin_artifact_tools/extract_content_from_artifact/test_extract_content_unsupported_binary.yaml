@@ -1,0 +1,100 @@
+test_case_id: "builtin_extract_content_unsupported_binary_001"
+description: |
+  Tests 'extract_content_from_artifact' with an unsupported binary artifact type.
+  The internal LLM should be informed that direct content processing is not supported.
+  The tool's success then depends on the LLM's ability to respond based on metadata/filename.
+skip_intermediate_events: true
+
+# Assumes agent config: extract_content_from_artifact_config.supported_binary_mime_types = [] (or does not include image/png)
+
+setup_artifacts:
+  - filename: "unsupported_image.png"
+    # Minimal valid PNG (1x1 transparent pixel) base64 encoded
+    content_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    mime_type: "image/png"
+    metadata:
+      description: "A PNG image that is unsupported for direct content extraction."
+      mime_type: "image/png"
+      size_bytes: 69 # Actual size of the minimal PNG
+
+gateway_input:
+  target_agent_name: "TestAgent" # This agent needs the specific config
+  user_identity: "declarative_extract_tester_binary@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "What is depicted in 'unsupported_image.png'?"
+  external_context:
+    a2a_session_id: "session_extract_unsupported_binary_001"
+
+llm_interactions:
+  # 1. Agent LLM decides to call extract_content_from_artifact
+  - step_id: "agent_llm_calls_extract_for_unsupported_binary"
+    static_response:
+      id: "chatcmpl-extract-unbin-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_extract_unbin"
+                type: "function"
+                function:
+                  name: "extract_content_from_artifact"
+                  arguments: '{"filename": "unsupported_image.png", "extraction_goal": "Describe the contents of this image.", "version": "0"}'
+          finish_reason: "tool_calls"
+
+  # 2. Internal LLM receives a message about unsupported binary type.
+  #    Its response will be based on the extraction_goal and this information.
+  - step_id: "internal_llm_informed_of_unsupported_binary"
+    # The *request* to this internal LLM (not asserted here but useful for understanding) would contain:
+    # - The extraction_goal: "Describe the contents of this image."
+    # - A text part: "The artifact 'unsupported_image.png' is a binary file of type 'image/png'. Direct content processing is not supported..."
+    static_response:
+      id: "chatcmpl-extract-unbin-internal-1"
+      object: "chat.completion"
+      model: "test-llm-model-internal"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I cannot directly view the content of 'unsupported_image.png' because it is an image file and direct processing is not supported. Based on the filename, it might be a picture."
+          finish_reason: "stop"
+      usage: {prompt_tokens: 70, completion_tokens: 30, total_tokens: 100}
+
+  # 3. Agent LLM receives the result from the tool (which contains the internal LLM's response)
+  - step_id: "agent_llm_formulates_final_answer_from_unsupported_binary_extraction"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success_full_content_saved_and_returned" # Extraction "succeeded" in that the internal LLM gave a response
+            extracted_data: "I cannot directly view the content of 'unsupported_image.png' because it is an image file and direct processing is not supported. Based on the filename, it might be a picture."
+            source_filename: "unsupported_image.png"
+            source_version_processed: 0
+    static_response:
+      id: "chatcmpl-extract-unbin-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Regarding 'unsupported_image.png', I'm unable to see the image content directly. However, judging by its name, it is likely some kind of picture."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "unable to see the image content directly"
+        text_contains: "judging by its name, it is likely some kind of picture"
+    task_state: "completed"
+
+assert_artifact_state: # Original artifact should be unchanged
+  - filename: "unsupported_image.png"
+    user_id: "declarative_extract_tester_binary@example.com"
+    session_id: "session_extract_unsupported_binary_001"
+    version: 0
+    expected_content_bytes_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    expected_metadata_contains:
+      mime_type: "image/png"
+      size_bytes: 69

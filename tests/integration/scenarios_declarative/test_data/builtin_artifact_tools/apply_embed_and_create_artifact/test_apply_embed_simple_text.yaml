@@ -1,0 +1,90 @@
+test_case_id: "builtin_apply_embed_simple_text_001"
+description: |
+  Tests 'apply_embed_and_create_artifact' with a simple text artifact,
+  no modifiers, and no explicit format. Expects the content to be copied
+  and saved as a new artifact, likely with a text/plain MIME type.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "source_doc.txt"
+    content: "This is the source content." # Length 27
+    mime_type: "text/plain"
+    metadata:
+      description: "Source document for apply_embed test"
+      mime_type: "text/plain"
+      size_bytes: 27
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_apply_embed_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please process 'source_doc.txt' and save it as 'output_doc.txt'."
+  external_context:
+    a2a_session_id: "session_apply_embed_simple_text_001"
+
+llm_interactions:
+  # Step 1: LLM calls apply_embed_and_create_artifact
+  - step_id: "llm_calls_apply_embed"
+    static_response:
+      id: "chatcmpl-applyembed-simple-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_apply_embed_simple"
+                type: "function"
+                function:
+                  name: "apply_embed_and_create_artifact"
+                  arguments: '{"output_filename": "output_doc.txt", "embed_directive": "«artifact_content:source_doc.txt»"}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  - step_id: "llm_final_response_after_apply_embed"
+    expected_request: # After apply_embed_and_create_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            output_filename: "output_doc.txt"
+            output_version: 0 # Assuming first version for the new output artifact
+            output_mime_type: "text/plain" # Default for text content without format specifier
+    static_response:
+      id: "chatcmpl-applyembed-simple-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Processed 'source_doc.txt' and saved the result as 'output_doc.txt'."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "Processed 'source_doc.txt' and saved the result as 'output_doc.txt'."
+    task_state: "completed"
+    assert_artifact_state:
+      # Check the source artifact (should be untouched)
+      - filename: "source_doc.txt"
+        user_id: "declarative_apply_embed_tester@example.com"
+        session_id: "session_apply_embed_simple_text_001"
+        version: 0
+        expected_content_text: "This is the source content."
+        expected_metadata_contains:
+          mime_type: "text/plain"
+          size_bytes: 27
+
+      # Check the newly created output artifact
+      - filename: "output_doc.txt"
+        user_id: "declarative_apply_embed_tester@example.com"
+        session_id: "session_apply_embed_simple_text_001"
+        version: 0
+        expected_content_text: "This is the source content." # Content should match source
+        expected_metadata_contains:
+          mime_type: "text/plain" # Default output MIME for resolved text
+          size_bytes: 27
+          source_directive: "«artifact_content:source_doc.txt»" # Metadata added by the tool

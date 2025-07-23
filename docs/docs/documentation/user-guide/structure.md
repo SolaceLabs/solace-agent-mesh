@@ -5,39 +5,73 @@ sidebar_position: 20
 
 # Structure
 
-Solace Agent Mesh is powered by [Solace AI Event Connector](./solace-ai-connector.md), which is a tool that is controlled by YAML configuration files. These configuration files declare the flow of the components, and handle their processing and execution.
+Solace Agent Mesh is built on the A2A (Agent-to-Agent) protocol architecture, powered by [Solace AI Event Connector](./solace-ai-connector.md) and uses Solace PubSub+ as the communication backbone. The framework is controlled by YAML configuration files that define agents, gateways, and plugins, enabling distributed AI agent communication through event-driven messaging.
 
-Solace AI Event Connector comes with a wide range of built-in components, but to extend its capabilities, Solace Agent Mesh introduces its own suite of components. The YAML files can be configured to point to the locations of these Python components, and load them at run-time.
 
-:::success[Summary]
-Solace Agent Mesh is built on a series of YAML configuration files that define the flow of components, and Python components that are loaded at run-time to perform the processing.
+## Project Structure
+
+A fresh Solace Agent Mesh project follows this structure:
+
+```
+my-sam-project/
+├── configs/
+│   ├── shared_config.yaml           # Shared broker, models, and services config
+│   ├── agents/
+│   │   └── main_orchestrator.yaml   # Default orchestrator agent
+│   └── gateways/
+│   │   └── webui.yaml              # Default web UI gateway
+│   ├── plugins/
+├── src/                            # Custom Python components (optional)
+│   └── __init__.py
+```
+
+## Configuration Organization
+
+### Directory Structure
+
+The `configs/` directory uses a logical organization:
+
+- **`agents/`** - Contains agent configuration files
+- **`gateways/`** - Contains gateway configuration files
+- **`plugins/`** - Contains plugin configuration files (created when plugins are added)
+
+Further subdirectories can be created within `agents/`, `gateways/`, and `plugins/` to organize configurations by functionality or purpose. 
+
+
+:::info[File Discovery]
+The CLI automatically crawls through the configs directory to find configuration files. Files that start with `_` (underscore) or `shared_config` are ignored and not processed by the CLI.
+For example:
+- `_example_agent.yaml` is ignored
+- `shared_config_for_db_agents.yaml` is ignored (Can still be included in other config files using `!include` directive)
 :::
+
+### Shared Configuration
+
+The `shared_config.yaml` file is the foundation of your project configuration. It contains common elements that are reused across all agents and gateways using YAML anchors:
+
+- **Broker Connection**: Solace PubSub+ broker settings for A2A communication
+- **Model Definitions**: LLM model configurations (planning, general, multimodal, etc.)
+- **Services**: Artifact service, session service, and data tools configuration
+
+This shared configuration approach eliminates duplication and ensures consistency across your entire project. Each agent and gateway configuration file references these shared elements using YAML anchor syntax (`*reference_name`).
+
+Further values can be added to the shared configuration file as needed, and they are available to all agents and gateways that include it.
 
 ## YAML Configuration Files
 
-The configuration files required to run Solace Agent Mesh are automatically copied over to your build directory (`build_directory`) at build time when you run the `sam build` command.
+Each configuration file defines one [recommended] or more applications that can be run independently. The framework supports:
 
-- **You do not need to modify these config files directly**, and providing the proper environment variables is enough in most cases. However, in case you do need to modify the configuration files, you can use **overwrites** to do so.
-  For more information, see [Overwrites](../user-guide/advanced/overwrites.md).
+- **Agent Applications**: A2A-enabled agents that use Google ADK runtime and SAM framework
+- **Gateway Applications**: Protocol translators that bridge external interfaces to adopted A2A protocol
+- **Plugin Applications**: Specialized components that extend framework capabilities
 
-- **Each time you add an agent or a gateway, appropriate configuration files are generated.** These configuration files are bundled along with the framework configuration files and copied to the build directory.
+## Configuration Management
 
-- **Each YAML configuration file can be run standalone.** You might want to separate your project into multiple processes to meet your scaling needs. For information about different ways to deploy your app, see [Deployment](../deployment/deploy.md).
+- **Environment Variables**: Configuration values use environment variables for flexibility across environments
+- **Shared Configuration**: Common settings are defined once in `shared_config.yaml` and referenced using YAML anchors (`&` and `*`)
+- **Automatic Generation**: The `sam add agent`, `sam add gateway`, and `sam plugin add` commands automatically generate appropriate configuration files
+- **Standalone Execution**: Each configuration file can be run independently using `sam run <config-file>`
 
 ## Python Components
 
-The Python components you need to run Solace Agent Mesh are provided through the Python SDK installed along with the Solace Agent Mesh CLI. The components can be directly imported into your project.
-
-For example:
-
-```py
-from solace_agent_mesh.agents.base_agent_component import BaseAgentComponent
-
-class MyAgent(BaseAgentComponent):
-    def __init__(self):
-        super().__init__()
-```
-
-The Python components from your custom agents and gateways are located under your source directory, which is copied to the build directory at build time.
-
-You are not able to directly change the core components, but many components such as the [File service](../user-guide/advanced/services/file-service.md) and [History service](../user-guide/advanced/services/history-service.md) have base classes that can be extended to meet your requirements.
+While most functionality is configured through YAML, custom Python components can be added to the `src/` directory when needed. The framework provides base classes for extending functionality such as custom agent tools, gateway protocol handlers, and service providers.

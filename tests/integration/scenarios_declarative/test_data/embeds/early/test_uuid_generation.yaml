@@ -1,0 +1,16 @@
+test_case_id: "embed_uuid_generation_001"
+description: "Tests «uuid:» or «uuid:v4» embed for valid UUID format."
+skip_intermediate_events: true
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_tester@example.com"
+  parts: [{type: "text", text: "Generate a UUID"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "Generated UUID is «uuid:»."}}]
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        # Regex for standard UUID format
+        text_matches_regex: "Generated UUID is [0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\."

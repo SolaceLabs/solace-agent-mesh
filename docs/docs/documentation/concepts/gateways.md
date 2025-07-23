@@ -5,24 +5,28 @@ sidebar_position: 10
 
 # Gateways
 
-Gateways are a crucial component of the Solace Agent Mesh framework and provide the user interface to the Solace Agent Mesh that controls the system persona. Gateways provide the following functions:
+Gateways are a crucial component of the Solace Agent Mesh framework that expose the agent mesh to external systems through various protocols. Built on a common base gateway architecture, they provide the following functions:
 
 - serve as the primary interface between Solace Agent Mesh and the outside world
-- manage the flow of information in and out of the system, ensuring secure and efficient communication
+- manage the flow of information in and out of the system through the A2A protocol
+- handle authentication, user enrichment, and message processing
+- support multiple interface types including REST, HTTP SSE, webhooks, and event mesh connectivity
 
 :::tip[In one sentence]
-Gateways are essentially the user interface to Solace Agent Mesh that controls the system persona.
+Gateways are the external interfaces that connect various systems to the A2A agent mesh through standardized protocols.
 :::
 
 ## Key Functions
 
-1. **Entry Points**: Gateways act as the entry points from the outside world into Solace Agent Mesh, allowing external systems and users to interact with the framework.
+1. **Entry Points**: Gateways act as the entry points from the outside world and translate external requests into A2A protocol messages and route them through the Solace event mesh to appropriate agents.
 
-2. **Configurable System Purpose**: Each gateway has a configurable system purpose that sets the context for all stimuli entering the Solace Agent Mesh through that gateway. This design allows for tailored processing based on the specific use case or domain.
+2. **Authentication & Authorization**: Common authentication and user enrichment flow across all gateway types, with pluggable identity providers.
 
-3. **Customizable Output Formatting**: Gateways have a configurable output description that controls how stimuli responses are formatted when sent back to the outside world. This configurable output description ensures that the output meets the requirements of the receiving system or user interface.
+3. **Configurable System Purpose**: Each gateway has a configurable system purpose that sets the context for all stimuli entering the Solace Agent Mesh through that gateway. This design allows for tailored processing based on the specific use case or domain.
 
-4. **Multiple Interface Types**: Gateways can have different interfaces to accommodate various communication protocols and systems. Some examples include REST APIs, event meshes, Slack integrations, browser-based interfaces, etc.
+4. **Customizable Output Formatting**: Gateways have a configurable output description that controls how stimuli responses are formatted when sent back to the outside world. This configurable output description ensures that the output meets the requirements of the receiving system or user interface.
+
+5. **Multiple Interface Types**: Gateways can have different interfaces to accommodate various communication protocols and systems. Some examples include REST APIs, event meshes, Slack integrations, browser-based interfaces, and so on.
 
 ## How Gateways Work
 
@@ -64,9 +68,34 @@ sequenceDiagram
 
 ## Available Gateways
 
-Solace Agent Mesh comes with two built-in gateway interfaces called `REST Endpoint` and `Web UI`. Additionally, you can use other official core plugins to utilize other gateway types or create your own custom gateways.
+Solace Agent Mesh comes with several built-in gateway types:
 
-For more information about plugins and how to configure them, see [Plugins](./plugins/index.md).
+### Core Gateways
+
+1. **HTTP SSE Gateway**
+   - Real-time web interface with streaming responses
+   - Server-sent events for live updates
+   - Agent discovery API
+   - File upload and download handling
+
+2. **REST Gateway**
+   - Task submission with immediate task ID return
+   - Polling-based result retrieval
+   - Authentication integration
+
+3. **Webhook Gateway**
+   - Handles incoming webhook requests
+   - Transforms webhook payloads to A2A messages
+
+### Plugin Gateways
+
+Additional gateway types are available through the plugin ecosystem:
+
+- **Event Mesh Gateway**: External event mesh connectivity with message transformation
+- **Slack Gateway**: Slack bot integration for team collaboration
+- **Custom Gateways**: Create your own gateway implementations
+
+For more information about plugins and how to configure them, see [Plugins](./plugins.md).
 
 One of the official core plugin gateway interfaces is the [Solace Event Mesh Gateway](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/solace-event-mesh), which enables communication with the PubSub+ event broker directly as an input interface.
 
@@ -76,40 +105,19 @@ Each gateway type has its own configuration options and specific features. See t
 
 ## Create a Gateway
 
-To create a gateway, you can either use one of the pre-existing interfaces, or create yours from scratch.
+To create a gateway, you can either [use one of the pre-existing plugins](./plugins.md#use-a-plugins) or create yours from scratch.
 
-### Gateway from Interfaces
-
-To create a gateway from an existing interface, use the `add gateway` command and pass an array of interfaces you want to use. For example, to create a new REST API gateway, you can run the following command:
-
-```sh
-solace-agent-mesh add gateway --interface rest-api my-rest-api
-```
-
-:::tip
-Don't use the word `gateway` in the name for the gateway as it will automatically get prefixed at build time.
-:::
-
-This command creates two files. One for the gateway configuration and another for the interface configuration.
-
-You can find them in the `configs/gateways/my_rest_api` directory. (The `configs` directory is specific to your configuration, so it might be another name in your case.)
-
-That's it!
-
-:::info[Using interfaces from plugins]
-Once a plugin is added to a project, it is automatically loaded into the list of available interfaces. So it'd be the same steps to add a new gateway from a plugin interface.
-:::
 
 ### Gateway from Scratch
 
 To create a gateway from scratch, you need to use the CLI `add gateway` command without any interfaces. This command creates a _python gateway template file_ which you can then customize to your needs.
 
 ```sh
-solace-agent-mesh add gateway my-interface
+sam add gateway my-interface
 ```
 
-To learn more about creating your own gateway, see [Create Custom Gateways](../user-guide/custom-gateways.md).
+To learn more about creating your own gateway, see [Create Custom Gateways](../user-guide/create-gateways.md).
 
 :::tip[Share and Reuse]
-If you would like to share your custom gateway with the community or re-use it within other projects, you can create a plugin for it. For more information, see [Create Plugins](./plugins/create-plugin.md).
+If you would like to share your custom gateway with the community or re-use it within other projects, you can create a plugin for it. For more information, see [Create Plugins](./plugins.md#create-a-plugin).
 :::

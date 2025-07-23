@@ -1,0 +1,83 @@
+test_case_id: "builtin_load_artifact_binary_content_001"
+description: |
+  Tests the 'load_artifact' tool for loading a binary artifact.
+  Expects a placeholder message for content as raw_bytes are not returned by default.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "sample_binary.png"
+    content_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" # 1x1 PNG, 68 bytes
+    mime_type: "image/png"
+    metadata:
+      description: "A sample binary PNG for load_artifact testing."
+      source: "test_setup_binary"
+      mime_type: "image/png"
+      size_bytes: 68
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_load_binary_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please load the binary artifact 'sample_binary.png', version 0."
+  external_context:
+    a2a_session_id: "session_load_binary_artifact_001"
+
+llm_interactions:
+  # Step 1: LLM decides to call load_artifact for the binary file
+  - step_id: "llm_calls_load_binary_artifact"
+    static_response:
+      id: "chatcmpl-load-binary-artifact-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_load_binary_doc"
+                type: "function"
+                function:
+                  name: "load_artifact"
+                  arguments: '{"filename": "sample_binary.png", "version": 0}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  - step_id: "llm_final_response_after_binary_load"
+    expected_request: # After load_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            filename: "sample_binary.png"
+            version: 0
+            mime_type: "image/png"
+            content: "Binary data of type image/png. Content not displayed." # Placeholder for binary
+            size_bytes: 68
+            # metadata field might also be present if the helper includes it for binary non-metadata-only loads
+    static_response:
+      id: "chatcmpl-load-binary-artifact-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Loaded 'sample_binary.png' (v0). It's binary data of type image/png."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "Loaded 'sample_binary.png' (v0). It's binary data of type image/png."
+    task_state: "completed"
+    assert_artifact_state:
+      - filename: "sample_binary.png"
+        user_id: "declarative_load_binary_tester@example.com"
+        session_id: "session_load_binary_artifact_001"
+        version: 0
+        expected_content_bytes_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" # Verify setup
+        expected_metadata_contains:
+          description: "A sample binary PNG for load_artifact testing."
+          source: "test_setup_binary"
+          mime_type: "image/png"
+          size_bytes: 68

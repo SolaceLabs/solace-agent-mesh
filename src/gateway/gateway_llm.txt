@@ -1,0 +1,125 @@
+Here is the comprehensive developer guide for the `gateway` directory.
+
+## Quick Summary
+The `gateway` directory provides a comprehensive framework for building gateway implementations that bridge external platforms with the Solace AI Connector's A2A (Agent-to-Agent) messaging system. The architecture consists of a foundational base framework and three specialized gateway implementations: HTTP/SSE for web interfaces, Slack for team collaboration, and Webhook for external system integration. All gateways share common patterns for authentication, message translation, and real-time communication while providing platform-specific features.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `__init__.py`: Marks the directory as a Python package.
+- **Subdirectories:**
+  - `base/`: Foundational classes and utilities for building all gateway implementations.
+  - `http_sse/`: A complete HTTP/SSE gateway with a FastAPI web server for real-time web UI backends.
+  - `slack/`: A gateway for integrating with the Slack collaboration platform.
+  - `webhook/`: A universal webhook gateway for receiving HTTP requests from external systems.
+
+## Developer API Reference
+
+### Direct Files
+
+#### __init__.py
+**Purpose:** Initializes the `gateway` module, making it a Python package.
+**Import:** `from gateway import ...`
+
+**Classes/Functions/Constants:**
+This file is empty and contains no direct exports.
+
+### Subdirectory APIs
+
+#### base/
+**Purpose:** Provides the foundational, abstract classes for building all Gateway implementations. It establishes a framework for configuration, A2A message handling, and managing the lifecycle of requests from external platforms.
+**Key Exports:** `BaseGatewayApp`, `BaseGatewayComponent`, `TaskContextManager`
+**Import Examples:**
+```python
+from gateway.base.app import BaseGatewayApp
+from gateway.base.component import BaseGatewayComponent
+from gateway.base.task_context import TaskContextManager
+```
+
+**Key Modules:**
+
+*   **`app.py`**:
+    *   **`BaseGatewayApp`**: The main application class to be subclassed for a new gateway. It automates configuration schema merging, Solace broker setup, and component instantiation.
+        *   `_get_gateway_component_class(self)`: **[Abstract Method]** Subclasses must implement this to return their specific gateway component class.
+
+*   **`component.py`**:
+    *   **`BaseGatewayComponent`**: The abstract base class for gateway logic. Subclasses implement the abstract methods to define how the gateway interacts with its specific external platform.
+        *   **Public Methods**:
+            *   `submit_a2a_task(...)`: The primary method for submitting a task to an agent on behalf of an external user.
+            *   `publish_a2a_message(...)`: A lower-level method to publish any message to the A2A message bus.
+        *   **Abstract Methods to Implement**:
+            *   `_extract_initial_claims(self, external_event_data)`: Extracts user identity from a platform-specific event.
+            *   `_start_listener(self)` / `_stop_listener(self)`: Manages the lifecycle of the external platform listener (e.g., a web server).
+            *   `_translate_external_input(self, external_event)`: Translates an incoming event from the external platform into the A2A protocol format.
+            *   `_send_update_to_external(...)`: Sends a streaming update back to the external platform.
+            *   `_send_final_response_to_external(...)`: Sends the final task result back to the external platform.
+            *   `_send_error_to_external(...)`: Sends an error message back to the external platform.
+
+*   **`task_context.py`**:
+    *   **`TaskContextManager`**: A thread-safe dictionary-like class for mapping A2A task IDs to the original request context from the external platform. This is crucial for routing responses back to the correct user/channel/thread.
+
+#### http_sse/
+**Purpose:** Implements a complete HTTP/SSE gateway to serve a web-based user interface, bridging web protocols with the backend A2A messaging fabric.
+**Key Exports:** `WebUIBackendApp`, `WebUIBackendComponent`, `SSEManager`, `SessionManager`, and various dependency injectors.
+**Import Examples:**
+```python
+from gateway.http_sse.app import WebUIBackendApp
+from gateway.http_sse.component import WebUIBackendComponent
+from gateway.http_sse.sse_manager import SSEManager
+from gateway.http_sse.session_manager import SessionManager
+from gateway.http_sse.dependencies import get_agent_service, get_task_service, get_user_id
+```
+
+**Key Modules & Exports:**
+
+*   **`app.py`**:
+    *   **`WebUIBackendApp`**: The main SAC App class that defines the configuration schema and launches the `WebUIBackendComponent`.
+*   **`component.py`**:
+    *   **`WebUIBackendComponent`**: The core component that hosts the FastAPI server, manages shared state, and implements the A2A translation logic for HTTP requests.
+*   **`session_manager.py`**:
+    *   **`SessionManager`**: Manages web user sessions, creating and tracking unique A2A client and session IDs from HTTP requests.
+*   **`sse_manager.py`**:
+    *   **`SSEManager`**: Manages Server-Sent Event (SSE) connections, allowing for real-time, streaming updates to be pushed from the server to connected web clients.
+*   **`dependencies.py`**:
+    *   Provides FastAPI dependency injectors for giving API routers safe access to shared resources (e.g., `get_agent_service`, `get_task_service`, `get_sac_component`).
+*   **`services/`**:
+    *   **`AgentService`**, **`TaskService`**: Contain the business logic for interacting with agents and managing tasks, respectively. These are accessed via the dependency injectors.
+
+#### slack/
+**Purpose:** Provides a gateway for integrating the Solace AI Connector with the Slack collaboration platform, enabling bot interactions within Slack channels and threads.
+**Key Exports:** `SlackGatewayApp`, `SlackGatewayComponent`, and various utility functions.
+**Import Examples:**
+```python
+from gateway.slack.app import SlackGatewayApp
+from gateway.slack.component import SlackGatewayComponent
+from gateway.slack.utils import generate_a2a_session_id, send_slack_message, correct_slack_markdown
+```
+
+#### webhook/
+**Purpose:** Provides a universal webhook gateway for receiving HTTP requests from external systems and triggering A2A tasks. It is highly configurable for different authentication methods, payload formats, and target agents.
+**Key Exports:** `WebhookGatewayApp`, `WebhookGatewayComponent`
+**Import Examples:**
+```python
+from gateway.webhook.app import WebhookGatewayApp
+from gateway.webhook.component import WebhookGatewayComponent
+from gateway.webhook.dependencies import get_sac_component
+```
+
+## Complete Usage Guide
+This guide provides practical examples of how to use the components and frameworks within the `gateway` directory.
+
+### 1. How to Create a Custom Gateway
+This example shows how to use the `base` module to build a new gateway for a hypothetical external platform.
+
+```python
+# my_gateway/app.py
+from gateway.base.app import BaseGatewayApp
+from .component import MyGatewayComponent
+
+class MyGatewayApp(BaseGatewayApp):
+    """Defines the application and its configuration for My Platform."""
+    SPECIFIC_APP_SCHEMA_PARAMS = [
+        {
+            "name": "my_platform_api_key",
+            "required": True,
+            "type": "string",
+            "

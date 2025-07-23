@@ -1,0 +1,66 @@
+test_case_id: "builtin_extract_content_source_not_found_001"
+description: |
+  Tests 'extract_content_from_artifact' when the source artifact specified
+  by 'filename' and 'version' does not exist.
+skip_intermediate_events: true
+
+# No setup_artifacts needed, as we are testing the "not found" case.
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_extract_tester_errors@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Extract from 'non_existent_file.txt'."
+  external_context:
+    a2a_session_id: "session_extract_content_source_not_found_001"
+
+llm_interactions:
+  # Interaction 1: Main agent's LLM decides to call the extract_content_from_artifact tool.
+  - step_id: "agent_llm_calls_extract_tool_for_non_existent_file"
+    static_response:
+      id: "chatcmpl-extract-notfound-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_extract_content_notfound"
+                type: "function"
+                function:
+                  name: "extract_content_from_artifact"
+                  arguments: '{"filename": "non_existent_file.txt", "extraction_goal": "Summarize this.", "version": "latest"}'
+          finish_reason: "tool_calls"
+
+  # Interaction 2: Main agent's LLM receives the error from the tool.
+  # The tool attempts to load the artifact, fails, and returns an error.
+  # No internal LLM call is made by the tool in this scenario.
+  - step_id: "agent_llm_formulates_response_from_tool_error_notfound"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0 # Matches tool_call_extract_content_notfound
+          response_json_matches:
+            status: "error_artifact_not_found"
+            # The message_to_llm includes the specific error from load_artifact_content_or_metadata
+            message_to_llm: "Could not extract content. Source artifact 'non_existent_file.txt' (version latest) was not found: Could not determine latest version for 'non_existent_file.txt': Artifact 'non_existent_file.txt' has no versions available to determine 'latest'."
+            filename: "non_existent_file.txt"
+            version_requested: "latest"
+    static_response:
+      id: "chatcmpl-extract-notfound-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I'm sorry, I couldn't find the file named 'non_existent_file.txt' to extract content from."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "I'm sorry, I couldn't find the file named 'non_existent_file.txt' to extract content from."
+    task_state: "completed"
+
+# No expected_artifacts or assert_artifact_state needed as no artifacts are involved.

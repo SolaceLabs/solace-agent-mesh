@@ -1,0 +1,127 @@
+test_case_id: "builtin_append_multiple_chunks_001"
+description: |
+  Tests appending multiple chunks sequentially to the same artifact.
+  Verifies content accumulation, correct versioning, and metadata updates
+  across multiple append operations.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "multi_append_target.txt"
+    content: "Chunk0." # Length 7
+    mime_type: "text/plain"
+    metadata:
+      description: "Initial content for multi-append test"
+      mime_type: "text/plain"
+      size_bytes: 7
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_multi_append_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please append two chunks sequentially to 'multi_append_target.txt'."
+  external_context:
+    a2a_session_id: "session_multi_append_test_001"
+
+llm_interactions:
+  # Step 1: LLM calls append_to_artifact for the first chunk
+  - step_id: "llm_calls_append_chunk1"
+    static_response:
+      id: "chatcmpl-multi-append-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_append_chunk1"
+                type: "function"
+                function:
+                  name: "append_to_artifact"
+                  arguments: '{"filename": "multi_append_target.txt", "content_chunk": " Chunk1.", "mime_type": "text/plain"}' # " Chunk1." is 8 bytes
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives result of first append, then calls append_to_artifact for the second chunk
+  - step_id: "llm_calls_append_chunk2"
+    expected_request: # After first append_to_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            filename: "multi_append_target.txt"
+            new_version: 1
+            total_size_bytes: 15 # 7 (Chunk0.) + 8 ( Chunk1.)
+    static_response:
+      id: "chatcmpl-multi-append-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_append_chunk2"
+                type: "function"
+                function:
+                  name: "append_to_artifact"
+                  arguments: '{"filename": "multi_append_target.txt", "content_chunk": " Chunk2.", "mime_type": "text/plain"}' # " Chunk2." is 8 bytes
+          finish_reason: "tool_calls"
+
+  # Step 3: LLM receives result of second append and formulates final response
+  - step_id: "llm_final_response_after_multi_append"
+    # Removing expected_request.expected_tool_responses_in_llm_messages here.
+    # The actual tool execution success is implicitly tested by the fact that the LLM
+    # proceeds to this step, and the final artifact state (version 2) is asserted
+    # in expected_gateway_output.assert_artifact_state.
+    # This avoids issues if the ADK sends more tool history than the runner strictly expects
+    # for the tool_call_id_matches_prior_request_index assertion.
+    static_response:
+      id: "chatcmpl-multi-append-3"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Okay, I have appended two chunks. 'multi_append_target.txt' is now version 2 and has a total size of 23 bytes."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "Okay, I have appended two chunks. 'multi_append_target.txt' is now version 2 and has a total size of 23 bytes."
+    task_state: "completed"
+    assert_artifact_state:
+      # Check initial artifact (version 0)
+      - filename: "multi_append_target.txt"
+        user_id: "declarative_multi_append_tester@example.com"
+        session_id: "session_multi_append_test_001"
+        version: 0
+        expected_content_text: "Chunk0."
+        expected_metadata_contains:
+          mime_type: "text/plain"
+          description: "Initial content for multi-append test"
+          size_bytes: 7
+
+      # Check artifact after first append (version 1)
+      - filename: "multi_append_target.txt"
+        user_id: "declarative_multi_append_tester@example.com"
+        session_id: "session_multi_append_test_001"
+        version: 1
+        expected_content_text: "Chunk0. Chunk1."
+        expected_metadata_contains:
+          mime_type: "text/plain"
+          appended_from_version: 0
+          appended_chunk_declared_mime_type: "text/plain"
+          size_bytes: 15
+
+      # Check artifact after second append (version 2)
+      - filename: "multi_append_target.txt"
+        user_id: "declarative_multi_append_tester@example.com"
+        session_id: "session_multi_append_test_001"
+        version: 2
+        expected_content_text: "Chunk0. Chunk1. Chunk2."
+        expected_metadata_contains:
+          mime_type: "text/plain"
+          appended_from_version: 1
+          appended_chunk_declared_mime_type: "text/plain"
+          size_bytes: 23

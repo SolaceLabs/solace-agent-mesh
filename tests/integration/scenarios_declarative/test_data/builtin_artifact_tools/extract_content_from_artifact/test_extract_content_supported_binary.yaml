@@ -1,0 +1,95 @@
+test_case_id: "builtin_extract_content_supported_binary_001"
+description: |
+  Tests 'extract_content_from_artifact' with a supported binary artifact type (e.g., image/png).
+  The internal LLM should receive the binary data directly for processing.
+skip_intermediate_events: true
+
+# Assumes agent config: extract_content_from_artifact_config.supported_binary_mime_types = ["image/png", "image/jpeg"]
+
+setup_artifacts:
+  - filename: "supported_image.png"
+    # Minimal valid PNG (1x1 transparent pixel) base64 encoded
+    content_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    mime_type: "image/png"
+    metadata:
+      description: "A PNG image that IS supported for direct content extraction."
+      mime_type: "image/png"
+      size_bytes: 69
+
+gateway_input:
+  target_agent_name: "TestAgent" # This agent needs the specific config
+  user_identity: "declarative_extract_tester_binary@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "What color is the pixel in 'supported_image.png'?"
+  external_context:
+    a2a_session_id: "session_extract_supported_binary_001"
+
+llm_interactions:
+  # 1. Agent LLM decides to call extract_content_from_artifact
+  - step_id: "agent_llm_calls_extract_for_supported_binary"
+    static_response:
+      id: "chatcmpl-extract-sbin-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_extract_sbin"
+                type: "function"
+                function:
+                  name: "extract_content_from_artifact"
+                  arguments: '{"filename": "supported_image.png", "extraction_goal": "Identify the color of the single pixel in this image.", "version": "0"}'
+          finish_reason: "tool_calls"
+
+  # 2. Internal Multimodal LLM receives the image data directly.
+  #    Its response will be based on the extraction_goal and the image content.
+  #    The request to this LLM would contain an inline_data part with the image bytes.
+  - step_id: "internal_llm_processes_supported_binary"
+    static_response:
+      id: "chatcmpl-extract-sbin-internal-1"
+      object: "chat.completion"
+      model: "test-multimodal-llm-internal" # Assumed multimodal model
+      choices:
+        - message:
+            role: "assistant"
+            content: "The pixel is transparent (alpha 0), appearing as clear or white depending on background."
+          finish_reason: "stop"
+      usage: {prompt_tokens: 80, completion_tokens: 20, total_tokens: 100}
+
+  # 3. Agent LLM receives the result from the tool
+  - step_id: "agent_llm_formulates_final_answer_from_supported_binary_extraction"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success_full_content_saved_and_returned"
+            extracted_data: "The pixel is transparent (alpha 0), appearing as clear or white depending on background."
+            source_filename: "supported_image.png"
+            source_version_processed: 0
+    static_response:
+      id: "chatcmpl-extract-sbin-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "The pixel in 'supported_image.png' is transparent."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "The pixel in 'supported_image.png' is transparent."
+    task_state: "completed"
+
+assert_artifact_state: # Original artifact should be unchanged
+  - filename: "supported_image.png"
+    user_id: "declarative_extract_tester_binary@example.com"
+    session_id: "session_extract_supported_binary_001"
+    version: 0
+    expected_content_bytes_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    expected_metadata_contains:
+      mime_type: "image/png"

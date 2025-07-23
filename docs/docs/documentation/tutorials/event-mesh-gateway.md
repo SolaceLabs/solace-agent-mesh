@@ -1,9 +1,17 @@
 ---
 title: Event Mesh Gateway
-sidebar_position: 10
+sidebar_position: 20
 ---
 
 # Event Mesh Gateway
+
+If you already have an [event mesh](https://solace.com/what-is-an-event-mesh/) in place, you can integrate Solace Agent Mesh into it. This allows you to leverage existing infrastructure while introducing intelligence and automation through Solace Agent Mesh.
+
+## Benefits of Integrating with an Event Mesh
+
+- **Seamless Communication**: Solace Agent Mesh can subscribe to and publish events across the entire event mesh
+- **Event-Driven Automation**: Intelligent event processing based on patterns and AI-driven insights
+- **Scalability**: Solace Agent Mesh can dynamically participate in large-scale event-driven systems
 
 The Event Mesh Gateway connects Solace Agent Mesh (SAM) to your existing event mesh infrastructure. Through its asynchronous interfaces, applications within your event mesh can seamlessly access and utilize Solace Agent Mesh capabilities.
 
@@ -16,116 +24,181 @@ This tutorial assumes you have an existing Jira application integrated with your
 1. Publishes a "jira_created" event to topic `jira/issue/created/<jira_id>` when a new Jira issue is created
 2. Listens for "jira_update" events on topic `jira/issue/update` to update existing issues
 
-You will create an Event Mesh Gateway that:
+Create an Event Mesh Gateway that:
 
-1. Monitors for new Jira issues.
-2. Automatically generates a concise summary.
-3. Creates an event to update the original Jira issue with this summary.
+1. Monitors for new Jira issues
+2. Automatically generates a concise summary
+3. Creates an event to update the original Jira issue with this summary
 
 This creates a streamlined workflow where bug reports are automatically enhanced with clear, AI-generated summaries.
 
 ## Setting Up the Environment
 
-First, you need to [install Solace Agent Mesh and the Solace Agent Mesh (SAM) CLI](../getting-started/installation.md), and then you'll want to [create a new Solace Agent Mesh project](../getting-started/quick-start.md)
+First, you need to [install Solace Agent Mesh and the SAM CLI](../getting-started/installation.md), and then [create a new Solace Agent Mesh project](../getting-started/quick-start.md).
 
-For this tutorial, you will need to create or use an existing [Solace Event Broker](https://solace.com/products/event-broker/) or [event mesh](https://solace.com/solutions/initiative/event-mesh/) created using PubSub+ event brokers.
+For this tutorial, you need to create or use an existing [Solace Event Broker](https://solace.com/products/event-broker/) or [event mesh](https://solace.com/solutions/initiative/event-mesh/) created using PubSub+ event brokers.
 
-## Creating the Event Mesh Gateway
+## Adding the Event Mesh Gateway Plugin
 
-Once you have your project set up, you can add the plugin to Solace Agent Mesh:
-
-```sh
-solace-agent-mesh plugin add solace-event-mesh --pip -u git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=solace-event-mesh
-```
-
-Next, create an instance of Event Mesh Gateway. The following command will create the configuration for a new gateway (named `jira`) as well as the input and output configuration for the event mesh interface:
+Once you have your project set up, add the Event Mesh Gateway plugin:
 
 ```sh
-solace-agent-mesh add gateway jira --interface solace-event-mesh
+sam plugin add jira-event-mesh --plugin sam-event-mesh-gateway
 ```
 
-Expected output:
+You can use any name for your agent, in this tutorial we use `jira-event-mesh`.
 
-```txt
-Created the following gateway template files:
-  - ./configs/gateways/jira/gateway.yaml
-  - ./configs/gateways/jira/solace-event-mesh.yaml
-```
+This command:
+1. Installs the `sam-event-mesh-gateway` plugin
+2. Creates a new gateway configuration named `jira-event-mesh` in your `configs/gateways/` directory
 
-## Configuring the Event Mesh Gateway
+#### Configuring the Event Mesh Gateway
 
-The Event Mesh Gateway configuration is located in `./configs/gateways/jira/solace-event-mesh.yaml`. You will modify its input and output processors to meet the requirements.
+After adding the plugin, you can see a new configuration file in `configs/gateways/jira-event-mesh.yaml`. This file contains the gateway configuration that needs to be customized for your Jira integration use case.
 
-### Input Processor
+#### Environment Variables
 
-First, let's configure the input processor, with the instruction to create summaries from newly created Jira tickets:
-
-```yaml
-- event_mesh_input_config: &event_mesh_input_config
-    identity: jira_event_mesh
-    event_handlers:
-      - name: jira_event_handler
-        subscriptions:
-          - topic: jira/issue/created/>
-            qos: 1
-        input_expression: >
-          template:Create a concise summary for the newly created jira: title:{{text://input.payload:title}} body:{{text://input.payload:body}} id:{{text://input.payload:id}}. Return a json file with fields `id`, `type` (value is "summary") and `summary`.
-        payload_encoding: utf-8
-        payload_format: json
-        output_handler_name: jira_summary_emitter
-```
-
-This input processor subscribes on the topic for newly created Jiras (`jira/issue/created/>`), and creates a prompt using an input_expression that instructs Solace Event Mesh to create a summary of the Jira based on the title and body fields in the event. The response is returned as a JSON file.
-
-### Output Processor
-
-Next, you configure the output processor to publish the summary to the update topic:
-
-```yaml
-- event_mesh_output_config: &event_mesh_output_config
-    output_handlers:
-      - name: jira_summary_emitter
-        attach_file_as_payload: true
-        topic: jira/issue/update
-        payload_encoding: none
-        payload_format: text
-```
-
-The `jira_summary_emitter` output handler takes the json file with the summary, and adds it to the event payload. The event topic is `jira/issue/update`. The file contents added to the event payload using the specified encoding and format configuration parameters.
-
-### Response Format
-
-Finally, set up the response prompt so that the final output meets our expectations. For this example, we want only formatted JSON. Update the `response_format_prompt_config` with the following:
-
-```yaml
-- response_format_prompt_config: &response_format_prompt >
-    The response should be a valid, well-formed JSON object with no markdown formatting or additional wrappers.
-```
-
-### Gateway
-
-No customization is required for `./configs/gateways/jira/gateway.yaml`
-
-## Building and Running the Event Mesh Gateway
-
-Now, you can build and run the Event Mesh Gateway:
+First, set up the required environment variables for the data plane connection:
 
 ```sh
-sam run -b
+# Data plane Solace broker connection (can be same or different from control plane)
+export JIRA_EVENT_MESH_SOLACE_BROKER_URL="ws://localhost:8080"
+export JIRA_EVENT_MESH_SOLACE_BROKER_VPN="default"
+export JIRA_EVENT_MESH_SOLACE_BROKER_USERNAME="default"
+export JIRA_EVENT_MESH_SOLACE_BROKER_PASSWORD="default"
 ```
 
-For more information, see [Solace Agent Mesh CLI](../concepts/cli.md).
+### Gateway Configuration
+
+The main configuration includes several key sections:
+
+#### Event Handlers
+
+Configure the event handler to listen for new Jira issues and generate summaries:
+
+```yaml
+event_handlers:
+  - name: "jira_issue_handler"
+    subscriptions:
+      - topic: "jira/issue/created/>"
+        qos: 1
+    input_expression: "template:Create a concise summary for the newly created Jira issue: Title: {{text://input.payload:title}}, Body: {{text://input.payload:body}}, ID: {{text://input.payload:id}}. Return a JSON object with fields 'id', 'type' (value should be 'summary'), and 'summary'."
+    payload_encoding: "utf-8"
+    payload_format: "json"
+    target_agent_name: "OrchestratorAgent"
+    on_success: "jira_summary_handler"
+    on_error: "error_response_handler"
+    forward_context:
+      jira_id: "input.payload:id"
+      correlation_id: "input.user_properties:correlation_id"
+```
+
+#### Output Handlers
+
+Configure output handlers to publish the summary back to the event mesh:
+
+```yaml
+output_handlers:
+  - name: "jira_summary_handler"
+    topic_expression: "static:jira/issue/update"
+    payload_expression: "task_response:text"
+    payload_encoding: "utf-8"
+    payload_format: "json"
+    
+  - name: "error_response_handler"
+    topic_expression: "template:jira/issue/error/{{text://user_data.forward_context:jira_id}}"
+    payload_expression: "task_response:a2a_task_response.error"
+    payload_encoding: "utf-8"
+    payload_format: "json"
+```
+
+### Complete Configuration Example
+
+Here is a complete configuration file based on the plugin template:
+
+```yaml
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: jira-event-mesh.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: jira-event-mesh-app
+    app_module: sam_event_mesh_gateway.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      gateway_id: "jira-event-mesh-gw-01"
+      artifact_service: *default_artifact_service
+      authorization_service:
+        type: "none" # Or "default_rbac"
+      default_user_identity: "anonymous_event_mesh_user" # If no identity from event
+
+
+
+      # Data plane connection
+      event_mesh_broker_config:
+        broker_url: ${JIRA_EVENT_MESH_SOLACE_BROKER_URL}
+        broker_vpn: ${JIRA_EVENT_MESH_SOLACE_BROKER_VPN}
+        broker_username: ${JIRA_EVENT_MESH_SOLACE_BROKER_USERNAME}
+        broker_password: ${JIRA_EVENT_MESH_SOLACE_BROKER_PASSWORD}
+
+      event_handlers:
+        - name: "jira_issue_handler"
+          subscriptions:
+            - topic: "jira/issue/created/>"
+              qos: 1
+          input_expression: "template:Create a concise summary for the newly created Jira issue: Title: {{text://input.payload:title}}, Body: {{text://input.payload:body}}, ID: {{text://input.payload:id}}. Return a JSON object with fields 'id', 'type' (value should be 'summary'), and 'summary'."
+          payload_encoding: "utf-8"
+          payload_format: "json"
+          target_agent_name: "OrchestratorAgent"
+          on_success: "jira_summary_handler"
+          on_error: "error_response_handler"
+          forward_context:
+            jira_id: "input.payload:id"
+
+      output_handlers:
+        - name: "jira_summary_handler"
+          topic_expression: "static:jira/issue/update"
+          payload_expression: "task_response:text"
+          payload_encoding: "utf-8"
+          payload_format: "json"
+          
+        - name: "error_response_handler"
+          topic_expression: "template:jira/issue/error/{{text://user_data.forward_context:jira_id}}"
+          payload_expression: "task_response:a2a_task_response.error"
+          payload_encoding: "utf-8"
+          payload_format: "json"
+```
+
+## Running the Event Mesh Gateway
+
+Now you can run the Event Mesh Gateway:
+
+```sh
+sam run configs/gateways/jira-event-mesh.yaml
+```
+
+The gateway:
+1. Connects to both the A2A control plane and the data plane event mesh
+2. Subscribes to the configured topics on the data plane
+3. Starts processing incoming events and routing them to agents
 
 ## Testing the Event Mesh Gateway
 
 Now that the system is running, let's test the Event Mesh Gateway.
 
-1. Open the **Try Me!** tab of the [Solace PubSub+ Broker Manager](https://docs.solace.com/Admin/Broker-Manager/PubSub-Manager-Overview.htm).
+### Using Solace PubSub+ Broker Manager
 
-2. Connect both the **Publisher** and **Subscriber** panels by clicking their respective **Connect** buttons.
+1. Open the **Try Me!** tab of the [Solace PubSub+ Broker Manager](https://docs.solace.com/Admin/Broker-Manager/PubSub-Manager-Overview.htm)
+
+2. Connect both the **Publisher** and **Subscriber** panels by clicking their respective **Connect** buttons
 
 3. In the Subscriber panel:
-
    - Enter `jira/issue/update` in the `Topic Subscriber` field
    - Click `Subscribe`
 
@@ -141,9 +214,9 @@ Now that the system is running, let's test the Event Mesh Gateway.
 }
 ```
 
-Next, click **Publish**.
+5. Click **Publish**
 
-After a few seconds, you will see a new message in the **Subscriber** messages with topic `jira/issue/update` and a body similar to below:
+After a few seconds, you can see a new message in the **Subscriber** messages with the topic `jira/issue/update` and a body similar to:
 
 ```json
 {
@@ -152,3 +225,24 @@ After a few seconds, you will see a new message in the **Subscriber** messages w
   "summary": "Database read error: Unable to retrieve record for key customer ABC despite confirmed existence"
 }
 ```
+
+## Advanced Features
+
+The Event Mesh Gateway supports several advanced features:
+
+### Artifact Processing
+
+You can configure the gateway to automatically create artifacts from incoming message payloads before sending them to agents. This is useful for processing files, images, or other binary data embedded in events.
+
+### Dynamic Agent Routing
+
+Instead of using a static `target_agent_name`, you can use `target_agent_name_expression` to dynamically determine which agent should process each event based on the message content.
+
+### Context Forwarding
+
+The `forward_context` configuration allows you to extract data from incoming messages and make it available when generating outgoing responses, enabling request-reply patterns and correlation tracking.
+
+### Error Handling
+
+Configure separate output handlers for success and error scenarios to ensure proper error reporting and system monitoring.
+

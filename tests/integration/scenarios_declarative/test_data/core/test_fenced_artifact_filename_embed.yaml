@@ -1,0 +1,43 @@
+test_case_id: "fenced_artifact_filename_embed_001"
+description: "Tests that a filename with a dynamic embed is resolved correctly before saving."
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "fenced_artifact_tester@example.com"
+  parts: [{type: "text", text: "Create a log file with a unique name."}]
+  external_context:
+    a2a_session_id: "fixed_session_for_fenced_artifact_embed_test_001"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: |
+              Generating a log file with a unique ID.
+              «««save_artifact: filename="log-«uuid:».txt" mime_type="text/plain"
+              Log entry: System started.
+              »»»
+          finish_reason: "stop"
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have created the unique log file."
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "_notify_artifact_save"
+          response_json_matches:
+            filename: { _regex: "^log-[0-9a-f-]{36}\\.txt$" }
+            status: "success"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "I have created the unique log file."
+    assert_artifact_state:
+      - filename_matches_regex: "^log-[0-9a-f-]{36}\\.txt$"
+        version: 0
+        expected_content_text: "Log entry: System started.\n"

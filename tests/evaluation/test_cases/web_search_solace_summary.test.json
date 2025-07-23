@@ -1,0 +1,13 @@
+{
+    "test_case_id": "web_search_solace_summary",
+    "category": "Orchestration",
+    "description": "A test case to search the web and summarize the results.",
+    "query": "Do a web search about 'Solace'. Give me a summary of the results.",
+    "target_agent": "OrchestratorAgent",
+    "wait_time": 60,
+    "evaluation": {
+        "expected_tools": ["peer_WebAgent"],
+        "expected_response": "Solace is a technology company that provides event-driven architecture and messaging solutions.",
+        "criterion": "Evaluate if the agent successfully uses the WebAgent to perform a web search and provides a relevant summary."
+    }
+}

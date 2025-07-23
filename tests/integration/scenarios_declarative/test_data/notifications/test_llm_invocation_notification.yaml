@@ -1,0 +1,30 @@
+test_case_id: "notification_llm_invocation_001"
+description: "Tests that an llm_invocation notification is sent."
+skip_intermediate_events: true
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "notification_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Simple query for LLM."
+llm_interactions: # Only one interaction needed to trigger the llm_invocation
+  - step_id: "llm_responds_directly"
+    expected_request: {} # Can add prompt_contains if needed
+    static_response:
+      id: "chatcmpl-llminvnotify"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message: {role: "assistant", content: "LLM was invoked."}
+          finish_reason: "stop"
+expected_gateway_output:
+  - type: "status_update"
+    event_purpose: "llm_invocation"
+    expected_llm_data_contains:
+      model: "openai/test-model-sam-..."
+    final_flag: false
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "LLM was invoked."
+    task_state: "completed"

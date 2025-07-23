@@ -1,0 +1,73 @@
+test_case_id: "builtin_extract_content_invalid_version_format_001"
+description: |
+  Tests 'extract_content_from_artifact' when the 'version' parameter
+  is an invalid string (not 'latest' and not an integer).
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "source_for_invalid_version.txt"
+    content: "Content that won't be reached."
+    mime_type: "text/plain"
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_extract_tester_errors@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Extract from 'source_for_invalid_version.txt' version 'bad_version'."
+  external_context:
+    a2a_session_id: "session_extract_content_invalid_version_001"
+
+llm_interactions:
+  # Interaction 1: Main agent's LLM calls the tool with an invalid version string.
+  - step_id: "agent_llm_calls_extract_tool_with_invalid_version"
+    static_response:
+      id: "chatcmpl-extract-badver-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_extract_content_badver"
+                type: "function"
+                function:
+                  name: "extract_content_from_artifact"
+                  arguments: '{"filename": "source_for_invalid_version.txt", "extraction_goal": "Summarize this.", "version": "not_latest_or_int"}'
+          finish_reason: "tool_calls"
+
+  # Interaction 2: Main agent's LLM receives the error from the tool.
+  # The tool attempts to parse the version, fails, and returns an error.
+  - step_id: "agent_llm_formulates_response_from_tool_error_badver"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0 # Matches tool_call_extract_content_badver
+          response_json_matches:
+            status: "error_invalid_version_format"
+            message_to_llm: "Invalid version format 'not_latest_or_int'. Version must be an integer or 'latest'."
+            filename: "source_for_invalid_version.txt"
+            version_requested: "not_latest_or_int"
+    static_response:
+      id: "chatcmpl-extract-badver-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I'm sorry, the version specified ('not_latest_or_int') for the file 'source_for_invalid_version.txt' is not valid. Please use 'latest' or a specific version number."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "I'm sorry, the version specified ('not_latest_or_int') for the file 'source_for_invalid_version.txt' is not valid. Please use 'latest' or a specific version number."
+    task_state: "completed"
+
+# Source artifact should be untouched.
+assert_artifact_state:
+  - filename: "source_for_invalid_version.txt"
+    user_id: "declarative_extract_tester_errors@example.com"
+    session_id: "session_extract_content_invalid_version_001"
+    version: 0
+    expected_content_text: "Content that won't be reached."

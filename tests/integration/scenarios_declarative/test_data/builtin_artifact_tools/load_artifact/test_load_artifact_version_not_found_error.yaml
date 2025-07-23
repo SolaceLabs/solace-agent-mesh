@@ -1,0 +1,70 @@
+test_case_id: "builtin_load_artifact_version_not_found_error_001"
+description: |
+  Tests the 'load_artifact' tool's error handling when the specified
+  artifact version does not exist for a known filename.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "existing_doc_for_version_test.txt"
+    content: "This is version 0."
+    mime_type: "text/plain"
+    metadata:
+      description: "Base document for version not found test"
+      mime_type: "text/plain"
+      size_bytes: 19
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_load_version_error_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please try to load version 99 of 'existing_doc_for_version_test.txt'."
+  external_context:
+    a2a_session_id: "session_load_version_error_artifact_001"
+
+llm_interactions:
+  # Step 1: LLM calls load_artifact for a non-existent version
+  - step_id: "llm_calls_load_non_existent_version"
+    static_response:
+      id: "chatcmpl-load-nonexistent-version-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_load_nonexistent_version"
+                type: "function"
+                function:
+                  name: "load_artifact"
+                  arguments: '{"filename": "existing_doc_for_version_test.txt", "version": 99}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool error result and formulates final response
+  - step_id: "llm_final_response_after_load_version_error"
+    expected_request: # After load_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "not_found" # Or "error"
+            # filename: "existing_doc_for_version_test.txt" # May not be in top-level error
+            # version: 99
+          # The message from FileNotFoundError in the helper is likely:
+          # "Artifact 'existing_doc_for_version_test.txt' version 99 not found or has no data."
+          response_contains: "Artifact 'existing_doc_for_version_test.txt' version 99 not found or has no data."
+    static_response:
+      id: "chatcmpl-load-nonexistent-version-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I couldn't load version 99 of 'existing_doc_for_version_test.txt' as that version was not found."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "I couldn't load version 99 of 'existing_doc_for_version_test.txt' as that version was not found."
+    task_state: "completed"

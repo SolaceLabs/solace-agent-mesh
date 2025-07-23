@@ -1,19 +1,19 @@
 ---
 title: Slack Integration
-sidebar_position: 50
+sidebar_position: 60
 ---
 
 # Slack Integration
 
-In this tutorial, you will integrate a Slack interface into Solace Agent Mesh, enabling interaction with the system directly from your Slack workspace and channels.
+This tutorial integrates a Slack interface into Solace Agent Mesh, enabling interaction with the system directly from your Slack workspace and channels.
 
 :::info[Learn about gateways]
-We recommend you read about [Gateways](../concepts/gateways.md) before you start this tutorial.
+Read about [Gateways](../concepts/gateways.md) before you start this tutorial.
 :::
 
 ## Setting Up the Environment
 
-First, you need to [install Solace Agent Mesh and Solace Mesh Agent (SAM) CLI](../getting-started/installation.md), and then you'll want to [create a new Solace Agent Mesh project](../getting-started/quick-start.md) or [create a new plugin](../concepts/plugins/create-plugin.md).
+First, you need to [install Solace Agent Mesh and Solace Mesh Agent (SAM) CLI](../getting-started/installation.md), and then [create a new Solace Agent Mesh project](../getting-started/quick-start.md) or [create a new gateway plugin](../concepts/plugins.md#create-a-plugin).
 
 ## Creating the Slack App
 
@@ -90,7 +90,7 @@ settings:
   token_rotation_enabled: false
 ```
 
-Then select `Create` and your new App will be created.
+Then select `Create` to create your new App.
 
 ### App-Level Tokens
 
@@ -98,31 +98,25 @@ In your created App, select `Basic Information` under `Settings`. Scroll down to
 
 Provide your token a name, add all available scopes, and then click `Generate`.
 
-Make note of the resulting application token (beginning with `xapp-`) - you will need it in a future step.
+Make note of the resulting application token (beginning with `xapp-`) - you need it in a future step.
 
 ### Installing the App in Your Slack Workspace
 
 Next, select **Install App** under **Settings** and follow the installation flow to install the App in your workspace.
 
-After installation, the bot token (beginning with `xoxb-`) will be visible. Make note of this token.
+After installation, the bot token (beginning with `xoxb-`) is visible. Make note of this token.
 
-## Installing the Slack Interface and Gateway
+## Installing the Slack Gateway
 
-After configuring your Slack App, the next step is to add the Slack interface and gateway to Solace Agent Mesh.
+After configuring your Slack App, the next step is to add the Slack gateway to Solace Agent Mesh.
 
-1. Create the gateway and interface using the Solace Agent Mesh (SAM) CLI:
+1. Add the gateway plugin using the Solace Agent Mesh (SAM) CLI:
 
    ```sh
-   sam add gateway slackbot --interface slack
+   sam plugin add slack-bot --plugin sam-slack
    ```
 
-   This command generates two configuration files:
-
-   ```plain
-   Created the following gateway template files:
-     - ./configs/gateways/slackbot/gateway.yaml
-     - ./configs/gateways/slackbot/slack.yaml
-   ```
+    You can change `slack-bot` to any name you prefer for your gateway.
 
 2. Configure the required environment variables:
 
@@ -133,18 +127,18 @@ After configuring your Slack App, the next step is to add the Slack interface an
    SLACK_APP_TOKEN=xapp-xxxxxxxxxx
    ```
 
-   :::note
+  :::tip
 
-   While you can customize the gateway and interface behavior by modifying `gateway.yaml` and `slack.yaml`, this is optional.
+  You can further customize the Slack gateway by updating the `configs/gateways/slack-bot.yaml` file. This file contains the configuration for the Slack gateway, including the initial status message, the gateway system purpose, and response format.
 
-   :::
+  :::
 
-## Running the Interface and Gateway
+## Running the Slack Gateway
 
-Launch the interface and gateway with:
+Launch the Slack gateway with:
 
 ```sh
-sam run -b
+sam run configs/gateways/slack-bot.yaml
 ```
 
 For detailed information about available SAM CLI commands, see [Solace Agent Mesh CLI](../concepts/cli.md).

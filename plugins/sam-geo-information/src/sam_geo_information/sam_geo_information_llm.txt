@@ -1,0 +1,89 @@
+Here is the developer guide for the `sam_geo_information` directory.
+
+## Quick Summary
+The `sam_geo_information` directory provides a set of tools for retrieving geographical information. It allows developers to convert city names into coordinates and timezones, and to fetch current weather conditions and forecasts for any given location. It integrates with external services for geocoding and weather data.
+
+## Files Overview
+*   `__init__.py`: Exports the main public functions for easy access.
+*   `city_to_coordinates.py`: Contains the tool function to find geographic coordinates for a city.
+*   `city_to_timezone.py`: Contains the tool function to find timezone information for a city.
+*   `get_weather.py`: Contains the tool function to retrieve weather data for a location.
+*   `requests_session.py`: Provides a singleton manager for a shared `requests.Session` object (internal use).
+*   `services.py`: Implements client services for interacting with external geocoding and weather APIs.
+
+## Developer API Reference
+
+### city_to_coordinates.py
+**Purpose:** This file provides a tool function to convert a city name into its geographic coordinates (latitude and longitude). It can return multiple possible matches.
+
+**Import:** `from sam_geo_information import city_to_coordinates`
+
+**Functions:**
+- `async def city_to_coordinates(city: str, tool_context: Optional[ToolContext] = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Converts a city name to its geographic coordinates. The `tool_config` dictionary must contain a `geocoding_api_key` for the geocode.maps.co service, although the service has a free tier that does not require a key.
+
+**Usage Examples:**
+```python
+import asyncio
+from typing import Dict, Any, Optional
+
+# The ToolContext type is part of the Google ADK framework.
+# For standalone usage, we can use a placeholder or None.
+class ToolContext:
+    pass
+
+async def main():
+    # This function is designed to be called within a Google ADK tool environment,
+    # which provides the tool_config. For standalone use, you must provide it.
+    # The geocode.maps.co service has a free tier that doesn't require an API key.
+    config: Optional[Dict[str, Any]] = {"geocoding_api_key": None}
+
+    # Import the function
+    from sam_geo_information import city_to_coordinates
+
+    result = await city_to_coordinates(city="Paris", tool_config=config)
+
+    if result.get("status") == "success":
+        print(result["message"])
+        # print(result["results"]) # Uncomment to see the raw data
+    else:
+        print(f"Error: {result.get('message')}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### city_to_timezone.py
+**Purpose:** This file provides a tool function to find the timezone information for a given city, including its UTC offset and Daylight Saving Time (DST) status.
+
+**Import:** `from sam_geo_information import city_to_timezone`
+
+**Functions:**
+- `async def city_to_timezone(city: str, tool_context: Optional[ToolContext] = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Converts a city name to its timezone information. The `tool_config` dictionary must contain a `geocoding_api_key`.
+
+**Usage Examples:**
+```python
+import asyncio
+from typing import Dict, Any, Optional
+
+# The ToolContext type is part of the Google ADK framework.
+# For standalone usage, we can use a placeholder or None.
+class ToolContext:
+    pass
+
+async def main():
+    # The geocode.maps.co service has a free tier that doesn't require an API key.
+    config: Optional[Dict[str, Any]] = {"geocoding_api_key": None}
+
+    # Import the function
+    from sam_geo_information import city_to_timezone
+
+    result = await city_to_timezone(city="Tokyo", tool_config=config)
+
+    if result.get("status") == "success":
+        print(result["message"])
+    else:
+        print(f"Error: {result.get('message')}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```

@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.sam_event_mesh_gateway.metadata]
+type = "gateway"
+
+[project]
+name = "sam_event_mesh_gateway"
+version = "0.1.0"
+description = "Solace Agent Mesh Gateway plugin for integrating with Solace PubSub+ event brokers."
+readme = "README.md"
+authors = [
+    { name="SolaceLabs", email="solacelabs@solace.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "solace-ai-connector>=0.8.0", # Align with SAM Host, adjust as needed
+    "pydantic>=2.0.0",
+    "jsonschema>=4.0.0",
+    "solace-pubsubplus>=1.3.0" # For data plane client if used directly
+]
+
+[project.entry-points."solace_agent_mesh.plugins"]
+sam_event_mesh_gateway = "sam_event_mesh_gateway.app:info"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sam_event_mesh_gateway"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"config.yaml" = "sam_event_mesh_gateway/config.yaml"
+"README.md" = "sam_event_mesh_gateway/README.md"
+"pyproject.toml" = "sam_event_mesh_gateway/pyproject.toml"

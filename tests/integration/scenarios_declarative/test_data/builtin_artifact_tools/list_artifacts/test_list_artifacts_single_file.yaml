@@ -1,0 +1,79 @@
+test_case_id: "builtin_list_artifacts_single_file_001"
+description: |
+  Tests the 'list_artifacts' tool when a single artifact with one version exists.
+  Verifies the correct filename, version list, and metadata summary are returned.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "report.txt"
+    content: "This is a test report."
+    mime_type: "text/plain"
+    metadata:
+      description: "A simple test report file"
+      source: "manual_setup"
+      mime_type: "text/plain" # For .metadata.json
+      size_bytes: 22          # Length of "This is a test report."
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_list_artifacts_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please list all available artifacts."
+  external_context:
+    a2a_session_id: "session_list_artifacts_single_001"
+
+llm_interactions:
+  # Step 1: LLM decides to call list_artifacts
+  - step_id: "llm_calls_list_artifacts"
+    static_response:
+      id: "chatcmpl-list-artifacts-single-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_list_files"
+                type: "function"
+                function:
+                  name: "list_artifacts"
+                  arguments: '{}' # No arguments for list_artifacts
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  - step_id: "llm_final_response_after_list"
+    expected_request: # After list_artifacts tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            artifacts:
+              - filename: "report.txt"
+                versions: [0] # Expecting version 0 from setup
+                metadata_summary:
+                  description: "A simple test report file"
+                  source: "manual_setup"
+                  type: "text/plain" # This comes from the metadata's mime_type
+                  size: 22
+                  schema_type: "text/plain" # From schema inference or metadata mime_type
+                  # schema_inferred: true/false or null depending on inference for text/plain
+    static_response:
+      id: "chatcmpl-list-artifacts-single-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Found 1 artifact: report.txt (v0), description: A simple test report file."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "Found 1 artifact: report.txt (v0)" # Using contains for flexibility
+        text_contains: "description: A simple test report file"
+    task_state: "completed"
+    # No assert_artifact_state needed here as we are testing the list, not modifying artifacts.
+    # The setup_artifacts implicitly tests creation.

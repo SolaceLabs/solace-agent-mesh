@@ -3,49 +3,23 @@ title: Orchestrator
 sidebar_position: 40
 ---
 
-# Orchestrator
+# Orchestrator Agent
 
-The orchestrator is the central system in Solace Agent Mesh that plays a crucial role in managing the overall workflow of requests. It acts as the central coordinator for processing complex, multi-step workflows while maintaining security, efficiency, and scalability.
+The A2A (Agent-to-Agent) protocol is the communication backbone of Solace Agent Mesh that enables distributed agent coordination and workflow management. Unlike traditional centralized orchestration, the A2A protocol enables agents to discover each other, delegate tasks, and collaborate directly through standardized message patterns.
+
+The advantages of centralized orchestration such as task breakdown and management, centralized point of communication and session management are still achieved in Solace Agent Mesh through a specialized agent called the **OrchestratorAgent** that acts as the central coordinator for complex workflows.
+
+
 
 :::tip[In one sentence]
-The orchestrator is essentially the central intelligence that manages the overall workflow of requests in Solace Agent Mesh.
+The OrchestratorAgent allows for a centralized workflow management in the Solace Agent Mesh by coordinating tasks and communication between agents.
 :::
 
-```mermaid
-flowchart TD
-    %% Define Styles
-    classDef gateway fill:#4CAF50,stroke:#2E7D32,color:#FFFFFF;
-    classDef agent fill:#1565C0,stroke:#0D47A1,color:#FFFFFF;
-    classDef mesh fill:#4DB6AC,stroke:#00796B,color:#FFFFFF;
-    classDef llm fill:#D2691E,stroke:#8B4513,color:#FFFFFF;
-    classDef orchestrator fill:#F949AB,stroke:#1A237E,color:#FFFFFF;
-
-    %% Components
-    O[Orchestrator]:::orchestrator <--> SEM(Solace Event Mesh)
-
-    A[Slack Chat] -->|Gateway| SEM(Solace Event Mesh)
-
-    B[Realtime Sales Assistant] -->|Gateway| SEM
-
-    SEM -->|Agent| E[Jira / Confluence]
-
-    SEM -->|Agent| G[Internal Documents]
-
-    SEM -->|Agent| L[Web Request]
-
-    M[AI] <-->|LLM Service| SEM
-
-    %% Assign Styles
-    class O orchestrator;
-    class A,B gateway;
-    class E,L,G agent;
-    class SEM mesh;
-    class M llm;
-```
+The system is not limited to a single orchestrator agent, and multiple orchestrator agents can be deployed to handle different workflows or domains. This allows for flexibility and scalability in managing complex tasks.
 
 ## Key Functions
 
-The orchestrator provides the following key functions:
+The orchestrator agent provides the following key functions:
 
 1. **Request Analysis and Action Planning**:
 
@@ -69,11 +43,3 @@ The orchestrator provides the following key functions:
    - Formats aggregated responses suitable for the gateway
    - Ensures the final output meets the requirements of the specific use case or interface
 
-## Interaction with Other Components
-
-The orchestrator interacts closely with several other components in Solace Agent Mesh using the [PubSub+ event broker](https://solace.com/products/event-broker/):
-
-- **[Agents](./agents.md)**: Distributes tasks to and receives responses from various agents.
-- **[Gateways](./gateways.md)**: Receives initial requests from and sends final responses to gateways.
-
-By centralizing these critical functions, the orchestrator enables Solace Agent Mesh to handle complex, multi-step workflows while maintaining efficiency, and scalability.

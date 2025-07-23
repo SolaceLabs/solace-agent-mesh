@@ -1,0 +1,13 @@
+{
+    "test_case_id": "hello_world",
+    "category": "Content Generation",
+    "description": "A simple test case to check the basic functionality of the system.",
+    "query": "Hello, world!",
+    "target_agent": "OrchestratorAgent",
+    "wait_time": 30,
+    "evaluation": {
+        "expected_tools": [],
+        "expected_response": "Hello! How can I help you today?",
+        "criterion": "Evaluate if the agent provides a standard greeting."
+    }
+}

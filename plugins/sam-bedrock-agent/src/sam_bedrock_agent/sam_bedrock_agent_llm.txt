@@ -1,0 +1,178 @@
+Here is the developer guide for the `sam_bedrock_agent` directory.
+
+## Quick Summary
+The `sam-bedrock-agent` directory contains a Python plugin designed to facilitate interaction with Amazon Bedrock services, specifically Bedrock Agents and Bedrock Flows. It provides a simplified interface for invoking these services, handling AWS session management, and processing file attachments for agent interactions. The primary goal is to abstract the low-level `boto3` client details into high-level, easy-to-use functions.
+
+## Files Overview
+- `aws_session_manager.py`: Manages a singleton `boto3` session and a client for the Bedrock Agent Runtime service.
+- `bedrock_agent_runtime.py`: A wrapper class that provides methods to directly invoke Bedrock Agents and Flows using the `boto3` client.
+- `bedrock_agent.py`: Contains the main function for invoking a Bedrock Agent, including logic for handling file uploads.
+- `bedrock_flow.py`: Contains the main function for invoking a Bedrock Flow.
+
+## Developer API Reference
+
+### aws_session_manager.py
+**Purpose:** This file provides a singleton class to manage the AWS session and the Bedrock Agent Runtime client. It ensures that the `boto3` session is initialized only once and provides a central point for accessing the client.
+
+**Import:** `from sam_bedrock_agent.aws_session_manager import get_aws_session_manager, AWSSessionManager`
+
+**Classes:**
+- `AWSSessionManager(boto3_config: dict = None, endpoint_url: str = None)` - A singleton class that manages the AWS session. Direct instantiation is possible but using `get_aws_session_manager()` is recommended.
+  - `get_bedrock_agent_runtime_client() -> "boto3.client"` - Returns the initialized `bedrock-agent-runtime` boto3 client. Raises a `RuntimeError` if the session has not been initialized.
+  - `is_initialized() -> bool` - A class method that returns `True` if the session and client have been successfully initialized, `False` otherwise.
+  
+**Functions:**
+- `get_aws_session_manager(boto3_config: dict = None, endpoint_url: str = None) -> AWSSessionManager` - The recommended factory function to get the singleton instance of `AWSSessionManager`. It initializes the manager on the first call if `boto3_config` is provided.
+
+**Usage Examples:**
+```python
+# Show how to initialize and use the session manager
+from sam_bedrock_agent.aws_session_manager import get_aws_session_manager
+
+# Define your AWS configuration.
+# This would typically come from a configuration file.
+aws_config = {
+    "boto3_config": {
+        "region_name": "us-east-1",
+        # Add other boto3.Session parameters like aws_access_key_id if needed
+    },
+    "endpoint_url": "https://bedrock-agent-runtime.us-east-1.amazonaws.com" # Optional
+}
+
+try:
+    # First call initializes the singleton instance
+    session_manager = get_aws_session_manager(
+        boto3_config=aws_config["boto3_config"],
+        endpoint_url=aws_config.get("endpoint_url")
+    )
+
+    # Subsequent calls return the same instance without re-initializing
+    same_session_manager = get_aws_session_manager()
+
+    # Check if initialization was successful
+    if session_manager.is_initialized():
+        # Get the Bedrock Agent Runtime client
+        bedrock_client = session_manager.get_bedrock_agent_runtime_client()
+        print("Successfully retrieved Bedrock Agent Runtime client.")
+        # You can now use the client to make API calls
+        # e.g., bedrock_client.invoke_agent(...)
+    else:
+        print("Failed to initialize AWS Session Manager.")
+
+except RuntimeError as e:
+    print(f"An error occurred: {e}")
+
+```
+
+---
+
+### bedrock_agent_runtime.py
+**Purpose:** This file contains the `BedrockAgentRuntime` class, which acts as a direct wrapper around the `bedrock-agent-runtime` boto3 client. It simplifies making `invoke_agent` and `invoke_flow` calls.
+
+**Import:** `from sam_bedrock_agent.bedrock_agent_runtime import BedrockAgentRuntime`
+
+**Classes:**
+- `BedrockAgentRuntime(boto3_config: dict = None, endpoint_url: str = None)` - Encapsulates Amazon Bedrock Agents Runtime actions. It initializes or retrieves the `AWSSessionManager` to get the necessary client.
+  - `invoke_agent(self, agent_id: str, agent_alias_id: str, session_id: str, prompt: str, session_state: dict = None) -> str` - Sends a prompt to a Bedrock Agent and returns the streamed response as a single string.
+  - `invoke_flow(self, flow_id: str, flow_alias_id: str, input_data: list) -> str` - Invokes a Bedrock Flow with specified inputs and returns the result as a string.
+
+**Usage Examples:**
+```python
+# Show how to use the BedrockAgentRuntime wrapper
+from sam_bedrock_agent.bedrock_agent_runtime import BedrockAgentRuntime
+import uuid
+
+# Define your AWS configuration.
+aws_config = {
+    "boto3_config": {
+        "region_name": "us-east-1",
+    }
+}
+
+# Agent and Flow details
+AGENT_ID = "YOUR_AGENT_ID"
+AGENT_ALIAS_ID = "YOUR_AGENT_ALIAS_ID"
+FLOW_ID = "YOUR_FLOW_ID"
+FLOW_ALIAS_ID = "YOUR_FLOW_ALIAS_ID"
+
+try:
+    # Initialize the runtime wrapper
+    runtime = BedrockAgentRuntime(boto3_config=aws_config["boto3_config"])
+    
+    # --- Example 1: Invoke an Agent ---
+    session_id = str(uuid.uuid4())
+    prompt = "What is the weather in San Francisco?"
+    
+    print(f"Invoking agent {AGENT_ID}...")
+    agent_response = runtime.invoke_agent(
+        agent_id=AGENT_ID,
+        agent_alias_id=AGENT_ALIAS_ID,
+        session_id=session_id,
+        prompt=prompt
+    )
+    print(f"Agent Response: {agent_response}")
+
+    # --- Example 2: Invoke a Flow ---
+    flow_input = [{
+        "nodeName": "FlowInputNode",
+        "nodeOutputName": "document",
+        "content": {"document": "Summarize this text for me."}
+    }]
+    
+    print(f"\nInvoking flow {FLOW_ID}...")
+    flow_response = runtime.invoke_flow(
+        flow_id=FLOW_ID,
+        flow_alias_id=FLOW_ALIAS_ID,
+        input_data=flow_input
+    )
+    print(f"Flow Response: {flow_response}")
+
+except Exception as e:
+    print(f"An error occurred: {e}")
+
+```
+
+---
+
+### bedrock_agent.py
+**Purpose:** This file provides a high-level function, `invoke_bedrock_agent`, designed to be used as a tool in a larger agent framework (like Google's ADK). It handles configuration, file processing, and calling the Bedrock Agent.
+
+**Import:** `from sam_bedrock_agent.bedrock_agent import invoke_bedrock_agent`
+
+**Functions:**
+- `invoke_bedrock_agent(input_text: str, files: Optional[List[str]] = None, tool_context: Optional[ToolContext] = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Invokes a Bedrock Agent. It takes user text, an optional list of file names (artifacts), and context/configuration objects. It returns a dictionary with the status and response.
+
+**Constants/Variables:**
+- `MAX_FILE_LENGTH: int` - The maximum size for a single file in bytes (10MB).
+- `MAX_NUM_FILES: int` - The maximum number of files that can be attached (5).
+- `SUPPORTED_FILE_TYPES: List[str]` - A list of file extensions supported by Bedrock for file attachments.
+
+**Usage Examples:**
+```python
+# This function is designed to be called within a framework that provides
+# tool_context and tool_config. Here is a simplified standalone example.
+import asyncio
+from typing import Optional, Dict, Any, List
+from unittest.mock import MagicMock, AsyncMock
+
+from sam_bedrock_agent.bedrock_agent import invoke_bedrock_agent
+
+# Mock the ToolContext and its dependencies for the example
+class MockToolContext:
+    def __init__(self):
+        self._invocation_context = MagicMock()
+        self._invocation_context.app_name = "test_app"
+        self._invocation_context.user_id = "test_user"
+        self._invocation_context.session_id = "session_123"
+        
+        # Mock the artifact service to simulate file loading
+        artifact_service = MagicMock()
+        artifact_part = MagicMock()
+        artifact_part.inline_data.data = b"This is the content of my test file."
+        artifact_service.load_artifact = AsyncMock(return_value=artifact_part)
+        self._invocation_context.artifact_service = artifact_service
+
+# Define the tool configuration required by the function
+tool_config = {
+    "bedrock_agent_id": "YOUR_AGENT_ID",
+    "

@@ -1,0 +1,45 @@
+test_case_id: "fenced_artifact_filename_unicode_001"
+description: "Tests that a filename with Unicode characters and emojis is handled correctly."
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "fenced_artifact_tester@example.com"
+  parts: [{type: "text", text: "Create a file named '你好世界-report-📊.txt'."}]
+  external_context:
+    a2a_session_id: "fixed_session_for_fenced_artifact_unicode_test_001"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: |
+              Creating the file with the Unicode name now.
+              «««save_artifact: filename="你好世界-report-📊.txt" mime_type="text/plain"
+              Hello, world!
+              »»»
+          finish_reason: "stop"
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "The file '你好世界-report-📊.txt' has been created."
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "_notify_artifact_save"
+          response_json_matches:
+            filename: "你好世界-report-📊.txt"
+            status: "success"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "The file '你好世界-report-📊.txt' has been created."
+    assert_artifact_state:
+      - filename: "你好世界-report-📊.txt"
+        version: 0
+        expected_content_text: "Hello, world!\n"
+        expected_metadata_contains:
+          mime_type: "text/plain"

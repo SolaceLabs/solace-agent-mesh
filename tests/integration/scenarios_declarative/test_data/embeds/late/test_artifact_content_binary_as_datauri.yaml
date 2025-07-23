@@ -1,0 +1,19 @@
+test_case_id: "embed_ac_binary_as_datauri_001"
+description: "Tests «artifact_content:tiny.png>>>format:datauri» for binary data."
+skip_intermediate_events: true
+setup_artifacts:
+  - filename: "tiny.png"
+    mime_type: "image/png"
+    content_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" # 1x1 red PNG
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_late_tester@example.com"
+  parts: [{type: "text", text: "Get tiny.png as data URI"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "Image data: «artifact_content:tiny.png>>>format:datauri»"}}]
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "Image data: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="

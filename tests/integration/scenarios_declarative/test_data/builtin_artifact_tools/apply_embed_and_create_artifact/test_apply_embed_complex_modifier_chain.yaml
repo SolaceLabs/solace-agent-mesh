@@ -1,0 +1,90 @@
+test_case_id: "builtin_apply_embed_complex_modifier_chain_001"
+description: |
+  Tests 'apply_embed_and_create_artifact' with a CSV source and a chain of
+  modifiers: 'select_cols' followed by 'format:json_pretty'.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "source_complex.csv"
+    content: |
+      ID,Name,Age,City
+      1,Alice,30,New York
+      2,Bob,24,London
+      3,Charlie,35,Paris
+    mime_type: "text/csv"
+    metadata:
+      description: "CSV source for complex modifier chain test"
+      mime_type: "text/csv"
+      # Size calculation:
+      # Line 1: "ID,Name,Age,City" (16) + newline (1) = 17
+      # Line 2: "1,Alice,30,New York" (20) + newline (1) = 21
+      # Line 3: "2,Bob,24,London" (16) + newline (1) = 17
+      # Line 4: "3,Charlie,35,Paris" (20) = 20 (no trailing newline in content block)
+      # Total = 17 + 21 + 17 + 20 = 75
+      size_bytes: 75
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_apply_embed_chain_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Process 'source_complex.csv', select Name and Age, format as pretty JSON, and save as 'output_complex.json'."
+  external_context:
+    a2a_session_id: "session_apply_embed_chain_001"
+
+llm_interactions:
+  # Step 1: LLM calls apply_embed_and_create_artifact with a modifier chain
+  - step_id: "llm_calls_apply_embed_chain"
+    static_response:
+      id: "chatcmpl-applyembed-chain-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_apply_embed_chain"
+                type: "function"
+                function:
+                  name: "apply_embed_and_create_artifact"
+                  arguments: '{"output_filename": "output_complex.json", "embed_directive": "«artifact_content:source_complex.csv>>>select_cols:Name,Age>>>format:json_pretty»"}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  - step_id: "llm_final_response_after_apply_embed_chain"
+    expected_request: # After apply_embed_and_create_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            output_filename: "output_complex.json"
+            output_version: 0
+            output_mime_type: "application/json" # Due to format:json_pretty
+    static_response:
+      id: "chatcmpl-applyembed-chain-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Processed 'source_complex.csv' with column selection and JSON formatting, saved as 'output_complex.json'."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "Processed 'source_complex.csv' with column selection and JSON formatting, saved as 'output_complex.json'."
+    task_state: "completed"
+    assert_artifact_state:
+      # Check the newly created output artifact
+      - filename: "output_complex.json"
+        user_id: "declarative_apply_embed_chain_tester@example.com"
+        session_id: "session_apply_embed_chain_001"
+        version: 0
+        # Expected pretty-printed JSON content with selected columns
+        # Note: CSV values are typically read as strings by default.
+        expected_content_text: "[\n  {\n    \"Name\": \"Alice\",\n    \"Age\": \"30\"\n  },\n  {\n    \"Name\": \"Bob\",\n    \"Age\": \"24\"\n  },\n  {\n    \"Name\": \"Charlie\",\n    \"Age\": \"35\"\n  }\n]"
+        expected_metadata_contains:
+          mime_type: "application/json"
+          source_directive: "«artifact_content:source_complex.csv>>>select_cols:Name,Age>>>format:json_pretty»"

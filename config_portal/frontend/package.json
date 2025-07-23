@@ -1,5 +1,5 @@
 {
-  "name": "my-remix-app",
+  "name": "solace-agent-mesh-config-portal-frontend",
   "private": true,
   "sideEffects": false,
   "type": "module",
@@ -15,7 +15,9 @@
     "@remix-run/react": "^2.16.2",
     "isbot": "^4",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-icons": "^5.5.0",
+    "react-markdown": "^10.1.0"
   },
   "devDependencies": {
     "@remix-run/dev": "^2.16.2",
@@ -35,6 +37,9 @@
     "typescript": "^5.1.6",
     "vite": "^6.0.0",
     "vite-tsconfig-paths": "^4.2.1"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "4.44.0"
   },
   "engines": {
     "node": ">=20.0.0"

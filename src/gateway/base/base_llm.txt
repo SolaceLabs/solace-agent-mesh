@@ -1,0 +1,119 @@
+## Quick Summary
+The `base` directory provides the foundational, abstract classes for building Gateway implementations within the Solace AI Connector. It establishes a framework for handling common gateway tasks such as application configuration, Solace broker integration, A2A (Agent-to-Agent) message protocol handling, and managing the lifecycle of requests from external platforms. Developers should subclass `BaseGatewayApp` and `BaseGatewayComponent` to create a new gateway.
+
+## Files Overview
+- `__init__.py`: Marks the directory as a Python package.
+- `app.py`: Contains the base application class (`BaseGatewayApp`) that handles configuration, schema merging, and broker setup.
+- `component.py`: Contains the core logic class (`BaseGatewayComponent`) for processing A2A messages and integrating with external platforms.
+- `task_context.py`: Provides a thread-safe manager for mapping A2A task IDs to their original request context.
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Initializes the `gateway.base` Python package.
+**Import:** `from gateway.base import ...`
+
+---
+
+### app.py
+**Purpose:** Provides the base application class for gateway implementations. It automates configuration schema merging, Solace broker setup (including topic subscriptions and queue creation), and component instantiation.
+**Import:** `from gateway.base.app import BaseGatewayApp, BaseGatewayComponent`
+
+**Classes:**
+- `BaseGatewayComponent(ComponentBase)` - A base class marker for gateway components. Subclasses of `BaseGatewayComponent` from `component.py` inherit from this.
+- `BaseGatewayApp(app_info: Dict[str, Any], **kwargs)` - The main application class to be subclassed for a new gateway.
+  - `_get_gateway_component_class(self) -> Type[BaseGatewayComponent]` - **[Abstract Method]** Must be implemented by subclasses to return the specific gateway component class that will handle the core logic.
+  - `namespace: str` - The absolute topic prefix for A2A communication (e.g., 'myorg/dev').
+  - `gateway_id: str` - The unique ID for this gateway instance. Auto-generated if not provided.
+  - `artifact_service_config: Dict` - Configuration for the shared ADK Artifact Service.
+  - `enable_embed_resolution: bool` - Flag to enable or disable late-stage 'artifact_content' embed resolution.
+  - `gateway_max_artifact_resolve_size_bytes: int` - Maximum size for resolving individual or recursively embedded artifacts.
+  - `gateway_recursive_embed_depth: int` - Maximum depth for recursively resolving 'artifact_content' embeds.
+
+**Constants/Variables:**
+- `BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]]` - The base configuration schema dictionary that is automatically merged with subclass-specific parameters.
+- `SPECIFIC_APP_SCHEMA_PARAMS_ATTRIBUTE_NAME: str` - The class attribute name (`"SPECIFIC_APP_SCHEMA_PARAMS"`) that subclasses should use to define their own configuration parameters.
+
+**Usage Examples:**
+```python
+# In your custom gateway's app.py
+
+from typing import Type, List, Dict, Any
+from gateway.base.app import BaseGatewayApp
+from .component import MyGatewayComponent # Your custom component
+
+class MyGatewayApp(BaseGatewayApp):
+    """
+    A custom gateway application for My Platform.
+    """
+    # Define additional configuration parameters specific to this gateway
+    SPECIFIC_APP_SCHEMA_PARAMS: List[Dict[str, Any]] = [
+        {
+            "name": "my_platform_api_key",
+            "required": True,
+            "type": "string",
+            "description": "API key for connecting to My Platform."
+        }
+    ]
+
+    def _get_gateway_component_class(self) -> Type[MyGatewayComponent]:
+        """
+        Returns our custom component class.
+        """
+        return MyGatewayComponent
+
+# To run this app (typically via a YAML configuration file):
+# app_config = {
+#     "name": "my-gateway-app",
+#     "app_class": MyGatewayApp,
+#     "app_config": {
+#         "namespace": "myorg/prod",
+#         "gateway_id": "my-gateway-instance-01",
+#         "artifact_service": {
+#             "type": "local_file",
+#             "base_path": "/data/artifacts"
+#         },
+#         "my_platform_api_key": "secret-key-here"
+#     }
+# }
+# app = MyGatewayApp(app_info=app_config)
+# app.run()
+```
+
+---
+
+### component.py
+**Purpose:** Provides the abstract base class for gateway components. This class contains the core logic for handling the A2A protocol, managing services (identity, artifacts), and defining the interface for interaction with an external platform (e.g., a web server, a chat application).
+**Import:** `from gateway.base.component import BaseGatewayComponent`
+
+**Classes:**
+- `BaseGatewayComponent(**kwargs: Any)` - The abstract base class for gateway components. Developers must subclass this and implement the abstract methods.
+  - **Public Methods:**
+    - `publish_a2a_message(self, topic: str, payload: Dict, user_properties: Optional[Dict] = None) -> None` - Publishes a message to the Solace broker for A2A communication.
+    - `authenticate_and_enrich_user(self, external_event_data: Any) -> Optional[Dict[str, Any]]` - Orchestrates the full user authentication and identity enrichment flow by calling `_extract_initial_claims` and the configured Identity Service.
+    - `submit_a2a_task(self, target_agent_name: str, a2a_parts: List[A2APart], external_request_context: Dict[str, Any], user_identity: Any, is_streaming: bool = True, api_version: str = "v2") -> str` - Submits a task to a target agent, handling user configuration resolution, message creation, and context storage. Returns the generated `task_id`.
+    - `run(self) -> None` - Starts the component's asynchronous operations, including the message processor loop and the external platform listener.
+    - `cleanup(self) -> None` - Cleans up all resources, stops listeners, and shuts down background threads.
+  - **Abstract Methods (Must be Implemented by Subclasses):**
+    - `_extract_initial_claims(self, external_event_data: Any) -> Optional[Dict[str, Any]]` - Extracts primary identity claims (e.g., user ID) from a platform-specific event. Must return a dict with an 'id' key, or None if auth fails.
+    - `_start_listener(self) -> None` - Starts the listener for the external platform (e.g., start a web server, connect to a WebSocket).
+    - `_stop_listener(self) -> None` - Stops the listener for the external platform.
+    - `_translate_external_input(self, external_event: Any) -> Tuple[str, List[A2APart], Dict[str, Any]]` - Translates an incoming event from the external platform into a format the A2A protocol understands: `(target_agent_name, list_of_a2a_parts, external_request_context)`.
+    - `_send_update_to_external(self, external_request_context: Dict[str, Any], event_data: Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent], is_final_chunk_of_update: bool) -> None` - Sends a streaming update (e.g., a status message or an artifact) back to the external platform.
+    - `_send_final_response_to_external(self, external_request_context: Dict[str, Any], task_data: Task) -> None` - Sends the final, complete response of a task back to the external platform.
+    - `_send_error_to_external(self, external_request_context: Dict[str, Any], error_data: JSONRPCError) -> None` - Sends an error message back to the external platform.
+
+**Usage Examples:**
+```python
+# In your custom gateway's component.py
+
+from typing import Any, Dict, List, Optional, Tuple, Union
+from gateway.base.component import BaseGatewayComponent
+from ...common.types import (
+    Part as A2APart, TextPart, Task, TaskStatusUpdateEvent,
+    TaskArtifactUpdateEvent, JSONRPCError
+)
+
+class MyGatewayComponent(BaseGatewayComponent):
+    # This is a simplified example. A real implementation would
+    #

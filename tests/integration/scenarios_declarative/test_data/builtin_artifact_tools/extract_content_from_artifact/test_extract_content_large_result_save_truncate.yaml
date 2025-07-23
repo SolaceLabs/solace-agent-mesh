@@ -1,0 +1,139 @@
+test_case_id: "builtin_extract_content_large_result_save_truncate_001"
+description: |
+  Tests 'extract_content_from_artifact' when the internal LLM extraction result
+  is large enough to trigger both saving the full content as a new artifact
+  and returning a truncated preview to the main LLM.
+  NOTE: This test assumes agent configuration for 'extract_content_from_artifact' tool
+  has 'tool_output_save_threshold_bytes' (e.g., < 150 bytes) and
+  'tool_output_llm_return_max_bytes' (e.g., < 100 bytes) set to values that
+  will be exceeded by the 150-char mocked internal LLM response.
+  If defaults (2KB/4KB) are used, the internal LLM response would need to be much larger.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "long_source_for_extraction.txt"
+    content: "This is a moderately long source document which will be summarized by an internal LLM. The summary itself will be designed to be long enough to trigger save and truncation logic if thresholds are set appropriately low for testing."
+    mime_type: "text/plain"
+    metadata:
+      description: "Long source text for extraction test (save/truncate)."
+      mime_type: "text/plain"
+      size_bytes: 200 # Approx
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_extract_large_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Summarize 'long_source_for_extraction.txt' extensively."
+  external_context:
+    a2a_session_id: "session_extract_content_large_001"
+
+llm_interactions:
+  # Interaction 1: Main agent's LLM decides to call extract_content_from_artifact.
+  - step_id: "agent_llm_calls_extract_tool_for_large_output"
+    static_response:
+      id: "chatcmpl-extract-large-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_extract_large"
+                type: "function"
+                function:
+                  name: "extract_content_from_artifact"
+                  arguments: '{"filename": "long_source_for_extraction.txt", "extraction_goal": "Provide a very detailed summary of this document, around 150 characters.", "version": "0", "output_filename_base": "detailed_summary"}'
+          finish_reason: "tool_calls"
+
+  # Interaction 2: Mocked response for the *internal* LLM call by the tool.
+  # This summary is now very long (e.g., > 4KB) to ensure it triggers save & truncate with default agent thresholds.
+  - step_id: "internal_llm_response_for_large_extraction"
+    static_response:
+      id: "chatcmpl-extract-internal-large-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            # This content must be > tool_output_llm_return_max_bytes (e.g. 4096) and > tool_output_save_threshold_bytes (e.g. 2048)
+            content: >
+              This is an extremely long and detailed summary designed to exceed typical default thresholds for saving and truncation.
+              It repeats a basic sentence multiple times to achieve a significant byte count.
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              This is an extremely long and detailed summary designed to exceed typical default thresholds for saving and truncation.
+              It repeats a basic sentence multiple times to achieve a significant byte count.
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. 
+              This is the final sentence to ensure the content is well over 4KB, probably around 5KB now.
+          finish_reason: "stop"
+      usage: {prompt_tokens: 250, completion_tokens: 1000, total_tokens: 1250}
+
+  # Interaction 3: Main agent's LLM receives the tool's result (preview + save details)
+  - step_id: "agent_llm_formulates_final_answer_from_preview"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0 # Matches tool_call_extract_large
+          response_json_matches:
+            status: "success_full_content_saved_preview_returned"
+            source_filename: "long_source_for_extraction.txt"
+            source_version_processed: 0
+            extraction_goal_used: "Provide a very detailed summary of this document, around 150 characters."
+            extracted_data_preview: "This is an extremely long and detailed summary designed to exceed typical default thresholds for saving and truncation. It repeats a basic sentence multiple times to achieve a s... [Content truncated]"
+            saved_extracted_artifact_details:
+              status: "success"
+              data_filename_matches_regex: "^detailed_summary_[a-f0-9]{8}\\.txt$"
+              data_version: 0
+              metadata_filename_matches_regex: "^detailed_summary_[a-f0-9]{8}\\.txt\\.metadata\\.json$"
+              metadata_version: 0
+              message: "Artifact and metadata saved successfully."
+    static_response:
+      id: "chatcmpl-extract-large-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            # LLM crafts response based on the actual preview it would receive
+            content: "I have generated a very detailed summary. It was too long to show fully, so I've saved it as an artifact. Here is a preview: This is an extremely long and detailed summary designed to exceed typical default thresholds for saving and truncation. It repeats a basic sentence multiple times to achieve a significant byte count. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  This is an extremely long and detailed summary designed to exceed typical default thresholds for saving and truncation. It repeats a basic sentence multiple times to achieve a significant byte count. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick br... [Content truncated]. You can access the full summary using the saved artifact details."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        # Updated to reflect the exact preview message
+        text_exact: "I have generated a very detailed summary. It was too long to show fully, so I've saved it as an artifact. Here is a preview: This is an extremely long and detailed summary designed to exceed typical default thresholds for saving and truncation. It repeats a basic sentence multiple times to achieve a significant byte count. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  This is an extremely long and detailed summary designed to exceed typical default thresholds for saving and truncation. It repeats a basic sentence multiple times to achieve a significant byte count. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog. The quick br... [Content truncated]. You can access the full summary using the saved artifact details."
+    task_state: "completed"
+    assert_artifact_state:
+      # Check the NEWLY CREATED artifact by the tool
+      - filename_matches_regex: "^detailed_summary_[a-f0-9]{8}\\.txt$"
+        user_id: "declarative_extract_large_tester@example.com"
+        session_id: "session_extract_content_large_001"
+        version: 0 # It's a new artifact, so version 0
+        # The full 5012-byte string should be here for an exact check.
+        # Using startswith for brevity in this example.
+        expected_content_text_startswith: "This is an extremely long and detailed summary designed to exceed typical default thresholds for saving and truncation."
+        expected_metadata_contains:
+          mime_type: "text/plain"
+          size_bytes: 5012 # Exact size of the full untruncated content
+          source_artifact_filename: "long_source_for_extraction.txt"
+          source_artifact_version: 0
+          extraction_goal_used: "Provide a very detailed summary of this document, around 150 characters."

@@ -1,0 +1,116 @@
+test_case_id: "builtin_extract_content_save_no_truncate_001"
+description: |
+  Tests 'extract_content_from_artifact' where extracted content is large enough
+  to be saved, but small enough to be fully returned to the LLM without truncation.
+  Assumes save_threshold_bytes=50, llm_return_max_bytes=200.
+skip_intermediate_events: true
+
+# Agent config needs to be implicitly set for these thresholds by the test environment.
+# This test relies on the host component config being:
+# tool_output_save_threshold_bytes: 50
+# tool_output_llm_return_max_bytes: 200
+
+setup_artifacts:
+  - filename: "source_for_save_no_truncate.txt"
+    content: "This is the original document that we want to extract a moderately sized summary from." # Length 85
+    mime_type: "text/plain"
+    metadata:
+      description: "Source for save_no_truncate test."
+      mime_type: "text/plain"
+      size_bytes: 85
+
+gateway_input:
+  target_agent_name: "TestAgent" # This agent needs the specific config for thresholds.
+  user_identity: "declarative_extract_tester_thresholds@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Extract a summary from 'source_for_save_no_truncate.txt'."
+  external_context:
+    a2a_session_id: "session_extract_save_no_truncate_001"
+
+llm_interactions:
+  # 1. Agent LLM decides to call extract_content_from_artifact
+  - step_id: "agent_llm_calls_extract_tool"
+    static_response:
+      id: "chatcmpl-extract-snt-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_extract_snt"
+                type: "function"
+                function:
+                  name: "extract_content_from_artifact"
+                  arguments: '{"filename": "source_for_save_no_truncate.txt", "extraction_goal": "Provide a detailed summary of this document.", "version": "0", "output_filename_base": "summary_snt"}'
+          finish_reason: "tool_calls"
+
+  # 2. Internal LLM (mocked) returns the "extracted" content (around 100 bytes)
+  - step_id: "internal_llm_returns_moderately_large_content"
+    static_response:
+      id: "chatcmpl-extract-snt-internal-1"
+      object: "chat.completion"
+      model: "test-llm-model-internal"
+      choices:
+        - message:
+            role: "assistant"
+            # This content is > 50 bytes (save_threshold) but < 200 bytes (llm_max_bytes)
+            content: "This is the detailed summary extracted from the original document. It is moderately sized. Length approx 100." # Actual length: 101 bytes
+          finish_reason: "stop"
+      usage: {prompt_tokens: 50, completion_tokens: 25, total_tokens: 75}
+
+  # 3. Agent LLM receives the result from the tool
+  - step_id: "agent_llm_formulates_final_answer_from_saved_full_return"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success_full_content_saved_and_returned" # Key status
+            extracted_data: "This is the detailed summary extracted from the original document. It is moderately sized. Length approx 100." # Full content
+            source_filename: "source_for_save_no_truncate.txt"
+            source_version_processed: 0
+            saved_extracted_artifact_details:
+              status: "success"
+              data_filename_matches_regex: "^summary_snt_[a-f0-9]{8}\\.txt$" # Check for generated filename pattern
+              data_version: 0
+              metadata_filename_matches_regex: "^summary_snt_[a-f0-9]{8}\\.txt\\.metadata\\.json$"
+              metadata_version: 0
+              # size_bytes: 101 # Actual size of the extracted content
+    static_response:
+      id: "chatcmpl-extract-snt-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have extracted the summary: 'This is the detailed summary extracted from the original document. It is moderately sized. Length approx 100.' It has also been saved as a new file."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "I have extracted the summary: 'This is the detailed summary extracted from the original document. It is moderately sized. Length approx 100.'"
+        text_contains: "It has also been saved as a new file."
+    task_state: "completed"
+
+expected_artifacts: # Check the newly created artifact
+  - filename_matches_regex: "^summary_snt_[a-f0-9]{8}\\.txt$"
+    version: 0 # It's a new artifact, so version 0
+    mime_type: "text/plain"
+    text_exact: "This is the detailed summary extracted from the original document. It is moderately sized. Length approx 100."
+    metadata_contains:
+      description: "Content extracted/transformed from artifact 'source_for_save_no_truncate.txt' (version 0) using goal: 'Provide a detailed summary of this document.'."
+      source_artifact_filename: "source_for_save_no_truncate.txt"
+      source_artifact_version: 0
+      extraction_goal_used: "Provide a detailed summary of this document."
+      mime_type: "text/plain" # This is the mime_type of the *new* artifact
+      size_bytes: 109
+
+assert_artifact_state: # Original artifact should be unchanged
+  - filename: "source_for_save_no_truncate.txt"
+    user_id: "declarative_extract_tester_thresholds@example.com"
+    session_id: "session_extract_save_no_truncate_001"
+    version: 0
+    expected_content_text: "This is the original document that we want to extract a moderately sized summary from."

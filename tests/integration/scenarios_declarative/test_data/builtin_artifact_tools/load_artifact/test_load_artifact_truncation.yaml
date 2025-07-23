@@ -1,0 +1,82 @@
+test_case_id: "builtin_load_artifact_truncation_001"
+description: |
+  Tests the 'load_artifact' tool's content truncation feature using the
+  'max_content_length' parameter.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "long_text_doc.txt"
+    # Content is 190 characters long.
+    content: "This is a long string of text that is definitely going to be longer than one hundred characters, so we can test truncation effectively. More and more text to ensure it exceeds common limits."
+    mime_type: "text/plain"
+    metadata:
+      description: "A long text document for testing truncation."
+      mime_type: "text/plain"
+      size_bytes: 190
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_load_truncate_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please load 'long_text_doc.txt' truncated to 100 characters."
+  external_context:
+    a2a_session_id: "session_load_truncate_artifact_001"
+
+llm_interactions:
+  # Step 1: LLM calls load_artifact with max_content_length
+  - step_id: "llm_calls_load_artifact_with_truncation"
+    static_response:
+      id: "chatcmpl-load-truncate-artifact-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_load_truncated"
+                type: "function"
+                function:
+                  name: "load_artifact"
+                  arguments: '{"filename": "long_text_doc.txt", "version": 0, "max_content_length": 100}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result (truncated content) and formulates final response
+  - step_id: "llm_final_response_after_truncate_load"
+    expected_request: # After load_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            filename: "long_text_doc.txt"
+            version: 0
+            mime_type: "text/plain"
+            # Expected truncated content: first 100 chars of the original + "..."
+            content: "This is a long string of text that is definitely going to be longer than one hundred characters, so ..."
+            size_bytes: 190 # Should still report original full size
+    static_response:
+      id: "chatcmpl-load-truncate-artifact-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Loaded 'long_text_doc.txt' (v0), truncated: This is a long string of text that is definitely going to be longer than one hundred characters, so we..."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "Loaded 'long_text_doc.txt' (v0), truncated: This is a long string of text that is definitely going to be longer than one hundred characters, so we..."
+    task_state: "completed"
+    assert_artifact_state:
+      - filename: "long_text_doc.txt"
+        user_id: "declarative_load_truncate_tester@example.com"
+        session_id: "session_load_truncate_artifact_001"
+        version: 0
+        expected_content_text: "This is a long string of text that is definitely going to be longer than one hundred characters, so we can test truncation effectively. More and more text to ensure it exceeds common limits."
+        expected_metadata_contains:
+          description: "A long text document for testing truncation."
+          mime_type: "text/plain"
+          size_bytes: 190

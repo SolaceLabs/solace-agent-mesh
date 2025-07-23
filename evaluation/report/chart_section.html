@@ -1,0 +1,141 @@
+<div class="section">
+    <h2>📈 Performance Results</h2>
+    <div class="chart-container" style="position: relative; height: 500px; margin: 20px 0;">
+        <canvas id="performanceChart"></canvas>
+    </div>
+    
+    <!-- Model Execution Times -->
+    <div class="execution-times-section" style="margin-top: 30px;">
+        <h3 style="color: #1f2937; margin-bottom: 15px; font-size: 1.2rem;">Model Execution Times</h3>
+        <div class="execution-times-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+            {model_execution_times}
+        </div>
+    </div>
+    
+</div>
+
+<!-- Chart.js Library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- Chart Data and Configuration -->
+<script>
+// Chart data from backend
+const CATEGORIES_DATA = {categories_data};
+const CHART_DATASETS_DATA = {chart_datasets_data};
+
+// Chart.js configuration for benchmark report - Grouped Bar Chart
+const ctx = document.getElementById('performanceChart').getContext('2d');
+const chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: CATEGORIES_DATA,
+        datasets: CHART_DATASETS_DATA
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+            mode: 'index',
+            intersect: false,
+        },
+        plugins: {
+            title: {
+                display: true,
+                text: 'LLM Evaluation Scores by Category',
+                font: {
+                    size: 20,
+                    weight: 'bold'
+                },
+                color: '#000000',
+                padding: {
+                    top: 10,
+                    bottom: 30
+                }
+            },
+            legend: {
+                display: true,
+                position: 'top',
+                labels: {
+                    color: '#000000',
+                    padding: 20,
+                    usePointStyle: true,
+                    font: {
+                        size: 12
+                    }
+                }
+            },
+            tooltip: {
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                titleColor: '#ffffff',
+                bodyColor: '#ffffff',
+                borderColor: '#ffffff',
+                borderWidth: 1,
+                callbacks: {
+                    label: function(context) {
+                        const score = context.parsed.y;
+                        const percentage = (score * 100).toFixed(1);
+                        return `${context.dataset.label}: ${score.toFixed(3)} (${percentage}%)`;
+                    }
+                }
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                max: 1.0,
+                title: {
+                    display: true,
+                    text: 'Average LLM Evaluation Score',
+                    color: '#000000',
+                    font: {
+                        size: 16,
+                        weight: 'bold'
+                    }
+                },
+                ticks: {
+                    stepSize: 0.1,
+                    color: '#000000',
+                    font: {
+                        size: 12
+                    },
+                    callback: function(value) {
+                        return value.toFixed(1);
+                    }
+                },
+                grid: {
+                    color: 'rgba(0, 0, 0, 0.1)',
+                    lineWidth: 1
+                }
+            },
+            x: {
+                title: {
+                    display: true,
+                    text: 'Task Categories',
+                    color: '#000000',
+                    font: {
+                        size: 16,
+                        weight: 'bold'
+                    }
+                },
+                ticks: {
+                    color: '#000000',
+                    font: {
+                        size: 12,
+                        weight: 'bold'
+                    }
+                },
+                grid: {
+                    display: false
+                }
+            }
+        },
+        elements: {
+            bar: {
+                borderWidth: 1,
+                borderRadius: 4,
+                borderSkipped: false
+            }
+        }
+    }
+});
+</script>

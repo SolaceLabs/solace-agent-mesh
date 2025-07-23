@@ -1,0 +1,66 @@
+test_case_id: "builtin_append_to_non_existent_artifact_001"
+description: |
+  Tests the 'append_to_artifact' tool's error handling when attempting
+  to append to an artifact that does not exist.
+skip_intermediate_events: true
+
+# No setup_artifacts for the target file, as we are testing its absence.
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_append_fail_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please try to append 'Some data' to 'non_existent_append_target.txt'."
+  external_context:
+    a2a_session_id: "session_append_fail_test_001"
+
+llm_interactions:
+  # Step 1: LLM decides to call append_to_artifact for a non-existent file
+  - step_id: "llm_calls_append_to_non_existent"
+    static_response:
+      id: "chatcmpl-append-nonexistent-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_append_fail"
+                type: "function"
+                function:
+                  name: "append_to_artifact"
+                  arguments: '{"filename": "non_existent_append_target.txt", "content_chunk": "Some data", "mime_type": "text/plain"}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool error result and formulates final response
+  - step_id: "llm_final_response_after_append_fail"
+    expected_request: # After append_to_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0 # From llm_interaction[0].tool_calls[0]
+          response_json_matches:
+            status: "error"
+            filename: "non_existent_append_target.txt"
+            # The exact message can be asserted if it's stable.
+            # For now, just checking for an error status and the filename.
+            # The tool's 'message' field should indicate failure to load the original artifact.
+            # Matching the exact error message string provided by the test output.
+          response_contains: "Failed to load original artifact content to append to: Could not determine latest version for 'non_existent_append_target.txt': Artifact 'non_existent_append_target.txt' has no versions available to determine 'latest'."
+    static_response:
+      id: "chatcmpl-append-nonexistent-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I couldn't append to 'non_existent_append_target.txt' because it doesn't exist."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "I couldn't append to 'non_existent_append_target.txt' because it doesn't exist."
+    task_state: "completed"
+    # No assert_artifact_state for "non_existent_append_target.txt" as it should not have been created.
+    # If we wanted to be very sure, the test runner would need a way to assert artifact *absence*.

@@ -29,23 +29,30 @@
 
 ---
 
-Whether you're prototyping an 🤖 AI assistant or deploying a 🌎 production-grade solution, **Solace Agent Mesh (SAM)** provides the infrastructure to:
-  - Connect AI agents to real-world data sources and systems.
-  - Add gateways to expose capabilities via REST, a browser-based UI, Slack, and many more.
-  - Scale from local development to distributed, enterprise deployments.
+The Solace Agent Mesh transforms how AI agents work together, creating a dynamic ecosystem where specialized agents communicate seamlessly, share information, and collaborate on complex tasks.
 
-![Solace Agent Mesh Overview](./docs/static/img/Solace_AI_Framework_README.png)
+Built on Solace PubSub+ Event Broker, this framework provides a robust foundation for enterprise-grade AI solutions that scale effortlessly. The mesh creates a standardized communication layer where AI agents can:
+
+* Delegate specialized tasks to peer agents
+* Share artifacts and data across the network
+* Connect with diverse user interfaces and external systems
+* Execute complex, multi-step workflows with minimal coupling
+
+Under the hood, the framework combines the Solace AI Connector (SAC) for runtime orchestration with Google's Agent Development Kit (ADK) for agent logic, LLM interaction, and tool execution—all communicating via the A2A protocol over Solace's event mesh. The result? A fully asynchronous, event-driven, and decoupled AI agent architecture ready for enterprise deployment.
 
 ---
 
 ## ✨ Key Features 
 - ⚙️ **[Modular, Event-Driven Architecture](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/component-overview)** – All components communicate via events through a central event mesh, enabling loose coupling and high scalability.
 - 🤖 **[Composable Agents](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/agents)** – Combine specialized AI agents to solve complex, multi-step workflows.
-- 🌐 **[Flexible Interfaces](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/gateways)** – Interact with SAM via the REST API, browser UI, or [Slack Integration](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/slack-integration).
-- 🧠 **[Built-in Orchestration](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/orchestrator)** – Tasks are automatically broken down and delegated across agents by a built-in orchestrator.
+- 🌐 **[Flexible Interfaces](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/gateways)** – Interact with SAM via the REST API, browser UI, [Slack](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/slack-integration), etc.
+- 🧠 **[Orchestration Agent](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/orchestrator)** – Tasks are automatically broken down and delegated across agents by the orchestrator agent.
 - 🧩 **[Plugin-Extensible](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/plugins)** – Add your own agents, gateways, or services with minimal boilerplate.
-- 🏢 **[Production-Ready](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/deployment/deploy)** – Backed by [Solace’s enterprise-grade event broker](https://solace.com/products/event-broker/) for reliability and performance.
-- 🔧 **[Services](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/services)** –  File storage, memory, and embeddings, all extensible, and built-in.
+- 🏢 **[Production-Ready](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/deployment/deploy)** – Backed by [Solace's enterprise-grade event broker](https://solace.com/products/event-broker/) for reliability and performance.
+- 📁 **[File Management](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/user-guide/builtin-tools/artifact-management)** – Built-in tools for managing file artifacts with automatic metadata injection and artifact handling.
+- 📊 **[Data Analysis Tools](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/user-guide/builtin-tools/data-analysis-tools)** – Built-in tools for SQL queries, JQ transformations, and Plotly chart generation.
+- 🔗 **[Dynamic Embeds](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/user-guide/builtin-tools/embeds)** – Include dynamic placeholders in responses that are resolved by the framework with support for modifier chains.
+- 🤝 **[Agent-to-Agent Communication](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/architecture)** – Agents can discover and delegate tasks to peer agents using the A2A protocol over Solace.
 
 ---
 
@@ -55,7 +62,7 @@ Set up Solace Agent Mesh in just a few steps.
 
 ### ⚙️ System Requirements
 
-To run Solace Agent Mesh locally, you’ll need:
+To run Solace Agent Mesh locally, you'll need:
 
 - **Python 3.10.16+**
 - **pip** (comes with Python)
@@ -66,34 +73,61 @@ To run Solace Agent Mesh locally, you’ll need:
 
 ```bash
 # 1. (Optional) Create and activate a Python virtual environment
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 
 # 2. Install the Solace Agent Mesh
 pip install solace-agent-mesh
 
-# 3. Initialize a new project
+# 3. Initialize a new project with web-based setup
 mkdir my-agent-mesh && cd my-agent-mesh
-solace-agent-mesh init        # Follow the steps in the interactive init
+sam init --gui
 
-# 4. Build and run the project
-solace-agent-mesh run -b      # Shortcut for build + run
+# 4. Run the project
+sam run
+```
+
+### 🔧 Adding Agents
+
+```bash
+# Add a new agent with GUI interface
+sam add agent --gui
+```
+
+Or install an existing plugin:
+
+```bash
+sam plugin add <your-component-name> --plugin <plugin-name>
 ```
 
 #### Once running:
 
-- Open the Web UI at [http://localhost:5001](http://localhost:5001) to talk with a chat interface.
-<details>
-  <summary>Use the REST API directly via curl</summary>
+Open the Web UI at [http://localhost:8000](http://localhost:8000) to talk with a chat interface.
 
-  ```bash
-  curl --location 'http://127.0.0.1:5050/api/v1/request' \
-    --form 'prompt="What is the capital of France?"' \
-    --form 'stream="false"'
-  ```
+---
 
-</details>
+## 🏗️ Architecture Overview
 
+Solace Agent Mesh provides a "Universal A2A Agent Host," a flexible and configurable runtime environment built by integrating Google's Agent Development Kit (ADK) with the Solace AI Connector (SAC) framework.
+
+The system allows you to:
+
+- Host AI agents developed with Google ADK within the SAC framework
+- Define agent capabilities (LLM model, instructions, tools) primarily through SAC YAML configuration
+- Utilize Solace PubSub+ as the transport for standard Agent-to-Agent (A2A) protocol communication
+- Enable dynamic discovery of peer agents running within the same ecosystem
+- Allow agents to delegate tasks to discovered peers via the A2A protocol over Solace
+- Manage file artifacts using built-in tools with automatic metadata injection
+- Perform data analysis using built-in SQL, JQ, and visualization tools
+- Use dynamic embeds for context-dependent information resolution
+
+### Key Components
+
+- **SAC** handles broker connections, configuration loading, and component lifecycle
+- **ADK** provides the agent runtime, LLM interaction, tool execution, and state management
+- **A2A Protocol** enables communication between clients and agents, and between peer agents
+- **Dynamic Embeds** allow placeholders in responses that are resolved with context-dependent information
+- **File Management** provides built-in tools for artifact creation, listing, loading, and metadata handling
 
 ---
 
@@ -103,20 +137,12 @@ Want to go further? Here are some hands-on tutorials to help you get started:
 
 | 🔧 Integration | ⏱️ Est. Time | 📘 Tutorial |
 |----------------|--------------|-------------|
-| 🌤️ **Weather Agent**<br>Build an agent that gives Solace Agent Mesh  the ability to access real-time weather information.  | **~5 min** | [Weather Agent Plugin](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/sam-geo-information) |
+| 🌤️ **Weather Agent**<br>Learn how to build an agent that gives Solace Agent Mesh  the ability to access real-time weather information.  | **~15 min** | [Weather Agent Plugin](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/custom-agent) |
 | 🗃️ **SQL Database Integration**<br>Enable Solace Agent Mesh to answer company-specific questions using a sample coffee company database.| **~10–15 min** | [SQL Database Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/sql-database) |
-| 🧠 **MCP Integration**<br>Integrating a Model Context Protocol (MCP) Server into Solace Agent Mesh. | **~10–15 min** | [MCP Integration Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/mcp-integration) |
+| 🧠 **MCP Integration**<br>Integrating a Model Context Protocol (MCP) Servers into Solace Agent Mesh. | **~10–15 min** | [MCP Integration Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/mcp-integration) |
 | 💬 **Slack Integration**<br>Chat with Solace Agent Mesh directly from Slack. | **~20–30 min** | [Slack Integration Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/slack-integration) |
 
-
 📚 Want to explore more? Check out the full [Solace Agent Mesh documentation](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/).
-
----
-
-## 📦 Release Notes
-
-Stay up to date with the latest changes, features, and fixes.  
-See [CHANGELOG.md](CHANGELOG.md) for a full history of updates.
 
 ---
 

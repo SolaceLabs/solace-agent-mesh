@@ -1,0 +1,13 @@
+{
+    "test_case_id": "generate_employee_csv",
+    "category": "Content Generation",
+    "description": "A test case to generate a CSV file with random data.",
+    "query": "Generate a csv file with the following columns: 'id', 'name', 'age', 'role'. It should contain 10 rows of random data.",
+    "target_agent": "OrchestratorAgent",
+    "wait_time": 60,
+    "evaluation": {
+        "expected_tools": [],
+        "expected_response": "I have generated the CSV file with random employee data and attached it.",
+        "criterion": "Evaluate if the agent successfully generates a CSV file with the specified columns and random data."
+    }
+}

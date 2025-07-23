@@ -1,0 +1,28 @@
+<div class="section">
+    <h2>📋 Detailed Test Breakdown</h2>
+    <div class="breakdown-container">
+        {{BREAKDOWN_CONTENT}}
+    </div>
+</div>
+
+<script>
+// JavaScript for category dropdown functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const categoryHeaders = document.querySelectorAll('.category-header');
+    
+    categoryHeaders.forEach(header => {
+        header.addEventListener('click', function() {
+            const content = this.nextElementSibling;
+            const toggle = this.querySelector('.category-toggle');
+            
+            if (content.classList.contains('active')) {
+                content.classList.remove('active');
+                toggle.textContent = '▶';
+            } else {
+                content.classList.add('active');
+                toggle.textContent = '▼';
+            }
+        });
+    });
+});
+</script>

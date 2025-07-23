@@ -1,0 +1,79 @@
+test_case_id: "builtin_extract_content_missing_goal_001"
+description: |
+  Tests 'extract_content_from_artifact' when the 'extraction_goal' parameter is missing.
+  The tool should return an error directly.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "source_for_missing_goal.txt"
+    content: "Some content here."
+    mime_type: "text/plain"
+    metadata:
+      description: "Source text, goal will be missing."
+      mime_type: "text/plain"
+      size_bytes: 18
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_extract_tester_errors@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Extract from 'source_for_missing_goal.txt', but I forgot what to extract."
+  external_context:
+    a2a_session_id: "session_extract_content_missing_goal_001"
+
+llm_interactions:
+  # Interaction 1: Main agent's LLM decides to call the extract_content_from_artifact tool,
+  # but mistakenly omits the 'extraction_goal'.
+  - step_id: "agent_llm_calls_extract_tool_without_goal"
+    static_response:
+      id: "chatcmpl-extract-error-goal-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_extract_content_no_goal"
+                type: "function"
+                function:
+                  name: "extract_content_from_artifact"
+                  # 'extraction_goal' is intentionally missing
+                  arguments: '{"filename": "source_for_missing_goal.txt"}'
+          finish_reason: "tool_calls"
+
+  # Interaction 2: Main agent's LLM receives the error from the tool.
+  - step_id: "agent_llm_formulates_response_from_tool_error_goal"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0 # Matches tool_call_extract_content_no_goal
+          response_json_matches:
+            # The ADK framework wraps the tool's specific error into a generic error structure.
+            error: "Invoking `extract_content_from_artifact()` failed as the following mandatory input parameters are not present:\nextraction_goal\nYou could retry calling this tool, but it is IMPORTANT for you to provide all the mandatory parameters."
+    static_response:
+      id: "chatcmpl-extract-error-goal-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I'm sorry, I can't perform the extraction because the extraction goal was not specified."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "I'm sorry, I can't perform the extraction because the extraction goal was not specified."
+    task_state: "completed"
+
+# No new artifacts created, source artifact should remain untouched.
+assert_artifact_state:
+  - filename: "source_for_missing_goal.txt"
+    user_id: "declarative_extract_tester_errors@example.com"
+    session_id: "session_extract_content_missing_goal_001"
+    version: 0 # Assuming it's the first version created
+    expected_content_text: "Some content here."
+    expected_metadata_contains:
+      mime_type: "text/plain"
+      size_bytes: 18

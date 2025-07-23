@@ -1,0 +1,92 @@
+test_case_id: "builtin_append_binary_to_binary_artifact_001"
+description: |
+  Tests appending a binary chunk (base64 encoded) to a pre-existing binary artifact.
+  Verifies that the original artifact's binary MIME type is preserved,
+  and the new content correctly concatenates the binary data.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "binary_target_for_binary_append.dat"
+    content_base64: "b3JpZ2luYWxfYmluYXJ5Xw==" # "original_binary_" (16 bytes)
+    mime_type: "application/octet-stream"
+    metadata:
+      description: "Initial binary data for append test"
+      mime_type: "application/octet-stream"
+      size_bytes: 16
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_append_b2b_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please append more binary data to 'binary_target_for_binary_append.dat'."
+  external_context:
+    a2a_session_id: "session_append_b2b_test_001"
+
+llm_interactions:
+  # Step 1: LLM calls append_to_artifact with a base64 encoded binary chunk
+  - step_id: "llm_calls_append_binary_to_binary"
+    static_response:
+      id: "chatcmpl-append-b2b-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_append_binary_chunk_to_binary"
+                type: "function"
+                function:
+                  name: "append_to_artifact"
+                  arguments: '{"filename": "binary_target_for_binary_append.dat", "content_chunk": "YXBwZW5kZWRfYmluYXJ5", "mime_type": "application/octet-stream"}' # "appended_binary" (15 bytes)
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  - step_id: "llm_final_response_after_append"
+    expected_request: # After append_to_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            filename: "binary_target_for_binary_append.dat"
+            new_version: 1
+            total_size_bytes: 31 # 16 (original) + 15 (appended)
+    static_response:
+      id: "chatcmpl-append-b2b-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Okay, I have appended the binary data to 'binary_target_for_binary_append.dat'. It is now version 1 and has a total size of 31 bytes."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "Okay, I have appended the binary data to 'binary_target_for_binary_append.dat'. It is now version 1 and has a total size of 31 bytes."
+    task_state: "completed"
+    assert_artifact_state:
+      # Check the initial artifact (version 0)
+      - filename: "binary_target_for_binary_append.dat"
+        user_id: "declarative_append_b2b_tester@example.com"
+        session_id: "session_append_b2b_test_001"
+        version: 0
+        expected_content_bytes_base64: "b3JpZ2luYWxfYmluYXJ5Xw==" # "original_binary_"
+        expected_metadata_contains:
+          mime_type: "application/octet-stream"
+          description: "Initial binary data for append test"
+          size_bytes: 16
+
+      # Check the new artifact (version 1)
+      - filename: "binary_target_for_binary_append.dat"
+        user_id: "declarative_append_b2b_tester@example.com"
+        session_id: "session_append_b2b_test_001"
+        version: 1
+        expected_content_bytes_base64: "b3JpZ2luYWxfYmluYXJ5X2FwcGVuZGVkX2JpbmFyeQ==" # "original_binary_appended_binary"
+        expected_metadata_contains:
+          mime_type: "application/octet-stream" # Original MIME type preserved
+          appended_from_version: 0
+          appended_chunk_declared_mime_type: "application/octet-stream"
+          size_bytes: 31
