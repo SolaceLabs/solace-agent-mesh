@@ -1,0 +1,62 @@
+test_case_id: "builtin_apply_embed_source_not_found_001"
+description: |
+  Tests 'apply_embed_and_create_artifact' when the source artifact specified
+  in the 'embed_directive' does not exist. Expects an error from the tool.
+skip_intermediate_events: true
+
+# No setup_artifacts for "non_existent_source.txt".
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_apply_embed_source_error_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Process a non-existent source artifact 'non_existent_source.txt'."
+  external_context:
+    a2a_session_id: "session_apply_embed_source_not_found_001"
+
+llm_interactions:
+  # Step 1: LLM calls apply_embed_and_create_artifact with a non-existent source in directive
+  - step_id: "llm_calls_apply_embed_source_not_found"
+    static_response:
+      id: "chatcmpl-applyembed-sourcenotfound-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_apply_embed_source_not_found"
+                type: "function"
+                function:
+                  name: "apply_embed_and_create_artifact"
+                  arguments: '{"output_filename": "output_error_source.txt", "embed_directive": "«artifact_content:non_existent_source.txt»"}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool error result and formulates final response
+  - step_id: "llm_final_response_after_apply_embed_source_error"
+    expected_request: # After apply_embed_and_create_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "error"
+          # The message from the tool will be "Embed resolution failed: [Error: Artifact 'non_existent_source.txt' ... not found...]"
+          response_contains: "Embed resolution failed:"
+          response_contains: "Artifact 'non_existent_source.txt' not found (no versions available)" # More specific part of the underlying error
+    static_response:
+      id: "chatcmpl-applyembed-sourcenotfound-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I encountered an error: The source artifact 'non_existent_source.txt' for the embed directive was not found."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "I encountered an error: The source artifact 'non_existent_source.txt' for the embed directive was not found."
+    task_state: "completed"
+    # No output artifact should be created

@@ -1,0 +1,80 @@
+test_case_id: "builtin_apply_embed_binary_to_datauri_001"
+description: |
+  Tests 'apply_embed_and_create_artifact' with a binary source artifact (image)
+  and the 'format:datauri' directive. Expects the output artifact to contain
+  the data URI string with a text/plain MIME type.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "source_image.png"
+    content_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" # 1x1 black PNG
+    mime_type: "image/png" # MIME type of the source artifact
+    metadata:
+      description: "Source image for data URI conversion test"
+      mime_type: "image/png"
+      size_bytes: 68 # Actual decoded size of the 1x1 PNG
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_apply_embed_datauri_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Convert 'source_image.png' to a data URI and save it as 'output_image_data_uri.txt'."
+  external_context:
+    a2a_session_id: "session_apply_embed_datauri_001"
+
+llm_interactions:
+  # Step 1: LLM calls apply_embed_and_create_artifact with format:datauri
+  - step_id: "llm_calls_apply_embed_datauri"
+    static_response:
+      id: "chatcmpl-applyembed-datauri-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_apply_embed_datauri"
+                type: "function"
+                function:
+                  name: "apply_embed_and_create_artifact"
+                  arguments: '{"output_filename": "output_image_data_uri.txt", "embed_directive": "«artifact_content:source_image.png>>>format:datauri»"}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  - step_id: "llm_final_response_after_apply_embed_datauri"
+    expected_request: # After apply_embed_and_create_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            output_filename: "output_image_data_uri.txt"
+            output_version: 0
+            output_mime_type: "text/plain" # Data URIs are text
+    static_response:
+      id: "chatcmpl-applyembed-datauri-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Converted 'source_image.png' to a data URI and saved it as 'output_image_data_uri.txt'."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "Converted 'source_image.png' to a data URI and saved it as 'output_image_data_uri.txt'."
+    task_state: "completed"
+    assert_artifact_state:
+      # Check the newly created output artifact (the data URI string)
+      - filename: "output_image_data_uri.txt"
+        user_id: "declarative_apply_embed_datauri_tester@example.com"
+        session_id: "session_apply_embed_datauri_001"
+        version: 0
+        expected_content_text: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+        expected_metadata_contains:
+          mime_type: "text/plain"
+          # size_bytes will be the length of the data URI string
+          source_directive: "«artifact_content:source_image.png>>>format:datauri»"

@@ -1,0 +1,59 @@
+test_case_id: "builtin_list_artifacts_empty_001"
+description: |
+  Tests the 'list_artifacts' tool when no artifacts exist in the session.
+  Verifies that the tool returns an empty list of artifacts.
+skip_intermediate_events: true
+
+# No setup_artifacts, ensuring the artifact service is empty for this session.
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_list_empty_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Are there any artifacts available?"
+  external_context:
+    a2a_session_id: "session_list_artifacts_empty_001" # Unique session
+
+llm_interactions:
+  # Step 1: LLM decides to call list_artifacts
+  - step_id: "llm_calls_list_artifacts_on_empty"
+    static_response:
+      id: "chatcmpl-list-artifacts-empty-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_list_empty"
+                type: "function"
+                function:
+                  name: "list_artifacts"
+                  arguments: '{}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result (empty list) and formulates final response
+  - step_id: "llm_final_response_after_empty_list"
+    expected_request: # After list_artifacts tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            artifacts: [] # Expecting an empty list
+    static_response:
+      id: "chatcmpl-list-artifacts-empty-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "No artifacts found in the current session."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "No artifacts found in the current session."
+    task_state: "completed"

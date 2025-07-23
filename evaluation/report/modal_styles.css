@@ -1,0 +1,340 @@
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 2% auto;
+    padding: 2rem;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 1200px;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 1rem;
+}
+
+.modal-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin: 0;
+}
+
+.modal-description {
+    font-size: 1rem;
+    color: #6c757d;
+    font-style: italic;
+    margin-bottom: 1.5rem;
+    padding: 0.5rem 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    color: #6c757d;
+    cursor: pointer;
+    padding: 0;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-close:hover {
+    color: #2c3e50;
+}
+
+.modal-charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-top: 1rem;
+}
+
+.modal-chart-container {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.modal-chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.modal-chart-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.chart-toggle-btn {
+    background: #27ae60;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.chart-toggle-btn:hover {
+    background: #219a52;
+}
+
+.chart-flip-container {
+    position: relative;
+    height: 300px;
+    perspective: 1000px;
+}
+
+.chart-face {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    transition: transform 0.6s;
+}
+
+.chart-front {
+    transform: rotateY(0deg);
+}
+
+.chart-back {
+    transform: rotateY(180deg);
+}
+
+.chart-flip-container.flipped .chart-front {
+    transform: rotateY(-180deg);
+}
+
+.chart-flip-container.flipped .chart-back {
+    transform: rotateY(0deg);
+}
+
+.test-item {
+    cursor: pointer !important;
+    transition: background-color 0.2s;
+}
+
+.test-item:hover {
+    background: #e9ecef !important;
+}
+
+/* Make test names clickable but not hyperlinked */
+.test-name {
+    cursor: pointer !important;
+}
+
+.test-name:hover {
+    color: #2c3e50 !important;
+    font-weight: 700 !important;
+}
+
+.modal-runs-section {
+    margin-top: 2rem;
+    border-top: 2px solid #e9ecef;
+    padding-top: 1.5rem;
+}
+
+.runs-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.runs-section-title {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin: 0;
+}
+
+.runs-controls {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.runs-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.runs-filter label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #495057;
+}
+
+.runs-filter select {
+    padding: 0.375rem 0.75rem;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    background-color: white;
+    color: #495057;
+    cursor: pointer;
+}
+
+.runs-filter select:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.runs-count {
+    font-size: 0.875rem;
+    color: #6c757d;
+    font-style: italic;
+}
+
+.runs-container {
+    display: grid;
+    gap: 1rem;
+}
+
+.run-item {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.run-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.run-model {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.run-scores {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.run-score {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: white;
+}
+
+.run-score.response {
+    background: #007bff;
+}
+
+.run-score.tool {
+    background: #6f42c1;
+}
+
+.run-score.llm {
+    background: #28a745;
+}
+
+.run-reasoning {
+    margin-top: 0.75rem;
+}
+
+.reasoning-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.5rem;
+}
+
+.reasoning-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    line-height: 1.5;
+    background: white;
+    padding: 0.75rem;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+}
+
+@media (max-width: 768px) {
+    .modal-content {
+        margin: 5% auto;
+        width: 95%;
+        padding: 1rem;
+    }
+    
+    .modal-charts {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .chart-flip-container {
+        height: 250px;
+    }
+    
+    .modal-chart-header {
+        flex-direction: column;
+        gap: 0.5rem;
+        align-items: stretch;
+    }
+    
+    .chart-toggle-btn {
+        width: 100%;
+    }
+    
+    .runs-section-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .runs-controls {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .run-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .run-scores {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+}

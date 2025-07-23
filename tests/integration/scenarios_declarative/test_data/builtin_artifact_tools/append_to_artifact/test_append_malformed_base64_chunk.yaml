@@ -1,0 +1,94 @@
+test_case_id: "builtin_append_malformed_base64_chunk_001"
+description: |
+  Tests appending a chunk that is declared as a binary MIME type (e.g., image/png)
+  but whose content is not valid base64. Expects decode_and_get_bytes to fall back
+  to treating the chunk as text/plain.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "target_malformed_append.dat"
+    content_base64: "b3JpZ2luYWwgZGF0" # "original dat" (11 bytes)
+    mime_type: "application/octet-stream" # An actual binary type
+    metadata:
+      description: "Initial binary content for malformed append test"
+      mime_type: "application/octet-stream"
+      size_bytes: 11 # "original dat" is 11 bytes
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_malformed_append_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please append a malformed binary chunk to 'target_malformed_append.dat'."
+  external_context:
+    a2a_session_id: "session_malformed_append_test_001"
+
+llm_interactions:
+  # Step 1: LLM calls append_to_artifact with a non-base64 chunk but binary declared mime_type for the chunk
+  - step_id: "llm_calls_append_malformed_chunk"
+    static_response:
+      id: "chatcmpl-malformed-append-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_append_malformed"
+                type: "function"
+                function:
+                  name: "append_to_artifact"
+                  arguments: '{"filename": "target_malformed_append.dat", "content_chunk": "this-is-NOT-base64", "mime_type": "image/png"}' # Declared as image, but content is not b64
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  - step_id: "llm_final_response_after_malformed_append"
+    expected_request: # After append_to_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            filename: "target_malformed_append.dat"
+            new_version: 1
+            total_size_bytes: 30
+    static_response:
+      id: "chatcmpl-malformed-append-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Okay, I have appended the data to 'target_malformed_append.dat'. The chunk was treated as text. It is now version 1 and has a total size of 31 bytes."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "Okay, I have appended the data to 'target_malformed_append.dat'. The chunk was treated as text. It is now version 1 and has a total size of 31 bytes."
+    task_state: "completed"
+    assert_artifact_state:
+      # Check the initial artifact (version 0)
+      - filename: "target_malformed_append.dat"
+        user_id: "declarative_malformed_append_tester@example.com"
+        session_id: "session_malformed_append_test_001"
+        version: 0
+        # To verify setup, we'd ideally check content_bytes_base64, but it's verbose.
+        # Relying on size and mime_type from setup_artifacts.metadata.
+        expected_metadata_contains:
+          mime_type: "application/octet-stream"
+          description: "Initial binary content for malformed append test"
+          size_bytes: 11 # Adjusted to 11 bytes for "original dat"
+
+      # Check the new artifact (version 1)
+      - filename: "target_malformed_append.dat"
+        user_id: "declarative_malformed_append_tester@example.com"
+        session_id: "session_malformed_append_test_001"
+        version: 1
+        # Content is now original binary + the string "this-is-NOT-base64" as bytes.
+        # Exact combined content assertion is hard. Rely on size and metadata.
+        expected_metadata_contains:
+          mime_type: "application/octet-stream" # Original MIME type preserved
+          appended_from_version: 0
+          appended_chunk_declared_mime_type: "image/png" # What was passed to the tool for the chunk
+          size_bytes: 30

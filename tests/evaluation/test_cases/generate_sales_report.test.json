@@ -1,0 +1,13 @@
+{
+    "test_case_id": "generate_sales_report",
+    "category": "Content Generation",
+    "description": "A test case to generate a sales report with random data and a graph.",
+    "target_agent": "OrchestratorAgent",
+    "query": "Generate a detailed sales report in HTML format for the last quarter with random data. The report should include total sales, average sales per month, and a bar chart visualizing the sales for each month (July, August, September).",
+    "wait_time": 240,
+    "evaluation": {
+        "expected_tools": ["create_artifact", "transform_data_with_jq", "extract_content_from_artifact", "create_chart_from_plotly_config", "signal_artifact_for_return"],
+        "expected_response": "I have generated the sales report in HTML format as requested.",
+        "criterion": "Evaluate if the agent successfully generates a detailed HTML sales report with random data, including a bar chart, and confirms task completion."
+    }
+}

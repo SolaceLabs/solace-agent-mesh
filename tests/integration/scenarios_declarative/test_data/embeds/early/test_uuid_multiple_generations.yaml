@@ -1,0 +1,21 @@
+test_case_id: "embed_uuid_multiple_generations_001"
+description: "Tests multiple «uuid:» embeds generate different UUIDs."
+skip_intermediate_events: true
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_tester@example.com"
+  parts: [{type: "text", text: "Generate two UUIDs"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "UUID1: «uuid:», UUID2: «uuid:»."}}]
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        # This regex captures the two UUIDs and the test runner would need to verify they are different.
+        # For declarative, we might just check they both match UUID format.
+        # A more advanced assertion `text_matches_regex_capture_groups_differ: group1_idx, group2_idx` could be useful.
+        # For now, just ensuring both are valid UUIDs and relying on visual inspection or future enhancement.
+        text_matches_regex: "UUID1: ([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}), UUID2: ([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\\."
+        # Note: The test runner currently doesn't support asserting that captured groups are different.
+        # This test will pass if both are valid UUIDs. Manual check or programmatic test for difference.

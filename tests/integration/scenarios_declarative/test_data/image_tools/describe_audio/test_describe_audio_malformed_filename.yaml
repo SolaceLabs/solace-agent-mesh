@@ -1,0 +1,40 @@
+test_case_id: describe_audio_malformed_filename
+description: "Tests the tool's behavior with a malformed audio filename."
+skip_intermediate_events: true
+
+gateway_input:
+  user_identity: "test_user@example.com"
+  target_agent_name: "TestAgent"
+  prompt: "Describe the audio file named audio:file:with:colons.mp3"
+  tool_names: ["describe_audio"]
+  external_context:
+    a2a_session_id: "session_describe_audio_malformed_filename"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_mfn1"
+                type: "function"
+                function:
+                  name: "describe_audio"
+                  arguments: '{"audio_filename": "audio:file:with:colons.mp3"}'
+  - expected_request:
+      messages:
+        - role: "tool"
+          content_contains: "invalid literal for int() with base 10: 'mp3'"
+          tool_call_id: "call_mfn1"
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I was unable to process the request. Audio artifact 'audio:file:with:colons' not found."
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_contains: "Audio artifact 'audio:file:with:colons' not found."

@@ -1,0 +1,147 @@
+Here is the DEVELOPER GUIDE for the `templates` directory.
+
+## Quick Summary
+
+The `templates` directory contains boilerplate files for creating various components within the Solace Agent Mesh (SAM) ecosystem. These templates are used by the `sam` command-line interface (CLI) and developers to bootstrap new agents, gateways, and plugins. They provide a standardized starting point, ensuring new components adhere to the required structure and include necessary configurations.
+
+## Files Overview
+
+*   `agent_template.yaml`: A template for a standard agent configuration file.
+*   `eval_backend_template.yaml`: Configuration template for the A2A Evaluation Backend service.
+*   `gateway_app_template.py`: Python template for a custom gateway's main `App` class, which handles configuration.
+*   `gateway_component_template.py`: Python template for a custom gateway's `Component` class, which implements the core logic.
+*   `gateway_config_template.yaml`: YAML configuration template for a custom gateway.
+*   `main_orchestrator.yaml`: Configuration template for the primary Orchestrator agent.
+*   `plugin_agent_config_template.yaml`: Template for an agent configuration generated from a plugin.
+*   `plugin_custom_config_template.yaml`: Template for a custom configuration file generated from a plugin.
+*   `plugin_custom_template.py`: Python template for a custom class within a plugin.
+*   `plugin_gateway_config_template.yaml`: Template for a gateway configuration generated from a plugin.
+*   `plugin_pyproject_template.toml`: Template for a plugin's `pyproject.toml` file, defining its packaging and dependencies.
+*   `plugin_readme_template.md`: Template for a plugin's `README.md` file.
+*   `plugin_tools_template.py`: Python template demonstrating how to create custom tools for a plugin.
+*   `shared_config.yaml`: A template for shared configuration settings (e.g., broker, models, services) used across multiple components.
+*   `webui.yaml`: Configuration template for the WebUI Gateway.
+
+## Developer API Reference
+
+### agent_template.yaml
+
+**Purpose:** A generic template for creating a new agent configuration. It includes placeholders that are typically filled in by a developer or a script to define a new agent's behavior, model, tools, and communication settings.
+
+**Key Placeholders:**
+*   `__AGENT_NAME__`: The unique name of the agent.
+*   `__NAMESPACE__`: The namespace the agent operates in.
+*   `__SUPPORTS_STREAMING__`: `true` or `false` to indicate if the agent supports streaming responses.
+*   `__MODEL_ALIAS__`: The alias of the language model to use (e.g., `*planning_model`).
+*   `__INSTRUCTION__`: The system prompt or instruction for the agent.
+*   `__TOOLS_CONFIG__`: A YAML list defining the tools available to the agent.
+*   `__SESSION_SERVICE__`, `__ARTIFACT_SERVICE__`: Configuration for session and artifact services.
+*   `__AGENT_CARD_...__`: Fields defining the agent's metadata for discovery.
+*   `__INTER_AGENT_COMMUNICATION_...__`: Rules for how this agent can communicate with other agents.
+
+---
+### eval_backend_template.yaml
+
+**Purpose:** A configuration template for the evaluation backend, a specialized REST gateway used for testing and evaluation purposes. It defines the broker connection, API settings, and system prompts.
+
+**Key Configuration:**
+*   `app_module`: Set to `solace_agent_mesh.gateway.rest.app` to use the standard REST gateway implementation.
+*   `namespace`: The operational namespace, often set via an environment variable `${NAMESPACE}`.
+*   `fastapi_host`, `fastapi_port`: The host and port for the backend's REST API.
+*   `cors_allowed_origins`: A list of origins allowed to make cross-origin requests to the API.
+*   `system_purpose`, `response_format`: Default prompts for the gateway.
+
+---
+### gateway_app_template.py
+
+**Purpose:** This template defines the main application class for a custom gateway. Its primary role is to extend `BaseGatewayApp` and define the gateway-specific configuration schema.
+
+**Import:** `from my_gateway.app import MyGatewayApp` (where `__GATEWAY_NAME_PASCAL_CASE__` is replaced, e.g., `MyGatewayApp`)
+
+**Classes:**
+- `__GATEWAY_NAME_PASCAL_CASE__GatewayApp(BaseGatewayApp)` - The main app class for the custom gateway.
+  - `SPECIFIC_APP_SCHEMA_PARAMS: List[Dict[str, Any]]` - A class attribute where you define the custom configuration parameters for your gateway. Each dictionary in the list defines a parameter's name, type, requirement, and description.
+  - `_get_gateway_component_class() -> Type[BaseGatewayComponent]` - An abstract method that must be implemented to return the type of your custom gateway component class.
+
+**Usage Examples:**
+```python
+# In your gateway's app.py (e.g., src/my_slack_gateway/app.py)
+
+from typing import Any, Dict, List, Type
+
+from solace_agent_mesh.gateway.base.app import BaseGatewayApp
+from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
+
+# Import your component class
+from .component import MySlackGatewayComponent
+
+class MySlackGatewayApp(BaseGatewayApp):
+    """
+    App class for the My Slack Gateway.
+    """
+
+    # Define custom configuration parameters that will be available
+    # in the gateway's YAML config file.
+    SPECIFIC_APP_SCHEMA_PARAMS: List[Dict[str, Any]] = [
+        {
+            "name": "slack_bot_token",
+            "required": True,
+            "type": "string",
+            "description": "The Slack Bot User OAuth Token (starts with xoxb-).",
+        },
+        {
+            "name": "slack_app_token",
+            "required": True,
+            "type": "string",
+            "description": "The Slack App-Level Token for Socket Mode (starts with xapp-).",
+        },
+        {
+            "name": "default_target_agent",
+            "required": False,
+            "type": "string",
+            "default": "OrchestratorAgent",
+            "description": "The default agent to send messages to.",
+        },
+    ]
+
+    def _get_gateway_component_class(self) -> Type[BaseGatewayComponent]:
+        """
+        Returns the specific gateway component class for this app.
+        """
+        return MySlackGatewayComponent
+```
+
+---
+### gateway_component_template.py
+
+**Purpose:** This template implements the core logic of a custom gateway. It handles the lifecycle of the gateway, communication with the external system, and translation between the external system's data format and the A2A (Agent-to-Agent) protocol.
+
+**Import:** `from my_gateway.component import MyGatewayComponent` (where `__GATEWAY_NAME_PASCAL_CASE__` is replaced)
+
+**Classes:**
+- `__GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent)` - The main component class implementing the gateway's logic.
+  - `_start_listener() -> None` - **GDK Hook:** Implement this to start listening for events from the external system (e.g., start a polling loop, connect a client). Called by the framework.
+  - `_stop_listener() -> None` - **GDK Hook:** Implement this to stop listening and clean up connections to the external system. Called by the framework.
+  - `_authenticate_external_user(external_event_data: Any) -> Optional[str]` - **GDK Hook:** Implement this to authenticate an incoming request from the external system. Return a unique user ID string on success, `None` on failure.
+  - `_translate_external_input(external_event_data: Any, authenticated_user_identity: str) -> Tuple[Optional[str], List[A2APart], Dict[str, Any]]` - **GDK Hook:** Implement this to convert an event from the external system into an A2A task. Returns the target agent name, a list of A2A parts (Text, File, etc.), and a context dictionary to be used for sending the response back.
+  - `_send_final_response_to_external(external_request_context: Dict[str, Any], task_data: Task) -> None` - **GDK Hook:** Implement this to send the final result of an A2A task back to the external system.
+  - `_send_error_to_external(external_request_context: Dict[str, Any], error_data: JSONRPCError) -> None` - **GDK Hook:** Implement this to send an error notification back to the external system.
+  - `_send_update_to_external(external_request_context: Dict[str, Any], event_data: Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent], is_final_chunk_of_update: bool) -> None` - **GDK Hook:** (Optional) Implement this to handle streaming intermediate updates (e.g., "Agent is thinking...") back to the external system.
+  - `cleanup() -> None` - **GDK Hook:** Perform any final cleanup before the component is destroyed. Always call `super().cleanup()`.
+
+**Usage Examples:**
+```python
+# In your gateway's component.py (e.g., src/my_slack_gateway/component.py)
+# This is a conceptual example of the implementation flow.
+
+from typing import Any, Dict, List, Optional, Tuple
+from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
+from solace_agent_mesh.common.types import Part as A2APart, TextPart, Task
+
+class MySlackGatewayComponent(BaseGatewayComponent):
+    def __init__(self, **kwargs: Any):
+        super().__init__(**kwargs)
+        # Retrieve config defined in the App class
+        self.slack_token = self.get_config("slack_bot_token")
+        self.default_agent = self.get_config("default_target_agent")
+        # self.slack_client = SlackClient(token=self.slack_token)

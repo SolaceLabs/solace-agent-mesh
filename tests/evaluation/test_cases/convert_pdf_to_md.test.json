@@ -1,0 +1,19 @@
+{
+  "test_case_id": "convert_pdf_to_md",
+  "category": "Orchestration",
+  "description": "A test case to convert a PDF file to markdown.",
+  "target_agent": "OrchestratorAgent",
+  "query": "Please convert the attached PDF file to markdown using the Markitdown Agent.",
+  "artifacts": [
+    {
+      "type": "file",
+      "path": "artifacts/sample.pdf"
+    }
+  ],
+  "wait_time": 120,
+  "evaluation": {
+    "expected_tools": ["peer_MarkitdownAgent"],
+    "expected_response": "I have converted the PDF file to markdown and attached it.",
+    "criterion": "Evaluate if the agent successfully uses the MarkitdownAgent to convert the PDF file to a markdown file and confirms task completion."
+  }
+}

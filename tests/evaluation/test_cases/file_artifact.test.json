@@ -1,0 +1,19 @@
+{
+    "test_case_id": "file_artifact",
+    "category": "Tool Usage",
+    "description": "A test case to test file artifacts.",
+    "query": "Please summarize the content of the attached document.",
+    "target_agent": "OrchestratorAgent",
+    "artifacts": [
+        {
+            "type": "file",
+            "path": "artifacts/sample.txt"
+        }
+    ],
+    "wait_time": 60,
+    "evaluation": {
+        "expected_tools": ["extract_content_from_artifact"],
+        "expected_response": "The document is a sample file for testing.",
+        "criterion": "Evaluate if the agent successfully extracts the content from the artifact and provides a summary."
+    }
+}

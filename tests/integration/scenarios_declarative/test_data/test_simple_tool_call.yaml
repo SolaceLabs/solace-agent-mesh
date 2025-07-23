@@ -1,0 +1,86 @@
+test_case_id: "simple_tool_call_001"
+description: "Agent receives a query, decides to use a tool, Test LLM provides tool output, agent responds."
+expected_completion_timeout_seconds: 15 # Increased timeout for this multi-step scenario
+skip_intermediate_events: true # ADDED: To skip llm_invocation before tool_invocation_start if not listed
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_user_tool@example.com"
+  parts:
+    - type: "text"
+      text: "What is the weather in London?"
+  external_context:
+    source_test_file: "test_simple_tool_call.yaml"
+
+llm_interactions:
+  - step_id: "llm_requests_tool_call"
+    expected_request:
+      tools_present: [
+        "get_weather_tool"
+      ]
+    static_response:
+      id: "chatcmpl-test-toolcallreq"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - index: 0
+          message:
+            role: "assistant"
+            content: null
+            tool_calls:
+              - id: "call_weather_london_123"
+                type: "function"
+                function:
+                  name: "get_weather_tool"
+                  arguments: '{"location": "London", "unit": "celsius"}'
+          finish_reason: "tool_calls"
+      usage:
+        prompt_tokens: 15
+        completion_tokens: 10
+        total_tokens: 25
+
+  - step_id: "llm_processes_tool_response"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "get_weather_tool"
+          tool_call_id_matches_prior_request_index: 0
+          response_contains: "sunny"
+          response_json_matches:
+            condition: "sunny"
+            temperature: "22"
+            unit: "celsius"
+    static_response:
+      id: "chatcmpl-test-toolcallresp"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - index: 0
+          message:
+            role: "assistant"
+            content: "The weather in London is sunny and 22°C." # Corrected content
+          finish_reason: "stop"
+      usage:
+        prompt_tokens: 50
+        completion_tokens: 10
+        total_tokens: 60
+
+expected_gateway_output:
+  # With skip_intermediate_events: true, the llm_invocation before tool_invocation_start will be skipped
+  # if not explicitly listed. We are focusing on the tool_invocation_start and final outcome.
+  - type: "status_update"
+    event_purpose: "tool_invocation_start"
+    expected_tool_name: "get_weather_tool"
+    expected_tool_args_contain:
+      location: "London"
+      unit: "celsius"
+    final_flag: false
+  # Intermediate llm_invocation and llm_response for the second LLM call will be skipped.
+  # Also, the generic_text_update from the LLM's final text content will be skipped
+  # if we only care about the final_response object.
+  # If we want to assert the text from the final status update, we'd list it:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "The weather in London is sunny and 22°C." # Corrected content
+    task_state: "completed"
+
+# expected_artifacts: []

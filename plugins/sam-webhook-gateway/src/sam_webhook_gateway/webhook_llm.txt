@@ -1,0 +1,371 @@
+# Universal Webhook Gateway Developer Guide
+
+## Quick Summary
+The `webhook` directory implements a Universal Webhook Gateway for the Solace AI Connector that allows external systems to trigger A2A (Agent-to-Agent) tasks via HTTP webhooks. The architecture consists of a FastAPI-based HTTP server that receives webhook requests, authenticates users, translates HTTP payloads into A2A task format, and submits tasks to target agents. The gateway provides immediate HTTP acknowledgments while processing tasks asynchronously.
+
+**Key Components:**
+- **FastAPI Server**: Hosts dynamic webhook endpoints with configurable authentication
+- **Payload Processing**: Supports JSON, YAML, text, form data, and binary formats with optional artifact storage
+- **A2A Integration**: Translates webhook requests into A2A tasks using configurable templates
+- **Authentication**: Supports token-based, basic auth, or no authentication per endpoint
+
+## Files and Subdirectories Overview
+
+### Direct Files:
+- **`__init__.py`** - Package initialization with version info
+- **`app.py`** - Custom SAC App class defining configuration schema and creating the gateway component
+- **`component.py`** - Main gateway component hosting the FastAPI server and handling webhook processing
+- **`dependencies.py`** - FastAPI dependency injection for accessing shared component resources
+- **`main.py`** - FastAPI application instance with middleware, exception handlers, and health endpoints
+
+### Subdirectories:
+- **`routers/`** - Container for static FastAPI routers (health checks, metrics, admin endpoints)
+
+## Developer API Reference
+
+### Direct Files
+
+#### __init__.py
+**Purpose:** Package initialization for the Universal Webhook Gateway
+**Import:** `from gateway.webhook import VERSION`
+
+**Constants:**
+- `VERSION = "0.1.0"` - Current version of the webhook gateway
+
+#### app.py
+**Purpose:** Defines the WebhookGatewayApp class with configuration schema and component creation
+**Import:** `from gateway.webhook.app import WebhookGatewayApp, info`
+
+**Classes:**
+- `WebhookGatewayApp(BaseGatewayApp)` - Custom app class for webhook gateway configuration
+  - `SPECIFIC_APP_SCHEMA_PARAMS: List[Dict[str, Any]]` - Configuration parameters specific to webhook gateway
+  - `__init__(app_info, **kwargs)` - Initialize the webhook gateway app
+  - `_get_gateway_component_class() -> Type[BaseGatewayComponent]` - Returns WebhookGatewayComponent class
+
+**Constants:**
+- `info: Dict[str, Any]` - Module info dictionary required by SAC
+
+#### component.py
+**Purpose:** Main component hosting FastAPI server and processing webhook requests
+**Import:** `from gateway.webhook.component import WebhookGatewayComponent, info`
+
+**Classes:**
+- `WebhookGatewayComponent(BaseGatewayComponent)` - Core gateway component
+  - `__init__(**kwargs)` - Initialize the component with webhook-specific configuration
+  - `_start_listener()` - Starts FastAPI/Uvicorn server and adds dynamic routes
+  - `_stop_listener()` - Stops the server gracefully
+  - `_extract_initial_claims(external_event_data) -> Optional[Dict[str, Any]]` - Handles endpoint authentication
+  - `_translate_external_input(request, endpoint_config, user_identity) -> Tuple[str, List[A2APart], Dict[str, Any]]` - Converts HTTP requests to A2A tasks
+  - `_create_webhook_handler(endpoint_config) -> Callable` - Factory for endpoint-specific handlers
+  - `_save_file_as_artifact(content_bytes, filename, mime_type, user_identity, a2a_session_id, log_id_prefix, is_main_payload_artifact=False) -> Optional[str]` - Helper to save files as artifacts
+  - `_send_update_to_external(external_request_context, event_data, is_final_chunk_of_update)` - Handle task updates (no-op for webhooks)
+  - `_send_final_response_to_external(external_request_context, task_data)` - Handle final responses (no-op for webhooks)
+  - `_send_error_to_external(external_request_context, error_data)` - Handle errors (no-op for webhooks)
+
+**Constants:**
+- `info: Dict[str, Any]` - Component info dictionary with configuration schema
+
+#### dependencies.py
+**Purpose:** FastAPI dependency injection for accessing component resources
+**Import:** `from gateway.webhook.dependencies import get_sac_component, set_component_instance`
+
+**Functions:**
+- `set_component_instance(component: WebhookGatewayComponent)` - Sets the global component reference
+- `get_sac_component() -> WebhookGatewayComponent` - FastAPI dependency to get component instance
+
+**Variables:**
+- `sac_component_instance: WebhookGatewayComponent` - Global component reference
+
+#### main.py
+**Purpose:** FastAPI application instance with middleware and exception handling
+**Import:** `from gateway.webhook.main import app, setup_dependencies`
+
+**Variables:**
+- `app: FastAPI` - FastAPI application instance
+
+**Functions:**
+- `setup_dependencies(component: WebhookGatewayComponent)` - Configures middleware and component reference
+- `health_check()` - Basic health endpoint handler
+- `http_exception_handler(request, exc)` - Handles HTTPExceptions
+- `validation_exception_handler(request, exc)` - Handles validation errors
+- `generic_exception_handler(request, exc)` - Handles unexpected exceptions
+
+### Subdirectory APIs
+
+#### routers/
+**Purpose:** Container for static FastAPI routers (health checks, metrics, admin endpoints)
+**Key Exports:** Currently empty - prepared for future static router implementations
+**Import Examples:**
+```python
+# Future router imports would look like:
+# from gateway.webhook.routers.health import health_router
+# from gateway.webhook.routers.metrics import metrics_router
+```
+
+## Complete Usage Guide
+
+### 1. Basic Configuration Setup
+
+```python
+from gateway.webhook.app import WebhookGatewayApp
+
+# Example webhook gateway configuration
+webhook_config = {
+    "app_module": "gateway.webhook.app",
+    "webhook_server_host": "0.0.0.0",
+    "webhook_server_port": 8080,
+    "cors_allowed_origins": ["*"],
+    "system_purpose": "Process external webhook data for AI analysis",
+    "response_format": "JSON with structured results",
+    "webhook_endpoints": [
+        {
+            "path": "/hooks/data-feed",
+            "method": "POST",
+            "target_agent_name": "data_processor_agent",
+            "input_template": "Process this data: {{payload}}",
+            "auth": {"type": "none"},
+            "payload_format": "json"
+        }
+    ]
+}
+
+# Create the app
+app_info = {"name": "my_webhook_gateway", "config": webhook_config}
+webhook_app = WebhookGatewayApp(app_info)
+```
+
+### 2. Advanced Endpoint Configuration with Authentication
+
+```python
+# Token-based authentication endpoint
+token_endpoint = {
+    "path": "/hooks/secure-data",
+    "method": "POST", 
+    "target_agent_name": "secure_processor",
+    "input_template": "Secure data from {{user_data:headers.X-Source}}: {{payload}}",
+    "auth": {
+        "type": "token",
+        "token_config": {
+            "location": "header",
+            "name": "X-API-Key",
+            "value": "${WEBHOOK_API_KEY}"  # Environment variable
+        }
+    },
+    "payload_format": "json",
+    "assumed_user_identity": "external_system_user"
+}
+
+# Basic auth endpoint with file upload
+upload_endpoint = {
+    "path": "/hooks/file-upload",
+    "method": "POST",
+    "target_agent_name": "file_processor",
+    "input_template": "Process uploaded files: {{user_data:uploaded_files}}",
+    "auth": {
+        "type": "basic",
+        "basic_auth_config": {
+            "credentials": "${WEBHOOK_BASIC_CREDS}"  # "username:password"
+        }
+    },
+    "payload_format": "form_data",
+    "save_payload_as_artifact": True,
+    "artifact_filename_template": "upload_{{timestamp}}.json"
+}
+```
+
+### 3. Using the Component Programmatically
+
+```python
+from gateway.webhook.component import WebhookGatewayComponent
+from gateway.webhook.app import WebhookGatewayApp
+
+# Create and configure the app
+app_info = {
+    "name": "my_webhook_gateway",
+    "config": webhook_config
+}
+
+webhook_app = WebhookGatewayApp(app_info)
+
+# Access component methods through the app
+component = webhook_app.component_instance
+```
+
+### 4. Custom FastAPI Dependencies
+
+```python
+from fastapi import Depends
+from gateway.webhook.dependencies import get_sac_component
+from gateway.webhook.component import WebhookGatewayComponent
+from gateway.webhook.main import app
+
+# Custom endpoint using the component
+@app.get("/custom/status")
+async def custom_status(
+    component: WebhookGatewayComponent = Depends(get_sac_component)
+):
+    return {
+        "gateway_id": component.gateway_id,
+        "endpoints_count": len(component.webhook_endpoints_config),
+        "server_host": component.webhook_server_host,
+        "server_port": component.webhook_server_port
+    }
+```
+
+### 5. Payload Format Examples
+
+```python
+# JSON payload endpoint
+json_endpoint = {
+    "path": "/hooks/json-data",
+    "target_agent_name": "json_processor",
+    "input_template": "Analyze this JSON data: {{payload.data_field}}",
+    "payload_format": "json"
+}
+
+# Binary file endpoint with artifact storage
+binary_endpoint = {
+    "path": "/hooks/binary-upload", 
+    "target_agent_name": "binary_processor",
+    "input_template": "Process binary file: {{user_data:binary_payload_artifact_uri}}",
+    "payload_format": "binary",
+    "save_payload_as_artifact": True,
+    "artifact_filename_template": "binary_{{timestamp}}.dat",
+    "artifact_mime_type_override": "application/octet-stream"
+}
+
+# Form data with file uploads
+form_endpoint = {
+    "path": "/hooks/form-upload",
+    "target_agent_name": "form_processor", 
+    "input_template": """
+    Form data received:
+    Fields: {{payload}}
+    Files: {{user_data:uploaded_files}}
+    """,
+    "payload_format": "form_data"
+}
+```
+
+### 6. Template Variables Available
+
+```python
+# Template variables accessible in input_template and artifact_filename_template:
+
+template_example = """
+Request details:
+- Path: {{topic}}
+- Method: {{user_data:method}}
+- Client: {{user_data:client_host}}
+- Headers: {{user_data:headers}}
+- Query params: {{user_properties}}
+- Payload: {{payload}}
+- Timestamp: {{timestamp}}
+
+Artifact info (if applicable):
+- Payload artifact: {{user_data:webhook_payload_artifact_uri}}
+- Binary artifact: {{user_data:binary_payload_artifact_uri}}
+- Uploaded files: {{user_data:uploaded_files}}
+"""
+```
+
+### 7. Integration with SAC Configuration
+
+```yaml
+# YAML configuration file example
+components:
+  - component_name: webhook_gateway
+    component_module: gateway.webhook.app
+    component_config:
+      webhook_server_host: "0.0.0.0"
+      webhook_server_port: 8080
+      cors_allowed_origins: ["http://localhost:3000"]
+      webhook_endpoints:
+        - path: "/hooks/alerts"
+          method: "POST"
+          target_agent_name: "alert_processor"
+          input_template: "Alert received: {{payload.message}}"
+          auth:
+            type: "token"
+            token_config:
+              location: "header"
+              name: "Authorization"
+              value: "${ALERT_TOKEN}"
+```
+
+### 8. Working with Dependencies and FastAPI Setup
+
+```python
+from gateway.webhook.main import app, setup_dependencies
+from gateway.webhook.dependencies import set_component_instance
+from gateway.webhook.component import WebhookGatewayComponent
+
+# Initialize component
+component = WebhookGatewayComponent(**component_config)
+
+# Setup FastAPI dependencies
+setup_dependencies(component)
+
+# Now the FastAPI app is ready with:
+# - CORS middleware configured
+# - Component dependencies available
+# - Exception handlers registered
+# - Health check endpoint at /health
+```
+
+### 9. Error Handling and Responses
+
+```python
+# The gateway automatically handles errors and returns structured responses:
+
+# Success response (HTTP 202):
+{
+    "taskId": "task-uuid-here",
+    "message": "Webhook request received and acknowledged.",
+    "endpoint_path": "/hooks/data-feed", 
+    "target_agent": "data_processor_agent"
+}
+
+# Error responses follow JSON-RPC format:
+{
+    "error": {
+        "code": -32600,
+        "message": "Authentication failed",
+        "data": {"endpoint": "/hooks/secure-data"}
+    }
+}
+```
+
+### 10. Complete Integration Example
+
+```python
+from gateway.webhook.app import WebhookGatewayApp
+from gateway.webhook.main import app
+import uvicorn
+
+# Complete setup and run
+config = {
+    "webhook_server_host": "0.0.0.0",
+    "webhook_server_port": 8080,
+    "webhook_endpoints": [
+        {
+            "path": "/hooks/process",
+            "method": "POST",
+            "target_agent_name": "processor_agent",
+            "input_template": "Process: {{payload}}",
+            "auth": {"type": "none"},
+            "payload_format": "json"
+        }
+    ]
+}
+
+# Create app instance
+app_info = {"name": "webhook_gateway", "config": config}
+webhook_app = WebhookGatewayApp(app_info)
+
+# The FastAPI server is automatically started by the component
+# Access the FastAPI app instance for additional customization if needed
+fastapi_instance = app
+```
+
+This webhook gateway provides a robust, configurable solution for integrating external systems with the Solace AI Connector through HTTP webhooks, supporting various authentication methods, payload formats, and artifact handling capabilities.

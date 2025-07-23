@@ -1,0 +1,68 @@
+test_case_id: "builtin_apply_embed_invalid_directive_001"
+description: |
+  Tests 'apply_embed_and_create_artifact' with a malformed embed_directive
+  (e.g., missing closing delimiter). Expects an error from the tool.
+skip_intermediate_events: true
+
+setup_artifacts: # An artifact is not strictly needed for this error, but good for consistency
+  - filename: "source_for_error_test.txt"
+    content: "Some data."
+    mime_type: "text/plain"
+    metadata:
+      description: "Source for invalid directive test"
+      mime_type: "text/plain"
+      size_bytes: 10
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_apply_embed_error_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Process an artifact with a deliberately malformed embed directive."
+  external_context:
+    a2a_session_id: "session_apply_embed_invalid_directive_001"
+
+llm_interactions:
+  # Step 1: LLM calls apply_embed_and_create_artifact with a malformed directive
+  - step_id: "llm_calls_apply_embed_malformed"
+    static_response:
+      id: "chatcmpl-applyembed-malformed-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_apply_embed_malformed"
+                type: "function"
+                function:
+                  name: "apply_embed_and_create_artifact"
+                  arguments: '{"output_filename": "output_error.txt", "embed_directive": "«artifact_content:source_for_error_test.txt"}' # Missing closing »
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool error result and formulates final response
+  - step_id: "llm_final_response_after_apply_embed_error"
+    expected_request: # After apply_embed_and_create_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "error"
+            # The message should indicate an invalid embed directive format
+          response_contains: "Invalid embed directive format: «artifact_content:source_for_error_test.txt"
+    static_response:
+      id: "chatcmpl-applyembed-malformed-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I encountered an error: The embed directive provided was malformed."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "I encountered an error: The embed directive provided was malformed."
+    task_state: "completed"
+    # No output artifact should be created

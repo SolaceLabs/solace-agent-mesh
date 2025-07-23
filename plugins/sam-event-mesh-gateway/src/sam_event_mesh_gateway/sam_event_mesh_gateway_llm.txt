@@ -1,0 +1,101 @@
+Here is the developer guide for the `sam_event_mesh_gateway` directory.
+
+## Quick Summary
+
+The `sam-event-mesh-gateway` directory contains a plugin for the Solace Agent Mesh (SAM). Its primary purpose is to act as a bridge between an external system communicating via Solace PubSub+ events and the internal Agent-to-Agent (A2A) network.
+
+The gateway listens for messages on configured Solace topics, transforms them into A2A tasks using powerful template expressions, and submits them to the appropriate SAM agent. It then processes the final task responses (or errors), transforms them, and publishes them back to the Solace event mesh.
+
+## Files Overview
+
+-   `__init__.py`: Standard Python file that marks the directory as a package.
+-   `app.py`: Defines the main application class (`EventMeshGatewayApp`) which specifies the configuration schema for the gateway.
+-   `component.py`: Contains the core runtime logic (`EventMeshGatewayComponent`) that handles message processing, transformations, and communication.
+
+## Developer API Reference
+
+---
+
+### `__init__.py`
+
+**Purpose:** A standard Python module initializer. It makes the `sam_event_mesh_gateway` directory a Python package. There are no public members to import from this file.
+
+---
+
+### `app.py`
+
+**Purpose:** This file defines the main application class for the gateway. Its primary role is to define the configuration schema that a developer uses in their `sac-app.yml` file to configure and run the gateway.
+
+**Import:** `from sam_event_mesh_gateway.app import EventMeshGatewayApp`
+
+**Classes:**
+
+-   `EventMeshGatewayApp(app_info: Dict[str, Any], **kwargs)` - The main application class for the SAM Event Mesh Gateway. It extends `BaseGatewayApp` and is responsible for defining and processing the gateway's specific configuration parameters. Developers typically do not instantiate this class directly in Python code; instead, they reference it in their application configuration file.
+
+    -   `SPECIFIC_APP_SCHEMA_PARAMS: List[Dict[str, Any]]` - A class attribute that defines the JSON schema for the gateway's configuration. This is the primary "API" for developers using this gateway. Key parameters include:
+        -   `event_mesh_broker_config`: Connection details for the data plane Solace broker.
+        -   `event_handlers`: A list defining how to process incoming Solace messages, including topic subscriptions, message-to-task transformations, and target agent selection.
+        -   `output_handlers`: A list defining how to process A2A task responses and publish them back to the Solace event mesh.
+
+**Usage Examples:**
+
+The primary way to use `EventMeshGatewayApp` is by referencing it in a `sac-app.yml` configuration file. The framework then uses this class to instantiate and run the gateway.
+
+```yaml
+# Example sac-app.yml for the Event Mesh Gateway
+
+# The name of the gateway instance
+name: my_event_mesh_gateway
+
+# The application class to use
+app_class: sam_event_mesh_gateway.app.EventMeshGatewayApp
+
+# Gateway-specific configuration, validated against SPECIFIC_APP_SCHEMA_PARAMS
+config:
+  # Connection details for the Solace broker (data plane)
+  event_mesh_broker_config:
+    broker_url: "tcp://solace.mycompany.com:55555"
+    broker_vpn: "my-vpn"
+    broker_username: "my-user"
+    broker_password: "${env:SOLACE_PASSWORD}"
+
+  # Defines how to handle incoming messages
+  event_handlers:
+    - name: "handle_customer_updates"
+      subscriptions:
+        - topic: "customer/v1/updated/>"
+      # Transform the incoming message into a prompt for the agent
+      input_expression: "input.payload:text = 'Summarize the following customer update: ' + json.dumps(input.payload:)"
+      # Statically define the target agent
+      target_agent_name: "customer_summary_agent"
+      # Define which output handler to use on success/error
+      on_success: "publish_summary"
+      on_error: "log_error_to_solace"
+
+  # Defines how to handle outgoing responses
+  output_handlers:
+    - name: "publish_summary"
+      # Determine the output topic dynamically from the response
+      topic_expression: "'customer/v1/summary/' + input.payload:user_data.forward_context.customer_id"
+      # Construct the JSON payload for the outgoing message
+      payload_expression: "input.payload:"
+    - name: "log_error_to_solace"
+      topic_expression: "'gateway/errors'"
+      payload_expression: "input.payload:"
+```
+
+---
+
+### `component.py`
+
+**Purpose:** This file contains the core component that implements the runtime logic of the Event Mesh Gateway. It is instantiated by the `EventMeshGatewayApp` and handles the full lifecycle of a request: receiving a message from Solace, transforming it, submitting an A2A task, receiving the response, and publishing it back to Solace.
+
+**Import:** `from sam_event_mesh_gateway.component import EventMeshGatewayComponent`
+
+**Classes:**
+
+-   `EventMeshGatewayComponent(**kwargs: Any)` - The core operational component of the gateway. It inherits from `BaseGatewayComponent` and implements the abstract methods for handling the data flow between the external event mesh and the internal A2A network. Developers do not typically interact with this class or its methods directly. Its behavior is entirely driven by the configuration provided to the `EventMeshGatewayApp`.
+
+**Usage Examples:**
+
+Developers do not use this component directly. It is an internal implementation detail of the gateway application. The framework, guided by the `EventMeshGatewayApp`, instantiates and manages this component based on the `sac-app.yml` configuration. Understanding its role is useful for debugging and for developers who may wish to extend the gateway's functionality by subclassing it.

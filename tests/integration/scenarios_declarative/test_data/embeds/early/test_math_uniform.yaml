@@ -1,0 +1,16 @@
+test_case_id: "embed_math_uniform_001"
+description: "Tests «math:uniform(1.0, 5.0)» for type and general range."
+skip_intermediate_events: true
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_tester@example.com"
+  parts: [{type: "text", text: "Generate random uniform float"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "Random uniform: «math:uniform(1.0, 5.0)»"}}]
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        # Regex to check for a float like X.YYYY... where X is 1-4 or 5.0...
+        text_matches_regex: "Random uniform: [1-5]\\.\\d+"

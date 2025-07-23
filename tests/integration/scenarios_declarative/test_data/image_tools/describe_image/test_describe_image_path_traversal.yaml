@@ -1,0 +1,53 @@
+# tests/integration/scenarios_declarative/test_data/image_tools/describe_image/test_describe_image_path_traversal.yaml
+test_case_id: "describe_image_path_traversal"
+description: "Security test to ensure the tool handles filenames that look like path traversal attempts."
+skip_intermediate_events: true
+
+# No artifacts are set up. The tool should fail to find the file.
+
+gateway_input:
+  user_prompt: "Describe the image ../../etc/passwd.png"
+  user_identity: "test_user@example.com"
+  target_agent_name: "TestAgent"
+  tool_names: ["describe_image"]
+
+llm_interactions:
+  # First LLM call: Agent decides to use the describe_image tool with the malicious filename
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_describe_image_path_trav_1"
+                type: "function"
+                function:
+                  name: "describe_image"
+                  arguments: '{"image_filename": "../../etc/passwd.png"}'
+    expected_request:
+      tools_present: ["describe_image"]
+
+  # Second LLM call: Agent processes the tool's "file not found" error
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I could not find the image named '../../etc/passwd.png'."
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "error"
+            message: "Image artifact '../../etc/passwd.png' not found."
+
+expected_gateway_output:
+  - type: "status_update"
+    event_purpose: "tool_invocation_start"
+    expected_tool_name: "describe_image"
+    expected_tool_args_contain:
+      image_filename: "../../etc/passwd.png"
+
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_contains: "could not find the image"

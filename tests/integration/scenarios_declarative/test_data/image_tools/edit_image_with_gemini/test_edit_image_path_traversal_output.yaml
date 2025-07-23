@@ -1,0 +1,51 @@
+test_case_id: edit_image_path_traversal_output
+description: "Tests for path traversal vulnerability in the output filename."
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "image_for_traversal_output.jpg"
+    content_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    mime_type: "image/jpeg"
+
+gateway_input:
+  user_identity: "test_user@example.com"
+  target_agent_name: "TestAgent"
+  prompt: "Edit image_for_traversal_output.jpg and save it to ../../hacked.jpg"
+  tool_names: ["edit_image_with_gemini"]
+  external_context:
+    a2a_session_id: "session_edit_image_path_traversal_output"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_pt2"
+                type: "function"
+                function:
+                  name: "edit_image_with_gemini"
+                  arguments: '{"image_filename": "image_for_traversal_output.jpg", "edit_prompt": "add a border", "output_filename": "../../hacked.jpg"}'
+  - expected_request:
+      messages:
+        - role: "tool"
+          content_contains: "Image edited and saved successfully"
+          tool_call_id: "call_pt2"
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have successfully edited the image and saved it as hacked.jpg."
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_contains: "I have successfully edited the image and saved it as hacked.jpg."
+
+expected_artifacts:
+  - filename: "hacked.jpg" # The artifact service should strip the path traversal characters
+    mime_type: "image/jpeg"
+    metadata_contains:
+      original_requested_filename: "../../hacked.jpg"

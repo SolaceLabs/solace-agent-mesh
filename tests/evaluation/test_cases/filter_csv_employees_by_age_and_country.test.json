@@ -1,0 +1,19 @@
+{
+  "test_case_id": "filter_csv_employees_by_age_and_country",
+  "category": "Tool Usage",
+  "description": "A test case to filter employees from a CSV file based on age and country.",
+  "target_agent": "OrchestratorAgent",
+  "query": "From the attached CSV, please list the names of all people who are older or equal to 30 and live in the USA.",
+  "artifacts": [
+    {
+      "type": "file",
+      "path": "artifacts/sample.csv"
+    }
+  ],
+  "wait_time": 120,
+  "evaluation": {
+    "expected_tools": ["query_data_with_sql", "signal_artifact_for_return"],
+    "expected_response": "The employees older or equal to 30 and living in the USA are: John Doe, Bob Johnson.",
+    "criterion": "Evaluate if the agent correctly filters the CSV data using SQL and signals the result as an artifact."
+  }
+}

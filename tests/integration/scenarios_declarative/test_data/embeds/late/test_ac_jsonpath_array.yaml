@@ -1,0 +1,19 @@
+test_case_id: "embed_ac_jsonpath_array_001"
+description: "Tests «artifact_content:arr.json>>>jsonpath:$.items[*].n>>>format:json»."
+skip_intermediate_events: true
+setup_artifacts:
+  - filename: "arr.json"
+    mime_type: "application/json"
+    content: '{"items":[{"n":"A"},{"n":"B"}]}'
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_late_tester@example.com"
+  parts: [{type: "text", text: "Get arr.json items[*].n as json"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "Result: «artifact_content:arr.json>>>jsonpath:$.items[*].n>>>format:json»"}}]
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: 'Result: ["A","B"]'

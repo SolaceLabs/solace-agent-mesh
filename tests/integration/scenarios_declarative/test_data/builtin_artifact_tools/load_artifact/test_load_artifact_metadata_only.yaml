@@ -1,0 +1,92 @@
+test_case_id: "builtin_load_artifact_metadata_only_001"
+description: |
+  Tests the 'load_artifact' tool with the 'load_metadata_only' flag set to true.
+  Verifies that the full metadata dictionary is returned without the content.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "doc_for_metadata.pdf"
+    content_base64: "JVBERi0xLjAKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZy9QYWdlcyAyIDAgUj4+ZW5kb2JqCjIgMCBvYmo8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PmVuZG9iagozIDAgb2JqPDwvVHlwZS9QYWdlL01lZGlhQm94WzAgMCAzIDNdPj5lbmRvYmoKdHJhaWxlcjw8L1Jvb3QgMSAwIFI+Pg==" # Minimal valid PDF base64
+    mime_type: "application/pdf"
+    metadata: # This exact dictionary should be returned by load_artifact when load_metadata_only is true
+      description: "Document for metadata loading test"
+      source: "metadata_test_setup"
+      custom_field: "custom_value_123"
+      mime_type: "application/pdf" # As stored in .metadata.json
+      size_bytes: 121 # Updated to match actual minimal PDF content
+      # The test runner's _setup_scenario_environment saves this metadata dict as is.
+      # Fields like 'filename', 'timestamp_utc', 'schema' are added by save_artifact_with_metadata,
+      # but not by the basic setup_artifacts metadata saving.
+      # So we assert what's *in* this block.
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_load_metadata_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please load only the metadata for 'doc_for_metadata.pdf', version 0."
+  external_context:
+    a2a_session_id: "session_load_metadata_artifact_001"
+
+llm_interactions:
+  # Step 1: LLM decides to call load_artifact with load_metadata_only: true
+  - step_id: "llm_calls_load_artifact_metadata_only"
+    static_response:
+      id: "chatcmpl-load-metadata-artifact-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_load_metadata_doc"
+                type: "function"
+                function:
+                  name: "load_artifact"
+                  arguments: '{"filename": "doc_for_metadata.pdf", "version": 0, "load_metadata_only": true}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result (metadata) and formulates final response
+  - step_id: "llm_final_response_after_metadata_load"
+    expected_request: # After load_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            filename: "doc_for_metadata.pdf"
+            version: 0
+            metadata: # Expecting the full metadata dictionary
+              description: "Document for metadata loading test"
+              source: "metadata_test_setup"
+              custom_field: "custom_value_123"
+              mime_type: "application/pdf"
+              size_bytes: 121
+            # 'content' field should be absent or null when load_metadata_only is true
+    static_response:
+      id: "chatcmpl-load-metadata-artifact-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Loaded metadata for 'doc_for_metadata.pdf' (v0). Description: Document for metadata loading test."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "Loaded metadata for 'doc_for_metadata.pdf' (v0)."
+        text_contains: "Description: Document for metadata loading test."
+    task_state: "completed"
+    # Verify the setup artifact's own .metadata.json file was as expected
+    assert_artifact_state:
+      - filename: "doc_for_metadata.pdf.metadata.json" # Checking the metadata file itself
+        user_id: "declarative_load_metadata_tester@example.com"
+        session_id: "session_load_metadata_artifact_001"
+        version: 0
+        expected_content_text: # Exact JSON string content of the .metadata.json file
+          # Note: JSON standard doesn't guarantee key order, but Python's json.dumps usually does.
+          # If order is an issue, a more complex regex or multiple text_contains might be needed.
+          # For simplicity, assuming a common serialization order.
+          '{"description": "Document for metadata loading test", "source": "metadata_test_setup", "custom_field": "custom_value_123", "mime_type": "application/pdf", "size_bytes": 121}'

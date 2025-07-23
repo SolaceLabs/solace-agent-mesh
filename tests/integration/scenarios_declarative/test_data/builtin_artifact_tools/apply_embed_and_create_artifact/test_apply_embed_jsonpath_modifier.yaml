@@ -1,0 +1,80 @@
+test_case_id: "builtin_apply_embed_jsonpath_modifier_001"
+description: |
+  Tests 'apply_embed_and_create_artifact' with a JSON source and a
+  'jsonpath' modifier to extract a specific field.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "source_for_jsonpath.json"
+    content: '{"id": "item123", "name": "Extracted Name", "value": 42, "details": {"status": "active"}}'
+    mime_type: "application/json"
+    metadata:
+      description: "JSON source for JSONPath modifier test"
+      mime_type: "application/json"
+      size_bytes: 85 # Length of the content string
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_apply_embed_jsonpath_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Extract the 'name' field from 'source_for_jsonpath.json' and save it as 'extracted_name.txt'."
+  external_context:
+    a2a_session_id: "session_apply_embed_jsonpath_001"
+
+llm_interactions:
+  # Step 1: LLM calls apply_embed_and_create_artifact with a jsonpath modifier
+  - step_id: "llm_calls_apply_embed_jsonpath"
+    static_response:
+      id: "chatcmpl-applyembed-jsonpath-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_apply_embed_jsonpath"
+                type: "function"
+                function:
+                  name: "apply_embed_and_create_artifact"
+                  arguments: '{"output_filename": "extracted_name.txt", "embed_directive": "«artifact_content:source_for_jsonpath.json>>>jsonpath:$.name»"}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  - step_id: "llm_final_response_after_apply_embed_jsonpath"
+    expected_request: # After apply_embed_and_create_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            output_filename: "extracted_name.txt"
+            output_version: 0
+            output_mime_type: "text/plain" # JSONPath extracting a string defaults to text/plain
+    static_response:
+      id: "chatcmpl-applyembed-jsonpath-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Extracted the name from 'source_for_jsonpath.json' and saved it as 'extracted_name.txt'."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "Extracted the name from 'source_for_jsonpath.json' and saved it as 'extracted_name.txt'."
+    task_state: "completed"
+    assert_artifact_state:
+      # Check the newly created output artifact
+      - filename: "extracted_name.txt"
+        user_id: "declarative_apply_embed_jsonpath_tester@example.com"
+        session_id: "session_apply_embed_jsonpath_001"
+        version: 0
+        expected_content_text: "[\"Extracted Name\"]" # The string value of the 'name' field
+        expected_metadata_contains:
+          mime_type: "text/plain"
+          # size_bytes should be length of "Extracted Name" (18) plus brackets and quotes
+          size_bytes: 18
+          source_directive: "«artifact_content:source_for_jsonpath.json>>>jsonpath:$.name»"

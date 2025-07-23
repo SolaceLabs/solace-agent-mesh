@@ -1,0 +1,35 @@
+test_case_id: describe_audio_path_traversal
+description: "Tests for path traversal vulnerabilities in describe_audio."
+skip_intermediate_events: true
+
+gateway_input:
+  user_identity: "test_user@example.com"
+  target_agent_name: "TestAgent"
+  prompt: "Describe the audio file ../../secret.wav"
+  external_context:
+    a2a_session_id: "session_path_traversal"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_traversal"
+                type: "function"
+                function:
+                  name: "describe_audio"
+                  arguments: '{"audio_filename": "../../secret.wav"}'
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Audio artifact '../../secret.wav' not found."
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "Audio artifact '../../secret.wav' not found."
+
+expected_artifacts: []

@@ -1,0 +1,49 @@
+test_case_id: edit_image_missing_api_key
+description: "Tests the tool's behavior when the gemini_api_key is missing."
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "image_for_missing_key.jpg"
+    content_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    mime_type: "image/jpeg"
+
+gateway_input:
+  user_identity: "test_user@example.com"
+  target_agent_name: "TestAgent"
+  prompt: "Edit image_for_missing_key.jpg"
+  tool_names: ["edit_image_with_gemini"]
+  tool_configs:
+    edit_image_with_gemini:
+      model: "gemini-2.0-flash-preview-image-generation"
+      # gemini_api_key is intentionally omitted
+  external_context:
+    a2a_session_id: "session_edit_image_missing_api_key"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_mak1"
+                type: "function"
+                function:
+                  name: "edit_image_with_gemini"
+                  arguments: '{"image_filename": "image_for_missing_key.jpg", "edit_prompt": "add a sun"}'
+  - expected_request:
+      messages:
+        - role: "tool"
+          content_contains: "'gemini_api_key' configuration is missing in tool_config."
+          tool_call_id: "call_mak1"
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "The image editing tool is not configured correctly. Please contact an administrator."
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_contains: "The image editing tool is not configured correctly. Please contact an administrator."

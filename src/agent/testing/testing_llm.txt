@@ -1,0 +1,90 @@
+## Quick Summary
+
+The `testing` directory provides a suite of utilities designed to facilitate the testing of the A2A (Agent-to-Agent) framework. Its primary function is to offer tools that simplify debugging and validation of agent interactions during test runs, particularly for declarative tests.
+
+## Files Overview
+
+-   `__init__.py`: Marks the directory as a Python package.
+-   `debug_utils.py`: Provides helper functions for debugging test failures, most notably a pretty-printer for A2A event histories.
+
+## Developer API Reference
+
+### debug_utils.py
+
+**Purpose:** This module contains utilities to help developers debug failing tests by providing human-readable representations of complex data structures, such as the event history from an A2A task.
+
+**Import:** `from agent.testing.debug_utils import pretty_print_event_history`
+
+**Functions:**
+
+-   `pretty_print_event_history(event_history: List[Dict[str, Any]], max_string_length: int = 200) -> None`
+    Formats and prints a list of A2A event payloads to the console in a structured, readable format. It intelligently parses different event types (status updates, final responses, errors) and truncates long strings to keep the output concise. This is invaluable for quickly diagnosing why a test failed by inspecting the sequence of events leading up to the failure.
+
+**Usage Examples:**
+
+```python
+# Show how to import and use the main classes/functions
+from agent.testing.debug_utils import pretty_print_event_history
+from typing import List, Dict, Any
+
+# Example event history captured during a test run
+sample_event_history: List[Dict[str, Any]] = [
+    {
+        "result": {
+            "status": {
+                "state": "EXECUTING",
+                "message": {
+                    "parts": [
+                        {"type": "text", "text": "Okay, I am starting the process to find the latest sales report."}
+                    ]
+                },
+            },
+            "final": False,
+        }
+    },
+    {
+        "result": {
+            "artifact": {
+                "name": "sales_report_q4.pdf",
+                "parts": [
+                    {
+                        "type": "file",
+                        "file": {
+                            "name": "sales_report_q4.pdf",
+                            "mimeType": "application/pdf",
+                            "uri": "file://path/to/sales_report_q4.pdf"
+                        }
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "Failed to access the database due to a connection timeout. The database server at db.example.com might be down or unreachable. Please check the server status and network connectivity."
+        }
+    },
+    {
+        "result": {
+            "status": {
+                "state": "FAILED",
+                "message": {
+                    "parts": [
+                        {"type": "text", "text": "I encountered an error and could not complete the task."}
+                    ]
+                }
+            },
+            "sessionId": "task-12345",
+        }
+    }
+]
+
+# In a test's `tearDown` or `except` block, you can print the history.
+print("A test failed! Dumping the event history for review:")
+pretty_print_event_history(sample_event_history, max_string_length=100)
+
+# Example with no events
+print("\n--- Example with no events ---")
+pretty_print_event_history([])
+```

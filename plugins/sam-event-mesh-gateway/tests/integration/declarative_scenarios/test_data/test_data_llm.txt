@@ -1,0 +1,101 @@
+Of course. Here is the developer guide for the `test_data` directory.
+
+## Quick Summary
+
+The `test_data` directory contains declarative test case definitions in YAML format. These files are used for integration testing of the SAM Event Mesh (EM) Gateway. Each file represents a complete end-to-end scenario, defining the input message, mocked service interactions (like LLMs), and the expected outputs and state changes to assert.
+
+## Files Overview
+
+- `binary_image_analysis.yaml` - Defines a test case for processing a binary image payload sent to the EM Gateway.
+
+## Developer API Reference
+
+This section details the data structure (schema) for the YAML test case files. Developers can use this reference to understand existing tests and create new ones.
+
+### binary_image_analysis.yaml
+
+**Purpose:** This file defines a declarative integration test case. It verifies that the EM Gateway can correctly receive a Base64-encoded binary image, trigger a mocked LLM interaction, create a corresponding binary artifact in the system, and publish a text-based analysis result to an output topic.
+
+**Schema Reference:**
+The test runner parses these YAML files. To create a new test, you can copy this file and modify its values according to the schema below.
+
+**Top-Level Keys:**
+
+- `test_case_id: string` - A unique identifier for the test case.
+- `description: string` - A human-readable description of what the test case verifies.
+- `llm_interactions: list[object]` - Defines the mocked responses from the Large Language Model (LLM) that the test runner will simulate.
+- `em_gateway_input: object` - Defines the input message that the test runner will publish to the EM Gateway to trigger the test.
+- `assert_artifact_state: list[object]` - A list of assertions to verify the state of artifacts created during the test run.
+- `expected_em_gateway_outputs: list[object]` - A list of assertions to verify the messages published by the EM Gateway as a result of processing the input.
+
+---
+
+**Detailed Schema:**
+
+- `llm_interactions: list[object]`
+  - `choices: list[object]`
+    - `message: object`
+      - `role: string` - The role of the message author (e.g., "assistant").
+      - `content: string` - The mocked response content from the LLM.
+    - `finish_reason: string` - The reason the LLM finished generating the response (e.g., "stop").
+
+- `em_gateway_input: object`
+  - `topic: string` - The MQTT topic to publish the input message to.
+  - `payload_base64: string` - The message payload, Base64-encoded. This is required for binary data.
+  - `user_properties: object` - A key-value map of user properties to include in the MQTT message.
+
+- `assert_artifact_state: list[object]`
+  - `session_id: string` - The session ID to check for. Use `"ANY"` to match any session ID.
+  - `user_id: string` - The user ID associated with the artifact.
+  - `filename: string` - The expected filename of the created artifact.
+  - `version: int` - The expected version of the artifact.
+  - `expected_content_bytes_base64: string` - The expected content of the artifact file, Base64-encoded, for a byte-for-byte comparison.
+  - `expected_metadata_contains: object` - A key-value map of metadata that must exist in the artifact's metadata.
+
+- `expected_em_gateway_outputs: list[object]`
+  - `topic: string` - The MQTT topic where the output message is expected.
+  - `payload_contains: string` - A substring that the output message's payload must contain for the test to pass.
+
+**Usage Examples:**
+
+To create a new declarative test case for a different file type (e.g., a PDF):
+
+1.  **Create a new YAML file** in the same directory (e.g., `pdf_analysis.yaml`).
+2.  **Encode your PDF file** content to a Base64 string.
+3.  **Copy the structure** from `binary_image_analysis.yaml` and modify the values.
+
+```yaml
+# Example for a new test case: pdf_analysis.yaml
+
+test_case_id: "em_gateway_pdf_001"
+description: "Verifies the EM Gateway can process a binary PDF, create an artifact, and publish a summary."
+
+llm_interactions:
+  - choices:
+      - message:
+          role: "assistant"
+          content: "This PDF document is a project proposal."
+        finish_reason: "stop"
+
+em_gateway_input:
+  topic: "test/em_gateway/binary/in"
+  # Replace with the Base64 string of your PDF file
+  payload_base64: "JVBERi0xLjcKJeLjz9MKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+..."
+  user_properties:
+    file_id: "project-proposal"
+
+assert_artifact_state:
+  - session_id: "ANY"
+    user_id: "sam_dev_user"
+    filename: "test-file-project-proposal.pdf"
+    version: 0
+    # Replace with the Base64 string of your PDF file for verification
+    expected_content_bytes_base64: "JVBERi0xLjcKJeLjz9MKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+..."
+    expected_metadata_contains:
+      mime_type: "application/pdf"
+
+expected_em_gateway_outputs:
+  - topic: "test/em_gateway/binary/out/project-proposal"
+    payload_contains: "This PDF document is a project proposal."
+
+```

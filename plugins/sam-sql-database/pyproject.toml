@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.sam_sql_database.metadata]
+type = "agent"
+
+[project]
+name = "sam_sql_database"
+version = "0.1.0" # Initial version
+description = "A2A ADK Host plugin for natural language querying of SQL databases."
+readme = "README.md"
+authors = [
+    { name="SolaceLabs", email="solacelabs@solace.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "SQLAlchemy>=2.0.0",
+    "mysql-connector-python>=8.0.0",
+    "psycopg2-binary>=2.9.0",
+    "pydantic>=2.0.0",
+    "PyYAML>=6.0"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["sam_sql_database"]
+src-path = "src"
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/sam_sql_database" = "sam_sql_database/"
+"config.yaml" = "sam_sql_database/config.yaml"
+"README.md" = "sam_sql_database/README.md"
+"pyproject.toml" = "sam_sql_database/pyproject.toml"

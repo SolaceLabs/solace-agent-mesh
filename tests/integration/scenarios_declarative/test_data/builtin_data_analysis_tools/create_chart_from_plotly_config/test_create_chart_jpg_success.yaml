@@ -1,0 +1,47 @@
+test_case_id: create_chart_jpg_success
+description: "Tests successful creation of a JPG chart from a YAML config."
+skip_intermediate_events: true
+
+gateway_input:
+  request_text: "Create a JPG chart from the provided Plotly YAML config."
+  target_agent_name: "TestAgent"
+  user_identity: "chart_tester@example.com"
+  external_context:
+    a2a_session_id: "chart_creation_session_jpg"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_chart_tool_jpg"
+                type: "function"
+                function:
+                  name: "create_chart_from_plotly_config"
+                  arguments: >
+                    {
+                      "config_content": "data:\n  - type: scatter\n    x: [1, 2, 3, 4]\n    y: [10, 15, 13, 17]\nlayout:\n  title:\n    text: 'A Scatter Plot'",
+                      "config_format": "yaml",
+                      "output_filename": "my_scatter_chart.jpeg",
+                      "output_format": "jpeg"
+                    }
+  - expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            output_filename: "my_scatter_chart.jpeg"
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have successfully created the chart and saved it as 'my_scatter_chart.jpeg'."
+
+expected_gateway_output:
+  - type: final_response
+    task_state: "completed"
+
+expected_artifacts:
+  - filename: "my_scatter_chart.jpeg"
+    mime_type: "image/jpeg"

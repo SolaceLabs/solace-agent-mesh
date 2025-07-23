@@ -1,0 +1,64 @@
+import React, { useMemo } from "react";
+
+import { Download, Eye } from "lucide-react";
+
+import { Button } from "@/lib/components/ui";
+import { useChatContext } from "@/lib/hooks";
+import type { ArtifactInfo, FileAttachment } from "@/lib/types";
+import { downloadFile } from "@/lib/utils/download";
+
+import { canPreviewArtifact } from "../preview/previewUtils";
+import { getFileIcon } from "./fileUtils";
+
+interface FileAttachmentMessageProps {
+    fileAttachment: FileAttachment;
+}
+
+export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps>> = ({ fileAttachment }) => {
+    return <FileMessage filename={fileAttachment.name} onDownload={() => downloadFile(fileAttachment)} />;
+};
+
+interface FileMessageProps {
+    filename: string;
+    onDownload?: () => void;
+}
+
+export const FileMessage: React.FC<Readonly<FileMessageProps>> = ({ filename, onDownload }) => {
+    const { artifacts, setPreviewArtifact, openSidePanelTab } = useChatContext();
+
+    const artifact: ArtifactInfo | undefined = useMemo(() => artifacts.find(artifact => artifact.filename === filename && canPreviewArtifact(artifact).canPreview), [artifacts, filename]);
+    const FileIcon = useMemo(() => getFileIcon(artifact), [artifact]);
+
+    return (
+        <>
+            <div className={"ml-4 flex w-full max-w-lg items-center gap-2 rounded-lg bg-[var(--accent-background)] px-2 py-1"}>
+                {FileIcon}
+                <span className="min-w-0 h-9 flex-1 truncate text-sm leading-9" title={filename}>
+                    <strong>
+                        <code>{filename}</code>
+                    </strong>
+                </span>
+
+                {artifact && (
+                    <Button
+                        variant="ghost"
+                        onClick={e => {
+                            e.stopPropagation();
+                            openSidePanelTab("files");
+                            setPreviewArtifact(artifact);
+                        }}
+                        title="Preview"
+                    >
+                        <Eye className="h-4 w-4" />
+                    </Button>
+                )}
+
+                {onDownload && (
+                    <Button variant="ghost" onClick={() => onDownload()} title="Download file">
+                        <Download className="h-4 w-4" />
+                    </Button>
+                )}
+            </div>
+        </>
+    );
+};

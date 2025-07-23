@@ -1,0 +1,67 @@
+test_case_id: "builtin_apply_embed_modifier_type_error_001"
+description: |
+  Tests 'apply_embed_and_create_artifact' error handling when a modifier
+  (e.g., jsonpath) is applied to an incompatible data type (e.g., plain text).
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "plain_text_for_jsonpath.txt"
+    content: "This is plain text, not JSON."
+    mime_type: "text/plain"
+    metadata:
+      description: "Plain text source for modifier type error test"
+      mime_type: "text/plain"
+      size_bytes: 29
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_apply_embed_type_error_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Try to apply JSONPath to 'plain_text_for_jsonpath.txt'."
+  external_context:
+    a2a_session_id: "session_apply_embed_modifier_type_error_001"
+
+llm_interactions:
+  # Step 1: LLM calls apply_embed_and_create_artifact with jsonpath on plain text
+  - step_id: "llm_calls_apply_embed_modifier_type_error"
+    static_response:
+      id: "chatcmpl-applyembed-modifiererror-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_apply_embed_modifier_type_error"
+                type: "function"
+                function:
+                  name: "apply_embed_and_create_artifact"
+                  arguments: '{"output_filename": "output_modifier_type_error.txt", "embed_directive": "«artifact_content:plain_text_for_jsonpath.txt>>>jsonpath:$.name»"}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool error result and formulates final response
+  - step_id: "llm_final_response_after_apply_embed_modifier_error"
+    expected_request: # After apply_embed_and_create_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "error"
+          response_contains: "Embed resolution failed: Failed to convert data for modifier 'jsonpath': Failed to parse string as JSON"
+    static_response:
+      id: "chatcmpl-applyembed-modifiererror-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I encountered an error: Tried to apply JSONPath to a non-JSON artifact (plain_text_for_jsonpath.txt)."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "I encountered an error: Tried to apply JSONPath to a non-JSON artifact (plain_text_for_jsonpath.txt)."
+    task_state: "completed"
+    # No output artifact should be created

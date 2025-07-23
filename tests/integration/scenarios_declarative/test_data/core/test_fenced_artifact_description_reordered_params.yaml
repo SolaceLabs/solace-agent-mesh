@@ -1,0 +1,46 @@
+test_case_id: "fenced_artifact_description_reordered_params_001"
+description: "Tests that parameters can be in any order."
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "fenced_artifact_tester@example.com"
+  parts: [{type: "text", text: "Create a file with reordered parameters."}]
+  external_context:
+    a2a_session_id: "fixed_session_for_fenced_artifact_desc_reorder_test_001"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: |
+              Okay, creating the file.
+              «««save_artifact: description="Reordered test" mime_type="text/plain" filename="reordered.txt"
+              # Report Content
+              »»»
+          finish_reason: "stop"
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "The report has been created."
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "_notify_artifact_save"
+          response_json_matches:
+            filename: "reordered.txt"
+            status: "success"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "The report has been created."
+    assert_artifact_state:
+      - filename: "reordered.txt"
+        version: 0
+        expected_content_text: "# Report Content\n"
+        expected_metadata_contains:
+          description: "Reordered test"
+          mime_type: "text/plain"

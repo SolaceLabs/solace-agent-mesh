@@ -1,0 +1,84 @@
+test_case_id: "builtin_apply_embed_with_output_metadata_001"
+description: |
+  Tests 'apply_embed_and_create_artifact' with the 'output_metadata' parameter.
+  Verifies that the provided metadata is saved with the new artifact, along
+  with the tool-added 'source_directive'.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "source_for_meta.txt"
+    content: "Content for metadata test." # Length 26
+    mime_type: "text/plain"
+    metadata:
+      description: "Source document for output_metadata test"
+      mime_type: "text/plain"
+      size_bytes: 26
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_apply_embed_meta_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Process 'source_for_meta.txt', save as 'output_with_meta.txt', and add custom metadata."
+  external_context:
+    a2a_session_id: "session_apply_embed_meta_001"
+
+llm_interactions:
+  # Step 1: LLM calls apply_embed_and_create_artifact with output_metadata
+  - step_id: "llm_calls_apply_embed_with_metadata"
+    static_response:
+      id: "chatcmpl-applyembed-meta-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_apply_embed_meta"
+                type: "function"
+                function:
+                  name: "apply_embed_and_create_artifact"
+                  arguments: '{"output_filename": "output_with_meta.txt", "embed_directive": "«artifact_content:source_for_meta.txt»", "output_metadata": {"custom_key": "custom_value", "description": "Output with custom metadata"}}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  - step_id: "llm_final_response_after_apply_embed_meta"
+    expected_request: # After apply_embed_and_create_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            output_filename: "output_with_meta.txt"
+            output_version: 0
+            output_mime_type: "text/plain"
+    static_response:
+      id: "chatcmpl-applyembed-meta-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Processed 'source_for_meta.txt' and saved as 'output_with_meta.txt' with custom metadata."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "Processed 'source_for_meta.txt' and saved as 'output_with_meta.txt' with custom metadata."
+    task_state: "completed"
+    assert_artifact_state:
+      # Check the newly created output artifact
+      - filename: "output_with_meta.txt"
+        user_id: "declarative_apply_embed_meta_tester@example.com"
+        session_id: "session_apply_embed_meta_001"
+        version: 0
+        expected_content_text: "Content for metadata test." # Content should match source
+        expected_metadata_contains:
+          # Fields from output_metadata parameter
+          custom_key: "custom_value"
+          description: "Output with custom metadata"
+          # Standard fields added by save_artifact_with_metadata (via the tool)
+          mime_type: "text/plain"
+          size_bytes: 26
+          source_directive: "«artifact_content:source_for_meta.txt»" # Added by the tool

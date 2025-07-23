@@ -1,0 +1,57 @@
+test_case_id: test_mermaid_basic_success
+description: "Tests basic successful generation of a Mermaid diagram with a specified filename."
+skip_intermediate_events: true
+
+gateway_input:
+  user_identity: "test_user@example.com"
+  target_agent_name: "TestAgent"
+  external_context:
+    a2a_session_id: "session_mermaid_basic_success"
+  prompt:
+    parts:
+      - text: "Create a flowchart with nodes A and B, and save it as my-diagram.png"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_123"
+                type: "function"
+                function:
+                  name: "mermaid_diagram_generator"
+                  arguments: '{"mermaid_syntax": "graph TD; A-->B;", "output_filename": "my-diagram.png"}'
+    expected_request:
+      tools_present:
+        - "mermaid_diagram_generator"
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have created the flowchart and saved it as 'my-diagram.png'."
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_contains: "Mermaid diagram rendered and saved as artifact 'my-diagram.png'"
+
+expected_gateway_output:
+  - type: status_update
+    event_purpose: tool_invocation_start
+    expected_tool_name: "mermaid_diagram_generator"
+    expected_tool_args_contain:
+      mermaid_syntax: "graph TD; A-->B;"
+      output_filename: "my-diagram.png"
+
+  - type: final_response
+    content_parts:
+      - type: text
+        text_exact: "I have created the flowchart and saved it as 'my-diagram.png'."
+
+expected_artifacts:
+  - filename: "my-diagram.png"
+    mime_type: "image/png"
+    metadata_contains:
+      description: "PNG image generated from Mermaid syntax. Original requested filename: my-diagram.png"
+      source_format: "mermaid_syntax"
+      generation_tool: "mermaid_diagram_generator (mermaid-cli)"

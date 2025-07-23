@@ -1,0 +1,108 @@
+test_case_id: "builtin_list_artifacts_multiple_files_versions_001"
+description: |
+  Tests the 'list_artifacts' tool when multiple artifacts exist,
+  with one artifact having multiple versions. Verifies correct listing
+  and that metadata summary refers to the latest version.
+skip_intermediate_events: true
+
+setup_artifacts:
+  # File A, Version 0
+  - filename: "fileA.txt"
+    content: "Version 0 of FileA" # Length 19
+    mime_type: "text/plain"
+    metadata:
+      description: "File A, Version 0"
+      source: "setup_v0"
+      mime_type: "text/plain"
+      size_bytes: 19
+
+  # File B, Version 0
+  - filename: "fileB.jpg"
+    content_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" # 1x1 PNG, 68 bytes
+    mime_type: "image/png"
+    metadata:
+      description: "File B, an image"
+      source: "setup_image"
+      mime_type: "image/png"
+      size_bytes: 68
+
+  # File A, Version 1 (update)
+  - filename: "fileA.txt" # Same filename as above, should create a new version
+    content: "Version 1 of FileA - updated" # Length 28
+    mime_type: "text/plain" # Mime type of this version's content part
+    metadata:
+      description: "File A, Version 1 - Updated" # Metadata for this new version
+      source: "setup_v1_update"
+      mime_type: "text/plain" # Explicitly for .metadata.json
+      size_bytes: 28
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_list_multi_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "List all artifacts, including different versions."
+  external_context:
+    a2a_session_id: "session_list_artifacts_multi_001"
+
+llm_interactions:
+  # Step 1: LLM calls list_artifacts
+  - step_id: "llm_calls_list_artifacts_multi"
+    static_response:
+      id: "chatcmpl-list-artifacts-multi-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_list_multi"
+                type: "function"
+                function:
+                  name: "list_artifacts"
+                  arguments: '{}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  - step_id: "llm_final_response_after_multi_list"
+    expected_request: # After list_artifacts tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            artifacts: # Order in this list might vary depending on service implementation (e.g., alphabetical)
+                       # The test runner's _assert_list_subset should handle order if items are unique by filename.
+                       # For more robust matching, consider custom list assertion if order is not guaranteed.
+              - filename: "fileA.txt"
+                versions: [0, 1] # Assuming versions are sorted and both are present
+                metadata_summary: # Should be for the latest version (v1)
+                  description: "File A, Version 1 - Updated"
+                  source: "setup_v1_update"
+                  type: "text/plain"
+                  size: 28
+                  schema_type: "text/plain"
+              - filename: "fileB.jpg"
+                versions: [0]
+                metadata_summary:
+                  description: "File B, an image"
+                  source: "setup_image"
+                  type: "image/png"
+                  size: 68
+                  schema_type: "image/png"
+    static_response:
+      id: "chatcmpl-list-artifacts-multi-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Found two artifacts: fileA.txt (versions 0, 1) and fileB.jpg (version 0)."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "fileA.txt (versions 0, 1)"
+        text_contains: "fileB.jpg (version 0)"
+    task_state: "completed"

@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sam-rest-client"
+version = "0.1.0"
+description = "A Python client library for interacting with the Solace Agent Mesh (SAM) REST API Gateway."
+readme = "README.md"
+authors = [
+    { name="SolaceLabs", email="solacelabs@solace.com" }
+]
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "httpx[http2]>=0.27.0",
+    "pydantic>=2.0.0",
+    "rich>=13.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/SolaceLabs/solace-agent-mesh"
+"Bug Tracker" = "https://github.com/SolaceLabs/solace-agent-mesh/issues"
+
+[project.scripts]
+sam-rest-cli = "sam_rest_client.cli:main"

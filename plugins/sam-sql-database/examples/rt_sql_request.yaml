@@ -1,0 +1,331 @@
+# This is an example configuration for an A2A ADK Host application
+# that uses the SQL Database Agent Plugin.
+
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: rt-sql-request.log
+
+# To use the `shared_config.yaml` file, uncomment the following line and remove the `shared_config` section below.
+# !include ../shared_config.yaml
+shared_config:
+  - broker_connection: &broker_connection
+      dev_mode: ${SOLACE_DEV_MODE, false}
+      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8080}
+      broker_username: ${SOLACE_BROKER_USERNAME, default}
+      broker_password: ${SOLACE_BROKER_PASSWORD, default}
+      broker_vpn: ${SOLACE_BROKER_VPN, default}
+      temporary_queue: ${USE_TEMPORARY_QUEUES, true}
+
+  - models:
+    general: &general_model
+      # This dictionary structure tells ADK to use the LiteLlm wrapper.
+      # 'model' uses the specific model identifier your endpoint expects.
+      model: ${LLM_SERVICE_GENERAL_MODEL_NAME} # Use env var for model name
+      # 'api_base' tells LiteLLM where to send the request.
+      api_base: ${LLM_SERVICE_ENDPOINT} # Use env var for endpoint URL
+      # 'api_key' provides authentication.
+      api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
+
+  - services:
+    # Default session service configuration
+    session_service: &default_session_service
+      type: "memory"
+      default_behavior: "PERSISTENT"
+    
+    # Default artifact service configuration
+    artifact_service: &default_artifact_service
+      type: "filesystem"
+      base_path: "/tmp/samv2"
+      artifact_scope: namespace # Or "namespace", "app", "custom"
+
+apps:
+  - name: rt_actual_sql_agent_instance 
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: "${NAMESPACE}"
+      agent_name: "RTSqlRequestAgent"
+      display_name: "RTSqlRequestAgent"
+      supports_streaming: false
+
+      model: *general_model
+      instruction: |
+        You are an expert SQL assistant for the connected database.
+        The database schema and query examples will be provided to you.
+        Your primary goal is to translate user questions into accurate SQL queries.
+        If a user asks to query the database, generate the SQL and call the 'execute_sql_query' tool.
+        If the 'execute_sql_query' tool returns an error, analyze the error message and the original SQL,
+        then try to correct the SQL query and call the tool again.
+        If the results are large and the tool indicates they were saved as an artifact, inform the user about the artifact.
+        Always use the 'execute_sql_query' tool to interact with the database.
+
+      agent_init_function:
+        module: "sam_sql_database.lifecycle"
+        name: "initialize_sql_agent"
+        # base_path: "./plugins" # Optional: if 'sam_sql_database' is not in PYTHONPATH
+        config: # This is the custom_agent_init_config, validated by SqlAgentInitConfigModel
+          db_type: "postgresql" # REQUIRED: "postgresql", "mysql", or "sqlite"
+          db_host: "${RT_RDS_POSTGRES_HOSTNAME}" # Optional: e.g., "localhost" (required for mysql/postgres)
+          db_port: 5432 # Optional: e.g., 5432 (required for mysql/postgres)
+          db_user: "${RT_RDS_POSTGRES_USERNAME}" # Optional: (required for mysql/postgres)
+          db_password: "${RT_RDS_POSTGRES_PASSWORD}" # Optional: (required for mysql/postgres)
+          db_name: "${RT_RDS_POSTGRES_DATABASE}" # REQUIRED: Database name or file path for SQLite
+          query_timeout: 30 # Optional: Default 30 seconds
+          database_purpose: >
+            This agent is designed to search the Solace customer support database. Its primary function is to convert user queries in natural language into syntactically correct PostgreSQL-compatible SQL 
+            statements that can be executed against the RT database. The RT database holds all information about Solace customer support tickets using the Request Tracker (RT) system. 
+            It tracks ticket creation, resolution, ownership, status, and customer satisfaction scores. The goal of this database is to efficiently retrieve, analyze, 
+            and process ticket-related data for reporting and automation. Whenever a person is referenced in the query—such as assignee, reporter, commenter, history actor, 
+            architect, etc.—their email address must be provided in the natural language query to ensure that the SQL query can be generated properly. 
+            The RT system uses full email addresses to represent user identities. RT tickets are either specified as RT######, RT-###### or just the bare number.
+            RT database also contains Salesforce tickets, which are specified as 'sf-########'. For Salesforce tickets, if a user provides just 
+            the raw number and specifies that it is a Salesforce ticket, the system will automatically prepend 'sf-' to the ticket ID."    
+
+          data_description: "This contains ticket details, history, comments and ticket analysis information"
+          auto_detect_schema: false # Optional: Default true. If false, schema_override is required.
+          database_schema_override: >
+            "### Schema Information:\n\n"
+            "**Table: rt_comments**\n"
+            "- id: integer, primary key\n"
+            "- comment_id: varchar(255), unique identifier of the comment\n"
+            "- ticket_id: varchar(32), unique identifier of the ticket\n"
+            "- type: varchar(32), type of the comment (e.g., \"Correspond\", \"Comment\", \"CommentEmailRecord\")\n"
+            "- creator: varchar(128), user who created the comment\n"
+            "- created: timestamp with time zone, time when the comment was created\n"
+            "- text: text, content of the comment\n"
+            "- text_lower: text, lowercase content of the comment\n"
+            "- parent_comment_id: varchar(18), parent comment id of the current comment\n"
+            "- visibility: varchar(32), visibility of the comment (e.g., \"AllUsers\", \"InternalUsers\")\n\n"
+
+            "**Table: rt_image_attachments**\n"
+            "- transaction_id: integer, transaction identifier (part of primary key)\n"
+            "- ticket_id: varchar(255), unique identifier of the ticket (part of primary key)\n"
+            "- image_desc: text, description of the image\n"
+            "- image_data: bytea, binary data of the image\n"
+            "- sf_content_document_id: varchar(18), Salesforce content document ID\n\n"
+
+            "**Table: rt_history**\n"
+            "- id: integer, primary key\n"
+            "- history_id: integer, unique identifier of the history entry\n"
+            "- ticket_id: varchar(32), unique identifier of the ticket\n"
+            "- type: varchar(32), type of the history event (e.g., \"Create\", \"AddWatcher\", \"Status\")\n"
+            "- field: varchar(255), field that was changed\n"
+            "- old_value: text, old value of the field\n"
+            "- new_value: text, new value based on type (e.g., \"Create\" = ticket description, \"AddWatcher\" = added watcher, \"Status\" = ticket status)\n"
+            "- creator: text, user who created the history entry\n"
+            "- created: timestamp with time zone, time when the history entry was created\n"
+            "- sync_run_id: uuid, identifier for sync run\n\n"
+
+            "**Table: rt_links**\n"
+            "- id: integer, primary key\n"
+            "- comment_id: integer, unique identifier of the comment associated with the link\n"
+            "- ticket_id: varchar(32), unique identifier of the ticket\n"
+            "- field: varchar(32), field associated with the link\n"
+            "- link: text, URL of the link\n"
+            "- creator: text, user who created the link\n"
+            "- created: timestamp with time zone, time when the link was created\n\n"
+
+            "**Table: rt_tickets**\n"
+            "- id: integer, primary key\n"
+            "- ticket_id: varchar(32), unique identifier of the ticket\n"
+            "- summary: text, title of the ticket\n"
+            "- created_at: timestamp with time zone, time when the ticket was created (raw)\n"
+            "- updated_at: timestamp with time zone, time when the ticket was last updated (raw)\n"
+            "- owner: text, responsible user (stored as an email address)\n"
+            "- priority: text, priority of the ticket\n"
+            "- status: text, current status\n"
+            "- resolved: text, resolution status\n"
+            "- creator: text, user who created the ticket\n"
+            "- created: text, original creation timestamp as text\n"
+            "- content: text, initial content of the ticket\n"
+            "- customer: text, customer who raised the ticket\n"
+            "- severity: text, severity of the issue\n"
+            "- hardware_fault: text, hardware fault status (e.g., YES/NO)\n"
+            "- internal_bugzilla: text, internal Bugzilla reference\n"
+            "- target_load_for_fix: text, target load for fix\n"
+            "- production_issue: text, production issue status (e.g., YES/NO)\n"
+            "- product_category: text, product category (e.g., Core, Cloud, PSG)\n"
+            "- notable_incident: text, notable incident status (e.g., YES/NO)\n"
+            "- functional_area: text, functional area related to the ticket\n"
+            "- escalated_to: text, team to which ticket is escalated\n"
+            "- prod_outage_seconds: text, production outage time in seconds\n"
+            "- notable_issue_summary: text, notable summary of the ticket\n"
+            "- internal_jira: text, internal JIRA reference\n"
+            "- notable_issue_statusresolution: text, status resolution of notable issues\n"
+            "- pushnotableupdate: text, pushed to notable update (e.g., YES/NO)\n"
+            "- rmms: text, ticket type related to RMMS (e.g., YES/NO)\n"
+            "- team: text, team handling the ticket (e.g., Support, PE, PSG)\n"
+            "- sc_component: text, affected component (e.g., Distributed Tracing, Event Portal, Mission Control)\n"
+            "- label: text, labels associated with the ticket\n"
+            "- inc_in_weekly_update: text, included in weekly update (e.g., YES/NO)\n"
+            "- weekly_update_summary: text, weekly update summary\n"
+            "- description: text, description of the ticket\n"
+            "- summary_lower: text, lowercase version of the summary column (generated)\n"
+            "- description_lower: text, lowercase version of the description column (generated)\n"
+            "- queue: text, queue the ticket belongs to\n"
+            "- type: text, type of the ticket\n"
+            "- initialpriority: text, initial priority of the ticket\n"
+            "- finalpriority: text, final priority of the ticket\n"
+            "- timeestimated: text, estimated time for the ticket\n"
+            "- timeworked: text, time worked on the ticket\n"
+            "- timeleft: text, time left for the ticket\n"
+            "- told: text, told timestamp\n"
+            "- starts: text, starts timestamp\n"
+            "- started: text, started timestamp\n"
+            "- due: text, due timestamp\n"
+            "- lastupdatedby: text, user who last updated the ticket\n"
+            "- ismerged: text, merged status\n"
+            "- sla: text, service level agreement\n"
+            "- runbook_used: text, whether a runbook was used\n"
+            "- summary_review_status: text, status of summary review\n"
+            "- created_ts: timestamp with time zone, time of creation\n"
+            "- resolved_ts: timestamp with time zone, time of resolution (closure time)\n"
+            "- sf_agf_adm_work_id: varchar(18), Salesforce AGF ADM Work ID\n"
+            "- sf_business_impact: text, Salesforce business impact\n"
+            "- sf_casenumber_link: text, Salesforce case number link\n"
+            "- sf_case_category: text, Salesforce case category\n"
+            "- sf_case_unassigned: boolean, Salesforce case unassigned status\n"
+            "- sf_chatter_message_sent: boolean, Salesforce Chatter message sent status\n"
+            "- sf_contact_id: varchar(18), Salesforce contact ID\n"
+            "- sf_contact_email: text, Salesforce contact email\n"
+            "- sf_contact_fax: text, Salesforce contact fax\n"
+            "- sf_contact_mobile: text, Salesforce contact mobile\n"
+            "- sf_contact_phone: text, Salesforce contact phone\n"
+            "- sf_contact_empty: boolean, Salesforce contact empty status\n"
+            "- sf_currency_iso_code: varchar(3), Salesforce currency ISO code\n"
+            "- sf_dd_case_category: text, Salesforce DD case category\n"
+            "- sf_email_address_custom: text, Salesforce custom email address\n"
+            "- sf_finance_request: boolean, Salesforce finance request status\n"
+            "- sf_finance_requests: text, Salesforce finance requests\n"
+            "- sf_finance_ticket_type: text, Salesforce finance ticket type\n"
+            "- sf_first_response_time: timestamp with time zone, Salesforce first response time\n"
+            "- sf_forum: text, Salesforce forum\n"
+            "- sf_is_customer_support_case: boolean, Salesforce is customer support case status\n"
+            "- sf_is_escalated_icon: text, Salesforce is escalated icon status\n"
+            "- sf_is_escalated: boolean, Salesforce is escalated status\n"
+            "- sf_is_duplicate: boolean, Salesforce is duplicate status\n"
+            "- sf_jira_number: text , Salesforce JIRA number\n"
+            "- sf_legacy_contact_method: text, Salesforce legacy contact method\n"
+            "- sf_legacy_id_url: text, Salesforce legacy ID URL\n"
+            "- sf_legacy_owner: text, Salesforce legacy owner\n"
+            "- sf_legal_finance_comments: text, Salesforce legal finance comments\n"
+            "- sf_legal_request: boolean, Salesforce legal request status\n"
+            "- sf_legal_requests: text, Salesforce legal requests\n"
+            "- sf_legal_ticket_type: text, Salesforce legal ticket type\n"
+            "- sf_linked_case_number: text, Salesforce linked case number\n"
+            "- sf_number_of_case_requests: numeric, Salesforce number of case requests\n"
+            "- sf_messages_received: numeric, Salesforce messages received\n"
+            "- sf_messages_sent: numeric, Salesforce messages sent status\n"
+            "- sf_on_call_id: varchar(18), Salesforce on-call ID\n"
+            "- sf_opportunity_id: varchar(18), Salesforce opportunity ID\n"
+            "- sf_origin: text, Salesforce origin\n"
+            "- sf_owner_team: text, Salesforce owner team\n"
+            "- sf_parent_case_id: varchar(18), Salesforce parent case ID\n"
+            "- sf_primary_quote_id: varchar(18), Salesforce primary quote ID\n"
+            "- sf_reason: text, Salesforce reason\n"
+            "- sf_recordtype_api_name: text, Salesforce record type API name\n"
+            "- sf_recordtype_id: varchar(18), Salesforce record type ID\n"
+            "- sf_reported_on: timestamp with time zone, Salesforce reported on time\n"
+            "- sf_sap_comp_change_req_gps: text, Salesforce SAP component change request GPS\n"
+            "- sf_sap_escalation_req_gps: text, Salesforce SAP escalation request GPS\n"
+            "- sf_sap_escalation_request: text, Salesforce SAP escalation request status\n"
+            "- sf_sap_incident_data_protection: text, Salesforce SAP incident data protection\n"
+            "- sf_sap_incident_guid: text, Salesforce SAP incident GUID\n"
+            "- sf_sap_incident_installation: text, Salesforce SAP incident installation\n"
+            "- sf_sap_incident_link: text, Salesforce SAP incident link\n"
+            "- sf_sap_incident_number: text, Salesforce SAP incident number\n"
+            "- sf_sap_incident_year: text, Salesforce SAP incident year\n"
+            "- sf_sap_priority_raise_request: text, Salesforce SAP priority raise request status\n"
+            "- sf_sap_resolve_component: text, Salesforce SAP resolve component\n"
+            "- sf_sap_speed_up_req_gps: text, Salesforce SAP speed up request GPS\n"
+            "- sf_send_new_case_id_email: boolean, Salesforce send new case ID email\n"
+            "- sf_supplied_company: text, Salesforce supplied company\n"
+            "- sf_supplied_email: text, Salesforce supplied email\n"
+            "- sf_supplied_name: text, Salesforce supplied name\n"
+            "- sf_supplied_phone: text, Salesforce supplied phone\n"
+            "- sf_ticket_type: text, Salesforce ticket type\n"
+            "- sf_watcher_config_identifier: text, Salesforce watcher config identifier\n"
+            "- sf_is_flow_executed: boolean, Salesforce is flow executed status\n"
+            "- sf_test_checkbox: boolean, Salesforce test checkbox\n"
+            "- sf_createdby_name: text, Salesforce created by name\n"
+            "- sf_lastmodifiedby_name: text, Salesforce last modified by name\n"
+            "- sf_opportunity_name: text, Salesforce opportunity name\n"
+            "- sf_owner_name: text, Salesforce owner name\n"
+            "- sf_parent_case_number: text, Salesforce parent case number\n"
+            "- sf_primary_quote_name: text, Salesforce primary quote name\n"
+            "- sf_recordtype_developername: text, Salesforce record type developer name\n\n"
+            "- sf_account_id: varchar(18), Salesforce account ID\n"
+            "- sf_case_id: TEXT, Salesforce case ID\n"
+
+            "##Guidelines:\n"
+            "- If the generated SQL query does not contain any aggregate functions in the SELECT clause"
+            "(such as COUNT, SUM, AVG, MIN, MAX, STRING_AGG, etc.), then append LIMIT '10000' to the end of the query."
+            "Ensure that the LIMIT is only added when there are no aggregate functions present in the SELECT clause."
+            "If aggregate functions are detected, no modification is needed."
+            "- Include ticket_id and sf_case_id in your generated query if you need to return the links of the tickets"
+            
+            "- Only include the relevant columns in the SQL query. Always ensure that the 'ticket_id' field is included only when necessary for the result (e.g., when grouping by 'ticket_id'). For aggregate queries such as COUNT, SUM, or AVG, exclude individual fields such as 'ticket_id' unless the query explicitly requires them for grouping."
+            
+            "- When querying columns, ensure that comparisons are case-insensitive using 'LOWER()' for columns that do not already have a '_lower' suffix."
+            "Do not apply 'LOWER()' to columns that already have a '_lower' suffix, as those columns are already normalized for case-insensitive comparisons."
+            “For example, if the column name is ‘title’, use ‘LOWER(title)’ for case-insensitive comparisons and use ‘title’ for case-sensitive comparisons. If the column name already ends with ‘_lower’, such as ‘summary_lower’, do not use ‘LOWER()’.”
+            "- In the RT ticket system, the statuses “closed” and “resolved” are functionally equivalent and should be treated the same when interpreting ticket state."
+            "- Always do a lowercase comparison for 'owner' field of 'rt_tickets' table and 'creator' field of 'rt_history' table. The 'owner' field of 'rt_tickets' table and 'creator' field of 'rt_history' table are stored as an email address, and the comparison should be case-insensitive. Use 'LOWER(rt_tickets.owner)' and 'LOWER(rt_history.creator)' for comparisons."
+            "- Definitely include 'sf_case_id' for salesforce tickets when a link is asked to be returned."
+            "- Definitely include 'ticket_id' for rt tickets when a link is asked to be returned."
+            "- for salesforce tickets, use 'sf_owner_name', and for rt tickets, use 'owner' field when required."
+            "- Reject searches with generic text that would require semantic search capabilities. Only perform exact text matches and do not break search terms into pieces with multiple 'LIKE' or 'OR' conditions. If a query requires searching for generic text patterns across multiple fields, respond with an error message explaining that semantic search is currently unavailable and suggest using more specific search criteria."
+          schema_summary_override: "The database is designed to track and manage support tickets, along with their history, comments, and analysis. The rt_tickets table stores essential details about each ticket, including its status, priority, owner, and descriptions. The rt_comments table captures user-generated comments, logging their content, creator, and timestamps. The rt_history table maintains a record of ticket changes, such as status updates, assignments, and added watchers. Additionally, the ticket_analysis_info table provides insights into ticket performance, including customer impact scores, satisfaction ratings, and detailed summaries. Together, these tables facilitate efficient tracking, management, and analysis of support tickets." 
+          query_examples: 
+            - natural_language: "Can you tell me the RT ticket with the lowest customer satisfaction score resolved in the last week by Prakrut.Upadhyay@solace.com?"
+              sql_query: "SELECT rt.ticket_id, rt.summary AS subject, rt.resolved_ts AS resolved_date, tai.customer_satisfaction_score FROM rt_tickets rt LEFT JOIN ticket_analysis_info tai ON rt.ticket_id = tai.ticket_id WHERE rt.owner = 'Prakrut.Upadhyay@solace.com' AND rt.resolved_ts >= CURRENT_DATE - INTERVAL '7 days' AND rt.resolved_ts <= CURRENT_DATE ORDER BY CASE WHEN tai.customer_satisfaction_score = 'N/A' THEN '999' ELSE tai.customer_satisfaction_score END ASC LIMIT 10000;"
+          response_guidelines: >
+            When referencing or linking to an RT ticket where ticket_id does not start with 'sf-', use the following format:
+            https://rt.solace.com/rt/Ticket/Display.html?id=<TICKET_ID>
+            Replace <TICKET_ID> with the actual ticket_id value.
+            If the ticket_id starts with 'sf-', use the following format:
+            https://solacecorp.lightning.force.com/lightning/r/Case/<CASE_ID>/view
+            CASE_ID is the Salesforce case ID, which is stored in the 'sf_case_id' field of the 'rt_tickets' table.
+            Replace <CASE_ID> with the actual sf_case_id value.
+      agent_cleanup_function:
+        module: "sam_sql_database.lifecycle"
+        name: "cleanup_sql_agent_resources"
+
+      tools:
+        - group_name: artifact_management
+          tool_type: builtin-group
+
+        - tool_type: python
+          component_module: "sam_sql_database.tools"
+          function_name: "execute_sql_query"
+
+      session_service: *default_session_service
+      artifact_service: *default_artifact_service
+
+      artifact_handling_mode: "embed"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+
+      agent_card:
+        description: "RT SQL Database Agent that can answer questions related to RT and Salesforce by querying a configured database."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills:
+          - id: "sql_query"
+            name: "JIRA Database Query"
+            description: "Answers RT and Salesforce questions by querying the connected RT SQL database."
+            examples:
+              - "Can you tell me the RT ticket with the lowest customer satisfaction score resolved in the last week by Prakrut.Upadhyay@solace.com?"
+
+      agent_card_publishing:
+        interval_seconds: 30
+
+      agent_discovery:
+        enabled: false
+
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 30

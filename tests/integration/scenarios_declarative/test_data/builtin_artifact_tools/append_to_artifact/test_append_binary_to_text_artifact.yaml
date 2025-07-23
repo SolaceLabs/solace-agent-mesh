@@ -1,0 +1,93 @@
+test_case_id: "builtin_append_binary_to_text_artifact_001"
+description: |
+  Tests appending a binary chunk (base64 encoded) to a pre-existing text artifact.
+  Verifies that the original artifact's text MIME type is preserved,
+  and the new content includes both original text and appended binary data.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "text_target_for_binary_append.txt"
+    content: "Initial text." # Length 13 bytes
+    mime_type: "text/plain"
+    metadata:
+      description: "Initial text content for binary append test"
+      mime_type: "text/plain"
+      size_bytes: 13
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_append_binary_to_text_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please append a small PNG image to 'text_target_for_binary_append.txt'."
+  external_context:
+    a2a_session_id: "session_append_binary_to_text_test_001"
+
+llm_interactions:
+  # Step 1: LLM calls append_to_artifact with a base64 encoded binary chunk
+  - step_id: "llm_calls_append_binary_to_text"
+    static_response:
+      id: "chatcmpl-append-binary-to-text-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_append_binary_chunk_to_text"
+                type: "function"
+                function:
+                  name: "append_to_artifact"
+                  arguments: '{"filename": "text_target_for_binary_append.txt", "content_chunk": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "mime_type": "image/png"}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  - step_id: "llm_final_response_after_append"
+    expected_request: # After append_to_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            filename: "text_target_for_binary_append.txt"
+            new_version: 1
+            total_size_bytes: 81 # 13 (initial text) + 68 (1x1 PNG binary)
+    static_response:
+      id: "chatcmpl-append-binary-to-text-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Okay, I have appended the binary data to 'text_target_for_binary_append.txt'. It is now version 1 and has a total size of 81 bytes."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "Okay, I have appended the binary data to 'text_target_for_binary_append.txt'. It is now version 1 and has a total size of 81 bytes."
+    task_state: "completed"
+    assert_artifact_state:
+      # Check the initial artifact (version 0)
+      - filename: "text_target_for_binary_append.txt"
+        user_id: "declarative_append_binary_to_text_tester@example.com"
+        session_id: "session_append_binary_to_text_test_001"
+        version: 0
+        expected_content_text: "Initial text."
+        expected_metadata_contains:
+          mime_type: "text/plain"
+          description: "Initial text content for binary append test"
+          size_bytes: 13
+
+      # Check the new artifact (version 1)
+      - filename: "text_target_for_binary_append.txt"
+        user_id: "declarative_append_binary_to_text_tester@example.com"
+        session_id: "session_append_binary_to_text_test_001"
+        version: 1
+        # Content is now mixed text + binary. Exact byte assertion is complex for YAML.
+        # We rely on the size_bytes assertion and the tool's internal logic.
+        expected_metadata_contains:
+          mime_type: "text/plain" # Original MIME type preserved
+          appended_from_version: 0
+          appended_chunk_declared_mime_type: "image/png" # MIME type of the appended CHUNK
+          size_bytes: 81 # 13 (text) + 68 (binary PNG)

@@ -1,0 +1,144 @@
+## Quick Summary
+
+The `services` directory provides the core logic for interacting with SQL databases and managing data within them. It features an abstract `DatabaseService` that defines a common interface for database operations, with concrete implementations for SQLite, MySQL, and PostgreSQL. It also includes a `CsvImportService` for easily populating the database from CSV files.
+
+## Files Overview
+
+| File | Description |
+| :--- | :--- |
+| `__init__.py` | Initializes the services package. |
+| `csv_import_service.py` | Contains the service for importing data from CSV files into database tables. |
+| `database_service.py` | Defines the abstract base class for database services and provides concrete implementations for different SQL dialects. |
+
+## Developer API Reference
+
+---
+
+### csv_import_service.py
+
+**Purpose:** This file provides the `CsvImportService` class, which handles the logic for reading CSV files, sanitizing table and column names, creating corresponding database tables, and inserting the data.
+
+**Import:** `from sam_sql_database.services.csv_import_service import CsvImportService`
+
+**Classes:**
+
+-   `CsvImportService(db_service: "DatabaseService")` - A service that imports data from specified CSV files or directories into the database. It automatically creates tables based on the CSV structure.
+    -   `import_csv_files(files: Optional[List[str]] = None, directories: Optional[List[str]] = None) -> None` - Imports CSV files from a list of file paths and/or directories. It skips files if a table with the same name (derived from the filename) already exists.
+
+**Usage Examples:**
+
+```python
+# This service is typically not used directly, but rather through a DatabaseService instance.
+# See the example for database_service.py for practical usage.
+
+# However, if you have a DatabaseService instance, you can use it like this:
+from sam_sql_database.services.database_service import SQLiteService
+from sam_sql_database.services.csv_import_service import CsvImportService
+
+# 1. Create a database service instance
+db_service = SQLiteService(connection_params={"database": ":memory:"})
+
+# 2. The CsvImportService is automatically initialized on the db_service
+#    but you could create one manually if needed.
+csv_importer = CsvImportService(db_service)
+
+# 3. Create a dummy CSV file for demonstration
+with open("users.csv", "w", newline="") as f:
+    f.write("id,name,email\n")
+    f.write("1,Alice,alice@example.com\n")
+    f.write("2,Bob,bob@example.com\n")
+
+# 4. Import the CSV file
+# This will create a 'users' table and insert the data.
+csv_importer.import_csv_files(files=["users.csv"])
+
+# 5. Verify the import
+results = db_service.execute_query("SELECT * FROM users")
+print(results)
+# Output: [{'id': '1', 'name': 'Alice', 'email': 'alice@example.com'}, {'id': '2', 'name': 'Bob', 'email': 'bob@example.com'}]
+
+db_service.close()
+```
+
+---
+
+### database_service.py
+
+**Purpose:** This file defines the core `DatabaseService` abstract class, which establishes a standard interface for all database interactions. It also provides concrete implementations for MySQL, PostgreSQL, and SQLite, handling dialect-specific connections and operations.
+
+**Import:** `from sam_sql_database.services.database_service import DatabaseService, MySQLService, PostgresService, SQLiteService`
+
+**Classes:**
+
+-   `DatabaseService(connection_params: Dict[str, Any], query_timeout: int = 30)` - Abstract base class for database services. It should not be instantiated directly.
+    -   `import_csv_data(files: Optional[List[str]] = None, directories: Optional[List[str]] = None) -> None` - Imports CSV files into database tables using the integrated `CsvImportService`.
+    -   `close() -> None` - Disposes of the engine's connection pool.
+    -   `get_connection() -> Generator[Connection, None, None]` - A context manager that yields a database connection from the pool.
+    -   `execute_query(query: str) -> List[Dict[str, Any]]` - Executes a raw SQL query and returns the results.
+    -   `get_tables() -> List[str]` - Retrieves a list of all table names in the database.
+    -   `get_columns(table_name: str) -> List[Dict[str, Any]]` - Retrieves detailed information about columns for a given table.
+    -   `get_primary_keys(table_name: str) -> List[str]` - Gets the primary key column(s) for a table.
+    -   `get_foreign_keys(table_name: str) -> List[Dict[str, Any]]` - Gets foreign key relationships for a table.
+    -   `get_indexes(table_name: str) -> List[Dict[str, Any]]` - Gets all indexes for a table.
+    -   `get_unique_values(table_name: str, column_name: str, limit: int = 3) -> List[Any]` - Fetches a small sample of unique, non-null values from a column.
+    -   `get_column_stats(table_name: str, column_name: str) -> Dict[str, Any]` - Gets basic statistics for a column (e.g., count, unique count).
+    -   `get_detailed_schema_representation() -> Dict[str, Any]` - Generates a comprehensive dictionary representing the entire database schema.
+    -   `get_schema_summary_for_llm() -> str` - Generates a simplified, YAML-formatted string of the database schema, suitable for use in LLM prompts.
+
+-   `MySQLService(DatabaseService)` - Concrete implementation for connecting to and interacting with a MySQL database. Inherits all public methods from `DatabaseService`.
+
+-   `PostgresService(DatabaseService)` - Concrete implementation for connecting to and interacting with a PostgreSQL database. Inherits all public methods from `DatabaseService`.
+
+-   `SQLiteService(DatabaseService)` - Concrete implementation for connecting to and interacting with a SQLite database. Inherits all public methods from `DatabaseService`.
+
+**Usage Examples:**
+
+```python
+import os
+from sam_sql_database.services.database_service import SQLiteService
+
+# 1. Instantiate a concrete service (e.g., SQLite for an in-memory DB)
+# For a file-based DB, use: {"database": "path/to/my_database.db"}
+sqlite_service = SQLiteService(connection_params={"database": ":memory:"})
+
+# 2. Create a dummy CSV file to import
+with open("products.csv", "w", newline="") as f:
+    f.write("ProductID,ProductName,Price\n")
+    f.write("101,Laptop,1200\n")
+    f.write("102,Mouse,25\n")
+
+# 3. Use the integrated CSV import functionality
+sqlite_service.import_csv_data(files=["products.csv"])
+
+# 4. Execute a query to verify the data
+results = sqlite_service.execute_query("SELECT * FROM products ORDER BY Price DESC")
+print("Query Results:", results)
+# Expected Output: Query Results: [{'id': 2, 'productid': '101', 'productname': 'Laptop', 'price': '1200'}, {'id': 3, 'productid': '102', 'productname': 'Mouse', 'price': '25'}]
+
+# 5. Get schema information
+tables = sqlite_service.get_tables()
+print("\nTables:", tables)
+# Expected Output: Tables: ['products']
+
+columns = sqlite_service.get_columns("products")
+print("\nColumns for 'products' table:", columns)
+# Expected Output: (details about id, productid, productname, price columns)
+
+# 6. Get a simplified schema summary for an LLM
+schema_summary = sqlite_service.get_schema_summary_for_llm()
+print("\nSchema for LLM:")
+print(schema_summary)
+# Expected Output:
+# products:
+#   columns:
+#     id: INTEGER
+#     productid: TEXT
+#     productname: TEXT
+#     price: TEXT
+#   primary_keys:
+#   - id
+
+# 7. Clean up
+sqlite_service.close()
+os.remove("products.csv")
+```

@@ -1,0 +1,131 @@
+# Plugin Metadata:
+# Name: sam-sql-database
+# Version: 0.1.0
+# Description: A plugin that provides a SQL agent to perform complex queries based on natural language.
+# Author: SolaceLabs <solacelabs@solace.com>
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: __COMPONENT_KEBAB_CASE_NAME__.log
+
+
+# To use the `shared_config.yaml` file, uncomment the following line and remove the `shared_config` section below.
+# !include ../shared_config.yaml
+shared_config:
+  - broker_connection: &broker_connection
+      dev_mode: ${SOLACE_DEV_MODE, false}
+      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8080}
+      broker_username: ${SOLACE_BROKER_USERNAME, default}
+      broker_password: ${SOLACE_BROKER_PASSWORD, default}
+      broker_vpn: ${SOLACE_BROKER_VPN, default}
+      temporary_queue: ${USE_TEMPORARY_QUEUES, true}
+
+  - models:
+    general: &general_model
+      # This dictionary structure tells ADK to use the LiteLlm wrapper.
+      # 'model' uses the specific model identifier your endpoint expects.
+      model: ${LLM_SERVICE_GENERAL_MODEL_NAME} # Use env var for model name
+      # 'api_base' tells LiteLLM where to send the request.
+      api_base: ${LLM_SERVICE_ENDPOINT} # Use env var for endpoint URL
+      # 'api_key' provides authentication.
+      api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
+
+  - services:
+    # Default session service configuration
+    session_service: &default_session_service
+      type: "memory"
+      default_behavior: "PERSISTENT"
+    
+    # Default artifact service configuration
+    artifact_service: &default_artifact_service
+      type: "filesystem"
+      base_path: "/tmp/samv2"
+      artifact_scope: namespace # Or "namespace", "app", "custom"
+
+apps:
+  - name: __COMPONENT_KEBAB_CASE_NAME__-app
+    app_module: solace_agent_mesh.agent.sac.app 
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: "${NAMESPACE}" # Your A2A topic namespace
+      agent_name: "__COMPONENT_PASCAL_CASE_NAME__" 
+      display_name: "__COMPONENT_PASCAL_CASE_NAME__ Component" 
+      supports_streaming: false # SQL agent tools are typically request-response
+
+      model: *general_model 
+      instruction: |
+        You are an expert SQL assistant for the connected database.
+        The database schema and query examples will be provided to you.
+        Your primary goal is to translate user questions into accurate SQL queries.
+        If a user asks to query the database, generate the SQL and call the 'execute_sql_query' tool.
+        If the 'execute_sql_query' tool returns an error, analyze the error message and the original SQL,
+        then try to correct the SQL query and call the tool again.
+        If the results are large and the tool indicates they were saved as an artifact, inform the user about the artifact.
+        Always use the 'execute_sql_query' tool to interact with the database.
+
+      # --- Configurable Agent Initialization & Cleanup ---
+      agent_init_function:
+        module: "sam_sql_database.lifecycle"
+        name: "initialize_sql_agent"
+        config: # This is the custom_agent_init_config, validated by SqlAgentInitConfigModel
+          db_type: "${__COMPONENT_UPPER_SNAKE_CASE_NAME___DB_TYPE}" # REQUIRED: "postgresql", "mysql", or "sqlite"
+          db_host: "${__COMPONENT_UPPER_SNAKE_CASE_NAME___DB_HOST}" # Optional: e.g., "localhost" (required for mysql/postgres)
+          db_port: ${__COMPONENT_UPPER_SNAKE_CASE_NAME___DB_PORT} # Optional: e.g., 5432 (required for mysql/postgres)
+          db_user: "${__COMPONENT_UPPER_SNAKE_CASE_NAME___DB_USER}" # Optional: (required for mysql/postgres)
+          db_password: "${__COMPONENT_UPPER_SNAKE_CASE_NAME___DB_PASSWORD}" # Optional: (required for mysql/postgres)
+          db_name: "${__COMPONENT_UPPER_SNAKE_CASE_NAME___DB_NAME}" # REQUIRED: Database name or file path for SQLite
+          query_timeout: 30 # Optional: Default 30 seconds
+          database_purpose: "To store customer order and product information." # Optional: Helps LLM understand context
+          data_description: "Contains tables for customers, products, orders, and order_items. Timestamps are in UTC." # Optional
+          auto_detect_schema: true # Optional: Default true. If false, schema_override is required.
+          database_schema_override: "" # Optional: YAML/text string of schema if auto_detect_schema is false.
+          schema_summary_override: "" # Optional: Natural language summary if auto_detect_schema is false.
+          query_examples: # Optional: List of natural language to SQL examples
+            - natural_language: "Show all customers from New York"
+              sql_query: "SELECT * FROM customers WHERE city = 'New York';"
+            - natural_language: "What are the top 5 highest-selling products this month?"
+              sql_query: "SELECT product_name, SUM(quantity * price) AS total_sales FROM order_items JOIN products ON order_items.product_id = products.id WHERE order_date >= date('now', 'start of month') GROUP BY product_name ORDER BY total_sales DESC LIMIT 5;"
+          csv_files: # Optional: List of CSV file paths to import on startup
+            # - "/path/to/your/data/customers.csv"
+            # - "/path/to/your/data/products.csv"
+          csv_directories: [] # Optional: List of directories to scan for CSVs
+          response_guidelines: "Please note: Data is updated daily. Query results reflect the latest snapshot." # Optional
+
+      agent_cleanup_function:
+        module: "sam_sql_database.lifecycle"
+        name: "cleanup_sql_agent_resources"
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+        - tool_type: builtin-group
+          group_name: "data_analysis"
+        - tool_type: python
+          component_module: "sam_sql_database.tools"
+          function_name: "execute_sql_query"
+
+      session_service: *default_session_service
+      artifact_service: *default_artifact_service
+
+      # Agent Card, Discovery, and Inter-Agent Communication
+      agent_card:
+        description: "SQL Database Agent that can answer questions by querying a configured database."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"] # Can output text or files (artifacts)
+        skills:
+          - id: "sql_query"
+            name: "Database Query"
+            description: "Answers questions by querying the connected SQL database."
+
+      agent_card_publishing:
+        interval_seconds: 30
+
+      agent_discovery:
+        enabled: true
+
+      inter_agent_communication:
+        allow_list: ["*"]
+        deny_list: []
+        request_timeout_seconds: 60

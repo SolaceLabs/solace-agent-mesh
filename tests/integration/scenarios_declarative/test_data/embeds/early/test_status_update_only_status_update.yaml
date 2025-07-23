@@ -1,0 +1,24 @@
+test_case_id: "embed_status_update_only_status_update_001"
+description: "Tests an LLM response that only contains a status update."
+skip_intermediate_events: true
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_tester@example.com"
+  parts: [{type: "text", text: "Just give a status."}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "«status_update:Task is actively being monitored.»"}}]
+expected_gateway_output:
+  - type: "status_update"
+    event_purpose: "embedded_status_update"
+    content_parts:
+      - type: "text"
+        text_contains: "Task is actively being monitored."
+    final_flag: false # This specific status update is not the terminal event for the task
+  - type: "final_response" # A final Task object is still expected
+    content_parts:
+      # The LLM response was *only* the status update embed.
+      # So, the final Task object's message part will be empty.
+      - type: "text"
+        text_exact: "" # Expecting an empty string as the main content
+    task_state: "completed"

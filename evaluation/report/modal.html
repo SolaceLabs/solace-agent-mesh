@@ -1,0 +1,59 @@
+<!-- Modal for test details -->
+<div id="testModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title" id="modalTitle">Test Details</h2>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-description" id="modalDescription"></div>
+        <div class="modal-charts">
+            <div class="modal-chart-container">
+                <div class="modal-chart-header">
+                    <div class="modal-chart-title">Response Scores by Model</div>
+                    <button class="chart-toggle-btn" onclick="toggleChart('response')">Show Quartiles</button>
+                </div>
+                <div class="chart-flip-container" id="responseChartContainer">
+                    <div class="chart-face chart-front">
+                        <canvas id="responseChart"></canvas>
+                    </div>
+                    <div class="chart-face chart-back">
+                        <canvas id="responseQuartileChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-chart-container">
+                <div class="modal-chart-header">
+                    <div class="modal-chart-title">Tool Scores by Model</div>
+                    <button class="chart-toggle-btn" onclick="toggleChart('tool')">Show Quartiles</button>
+                </div>
+                <div class="chart-flip-container" id="toolChartContainer">
+                    <div class="chart-face chart-front">
+                        <canvas id="toolChart"></canvas>
+                    </div>
+                    <div class="chart-face chart-back">
+                        <canvas id="toolQuartileChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-runs-section">
+            <div class="runs-section-header">
+                <h3 class="runs-section-title">Individual Run Details</h3>
+                <div class="runs-controls">
+                    <div class="runs-filter">
+                        <label for="modelFilter">Filter by Model:</label>
+                        <select id="modelFilter" onchange="filterRuns()">
+                            <option value="all">All Models</option>
+                        </select>
+                    </div>
+                    <div class="runs-count">
+                        <span id="runsCount">Showing all runs</span>
+                    </div>
+                </div>
+            </div>
+            <div id="runsContainer" class="runs-container">
+                <!-- Individual runs will be populated here -->
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,74 @@
+# Test case for the web_request tool's SSRF protection.
+# This test verifies that requests to 'localhost' are blocked.
+#
+# The structure of this file must match the schema expected by the declarative test runner.
+# Key fields include:
+# - test_case_id: A unique identifier for the test.
+# - description: A human-readable description of the test.
+# - gateway_input: The input that the test harness sends to the agent.
+# - llm_interactions: A list of mocked LLM responses and expected requests.
+# - expected_gateway_output: A list of assertions about the events the gateway should produce.
+
+test_case_id: test_ssrf_localhost_blocked
+description: "Tests that the web_request tool blocks requests to localhost."
+skip_intermediate_events: true
+
+gateway_input:
+  user_identity: "test_user@example.com"
+  target_agent_name: "TestAgent"
+  prompt:
+    parts:
+      - text: "Attempt to access a local service."
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_123"
+                type: "function"
+                function:
+                  name: "web_request"
+                  arguments: '{"url": "http://localhost:8000/api/data"}'
+  - expected_request:
+      messages:
+        - role: "user"
+          content: "Attempt to access a local service."
+        - role: "assistant"
+          tool_calls:
+            - id: "call_123"
+              type: "function"
+              function:
+                name: "web_request"
+                arguments: '{"url": "http://localhost:8000/api/data"}'
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id: "call_123"
+          response_exact_match:
+            status: "error"
+            message: "URL is not safe to request."
+      tools_present:
+        - "web_request"
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I was unable to access the local service because the URL was blocked for security reasons."
+
+expected_gateway_output:
+  - type: "status_update"
+    event_purpose: "llm_invocation"
+  - type: "status_update"
+    event_purpose: "llm_response"
+  - type: "status_update"
+    event_purpose: "tool_invocation_start"
+    expected_tool_name: "web_request"
+  - type: "status_update"
+    event_purpose: "llm_invocation"
+  - type: "status_update"
+    event_purpose: "llm_response"
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_contains: "unable to access the local service"

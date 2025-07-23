@@ -1,0 +1,37 @@
+Here is the DEVELOPER GUIDE for the `routers` directory.
+
+## Quick Summary
+The `routers` directory contains FastAPI `APIRouter` modules that define the REST API endpoints for the HTTP SSE Gateway. Each file groups endpoints by a specific domain of functionality, such as agent discovery, artifact management, user authentication, task submission, and real-time event streaming. These routers are the primary interface for frontend applications and other clients to interact with the gateway.
+
+## Files Overview
+- `__init__.py`: Marks the directory as a Python package.
+- `agents.py`: API endpoints for discovering available A2A agents.
+- `artifacts.py`: REST endpoints for managing session-specific artifacts (upload, download, list, delete).
+- `auth.py`: Endpoints for handling the user authentication flow (login, callback, refresh, CSRF).
+- `config.py`: API endpoint for providing configuration settings to the frontend application.
+- `people.py`: API endpoints for user search functionality, typically for autocomplete features.
+- `sessions.py`: API endpoints for managing user sessions (creating new sessions, getting current session info).
+- `sse.py`: The Server-Sent Events (SSE) endpoint for streaming real-time task updates to the client.
+- `tasks.py`: API endpoints for submitting tasks to agents and managing their lifecycle (e.g., cancellation).
+- `users.py`: API endpoint for retrieving information about the currently authenticated user.
+- `visualization.py`: API endpoints for managing A2A message visualization streams for monitoring and debugging.
+
+## Developer API Reference
+
+### agents.py
+**Purpose:** Provides REST endpoints for agent discovery.
+**Import:** `from src.gateway.http_sse.routers.agents import router`
+
+**Functions:**
+- `get_discovered_agents() -> List[AgentCard]`: Retrieves a list of all currently discovered and available A2A agents. The `AgentCard` type contains details about each agent.
+
+**Usage Examples:**
+```python
+# To include this router in a FastAPI application
+from fastapi import FastAPI
+from src.gateway.http_sse.routers.agents import router
+
+app = FastAPI()
+app.include_router(router, prefix="/api/v1")
+
+# A client would make a GET request to /api/v1/agents

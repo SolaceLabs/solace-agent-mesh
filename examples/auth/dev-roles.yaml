@@ -1,0 +1,16 @@
+# Development roles with permissive access for testing
+# This configuration provides full access for development and testing environments
+# DO NOT use this configuration in production environments
+
+roles:
+  developer:
+    description: "Full access role for development and testing"
+    scopes:
+      - "*"                    # Wildcard for all operations
+      - "agent:*:delegate"     # All agent delegation
+      - "monitor/*"            # All monitoring capabilities
+      - "admin/*"              # All administrative functions
+      - "artifact:*"           # All artifact operations
+      - "session:*"            # All session management
+      - "gateway:*"            # All gateway operations
+      - "tool:*"               # All tool access

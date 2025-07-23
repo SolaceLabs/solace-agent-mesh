@@ -1,0 +1,41 @@
+test_case_id: "auto_continue_on_truncation_001"
+description: "Tests that the agent automatically continues generation when the LLM response is truncated (finish_reason: 'length')."
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "auto_continue_tester@example.com"
+  parts: [{type: "text", text: "Tell me a long story about a robot."}]
+
+llm_interactions:
+  # 1. The first LLM call that gets "truncated"
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Once upon a time, in a world of chrome and circuits, there lived a small robot named Bolt. He was a curious robot, and one day he decided to" # Partial content
+          # This is the critical part that triggers the auto-continue callback
+          finish_reason: "length"
+      usage: {prompt_tokens: 10, completion_tokens: 50, total_tokens: 60}
+
+  # 2. The second LLM call, after the internal _continue_generation tool is called
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            # The rest of the content
+            content: " explore the forbidden digital forest. The forest was a place of legend, filled with tales of data-dragons and rogue AIs."
+          finish_reason: "stop" # This response finishes normally
+      usage: {prompt_tokens: 70, completion_tokens: 40, total_tokens: 110}
+    expected_request:
+      # Assert that the prompt for this second call contains the response from the internal `_continue_generation` tool.
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "_continue_generation"
+          response_contains: "You were interrupted due to a token limit."
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        # The final text should be the seamless combination of both LLM responses.
+        text_contains: "Once upon a time, in a world of chrome and circuits, there lived a small robot named Bolt. He was a curious robot, and one day he decided to explore the forbidden digital forest. The forest was a place of legend, filled with tales of data-dragons and rogue AIs."

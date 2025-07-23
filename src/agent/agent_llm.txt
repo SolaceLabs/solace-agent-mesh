@@ -1,0 +1,41 @@
+Here is the comprehensive developer guide for the `agent` directory.
+
+## Quick Summary
+The `agent` directory provides a comprehensive framework for hosting Google ADK (Agent Development Kit) agents within the Solace AI Connector ecosystem. It bridges ADK agents with the A2A (Agent-to-Agent) protocol over Solace messaging, enabling distributed agent communication, task delegation, and rich tool functionality.
+
+The architecture is modular, consisting of several key components:
+*   **`sac/` (Solace AI Connector):** The main entry point, providing the `SamAgentApp` and `SamAgentComponent` to host the agent and manage its lifecycle and communication over the Solace event mesh.
+*   **`adk/` (Agent Development Kit):** The core integration layer with Google's ADK. It defines the custom `AppLlmAgent`, manages asynchronous task execution, and provides a rich set of callbacks to augment agent behavior.
+*   **`tools/`:** A comprehensive and extensible library of tools available to the agent, covering data analysis, artifact management, web requests, multimedia processing, and inter-agent communication.
+*   **`protocol/`:** The underlying implementation of the A2A (Agent-to-Agent) communication protocol, handling message routing and event processing.
+*   **`utils/`:** A collection of helper modules for common tasks like artifact management, configuration parsing, and context handling.
+*   **`testing/`:** Utilities to aid in debugging and testing custom agent implementations.
+
+These components work together to create a robust environment where an ADK agent can be configured with specific instructions and tools, communicate with other agents, and execute complex tasks in a distributed, event-driven manner.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `__init__.py`: An empty file that marks the `agent` directory as a Python package.
+- **Subdirectories:**
+  - `adk/`: Provides the core integration layer with Google's ADK, including custom agents, services, and callbacks.
+  - `protocol/`: Implements the A2A protocol event handlers for message routing and agent communication.
+  - `sac/`: Contains the Solace AI Connector app and component implementations for hosting ADK agents.
+  - `testing/`: Provides utilities for testing the A2A framework and debugging agent behavior.
+  - `tools/`: A comprehensive, registry-based tool library for AI agents.
+  - `utils/`: Contains helper utilities for configuration, context handling, and artifact management.
+
+## Developer API Reference
+
+### Direct Files
+
+#### __init__.py
+**Purpose:** Standard Python package initializer. It allows the `agent` directory to be treated as a package.
+**Import:** `import agent`
+
+**Classes/Functions/Constants:** [None]
+
+### Subdirectory APIs
+
+#### adk/
+**Purpose:** Provides the core integration layer between the Solace AI Connector and Google's ADK.
+**Key Exports:** `App

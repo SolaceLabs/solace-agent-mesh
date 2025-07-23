@@ -1,0 +1,19 @@
+test_case_id: "embed_ac_default_format_text_001"
+description: "Tests «artifact_content:default.txt» (no format) for text/plain."
+skip_intermediate_events: true
+setup_artifacts:
+  - filename: "default.txt"
+    mime_type: "text/plain"
+    content: "This is default text content."
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_late_tester@example.com"
+  parts: [{type: "text", text: "Get default.txt with default format"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "Default content: «artifact_content:default.txt»"}}]
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "Default content: This is default text content."

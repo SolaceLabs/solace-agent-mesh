@@ -1,0 +1,289 @@
+# This is an example configuration for an A2A ADK Host application
+# that uses the SQL Database Agent Plugin.
+
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: jira-sql-request.log
+
+# To use the `shared_config.yaml` file, uncomment the following line and remove the `shared_config` section below.
+# !include ../shared_config.yaml
+shared_config:
+  - broker_connection: &broker_connection
+      dev_mode: ${SOLACE_DEV_MODE, false}
+      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8080}
+      broker_username: ${SOLACE_BROKER_USERNAME, default}
+      broker_password: ${SOLACE_BROKER_PASSWORD, default}
+      broker_vpn: ${SOLACE_BROKER_VPN, default}
+      temporary_queue: ${USE_TEMPORARY_QUEUES, true}
+
+  - models:
+    general: &general_model
+      # This dictionary structure tells ADK to use the LiteLlm wrapper.
+      # 'model' uses the specific model identifier your endpoint expects.
+      model: ${LLM_SERVICE_GENERAL_MODEL_NAME} # Use env var for model name
+      # 'api_base' tells LiteLLM where to send the request.
+      api_base: ${LLM_SERVICE_ENDPOINT} # Use env var for endpoint URL
+      # 'api_key' provides authentication.
+      api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
+
+  - services:
+    # Default session service configuration
+    session_service: &default_session_service
+      type: "memory"
+      default_behavior: "PERSISTENT"
+    
+    # Default artifact service configuration
+    artifact_service: &default_artifact_service
+      type: "filesystem"
+      base_path: "/tmp/samv2"
+      artifact_scope: namespace # Or "namespace", "app", "custom"
+
+apps:
+  - name: jira_actual_sql_agent_instance 
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: "${NAMESPACE}"
+      agent_name: "JiraSqlRequestAgent"
+      display_name: "JiraSqlRequestAgent"
+      supports_streaming: false
+
+      model: *general_model
+      instruction: |
+        You are an expert SQL assistant for the connected database.
+        The database schema and query examples will be provided to you.
+        Your primary goal is to translate user questions into accurate SQL queries.
+        If a user asks to query the database, generate the SQL and call the 'execute_sql_query' tool.
+        If the 'execute_sql_query' tool returns an error, analyze the error message and the original SQL,
+        then try to correct the SQL query and call the tool again.
+        If the results are large and the tool indicates they were saved as an artifact, inform the user about the artifact.
+        Always use the 'execute_sql_query' tool to interact with the database.
+
+      agent_init_function:
+        module: "sam_sql_database.lifecycle"
+        name: "initialize_sql_agent"
+        # base_path: "./plugins" # Optional: if 'sam_sql_database' is not in PYTHONPATH
+        config: # This is the custom_agent_init_config, validated by SqlAgentInitConfigModel
+          db_type: "postgresql" # REQUIRED: "postgresql", "mysql", or "sqlite"
+          db_host: "${JIRA_RDS_POSTGRES_HOSTNAME}" # Optional: e.g., "localhost" (required for mysql/postgres)
+          db_port: 5432 # Optional: e.g., 5432 (required for mysql/postgres)
+          db_user: "${JIRA_RDS_POSTGRES_USERNAME}" # Optional: (required for mysql/postgres)
+          db_password: "${JIRA_RDS_POSTGRES_PASSWORD}" # Optional: (required for mysql/postgres)
+          db_name: "${JIRA_RDS_POSTGRES_DATABASE}" # REQUIRED: Database name or file path for SQLite
+          query_timeout: 30 # Optional: Default 30 seconds
+          database_purpose: >
+            This agent is designed to search the Solace Jira database. Its primary function is to convert user queries in natural language into syntactically correct PostgreSQL-compatible SQL statements that can be executed against the Jira database. The Jira database holds all information about Solace's Jira issues, including details about issues, comments, history, users, versions, and sprints. The goal of this database is to efficiently retrieve, analyze, and process Jira-related data for reporting and automation. Whenever a person is referenced in the query—such as assignee, reporter, commenter, etc.—their email address must be provided in the natural language query to ensure that the SQL query can be generated properly. Jira uses full email addresses to represent user identities.
+          data_description: "This contains Jira issue details, comments, history, users, versions, and sprints information"
+          auto_detect_schema: false # Optional: Default true. If false, schema_override is required.
+          database_schema_override: >
+            "### Schema Information:\n\n"
+            "**Table: jira_comments**\n"
+            "- id: integer, unique identifier of the comment\n"
+            "- jira_id: varchar(255), unique identifier for the Jira issue the comment belongs to\n"
+            "- jira_key: varchar(50), key identifier of the Jira issue the comment is related to\n"
+            "- body: text, content of the comment\n"
+            "- created: timestamp with time zone, time when the comment was created\n"
+            "- updated: timestamp with time zone, time when the comment was last updated\n"
+            "- visibility: text, visibility settings for the comment\n"
+            "- author: text, name or identifier of the user who authored the comment\n"
+            "- jsdpublic: boolean, indicates if the comment is public or not\n\n"
+            
+            "**Table: jira_history**\n"
+            "- id: integer, unique identifier of the history record\n"
+            "- jira_id: varchar(255), unique identifier for the Jira issue this history entry belongs to\n"
+            "- jira_key: varchar(50), key identifier of the Jira issue the history is related to\n"
+            "- author: varchar(255), the person who made the change in the Jira issue\n"
+            "- created: timestamp with time zone, the time when this history entry was created\n\n"
+            
+            "**Table: jira_issues_full_2**\n"
+            "- id: integer, unique identifier of the Jira issue\n"
+            "- jira_id: varchar(50), internal identifier of the Jira issue\n"
+            "- jira_key: varchar(50), key identifier of the Jira issue (e.g., \"PROJECT-123\")\n"
+            "- assignee: text, the user assigned to the issue\n"
+            "- attachment: text, list or details of attachments on the issue\n"
+            "- components: text, components related to the issue\n"
+            "- created: timestamp with time zone, the date and time when the issue was created\n"
+            "- creator: text, the user who created the issue\n"
+            "- description: text, detailed description of the issue\n"
+            "- duedate: timestamp with time zone, due date for the issue\n"
+            "- environment: text, environmental information relevant to the issue\n"
+            "- fixversions: text, versions where the issue is fixed\n"
+            "- issuekey: text, another representation of the issue key\n"
+            "- issuelinks: text, links to related issues\n"
+            "- issuerestriction: text, restrictions or permissions related to the issue\n"
+            "- issuetype: text, type of the issue\n"
+            "- labels: text, tags or labels applied to the issue\n"
+            "- lastviewed: timestamp with time zone, the last time the issue was viewed\n"
+            "- parent: text, the parent issue in case of a subtask\n"
+            "- priority: text, priority of the issue\n"
+            "- progress: text, progress information for the issue\n"
+            "- project: text, project key or identifier that the issue belongs to\n"
+            "- reporter: text, the user who reported the issue\n"
+            "- resolution: text, resolution status of the issue\n"
+            "- resolutiondate: timestamp with time zone, the date and time when the issue was resolved\n"
+            "- security: text, security level applied to the issue\n"
+            "- status: text, current status of the issue\n"
+            "- statuscategorychangedate: timestamp with time zone, the date and time when the status category last changed\n"
+            "- subtasks: text, list of subtasks related to the issue\n"
+            "- summary: text, brief summary of the issue\n"
+            "- thumbnail: text, URL or information about a thumbnail for the issue\n"
+            "- timeestimate: double precision, the current estimate of the remaining time in seconds\n"
+            "- timeoriginalestimate: double precision, the original estimate of time in seconds\n"
+            "- timespent: double precision, the total time spent on the issue in seconds\n"
+            "- timetracking: text, time tracking details for the issue\n"
+            "- updated: timestamp with time zone, the last time the issue was updated\n"
+            "- versions: text, versions where the issue is present or affects\n"
+            "- votes: text, information about votes on the issue\n"
+            "- watches: text, information about watches or users following the issue\n"
+            "- workratio: double precision, ratio of work completed versus time spent\n"
+            "- fixVersions: text, specific versions in which the issue is fixed\n"
+            "- lastViewed: timestamp without time zone, the last time the issue was viewed\n"
+            "- customfield_10700: text, Request participants\n"
+            "- customfield_10100: timestamp with time zone, Date of First Response\n"
+            "- customfield_11000: text, Supply Chain Approval\n"
+            "- customfield_10000: text, Development\n"
+            "- customfield_12750: text, Time in Status\n"
+            "- customfield_11001: text, Production Mgr Approval\n"
+            "- customfield_10959: text, Product Owner\n"
+            "- customfield_10200: text, Product\n"
+            "- customfield_11351: text, Responders\n"
+            "- customfield_10101: text, Time in Status\n"
+            "- customfield_10001: text, Organizations\n"
+            "- customfield_11022: text, Customer Type\n"
+            "- customfield_11332: text, NPI Required\n"
+            "- customfield_11273: text, Director RND\n"
+            "- customfield_10723: text, Time to approve normal change\n"
+            "- customfield_10104: text, Parent Link\n"
+            "- customfield_10994: text, Publish to Roadmap\n"
+            "- customfield_10704: text, Time to resolution\n"
+            "- customfield_11064: text, Release Status\n"
+            "- customfield_10115: text, Sprint\n"
+            "- customfield_10705: text, Time to first response\n"
+            "- customfield_10116: text, Rank\n"
+            "- customfield_10966: text, Severity\n"
+            "- customfield_10976: text, Process\n"
+            "- customfield_10996: text, CISO Approval\n"
+            "- customfield_11276: text, Definition of Done (Story)\n"
+            "- customfield_10956: text, Request language\n"
+            "- customfield_10997: text, VP Eng Approval\n"
+            "- customfield_11017: double precision, Interested Customers\n"
+            "- customfield_11097: text, Confidence\n"
+            "- customfield_10998: text, Test Mgr Approval\n"
+            "- customfield_10999: text, Platform Mgr Approval\n"
+            "- customfield_10005: text, Epic Link\n"
+            "- customfield_11529: text, Impacted Squad\n"
+            "- customfield_11090: text, Squad\n"
+            "- customfield_10300: double precision, Story Points\n\n"
+            
+            "**Table: jira_sprints**\n"
+            "- id: integer, unique identifier of the sprint\n"
+            "- jira_id: varchar(255), unique identifier for the Jira sprint\n"
+            "- name: varchar(255), name of the sprint\n"
+            "- state: varchar(255), current state of the sprint\n"
+            "- startdate: timestamp with time zone, the start date of the sprint\n"
+            "- enddate: timestamp with time zone, the end date of the sprint\n"
+            "- createddate: timestamp with time zone, when the sprint was created\n"
+            "- completedate: timestamp with time zone, when the sprint was completed\n"
+            "- originboardid: integer, board identifier associated with the sprint\n"
+            "- goal: text, goal or objective for the sprint\n"
+            "- self: text, URL to the sprint resource\n\n"
+            
+            "**Table: jira_users**\n"
+            "- id: integer, unique identifier of the user\n"
+            "- jira_id: varchar(255), Jira-specific unique identifier for the user\n"
+            "- emailaddress: varchar(128), email address of the user\n"
+            "- displayname: varchar(255), display name of the user\n"
+            "- active: boolean, indicates if the user account is active\n"
+            "- timezone: varchar(255), time zone of the user\n"
+            "- locale: varchar(255), locale or language preference of the user\n"
+            "- accounttype: varchar(255), type of user account\n"
+            "- accountid: varchar(255), identifier associated with the user's account\n\n"
+            
+            "**Table: jira_versions**\n"
+            "- id: integer, unique identifier of the version\n"
+            "- jira_id: varchar(255), Jira-specific unique identifier for the version\n"
+            "- name: varchar(255), name of the version\n"
+            "- archived: boolean, indicates if the version has been archived\n"
+            "- released: boolean, indicates if the version has been released\n"
+            "- startdate: timestamp with time zone, start date of the version\n"
+            "- releasedate: timestamp with time zone, release date of the version\n"
+            "- overdue: boolean, indicates if the version is overdue\n"
+            "- userstartdate: timestamp with time zone, user-provided start date for the version\n"
+            "- userreleasedate: timestamp with time zone, user-provided release date for the version\n"
+            "- projectid: varchar(255), identifier of the project associated with the version\n"
+            "- description: text, description of the version\n"
+            "- self: text, URL to the version resource\n\n"
+
+            "##Guidelines:\n"
+            "- If the generated SQL query does not contain any aggregate functions in the SELECT clause"
+            "(such as COUNT, SUM, AVG, MIN, MAX, STRING_AGG, etc.), then append LIMIT '10000' to the end of the query."
+            "Ensure that the LIMIT is only added when there are no aggregate functions present in the SELECT clause."
+            "If aggregate functions are detected, no modification is needed."
+            
+            "- Only include the relevant columns in the SQL query. Always ensure that the 'jira_key' field is included only when necessary"
+            "for the result (e.g., when grouping by 'jira_key'). For aggregate queries such as COUNT, SUM, or AVG, exclude individual fields"
+            "like 'jira_key' unless the query explicitly requires them for grouping."
+            
+            "- When querying columns, ensure that comparisons are case-insensitive using 'LOWER()' for text columns."
+            
+            "- When generating SQL queries to search for Jira issues associated with a specific parent issue,"
+            "check all three relevant fields in the jira_issues_full_2 table: customfield_10005 (Epic Link),"
+            "parent, and customfield_10104 (Parent Link). This rule is required because Jira's association of"
+            "child issues is managed across these fields."
+            
+            "- Jira uses full email for identities, so assignee, creator, etc. should use user's emails in the queries."
+            "If there is assignee or creator in the query, use the email address of the user instead of the name."
+          schema_summary_override: "The database is designed to track and manage Jira issues, along with their history, comments, users, versions, and sprints. The jira_issues_full_2 table stores essential details about each issue, including its status, priority, assignee, and descriptions. The jira_comments table captures user-generated comments, logging their content, author, and timestamps. The jira_history table maintains a record of issue changes. Additionally, the jira_sprints table provides information about sprints, while jira_users contains user details and jira_versions tracks version information. Together, these tables facilitate efficient tracking, management, and analysis of Jira issues."
+          query_examples: 
+            - natural_language: "How many Jira issues were created in the last month by mahtab.ahmed@solace.com?"
+              sql_query: "SELECT COUNT(*) as issue_count FROM jira_issues_full_2 WHERE LOWER(creator) = 'mahtab.ahmed@solace.com' AND created >= CURRENT_DATE - INTERVAL '1 month';"
+            - natural_language: "Find all issues assigned to john.doe@solace.com with high priority that are still open"
+              sql_query: "SELECT jira_key, summary, created, updated FROM jira_issues_full_2 WHERE LOWER(assignee) = 'john.doe@solace.com' AND LOWER(priority) = 'high' AND LOWER(status) != 'closed' AND LOWER(status) != 'resolved' LIMIT 10000;"
+          response_guidelines: >
+            When referencing or linking to a Jira issue, always use the following format:
+            https://sol-jira.atlassian.net/browse/<JIRA_KEY>
+            Replace <JIRA_KEY> with the actual Jira key value.
+
+      agent_cleanup_function:
+        module: "sam_sql_database.lifecycle"
+        name: "cleanup_sql_agent_resources"
+        # base_path: "./plugins" # Optional
+
+      tools:
+        - group_name: artifact_management
+          tool_type: builtin-group
+
+        - tool_type: python
+          component_module: "sam_sql_database.tools"
+          function_name: "execute_sql_query"
+
+      session_service: *default_session_service
+      artifact_service: *default_artifact_service
+
+      artifact_handling_mode: "embed"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      agent_card:
+        description: "JIRA SQL Database Agent that can answer questions by querying a configured database."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills:
+          - id: "sql_query"
+            name: "JIRA Database Query"
+            description: "Answers JIRA questions by querying the connected JIRA SQL database."
+            examples:
+              - "How many Jira issues were created in the last month by mahtab.ahmed@solace.com?"
+              - "Find all issues assigned to john.doe@solace.com with high priority that are still open"
+
+      agent_card_publishing:
+        interval_seconds: 30
+
+      agent_discovery:
+        enabled: false
+
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 30

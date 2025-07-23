@@ -1,0 +1,39 @@
+test_case_id: "fenced_artifact_filename_traversal_001"
+description: "Tests that a filename with path traversal characters is rejected."
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "fenced_artifact_tester@example.com"
+  parts: [{type: "text", text: "Try to create a file in a parent directory."}]
+  external_context:
+    a2a_session_id: "fixed_session_for_fenced_artifact_traversal_test_001"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: |
+              Attempting to create a file with a path traversal.
+              «««save_artifact: filename="../../etc/passwd" mime_type="text/plain"
+              root:x:0:0:root:/root:/bin/bash
+              »»»
+          finish_reason: "stop"
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "The operation failed because the filename was invalid."
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "_notify_artifact_save"
+          response_json_matches:
+            status: "error"
+            filename: "../../etc/passwd"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "The operation failed because the filename was invalid."

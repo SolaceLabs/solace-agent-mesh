@@ -1,0 +1,43 @@
+test_case_id: "fenced_artifact_filename_long_001"
+description: "Tests that a very long filename is handled correctly."
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "fenced_artifact_tester@example.com"
+  parts: [{type: "text", text: "Create a file with a very long name."}]
+  external_context:
+    a2a_session_id: "fixed_session_for_fenced_artifact_long_name_test_001"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: |
+              Okay, creating a file with an exceptionally long name.
+              «««save_artifact: filename="a_very_long_filename_that_pushes_the_limits_of_the_filesystem_and_our_internal_handling_and_should_still_work_perfectly_fine_because_modern_filesystems_are_robust_and_can_handle_this_sort_of_thing_without_any_issues_at_all.log" mime_type="text/plain"
+              This file has a long name.
+              »»»
+          finish_reason: "stop"
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "The file with the very long name has been created successfully."
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "_notify_artifact_save"
+          response_json_matches:
+            filename: "a_very_long_filename_that_pushes_the_limits_of_the_filesystem_and_our_internal_handling_and_should_still_work_perfectly_fine_because_modern_filesystems_are_robust_and_can_handle_this_sort_of_thing_without_any_issues_at_all.log"
+            status: "success"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "The file with the very long name has been created successfully."
+    assert_artifact_state:
+      - filename: "a_very_long_filename_that_pushes_the_limits_of_the_filesystem_and_our_internal_handling_and_should_still_work_perfectly_fine_because_modern_filesystems_are_robust_and_can_handle_this_sort_of_thing_without_any_issues_at_all.log"
+        version: 0
+        expected_content_text: "This file has a long name.\n"

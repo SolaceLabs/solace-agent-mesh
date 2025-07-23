@@ -1,0 +1,42 @@
+test_case_id: "auto_continue_on_implicit_tool_call_001"
+description: "Tests that the agent automatically continues when the LLM calls the `_continue` tool."
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "auto_continue_tester@example.com"
+  parts: [{type: "text", text: "Tell me a long story about a brave knight."}]
+
+llm_interactions:
+  # 1. The first LLM call that "interrupts" by calling the _continue tool
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Once upon a time, there was a brave knight who"
+            tool_calls:
+              - id: "tool_call_abc123"
+                type: "function"
+                function: {name: "_continue", arguments: "{}"}
+          finish_reason: "tool_calls"
+      usage: {prompt_tokens: 10, completion_tokens: 20, total_tokens: 30}
+
+  # 2. The second LLM call, after our framework injects _continue_generation
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: " set off on a quest to find the legendary Golden Chalice."
+          finish_reason: "stop"
+      usage: {prompt_tokens: 40, completion_tokens: 20, total_tokens: 60}
+    expected_request:
+      # Assert that the prompt for this second call contains the response from the internal `_continue_generation` tool.
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "_continue_generation"
+          response_contains: "You were interrupted due to a token limit."
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "Once upon a time, there was a brave knight who set off on a quest to find the legendary Golden Chalice."

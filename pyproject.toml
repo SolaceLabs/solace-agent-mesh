@@ -1,0 +1,150 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "solace-agent-mesh"
+dynamic = ["version"]
+description = "Solace Agent Mesh is an open-source framework for building event-driven, multi-agent AI systems where specialized agents collaborate on complex tasks."
+readme = "README.md"
+requires-python = ">=3.10.16"
+license = { file = "LICENSE" }
+authors = [
+  { name="SolaceLabs", email="solacelabs@solace.com" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+dependencies = [
+    "google-adk==1.7.0",
+    "pydantic>=2.0",
+    "click~=8.1.7",
+    "python-dotenv>=1.0",
+    "google-genai>=1.16.0",
+    "httpx>=0.25",
+    "jwcrypto>=1.5",
+    "python-jwt>=3.3",
+    "asteval>=1.0.6",
+    "pystache>=0.6.8",
+    "pandas>=2.2.3",
+    "numpy>=2.2.5",
+    "plotly>=6.0.1",
+    "kaleido~=0.2.1",
+    "PyYAML>=6.0",
+    "python-multipart>=0.0.7",
+    "markitdown[all]==0.1.1",
+    "jmespath>=1.0.1",
+    "mermaid-cli",
+    "litellm>=1.19.0",
+    "html2text>=2020.1.16",
+    "beautifulsoup4>=4.12.0",
+    "jsonpath-ng>=1.7.0",
+    "pydub>=0.25.1",
+    "asteval~=1.0.0",
+    "toml~=0.10.2",
+    "GitPython~=3.1.44",
+    "Flask==3.0.3",
+    "Flask-Cors>=5.0.0",
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.20",
+    "sse-starlette>=1.6",
+    "itsdangerous>=2.0",
+    "solace-ai-connector~=1.1.7",
+    "holidays>=0.24",
+    "rouge~=1.0.1"
+]
+
+[project.optional-dependencies]
+database = ["sqlalchemy>=2.0"]
+gcs = ["google-cloud-storage>=2.0"]
+vertex = ["google-cloud-aiplatform>=1.38"]
+employee_tools = ["holidays>=0.24"]
+cli = [
+    "click>=8.0",
+    "prompt-toolkit>=3.0",
+    "rich>=13.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.20",
+    "ruff",
+]
+
+[tool.hatch.envs.hatch-test]
+installer = "pip"
+dependencies = [
+    "pytest_asyncio",
+    "pytest>=8.0.0",
+    "pytest-mock>=3.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-xdist>=3.5.0"
+]
+extra-dependencies = [
+    "solace-agent-mesh[database,cli,gcs,vertex,employee_tools]",
+]
+
+[[tool.hatch.envs.hatch-test.matrix]]
+python = ["3.10", "3.13"]
+
+[project.urls]
+Homepage = "https://github.com/SolaceLabs/solace-agent-mesh"
+Repository = "https://github.com/SolaceLabs/solace-agent-mesh"
+
+[project.scripts]
+solace-agent-mesh = "solace_agent_mesh.cli.main:cli"
+sam = "solace_agent_mesh.cli.main:cli"
+
+[tool.ruff]
+line-length = 88
+select = ["E", "W", "F", "I", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "--tb=short --strict-markers --disable-warnings -p pytest_asyncio"
+python_files = ["test_*.py", "*_test.py", "tests.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel.force-include]
+"src" = "solace_agent_mesh/"
+"templates" = "solace_agent_mesh/templates"
+"cli" = "solace_agent_mesh/cli"
+"plugins" = "solace_agent_mesh/plugins"
+"evaluation" = "solace_agent_mesh/evaluation"
+"config_portal/frontend/static" = "solace_agent_mesh/config_portal/frontend/static"
+"config_portal/backend" = "solace_agent_mesh/config_portal/backend"
+"config_portal/__init__.py" = "solace_agent_mesh/config_portal/__init__.py"
+"client/webui/frontend/static" = "solace_agent_mesh/client/webui/frontend/static"
+"docs/build" = "solace_agent_mesh/assets/docs"
+
+[tool.hatch.build.targets.sdist.force-include]
+"config_portal/frontend/static" = "/assets/config_portal"
+"client/webui/frontend/static" = "/assets/client/webui"
+"docs/build" = "/assets/docs"
+
+[tool.hatch.build.targets.sdist.hooks.custom]
+path = ".github/helper_scripts/build_frontend.py"
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = ".github/helper_scripts/build_frontend.py"
+
+[tool.hatch.version]
+path = "cli/__init__.py"
+
+

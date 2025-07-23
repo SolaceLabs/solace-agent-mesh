@@ -1,0 +1,45 @@
+test_case_id: describe_audio_happy_path_mp3
+description: "Tests the happy path for the describe_audio tool with an MP3 file."
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "test_audio.mp3"
+    content_base64: "SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//vaxADgAAAAAEluZm8AAAAPAAAADgAAAbA="
+    mime_type: "audio/mp3"
+
+gateway_input:
+  user_identity: "test_user@example.com"
+  target_agent_name: "TestAgent"
+  prompt: "Describe the audio file test_audio.mp3"
+  external_context:
+    a2a_session_id: "session_happy_path_mp3"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_456"
+                type: "function"
+                function:
+                  name: "describe_audio"
+                  arguments: '{"audio_filename": "test_audio.mp3"}'
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "The audio was described successfully."
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "The audio was described successfully."
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "The audio was described successfully."
+
+expected_artifacts: []

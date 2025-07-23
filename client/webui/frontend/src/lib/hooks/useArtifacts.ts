@@ -1,0 +1,57 @@
+import { useState, useEffect, useCallback } from "react";
+
+import type { ArtifactInfo } from "@/lib/types";
+import { authenticatedFetch } from "@/lib/utils/api";
+
+import { useConfigContext } from "./useConfigContext";
+
+interface UseArtifactsReturn {
+    artifacts: ArtifactInfo[];
+    isLoading: boolean;
+    error: string | null;
+    refetch: () => Promise<void>;
+}
+
+/**
+ * Custom hook to fetch and manage artifact data
+ * @returns Object containing artifacts data, loading state, error state, and refetch function
+ */
+export const useArtifacts = (): UseArtifactsReturn => {
+    const { configServerUrl } = useConfigContext();
+    const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
+    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const apiPrefix = `${configServerUrl}/api/v1`;
+
+    const fetchArtifacts = useCallback(async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const response = await authenticatedFetch(`${apiPrefix}/artifacts/`, { credentials: "include" });
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: `Failed to fetch artifacts: ${response.statusText}` }));
+                throw new Error(errorData.message || `Failed to fetch artifacts: ${response.statusText}`);
+            }
+            const data: ArtifactInfo[] = await response.json();
+            setArtifacts(data);
+        } catch (err: unknown) {
+            console.error("Error fetching artifacts:", err);
+            setError(err instanceof Error ? err.message : "Could not load artifact information.");
+            setArtifacts([]);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [apiPrefix]);
+
+    useEffect(() => {
+        fetchArtifacts();
+    }, [fetchArtifacts]);
+
+    return {
+        artifacts,
+        isLoading,
+        error,
+        refetch: fetchArtifacts,
+    };
+};

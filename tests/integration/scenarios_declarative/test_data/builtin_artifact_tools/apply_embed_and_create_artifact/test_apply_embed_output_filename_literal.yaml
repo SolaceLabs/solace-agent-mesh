@@ -1,0 +1,80 @@
+test_case_id: "builtin_apply_embed_output_filename_literal_001"
+description: |
+  Tests 'apply_embed_and_create_artifact' behavior when 'output_filename'
+  contains embed-like syntax. Expects the syntax to be treated literally,
+  creating an artifact with the embed syntax in its actual name.
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "source_for_embed_outname.txt"
+    content: "Content for literal output filename test."
+    mime_type: "text/plain"
+    metadata:
+      description: "Source for literal output filename test"
+      mime_type: "text/plain"
+      size_bytes: 41
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_apply_embed_outname_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Process 'source_for_embed_outname.txt' and save it as 'output_«state:var».txt'."
+  external_context:
+    a2a_session_id: "session_apply_embed_outname_literal_001"
+
+llm_interactions:
+  # Step 1: LLM calls apply_embed_and_create_artifact with embed-like syntax in output_filename
+  - step_id: "llm_calls_apply_embed_literal_outname"
+    static_response:
+      id: "chatcmpl-applyembed-literaloutname-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_apply_embed_literal_outname"
+                type: "function"
+                function:
+                  name: "apply_embed_and_create_artifact"
+                  arguments: '{"output_filename": "output_«state:var».txt", "embed_directive": "«artifact_content:source_for_embed_outname.txt»"}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  - step_id: "llm_final_response_after_apply_embed_literal_outname"
+    expected_request: # After apply_embed_and_create_artifact tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            output_filename: "output_«state:var».txt" # Expecting literal name
+            output_version: 0
+            output_mime_type: "text/plain"
+    static_response:
+      id: "chatcmpl-applyembed-literaloutname-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Processed 'source_for_embed_outname.txt' and saved it as 'output_«state:var».txt'."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "Processed 'source_for_embed_outname.txt' and saved it as 'output_«state:var».txt'."
+    task_state: "completed"
+    assert_artifact_state:
+      # Check the newly created output artifact
+      - filename: "output_«state:var».txt" # Asserting the literal filename
+        user_id: "declarative_apply_embed_outname_tester@example.com"
+        session_id: "session_apply_embed_outname_literal_001"
+        version: 0
+        expected_content_text: "Content for literal output filename test."
+        expected_metadata_contains:
+          mime_type: "text/plain"
+          size_bytes: 41
+          source_directive: "«artifact_content:source_for_embed_outname.txt»"

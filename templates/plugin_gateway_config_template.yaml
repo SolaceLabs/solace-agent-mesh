@@ -1,0 +1,63 @@
+# Plugin Metadata:
+# Name: __PLUGIN_KEBAB_CASE_NAME__
+# Version: __PLUGIN_VERSION__
+# Description: __PLUGIN_DESCRIPTION__
+# Author: __PLUGIN_AUTHOR_NAME__ <__PLUGIN_AUTHOR_EMAIL__>
+# 
+# --- Start of Gateway Configuration Template ---
+# Solace Agent Mesh: Gateway Configuration Template
+#
+# This file serves as a template for creating new gateway configurations from this plugin.
+# Use placeholders like __COMPONENT_KEBAB_CASE_NAME__, __COMPONENT_PASCAL_CASE_NAME__,
+# and __COMPONENT_UPPER_SNAKE_CASE_NAME__ where the specific component name should be inserted.
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: __COMPONENT_KEBAB_CASE_NAME__.log
+
+# To use the `shared_config.yaml` file, uncomment the following line and remove the `shared_config` section below.
+# !include ../shared_config.yaml
+
+shared_config:
+  - broker_connection: &broker_connection
+      dev_mode: ${SOLACE_DEV_MODE, false}
+      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8080}
+      broker_username: ${SOLACE_BROKER_USERNAME, default}
+      broker_password: ${SOLACE_BROKER_PASSWORD, default}
+      broker_vpn: ${SOLACE_BROKER_VPN, default}
+      temporary_queue: ${USE_TEMPORARY_QUEUES, true}
+
+  - services:
+    # Default artifact service configuration
+    artifact_service: &default_artifact_service
+      type: "filesystem"
+      base_path: "/tmp/samv2"
+      artifact_scope: namespace # Or "namespace", "app", "custom"
+
+apps:
+  # --- App Definition ---
+  - name: __COMPONENT_PASCAL_CASE_NAME____app # Unique name for this gateway app instance
+    app_module: __PLUGIN_SNAKE_CASE_NAME__.app # Points to the plugin's App class
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: "${NAMESPACE}" 
+      gateway_id: __COMPONENT_KEBAB_CASE_NAME__-gw-01
+      artifact_service: *default_artifact_service
+
+      authorization_service:
+        type: "none" # Or "default_rbac"
+
+      system_purpose: >
+            The system is an AI Chatbot with agentic capabilities.
+            It will use the agents available to provide information,
+            reasoning and general assistance for the users in this system.
+            **Always return useful artifacts and files that you create to the user.**
+            Provide a status update before each tool call.
+            Your external name is Agent Mesh.
+
+      response_format: >
+            Responses should be clear, concise, and professionally toned.
+            Format responses to the user in Markdown using appropriate formatting.

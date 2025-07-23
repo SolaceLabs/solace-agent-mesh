@@ -1,0 +1,21 @@
+test_case_id: "embed_general_only_delimiters_with_colon_001"
+description: "Tests an embed with only delimiters and a colon: «:»"
+skip_intermediate_events: true
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_general_tester@example.com"
+  parts: [{type: "text", text: "Colon only embed test"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "Result is «:»."}}]
+expected_gateway_output:
+  - type: "final_response"
+    assert_content_against_stream: true
+    content_parts:
+      - type: "text"
+        text_contains: "Result is «:»." # Expect original string as it's an invalid type
+````
+
+````yaml
+tests/integration/scenarios_declarative/test_data/embeds/general/test_embed_mixed_with_text.yaml
+<<<<<<< SEARCH

@@ -1,0 +1,19 @@
+test_case_id: "embed_ac_head_more_than_lines_001"
+description: "Tests «artifact_content:lines.txt>>>head:5>>>format:text» when file has fewer lines."
+skip_intermediate_events: true
+setup_artifacts:
+  - filename: "lines.txt"
+    mime_type: "text/plain"
+    content: "Line1\nLine2\nLine3"
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_late_tester@example.com"
+  parts: [{type: "text", text: "Get head 5 of 3-line file"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "Result: «artifact_content:lines.txt>>>head:5>>>format:text»"}}]
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "Result: Line1\nLine2\nLine3" # All lines returned

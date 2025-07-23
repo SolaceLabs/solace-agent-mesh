@@ -1,0 +1,73 @@
+test_case_id: "notification_tool_invocation_001"
+description: "Tests that a tool_invocation_start notification is sent."
+expected_completion_timeout_seconds: 15
+skip_intermediate_events: true
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "notification_tester@example.com"
+  parts:
+    - type: "text"
+      text: "What is the weather in Paris?"
+llm_interactions:
+  - step_id: "llm_requests_tool_call"
+    expected_request:
+      tools_present: [
+        "get_weather_tool"
+      ]
+    static_response:
+      id: "chatcmpl-toolinvnotify"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_weather_paris_notify"
+                type: "function"
+                function:
+                  name: "get_weather_tool"
+                  arguments: '{"location": "Paris", "unit": "celsius"}'
+          finish_reason: "tool_calls"
+  - step_id: "llm_processes_tool_response"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "get_weather_tool"
+          tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            condition: "lovely"
+    static_response:
+      id: "chatcmpl-toolinvnotify-resp"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message: {role: "assistant", content: "Paris is lovely."}
+          finish_reason: "stop"
+expected_gateway_output:
+  - type: "status_update"
+    event_purpose: "llm_invocation"
+    expected_llm_data_contains:
+      model: "openai/test-model-sam-..."
+    final_flag: false
+  - type: "status_update"
+    event_purpose: "llm_response"
+    expected_llm_data_contains:
+      content:
+        role: "model"
+        parts:
+          - function_call:
+              name: "get_weather_tool"
+              args:
+                location: "Paris"
+    final_flag: true
+  - type: "status_update"
+    event_purpose: "tool_invocation_start"
+    expected_tool_name: "get_weather_tool"
+    expected_tool_args_contain:
+      location: "Paris"
+      unit: "celsius"
+    final_flag: false
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "Paris is lovely."
+    task_state: "completed"

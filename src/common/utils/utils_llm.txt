@@ -1,0 +1,67 @@
+Here is the comprehensive developer guide for the `utils` directory.
+
+## Quick Summary
+The `utils` directory provides a collection of essential, cross-cutting utilities for the Solace AI Connector. Its purpose is to offer robust, reusable solutions for common application needs, including caching, platform compatibility, secure communication, logging, and dynamic content generation.
+
+The architecture consists of standalone utility files for specific tasks and a more complex, self-contained subdirectory for advanced functionality. Direct files provide services like a thread-safe in-memory cache (`in_memory_cache.py`), JWT-based authentication for push notifications (`push_notification_auth.py`), custom logging formatters (`log_formatters.py`), and a critical patch for asyncio on macOS (`asyncio_macos_fix.py`).
+
+The `embeds` subdirectory provides a powerful system for finding, parsing, and resolving dynamic expressions embedded within strings. These utilities are designed to work together. For instance, a request handler might use `mime_helpers` to validate content type, use the `embeds` system to process the content, and then store the result in the `InMemoryCache` to optimize future requests.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+    - `__init__.py`: Exposes key utility functions from the package for convenient access.
+    - `asyncio_macos_fix.py`: Automatically applies a patch to fix asyncio subprocess issues on macOS.
+    - `in_memory_cache.py`: Implements a thread-safe, singleton in-memory cache with TTL support.
+    - `log_formatters.py`: Provides custom logging formatters, such as a Datadog-compatible JSON formatter.
+    - `mime_helpers.py`: Contains helper functions to classify and identify text-based MIME types.
+    - `push_notification_auth.py`: Implements JWT-based authentication for sending and receiving push notifications.
+
+- **Subdirectories:**
+    - `embeds/`: Provides a comprehensive system for processing embedded dynamic expressions (e.g., math, datetimes, artifact content).
+
+## Developer API Reference
+
+### Direct Files
+
+#### __init__.py
+**Purpose:** Serves as the main entry point for the `utils` package, exporting the most common utility functions for easy importing.
+**Import:** `from solace_ai_connector.common.utils import is_text_based_mime_type`
+
+**Classes/Functions/Constants:**
+*   `is_text_based_mime_type(mime_type: Optional[str]) -> bool`: Checks if a given MIME type is considered text-based.
+
+#### asyncio_macos_fix.py
+**Purpose:** Provides a targeted, automatic fix for a `NotImplementedError` that occurs when creating subprocesses with asyncio on macOS. This module is imported for its side effects and should be loaded early in the application's lifecycle.
+**Import:** `from solace_ai_connector.common.utils import asyncio_macos_fix` (Importing the module is sufficient to apply the patch).
+
+**Classes/Functions/Constants:**
+*   `ensure_asyncio_compatibility() -> bool`: The core function that applies the patch. It is called automatically when the module is first imported.
+
+#### in_memory_cache.py
+**Purpose:** Provides a simple, thread-safe, in-memory cache implemented as a singleton. It's useful for storing frequently accessed data with an optional time-to-live (TTL).
+**Import:** `from solace_ai_connector.common.utils.in_memory_cache import InMemoryCache`
+
+**Classes/Functions/Constants:**
+*   **`InMemoryCache`**: A singleton class for caching.
+    *   `set(self, key: str, value: Any, ttl: Optional[int] = None) -> None`: Sets a key-value pair with an optional TTL in seconds.
+    *   `get(self, key: str, default: Any = None) -> Any`: Retrieves a value by its key, returning a default if the key is not found or has expired.
+    *   `delete(self, key: str) -> bool`: Deletes a key-value pair from the cache.
+    *   `clear(self) -> bool`: Removes all items from the cache.
+
+#### log_formatters.py
+**Purpose:** Contains custom logging formatters to structure log output for specific platforms, such as Datadog.
+**Import:** `from solace_ai_connector.common.utils.log_formatters import DatadogJsonFormatter`
+
+**Classes/Functions/Constants:**
+*   **`DatadogJsonFormatter(logging.Formatter)`**: A formatter that outputs log records as a JSON string, compatible with Datadog's standard log attributes. It automatically includes tracing information (`dd.trace_id`, `dd.span_id`) if available.
+
+#### mime_helpers.py
+**Purpose:** Provides utilities for handling and classifying MIME types, with a focus on identifying which types represent text-based content.
+**Import:** `from solace_ai_connector.common.utils.mime_helpers import is_text_based_mime_type, TEXT_CONTAINER_MIME_TYPES`
+
+**Classes/Functions/Constants:**
+*   `is_text_based_mime_type(mime_type: Optional[str]) -> bool`: Returns `True` if the MIME type starts with `text/` or is in the list of known text-based application types (like `application/json`).
+*   `TEXT_CONTAINER_MIME_TYPES: Set[str]`: A set of non-`text/*` MIME types that are considered to contain text (e.g., `application/json`, `application/yaml`).
+
+#### push_notification_auth.py
+**Purpose:**

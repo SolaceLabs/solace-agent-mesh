@@ -1,0 +1,64 @@
+test_case_id: "builtin_extract_content_missing_filename_001"
+description: |
+  Tests 'extract_content_from_artifact' when the 'filename' parameter is missing.
+  The tool should return an error directly.
+skip_intermediate_events: true
+
+# No setup_artifacts needed as the tool call will fail before trying to load anything.
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_extract_tester_errors@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Extract something, but I forgot from where."
+  external_context:
+    a2a_session_id: "session_extract_content_missing_filename_001"
+
+llm_interactions:
+  # Interaction 1: Main agent's LLM decides to call the extract_content_from_artifact tool,
+  # but mistakenly omits the 'filename'.
+  - step_id: "agent_llm_calls_extract_tool_without_filename"
+    static_response:
+      id: "chatcmpl-extract-error-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_extract_content_no_filename"
+                type: "function"
+                function:
+                  name: "extract_content_from_artifact"
+                  # 'filename' is intentionally missing
+                  arguments: '{"extraction_goal": "Get the main idea."}'
+          finish_reason: "tool_calls"
+
+  # Interaction 2: Main agent's LLM receives the error from the tool.
+  # The tool itself does not make an internal LLM call in this scenario.
+  - step_id: "agent_llm_formulates_response_from_tool_error"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0 # Matches tool_call_extract_content_no_filename
+          response_json_matches:
+            # The ADK framework wraps the tool's specific error into a generic error structure.
+            error: "Invoking `extract_content_from_artifact()` failed as the following mandatory input parameters are not present:\nfilename\nYou could retry calling this tool, but it is IMPORTANT for you to provide all the mandatory parameters."
+    static_response:
+      id: "chatcmpl-extract-error-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I'm sorry, I can't perform the extraction because the source filename was not specified."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "I'm sorry, I can't perform the extraction because the source filename was not specified."
+    task_state: "completed"
+
+# No expected_artifacts or assert_artifact_state needed as no artifacts are touched or created.

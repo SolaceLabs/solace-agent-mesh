@@ -1,0 +1,19 @@
+test_case_id: "embed_ac_select_fields_missing_field_001"
+description: "Tests «artifact_content:users.json>>>select_fields:name,email>>>format:json»."
+skip_intermediate_events: true
+setup_artifacts:
+  - filename: "users.json"
+    mime_type: "application/json"
+    content: '[{"id":1,"name":"A","age":30},{"id":2,"name":"B","age":25}]'
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_late_tester@example.com"
+  parts: [{type: "text", text: "Get users.json name and email"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "Result: «artifact_content:users.json>>>select_fields:name,email>>>format:json»"}}]
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: '[{"name":"A"},{"name":"B"}]' # email field is ignored as it's missing

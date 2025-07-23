@@ -1,0 +1,33 @@
+## Quick Summary
+The `sam_slack` directory contains a gateway that connects a Slack workspace to the Solace Agent Mesh (A2A) ecosystem. It allows users to interact with AI agents directly from Slack. The gateway listens for direct messages and @mentions, translates them into A2A tasks, streams the agent's responses back to the corresponding Slack thread in real-time, and handles interactive elements like file attachments, task cancellation, and user feedback.
+
+## Files Overview
+- `__init__.py`: Marks the directory as a Python package.
+- `app.py`: Defines the `SlackGatewayApp`, which handles configuration schema and component instantiation.
+- `component.py`: Contains the core `SlackGatewayComponent` logic for connecting to Slack, managing state, and orchestrating the A2A communication.
+- `handlers.py`: Provides the event handler functions for processing incoming Slack messages and mentions.
+- `utils.py`: A collection of helper functions for Slack API calls, text formatting, and session management.
+
+## Developer API Reference
+
+### app.py
+**Purpose:** Defines the Slack Gateway application configuration and component factory. This is the main entry point for setting up the gateway within a Solace AI Connector configuration file.
+**Import:** `from sam_slack.app import SlackGatewayApp`
+
+**Classes:**
+- `SlackGatewayApp(app_info: Dict[str, Any], **kwargs)` - The custom App class for the A2A Slack Gateway. It extends `BaseGatewayApp` and defines the configuration parameters required to connect to and interact with Slack.
+
+**Constants/Variables:**
+- `SPECIFIC_APP_SCHEMA_PARAMS: List[Dict[str, Any]]` - A list of dictionaries defining the configuration schema. Key parameters include `slack_bot_token`, `slack_app_token`, `default_agent_name`, `feedback_enabled`, and more.
+
+**Usage Examples:**
+```yaml
+# This is an example of how you would configure the SlackGatewayApp
+# in your main application configuration file (e.g., config.yaml).
+
+apps:
+  - name: my-slack-gateway
+    module: sam_slack.app
+    class_name: SlackGatewayApp
+    app_config:
+      # --- Required Parameters ---
