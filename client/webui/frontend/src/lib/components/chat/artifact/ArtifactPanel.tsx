@@ -74,8 +74,8 @@ export const ArtifactPanel: React.FC = () => {
                             <div className="flex h-full items-center justify-center p-4">
                                 <div className="text-muted-foreground text-center">
                                     <FileText className="mx-auto mb-4 h-12 w-12" />
-                                    <div className="text-lg font-medium">Artifacts</div>
-                                    <div className="mt-2 text-sm">No artifacts available</div>
+                                    <div className="text-lg font-medium">Files</div>
+                                    <div className="mt-2 text-sm">No files available</div>
                                 </div>
                             </div>
                         )}

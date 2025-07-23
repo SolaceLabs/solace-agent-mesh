@@ -14,9 +14,9 @@ export const ArtifactDeleteDialog: React.FC = () => {
         <Dialog open={isDeleteModalOpen} onOpenChange={closeDeleteModal}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Delete this artifact?</DialogTitle>
+                    <DialogTitle>Delete?</DialogTitle>
                     <DialogDescription>
-                        Artifact{" "}
+                        The file{" "}
                         <strong>
                             <code>{artifactToDelete.filename}</code>
                         </strong>{" "}
