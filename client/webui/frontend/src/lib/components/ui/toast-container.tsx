@@ -12,7 +12,7 @@ export function ToastContainer() {
         <div className="pointer-events-none fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 transform flex-col-reverse gap-2">
             {notifications.map(notification => (
                 <div key={notification.id} className="pointer-events-auto">
-                    <Toast id={notification.id} message={notification.message} type={notification.type} duration={3000} />
+                    <Toast id={notification.id} message={notification.message} type={notification.type} duration={notification.type === "error" ? 5000 : 3000} />
                 </div>
             ))}
         </div>

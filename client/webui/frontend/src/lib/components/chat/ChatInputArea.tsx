@@ -159,7 +159,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCard[] }> = ({ agents }) => 
 
             {/* Buttons */}
             <div className="flex items-center gap-2 m-2">
-                <Button variant="ghost" onClick={handleFileSelect} disabled={isResponding} title={"Attach file"}>
+                <Button variant="ghost" onClick={handleFileSelect} disabled={isResponding} tooltip="Attach file">
                     <Paperclip className="size-4" />
                 </Button>
 
@@ -178,12 +178,12 @@ export const ChatInputArea: React.FC<{ agents: AgentCard[] }> = ({ agents }) => 
                 </Select>
 
                 {isResponding && !isCancelling ? (
-                    <Button className="ml-auto gap-1.5" onClick={handleCancel} variant="outline" disabled={isCancelling} title="Cancel">
+                    <Button className="ml-auto gap-1.5" onClick={handleCancel} variant="outline" disabled={isCancelling} tooltip="Cancel">
                         <Ban className="size-4" />
                         Stop
                     </Button>
                 ) : (
-                    <Button variant="ghost" className="ml-auto gap-1.5" onClick={onSubmit} disabled={!isSubmittingEnabled} title="Send message">
+                    <Button variant="ghost" className="ml-auto gap-1.5" onClick={onSubmit} disabled={!isSubmittingEnabled} tooltip="Send message">
                         <Send className="size-4" />
                     </Button>
                 )}

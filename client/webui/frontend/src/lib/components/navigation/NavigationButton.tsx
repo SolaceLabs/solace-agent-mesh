@@ -37,6 +37,7 @@ export const NavigationButton: React.FC<NavigationItemProps> = ({ item, isActive
                 "disabled:cursor-not-allowed disabled:opacity-50",
                 isActive ? "border-l-4 border-[var(--color-brand-wMain)] bg-[var(--color-primary-w90)]" : ""
             )}
+            title={label}
             aria-label={label}
             aria-current={isActive ? "page" : undefined}
         >

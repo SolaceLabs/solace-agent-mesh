@@ -7,7 +7,6 @@ import { useChatContext } from "@/lib/hooks";
 import type { ArtifactInfo, FileAttachment } from "@/lib/types";
 import { downloadFile } from "@/lib/utils/download";
 
-import { canPreviewArtifact } from "../preview/previewUtils";
 import { getFileIcon } from "./fileUtils";
 
 interface FileAttachmentMessageProps {
@@ -26,7 +25,7 @@ interface FileMessageProps {
 export const FileMessage: React.FC<Readonly<FileMessageProps>> = ({ filename, onDownload }) => {
     const { artifacts, setPreviewArtifact, openSidePanelTab } = useChatContext();
 
-    const artifact: ArtifactInfo | undefined = useMemo(() => artifacts.find(artifact => artifact.filename === filename && canPreviewArtifact(artifact).canPreview), [artifacts, filename]);
+    const artifact: ArtifactInfo | undefined = useMemo(() => artifacts.find(artifact => artifact.filename === filename), [artifacts, filename]);
     const FileIcon = useMemo(() => getFileIcon(artifact), [artifact]);
 
     return (
@@ -47,14 +46,14 @@ export const FileMessage: React.FC<Readonly<FileMessageProps>> = ({ filename, on
                             openSidePanelTab("files");
                             setPreviewArtifact(artifact);
                         }}
-                        title="Preview"
+                        tooltip="Preview"
                     >
                         <Eye className="h-4 w-4" />
                     </Button>
                 )}
 
                 {onDownload && (
-                    <Button variant="ghost" onClick={() => onDownload()} title="Download file">
+                    <Button variant="ghost" onClick={() => onDownload()} tooltip="Download file">
                         <Download className="h-4 w-4" />
                     </Button>
                 )}
