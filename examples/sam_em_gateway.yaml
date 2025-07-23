@@ -1,5 +1,5 @@
 # Example Configuration for SAM Event Mesh Gateway Plugin
-#
+# You'd need to install the `sam-slack` plugin first
 # This file provides a template for configuring the Event Mesh Gateway.
 # It should be included or adapted into your main Solace Agent Mesh Host YAML file.
 
@@ -13,8 +13,7 @@ log:
 # --- App Definition (to be placed under the 'apps:' list in your main config) ---
 apps:
   - name: my_event_mesh_gateway_app # Unique name for this gateway app instance
-    app_module: sam_event_mesh_gateway.app # Points to the plugin's App class
-    app_base_path: plugins/sam-event-mesh-gateway/src # Base path for the app module
+    app_module: sam_event_mesh_gateway.app
     broker: # Standard SAC broker config for the A2A control plane
       <<: *broker_connection
 
