@@ -1,8 +1,0 @@
-# Solace Agent Mesh Plugin configuration
-solace_agent_mesh_plugin:
-  # Plugin name
-  name: solace-agent-mesh-plugin
-
-  # Set to true if providing gateway interface under './interfaces' directory, 
-  # each interface must have a 'interface-flows.yaml' and a 'interface-default-config.yaml' file
-  includes_gateway_interface: false 
