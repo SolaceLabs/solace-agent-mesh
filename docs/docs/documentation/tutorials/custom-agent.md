@@ -757,7 +757,7 @@ Start your weather agent:
 
 ```bash
 cd src
-sam run configs/agents/weather_agent.yaml
+sam run ../configs/agents/weather_agent.yaml
 ```
 
 ## Step 9: Testing the Weather Agent
