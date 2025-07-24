@@ -121,8 +121,10 @@ markers = [
 [tool.hatch.metadata]
 allow-direct-references = true
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/solace_agent_mesh"]
+
 [tool.hatch.build.targets.wheel.force-include]
-"src/solace_agent_mesh" = "solace_agent_mesh/"
 "templates" = "solace_agent_mesh/templates"
 "cli" = "solace_agent_mesh/cli"
 "evaluation" = "solace_agent_mesh/evaluation"
