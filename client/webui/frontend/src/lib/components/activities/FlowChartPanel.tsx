@@ -7,6 +7,7 @@ import { FiPause, FiPlay } from "react-icons/fi";
 
 import { PopoverManual } from "@/lib/components/ui";
 import { useTaskContext } from "@/lib/hooks";
+import { useChatContext } from "@/lib/hooks";
 import type { VisualizerStep } from "@/lib/types";
 import { getThemeButtonHtmlStyles } from "@/lib/utils";
 
@@ -48,10 +49,10 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
     const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
     const { fitView } = useReactFlow();
     const { highlightedStepId, setHighlightedStepId, setReplayState } = useTaskContext(); // Use context
+    const { taskIdInSidePanel } = useChatContext(); // Get taskIdInSidePanel from chat context
 
-    // Track if component is mounted and previous processedSteps for fitView logic
-    const isMountedRef = useRef(false);
     const prevProcessedStepsRef = useRef<VisualizerStep[]>([]);
+    const [hasUserInteracted, setHasUserInteracted] = useState(false);
 
     // Popover state for edge clicks
     const [selectedStep, setSelectedStep] = useState<VisualizerStep | null>(null);
@@ -268,6 +269,8 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
 
     const handleEdgeClick = useCallback(
         (_event: React.MouseEvent, edge: Edge) => {
+            setHasUserInteracted(true);
+
             const stepId = edge.data?.visualizerStepId as string;
             if (stepId) {
                 const step = processedSteps.find(s => s.id === stepId);
@@ -314,6 +317,8 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
 
     const handleNodeClick = useCallback(
         (_event: React.MouseEvent, node: Node) => {
+            setHasUserInteracted(true);
+
             const sourceHandles = getNodeSourceHandles(node);
 
             let targetEdge: Edge | null = null;
@@ -337,6 +342,11 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
         },
         [getNodeSourceHandles, findEdgeBySourceAndHandle, handleEdgeClick, edges]
     );
+
+    const handleUserMove = useCallback((event: MouseEvent | TouchEvent | null) => {
+        if (!event?.isTrusted) return; // Ignore synthetic events
+        setHasUserInteracted(true);
+    }, []);
 
     const handlePopoverClose = useCallback(() => {
         setIsPopoverOpen(false);
@@ -421,12 +431,15 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
         }
     }, [isReplaying, isReplayPaused, processedSteps, currentReplayStepIndex, setIsReplaying, setCurrentReplayStepIndex, updateGroupNodeSizes, setReplayState, setReplayedSteps]);
 
+    // Reset user interaction state when taskIdInSidePanel changes (new task loaded)
     useEffect(() => {
-        // Only run fitView if the panel is NOT transitioning
+        setHasUserInteracted(false);
+    }, [taskIdInSidePanel]);
+
+    useEffect(() => {
+        // Only run fitView if the panel is NOT transitioning AND user hasn't interacted
         if (!isSidePanelTransitioning && fitView && nodes.length > 0) {
-            const shouldFitView =
-                !isMountedRef.current || // Component is mounting for the first time
-                prevProcessedStepsRef.current !== processedSteps;
+            const shouldFitView = prevProcessedStepsRef.current !== processedSteps && hasUserInteracted === false;
             if (shouldFitView) {
                 fitView({
                     duration: 200,
@@ -434,11 +447,10 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
                     maxZoom: 1.2,
                 });
 
-                isMountedRef.current = true;
                 prevProcessedStepsRef.current = processedSteps;
             }
         }
-    }, [nodes.length, fitView, processedSteps, isSidePanelTransitioning]);
+    }, [nodes.length, fitView, processedSteps, isSidePanelTransitioning, hasUserInteracted]);
 
     useEffect(() => {
         setNodes(currentFlowNodes =>
@@ -502,6 +514,7 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
                     setSelectedEdgeId(null);
                     handlePopoverClose();
                 }}
+                onMoveStart={handleUserMove}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
                 fitViewOptions={{ padding: 0.1 }}
@@ -510,6 +523,7 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
                 nodesDraggable={false}
                 elementsSelectable={false}
                 nodesConnectable={false}
+                minZoom={0.2}
             >
                 <Background />
                 <Controls className={getThemeButtonHtmlStyles()} />

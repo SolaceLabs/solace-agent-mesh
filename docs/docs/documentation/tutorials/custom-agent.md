@@ -751,10 +751,13 @@ Before running your weather agent, you'll need to:
 
 ## Step 8: Running the Agent
 
-Start your weather agent:
+To start the agent, it is preferred to build the plugin and then install it with your agent name. But for debugging or isolated development testing, you can run your agent from the `src` directory directly using the SAM CLI.
+
+Start your weather agent for development purposes run:
 
 ```bash
-sam run configs/agents/weather_agent.yaml
+cd src
+sam run ../configs/agents/weather_agent.yaml
 ```
 
 ## Step 9: Testing the Weather Agent
