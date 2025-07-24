@@ -310,9 +310,7 @@ async def get_latest_artifact(
         return StreamingResponse(
             io.BytesIO(data_bytes),
             media_type=mime_type,
-            headers={
-                "Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"
-            },
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"}
         )
 
     except FileNotFoundError:
@@ -485,7 +483,7 @@ async def get_specific_artifact_version(
         return StreamingResponse(
             io.BytesIO(data_bytes),
             media_type=mime_type,
-            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"},
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"}
         )
 
     except FileNotFoundError:
