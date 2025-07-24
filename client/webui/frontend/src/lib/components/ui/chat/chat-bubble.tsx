@@ -1,6 +1,6 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-import { Avatar, AvatarFallback, AvatarImage, Button, MessageLoading, ViewWorkflowButton } from "@/lib/components/ui";
+import { Avatar, AvatarFallback, AvatarImage, Button } from "@/lib/components/ui";
 import { cn } from "@/lib/utils";
 
 // ChatBubble
@@ -70,28 +70,12 @@ const chatBubbleMessageVariants = cva("p-4", {
 });
 
 interface ChatBubbleMessageProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof chatBubbleMessageVariants> {
-    isLoading?: boolean;
     isComplete?: boolean;
-    statusText?: string;
-    showInProgressLink?: boolean;
-    onViewProgressClick?: () => void;
 }
 
-const ChatBubbleMessage = React.forwardRef<HTMLDivElement, ChatBubbleMessageProps>(({ className, variant, layout, isLoading = false, statusText, children, showInProgressLink, onViewProgressClick, ...props }, ref) => (
+const ChatBubbleMessage = React.forwardRef<HTMLDivElement, ChatBubbleMessageProps>(({ className, variant, layout, children, ...props }, ref) => (
     <div className={cn(chatBubbleMessageVariants({ variant, layout, className }), "relative max-w-full break-words whitespace-pre-wrap")} ref={ref} {...props}>
-        {isLoading ? (
-            <div className="flex items-center space-x-3">
-                <MessageLoading />
-                <div className="flex items-center min-w-0 flex-1">
-                    {statusText && <span className="text-sm mr-4 text-muted-foreground animate-pulse truncate" title={statusText}>{statusText}</span>}
-                    {showInProgressLink && (
-                        <ViewWorkflowButton onClick={onViewProgressClick!} />
-                    )}
-                </div>
-            </div>
-        ) : (
-            <>{children}</>
-        )}
+        <>{children}</>
     </div>
 ));
 ChatBubbleMessage.displayName = "ChatBubbleMessage";

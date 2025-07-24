@@ -91,31 +91,28 @@ const getFileAttachments = (message: MessageFE) => {
 
 const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean) => {
     const { openSidePanelTab, setTaskIdInSidePanel } = chatContext;
+
+    if (message.isStatusBubble) {
+        return null;
+    }
+
     if (message.text) {
         const variant = message.isUser ? "sent" : "received";
         const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && isLastWithTaskId;
-        const showInProgressLink = message.isStatusBubble && !!message.taskId;
         const handleViewWorkflowClick = () => {
             if (message.taskId) {
                 setTaskIdInSidePanel(message.taskId);
                 openSidePanelTab("workflow");
             }
         };
+
         return (
             <ChatBubble key={message.metadata?.messageId} variant={variant}>
-                <ChatBubbleMessage
-                    variant={variant}
-                    isLoading={message.isStatusBubble}
-                    statusText={message.isStatusBubble ? message.text : undefined}
-                    showInProgressLink={showInProgressLink}
-                    onViewProgressClick={handleViewWorkflowClick}
-                >
+                <ChatBubbleMessage variant={variant}>
                     <MessageContent message={message} />
                     {showWorkflowButton && (
                         <div className="mt-3">
-                            <ViewWorkflowButton
-                                onClick={handleViewWorkflowClick}
-                            />
+                            <ViewWorkflowButton onClick={handleViewWorkflowClick} />
                         </div>
                     )}
                 </ChatBubbleMessage>
