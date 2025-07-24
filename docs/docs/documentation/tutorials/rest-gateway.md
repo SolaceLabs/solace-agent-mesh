@@ -40,7 +40,7 @@ This command:
 For further configuration, you can edit the `configs/gateways/my-http-rest.yaml` file. This file contains the gateway configuration that can be customized for your use case.
 
 :::info[Using local Solace PubSub+ Broker container]
-Broker container uses port 8080. You need to edit the `rest_api_server_port` field and `external_auth_service_url` field in the `configs/gateways/my-http-rest.yaml` file to a free port other than 8080 (for example: 8081).
+Solace PubSub+ Broker container uses port 8080. You need to edit the `rest_api_server_port` field and `external_auth_service_url` field in the `configs/gateways/my-http-rest.yaml` file to a free port other than 8080 (for example: 8081).
 
 You can edit the yaml file directly or add environment variables `REST_API_PORT=8081` and `EXTERNAL_AUTH_SERVICE_URL=http://localhost:8081`.
 
