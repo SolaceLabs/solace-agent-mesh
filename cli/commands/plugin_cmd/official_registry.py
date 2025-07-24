@@ -3,6 +3,9 @@ from pathlib import Path
 from functools import lru_cache
 from typing import Dict, Optional
 import click
+from config_portal.backend.plugin_catalog.constants import (
+    DEFAULT_OFFICIAL_REGISTRY_URL, OFFICIAL_REGISTRY_GIT_BRANCH
+)
 
 IGNORE_SUB_DIRS = [".git", "__pycache__", ".venv", "node_modules", ".vscode", ".github"]
 
@@ -15,22 +18,6 @@ def get_official_plugins() -> Dict[str, str]:
     Returns:
         Dict[str, str]: A mapping of plugin names to their full URLs/paths
     """
-    try:
-        from config_portal.backend.plugin_catalog.constants import (
-            DEFAULT_OFFICIAL_REGISTRY_URL, OFFICIAL_REGISTRY_GIT_BRANCH
-        )
-    except ImportError:
-        click.echo(
-            click.style(
-                "Warning: Could not import DEFAULT_OFFICIAL_REGISTRY_URL. Using fallback.",
-                fg="yellow",
-            )
-        )
-        DEFAULT_OFFICIAL_REGISTRY_URL = (
-            "https://github.com/SolaceLabs/solace-agent-mesh-core-plugins"
-        )
-        OFFICIAL_REGISTRY_GIT_BRANCH = "main"
-
     registry_url = DEFAULT_OFFICIAL_REGISTRY_URL
 
     if _is_github_url(registry_url):
@@ -87,7 +74,6 @@ def _fetch_github_plugins(github_url: str, branch: str = None) -> Dict[str, str]
                 if branch:
                     plugin_url += f"@{branch}"
                 plugin_url += f"#subdirectory={plugin_name}"
-                print(f"Found official plugin: {plugin_name} at {plugin_url}")
                 plugins[plugin_name] = plugin_url
 
         return plugins
