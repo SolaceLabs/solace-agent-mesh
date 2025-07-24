@@ -247,7 +247,11 @@ class PluginScraper:
                     registry.path_or_url,
                     repo_local_path,
                 )
-                git.Repo.clone_from(registry.path_or_url, repo_local_path, branch=registry.git_branch)
+                git.Repo.clone_from(
+                    registry.path_or_url,
+                    repo_local_path,
+                    **({"branch": registry.git_branch} if registry.git_branch else {})
+                )
 
             for item in repo_local_path.iterdir():
                 if item.is_dir() and not item.name.startswith("."):
