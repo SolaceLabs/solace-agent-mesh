@@ -544,7 +544,7 @@ This gives your agent multiple greeting styles to choose from based on the conte
 
 ## Running Your Agent
 
-To run a plugin agent, you first need to package and install it as a plugin. But for debugging/dev purposes, you can run your agent from the `src` directory directly using the SAM CLI.
+To run a plugin agent, you first need to package and install it as a plugin. But for debugging or isolated development testing, you can run your agent from the `src` directory directly using the SAM CLI.
 
 ```bash
 cd src
