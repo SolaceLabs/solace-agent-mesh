@@ -50,6 +50,7 @@ def _fetch_github_plugins(github_url: str, branch: str = None) -> Dict[str, str]
 
     Args:
         github_url: GitHub repository URL
+        branch: Optional branch name to fetch plugins from
 
     Returns:
         Dict[str, str]: Mapping of plugin names to their full GitHub URLs
@@ -86,6 +87,7 @@ def _fetch_github_plugins(github_url: str, branch: str = None) -> Dict[str, str]
                 if branch:
                     plugin_url += f"@{branch}"
                 plugin_url += f"#subdirectory={plugin_name}"
+                print(f"Found official plugin: {plugin_name} at {plugin_url}")
                 plugins[plugin_name] = plugin_url
 
         return plugins
