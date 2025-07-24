@@ -5,8 +5,6 @@ import os
 import time
 from pathlib import Path
 from cli.utils import error_exit
-import sleep
-import requests
 
 env_flask_host = "FLASK_HOST"
 
