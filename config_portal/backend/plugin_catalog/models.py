@@ -46,3 +46,4 @@ class Registry(BaseModel):
     type: str
     is_default: bool = False
     is_official_source: bool = False
+    git_branch: Optional[str] = None

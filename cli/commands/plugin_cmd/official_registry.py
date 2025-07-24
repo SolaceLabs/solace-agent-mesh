@@ -3,6 +3,9 @@ from pathlib import Path
 from functools import lru_cache
 from typing import Dict, Optional
 import click
+from config_portal.backend.plugin_catalog.constants import (
+    DEFAULT_OFFICIAL_REGISTRY_URL, OFFICIAL_REGISTRY_GIT_BRANCH
+)
 
 IGNORE_SUB_DIRS = [".git", "__pycache__", ".venv", "node_modules", ".vscode", ".github"]
 
@@ -15,25 +18,10 @@ def get_official_plugins() -> Dict[str, str]:
     Returns:
         Dict[str, str]: A mapping of plugin names to their full URLs/paths
     """
-    try:
-        from config_portal.backend.plugin_catalog.constants import (
-            DEFAULT_OFFICIAL_REGISTRY_URL,
-        )
-    except ImportError:
-        click.echo(
-            click.style(
-                "Warning: Could not import DEFAULT_OFFICIAL_REGISTRY_URL. Using fallback.",
-                fg="yellow",
-            )
-        )
-        DEFAULT_OFFICIAL_REGISTRY_URL = (
-            "https://github.com/SolaceLabs/solace-agent-mesh-core-plugins"
-        )
-
     registry_url = DEFAULT_OFFICIAL_REGISTRY_URL
 
     if _is_github_url(registry_url):
-        return _fetch_github_plugins(registry_url)
+        return _fetch_github_plugins(registry_url, branch=OFFICIAL_REGISTRY_GIT_BRANCH)
     else:
         return _fetch_local_plugins(registry_url)
 
@@ -43,12 +31,13 @@ def _is_github_url(url: str) -> bool:
     return url.startswith("https://github.com/") or url.startswith("http://github.com/")
 
 
-def _fetch_github_plugins(github_url: str) -> Dict[str, str]:
+def _fetch_github_plugins(github_url: str, branch: str = None) -> Dict[str, str]:
     """
     Fetch plugin list from GitHub repository using the GitHub API.
 
     Args:
         github_url: GitHub repository URL
+        branch: Optional branch name to fetch plugins from
 
     Returns:
         Dict[str, str]: Mapping of plugin names to their full GitHub URLs
@@ -81,7 +70,10 @@ def _fetch_github_plugins(github_url: str) -> Dict[str, str]:
         for item in contents:
             if item.get("type") == "dir" and item["name"] not in IGNORE_SUB_DIRS:
                 plugin_name = item["name"]
-                plugin_url = f"git+{github_url}#subdirectory={plugin_name}"
+                plugin_url = f"git+{github_url}"
+                if branch:
+                    plugin_url += f"@{branch}"
+                plugin_url += f"#subdirectory={plugin_name}"
                 plugins[plugin_name] = plugin_url
 
         return plugins
