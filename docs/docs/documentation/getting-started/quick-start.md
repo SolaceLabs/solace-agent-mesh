@@ -45,10 +45,16 @@ solace-agent-mesh init --gui
 You can also initialize your Solace Agent Mesh project using the official Docker image. This is helpful if you want to avoid local Python/SAM CLI installation or prefer a containerized workflow from the start.
 
 ```sh
+docker run --rm -it -v "$(pwd):/app" -p 5002:5002 solace/solace-agent-mesh:latest init
+```
+or
+```sh
 docker run --rm -it -v "$(pwd):/app" -p 5002:5002 solace/solace-agent-mesh:latest init --gui
 ```
 
 If the OS architecture on your host is not `linux/amd64`, you would need to add `--platform linux/amd64` when running container.
+
+If you use `--gui` flag and the browser on your host does not open the configuration portal automatically, open your browser and go to http://localhost:5002 or http://127.0.0.1:5002.
 
 </details>
 
@@ -85,6 +91,12 @@ For example: `openai/llama-3.3-7b`
 This is the case for all the model names, such as LLMs, image generators, embedding models, etc.
 :::
 
+:::info[Running the project using Official Docker image]
+If you decide to run the project using official Docker image later on, make sure:
+- do not use Solace PubSub+ broker container.
+- set `FastAPI Host` to `0.0.0.0`.
+:::
+
 </details>
 
 ## Running the Project
@@ -109,6 +121,8 @@ You can also run your Solace Agent Mesh project using the official Docker image.
 ```sh
 docker run --rm -it -v "$(pwd):/app" -p 8000:8000 solace/solace-agent-mesh:latest run
 ```
+
+If the OS architecture on your host is not `linux/amd64`, you would need to add `--platform linux/amd64` when running container.
 
 :::warning
 If you are using third-party Python packages or Solace Agent Mesh plugins, you need to build a custom Docker image off the official image and install the required packages there, and then run that custom image instead.
@@ -137,7 +151,7 @@ docker run --rm -it -v "$(pwd):/app" -p 8000:8000 my-custom-image run
 
 You can use different gateway interfaces to communicate with the system such as REST, Web UI, Slack, MS Teams, and so on. To keep it simple for this demo, we use the browser UI.
 
-To connect to the browser UI, open a browser and navigate to `http://localhost:8000`. If you chose another port during the `init` step, use that port instead.
+To connect to the browser UI, open a browser and navigate to `http://localhost:8000`. If you chose another port during the `init` step, use that port instead. If you run the project using official Docker image with other `-p` flag value, use the host port value in the port-mapping instead.
 
 Try some commands like `Suggest some good outdoor activities in London given the season and current weather conditions.` or `Generate a mermaid diagram of the OAuth login flow`.
 

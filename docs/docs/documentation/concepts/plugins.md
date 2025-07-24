@@ -123,3 +123,10 @@ This command adds the plugin instance configuration to your `configs` directory.
 
 Depending on the plugin, you may need to update the newly added plugin configuration file. Follow the instructions provided by the plugin author for any specific configurations.
 
+## Plugin Catalog Dashboard
+
+We also provide a user-friendly UI to manage available plugins in your project using the `plugin catalog` command. 
+
+```bash
+solace-agent-mesh plugin catalog
+``` 

@@ -24,6 +24,8 @@ cli_flask = sys.modules["flask.cli"]
 cli_flask.show_server_banner = lambda *x: None
 litellm.suppress_debug_info = True
 
+env_flask_host = "FLASK_HOST"
+
 try:
     from solace_agent_mesh.agent.tools.registry import tool_registry
 except ImportError as err:
@@ -35,7 +37,6 @@ except ImportError as err:
             str(err),
         )
         raise err from exc
-
 
 def get_agent_field_definitions():
     fields = []
@@ -635,6 +636,7 @@ def create_app(shared_config=None):
 
 
 def run_flask(host="127.0.0.1", port=5002, shared_config=None):
+    host = os.environ.get(env_flask_host, host)
     app = create_app(shared_config)
     app.logger.setLevel(logging.INFO)
     app.logger.info(f"Starting Flask app on {host}:{port}")
