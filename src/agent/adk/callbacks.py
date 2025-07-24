@@ -814,7 +814,7 @@ This host resolves the following embed types *early* (before sending to the LLM 
 - `{open_delim}artifact_content:filename[:version] {chain_delim} modifier1:value1 {chain_delim} ... {chain_delim} format:output_format{close_delim}`: Embeds artifact content after applying a chain of modifiers. This is resolved *late* (typically by a gateway before final display).
     - Use `{chain_delim}` to separate the artifact identifier from the modifier steps and the final format step.
     - Available modifiers: {modifier_list}.
-    - The `format:output_format` step *must* be the last step in the chain. Supported formats include `text`, `datauri`, `json`, `json_pretty`, `csv`, `html`. Formatting as datauri, will include the data URI prefix, so do not add it yourself.
+    - The `format:output_format` step *must* be the last step in the chain. Supported formats include `text`, `datauri`, `json`, `json_pretty`, `csv`. Formatting as datauri, will include the data URI prefix, so do not add it yourself.
     - Use `artifact_meta` first to check size; embedding large files may fail.
     - **Using `apply_to_template` Modifier:**
         - This modifier renders a Mustache template artifact using the data from the previous step.
@@ -829,7 +829,7 @@ This host resolves the following embed types *early* (before sending to the LLM 
         - `<img src="{open_delim}artifact_content:image.png {chain_delim} format:datauri{close_delim}`"> (Embed image as data URI - NOTE that this includes the datauri prefix. Do not add it yourself.)
         - `{open_delim}artifact_content:data.json {chain_delim} jsonpath:$.items[*] {chain_delim} select_fields:name,status {chain_delim} format:json_pretty{close_delim}` (Extract and format JSON fields)
         - `{open_delim}artifact_content:logs.txt {chain_delim} grep:ERROR {chain_delim} head:10 {chain_delim} format:text{close_delim}` (Get first 10 error lines)
-        - `{open_delim}artifact_content:products.csv {chain_delim} apply_to_template:product_table.html.mustache {chain_delim} format:html{close_delim}` (CSV is auto-parsed to `headers` and `data_rows` for the HTML template)
+        - `{open_delim}artifact_content:products.csv {chain_delim} apply_to_template:product_table.html.mustache {chain_delim} format:text{close_delim}` (CSV is auto-parsed to `headers` and `data_rows` for the HTML template)
         - `{open_delim}artifact_content:config.json {chain_delim} jsonpath:$.userPreferences.theme {chain_delim} format:text{close_delim}` (Extract a single value from a JSON artifact)
         - `{open_delim}artifact_content:sensor_readings.csv {chain_delim} filter_rows_eq:status:critical {chain_delim} select_cols:timestamp,sensor_id,value {chain_delim} format:csv{close_delim}` (Filter critical sensor readings and select specific columns, output as CSV)
         - `{open_delim}artifact_content:server.log {chain_delim} tail:100 {chain_delim} grep:WARN {chain_delim} format:text{close_delim}` (Get warning lines from the last 100 lines of a log file)"""
