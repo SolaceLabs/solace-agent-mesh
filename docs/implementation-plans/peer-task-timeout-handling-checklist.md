@@ -10,9 +10,9 @@ This checklist provides a granular, trackable set of tasks to implement the robu
 
 ### Step 1: Augment Correlation Data
 
-- [ ] **1. Modify `src/agent/tools/peer_agent_tool.py`**:
-    - [ ] **1.1. In `run_async` method**:
-        - [ ] Add the key-value pair `"peer_agent_name": self.target_agent_name` to the `correlation_data` dictionary.
+- [x] **1. Modify `src/agent/tools/peer_agent_tool.py`**:
+    - [x] **1.1. In `run_async` method**:
+        - [x] Add the key-value pair `"peer_agent_name": self.target_agent_name` to the `correlation_data` dictionary.
 
 ### Step 2: Implement Atomic Response Handling
 

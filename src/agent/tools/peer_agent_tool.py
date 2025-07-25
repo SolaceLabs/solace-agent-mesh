@@ -243,6 +243,7 @@ class PeerAgentTool(BaseTool):
                 "adk_function_call_id": tool_context.function_call_id,
                 "original_task_context": original_task_context,
                 "peer_tool_name": self.name,
+                "peer_agent_name": self.target_agent_name,
                 "logical_task_id": main_logical_task_id,
                 "invocation_id": invocation_id,
             }
