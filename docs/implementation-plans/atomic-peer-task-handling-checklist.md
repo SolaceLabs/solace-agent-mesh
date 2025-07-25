@@ -13,10 +13,10 @@ This checklist provides a granular, trackable set of tasks to implement the revi
 
 ### Step 2: Implement the Destructive State Claimer
 
-- [ ] **2.1. File to modify**: `src/agent/sac/component.py`
-- [ ] **2.2. Action: Create `_claim_peer_sub_task_completion`**:
-    - [ ] Define a new `async` method: `_claim_peer_sub_task_completion(self, sub_task_id: str) -> Optional[Dict[str, Any]]:`.
-    - [ ] Implement the logic to atomically claim and remove sub-task state.
+- [x] **2.1. File to modify**: `src/agent/sac/component.py`
+- [x] **2.2. Action: Create `_claim_peer_sub_task_completion`**:
+    - [x] Define a new `async` method: `_claim_peer_sub_task_completion(self, sub_task_id: str) -> Optional[Dict[str, Any]]:`.
+    - [x] Implement the logic to atomically claim and remove sub-task state.
 
 ### Step 3: Refactor `handle_a2a_response` to Use New Helpers
 

@@ -620,6 +620,55 @@ class SamAgentComponent(ComponentBase):
         with task_context.lock:
             return task_context.active_peer_sub_tasks.get(sub_task_id)
 
+    async def _claim_peer_sub_task_completion(
+        self, sub_task_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Atomically claims a sub-task as complete, preventing race conditions.
+        This is a destructive operation that removes state.
+        """
+        logical_task_id = self.cache_service.get_data(sub_task_id)
+        if not logical_task_id:
+            log.warning(
+                "%s No cache entry for sub-task %s. Task has likely timed out and been cleaned up. Cannot claim.",
+                self.log_identifier,
+                sub_task_id,
+            )
+            return None
+
+        with self.active_tasks_lock:
+            task_context = self.active_tasks.get(logical_task_id)
+
+        if not task_context:
+            log.error(
+                "%s TaskExecutionContext not found for task %s, but cache entry existed for sub-task %s. Cleaning up stale cache entry.",
+                self.log_identifier,
+                logical_task_id,
+                sub_task_id,
+            )
+            self.cache_service.remove_data(sub_task_id)
+            return None
+
+        correlation_data = task_context.claim_sub_task_completion(sub_task_id)
+
+        if correlation_data:
+            # If we successfully claimed the task, remove the timeout tracker from the cache.
+            self.cache_service.remove_data(sub_task_id)
+            log.info(
+                "%s Successfully claimed completion for sub-task %s.",
+                self.log_identifier,
+                sub_task_id,
+            )
+            return correlation_data
+        else:
+            # This means the task was already claimed by a competing event (e.g., timeout vs. response).
+            log.warning(
+                "%s Failed to claim sub-task %s; it was already completed.",
+                self.log_identifier,
+                sub_task_id,
+            )
+            return None
+
     async def _retrigger_agent_with_peer_responses(
         self,
         results_to_inject: list,
