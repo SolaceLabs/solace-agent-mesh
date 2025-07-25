@@ -540,7 +540,7 @@ class SamAgentComponent(ComponentBase):
 
     async def handle_cache_expiry_event(self, cache_data: Dict[str, Any]):
         """
-        Handles cache expiry events for peer timeouts using an atomic claim mechanism.
+        Handles cache expiry events for peer timeouts by calling the atomic claim helper.
         """
         log.debug("%s Received cache expiry event: %s", self.log_identifier, cache_data)
         sub_task_id = cache_data.get("key")
@@ -558,36 +558,24 @@ class SamAgentComponent(ComponentBase):
             )
             return
 
-        task_context = None
-        with self.active_tasks_lock:
-            task_context = self.active_tasks.get(logical_task_id)
-
-        if not task_context:
-            log.warning(
-                "%s TaskExecutionContext not found for task %s on timeout of sub-task %s. Ignoring.",
-                self.log_identifier,
-                logical_task_id,
-                sub_task_id,
-            )
-            return
-
-        correlation_data = task_context.claim_sub_task_completion(sub_task_id)
-
-        if not correlation_data:
-            log.info(
-                "%s Sub-task %s was already completed (likely by a response). Ignoring timeout event.",
-                self.log_identifier,
-                sub_task_id,
-            )
-            return
-
-        log.warning(
-            "%s Detected timeout for sub-task %s (Main Task: %s). Claimed successfully.",
-            self.log_identifier,
-            sub_task_id,
-            logical_task_id,
+        correlation_data = await self._claim_peer_sub_task_completion(
+            sub_task_id=sub_task_id, logical_task_id_from_event=logical_task_id
         )
-        await self._handle_peer_timeout(sub_task_id, correlation_data)
+
+        if correlation_data:
+            log.warning(
+                "%s Detected timeout for sub-task %s (Main Task: %s). Claimed successfully.",
+                self.log_identifier,
+                sub_task_id,
+                logical_task_id,
+            )
+            await self._handle_peer_timeout(sub_task_id, correlation_data)
+        else:
+            log.info(
+                "%s Ignoring timeout event for sub-task %s as it was already completed.",
+                self.log_identifier,
+                sub_task_id,
+            )
 
     async def _get_correlation_data_for_sub_task(
         self, sub_task_id: str
@@ -621,30 +609,37 @@ class SamAgentComponent(ComponentBase):
             return task_context.active_peer_sub_tasks.get(sub_task_id)
 
     async def _claim_peer_sub_task_completion(
-        self, sub_task_id: str
+        self, sub_task_id: str, logical_task_id_from_event: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         """
         Atomically claims a sub-task as complete, preventing race conditions.
         This is a destructive operation that removes state.
+
+        Args:
+            sub_task_id: The ID of the sub-task to claim.
+            logical_task_id_from_event: The parent task ID, if provided by the event (e.g., a timeout).
+                                        If not provided, it will be looked up from the cache.
         """
-        logical_task_id = self.cache_service.get_data(sub_task_id)
+        log_id = f"{self.log_identifier}[ClaimSubTask:{sub_task_id}]"
+        logical_task_id = logical_task_id_from_event
+
         if not logical_task_id:
-            log.warning(
-                "%s No cache entry for sub-task %s. Task has likely timed out and been cleaned up. Cannot claim.",
-                self.log_identifier,
-                sub_task_id,
-            )
-            return None
+            logical_task_id = self.cache_service.get_data(sub_task_id)
+            if not logical_task_id:
+                log.warning(
+                    "%s No cache entry found. Task has likely timed out and been cleaned up. Cannot claim.",
+                    log_id,
+                )
+                return None
 
         with self.active_tasks_lock:
             task_context = self.active_tasks.get(logical_task_id)
 
         if not task_context:
             log.error(
-                "%s TaskExecutionContext not found for task %s, but cache entry existed for sub-task %s. Cleaning up stale cache entry.",
-                self.log_identifier,
+                "%s TaskExecutionContext not found for task %s. Cleaning up stale cache entry.",
+                log_id,
                 logical_task_id,
-                sub_task_id,
             )
             self.cache_service.remove_data(sub_task_id)
             return None
@@ -654,19 +649,11 @@ class SamAgentComponent(ComponentBase):
         if correlation_data:
             # If we successfully claimed the task, remove the timeout tracker from the cache.
             self.cache_service.remove_data(sub_task_id)
-            log.info(
-                "%s Successfully claimed completion for sub-task %s.",
-                self.log_identifier,
-                sub_task_id,
-            )
+            log.info("%s Successfully claimed completion.", log_id)
             return correlation_data
         else:
             # This means the task was already claimed by a competing event (e.g., timeout vs. response).
-            log.warning(
-                "%s Failed to claim sub-task %s; it was already completed.",
-                self.log_identifier,
-                sub_task_id,
-            )
+            log.warning("%s Failed to claim; it was already completed.", log_id)
             return None
 
     async def _retrigger_agent_with_peer_responses(

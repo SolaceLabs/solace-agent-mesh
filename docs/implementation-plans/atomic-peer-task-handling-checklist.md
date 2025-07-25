@@ -27,10 +27,10 @@ This checklist provides a granular, trackable set of tasks to implement the revi
 
 ### Step 4: Refactor Timeout Handling to Use New Claimer
 
-- [ ] **4.1. File to modify**: `src/agent/sac/component.py`
-- [ ] **4.2. In `handle_cache_expiry_event` method**:
-    - [ ] Replace state retrieval logic with a call to `_claim_peer_sub_task_completion`.
-    - [ ] If successful, proceed to call `_handle_peer_timeout`.
+- [x] **4.1. File to modify**: `src/agent/sac/component.py`
+- [x] **4.2. In `handle_cache_expiry_event` method**:
+    - [x] Replace state retrieval logic with a call to `_claim_peer_sub_task_completion`.
+    - [x] If successful, proceed to call `_handle_peer_timeout`.
 
 ### Step 5: Final Review
 
