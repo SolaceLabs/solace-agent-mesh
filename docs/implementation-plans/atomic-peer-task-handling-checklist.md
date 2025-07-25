@@ -39,16 +39,16 @@ This checklist provides a granular, trackable set of tasks to implement the atom
 
 ### Step 4: Refactor Timeout Handling in `SamAgentComponent`
 
-- [ ] **4.1. File to modify**: `src/agent/sac/component.py`
-- [ ] **4.2. In `handle_cache_expiry_event` method**:
-    - [ ] Update logic to expect `logical_task_id` as the `expired_data`.
-    - [ ] Retrieve the `task_context` using `logical_task_id`.
-    - [ ] Call `task_context.claim_sub_task_completion(sub_task_id)` to get `correlation_data`.
-    - [ ] If `correlation_data` is `None`, log that the response was processed first and return.
-    - [ ] If `correlation_data` is present, call `self._handle_peer_timeout(sub_task_id, correlation_data)`.
-- [ ] **4.3. In `_handle_peer_timeout` method**:
-    - [ ] Simplify the method to directly use the `correlation_data` passed as a parameter.
-    - [ ] Ensure it proceeds directly to sending the `CancelTaskRequest` and processing the timeout locally.
+- [x] **4.1. File to modify**: `src/agent/sac/component.py`
+- [x] **4.2. In `handle_cache_expiry_event` method**:
+    - [x] Update logic to expect `logical_task_id` as the `expired_data`.
+    - [x] Retrieve the `task_context` using `logical_task_id`.
+    - [x] Call `task_context.claim_sub_task_completion(sub_task_id)` to get `correlation_data`.
+    - [x] If `correlation_data` is `None`, log that the response was processed first and return.
+    - [x] If `correlation_data` is present, call `self._handle_peer_timeout(sub_task_id, correlation_data)`.
+- [x] **4.3. In `_handle_peer_timeout` method**:
+    - [x] Simplify the method to directly use the `correlation_data` passed as a parameter. (Method already correct, no changes needed).
+    - [x] Ensure it proceeds directly to sending the `CancelTaskRequest` and processing the timeout locally. (Method already correct, no changes needed).
 
 ### Step 5: Update Task Cancellation Logic
 

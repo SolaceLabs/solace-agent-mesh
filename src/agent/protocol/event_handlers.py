@@ -264,31 +264,8 @@ async def process_event(component, event: Event):
             if timer_data.get("timer_id") == component._card_publish_timer_id:
                 publish_agent_card(component)
         elif event.event_type == EventType.CACHE_EXPIRY:
-            cache_data = event.data
-            log.info(
-                "%s Received cache expiry event: %s",
-                component.log_identifier,
-                cache_data,
-            )
-            sub_task_id = cache_data.get("key")
-            if sub_task_id and sub_task_id.startswith(
-                component.CORRELATION_DATA_PREFIX
-            ):
-                expired_data = cache_data.get("expired_data")
-                if expired_data:
-                    await component._handle_peer_timeout(sub_task_id, expired_data)
-                else:
-                    log.error(
-                        "%s Missing expired_data in cache expiry event for sub-task %s. Cannot process timeout.",
-                        component.log_identifier,
-                        sub_task_id,
-                    )
-            else:
-                log.debug(
-                    "%s Cache expiry for key '%s' is not a peer sub-task timeout.",
-                    component.log_identifier,
-                    sub_task_id,
-                )
+            # Delegate cache expiry handling to the component itself.
+            await component.handle_cache_expiry_event(event.data)
         else:
             log.warning(
                 "%s Received unknown event type: %s",

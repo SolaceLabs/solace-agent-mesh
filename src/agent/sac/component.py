@@ -538,49 +538,56 @@ class SamAgentComponent(ComponentBase):
         if timer_data.get("timer_id") == self._card_publish_timer_id:
             publish_agent_card(self)
 
-    def handle_cache_expiry_event(self, cache_data: Dict[str, Any]):
-        """Handles cache expiry events, specifically for peer timeouts."""
+    async def handle_cache_expiry_event(self, cache_data: Dict[str, Any]):
+        """
+        Handles cache expiry events for peer timeouts using an atomic claim mechanism.
+        """
         log.debug("%s Received cache expiry event: %s", self.log_identifier, cache_data)
-        expired_key = cache_data.get("key")
-        expired_data = cache_data.get("expired_data")
+        sub_task_id = cache_data.get("key")
+        logical_task_id = cache_data.get("expired_data")
 
-        if expired_key and expired_key.startswith(CORRELATION_DATA_PREFIX):
-            sub_task_id = expired_key
-            log.warning(
-                "%s Detected timeout for sub-task ID: %s",
+        if not (
+            sub_task_id
+            and sub_task_id.startswith(CORRELATION_DATA_PREFIX)
+            and logical_task_id
+        ):
+            log.debug(
+                "%s Cache expiry for key '%s' is not a peer sub-task timeout or is missing data.",
                 self.log_identifier,
                 sub_task_id,
             )
-            if expired_data:
-                try:
-                    original_task_context = expired_data.get("original_task_context")
-                    if original_task_context:
-                        self._handle_peer_timeout(sub_task_id, expired_data)
-                    else:
-                        log.error(
-                            "%s Missing 'original_task_context' in expired cache data for sub-task %s. Cannot process timeout.",
-                            self.log_identifier,
-                            sub_task_id,
-                        )
-                except Exception as e:
-                    log.exception(
-                        "%s Error handling peer timeout for sub-task %s: %s",
-                        self.log_identifier,
-                        sub_task_id,
-                        e,
-                    )
-            else:
-                log.error(
-                    "%s Missing expired_data in cache expiry event for sub-task %s. Cannot process timeout.",
-                    self.log_identifier,
-                    sub_task_id,
-                )
-        else:
-            log.debug(
-                "%s Cache expiry for key '%s' is not a peer sub-task timeout.",
+            return
+
+        task_context = None
+        with self.active_tasks_lock:
+            task_context = self.active_tasks.get(logical_task_id)
+
+        if not task_context:
+            log.warning(
+                "%s TaskExecutionContext not found for task %s on timeout of sub-task %s. Ignoring.",
                 self.log_identifier,
-                expired_key,
+                logical_task_id,
+                sub_task_id,
             )
+            return
+
+        correlation_data = task_context.claim_sub_task_completion(sub_task_id)
+
+        if not correlation_data:
+            log.info(
+                "%s Sub-task %s was already completed (likely by a response). Ignoring timeout event.",
+                self.log_identifier,
+                sub_task_id,
+            )
+            return
+
+        log.warning(
+            "%s Detected timeout for sub-task %s (Main Task: %s). Claimed successfully.",
+            self.log_identifier,
+            sub_task_id,
+            logical_task_id,
+        )
+        await self._handle_peer_timeout(sub_task_id, correlation_data)
 
     async def _retrigger_agent_with_peer_responses(
         self,
