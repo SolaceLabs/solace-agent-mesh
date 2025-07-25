@@ -16,10 +16,10 @@ This checklist provides a granular, trackable set of tasks to implement the robu
 
 ### Step 2: Implement Atomic Response Handling
 
-- [ ] **2. Modify `src/agent/protocol/event_handlers.py`**:
-    - [ ] **2.1. In `handle_a2a_response` method**:
-        - [ ] Change the call from `component.cache_service.get_data(sub_task_id)` to `component.cache_service.remove_data(sub_task_id)`.
-        - [ ] Update the warning log message for the `if not correlation_data:` block to reflect that the task may have timed out.
+- [x] **2. Modify `src/agent/protocol/event_handlers.py`**:
+    - [x] **2.1. In `handle_a2a_response` method**:
+        - [x] Change the call from `component.cache_service.get_data(sub_task_id)` to `component.cache_service.remove_data(sub_task_id)`.
+        - [x] Update the warning log message for the `if not correlation_data:` block to reflect that the task may have timed out.
 
 ### Step 3: Implement Proactive Task Cancellation on Timeout
 

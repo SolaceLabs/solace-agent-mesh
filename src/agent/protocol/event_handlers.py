@@ -1240,10 +1240,10 @@ def handle_a2a_response(component, message: SolaceMessage):
             message.call_acknowledgements()
             return
 
-        correlation_data = component.cache_service.get_data(sub_task_id)
+        correlation_data = component.cache_service.remove_data(sub_task_id)
         if not correlation_data:
             log.warning(
-                "%s No correlation data found for sub-task %s. Cannot process response. Ignoring.",
+                "%s No correlation data found for sub-task %s. The task may have timed out or already completed. Ignoring late response.",
                 component.log_identifier,
                 sub_task_id,
             )
