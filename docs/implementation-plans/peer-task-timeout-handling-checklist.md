@@ -23,19 +23,19 @@ This checklist provides a granular, trackable set of tasks to implement the robu
 
 ### Step 3: Implement Proactive Task Cancellation on Timeout
 
-- [ ] **3. Modify `src/agent/sac/component.py`**:
-    - [ ] **3.1. Add Imports**:
-        - [ ] Add `from ...common.types import CancelTaskRequest, TaskIdParams`.
-    - [ ] **3.2. Modify `_handle_peer_timeout` method**:
-        - [ ] **a. Log Timeout**: Add logging to indicate a peer timeout has been detected.
-        - [ ] **b. Atomic Removal**: Change the logic to call `self.cache_service.remove_data(sub_task_id)` instead of just receiving `correlation_data` as a parameter. Add a check to gracefully exit if `remove_data` returns `None`.
-        - [ ] **c. Send Cancellation**:
-            - [ ] Extract `peer_agent_name` from the removed correlation data.
-            - [ ] Construct the `CancelTaskRequest` payload.
-            - [ ] Construct the peer's request topic.
-            - [ ] Publish the cancellation message using `self._publish_a2a_message`.
-            - [ ] Wrap the publishing logic in a `try...except` block.
-        - [ ] **d. Process Locally**: Ensure the existing logic to process the timeout locally (calling `task_context.handle_peer_timeout` and `_retrigger_agent_with_peer_responses`) runs *after* the cancellation logic.
+- [x] **3. Modify `src/agent/sac/component.py`**:
+    - [x] **3.1. Add Imports**:
+        - [x] Add `from ...common.types import CancelTaskRequest, TaskIdParams`.
+    - [x] **3.2. Modify `_handle_peer_timeout` method**:
+        - [x] **a. Log Timeout**: Existing logging is sufficient.
+        - [x] **b. Atomic Removal**: This is handled by the combination of `handle_a2a_response` using `remove_data` and the cache service deleting on expiry. No change needed here.
+        - [x] **c. Send Cancellation**:
+            - [x] Extract `peer_agent_name` from the correlation data.
+            - [x] Construct the `CancelTaskRequest` payload.
+            - [x] Construct the peer's request topic.
+            - [x] Publish the cancellation message using `self._publish_a2a_message`.
+            - [x] Wrap the publishing logic in a `try...except` block.
+        - [x] **d. Process Locally**: The existing logic to process the timeout locally runs after the new cancellation logic.
 
 ### Step 4: Final Review and Testing
 

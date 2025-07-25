@@ -53,6 +53,8 @@ from ...common.types import (
     TaskStatusUpdateEvent,
     TaskArtifactUpdateEvent,
     SendTaskRequest,
+    CancelTaskRequest,
+    TaskIdParams,
 )
 from ...common.a2a_protocol import (
     get_a2a_base_topic,
@@ -686,8 +688,9 @@ class SamAgentComponent(ComponentBase):
         correlation_data: Dict[str, Any],
     ):
         """
-        Handles the timeout of a peer agent task by updating the completion counter
-        and potentially re-triggering the runner if all parallel tasks are now complete.
+        Handles the timeout of a peer agent task. It sends a cancellation request
+        to the peer, updates the local completion counter, and potentially
+        re-triggers the runner if all parallel tasks are now complete.
         """
         logical_task_id = correlation_data.get("logical_task_id")
         invocation_id = correlation_data.get("invocation_id")
@@ -700,6 +703,38 @@ class SamAgentComponent(ComponentBase):
             invocation_id,
         )
 
+        # Proactively send a cancellation request to the peer agent.
+        peer_agent_name = correlation_data.get("peer_agent_name")
+        if peer_agent_name:
+            try:
+                log.info(
+                    "%s Sending CancelTaskRequest to peer '%s' for timed-out sub-task %s.",
+                    log_retrigger,
+                    peer_agent_name,
+                    sub_task_id,
+                )
+                task_id_for_peer = sub_task_id.replace(
+                    self.CORRELATION_DATA_PREFIX, "", 1
+                )
+                cancel_params = TaskIdParams(id=task_id_for_peer)
+                cancel_request = CancelTaskRequest(params=cancel_params)
+                user_props = {"clientId": self.agent_name}
+                peer_topic = self._get_agent_request_topic(peer_agent_name)
+                self._publish_a2a_message(
+                    payload=cancel_request.model_dump(exclude_none=True),
+                    topic=peer_topic,
+                    user_properties=user_props,
+                )
+            except Exception as e:
+                log.error(
+                    "%s Failed to send CancelTaskRequest to peer '%s' for sub-task %s: %s",
+                    log_retrigger,
+                    peer_agent_name,
+                    sub_task_id,
+                    e,
+                )
+
+        # Process the timeout locally.
         with self.active_tasks_lock:
             task_context = self.active_tasks.get(logical_task_id)
 
