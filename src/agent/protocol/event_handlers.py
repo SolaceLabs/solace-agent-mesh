@@ -1204,7 +1204,12 @@ def handle_a2a_response(component, message: SolaceMessage):
                     "error": f"Failed to parse response from peer: {parse_error}",
                     "code": "PEER_PARSE_ERROR",
                 }
-                is_final_response = True
+                # Print out the stack trace for debugging
+                log.exception(
+                    "%s Exception stack trace: %s",
+                    component.log_identifier,
+                    parse_error,
+                )
 
         if not is_final_response:
             # This is an intermediate status update for monitoring.
