@@ -10,7 +10,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml",
+            "args": "examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml",
             "justMyCode": false,
         },
         {
@@ -19,7 +19,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml examples/test_agent.yaml examples/a2a_multimodal.yaml",
+            "args": "examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml examples/test_agent.yaml examples/a2a_multimodal.yaml",
             "justMyCode": false,
         },
         {
@@ -28,7 +28,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_orchestrator.yaml examples/webui_backend.yaml examples/test_agent.yaml",
+            "args": "examples/a2a_orchestrator.yaml examples/webui_backend.yaml examples/test_agent.yaml",
             "justMyCode": false,
         },
         {
@@ -37,7 +37,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml examples/rest_gateway_example.yaml examples/test_agent.yaml examples/a2a_multimodal.yaml",
+            "args": "examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml examples/rest_gateway_example.yaml examples/test_agent.yaml examples/a2a_multimodal.yaml",
             "justMyCode": false,
         },
         {
@@ -46,7 +46,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/employee.yaml examples/webui_backend.yaml ",
+            "args": "examples/employee.yaml examples/webui_backend.yaml ",
             "justMyCode": false,
         },
         {
@@ -55,7 +55,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_multimodal.yaml examples/webui_backend.yaml ",
+            "args": "examples/a2a_multimodal.yaml examples/webui_backend.yaml ",
             "justMyCode": false,
         },
         {
@@ -64,7 +64,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_orchestrator.yaml",
+            "args": "examples/a2a_orchestrator.yaml",
             "justMyCode": false,
         },
         {
@@ -73,7 +73,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_agents.yaml",
+            "args": "examples/a2a_agents.yaml",
             "justMyCode": false,
         },
         {
@@ -82,7 +82,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_mcp_example.yaml",
+            "args": "examples/a2a_mcp_example.yaml",
             "justMyCode": false,
         },
         {
@@ -91,7 +91,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/slack_gateway_example.yaml",
+            "args": "examples/slack_gateway_example.yaml",
             "justMyCode": false,
         },
         {
@@ -100,7 +100,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/webhook_gateway_example.yaml",
+            "args": "examples/webhook_gateway_example.yaml",
             "justMyCode": false,
         },
         {
@@ -109,7 +109,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/webui_backend.yaml",
+            "args": "examples/webui_backend.yaml",
             "justMyCode": false,
         },
         {
@@ -118,7 +118,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml",
+            "args": "examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml",
             "justMyCode": false,
         },
         {
@@ -127,7 +127,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_host_example.yaml examples/webui_backend.yaml",
+            "args": "examples/a2a_host_example.yaml examples/webui_backend.yaml",
             "justMyCode": false,
         },
         {
@@ -136,7 +136,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_mcp_example.yaml examples/webui_backend.yaml",
+            "args": "examples/a2a_mcp_example.yaml examples/webui_backend.yaml",
             "justMyCode": false,
         },
         {
@@ -145,7 +145,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/sam_em_gateway.yaml examples/a2a_multimodal.yaml examples/a2a_orchestrator.yaml examples/webui_backend.yaml",
+            "args": "examples/sam_em_gateway.yaml examples/a2a_multimodal.yaml examples/a2a_orchestrator.yaml examples/webui_backend.yaml",
             "justMyCode": false,
         },
         {
