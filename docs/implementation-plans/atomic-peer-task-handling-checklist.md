@@ -1,68 +1,41 @@
-# Implementation Checklist: Atomic Peer Task Handling
+# Implementation Checklist: Atomic Peer Task Handling (v2)
 
-This checklist provides a granular, trackable set of tasks to implement the atomic peer task handling feature. It aligns directly with the steps outlined in the implementation plan.
+This checklist provides a granular, trackable set of tasks to implement the revised atomic peer task handling feature. It aligns directly with the steps outlined in the v2 implementation plan.
 
 ## 2. Implementation Steps
 
-### Step 1: Enhance `TaskExecutionContext` for Sub-Task Management
+### Step 1: Implement the Non-Destructive State Reader
 
-- [x] **1.1. File to modify**: `src/agent/sac/task_execution_context.py`
-- [x] **1.2. Update State Attributes**:
-    - [x] Add the new dictionary attribute: `self.active_peer_sub_tasks: Dict[str, Dict[str, Any]] = {}`.
-    - [x] Remove the deprecated list attribute: `self.peer_sub_tasks`.
-- [x] **1.3. Implement `register_peer_sub_task`**:
-    - [x] Create the new method `register_peer_sub_task` to add correlation data to `active_peer_sub_tasks` under a lock.
-- [x] **1.4. Implement `claim_sub_task_completion`**:
-    - [x] Create the new method `claim_sub_task_completion` to atomically pop the sub-task data from `active_peer_sub_tasks` under a lock.
-- [x] **1.5. Remove old `register_peer_sub_task`**:
-    - [x] Ensure the old `register_peer_sub_task` method is fully removed or replaced.
+- [x] **1.1. File to modify**: `src/agent/sac/component.py`
+- [x] **1.2. Action: Create `_get_correlation_data_for_sub_task`**:
+    - [x] Define a new `async` method: `_get_correlation_data_for_sub_task(self, sub_task_id: str) -> Optional[Dict[str, Any]]:`.
+    - [x] Implement the logic to non-destructively read correlation data.
 
-### Step 2: Update `PeerAgentTool` to Use New Context Methods
+### Step 2: Implement the Destructive State Claimer
 
-- [x] **2.1. File to modify**: `src/agent/tools/peer_agent_tool.py`
-- [x] **2.2. In `run_async` method**:
-    - [x] **Update Sub-Task Registration**: Call the new `task_context_obj.register_peer_sub_task` method.
-    - [x] **Update Cache Usage**: Modify the `cache_service.add_data` call to store `main_logical_task_id` as the value.
-    - [x] **Remove old registration call**: Ensure the old call to `register_peer_sub_task` is removed.
+- [ ] **2.1. File to modify**: `src/agent/sac/component.py`
+- [ ] **2.2. Action: Create `_claim_peer_sub_task_completion`**:
+    - [ ] Define a new `async` method: `_claim_peer_sub_task_completion(self, sub_task_id: str) -> Optional[Dict[str, Any]]:`.
+    - [ ] Implement the logic to atomically claim and remove sub-task state.
 
-### Step 3: Refactor `handle_a2a_response` for Atomic Claiming
+### Step 3: Refactor `handle_a2a_response` to Use New Helpers
 
-- [x] **3.1. File to modify**: `src/agent/protocol/event_handlers.py`
-- [x] **3.2. In `handle_a2a_response` method**:
-    - [x] Implement the new atomic workflow:
-        - [x] Call `component.cache_service.get_data(sub_task_id)` to get `logical_task_id`.
-        - [x] If `logical_task_id` is `None`, log a warning and return.
-        - [x] Retrieve the `task_context` using `logical_task_id`.
-        - [x] Call `task_context.claim_sub_task_completion(sub_task_id)` to get `correlation_data`.
-        - [x] If `correlation_data` is `None`, log a warning and return.
-        - [x] Proceed with the rest of the response handling logic.
+- [ ] **3.1. File to modify**: `src/agent/protocol/event_handlers.py`
+- [ ] **3.2. In `handle_a2a_response` method**:
+    - [ ] **Update Intermediate Signal Handling**: Replace direct cache access with a call to `_get_correlation_data_for_sub_task`.
+    - [ ] **Update Final Response Handling**: Replace state retrieval logic with a call to `_claim_peer_sub_task_completion`.
 
-### Step 4: Refactor Timeout Handling in `SamAgentComponent`
+### Step 4: Refactor Timeout Handling to Use New Claimer
 
-- [x] **4.1. File to modify**: `src/agent/sac/component.py`
-- [x] **4.2. In `handle_cache_expiry_event` method**:
-    - [x] Update logic to expect `logical_task_id` as the `expired_data`.
-    - [x] Retrieve the `task_context` using `logical_task_id`.
-    - [x] Call `task_context.claim_sub_task_completion(sub_task_id)` to get `correlation_data`.
-    - [x] If `correlation_data` is `None`, log that the response was processed first and return.
-    - [x] If `correlation_data` is present, call `self._handle_peer_timeout(sub_task_id, correlation_data)`.
-- [x] **4.3. In `_handle_peer_timeout` method**:
-    - [x] Simplify the method to directly use the `correlation_data` passed as a parameter. (Method already correct, no changes needed).
-    - [x] Ensure it proceeds directly to sending the `CancelTaskRequest` and processing the timeout locally. (Method already correct, no changes needed).
+- [ ] **4.1. File to modify**: `src/agent/sac/component.py`
+- [ ] **4.2. In `handle_cache_expiry_event` method**:
+    - [ ] Replace state retrieval logic with a call to `_claim_peer_sub_task_completion`.
+    - [ ] If successful, proceed to call `_handle_peer_timeout`.
 
-### Step 5: Update Task Cancellation Logic
+### Step 5: Final Review
 
-- [x] **5.1. File to modify**: `src/agent/adk/runner.py`
-- [x] **5.2. In `run_adk_async_task_thread_wrapper` method**:
-    - [x] In the `except TaskCancelledError` block, find the loop for cancelling sub-tasks.
-    - [x] Change the iteration to use `task_context.active_peer_sub_tasks.items()`.
-    - [x] Update the logic inside the loop to correctly extract `sub_task_id` and `peer_agent_name` from the new dictionary structure.
-
-### Step 6: Final Review
-
-- [ ] **6.1. Code Review**:
-    - [ ] Review all modified files against the design document.
-- [ ] **6.2. Manual Tracing**:
-    - [ ] Trace the execution path for a successful response.
-    - [ ] Trace the execution path for a timeout.
-    - [ ] Trace the execution path for the race condition (response arrives just before timeout is processed).
+- [ ] **5.1. Code Review**:
+    - [ ] Review all modified files against the v2 design document.
+- [ ] **5.2. Manual Tracing**:
+    - [ ] Trace execution paths for intermediate signals, final responses, and timeouts.
+    - [ ] Verify race conditions are handled correctly.

@@ -589,6 +589,37 @@ class SamAgentComponent(ComponentBase):
         )
         await self._handle_peer_timeout(sub_task_id, correlation_data)
 
+    async def _get_correlation_data_for_sub_task(
+        self, sub_task_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Non-destructively retrieves correlation data for a sub-task.
+        Used for intermediate events where the sub-task should remain active.
+        """
+        logical_task_id = self.cache_service.get_data(sub_task_id)
+        if not logical_task_id:
+            log.warning(
+                "%s No cache entry for sub-task %s. Cannot get correlation data.",
+                self.log_identifier,
+                sub_task_id,
+            )
+            return None
+
+        with self.active_tasks_lock:
+            task_context = self.active_tasks.get(logical_task_id)
+
+        if not task_context:
+            log.error(
+                "%s TaskExecutionContext not found for task %s, but cache entry existed for sub-task %s. This may indicate a cleanup issue.",
+                self.log_identifier,
+                logical_task_id,
+                sub_task_id,
+            )
+            return None
+
+        with task_context.lock:
+            return task_context.active_peer_sub_tasks.get(sub_task_id)
+
     async def _retrigger_agent_with_peer_responses(
         self,
         results_to_inject: list,
