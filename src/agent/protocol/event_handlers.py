@@ -834,7 +834,6 @@ def handle_agent_card_message(component, message: SolaceMessage):
 async def handle_a2a_response(component, message: SolaceMessage):
     """Handles incoming responses/status updates from peer agents."""
     sub_task_id = None
-    agent_name = component.get_config("agent_name")
     payload_to_queue = None
     is_final_response = False
 
