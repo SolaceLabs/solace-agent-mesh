@@ -1240,18 +1240,47 @@ def handle_a2a_response(component, message: SolaceMessage):
             message.call_acknowledgements()
             return
 
-        # This is not truly atomic, but it's the best we can do without modifying
-        # the cache service. It reduces the window for a race condition.
-        correlation_data = component.cache_service.get_data(sub_task_id)
-        if not correlation_data:
+        # Atomically claim the sub-task completion using the TaskExecutionContext.
+        logical_task_id = component.cache_service.get_data(sub_task_id)
+
+        if not logical_task_id:
             log.warning(
-                "%s No correlation data found for sub-task %s. The task may have timed out or already completed. Ignoring late response.",
+                "%s No cache entry for sub-task %s. The task has likely timed out. Ignoring late response.",
                 component.log_identifier,
                 sub_task_id,
             )
             message.call_acknowledgements()
             return
 
+        task_context = None
+        with component.active_tasks_lock:
+            task_context = component.active_tasks.get(logical_task_id)
+
+        if not task_context:
+            log.error(
+                "%s TaskExecutionContext not found for task %s, but cache entry existed for sub-task %s. This may indicate a cleanup issue. Ignoring response.",
+                component.log_identifier,
+                logical_task_id,
+                sub_task_id,
+            )
+            component.cache_service.remove_data(sub_task_id)
+            message.call_acknowledgements()
+            return
+
+        correlation_data = task_context.claim_sub_task_completion(sub_task_id)
+
+        if not correlation_data:
+            log.warning(
+                "%s Sub-task %s was already claimed (likely by a timeout). Ignoring late response.",
+                component.log_identifier,
+                sub_task_id,
+            )
+            # Still remove the cache entry in case this is a race with the cache's own expiry mechanism
+            component.cache_service.remove_data(sub_task_id)
+            message.call_acknowledgements()
+            return
+
+        # If we successfully claimed the task, remove the timeout tracker from the cache.
         component.cache_service.remove_data(sub_task_id)
 
         async def _handle_final_peer_response():

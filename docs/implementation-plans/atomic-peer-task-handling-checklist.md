@@ -27,15 +27,15 @@ This checklist provides a granular, trackable set of tasks to implement the atom
 
 ### Step 3: Refactor `handle_a2a_response` for Atomic Claiming
 
-- [ ] **3.1. File to modify**: `src/agent/protocol/event_handlers.py`
-- [ ] **3.2. In `handle_a2a_response` method**:
-    - [ ] Implement the new atomic workflow:
-        - [ ] Call `component.cache_service.remove_data(sub_task_id)` to get `logical_task_id`.
-        - [ ] If `logical_task_id` is `None`, log a warning and return.
-        - [ ] Retrieve the `task_context` using `logical_task_id`.
-        - [ ] Call `task_context.claim_sub_task_completion(sub_task_id)` to get `correlation_data`.
-        - [ ] If `correlation_data` is `None`, log a warning and return.
-        - [ ] Proceed with the rest of the response handling logic.
+- [x] **3.1. File to modify**: `src/agent/protocol/event_handlers.py`
+- [x] **3.2. In `handle_a2a_response` method**:
+    - [x] Implement the new atomic workflow:
+        - [x] Call `component.cache_service.get_data(sub_task_id)` to get `logical_task_id`.
+        - [x] If `logical_task_id` is `None`, log a warning and return.
+        - [x] Retrieve the `task_context` using `logical_task_id`.
+        - [x] Call `task_context.claim_sub_task_completion(sub_task_id)` to get `correlation_data`.
+        - [x] If `correlation_data` is `None`, log a warning and return.
+        - [x] Proceed with the rest of the response handling logic.
 
 ### Step 4: Refactor Timeout Handling in `SamAgentComponent`
 
