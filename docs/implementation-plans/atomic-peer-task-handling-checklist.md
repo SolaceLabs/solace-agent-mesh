@@ -19,11 +19,11 @@ This checklist provides a granular, trackable set of tasks to implement the atom
 
 ### Step 2: Update `PeerAgentTool` to Use New Context Methods
 
-- [ ] **2.1. File to modify**: `src/agent/tools/peer_agent_tool.py`
-- [ ] **2.2. In `run_async` method**:
-    - [ ] **Update Sub-Task Registration**: Call the new `task_context_obj.register_peer_sub_task` method.
-    - [ ] **Update Cache Usage**: Modify the `cache_service.add_data` call to store `main_logical_task_id` as the value.
-    - [ ] **Remove old registration call**: Ensure the old call to `register_peer_sub_task` is removed.
+- [x] **2.1. File to modify**: `src/agent/tools/peer_agent_tool.py`
+- [x] **2.2. In `run_async` method**:
+    - [x] **Update Sub-Task Registration**: Call the new `task_context_obj.register_peer_sub_task` method.
+    - [x] **Update Cache Usage**: Modify the `cache_service.add_data` call to store `main_logical_task_id` as the value.
+    - [x] **Remove old registration call**: Ensure the old call to `register_peer_sub_task` is removed.
 
 ### Step 3: Refactor `handle_a2a_response` for Atomic Claiming
 
