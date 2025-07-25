@@ -6,16 +6,16 @@ This checklist provides a granular, trackable set of tasks to implement the atom
 
 ### Step 1: Enhance `TaskExecutionContext` for Sub-Task Management
 
-- [ ] **1.1. File to modify**: `src/agent/sac/task_execution_context.py`
-- [ ] **1.2. Update State Attributes**:
-    - [ ] Add the new dictionary attribute: `self.active_peer_sub_tasks: Dict[str, Dict[str, Any]] = {}`.
-    - [ ] Remove the deprecated list attribute: `self.peer_sub_tasks`.
-- [ ] **1.3. Implement `register_peer_sub_task`**:
-    - [ ] Create the new method `register_peer_sub_task` to add correlation data to `active_peer_sub_tasks` under a lock.
-- [ ] **1.4. Implement `claim_sub_task_completion`**:
-    - [ ] Create the new method `claim_sub_task_completion` to atomically pop the sub-task data from `active_peer_sub_tasks` under a lock.
-- [ ] **1.5. Remove old `register_peer_sub_task`**:
-    - [ ] Ensure the old `register_peer_sub_task` method is fully removed or replaced.
+- [x] **1.1. File to modify**: `src/agent/sac/task_execution_context.py`
+- [x] **1.2. Update State Attributes**:
+    - [x] Add the new dictionary attribute: `self.active_peer_sub_tasks: Dict[str, Dict[str, Any]] = {}`.
+    - [x] Remove the deprecated list attribute: `self.peer_sub_tasks`.
+- [x] **1.3. Implement `register_peer_sub_task`**:
+    - [x] Create the new method `register_peer_sub_task` to add correlation data to `active_peer_sub_tasks` under a lock.
+- [x] **1.4. Implement `claim_sub_task_completion`**:
+    - [x] Create the new method `claim_sub_task_completion` to atomically pop the sub-task data from `active_peer_sub_tasks` under a lock.
+- [x] **1.5. Remove old `register_peer_sub_task`**:
+    - [x] Ensure the old `register_peer_sub_task` method is fully removed or replaced.
 
 ### Step 2: Update `PeerAgentTool` to Use New Context Methods
 
