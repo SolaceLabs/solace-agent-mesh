@@ -248,7 +248,7 @@ async def process_event(component, event: Event):
             elif topic.startswith(agent_response_sub_prefix) or topic.startswith(
                 agent_status_sub_prefix
             ):
-                handle_a2a_response(component, message)
+                await handle_a2a_response(component, message)
             else:
                 log.warning(
                     "%s Received message on unhandled topic: %s",
@@ -831,7 +831,7 @@ def handle_agent_card_message(component, message: SolaceMessage):
         component.handle_error(e, Event(EventType.MESSAGE, message))
 
 
-def handle_a2a_response(component, message: SolaceMessage):
+async def handle_a2a_response(component, message: SolaceMessage):
     """Handles incoming responses/status updates from peer agents."""
     sub_task_id = None
     agent_name = component.get_config("agent_name")
@@ -909,10 +909,8 @@ def handle_a2a_response(component, message: SolaceMessage):
                                             component.log_identifier,
                                             sub_task_id,
                                         )
-                                        correlation_data = (
-                                            component.cache_service.get_data(
-                                                sub_task_id
-                                            )
+                                        correlation_data = await component._get_correlation_data_for_sub_task(
+                                            sub_task_id
                                         )
                                         if not correlation_data:
                                             log.warning(
@@ -1222,48 +1220,11 @@ def handle_a2a_response(component, message: SolaceMessage):
             message.call_acknowledgements()
             return
 
-        # Atomically claim the sub-task completion using the TaskExecutionContext.
-        logical_task_id = component.cache_service.get_data(sub_task_id)
-
-        if not logical_task_id:
-            log.warning(
-                "%s No cache entry for sub-task %s. The task has likely timed out. Ignoring late response.",
-                component.log_identifier,
-                sub_task_id,
-            )
-            message.call_acknowledgements()
-            return
-
-        task_context = None
-        with component.active_tasks_lock:
-            task_context = component.active_tasks.get(logical_task_id)
-
-        if not task_context:
-            log.error(
-                "%s TaskExecutionContext not found for task %s, but cache entry existed for sub-task %s. This may indicate a cleanup issue. Ignoring response.",
-                component.log_identifier,
-                logical_task_id,
-                sub_task_id,
-            )
-            component.cache_service.remove_data(sub_task_id)
-            message.call_acknowledgements()
-            return
-
-        correlation_data = task_context.claim_sub_task_completion(sub_task_id)
-
+        correlation_data = await component._claim_peer_sub_task_completion(sub_task_id)
         if not correlation_data:
-            log.warning(
-                "%s Sub-task %s was already claimed (likely by a timeout). Ignoring late response.",
-                component.log_identifier,
-                sub_task_id,
-            )
-            # Still remove the cache entry in case this is a race with the cache's own expiry mechanism
-            component.cache_service.remove_data(sub_task_id)
+            # The helper method logs the reason (timeout, already claimed, etc.)
             message.call_acknowledgements()
             return
-
-        # If we successfully claimed the task, remove the timeout tracker from the cache.
-        component.cache_service.remove_data(sub_task_id)
 
         async def _handle_final_peer_response():
             """

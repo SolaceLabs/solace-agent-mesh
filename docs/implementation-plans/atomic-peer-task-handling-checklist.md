@@ -20,10 +20,10 @@ This checklist provides a granular, trackable set of tasks to implement the revi
 
 ### Step 3: Refactor `handle_a2a_response` to Use New Helpers
 
-- [ ] **3.1. File to modify**: `src/agent/protocol/event_handlers.py`
-- [ ] **3.2. In `handle_a2a_response` method**:
-    - [ ] **Update Intermediate Signal Handling**: Replace direct cache access with a call to `_get_correlation_data_for_sub_task`.
-    - [ ] **Update Final Response Handling**: Replace state retrieval logic with a call to `_claim_peer_sub_task_completion`.
+- [x] **3.1. File to modify**: `src/agent/protocol/event_handlers.py`
+- [x] **3.2. In `handle_a2a_response` method**:
+    - [x] **Update Intermediate Signal Handling**: Replace direct cache access with a call to `_get_correlation_data_for_sub_task`.
+    - [x] **Update Final Response Handling**: Replace state retrieval logic with a call to `_claim_peer_sub_task_completion`.
 
 ### Step 4: Refactor Timeout Handling to Use New Claimer
 
