@@ -52,11 +52,11 @@ This checklist provides a granular, trackable set of tasks to implement the atom
 
 ### Step 5: Update Task Cancellation Logic
 
-- [ ] **5.1. File to modify**: `src/agent/adk/runner.py`
-- [ ] **5.2. In `run_adk_async_task_thread_wrapper` method**:
-    - [ ] In the `except TaskCancelledError` block, find the loop for cancelling sub-tasks.
-    - [ ] Change the iteration to use `task_context.active_peer_sub_tasks.items()`.
-    - [ ] Update the logic inside the loop to correctly extract `sub_task_id` and `peer_agent_name` from the new dictionary structure.
+- [x] **5.1. File to modify**: `src/agent/adk/runner.py`
+- [x] **5.2. In `run_adk_async_task_thread_wrapper` method**:
+    - [x] In the `except TaskCancelledError` block, find the loop for cancelling sub-tasks.
+    - [x] Change the iteration to use `task_context.active_peer_sub_tasks.items()`.
+    - [x] Update the logic inside the loop to correctly extract `sub_task_id` and `peer_agent_name` from the new dictionary structure.
 
 ### Step 6: Final Review
 
