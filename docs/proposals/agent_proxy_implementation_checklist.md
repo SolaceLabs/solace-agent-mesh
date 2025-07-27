@@ -39,12 +39,12 @@ This checklist breaks down the implementation of the Agent Proxy Framework into 
     -   [x] 3.8. **Cleanup (`cleanup`):**
         -   [x] 3.8.1. Implement cleanup logic to stop the async loop and cancel any active tasks.
 
--   [ ] **4. Implement `BaseProxyApp`:**
-    -   [ ] 4.1. Create the file `src/agent/proxies/base/app.py`.
-    -   [ ] 4.2. Define the `BaseProxyApp` class, inheriting from `App`.
-    -   [ ] 4.3. Define the base `app_schema` with common configuration parameters.
-    -   [ ] 4.4. Implement the logic to generate Solace topic subscriptions for all proxied agents.
-    -   [ ] 4.5. Implement the abstract `_get_component_class` method.
+-   [x] **4. Implement `BaseProxyApp`:**
+    -   [x] 4.1. Create the file `src/agent/proxies/base/app.py`.
+    -   [x] 4.2. Define the `BaseProxyApp` class, inheriting from `App`.
+    -   [x] 4.3. Define the base `app_schema` with common configuration parameters.
+    -   [x] 4.4. Implement the logic to generate Solace topic subscriptions for all proxied agents.
+    -   [x] 4.5. Implement the abstract `_get_component_class` method.
 
 ## Phase 2: A2A-over-HTTPS Proxy Implementation (`src/agent/proxies/a2a/`)
 
