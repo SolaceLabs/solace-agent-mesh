@@ -48,22 +48,22 @@ This checklist breaks down the implementation of the Agent Proxy Framework into 
 
 ## Phase 2: A2A-over-HTTPS Proxy Implementation (`src/agent/proxies/a2a/`)
 
--   [ ] **5. Implement `A2AProxyComponent`:**
-    -   [ ] 5.1. Create the file `src/agent/proxies/a2a/component.py`.
-    -   [ ] 5.2. Define the `A2AProxyComponent` class, inheriting from `BaseProxyComponent`.
-    -   [ ] 5.3. **Implement `_fetch_agent_card`:**
-        -   [ ] 5.3.1. Use `a2a.client.A2ACardResolver` to fetch the `AgentCard` via HTTPS.
-        -   [ ] 5.3.2. Handle potential `A2AClientHTTPError` and other exceptions gracefully.
-    -   [ ] 5.4. **Implement `_forward_request`:**
-        -   [ ] 5.4.1. Implement the core logic of the component.
-        -   [ ] 5.4.2. Instantiate and manage a dictionary of `a2a.client.A2AClient` instances.
-        -   [ ] 5.4.3. **Inbound Artifact Handling:** Check for `artifact://` URIs and load content.
-        -   [ ] 5.4.4. Call the appropriate `A2AClient` method (`send_message` or `send_message_streaming`).
-        -   [ ] 5.4.5. Use `async for` to iterate over the responses from the client.
-        -   [ ] 5.4.6. **Outbound Artifact Handling:** Save artifacts and rewrite the `FilePart`.
-        -   [ ] 5.4.7. Call the base class's helper methods to send all events back to the Solace mesh.
-    -   [ ] 5.5. **Authentication:**
-        -   [ ] 5.5.1. Implement logic to create and use an `AuthInterceptor` with the `A2AClient`.
+-   [x] **5. Implement `A2AProxyComponent`:**
+    -   [x] 5.1. Create the file `src/agent/proxies/a2a/component.py`.
+    -   [x] 5.2. Define the `A2AProxyComponent` class, inheriting from `BaseProxyComponent`.
+    -   [x] 5.3. **Implement `_fetch_agent_card`:**
+        -   [x] 5.3.1. Use `a2a.client.A2ACardResolver` to fetch the `AgentCard` via HTTPS.
+        -   [x] 5.3.2. Handle potential `A2AClientHTTPError` and other exceptions gracefully.
+    -   [x] 5.4. **Implement `_forward_request`:**
+        -   [x] 5.4.1. Implement the core logic of the component.
+        -   [x] 5.4.2. Instantiate and manage a dictionary of `a2a.client.A2AClient` instances.
+        -   [x] 5.4.3. **Inbound Artifact Handling:** Check for `artifact://` URIs and load content.
+        -   [x] 5.4.4. Call the appropriate `A2AClient` method (`send_message` or `send_message_streaming`).
+        -   [x] 5.4.5. Use `async for` to iterate over the responses from the client.
+        -   [x] 5.4.6. **Outbound Artifact Handling:** Save artifacts and rewrite the `FilePart`.
+        -   [x] 5.4.7. Call the base class's helper methods to send all events back to the Solace mesh.
+    -   [x] 5.5. **Authentication:**
+        -   [x] 5.5.1. Implement logic to create and use an `AuthInterceptor` with the `A2AClient`.
 
 -   [ ] **6. Implement `A2AProxyApp`:**
     -   [ ] 6.1. Create the file `src/agent/proxies/a2a/app.py`.
