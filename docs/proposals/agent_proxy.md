@@ -31,10 +31,9 @@ The Agent Proxy must be configurable via the standard SAM YAML files. The config
 - The proxy must handle both standard and streaming responses from the downstream agent.
 - All status updates and the final response from the downstream agent must be translated back into the Solace A2A protocol and published to the correct `statusTopic` and `replyTo` topics specified in the original request.
 
-### 2.4. Artifact Management
-- If a downstream agent returns an artifact (e.g., a file), the proxy must intercept it.
-- The proxy will use the shared SAM `ArtifactService` to store the artifact's content.
-- It will then forward the artifact over the Solace mesh as either a reference (`artifact://...`) or as embedded data, depending on the proxy's configuration (`artifact_handling_mode`).
+### 2.4. Bidirectional Artifact Handling
+-   **Outbound (Downstream to Solace):** If a downstream agent returns an artifact, the proxy must intercept it, store it in the shared SAM `ArtifactService`, and then forward it over the Solace mesh as either a reference (`artifact://...`) or as embedded data, based on configuration.
+-   **Inbound (Solace to Downstream):** If an incoming request from the Solace mesh contains a `FilePart` with an `artifact://` URI, the proxy must use the `ArtifactService` to load the artifact's content. It will then create a new `FilePart` containing the raw `bytes` of the artifact to be sent to the downstream agent.
 
 ### 2.5. Extensibility
 The framework must be designed with extensibility in mind. It should be straightforward for a developer to add support for a new type of external agent protocol by creating a new proxy implementation without altering the core framework.
