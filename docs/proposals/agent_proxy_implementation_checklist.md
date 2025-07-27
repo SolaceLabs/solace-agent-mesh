@@ -4,14 +4,14 @@ This checklist breaks down the implementation of the Agent Proxy Framework into 
 
 ## Phase 1: Foundational Base Framework (`src/agent/proxies/base/`)
 
--   [ ] **1. Create Directory Structure:**
-    -   [ ] 1.1. Create the new directory `src/agent/proxies/`.
-    -   [ ] 1.2. Inside `proxies`, create `base/` and `a2a/` subdirectories.
-    -   [ ] 1.3. Add `__init__.py` files to `proxies/`, `proxies/base/`, and `proxies/a2a/`.
+-   [x] **1. Create Directory Structure:**
+    -   [x] 1.1. Create the new directory `src/agent/proxies/`.
+    -   [x] 1.2. Inside `proxies`, create `base/` and `a2a/` subdirectories.
+    -   [x] 1.3. Add `__init__.py` files to `proxies/`, `proxies/base/`, and `proxies/a2a/`.
 
--   [ ] **2. Define `ProxyTaskContext`:**
-    -   [ ] 2.1. Create the file `src/agent/proxies/base/proxy_task_context.py`.
-    -   [ ] 2.2. Define the `ProxyTaskContext` dataclass with `task_id`, `a2a_context`, and `cancellation_event`.
+-   [x] **2. Define `ProxyTaskContext`:**
+    -   [x] 2.1. Create the file `src/agent/proxies/base/proxy_task_context.py`.
+    -   [x] 2.2. Define the `ProxyTaskContext` dataclass with `task_id`, `a2a_context`, and `cancellation_event`.
 
 -   [ ] **3. Implement `BaseProxyComponent`:**
     -   [ ] 3.1. Create the file `src/agent/proxies/base/component.py`.
