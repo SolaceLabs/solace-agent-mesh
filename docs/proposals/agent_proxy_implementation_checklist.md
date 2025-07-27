@@ -73,9 +73,9 @@ This checklist breaks down the implementation of the Agent Proxy Framework into 
 
 ## Phase 3: Configuration and Documentation
 
--   [ ] **7. Create Example Configuration:**
-    -   [ ] 7.1. Create a new file `examples/a2a_proxy.yaml`.
-    -   [ ] 7.2. Add a complete, well-commented configuration example.
+-   [x] **7. Create Example Configuration:**
+    -   [x] 7.1. Create a new file `examples/a2a_proxy.yaml`.
+    -   [x] 7.2. Add a complete, well-commented configuration example.
 
 -   [ ] **8. Update Documentation:**
     -   [ ] 8.1. Update the main `llm.txt` files in `src` and `agent`.
