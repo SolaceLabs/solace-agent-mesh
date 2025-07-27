@@ -13,31 +13,31 @@ This checklist breaks down the implementation of the Agent Proxy Framework into 
     -   [x] 2.1. Create the file `src/agent/proxies/base/proxy_task_context.py`.
     -   [x] 2.2. Define the `ProxyTaskContext` dataclass with `task_id`, `a2a_context`, and `cancellation_event`.
 
--   [ ] **3. Implement `BaseProxyComponent`:**
-    -   [ ] 3.1. Create the file `src/agent/proxies/base/component.py`.
-    -   [ ] 3.2. Define the abstract class `BaseProxyComponent`, inheriting from `ComponentBase`.
-    -   [ ] 3.3. **Initialization (`__init__`):**
-        -   [ ] 3.3.1. Implement logic to start a dedicated `asyncio` event loop in a separate thread.
-        -   [ ] 3.3.2. Initialize the `AgentRegistry` for storing downstream agent cards.
-        -   [ ] 3.3.3. Initialize the shared `ArtifactService` based on configuration.
-        -   [ ] 3.3.4. Initialize a thread-safe `active_tasks` dictionary to store `ProxyTaskContext` objects.
-    -   [ ] 3.4. **Discovery Loop (`handle_timer_event`):**
-        -   [ ] 3.4.1. Implement the timer-based discovery loop.
-        -   [ ] 3.4.2. This loop will iterate through the `proxied_agents` configuration.
-        -   [ ] 3.4.3. For each agent, it will call the abstract method `_fetch_agent_card`.
-        -   [ ] 3.4.4. It will then rewrite the `url` of the returned `AgentCard` to the appropriate Solace topic and publish it.
-    -   [ ] 3.5. **Event Processing (`process_event`):**
-        -   [ ] 3.5.1. Implement the main event router.
-        -   [ ] 3.5.2. It will listen for messages on the proxy's subscription topics.
-        -   [ ] 3.5.3. It will parse incoming requests (`SendTaskRequest`, `SendTaskStreamingRequest`, `CancelTaskRequest`).
-        -   [ ] 3.5.4. For `SendTask*` requests, it will create a `ProxyTaskContext`, store it, and call the abstract `_forward_request` method.
-        -   [ ] 3.5.5. For `CancelTaskRequest`, it will find the corresponding `ProxyTaskContext` and set its `cancellation_event`.
-    -   [ ] 3.6. **Response Publishing:**
-        -   [ ] 3.6.1. Create concrete helper methods (`_publish_status_update`, `_publish_final_response`, `_publish_error_response`).
-    -   [ ] 3.7. **Abstract Methods:**
-        -   [ ] 3.7.1. Define the abstract methods `_fetch_agent_card` and `_forward_request`.
-    -   [ ] 3.8. **Cleanup (`cleanup`):**
-        -   [ ] 3.8.1. Implement cleanup logic to stop the async loop and cancel any active tasks.
+-   [x] **3. Implement `BaseProxyComponent`:**
+    -   [x] 3.1. Create the file `src/agent/proxies/base/component.py`.
+    -   [x] 3.2. Define the abstract class `BaseProxyComponent`, inheriting from `ComponentBase`.
+    -   [x] 3.3. **Initialization (`__init__`):**
+        -   [x] 3.3.1. Implement logic to start a dedicated `asyncio` event loop in a separate thread.
+        -   [x] 3.3.2. Initialize the `AgentRegistry` for storing downstream agent cards.
+        -   [x] 3.3.3. Initialize the shared `ArtifactService` based on configuration.
+        -   [x] 3.3.4. Initialize a thread-safe `active_tasks` dictionary to store `ProxyTaskContext` objects.
+    -   [x] 3.4. **Discovery Loop (`handle_timer_event`):**
+        -   [x] 3.4.1. Implement the timer-based discovery loop.
+        -   [x] 3.4.2. This loop will iterate through the `proxied_agents` configuration.
+        -   [x] 3.4.3. For each agent, it will call the abstract method `_fetch_agent_card`.
+        -   [x] 3.4.4. It will then rewrite the `url` of the returned `AgentCard` to the appropriate Solace topic and publish it.
+    -   [x] 3.5. **Event Processing (`process_event`):**
+        -   [x] 3.5.1. Implement the main event router.
+        -   [x] 3.5.2. It will listen for messages on the proxy's subscription topics.
+        -   [x] 3.5.3. It will parse incoming requests (`SendTaskRequest`, `SendTaskStreamingRequest`, `CancelTaskRequest`).
+        -   [x] 3.5.4. For `SendTask*` requests, it will create a `ProxyTaskContext`, store it, and call the abstract `_forward_request` method.
+        -   [x] 3.5.5. For `CancelTaskRequest`, it will find the corresponding `ProxyTaskContext` and set its `cancellation_event`.
+    -   [x] 3.6. **Response Publishing:**
+        -   [x] 3.6.1. Create concrete helper methods (`_publish_status_update`, `_publish_final_response`, `_publish_error_response`).
+    -   [x] 3.7. **Abstract Methods:**
+        -   [x] 3.7.1. Define the abstract methods `_fetch_agent_card` and `_forward_request`.
+    -   [x] 3.8. **Cleanup (`cleanup`):**
+        -   [x] 3.8.1. Implement cleanup logic to stop the async loop and cancel any active tasks.
 
 -   [ ] **4. Implement `BaseProxyApp`:**
     -   [ ] 4.1. Create the file `src/agent/proxies/base/app.py`.
