@@ -65,11 +65,11 @@ This checklist breaks down the implementation of the Agent Proxy Framework into 
     -   [x] 5.5. **Authentication:**
         -   [x] 5.5.1. Implement logic to create and use an `AuthInterceptor` with the `A2AClient`.
 
--   [ ] **6. Implement `A2AProxyApp`:**
-    -   [ ] 6.1. Create the file `src/agent/proxies/a2a/app.py`.
-    -   [ ] 6.2. Define the `A2AProxyApp` class, inheriting from `BaseProxyApp`.
-    -   [ ] 6.3. Extend the `app_schema` to include validation for A2A-specific parameters (`url`, `authentication`).
-    -   [ ] 6.4. Override `_get_component_class` to return `A2AProxyComponent`.
+-   [x] **6. Implement `A2AProxyApp`:**
+    -   [x] 6.1. Create the file `src/agent/proxies/a2a/app.py`.
+    -   [x] 6.2. Define the `A2AProxyApp` class, inheriting from `BaseProxyApp`.
+    -   [x] 6.3. Extend the `app_schema` to include validation for A2A-specific parameters (`url`, `authentication`).
+    -   [x] 6.4. Override `_get_component_class` to return `A2AProxyComponent`.
 
 ## Phase 3: Configuration and Documentation
 
