@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - test-ci
   pull_request:
     types: [opened, synchronize]
 
