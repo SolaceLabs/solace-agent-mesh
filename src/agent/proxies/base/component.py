@@ -253,9 +253,56 @@ class BaseProxyComponent(ComponentBase, ABC):
             await self._publish_error_response(jsonrpc_request_id, error, message)
             message.call_negative_acknowledgements()
 
-    async def _discover_agents(self):
-        """Fetches agent cards from all configured downstream agents and publishes them."""
-        log.info("%s Starting agent discovery cycle...", self.log_identifier)
+    def _initial_discovery_sync(self):
+        """
+        Synchronously fetches agent cards to populate the registry at startup.
+        This method does NOT publish the cards to the mesh.
+        """
+        log.info(
+            "%s Performing initial synchronous agent discovery...", self.log_identifier
+        )
+        with httpx.Client() as client:
+            for agent_config in self.proxied_agents_config:
+                agent_alias = agent_config["name"]
+                agent_url = agent_config.get("url")
+                if not agent_url:
+                    log.error(
+                        "%s Skipping agent '%s' in initial discovery: no URL configured.",
+                        self.log_identifier,
+                        agent_alias,
+                    )
+                    continue
+                try:
+                    # Use a synchronous client for this initial blocking call
+                    response = client.get(f"{agent_url}/.well-known/agent.json")
+                    response.raise_for_status()
+                    agent_card = AgentCard.model_validate(response.json())
+
+                    card_for_proxy = agent_card.model_copy(deep=True)
+                    card_for_proxy.name = agent_alias
+                    self.agent_registry.add_or_update_agent(card_for_proxy)
+                    log.info(
+                        "%s Initial discovery successful for alias '%s' (actual name: '%s').",
+                        self.log_identifier,
+                        agent_alias,
+                        agent_card.name,
+                    )
+                except Exception as e:
+                    log.error(
+                        "%s Failed initial discovery for agent '%s' at URL '%s': %s",
+                        self.log_identifier,
+                        agent_alias,
+                        agent_url,
+                        e,
+                    )
+        log.info("%s Initial synchronous discovery complete.", self.log_identifier)
+
+    async def _discover_and_publish_agents(self):
+        """
+        Asynchronously fetches agent cards, updates the registry, and publishes them.
+        This is intended for the recurring timer.
+        """
+        log.info("%s Starting recurring agent discovery cycle...", self.log_identifier)
         for agent_config in self.proxied_agents_config:
             try:
                 agent_card = await self._fetch_agent_card(agent_config)
@@ -263,39 +310,26 @@ class BaseProxyComponent(ComponentBase, ABC):
                     continue
 
                 agent_alias = agent_config["name"]
-
-                # Create a copy of the card that will represent the agent on the mesh.
-                # Overwrite its name with the configured alias.
                 card_for_proxy = agent_card.model_copy(deep=True)
                 card_for_proxy.name = agent_alias
-
-                # Register the agent using the alias, so it can be found by internal requests.
                 self.agent_registry.add_or_update_agent(card_for_proxy)
-                log.info(
-                    "%s Registered agent card for alias '%s' (actual name: '%s').",
-                    self.log_identifier,
-                    agent_alias,
-                    agent_card.name,
-                )
 
-                # The card to be published should also use the alias and have its URL rewritten.
                 card_to_publish = card_for_proxy.model_copy(deep=True)
                 card_to_publish.url = (
                     f"solace:{get_agent_request_topic(self.namespace, agent_alias)}"
                 )
-
                 discovery_topic = get_discovery_topic(self.namespace)
                 self._publish_a2a_message(
                     card_to_publish.model_dump(exclude_none=True), discovery_topic
                 )
                 log.info(
-                    "%s Published card for agent '%s' to discovery topic.",
+                    "%s Refreshed and published card for agent '%s'.",
                     self.log_identifier,
                     agent_alias,
                 )
             except Exception as e:
                 log.error(
-                    "%s Failed to discover or publish card for agent '%s': %s",
+                    "%s Failed to discover or publish card for agent '%s' in recurring cycle: %s",
                     self.log_identifier,
                     agent_config.get("name", "unknown"),
                     e,
