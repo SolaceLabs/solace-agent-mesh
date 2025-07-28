@@ -24,7 +24,7 @@ cli_flask = sys.modules["flask.cli"]
 cli_flask.show_server_banner = lambda *x: None
 litellm.suppress_debug_info = True
 
-env_flask_host = "FLASK_HOST"
+config_portal_host = "FLASK_HOST"
 
 try:
     from solace_agent_mesh.agent.tools.registry import tool_registry
@@ -636,7 +636,7 @@ def create_app(shared_config=None):
 
 
 def run_flask(host="127.0.0.1", port=5002, shared_config=None):
-    host = os.environ.get(env_flask_host, host)
+    host = os.environ.get(config_portal_host, host)
     app = create_app(shared_config)
     app.logger.setLevel(logging.INFO)
     app.logger.info(f"Starting Flask app on {host}:{port}")
