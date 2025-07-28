@@ -107,26 +107,6 @@ class BaseProxyComponent(ComponentBase, ABC):
             self._async_init_future.result(timeout=1)
             log.info("%s Async initialization completed.", self.log_identifier)
 
-            # Perform initial blocking discovery
-            log.info("%s Performing initial agent discovery...", self.log_identifier)
-            initial_discovery_future = asyncio.run_coroutine_threadsafe(
-                self._discover_agents(), self._async_loop
-            )
-            initial_discovery_future.result(timeout=60)
-            log.info("%s Initial agent discovery complete.", self.log_identifier)
-
-            # Schedule the recurring discovery timer
-            if self.discovery_interval_sec > 0:
-                self.add_timer(
-                    delay_ms=1000,  # Initial delay
-                    timer_id=self._discovery_timer_id,
-                    interval_ms=self.discovery_interval_sec * 1000,
-                )
-                log.info(
-                    "%s Scheduled agent discovery every %d seconds.",
-                    self.log_identifier,
-                    self.discovery_interval_sec,
-                )
 
         except Exception as e:
             log.exception("%s Initialization failed: %s", self.log_identifier, e)
@@ -455,6 +435,37 @@ class BaseProxyComponent(ComponentBase, ABC):
                 self.log_identifier,
                 future.exception(),
                 exc_info=future.exception(),
+            )
+
+    def run(self):
+        """
+        Called by the framework to start the component's active operations.
+        Performs initial agent discovery and starts the discovery timer.
+        """
+        super().run()
+        log.info(
+            "%s Component is running. Starting active operations.", self.log_identifier
+        )
+
+        # Perform initial blocking discovery
+        log.info("%s Performing initial agent discovery...", self.log_identifier)
+        initial_discovery_future = asyncio.run_coroutine_threadsafe(
+            self._discover_agents(), self._async_loop
+        )
+        initial_discovery_future.result(timeout=60)
+        log.info("%s Initial agent discovery complete.", self.log_identifier)
+
+        # Schedule the recurring discovery timer
+        if self.discovery_interval_sec > 0:
+            self.add_timer(
+                delay_ms=1000,  # Initial delay
+                timer_id=self._discovery_timer_id,
+                interval_ms=self.discovery_interval_sec * 1000,
+            )
+            log.info(
+                "%s Scheduled agent discovery every %d seconds.",
+                self.log_identifier,
+                self.discovery_interval_sec,
             )
 
     def cleanup(self):
