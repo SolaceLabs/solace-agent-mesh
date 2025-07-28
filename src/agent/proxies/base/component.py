@@ -85,7 +85,6 @@ class BaseProxyComponent(ComponentBase, ABC):
         self._async_thread: Optional[threading.Thread] = None
         self._async_init_future: Optional[concurrent.futures.Future] = None
         self._discovery_timer_id = f"proxy_discovery_{self.name}"
-        self._initial_discovery_complete_event: Optional[asyncio.Event] = None
 
         try:
             # Initialize synchronous services first
@@ -107,7 +106,6 @@ class BaseProxyComponent(ComponentBase, ABC):
             init_coro_future.result(timeout=60)
             self._async_init_future.result(timeout=1)
             log.info("%s Async initialization completed.", self.log_identifier)
-
 
         except Exception as e:
             log.exception("%s Initialization failed: %s", self.log_identifier, e)
@@ -158,28 +156,6 @@ class BaseProxyComponent(ComponentBase, ABC):
         jsonrpc_request_id = None
         logical_task_id = None
         try:
-            # Wait for the initial discovery to complete before processing any request.
-            if self._initial_discovery_complete_event:
-                try:
-                    await asyncio.wait_for(
-                        self._initial_discovery_complete_event.wait(), timeout=60.0
-                    )
-                except asyncio.TimeoutError:
-                    log.error(
-                        "%s Timed out waiting for initial agent discovery to complete.",
-                        self.log_identifier,
-                    )
-                    raise ValueError(
-                        "Proxy not ready: initial agent discovery timed out."
-                    )
-            else:
-                # This should not happen in normal operation if init is correct.
-                log.error(
-                    "%s Discovery complete event not initialized. Cannot process request.",
-                    self.log_identifier,
-                )
-                raise RuntimeError("Proxy discovery event not initialized.")
-
             payload = message.get_payload()
             if not isinstance(payload, dict):
                 raise ValueError("Payload is not a dictionary.")
@@ -322,13 +298,6 @@ class BaseProxyComponent(ComponentBase, ABC):
                     e,
                 )
 
-        if (
-            self._initial_discovery_complete_event
-            and not self._initial_discovery_complete_event.is_set()
-        ):
-            self._initial_discovery_complete_event.set()
-            log.info("%s Initial discovery complete event set.", self.log_identifier)
-
     async def _publish_status_update(
         self, event: TaskStatusUpdateEvent, a2a_context: Dict
     ):
@@ -446,7 +415,7 @@ class BaseProxyComponent(ComponentBase, ABC):
         """Coroutine to perform async initialization."""
         try:
             log.info("%s Performing async initialization...", self.log_identifier)
-            self._initial_discovery_complete_event = asyncio.Event()
+            # Placeholder for any future async init steps
             if self._async_init_future and not self._async_init_future.done():
                 self._async_loop.call_soon_threadsafe(
                     self._async_init_future.set_result, True
