@@ -448,10 +448,16 @@ class BaseProxyComponent(ComponentBase, ABC):
 
         # Perform initial blocking discovery
         log.info("%s Performing initial agent discovery...", self.log_identifier)
-        initial_discovery_future = asyncio.run_coroutine_threadsafe(
-            self._discover_agents(), self._async_loop
-        )
-        initial_discovery_future.result(timeout=60)
+        if self._async_loop:
+            future = asyncio.run_coroutine_threadsafe(
+                self._discover_agents(), self._async_loop
+            )
+            future.result(timeout=60)  # Block until discovery is complete
+        else:
+            log.error(
+                "%s Async loop not running, cannot perform initial discovery.",
+                self.log_identifier,
+            )
         log.info("%s Initial agent discovery complete.", self.log_identifier)
 
         # Schedule the recurring discovery timer
