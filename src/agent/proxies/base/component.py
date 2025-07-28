@@ -297,7 +297,7 @@ class BaseProxyComponent(ComponentBase, ABC):
                 )
 
                 # The card to be published should also use the alias and have its URL rewritten.
-                card_to_publish = card_for_proxy
+                card_to_publish = card_for_proxy.model_copy(deep=True)
                 card_to_publish.url = (
                     f"solace:{get_agent_request_topic(self.namespace, agent_alias)}"
                 )
@@ -421,7 +421,9 @@ class BaseProxyComponent(ComponentBase, ABC):
             self._async_loop.run_forever()
         except Exception as e:
             log.exception(
-                "%s Exception in dedicated async thread loop: %s", self.log_identifier, e
+                "%s Exception in dedicated async thread loop: %s",
+                self.log_identifier,
+                e,
             )
             if self._async_init_future and not self._async_init_future.done():
                 self._async_init_future.set_exception(e)
@@ -472,15 +474,15 @@ class BaseProxyComponent(ComponentBase, ABC):
             try:
                 cleanup_future.result(timeout=5)
             except Exception as e:
-                log.error(
-                    "%s Error closing httpx client: %s", self.log_identifier, e
-                )
+                log.error("%s Error closing httpx client: %s", self.log_identifier, e)
 
             self._async_loop.call_soon_threadsafe(self._async_loop.stop)
         if self._async_thread and self._async_thread.is_alive():
             self._async_thread.join(timeout=5)
             if self._async_thread.is_alive():
-                log.warning("%s Async thread did not exit cleanly.", self.log_identifier)
+                log.warning(
+                    "%s Async thread did not exit cleanly.", self.log_identifier
+                )
 
         super().cleanup()
         log.info("%s Component cleanup finished.", self.log_identifier)
