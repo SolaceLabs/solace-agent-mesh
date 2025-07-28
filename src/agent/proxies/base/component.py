@@ -31,8 +31,12 @@ from a2a.types import (
     Task,
     TaskStatusUpdateEvent,
 )
-from pydantic import TypeAdapter, ValidationError
+from pydantic import ValidationError
 from ...adk.services import initialize_artifact_service
+from ..a2a.translation import (
+    translate_modern_to_sam_response,
+    translate_sam_to_modern_request,
+)
 
 if TYPE_CHECKING:
     from google.adk.artifacts import BaseArtifactService
@@ -166,12 +170,15 @@ class BaseProxyComponent(ComponentBase, ABC):
                 raise ValueError("Payload is not a dictionary.")
 
             jsonrpc_request_id = payload.get("id")
-            adapter = TypeAdapter(A2ARequest.model_fields["root"].annotation)
-            a2a_request = adapter.validate_python(payload)
-            jsonrpc_request_id = a2a_request.id
+
+            # 4.2.2: Call inbound translator
+            a2a_request = translate_sam_to_modern_request(payload)
             logical_task_id = a2a_request.params.id
 
-            if isinstance(a2a_request, (SendMessageRequest, SendStreamingMessageRequest)):
+            # 4.2.3: Pass modern request to forwarder
+            if isinstance(
+                a2a_request, (SendMessageRequest, SendStreamingMessageRequest)
+            ):
                 from .proxy_task_context import ProxyTaskContext
 
                 a2a_context = {
@@ -212,9 +219,10 @@ class BaseProxyComponent(ComponentBase, ABC):
 
             message.call_acknowledgements()
 
+        # 4.2.4: Update except block
         except (ValueError, TypeError, ValidationError) as e:
             log.error(
-                "%s Failed to parse or validate A2A request: %s",
+                "%s Failed to parse, translate, or validate A2A request: %s",
                 self.log_identifier,
                 e,
             )
@@ -276,10 +284,17 @@ class BaseProxyComponent(ComponentBase, ABC):
             log.warning(
                 "%s No statusTopic in context for task %s. Cannot publish status update.",
                 self.log_identifier,
-                event.id,
+                event.task_id,
             )
             return
-        response = JSONRPCResponse(id=a2a_context.get("jsonrpc_request_id"), result=event)
+
+        # 4.3.2: Call outbound translator
+        legacy_event_dict = translate_modern_to_sam_response(event)
+
+        # 4.3.3: Use translated dict as result
+        response = JSONRPCResponse(
+            id=a2a_context.get("jsonrpc_request_id"), result=legacy_event_dict
+        )
         self._publish_a2a_message(response.model_dump(exclude_none=True), target_topic)
 
     async def _publish_final_response(self, task: Task, a2a_context: Dict):
@@ -292,7 +307,14 @@ class BaseProxyComponent(ComponentBase, ABC):
                 task.id,
             )
             return
-        response = JSONRPCResponse(id=a2a_context.get("jsonrpc_request_id"), result=task)
+
+        # 4.4.2: Call outbound translator
+        legacy_task_dict = translate_modern_to_sam_response(task)
+
+        # 4.4.3: Use translated dict as result
+        response = JSONRPCResponse(
+            id=a2a_context.get("jsonrpc_request_id"), result=legacy_task_dict
+        )
         self._publish_a2a_message(response.model_dump(exclude_none=True), target_topic)
 
     async def _publish_error_response(
