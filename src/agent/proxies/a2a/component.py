@@ -20,12 +20,15 @@ from a2a.types import (
     A2ARequest,
     AgentCard,
     FilePart,
+    Message,
     SendMessageRequest,
     SendMessageResponse,
     SendStreamingMessageRequest,
     SendStreamingMessageResponse,
     Task,
     TaskArtifactUpdateEvent,
+    TaskState,
+    TaskStatus,
     TaskStatusUpdateEvent,
 )
 from ..base.component import BaseProxyComponent
@@ -199,23 +202,67 @@ class A2AProxyComponent(BaseProxyComponent):
         """
         log_identifier = f"{self.log_identifier}[ProcessResponse:{task_context.task_id}]"
 
-        # Handle outbound artifacts
-        await self._handle_outbound_artifacts(response, task_context, client)
+        # Unwrap the actual event payload from the JSON-RPC response object.
+        event_payload = None
+        if isinstance(response, (SendMessageResponse, SendStreamingMessageResponse)):
+            if hasattr(response.root, "result") and response.root.result:
+                event_payload = response.root.result
+            elif hasattr(response.root, "error") and response.root.error:
+                log.error(
+                    "%s Downstream agent returned an error: %s",
+                    log_identifier,
+                    response.root.error,
+                )
+                # TODO: Translate and forward the error to the original client.
+                return
+        else:
+            # This path is for backward compatibility or direct event passing.
+            event_payload = response
+
+        if not event_payload:
+            log.warning(
+                "%s Received a response with no processable payload: %s",
+                log_identifier,
+                response,
+            )
+            return
+
+        # Handle outbound artifacts using the unwrapped payload
+        await self._handle_outbound_artifacts(event_payload, task_context, client)
 
         # Publish response back to Solace
-        if isinstance(response, (Task, TaskStatusUpdateEvent)):
-            if isinstance(response, Task):
+        if isinstance(event_payload, (Task, TaskStatusUpdateEvent)):
+            if isinstance(event_payload, Task):
                 # This is a final response
-                await self._publish_final_response(response, task_context.a2a_context)
+                await self._publish_final_response(
+                    event_payload, task_context.a2a_context
+                )
             else:
                 # This is a status update
-                await self._publish_status_update(response, task_context.a2a_context)
-        elif isinstance(response, TaskArtifactUpdateEvent):
+                await self._publish_status_update(
+                    event_payload, task_context.a2a_context
+                )
+        elif isinstance(event_payload, TaskArtifactUpdateEvent):
             # This is already handled by _handle_outbound_artifacts, but we could
             # forward the event if needed. For now, we assume saving is enough.
-            await self._publish_artifact_update(response, task_context.a2a_context)
+            await self._publish_artifact_update(event_payload, task_context.a2a_context)
+        elif isinstance(event_payload, Message):
+            # A direct message response is a final response. The proxy should wrap
+            # it in a completed Task to send back.
+            log.info(
+                "%s Received a direct Message response. Wrapping in a completed Task.",
+                log_identifier,
+            )
+            final_task = Task(
+                id=task_context.task_id,
+                status=TaskStatus(state=TaskState.COMPLETED, message=event_payload),
+                # Note: history might be incomplete here if not managed by the proxy
+            )
+            await self._publish_final_response(final_task, task_context.a2a_context)
         else:
-            log.warning(f"Received unhandled response type: {type(response)}")
+            log.warning(
+                f"Received unhandled response payload type: {type(event_payload)}"
+            )
 
     async def _handle_outbound_artifacts(
         self,
@@ -229,10 +276,16 @@ class A2AProxyComponent(BaseProxyComponent):
         parts_to_check = []
         if isinstance(response, Task) and response.status and response.status.message:
             parts_to_check = response.status.message.parts
-        elif isinstance(response, TaskStatusUpdateEvent) and response.status and response.status.message:
+        elif (
+            isinstance(response, TaskStatusUpdateEvent)
+            and response.status
+            and response.status.message
+        ):
             parts_to_check = response.status.message.parts
         elif isinstance(response, TaskArtifactUpdateEvent):
             parts_to_check = response.artifact.parts
+        elif isinstance(response, Message):
+            parts_to_check = response.parts
 
         for part in parts_to_check:
             if isinstance(part, FilePart) and part.file and part.file.bytes:
