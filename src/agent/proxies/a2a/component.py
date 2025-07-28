@@ -17,7 +17,7 @@ from a2a.client import (
 )
 from solace_ai_connector.common.log import log
 
-from ....common.types import (
+from a2a.types import (
     A2ARequest,
     AgentCard,
     FilePart,
