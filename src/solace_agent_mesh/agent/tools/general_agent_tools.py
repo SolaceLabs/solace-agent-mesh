@@ -10,6 +10,7 @@ import tempfile
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
+from playwright.async_api import async_playwright
 
 from google.adk.tools import ToolContext
 from solace_ai_connector.common.log import log
@@ -294,6 +295,50 @@ async def convert_file_to_markdown(
                     e_remove,
                 )
 
+async def _convert_svg_to_png_with_playwright(svg_data: str, scale: int = 2) -> bytes:
+    """
+    Converts SVG data to a PNG image using Playwright.
+
+    Args:
+        svg_data (str): The SVG data to be converted.
+        scale (int, optional): The scale factor for the PNG image. Defaults to 2.
+
+    Returns:
+        bytes: The PNG image data as a byte array.
+
+    Raises:
+        ValueError: If the SVG bounding box cannot be determined.
+
+    """
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        context = await browser.new_context(device_scale_factor=scale)
+        page = await context.new_page()
+
+        html_content = f"""
+        <html>
+        <body style="margin: 0; padding: 0; background: white;">
+        <div id="container">{svg_data}</div>
+        </body>
+        </html>
+        """
+        await page.set_content(html_content, wait_until="load")
+        await page.wait_for_timeout(50)
+
+        svg = page.locator("svg")
+        box = await svg.bounding_box()
+        if not box:
+            raise ValueError("Could not determine SVG bounding box.")
+
+        width = int(box["width"])
+        height = int(box["height"])
+
+        await page.set_viewport_size({"width": width, "height": height})
+
+        image_data = await svg.screenshot(type="png")
+
+        await browser.close()
+        return image_data
 
 async def mermaid_diagram_generator(
     mermaid_syntax: str,
@@ -303,6 +348,7 @@ async def mermaid_diagram_generator(
 ) -> Dict[str, Any]:
     """
     Generates a PNG image from Mermaid diagram syntax and saves it as an artifact.
+    The diagram must be detailed.
 
     Args:
         mermaid_syntax: The Mermaid diagram syntax (string).
@@ -337,11 +383,11 @@ async def mermaid_diagram_generator(
             log_identifier,
             mermaid_syntax[:100] + "...",
         )
-        title, desc, image_data = await render_mermaid(
-            mermaid_syntax, output_format="png", background_color="white"
+        title, desc, svg_image_data = await render_mermaid(
+            mermaid_syntax, output_format="svg", background_color="white"
         )
 
-        if not image_data:
+        if not svg_image_data:
             log.error(
                 "%s Failed to render Mermaid diagram. No image data returned.",
                 log_identifier,
@@ -349,6 +395,18 @@ async def mermaid_diagram_generator(
             return {
                 "status": "error",
                 "message": "Failed to render Mermaid diagram. No image data returned.",
+            }
+        try:
+            image_data = await _convert_svg_to_png_with_playwright(svg_image_data.decode("utf-8"))
+        except Exception as e:
+            log.error(
+                "%s Failed to convert SVG to PNG with Playwright: %s",
+                log_identifier,
+                e,
+            )
+            return {
+                "status": "error",
+                "message": f"Failed to convert SVG to PNG: {e}",
             }
 
         log.debug(
