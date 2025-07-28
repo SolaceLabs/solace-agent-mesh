@@ -254,6 +254,7 @@ def shared_solace_connector(
     test_artifact_service_instance: TestInMemoryArtifactService,
     session_monkeypatch,
     request,
+    test_a2a_agent_server: TestA2AAgentServer,
 ) -> SolaceAiConnector:
     """
     Creates and manages a single SolaceAiConnector instance with multiple agents
@@ -439,6 +440,21 @@ def shared_solace_connector(
             },
             "broker": {"dev_mode": True},
             "app_module": "tests.integration.infrastructure.gateway_interface.app",
+        },
+        {
+            "name": "TestA2AProxyApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "proxied_agents": [
+                    {
+                        "name": "ProxiedDownstreamAgent",
+                        "url": test_a2a_agent_server.url,
+                    }
+                ],
+                "discovery_interval_seconds": 0,
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "src.agent.proxies.a2a.app",
         },
     ]
 

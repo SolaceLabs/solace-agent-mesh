@@ -67,11 +67,11 @@ This checklist corresponds to the `IMPLEMENTATION_PLAN.md` document and should b
     - [x] 3.3.1. Define a function-scoped, `autouse=True` fixture named `clear_a2a_agent_server_state`.
     - [x] 3.3.2. The fixture takes `test_a2a_agent_server` as an argument.
     - [x] 3.3.3. After `yield`, call the `clear_captured_requests()` and `clear_stateful_cache()` methods.
-- [ ] **3.4. Update `shared_solace_connector` Fixture:**
-    - [ ] 3.4.1. Add `test_a2a_agent_server` to the fixture's parameter list.
-    - [ ] 3.4.2. Add the `A2AProxyApp` configuration to the `app_infos` list.
-    - [ ] 3.4.3. Set the `app_module` to `src.agent.proxies.a2a.app`.
-    - [ ] 3.4.4. Configure `proxied_agents` with the name and URL of the test agent server.
+- [x] **3.4. Update `shared_solace_connector` Fixture:**
+    - [x] 3.4.1. Add `test_a2a_agent_server` to the fixture's parameter list.
+    - [x] 3.4.2. Add the `A2AProxyApp` configuration to the `app_infos` list.
+    - [x] 3.4.3. Set the `app_module` to `src.agent.proxies.a2a.app`.
+    - [x] 3.4.4. Configure `proxied_agents` with the name and URL of the test agent server.
 
 ## Phase 3: Validation and Testing
 
