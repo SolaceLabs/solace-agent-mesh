@@ -63,10 +63,10 @@ This checklist corresponds to the `IMPLEMENTATION_PLAN.md` document and should b
     - [x] 3.2.5. Implement a readiness check loop.
     - [x] 3.2.6. `yield` the server instance.
     - [x] 3.2.7. Call `server.stop()` in the teardown block.
-- [ ] **3.3. Create State-Clearing Fixture:**
-    - [ ] 3.3.1. Define a function-scoped, `autouse=True` fixture named `clear_a2a_agent_server_state`.
-    - [ ] 3.3.2. The fixture takes `test_a2a_agent_server` as an argument.
-    - [ ] 3.3.3. After `yield`, call the `clear_captured_requests()` and `clear_stateful_cache()` methods.
+- [x] **3.3. Create State-Clearing Fixture:**
+    - [x] 3.3.1. Define a function-scoped, `autouse=True` fixture named `clear_a2a_agent_server_state`.
+    - [x] 3.3.2. The fixture takes `test_a2a_agent_server` as an argument.
+    - [x] 3.3.3. After `yield`, call the `clear_captured_requests()` and `clear_stateful_cache()` methods.
 - [ ] **3.4. Update `shared_solace_connector` Fixture:**
     - [ ] 3.4.1. Add `test_a2a_agent_server` to the fixture's parameter list.
     - [ ] 3.4.2. Add the `A2AProxyApp` configuration to the `app_infos` list.

@@ -192,6 +192,17 @@ def clear_llm_server_configs(test_llm_server: TestLLMServer):
     test_llm_server.clear_all_configurations()
 
 
+@pytest.fixture(autouse=True)
+def clear_a2a_agent_server_state(test_a2a_agent_server: TestA2AAgentServer):
+    """
+    Clears captured requests and stateful responses from the test A2A agent server
+    before each test.
+    """
+    yield
+    test_a2a_agent_server.clear_captured_requests()
+    test_a2a_agent_server.clear_stateful_cache()
+
+
 @pytest.fixture()
 def clear_tool_registry_fixture():
     """
