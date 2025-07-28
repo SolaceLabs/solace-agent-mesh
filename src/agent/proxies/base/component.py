@@ -280,11 +280,27 @@ class BaseProxyComponent(ComponentBase, ABC):
                 if not agent_card:
                     continue
 
-                self.agent_registry.add_or_update_agent(agent_card)
+                agent_alias = agent_config["name"]
 
-                # Create a copy to modify for publishing
-                card_to_publish = agent_card.model_copy(deep=True)
-                card_to_publish.url = f"solace:{get_agent_request_topic(self.namespace, agent_config['name'])}"
+                # Create a copy of the card that will represent the agent on the mesh.
+                # Overwrite its name with the configured alias.
+                card_for_proxy = agent_card.model_copy(deep=True)
+                card_for_proxy.name = agent_alias
+
+                # Register the agent using the alias, so it can be found by internal requests.
+                self.agent_registry.add_or_update_agent(card_for_proxy)
+                log.info(
+                    "%s Registered agent card for alias '%s' (actual name: '%s').",
+                    self.log_identifier,
+                    agent_alias,
+                    agent_card.name,
+                )
+
+                # The card to be published should also use the alias and have its URL rewritten.
+                card_to_publish = card_for_proxy
+                card_to_publish.url = (
+                    f"solace:{get_agent_request_topic(self.namespace, agent_alias)}"
+                )
 
                 discovery_topic = get_discovery_topic(self.namespace)
                 self._publish_a2a_message(
@@ -293,7 +309,7 @@ class BaseProxyComponent(ComponentBase, ABC):
                 log.info(
                     "%s Published card for agent '%s' to discovery topic.",
                     self.log_identifier,
-                    agent_config["name"],
+                    agent_alias,
                 )
             except Exception as e:
                 log.error(
