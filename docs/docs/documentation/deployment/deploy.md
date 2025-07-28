@@ -17,7 +17,7 @@ sam run
 
 For a production environment, use a containerized and reproducible setup. We recommend Docker or Kubernetes.
 
-If the OS architecture on your host is not `linux/amd64`, you would need to add `--platform linux/amd64` when running container.
+If your host system architecture is not `linux/amd64`, add the `--platform linux/amd64` flag when you run the container.
 
 ### Docker Deployment
 
