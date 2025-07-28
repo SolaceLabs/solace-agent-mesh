@@ -13,8 +13,8 @@ Service Providers function as the abstraction layer between SAM and enterprise d
 
 There are two primary service provider interfaces:
 
--   **`BaseIdentityService`**: Responsible for **identity enrichment**. This service is utilized by Gateways to augment the profile of an authenticated user with additional details (for example, full name, job title) based on their initial authentication claims.
--   **`BaseEmployeeService`**: Responsible for **general directory querying**. This service is utilized by agents (for example, the `EmployeeAgent`) to execute lookups across the entire employee directory.
+- **`BaseIdentityService`**: Responsible for **identity enrichment**. This service is utilized by Gateways to augment the profile of an authenticated user with additional details (for example, full name, job title) based on their initial authentication claims.
+- **`BaseEmployeeService`**: Responsible for **general directory querying**. This service is utilized by agents (for example, the `EmployeeAgent`) to execute lookups across the entire employee directory.
 
 ## The "Dual-Role Provider" Pattern
 
@@ -47,8 +47,8 @@ try:
     from solace_agent_mesh.common.services.employee_service import BaseEmployeeService
 except ImportError:
     # Fallback for local development environments
-    from src.common.services.identity_service import BaseIdentityService
-    from src.common.services.employee_service import BaseEmployeeService
+    from src.solace_agent_mesh.common.services.identity_service import BaseIdentityService
+    from src.solace_agent_mesh.common.services.employee_service import BaseEmployeeService
 
 # Import any other necessary libraries, such as 'requests' or a proprietary SDK
 # from .corp_hr_sdk import CorpHR_SDK
@@ -108,17 +108,17 @@ class CorpHRProvider(BaseIdentityService, BaseEmployeeService):
 
 When implementing the service methods, it is **mandatory** to map the data from the source system to SAM's **canonical employee schema**. This ensures data consistency and interoperability with all tools and components across the mesh.
 
-| Field Name      | Data Type | Description                                                        |
-| --------------- | --------- | ------------------------------------------------------------------ |
-| `id`            | `string`  | A unique, stable, and **lowercase** identifier (e.g., email, GUID). |
-| `displayName`   | `string`  | The employee's full name for display purposes.                     |
-| `workEmail`     | `string`  | The employee's primary work email address.                         |
-| `jobTitle`      | `string`  | The employee's official job title.                                 |
-| `department`    | `string`  | The department to which the employee belongs.                      |
-| `location`      | `string`  | The physical or regional location of the employee.                 |
-| `supervisorId`  | `string`  | The unique `id` of the employee's direct manager.                  |
-| `hireDate`      | `string`  | The date the employee was hired (ISO 8601: `YYYY-MM-DD`).            |
-| `mobilePhone`   | `string`  | The employee's mobile phone number (optional).                     |
+| Field Name     | Data Type | Description                                                         |
+| -------------- | --------- | ------------------------------------------------------------------- |
+| `id`           | `string`  | A unique, stable, and **lowercase** identifier (e.g., email, GUID). |
+| `displayName`  | `string`  | The employee's full name for display purposes.                      |
+| `workEmail`    | `string`  | The employee's primary work email address.                          |
+| `jobTitle`     | `string`  | The employee's official job title.                                  |
+| `department`   | `string`  | The department to which the employee belongs.                       |
+| `location`     | `string`  | The physical or regional location of the employee.                  |
+| `supervisorId` | `string`  | The unique `id` of the employee's direct manager.                   |
+| `hireDate`     | `string`  | The date the employee was hired (ISO 8601: `YYYY-MM-DD`).           |
+| `mobilePhone`  | `string`  | The employee's mobile phone number (optional).                      |
 
 :::info
 If a field is not available in the source system, return `None` or omit the key from the returned dictionary.
@@ -130,6 +130,7 @@ To make the provider discoverable by SAM, it must be registered as a plugin via 
 
 **1. Add an entry point in `pyproject.toml`:**
 The key assigned here (`corphr`) is used as the `type` identifier in YAML configurations.
+
 ```toml
 [project.entry-points."solace_agent_mesh.plugins"]
 corphr = "my_corp_hr_provider:info"
@@ -137,6 +138,7 @@ corphr = "my_corp_hr_provider:info"
 
 **2. Define the `info` object in the plugin's `__init__.py`:**
 This object points to the provider's class path and provides a brief description.
+
 ```python
 # my_corp_hr_provider/__init__.py
 info = {
@@ -150,16 +152,18 @@ info = {
 Once the plugin is created and installed (for example, via `pip install .`), it can be configured in any Gateway or Agent `app_config.yml`.
 
 **For a Gateway (Identity Service Role):**
+
 ```yaml
 app_config:
   identity_service:
-    type: "corphr"  # Matches the key in pyproject.toml
+    type: "corphr" # Matches the key in pyproject.toml
     api_key: "${CORPHR_API_KEY}"
     lookup_key: "email" # The field from auth_claims to use for lookup
 ```
 
 **For an Agent (Employee Service Role):**
 This example demonstrates configuring the provider for the `employee_tools` group.
+
 ```yaml
 app_config:
   tools:
@@ -168,3 +172,4 @@ app_config:
       config:
         type: "corphr" # Same provider, different role
         api_key: "${CORPHR_API_KEY}"
+```
