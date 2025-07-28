@@ -33,18 +33,18 @@ This checklist corresponds to the `IMPLEMENTATION_PLAN.md` document and should b
 
 ### 2. Create the `TestA2AAgentServer`
 
-- [ ] **2.1. File Creation:** Create `tests/integration/infrastructure/a2a_agent_server/server.py`.
-- [ ] **2.2. Class Definition:**
-    - [ ] 2.2.1. Define the `TestA2AAgentServer` class.
-    - [ ] 2.2.2. `__init__` accepts `host`, `port`, and `AgentCard`.
-    - [ ] 2.2.3. Initialize instance variables (`_uvicorn_server`, `_server_thread`, `captured_requests`, `_stateful_responses_cache`).
-- [ ] **2.3. A2A Application Setup (in `__init__`):**
-    - [ ] 2.3.1. Instantiate `DeclarativeAgentExecutor`.
-    - [ ] 2.3.2. Instantiate `InMemoryTaskStore`.
-    - [ ] 2.3.3. Instantiate `DefaultRequestHandler`.
-    - [ ] 2.3.4. Instantiate `A2AFastAPIApplication`.
-    - [ ] 2.3.5. Call `.build()` to get the FastAPI app.
-    - [ ] 2.3.6. Add FastAPI middleware to capture requests.
+- [x] **2.1. File Creation:** Create `tests/integration/infrastructure/a2a_agent_server/server.py`.
+- [x] **2.2. Class Definition:**
+    - [x] 2.2.1. Define the `TestA2AAgentServer` class.
+    - [x] 2.2.2. `__init__` accepts `host`, `port`, and `AgentCard`.
+    - [x] 2.2.3. Initialize instance variables (`_uvicorn_server`, `_server_thread`, `captured_requests`, `_stateful_responses_cache`).
+- [x] **2.3. A2A Application Setup (in `__init__`):**
+    - [x] 2.3.1. Instantiate `DeclarativeAgentExecutor`.
+    - [x] 2.3.2. Instantiate `InMemoryTaskStore`.
+    - [x] 2.3.3. Instantiate `DefaultRequestHandler`.
+    - [x] 2.3.4. Instantiate `A2AFastAPIApplication`.
+    - [x] 2.3.5. Call `.build()` to get the FastAPI app.
+    - [x] 2.3.6. Add FastAPI middleware to capture requests.
 - [ ] **2.4. Lifecycle Management:**
     - [ ] 2.4.1. Implement `start()` method to run `uvicorn` in a thread.
     - [ ] 2.4.2. Implement `stop()` method to shut down `uvicorn`.
