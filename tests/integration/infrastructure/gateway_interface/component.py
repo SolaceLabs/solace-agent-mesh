@@ -11,8 +11,8 @@ from typing import Any, Dict, List, Union, Optional, Tuple
 
 from solace_ai_connector.common.log import log
 
-from src.gateway.base.component import BaseGatewayComponent
-from src.common.types import (
+from src.solace_agent_mesh.gateway.base.component import BaseGatewayComponent
+from src.solace_agent_mesh.common.types import (
     Part as A2APart,
     TextPart,
     FilePart,

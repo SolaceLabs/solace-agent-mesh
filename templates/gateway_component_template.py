@@ -351,7 +351,7 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
     #         log.error("%s Artifact service not available. Cannot save file: %s", self.log_identifier, filename)
     #         return None
     #     try:
-    #         from src.agent.utils.artifact_helpers import save_artifact_with_metadata # Adjust import
+    #         from src.solace_agent_mesh.agent.utils.artifact_helpers import save_artifact_with_metadata # Adjust import
     #         from datetime import datetime, timezone
 
     #         save_result = await save_artifact_with_metadata(

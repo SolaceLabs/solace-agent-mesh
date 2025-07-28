@@ -5,9 +5,9 @@ from typing import Any, Dict, List, Union, Optional, Tuple
 
 import uvicorn
 import threading
-from src.gateway.base.component import BaseGatewayComponent
-from src.gateway.http_sse.component import WebUIBackendComponent
-from src.common.types import (
+from src.solace_agent_mesh.gateway.base.component import BaseGatewayComponent
+from src.solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
+from src.solace_agent_mesh.common.types import (
     Task,
     JSONRPCError,
     TaskStatusUpdateEvent,
@@ -152,7 +152,7 @@ class TestWebGatewayComponent(WebUIBackendComponent):
             return
 
         try:
-            from src.gateway.http_sse.main import app as fastapi_app_instance, setup_dependencies
+            from src.solace_agent_mesh.gateway.http_sse.main import app as fastapi_app_instance, setup_dependencies
             self.fastapi_app = fastapi_app_instance
             setup_dependencies(self)
 

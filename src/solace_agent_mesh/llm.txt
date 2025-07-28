@@ -30,13 +30,13 @@ This file is empty and has no public interfaces.
 **Key Exports:** `SamAgentApp`, `SamAgentComponent`, `AppLlmAgent`, and a wide array of built-in tools for data analysis, web requests, multimedia processing, and inter-agent communication.
 **Import Examples:**
 ```python
-from src.agent.sac.app import SamAgentApp
-from src.agent.sac.component import SamAgentComponent
-from src.agent.adk.app_llm_agent import AppLlmAgent
-from src.agent.tools.builtin_data_analysis_tools import query_data_with_sql
-from src.agent.tools.peer_agent_tool import PeerAgentTool
-from src.agent.tools.web_tools import web_request
-from src.agent.tools.image_tools import create_image_from_description
+from src.solace_agent_mesh.agent.sac.app import SamAgentApp
+from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
+from src.solace_agent_mesh.agent.adk.app_llm_agent import AppLlmAgent
+from src.solace_agent_mesh.agent.tools.builtin_data_analysis_tools import query_data_with_sql
+from src.solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool
+from src.solace_agent_mesh.agent.tools.web_tools import web_request
+from src.solace_agent_mesh.agent.tools.image_tools import create_image_from_description
 ```
 
 #### common/
@@ -44,12 +44,12 @@ from src.agent.tools.image_tools import create_image_from_description
 **Key Exports:** A2A protocol functions, Pydantic type definitions (`Message`, `Task`, `AgentCard`), `A2AClient` for interacting with agents, `A2AServer` for building agents, and various utilities.
 **Import Examples:**
 ```python
-from src.common.a2a_protocol import get_agent_request_topic
-from src.common.types import Message, Task, AgentCard, TextPart
-from src.common.client import A2AClient, A2ACardResolver
-from src.common.server import A2AServer, InMemoryTaskManager
-from src.common.agent_registry import AgentRegistry
-from src.common.utils.embeds import resolve_embeds_in_string
+from src.solace_agent_mesh.common.a2a_protocol import get_agent_request_topic
+from src.solace_agent_mesh.common.types import Message, Task, AgentCard, TextPart
+from src.solace_agent_mesh.common.client import A2AClient, A2ACardResolver
+from src.solace_agent_mesh.common.server import A2AServer, InMemoryTaskManager
+from src.solace_agent_mesh.common.agent_registry import AgentRegistry
+from src.solace_agent_mesh.common.utils.embeds import resolve_embeds_in_string
 ```
 
 #### core_a2a/
@@ -57,7 +57,7 @@ from src.common.utils.embeds import resolve_embeds_in_string
 **Key Exports:** `CoreA2AService` for managing A2A protocol logic without being tied to a specific gateway or messaging implementation.
 **Import Examples:**
 ```python
-from src.core_a2a.service import CoreA2AService
+from src.solace_agent_mesh.core_a2a.service import CoreA2AService
 ```
 
 #### gateway/
@@ -65,11 +65,11 @@ from src.core_a2a.service import CoreA2AService
 **Key Exports:** `BaseGatewayApp` and `BaseGatewayComponent` for creating custom gateways, and concrete implementations like `WebUIBackendApp`, `SlackGatewayApp`, and `WebhookGatewayApp`.
 **Import Examples:**
 ```python
-from src.gateway.base.app import BaseGatewayApp
-from src.gateway.http_sse.app import WebUIBackendApp
-from src.gateway.slack.app import SlackGatewayApp
-from src.gateway.webhook.app import WebhookGatewayApp
-from src.gateway.base.authorization_service import ConfigurableRbacAuthorizationService
+from src.solace_agent_mesh.gateway.base.app import BaseGatewayApp
+from src.solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
+from src.solace_agent_mesh.gateway.slack.app import SlackGatewayApp
+from src.solace_agent_mesh.gateway.webhook.app import WebhookGatewayApp
+from src.solace_agent_mesh.gateway.base.authorization_service import ConfigurableRbacAuthorizationService
 ```
 
 ## Complete Usage Guide
@@ -80,21 +80,21 @@ The following examples show how to import and instantiate components from each m
 
 ```python
 # 1. Import from the 'agent' directory to create an AI agent
-from src.agent.sac.app import SamAgentApp
+from src.solace_agent_mesh.agent.sac.app import SamAgentApp
 
 # 2. Import from the 'common' and 'core_a2a' directories for protocol infrastructure
-from src.common.agent_registry import AgentRegistry
-from src.common.types import AgentCard, AgentCapabilities, AgentSkill
-from src.core_a2a.service import CoreA2AService
+from src.solace_agent_mesh.common.agent_registry import AgentRegistry
+from src.solace_agent_mesh.common.types import AgentCard, AgentCapabilities, AgentSkill
+from src.solace_agent_mesh.core_a2a.service import CoreA2AService
 
 # 3. Import from the 'gateway' directory to create interfaces
-from src.gateway.http_sse.app import WebUIBackendApp
-from src.gateway.slack.app import SlackGatewayApp
-from src.gateway.webhook.app import WebhookGatewayApp
+from src.solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
+from src.solace_agent_mesh.gateway.slack.app import SlackGatewayApp
+from src.solace_agent_mesh.gateway.webhook.app import WebhookGatewayApp
 
 # 4. Import tools from the 'agent/tools' subdirectory
-from src.agent.tools.peer_agent_tool import PeerAgentTool
-from src.agent.tools.builtin_data_analysis_tools import query_data_with_sql
+from src.solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool
+from src.solace_agent_mesh.agent.tools.builtin_data_analysis_tools import query_data_with_sql
 ```
 
 ### 2. How different parts work together
@@ -105,7 +105,7 @@ First, define and configure an agent. This agent will automatically be equipped 
 
 ```python
 # File: my_system.py
-from src.agent.sac.app import SamAgentApp
+from src.solace_agent_mesh.agent.sac.app import SamAgentApp
 
 # Configure the agent with all capabilities
 agent_config = {
@@ -134,9 +134,9 @@ Next, set up the core services that manage agent discovery and task routing. Thi
 
 ```python
 # File: my_system.py (continued)
-from src.common.agent_registry import AgentRegistry
-from src.common.types import AgentCard, AgentCapabilities, AgentSkill
-from src.core_a2a.service import CoreA2AService
+from src.solace_agent_mesh.common.agent_registry import AgentRegistry
+from src.solace_agent_mesh.common.types import AgentCard, AgentCapabilities, AgentSkill
+from src.solace_agent_mesh.core_a2a.service import CoreA2AService
 
 # Initialize a shared agent registry
 agent_registry = AgentRegistry()
@@ -163,8 +163,8 @@ Create one or more gateways to expose the agent(s) to external platforms.
 
 ```python
 # File: my_system.py (continued)
-from src.gateway.http_sse.app import WebUIBackendApp
-from src.gateway.slack.app import SlackGatewayApp
+from src.solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
+from src.solace_agent_mesh.gateway.slack.app import SlackGatewayApp
 
 # Web UI Gateway for browser-based interactions
 webui_config = {
@@ -201,7 +201,7 @@ An agent can use the `PeerAgentTool` (from `agent/tools/`) to delegate tasks to 
 
 ```python
 # This code would run within an agent's tool execution context.
-from src.agent.tools.peer_agent_tool import PeerAgentTool
+from src.solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool
 
 async def analyze_and_delegate_report(component, tool_context):
     # Assume 'component' is the SamAgentComponent instance hosting the current agent.

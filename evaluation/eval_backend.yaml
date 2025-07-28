@@ -10,7 +10,7 @@ log:
 apps:
   - name: a2a_eval_backend_app
     app_base_path: . 
-    app_module: src.gateway.rest.app
+    app_module: src.solace_agent_mesh.gateway.rest.app
 
     broker:
       <<: *broker_connection

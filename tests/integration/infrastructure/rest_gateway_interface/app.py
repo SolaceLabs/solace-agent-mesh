@@ -2,7 +2,7 @@
 Custom Solace AI Connector App class for the Test REST Gateway.
 """
 from typing import Type
-from src.gateway.base.component import BaseGatewayComponent
+from src.solace_agent_mesh.gateway.base.component import BaseGatewayComponent
 from sam_rest_gateway.app import RestGatewayApp
 from .component import TestRestGatewayComponent
 

@@ -1,7 +1,7 @@
 # Solace AI Connector Example: Slack Gateway Configuration
 # You'd need to install the `sam-slack` plugin first
 # This file demonstrates how to configure the Slack Gateway application.
-# It uses the custom SlackGatewayApp class defined in src.gateway.slack.app.
+# It uses the custom SlackGatewayApp class defined in src.solace_agent_mesh.gateway.slack.app.
 #
 # Required Environment Variables:
 # - NAMESPACE: The A2A topic namespace (e.g., "myorg/dev").

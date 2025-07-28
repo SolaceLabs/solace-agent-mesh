@@ -2,9 +2,9 @@ import pytest
 import time
 
 
-from src.agent.sac.app import SamAgentApp
-from src.agent.sac.component import SamAgentComponent
-from src.agent.tools.registry import tool_registry
+from src.solace_agent_mesh.agent.sac.app import SamAgentApp
+from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
+from src.solace_agent_mesh.agent.tools.registry import tool_registry
 from tests.integration.infrastructure.gateway_interface.app import TestGatewayApp
 from tests.integration.infrastructure.gateway_interface.component import (
     TestGatewayComponent,
@@ -248,7 +248,7 @@ def shared_solace_connector(
     test_agent_tools = [
         {
             "tool_type": "python",
-            "component_module": "src.agent.tools.test_tools",
+            "component_module": "src.solace_agent_mesh.agent.tools.test_tools",
             "function_name": "time_delay",
             "component_base_path": ".",
         },
@@ -347,31 +347,31 @@ def shared_solace_connector(
             "name": "TestSamAgentApp",
             "app_config": sam_agent_app_config,
             "broker": {"dev_mode": True},
-            "app_module": "src.agent.sac.app",
+            "app_module": "src.solace_agent_mesh.agent.sac.app",
         },
         {
             "name": "TestPeerAgentA_App",
             "app_config": peer_a_config,
             "broker": {"dev_mode": True},
-            "app_module": "src.agent.sac.app",
+            "app_module": "src.solace_agent_mesh.agent.sac.app",
         },
         {
             "name": "TestPeerAgentB_App",
             "app_config": peer_b_config,
             "broker": {"dev_mode": True},
-            "app_module": "src.agent.sac.app",
+            "app_module": "src.solace_agent_mesh.agent.sac.app",
         },
         {
             "name": "TestPeerAgentC_App",
             "app_config": peer_c_config,
             "broker": {"dev_mode": True},
-            "app_module": "src.agent.sac.app",
+            "app_module": "src.solace_agent_mesh.agent.sac.app",
         },
         {
             "name": "TestPeerAgentD_App",
             "app_config": peer_d_config,
             "broker": {"dev_mode": True},
-            "app_module": "src.agent.sac.app",
+            "app_module": "src.solace_agent_mesh.agent.sac.app",
         },
         {
             "name": "TestHarnessGatewayApp",
@@ -386,7 +386,7 @@ def shared_solace_connector(
     ]
 
     session_monkeypatch.setattr(
-        "src.agent.adk.services.TestInMemoryArtifactService",
+        "src.solace_agent_mesh.agent.adk.services.TestInMemoryArtifactService",
         lambda: test_artifact_service_instance,
     )
 

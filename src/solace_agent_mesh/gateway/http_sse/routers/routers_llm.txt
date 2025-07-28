@@ -20,7 +20,7 @@ The `routers` directory contains FastAPI `APIRouter` modules that define the RES
 
 ### agents.py
 **Purpose:** Provides REST endpoints for agent discovery.
-**Import:** `from src.gateway.http_sse.routers.agents import router`
+**Import:** `from src.solace_agent_mesh.gateway.http_sse.routers.agents import router`
 
 **Functions:**
 - `get_discovered_agents() -> List[AgentCard]`: Retrieves a list of all currently discovered and available A2A agents. The `AgentCard` type contains details about each agent.
@@ -29,7 +29,7 @@ The `routers` directory contains FastAPI `APIRouter` modules that define the RES
 ```python
 # To include this router in a FastAPI application
 from fastapi import FastAPI
-from src.gateway.http_sse.routers.agents import router
+from src.solace_agent_mesh.gateway.http_sse.routers.agents import router
 
 app = FastAPI()
 app.include_router(router, prefix="/api/v1")

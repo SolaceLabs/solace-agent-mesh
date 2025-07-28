@@ -3,8 +3,8 @@ import asyncio
 from google.genai import types as adk_types
 from tests.integration.infrastructure.artifact_service.service import TestInMemoryArtifactService
 from tests.integration.infrastructure.slack_gateway_interface.component import TestSlackGatewayComponent
-from src.agent.sac.component import SamAgentComponent
-from src.common.types import Task, TaskStatus, TaskState
+from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
+from src.solace_agent_mesh.common.types import Task, TaskStatus, TaskState
 from tests.integration.scenarios_programmatic.test_helpers import (
     get_all_task_events,
     extract_outputs_from_event_list,

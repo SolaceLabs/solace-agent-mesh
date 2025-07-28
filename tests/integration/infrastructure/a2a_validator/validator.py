@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 from unittest.mock import patch
 import pytest
 
-from src.common.types import (
+from src.solace_agent_mesh.common.types import (
     JSONRPCResponse,
     Task,
     TaskStatusUpdateEvent,
@@ -38,7 +38,7 @@ class A2AMessageValidator:
         """
         if self.active:
             self.deactivate()
-        from src.agent.sac.component import SamAgentComponent
+        from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
         from tests.integration.infrastructure.gateway_interface.component import (
             TestGatewayComponent,
         )

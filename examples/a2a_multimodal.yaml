@@ -17,7 +17,7 @@ apps:
   # Complete Multi-Modal Agent with All Capabilities
   - name: multimodal_agent_app
     app_base_path: .
-    app_module: src.agent.sac.app
+    app_module: src.solace_agent_mesh.agent.sac.app
     broker:
       <<: *broker_connection
 
@@ -178,7 +178,7 @@ apps:
 
         # Audio description tool (commented out - doesn't work as expected with chat/completions API)
         # - tool_type: python
-        #   component_module: src.agent.tools.image_tools
+        #   component_module: src.solace_agent_mesh.agent.tools.image_tools
         #   component_base_path: .
         #   function_name: describe_audio
         #   tool_name: "describe_audio"
@@ -247,7 +247,7 @@ apps:
 # Image Editing Agent with Gemini 2.0 Flash
   - name: image_editing_agent_app
     app_base_path: .
-    app_module: src.agent.sac.app
+    app_module: src.solace_agent_mesh.agent.sac.app
     broker:
       <<: *broker_connection
 

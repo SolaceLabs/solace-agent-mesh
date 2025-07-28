@@ -3,7 +3,7 @@ Custom Solace AI Connector App class for the Test Event Mesh Gateway.
 """
 from typing import Type
 from sam_event_mesh_gateway.app import EventMeshGatewayApp
-from src.gateway.base.component import BaseGatewayComponent
+from src.solace_agent_mesh.gateway.base.component import BaseGatewayComponent
 from .component import TestEventMeshGatewayComponent
 
 # Module-level info dictionary required by SAC

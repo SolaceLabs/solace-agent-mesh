@@ -1,7 +1,7 @@
 # Solace AI Connector Example: REST API Gateway Configuration
 #
 # This file demonstrates how to configure the REST API Gateway application.
-# It uses the custom RestGatewayApp class defined in src.gateway.rest.app.
+# It uses the custom RestGatewayApp class defined in src.solace_agent_mesh.gateway.rest.app.
 #
 # Required Environment Variables:
 # - NAMESPACE: The A2A topic namespace (e.g., "myorg/dev").
@@ -29,7 +29,7 @@ log:
 apps:
   - name: rest_gateway_app # A unique name for this SAC application instance
     app_base_path: . # Assumes running from the project root where src/ is located
-    app_module: src.gateway.rest.app # Use the custom App class for the REST Gateway
+    app_module: src.solace_agent_mesh.gateway.rest.app # Use the custom App class for the REST Gateway
 
     # Broker settings for the A2A Control Plane
     broker:
