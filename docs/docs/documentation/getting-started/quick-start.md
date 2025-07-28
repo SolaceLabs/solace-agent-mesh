@@ -145,7 +145,7 @@ docker run --rm -it -v "$(pwd):/app" -p 8000:8000 my-custom-image run
 
 You can use different gateway interfaces to communicate with the system such as REST, Web UI, Slack, MS Teams, and so on. To keep it simple for this demo, we use the browser UI.
 
-To connect to the browser UI, open a browser and navigate to `http://localhost:8000`. If you chose another port during the `init` step, use that port instead. If you run the project using official Docker image with other `-p` flag value, use the host port value in the port-mapping instead.
+To access the browser UI, navigate to `http://localhost:8000` in your web browser. If you specified a different port during the init step, use that port instead. For Docker deployments with custom port mappings (using the `-p` flag), use the host port specified in your port mapping configuration.
 
 Try some commands like `Suggest some good outdoor activities in London given the season and current weather conditions.` or `Generate a mermaid diagram of the OAuth login flow`.
 
