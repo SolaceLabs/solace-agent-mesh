@@ -296,6 +296,20 @@ async def convert_file_to_markdown(
                 )
 
 async def _convert_svg_to_png_with_playwright(svg_data: str, scale: int = 2) -> bytes:
+    """
+    Converts SVG data to a PNG image using Playwright.
+
+    Args:
+        svg_data (str): The SVG data to be converted.
+        scale (int, optional): The scale factor for the PNG image. Defaults to 2.
+
+    Returns:
+        bytes: The PNG image data as a byte array.
+
+    Raises:
+        ValueError: If the SVG bounding box cannot be determined.
+
+    """
     async with async_playwright() as p:
         browser = await p.chromium.launch()
         context = await browser.new_context(device_scale_factor=scale)
