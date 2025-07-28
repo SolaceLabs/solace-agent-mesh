@@ -125,7 +125,7 @@ Depending on the plugin, you may need to update the newly added plugin configura
 
 ## Plugin Catalog Dashboard
 
-We also provide a user-friendly UI to manage available plugins in your project using the `plugin catalog` command. 
+You can manage available plugins with the `plugin catalog` command, which launches a user-friendly interface.
 
 ```bash
 solace-agent-mesh plugin catalog
