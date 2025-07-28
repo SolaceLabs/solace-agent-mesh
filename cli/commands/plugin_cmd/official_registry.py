@@ -59,6 +59,8 @@ def _fetch_github_plugins(github_url: str, branch: str = None) -> Dict[str, str]
 
         owner, repo = parts[0], parts[1]
         api_url = f"https://api.github.com/repos/{owner}/{repo}/contents"
+        if branch:
+            api_url += f"?ref={branch}"
 
         with httpx.Client() as client:
             response = client.get(api_url, timeout=10.0)
