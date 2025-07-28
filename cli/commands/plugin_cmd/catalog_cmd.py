@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from cli.utils import error_exit
 
-env_flask_host = "FLASK_HOST"
+env_flask_host = "CONFIG_PORTAL_HOST"
 
 def run_flask_plugin_catalog(host, port, shared_data):
     try:
