@@ -6,28 +6,28 @@ This checklist corresponds to the `IMPLEMENTATION_PLAN.md` document and should b
 
 ### 1. Create the `DeclarativeAgentExecutor`
 
-- [ ] **1.1. File Creation:** Create `tests/integration/test_support/a2a_agent/executor.py`.
-- [ ] **1.2. Class Definition:**
-    - [ ] 1.2.1. Define `DeclarativeAgentExecutor` inheriting from `a2a.server.agent_execution.AgentExecutor`.
-    - [ ] 1.2.2. `__init__` accepts a reference to `TestA2AAgentServer`.
-- [ ] **1.3. Implement `execute` Method:**
-    - [ ] 1.3.1. Get `RequestContext` and create `TaskUpdater`.
-    - [ ] 1.3.2. Extract user message content.
-    - [ ] 1.3.3. Parse `[test_case_id=...]` and `[responses_json=...]` directives.
-    - [ ] 1.3.4. Use `test_case_id` to interact with the server's state cache.
-    - [ ] 1.3.5. **Turn 0 Logic:**
-        - [ ] 1.3.5.1. Base64-decode `responses_json`.
-        - [ ] 1.3.5.2. JSON-deserialize into a list of lists.
-        - [ ] 1.3.5.3. Store the response sequence in the server's state cache.
-    - [ ] 1.3.6. **Turn-Based Playback:**
-        - [ ] 1.3.6.1. Determine the current turn index from task history.
-        - [ ] 1.3.6.2. Retrieve the correct list of event dictionaries for the current turn.
-    - [ ] 1.3.7. **Event Processing:**
-        - [ ] 1.3.7.1. Iterate through the event dictionaries for the turn.
-        - [ ] 1.3.7.2. Dynamically inject `task_id` and `context_id` into each event dictionary.
-        - [ ] 1.3.7.3. Deserialize the dictionary into the correct Pydantic A2A event model.
-        - [ ] 1.3.7.4. Enqueue the Pydantic event object into the `event_queue`.
-    - [ ] 1.3.8. **Finalization:** Close the event queue after enqueuing all events for the turn.
+- [x] **1.1. File Creation:** Create `tests/integration/test_support/a2a_agent/executor.py`.
+- [x] **1.2. Class Definition:**
+    - [x] 1.2.1. Define `DeclarativeAgentExecutor` inheriting from `a2a.server.agent_execution.AgentExecutor`.
+    - [x] 1.2.2. `__init__` accepts a reference to `TestA2AAgentServer`.
+- [x] **1.3. Implement `execute` Method:**
+    - [x] 1.3.1. Get `RequestContext` and create `TaskUpdater`.
+    - [x] 1.3.2. Extract user message content.
+    - [x] 1.3.3. Parse `[test_case_id=...]` and `[responses_json=...]` directives.
+    - [x] 1.3.4. Use `test_case_id` to interact with the server's state cache.
+    - [x] 1.3.5. **Turn 0 Logic:**
+        - [x] 1.3.5.1. Base64-decode `responses_json`.
+        - [x] 1.3.5.2. JSON-deserialize into a list of lists.
+        - [x] 1.3.5.3. Store the response sequence in the server's state cache.
+    - [x] 1.3.6. **Turn-Based Playback:**
+        - [x] 1.3.6.1. Determine the current turn index from task history.
+        - [x] 1.3.6.2. Retrieve the correct list of event dictionaries for the current turn.
+    - [x] 1.3.7. **Event Processing:**
+        - [x] 1.3.7.1. Iterate through the event dictionaries for the turn.
+        - [x] 1.3.7.2. Dynamically inject `task_id` and `context_id` into each event dictionary.
+        - [x] 1.3.7.3. Deserialize the dictionary into the correct Pydantic A2A event model.
+        - [x] 1.3.7.4. Enqueue the Pydantic event object into the `event_queue`.
+    - [x] 1.3.8. **Finalization:** Close the event queue after enqueuing all events for the turn.
 - [ ] **1.4. Implement `cancel` Method:**
     - [ ] 1.4.1. Create a `TaskUpdater` and call `await updater.cancel()`.
 
