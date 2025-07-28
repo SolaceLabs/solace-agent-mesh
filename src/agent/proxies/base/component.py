@@ -29,6 +29,7 @@ from a2a.types import (
     SendMessageRequest,
     SendStreamingMessageRequest,
     Task,
+    TaskArtifactUpdateEvent,
     TaskStatusUpdateEvent,
 )
 from pydantic import ValidationError
@@ -171,6 +172,12 @@ class BaseProxyComponent(ComponentBase, ABC):
 
             jsonrpc_request_id = payload.get("id")
 
+            # Get agent name from topic
+            topic = message.get_topic()
+            if not topic:
+                raise ValueError("Message has no topic.")
+            target_agent_name = topic.split("/")[-1]
+
             # 4.2.2: Call inbound translator
             a2a_request = translate_sam_to_modern_request(payload)
             logical_task_id = a2a_request.params.id
@@ -194,11 +201,14 @@ class BaseProxyComponent(ComponentBase, ABC):
                     self.active_tasks[logical_task_id] = task_context
 
                 log.info(
-                    "%s Forwarding request for task %s.",
+                    "%s Forwarding request for task %s to agent %s.",
                     self.log_identifier,
                     logical_task_id,
+                    target_agent_name,
                 )
-                await self._forward_request(task_context, a2a_request)
+                await self._forward_request(
+                    task_context, a2a_request, target_agent_name
+                )
 
             elif isinstance(a2a_request, CancelTaskRequest):
                 with self.active_tasks_lock:
@@ -317,6 +327,26 @@ class BaseProxyComponent(ComponentBase, ABC):
         )
         self._publish_a2a_message(response.model_dump(exclude_none=True), target_topic)
 
+    async def _publish_artifact_update(
+        self, event: TaskArtifactUpdateEvent, a2a_context: Dict
+    ):
+        """Publishes a TaskArtifactUpdateEvent to the appropriate Solace topic."""
+        target_topic = a2a_context.get("statusTopic")
+        if not target_topic:
+            log.warning(
+                "%s No statusTopic in context for task %s. Cannot publish artifact update.",
+                self.log_identifier,
+                event.task_id,
+            )
+            return
+
+        legacy_event_dict = translate_modern_to_sam_response(event)
+
+        response = JSONRPCResponse(
+            id=a2a_context.get("jsonrpc_request_id"), result=legacy_event_dict
+        )
+        self._publish_a2a_message(response.model_dump(exclude_none=True), target_topic)
+
     async def _publish_error_response(
         self,
         request_id: str,
@@ -420,7 +450,7 @@ class BaseProxyComponent(ComponentBase, ABC):
 
     @abstractmethod
     async def _forward_request(
-        self, task_context: "ProxyTaskContext", request: A2ARequest
+        self, task_context: "ProxyTaskContext", request: A2ARequest, agent_name: str
     ):
         """
         Forwards a request to the downstream agent using its specific protocol.

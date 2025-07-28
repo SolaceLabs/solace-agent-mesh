@@ -91,15 +91,11 @@ class A2AProxyComponent(BaseProxyComponent):
         return None
 
     async def _forward_request(
-        self, task_context: "ProxyTaskContext", request: A2ARequest
+        self, task_context: "ProxyTaskContext", request: A2ARequest, agent_name: str
     ):
         """
         Forwards an A2A request to a downstream A2A-over-HTTPS agent.
         """
-        agent_name = "unknown"
-        if request.params and hasattr(request.params, 'metadata') and request.params.metadata:
-             agent_name = request.params.metadata.get("target_agent_name")
-
         log_identifier = f"{self.log_identifier}[ForwardRequest:{task_context.task_id}:{agent_name}]"
 
         try:
@@ -219,7 +215,7 @@ class A2AProxyComponent(BaseProxyComponent):
         elif isinstance(response, TaskArtifactUpdateEvent):
             # This is already handled by _handle_outbound_artifacts, but we could
             # forward the event if needed. For now, we assume saving is enough.
-            pass
+            await self._publish_artifact_update(response, task_context.a2a_context)
         else:
             log.warning(f"Received unhandled response type: {type(response)}")
 

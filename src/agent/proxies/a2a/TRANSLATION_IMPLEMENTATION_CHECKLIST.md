@@ -68,12 +68,12 @@ This checklist corresponds to the `TRANSLATION_IMPLEMENTATION_PLAN.md` document 
 
 ### 5. Modify `A2AProxyComponent` (`src/agent/proxies/a2a/component.py`)
 
-- [ ] **5.1. Update `_forward_request`:**
-    - [ ] 5.1.1. Verify the `request` parameter is typed as `a2a.types.A2ARequest`.
-    - [ ] 5.1.2. Ensure the modern request is passed correctly to the `A2AClient`.
-- [ ] **5.2. Update `_process_downstream_response`:**
-    - [ ] 5.2.1. Verify the `response` parameter is typed with modern `a2a.types`.
-    - [ ] 5.2.2. Confirm modern objects are passed directly to the base class's publish methods.
+- [x] **5.1. Update `_forward_request`:**
+    - [x] 5.1.1. Verify the `request` parameter is typed as `a2a.types.A2ARequest`.
+    - [x] 5.1.2. Ensure the modern request is passed correctly to the `A2AClient`.
+- [x] **5.2. Update `_process_downstream_response`:**
+    - [x] 5.2.1. Verify the `response` parameter is typed with modern `a2a.types`.
+    - [x] 5.2.2. Confirm modern objects are passed directly to the base class's publish methods.
 
 ## Phase 4: Validation
 
