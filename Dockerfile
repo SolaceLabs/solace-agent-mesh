@@ -3,7 +3,7 @@ FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
 
-ENV FLASK_HOST="0.0.0.0"
+ENV CONFIG_PORTAL_HOST="0.0.0.0"
 
 # Install dependencies
 RUN apt-get update && \
