@@ -107,6 +107,9 @@ class BaseProxyComponent(ComponentBase, ABC):
             self._async_init_future.result(timeout=1)
             log.info("%s Async initialization completed.", self.log_identifier)
 
+            # Perform initial synchronous discovery to populate the registry
+            self._initial_discovery_sync()
+
         except Exception as e:
             log.exception("%s Initialization failed: %s", self.log_identifier, e)
             self.cleanup()
@@ -143,7 +146,7 @@ class BaseProxyComponent(ComponentBase, ABC):
             await self._handle_a2a_request(event.data)
         elif event.event_type == EventType.TIMER:
             if event.data.get("timer_id") == self._discovery_timer_id:
-                await self._discover_agents()
+                await self._discover_and_publish_agents()
         else:
             log.debug(
                 "%s Ignoring unhandled event type: %s",
@@ -436,29 +439,40 @@ class BaseProxyComponent(ComponentBase, ABC):
                 exc_info=future.exception(),
             )
 
+    def _publish_discovered_cards(self):
+        """Publishes all agent cards currently in the registry."""
+        log.info("%s Publishing initially discovered agent cards...", self.log_identifier)
+        for agent_alias in self.agent_registry.get_agent_names():
+            card_for_proxy = self.agent_registry.get_agent(agent_alias)
+            if not card_for_proxy:
+                continue
+
+            card_to_publish = card_for_proxy.model_copy(deep=True)
+            card_to_publish.url = (
+                f"solace:{get_agent_request_topic(self.namespace, agent_alias)}"
+            )
+            discovery_topic = get_discovery_topic(self.namespace)
+            self._publish_a2a_message(
+                card_to_publish.model_dump(exclude_none=True), discovery_topic
+            )
+            log.info(
+                "%s Published initially discovered card for agent '%s'.",
+                self.log_identifier,
+                agent_alias,
+            )
+
     def on_ready(self):
         """
         Called by the framework when the flow is ready.
-        Performs initial agent discovery and starts the discovery timer.
+        Publishes the initially discovered agent cards and starts the discovery timer.
         """
         super().on_ready()
         log.info(
             "%s Component is ready. Starting active operations.", self.log_identifier
         )
 
-        # Perform initial blocking discovery
-        log.info("%s Performing initial agent discovery...", self.log_identifier)
-        if self._async_loop:
-            future = asyncio.run_coroutine_threadsafe(
-                self._discover_agents(), self._async_loop
-            )
-            future.result(timeout=60)  # Block until discovery is complete
-        else:
-            log.error(
-                "%s Async loop not running, cannot perform initial discovery.",
-                self.log_identifier,
-            )
-        log.info("%s Initial agent discovery complete.", self.log_identifier)
+        # Publish the cards that were discovered synchronously during init
+        self._publish_discovered_cards()
 
         # Schedule the recurring discovery timer
         if self.discovery_interval_sec > 0:
@@ -468,7 +482,7 @@ class BaseProxyComponent(ComponentBase, ABC):
                 interval_ms=self.discovery_interval_sec * 1000,
             )
             log.info(
-                "%s Scheduled agent discovery every %d seconds.",
+                "%s Scheduled recurring agent discovery every %d seconds.",
                 self.log_identifier,
                 self.discovery_interval_sec,
             )
