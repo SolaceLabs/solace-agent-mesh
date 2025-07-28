@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 from cli.utils import error_exit
 
+config_portal_host = "CONFIG_PORTAL_HOST"
 
 def run_flask_plugin_catalog(host, port, shared_data):
     try:
@@ -54,8 +55,7 @@ def run_flask_plugin_catalog(host, port, shared_data):
 )
 def catalog(port: int, installer_command: str):
     """Launches the SAM Plugin catalog web interface."""
-    host = "127.0.0.1"
-
+    host = os.environ.get(config_portal_host, "127.0.0.1")
     try:
         if installer_command:
             installer_command.format(package="dummy")  # Test if the command is valid
@@ -105,7 +105,16 @@ def catalog(port: int, installer_command: str):
 
         portal_url = f"http://{host}:{port}/?config_mode=pluginCatalog"
         click.echo(f"Opening Plugin Catalog at: {portal_url}")
-        webbrowser.open(portal_url)
+
+        try:
+            webbrowser.open(portal_url)
+        except Exception:
+            click.echo(
+                click.style(
+                    f"Could not automatically open browser, Please open {portal_url} manually.",
+                    fg="yellow",
+                )
+            )
 
         try:
             gui_process.join()
