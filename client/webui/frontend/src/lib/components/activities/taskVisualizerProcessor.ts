@@ -346,7 +346,7 @@ export const processTaskForVisualization = (
                 }
                 const llmCallData: LLMCallData = {
                     modelName: llmData?.model || "Unknown Model",
-                    promptPreview: promptText.substring(0, 200) + (promptText.length > 200 ? "..." : ""),
+                    promptPreview: promptText,
                 };
 
                 // --- Performance Data Collection ---

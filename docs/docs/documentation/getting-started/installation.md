@@ -123,10 +123,16 @@ For more complex operations like building a project, you'll need to mount your p
 :::
 
 :::warning Browser Requirement
-The `Mermaid` agent requires a browser with headless mode support to be installed (it uses headless mode to render diagrams), check your browser to see if it supports headless mode.
+The `Mermaid` agent requires a browser with headless mode support to be installed (it uses headless mode to render diagrams). Use `playwright` to install the browser dependencies. If you are using the Docker image, this is already included.
+
+To install the browser dependencies, run:
+
+```sh
+playwright install
+```
 :::
 
-2. Run the following SAM CLI command (`solace-agent-mesh`) to verify your installation:
+1. Run the following SAM CLI command (`solace-agent-mesh`) to verify your installation:
 
 ```sh
 solace-agent-mesh --version

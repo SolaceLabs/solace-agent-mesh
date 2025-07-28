@@ -40,6 +40,7 @@ dependencies = [
     "markitdown[all]==0.1.1",
     "jmespath>=1.0.1",
     "mermaid-cli",
+    "playwright>=1.54.0",
     "litellm>=1.19.0",
     "html2text>=2020.1.16",
     "beautifulsoup4>=4.12.0",
