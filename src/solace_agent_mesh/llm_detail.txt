@@ -268,13 +268,13 @@ The `protocol` directory implements the core logic for Agent-to-Agent (A2A) comm
 
 ### __init__.py
 **Purpose:** Standard Python package initialization file.
-**Import:** `from src.agent.protocol import *`
+**Import:** `from src.solace_agent_mesh.agent.protocol import *`
 
 This is an empty package initialization file and has no public interfaces.
 
 ### event_handlers.py
 **Purpose:** This file is the central hub for processing all events related to the A2A protocol. It receives events from the Solace AI Connector framework, determines their type (e.g., new task request, peer agent response, discovery message, timer), and routes them to the appropriate handler function. It manages the lifecycle of tasks, from initiation and cancellation to handling responses from peer agents.
-**Import:** `from src.agent.protocol.event_handlers import process_event, handle_a2a_request, handle_agent_card_message, handle_a2a_response, publish_agent_card`
+**Import:** `from src.solace_agent_mesh.agent.protocol.event_handlers import process_event, handle_a2a_request, handle_agent_card_message, handle_a2a_response, publish_agent_card`
 
 **Functions:**
 - `process_event(component: "SamAgentComponent", event: Event
@@ -307,7 +307,7 @@ The main components are `SamAgentApp`, which handles the initial setup and confi
 ---
 ### app.py
 **Purpose:** Provides a custom SAC `App` class (`SamAgentApp`) that simplifies the configuration of an A2A agent. It automatically generates the required Solace topic subscriptions and configures the message broker based on the provided `namespace` and `agent_name` in the configuration file. This class is the main entry point for running an agent host.
-**Import:** `from src.agent.sac.app import SamAgentApp`
+**Import:** `from src.solace_agent_mesh.agent.sac.app import SamAgentApp`
 
 **Classes:**
 - `SamAgentApp(app_info: Dict[str, Any], **kwargs)` - A custom App class for the SAM Agent Host. It handles namespace prefixing, automatic subscription generation, and programmatic definition of the `SamAgentComponent`.
@@ -325,7 +325,7 @@ The main components are `SamAgentApp`, which handles the initial setup and confi
 
 # --- Example agent-config.yaml ---
 # app:
-#   class_name: src.agent.sac.app.SamAgentApp
+#   class_name: src.solace_agent_mesh.agent.sac.app.SamAgentApp
 #   app_config:
 #     namespace: "my-org/production"
 #     agent_name: "customer-support-agent"
@@ -350,7 +350,7 @@ The main components are `SamAgentApp`, which handles the initial setup and confi
 ---
 ### component.py
 **Purpose:** This is the core component that hosts a Google ADK agent and bridges its communication to the A2A protocol over Solace. It handles incoming task requests, manages the agent's lifecycle, processes ADK events, orchestrates tool calls (including peer agent delegation), and sends status updates and final responses. Developers can interact with this component's state and lifecycle via custom initialization and cleanup functions.
-**Import:** `from src.agent.sac.component import SamAgentComponent`
+**Import:** `from src.solace_agent_mesh.agent.sac.component import SamAgentComponent`
 
 **Classes:**
 - `SamAgentComponent(**kwargs)` - A Solace AI Connector component that hosts a Google ADK agent and communicates via the A2A protocol.
@@ -383,8 +383,8 @@ The main components are `SamAgentApp`, which handles the initial setup and confi
 
 # --- In a custom init module (e.g., my_agent_init.py) ---
 import asyncio
-from src.agent.sac.component import SamAgentComponent
-from src.common.types import A2AMessage, TextPart
+from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
+from src.solace_agent_mesh.common.types import A2AMessage, TextPart
 
 # This function would be configured in the agent's YAML config
 def initialize_my_agent(host_component: SamAgentComponent, config: dict):
@@ -514,22 +514,22 @@ The `tools` directory contains the complete set of built-in tools available to t
 
 ### __init__.py
 **Purpose:** This file ensures that all built-in tool modules are imported when the `tools` package is loaded. This is crucial for the declarative tool registration pattern, as it triggers the `tool_registry.register()` calls within each tool module.
-**Import:** `import src.agent.tools`
+**Import:** `import src.solace_agent_mesh.agent.tools`
 
 **Usage Examples:**
 ```python
 # Importing the tools package is sufficient to register all built-in tools.
-import src.agent.tools
+import src.solace_agent_mesh.agent.tools
 
 # You can then access the registry to see all registered tools.
-from src.agent.tools.registry import tool_registry
+from src.solace_agent_mesh.agent.tools.registry import tool_registry
 all_tools = tool_registry.get_all_tools()
 print(f"Registered {len(all_tools)} tools.")
 ```
 
 ### audio_tools.py
 **Purpose:** This file provides a collection of tools for audio processing, including text-to-speech (TTS) generation, audio concatenation, and transcription.
-**Import:** `from src.agent.tools.audio_tools import select_voice, text_to_speech, multi_speaker_text_to_speech, concatenate_audio, transcribe_audio`
+**Import:** `from src.solace_agent_mesh.agent.tools.audio_tools import select_voice, text_to_speech, multi_speaker_text_to_speech, concatenate_audio, transcribe_audio`
 
 **Functions:**
 - `select_voice(gender: Optional[str] = None, tone: Optional[str] = None, exclude_voices: Optional[List[str]] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Selects a suitable voice name based on criteria like gender and tone. Use this to get a consistent voice name that can be passed to the `text_to_speech` tool for multiple calls.
@@ -592,7 +592,7 @@ print(transcribe_result)
 
 ### builtin_artifact_tools.py
 **Purpose:** This file provides the core tools for artifact management, allowing the agent to create, read, list, update, and delete data artifacts within the current session.
-**Import:** `from src.agent.tools.builtin_artifact_tools import list_artifacts, load_artifact, signal_artifact_for_return, append_to_artifact, apply_embed_and_create_artifact, extract_content_from_artifact, delete_artifact`
+**Import:** `from src.solace_agent_mesh.agent.tools.builtin_artifact_tools import list_artifacts, load_artifact, signal_artifact_for_return, append_to_artifact, apply_embed_and_create_artifact, extract_content_from_artifact, delete_artifact`
 
 **Functions:**
 - `list_artifacts(tool_context: ToolContext = None) -> Dict[str, Any]` - Lists all available data artifact filenames and their versions for the current session.
@@ -618,7 +618,7 @@ The `utils` directory provides a collection of helper modules designed to suppor
 
 ### artifact_helpers.py
 **Purpose:** This module offers a comprehensive set of asynchronous functions for interacting with an artifact storage service. It handles saving artifacts with automatically generated metadata, inferring schemas for common data types, loading artifact content or just metadata, and listing available artifacts.
-**Import:** `from src.agent.utils.artifact_helpers import is_filename_safe, ensure_correct_extension, save_artifact_with_metadata, load_artifact_content_or_metadata, get_latest_artifact_version, get_artifact_info_list, format_metadata_for_llm, decode_and_get_bytes`
+**Import:** `from src.solace_agent_mesh.agent.utils.artifact_helpers import is_filename_safe, ensure_correct_extension, save_artifact_with_metadata, load_artifact_content_or_metadata, get_latest_artifact_version, get_artifact_info_list, format_metadata_for_llm, decode_and_get_bytes`
 
 **Functions:**
 - `is_filename_safe(filename: str) -> bool` - Checks if a filename is safe for artifact creation (e.g., no path traversal).
@@ -640,7 +640,7 @@ import asyncio
 import datetime
 from typing import Dict, Any, Optional, List, Union
 from google.adk.artifacts import BaseArtifactService, MemoryArtifactService
-from src.agent.utils.artifact_helpers import (
+from src.solace_agent_mesh.agent.utils.artifact_helpers import (
     save_artifact_with_metadata,
     load_artifact_content_or_metadata,
     get_artifact_info_list,
@@ -700,7 +700,7 @@ async def manage_artifacts():
 
 ### config_parser.py
 **Purpose:** This module provides a utility to resolve configuration values that can be either a static string or a dynamic, callable "invoke" block. This is primarily used for parsing the agent's `instruction` configuration.
-**Import:** `from src.agent.utils.config_parser import resolve_instruction_provider`
+**Import:** `from src.solace_agent_mesh.agent.utils.config_parser import resolve_instruction_provider`
 
 **Functions:**
 - `resolve_instruction_provider(component, config_value: Any) -> Union[str, Callable[[ReadonlyContext], str]]` - Resolves an instruction from a configuration value. If the value is a string, it's returned directly. If it's a dictionary with an "invoke" key that resolves to a callable, the callable is returned.
@@ -725,7 +725,7 @@ instruction_func = resolve_instruction_provider(my_agent_component, instruction_
 
 ### context_helpers.py
 **Purpose:** This module provides safe and stable helper functions to extract information from the ADK's `CallbackContext` and other invocation context objects, abstracting away internal attribute access.
-**Import:** `from src.agent.utils.context_helpers import get_session_from_callback_context, get_original_session_id`
+**Import:** `from src.solace_agent_mesh.agent.utils.context_helpers import get_session_from_callback_context, get_original_session_id`
 
 **Functions:**
 - `get_session_from_callback_context(callback_context: CallbackContext) -> Session` - Safely retrieves the persistent `Session` object from a `CallbackContext`.
@@ -735,7 +735,7 @@ instruction_func = resolve_instruction_provider(my_agent_component, instruction_
 ```python
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.sessions import Session, SessionId
-from src.agent.utils.context_helpers import get_session_from_callback_context, get_original_session_id
+from src.solace_agent_mesh.agent.utils.context_helpers import get_session_from_callback_context, get_original_session_id
 
 # Mock context objects for demonstration
 class MockInvocationContext:
@@ -777,7 +777,7 @@ The `client` directory provides a Python-based client library for Agent-to-Agent
 
 ### __init__.py
 **Purpose:** This file makes the main client classes available directly under the `client` package, simplifying imports for developers.
-**Import:** `from src.common.client import A2AClient, A2ACardResolver`
+**Import:** `from src.solace_agent_mesh.common.client import A2AClient, A2ACardResolver`
 
 **Constants/Variables:**
 - `__all__: list[str]` - A list of the public objects that are exported from this module: `["A2AClient", "A2ACardResolver"]`.
@@ -786,7 +786,7 @@ The `client` directory provides a Python-based client library for Agent-to-Agent
 
 ### card_resolver.py
 **Purpose:** This file provides a utility to resolve and fetch an agent's "Agent Card". The Agent Card is a JSON file that describes the agent's capabilities, its endpoint URL, and other metadata.
-**Import:** `from src.common.client import A2ACardResolver`
+**Import:** `from src.solace_agent_mesh.common.client import A2ACardResolver`
 
 **Classes:**
 - `A2ACardResolver(base_url: str, agent_card_path: str = "/.well-known/agent.json")` - A client to discover and fetch an agent's capability card.
@@ -794,8 +794,8 @@ The `client` directory provides a Python-based client library for Agent-to-Agent
 
 **Usage Examples:**
 ```python
-from src.common.client import A2ACardResolver
-from src.common.types import AgentCard, A2AClientHTTPError
+from src.solace_agent_mesh.common.client import A2ACardResolver
+from src.solace_agent_mesh.common.types import AgentCard, A2AClientHTTPError
 
 # --- Example 1: Standard usage ---
 # Create a resolver for an agent hosted at a specific domain
@@ -827,7 +827,7 @@ print(f"Agent name from custom path: {custom_agent_card.name}")
 
 ### client.py
 **Purpose:** This file contains the core `A2AClient`, which is used to communicate with a remote agent's API endpoint. It handles sending various types of JSON-RPC requests for task management. All methods are asynchronous.
-**Import:** `from src.common.client import A2AClient`
+**Import:** `from src.solace_agent_mesh.common.client import A2AClient`
 
 **Classes:**
 - `A2AClient(agent_card: AgentCard = None, url: str = None)` - The main client for interacting with a remote agent. You must provide either an `AgentCard` object (from `A2ACardResolver`) or a direct `url` string to its API endpoint.
@@ -841,10 +841,10 @@ print(f"Agent name from custom path: {custom_agent_card.name}")
 **Usage Examples:**
 ```python
 import asyncio
-from src.common.client import A2AClient, A2ACardResolver
+from src.solace_agent_mesh.common.client import A2AClient, A2ACardResolver
 
 # Assume these types are available for type hinting
-# from src.common.types import SendTaskResponse, SendTaskStreamingResponse
+# from src.solace_agent_mesh.common.types import SendTaskResponse, SendTaskStreamingResponse
 
 async def main():
     # First, discover the agent's capabilities and endpoint URL
@@ -1691,7 +1691,7 @@ The `embeds` directory provides a system for finding, parsing, and resolving emb
 ### __init__.py
 **Purpose:** This module serves as the main public entry point for the `embeds` package, exporting the most commonly used functions and constants from the other modules. Developers should typically import from here.
 
-**Import:** `from src.common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed, EMBED_REGEX`
+**Import:** `from src.solace_agent_mesh.common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed, EMBED_REGEX`
 
 *(Note: Detailed documentation is available under each source file's section.)*
 
@@ -1717,7 +1717,7 @@ The `embeds` directory provides a system for finding, parsing, and resolving emb
 ### constants.py
 **Purpose:** This file defines all the static constants that govern the syntax and classification of embeds. This includes delimiters, separators, the master regular expression for parsing, and sets that categorize embed types for phased resolution.
 
-**Import:** `from src.common.utils.embeds.constants import EMBED_REGEX, EARLY_EMBED_TYPES`
+**Import:** `from src.solace_agent_mesh.common.utils.embeds.constants import EMBED_REGEX, EARLY_EMBED_TYPES`
 
 **Classes:**
 - None
@@ -1739,7 +1739,7 @@ The `embeds` directory provides a system for finding, parsing, and resolving emb
 **Usage Examples:**
 ```python
 import re
-from src.common.utils.embeds.constants import EMBED_REGEX
+from src.solace_agent_mesh.common.utils.embeds.constants import EMBED_REGEX
 
 text = "The price is «math:10 * 1.15 | .2f» and the ID is «uuid:new»."
 
@@ -1758,7 +1758,7 @@ for match in EMBED_REGEX.finditer(text):
 ### converter.py
 **Purpose:** This file provides the core logic for data conversion and serialization. It can transform data between different `DataFormat` representations (e.g., `BYTES` to `STRING`, `STRING` to `LIST_OF_DICTS`) and serialize any format into a final string representation (e.g., `json`, `csv`, `datauri`).
 
-**Import:** `from src.common.utils.embeds.converter import convert_data, serialize_data`
+**Import:** `from src.solace_agent_mesh.common.utils.embeds.converter import convert_data, serialize_data`
 
 **Classes:**
 - None
@@ -1772,8 +1772,8 @@ for match in EMBED_REGEX.finditer(text):
 
 **Usage Examples:**
 ```python
-from src.common.utils.embeds.converter import convert_data, serialize_data
-from src.common.utils.embeds.types import DataFormat
+from src.solace_agent_mesh.common.utils.embeds.converter import convert_data, serialize_data
+from src.solace_agent_mesh.common.utils.embeds.types import DataFormat
 
 # Example 1: Convert CSV bytes to a list of dictionaries
 csv_bytes = b"id,name\n1,Alice\n2,Bob"
@@ -2394,7 +2394,7 @@ The `routers` directory contains FastAPI `APIRouter` modules that define the RES
 
 ### agents.py
 **Purpose:** Provides REST endpoints for agent discovery.
-**Import:** `from src.gateway.http_sse.routers.agents import router`
+**Import:** `from src.solace_agent_mesh.gateway.http_sse.routers.agents import router`
 
 **Functions:**
 - `get_discovered_agents() -> List[AgentCard]`: Retrieves a list of all currently discovered and available A2A agents. The `AgentCard` type contains details about each agent.
@@ -2403,7 +2403,7 @@ The `routers` directory contains FastAPI `APIRouter` modules that define the RES
 ```python
 # To include this router in a FastAPI application
 from fastapi import FastAPI
-from src.gateway.http_sse.routers.agents import router
+from src.solace_agent_mesh.gateway.http_sse.routers.agents import router
 
 app = FastAPI()
 app.include_router(router, prefix="/api/v1")
@@ -2437,7 +2437,7 @@ The `services` directory contains the business logic layer for the HTTP SSE Gate
 
 ### agent_service.py
 **Purpose:** Provides high-level methods for accessing information about discovered A2A agents from the shared `AgentRegistry`.
-**Import:** `from src.gateway.http_sse.services.agent_service import AgentService`
+**Import:** `from src.solace_agent_mesh.gateway.http_sse.services.agent_service import AgentService`
 
 **Classes:**
 - `AgentService(agent_registry: AgentRegistry)` - A service that provides methods for accessing information about discovered A2A agents.
@@ -2447,9 +2447,9 @@ The `services` directory contains the business logic layer for the HTTP SSE Gate
 **Usage Examples:**
 ```python
 from typing import List, Optional
-from src.gateway.http_sse.services.agent_service import AgentService
-from src.common.agent_registry import AgentRegistry
-from src.common.types import AgentCard
+from src.solace_agent_mesh.gateway.http_sse.services.agent_service import AgentService
+from src.solace_agent_mesh.common.agent_registry import AgentRegistry
+from src.solace_agent_mesh.common.types import AgentCard
 
 # In a real application, AgentRegistry would be a shared instance.
 # For this example, we'll create a new one and populate it.
@@ -2482,7 +2482,7 @@ print(f"Result for 'non-existent-agent': {missing_agent}")
 
 ### people_service.py
 **Purpose:** Acts as a layer on top of a configured `IdentityService` to provide user search functionality. If no identity service is configured, it gracefully returns empty results.
-**Import:** `from src.gateway.http_sse.services.people_service import PeopleService`
+**Import:** `from src.solace_agent_mesh.gateway.http_sse.services.people_service import PeopleService`
 
 **Classes:**
 - `PeopleService(identity_service: Optional[BaseIdentityService])` - A service for searching and retrieving user information.
@@ -2492,8 +2492,8 @@ print(f"Result for 'non-existent-agent': {missing_agent}")
 ```python
 import asyncio
 from typing import Any, Dict, List, Optional
-from src.gateway.http_sse.services.people_service import PeopleService
-from src.common.services.identity_service import BaseIdentityService
+from src.solace_agent_mesh.gateway.http_sse.services.people_service import PeopleService
+from src.solace_agent_mesh.common.services.identity_service import BaseIdentityService
 
 # Define a mock identity service for the example
 class MockIdentityService(BaseIdentityService):
@@ -2529,7 +2529,7 @@ if __name__ == "__main__":
 
 ### task_service.py
 **Purpose:** Handles the business logic for cancelling A2A tasks. It uses `CoreA2AService` to construct the cancellation message and a provided publisher function to send it over the messaging fabric.
-**Import:** `from src.gateway.http_sse.services.task_service import TaskService, PublishFunc`
+**Import:** `from src.solace_agent_mesh.gateway.http_sse.services.task_service import TaskService, PublishFunc`
 
 **Classes:**
 - `TaskService(core_a2a_service: CoreA2AService, publish_func: PublishFunc, namespace: str, gateway_id: str, sse_manager: SSEManager, task_context_map: Dict[str, Dict], task_context_lock: threading.Lock, app_name: str)` - A service for managing A2A task operations.
@@ -2544,9 +2544,9 @@ import asyncio
 import threading
 from typing import Callable, Dict, Optional
 
-from src.gateway.http_sse.services.task_service import TaskService, PublishFunc
-from src.core_a2a.service import CoreA2AService
-from src.gateway.http_sse.sse_manager import SSEManager
+from src.solace_agent_mesh.gateway.http_sse.services.task_service import TaskService, PublishFunc
+from src.solace_agent_mesh.core_a2a.service import CoreA2AService
+from src.solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager
 
 # Mock dependencies for the example
 class MockCoreA2AService(CoreA2AService):
@@ -2634,13 +2634,13 @@ This file is empty and has no public interfaces.
 **Key Exports:** `SamAgentApp`, `SamAgentComponent`, `AppLlmAgent`, and a wide array of built-in tools for data analysis, web requests, multimedia processing, and inter-agent communication.
 **Import Examples:**
 ```python
-from src.agent.sac.app import SamAgentApp
-from src.agent.sac.component import SamAgentComponent
-from src.agent.adk.app_llm_agent import AppLlmAgent
-from src.agent.tools.builtin_data_analysis_tools import query_data_with_sql
-from src.agent.tools.peer_agent_tool import PeerAgentTool
-from src.agent.tools.web_tools import web_request
-from src.agent.tools.image_tools import create_image_from_description
+from src.solace_agent_mesh.agent.sac.app import SamAgentApp
+from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
+from src.solace_agent_mesh.agent.adk.app_llm_agent import AppLlmAgent
+from src.solace_agent_mesh.agent.tools.builtin_data_analysis_tools import query_data_with_sql
+from src.solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool
+from src.solace_agent_mesh.agent.tools.web_tools import web_request
+from src.solace_agent_mesh.agent.tools.image_tools import create_image_from_description
 ```
 
 #### common/
@@ -2648,12 +2648,12 @@ from src.agent.tools.image_tools import create_image_from_description
 **Key Exports:** A2A protocol functions, Pydantic type definitions (`Message`, `Task`, `AgentCard`), `A2AClient` for interacting with agents, `A2AServer` for building agents, and various utilities.
 **Import Examples:**
 ```python
-from src.common.a2a_protocol import get_agent_request_topic
-from src.common.types import Message, Task, AgentCard, TextPart
-from src.common.client import A2AClient, A2ACardResolver
-from src.common.server import A2AServer, InMemoryTaskManager
-from src.common.agent_registry import AgentRegistry
-from src.common.utils.embeds import resolve_embeds_in_string
+from src.solace_agent_mesh.common.a2a_protocol import get_agent_request_topic
+from src.solace_agent_mesh.common.types import Message, Task, AgentCard, TextPart
+from src.solace_agent_mesh.common.client import A2AClient, A2ACardResolver
+from src.solace_agent_mesh.common.server import A2AServer, InMemoryTaskManager
+from src.solace_agent_mesh.common.agent_registry import AgentRegistry
+from src.solace_agent_mesh.common.utils.embeds import resolve_embeds_in_string
 ```
 
 #### core_a2a/
@@ -2661,7 +2661,7 @@ from src.common.utils.embeds import resolve_embeds_in_string
 **Key Exports:** `CoreA2AService` for managing A2A protocol logic without being tied to a specific gateway or messaging implementation.
 **Import Examples:**
 ```python
-from src.core_a2a.service import CoreA2AService
+from src.solace_agent_mesh.core_a2a.service import CoreA2AService
 ```
 
 #### gateway/
@@ -2669,11 +2669,11 @@ from src.core_a2a.service import CoreA2AService
 **Key Exports:** `BaseGatewayApp` and `BaseGatewayComponent` for creating custom gateways, and concrete implementations like `WebUIBackendApp`, `SlackGatewayApp`, and `WebhookGatewayApp`.
 **Import Examples:**
 ```python
-from src.gateway.base.app import BaseGatewayApp
-from src.gateway.http_sse.app import WebUIBackendApp
-from src.gateway.slack.app import SlackGatewayApp
-from src.gateway.webhook.app import WebhookGatewayApp
-from src.gateway.base.authorization_service import ConfigurableRbacAuthorizationService
+from src.solace_agent_mesh.gateway.base.app import BaseGatewayApp
+from src.solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
+from src.solace_agent_mesh.gateway.slack.app import SlackGatewayApp
+from src.solace_agent_mesh.gateway.webhook.app import WebhookGatewayApp
+from src.solace_agent_mesh.gateway.base.authorization_service import ConfigurableRbacAuthorizationService
 ```
 
 ## Complete Usage Guide
@@ -2684,21 +2684,21 @@ The following examples show how to import and instantiate components from each m
 
 ```python
 # 1. Import from the 'agent' directory to create an AI agent
-from src.agent.sac.app import SamAgentApp
+from src.solace_agent_mesh.agent.sac.app import SamAgentApp
 
 # 2. Import from the 'common' and 'core_a2a' directories for protocol infrastructure
-from src.common.agent_registry import AgentRegistry
-from src.common.types import AgentCard, AgentCapabilities, AgentSkill
-from src.core_a2a.service import CoreA2AService
+from src.solace_agent_mesh.common.agent_registry import AgentRegistry
+from src.solace_agent_mesh.common.types import AgentCard, AgentCapabilities, AgentSkill
+from src.solace_agent_mesh.core_a2a.service import CoreA2AService
 
 # 3. Import from the 'gateway' directory to create interfaces
-from src.gateway.http_sse.app import WebUIBackendApp
-from src.gateway.slack.app import SlackGatewayApp
-from src.gateway.webhook.app import WebhookGatewayApp
+from src.solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
+from src.solace_agent_mesh.gateway.slack.app import SlackGatewayApp
+from src.solace_agent_mesh.gateway.webhook.app import WebhookGatewayApp
 
 # 4. Import tools from the 'agent/tools' subdirectory
-from src.agent.tools.peer_agent_tool import PeerAgentTool
-from src.agent.tools.builtin_data_analysis_tools import query_data_with_sql
+from src.solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool
+from src.solace_agent_mesh.agent.tools.builtin_data_analysis_tools import query_data_with_sql
 ```
 
 ### 2. How different parts work together
@@ -2709,7 +2709,7 @@ First, define and configure an agent. This agent will automatically be equipped 
 
 ```python
 # File: my_system.py
-from src.agent.sac.app import SamAgentApp
+from src.solace_agent_mesh.agent.sac.app import SamAgentApp
 
 # Configure the agent with all capabilities
 agent_config = {
@@ -2738,9 +2738,9 @@ Next, set up the core services that manage agent discovery and task routing. Thi
 
 ```python
 # File: my_system.py (continued)
-from src.common.agent_registry import AgentRegistry
-from src.common.types import AgentCard, AgentCapabilities, AgentSkill
-from src.core_a2a.service import CoreA2AService
+from src.solace_agent_mesh.common.agent_registry import AgentRegistry
+from src.solace_agent_mesh.common.types import AgentCard, AgentCapabilities, AgentSkill
+from src.solace_agent_mesh.core_a2a.service import CoreA2AService
 
 # Initialize a shared agent registry
 agent_registry = AgentRegistry()
@@ -2767,8 +2767,8 @@ Create one or more gateways to expose the agent(s) to external platforms.
 
 ```python
 # File: my_system.py (continued)
-from src.gateway.http_sse.app import WebUIBackendApp
-from src.gateway.slack.app import SlackGatewayApp
+from src.solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
+from src.solace_agent_mesh.gateway.slack.app import SlackGatewayApp
 
 # Web UI Gateway for browser-based interactions
 webui_config = {
@@ -2805,7 +2805,7 @@ An agent can use the `PeerAgentTool` (from `agent/tools/`) to delegate tasks to 
 
 ```python
 # This code would run within an agent's tool execution context.
-from src.agent.tools.peer_agent_tool import PeerAgentTool
+from src.solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool
 
 async def analyze_and_delegate_report(component, tool_context):
     # Assume 'component' is the SamAgentComponent instance hosting the current agent.

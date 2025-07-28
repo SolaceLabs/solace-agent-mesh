@@ -30,9 +30,9 @@ from tests.integration.infrastructure.llm_server.server import TestLLMServer
 from tests.integration.infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )
-from src.common.types import Task, JSONRPCError
-from src.agent.sac.component import SamAgentComponent
-from src.common.utils.in_memory_cache import InMemoryCache
+from src.solace_agent_mesh.common.types import Task, JSONRPCError
+from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
+from src.solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
 from tests.integration.infrastructure.memory_monitor import MemoryMonitor
 from .test_helpers import (

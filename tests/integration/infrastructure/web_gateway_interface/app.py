@@ -2,8 +2,8 @@
 Custom Solace AI Connector App class for the Test Web Gateway.
 """
 from typing import Type
-from src.gateway.base.component import BaseGatewayComponent
-from src.gateway.http_sse.app import WebUIBackendApp
+from src.solace_agent_mesh.gateway.base.component import BaseGatewayComponent
+from src.solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
 from .component import TestWebGatewayComponent
 
 # Module-level info dictionary required by SAC

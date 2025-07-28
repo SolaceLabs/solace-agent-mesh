@@ -7,7 +7,7 @@
 apps:  
   - name: test_agent_app
     app_base_path: .
-    app_module: src.agent.sac.app
+    app_module: src.solace_agent_mesh.agent.sac.app
     broker:
       <<: *broker_connection
 

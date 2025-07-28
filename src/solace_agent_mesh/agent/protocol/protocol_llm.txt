@@ -9,13 +9,13 @@ The `protocol` directory implements the core logic for Agent-to-Agent (A2A) comm
 
 ### __init__.py
 **Purpose:** Standard Python package initialization file.
-**Import:** `from src.agent.protocol import *`
+**Import:** `from src.solace_agent_mesh.agent.protocol import *`
 
 This is an empty package initialization file and has no public interfaces.
 
 ### event_handlers.py
 **Purpose:** This file is the central hub for processing all events related to the A2A protocol. It receives events from the Solace AI Connector framework, determines their type (e.g., new task request, peer agent response, discovery message, timer), and routes them to the appropriate handler function. It manages the lifecycle of tasks, from initiation and cancellation to handling responses from peer agents.
-**Import:** `from src.agent.protocol.event_handlers import process_event, handle_a2a_request, handle_agent_card_message, handle_a2a_response, publish_agent_card`
+**Import:** `from src.solace_agent_mesh.agent.protocol.event_handlers import process_event, handle_a2a_request, handle_agent_card_message, handle_a2a_response, publish_agent_card`
 
 **Functions:**
 - `process_event(component: "SamAgentComponent", event: Event

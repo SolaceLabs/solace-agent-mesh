@@ -18,22 +18,22 @@ The `tools` directory contains the complete set of built-in tools available to t
 
 ### __init__.py
 **Purpose:** This file ensures that all built-in tool modules are imported when the `tools` package is loaded. This is crucial for the declarative tool registration pattern, as it triggers the `tool_registry.register()` calls within each tool module.
-**Import:** `import src.agent.tools`
+**Import:** `import src.solace_agent_mesh.agent.tools`
 
 **Usage Examples:**
 ```python
 # Importing the tools package is sufficient to register all built-in tools.
-import src.agent.tools
+import src.solace_agent_mesh.agent.tools
 
 # You can then access the registry to see all registered tools.
-from src.agent.tools.registry import tool_registry
+from src.solace_agent_mesh.agent.tools.registry import tool_registry
 all_tools = tool_registry.get_all_tools()
 print(f"Registered {len(all_tools)} tools.")
 ```
 
 ### audio_tools.py
 **Purpose:** This file provides a collection of tools for audio processing, including text-to-speech (TTS) generation, audio concatenation, and transcription.
-**Import:** `from src.agent.tools.audio_tools import select_voice, text_to_speech, multi_speaker_text_to_speech, concatenate_audio, transcribe_audio`
+**Import:** `from src.solace_agent_mesh.agent.tools.audio_tools import select_voice, text_to_speech, multi_speaker_text_to_speech, concatenate_audio, transcribe_audio`
 
 **Functions:**
 - `select_voice(gender: Optional[str] = None, tone: Optional[str] = None, exclude_voices: Optional[List[str]] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Selects a suitable voice name based on criteria like gender and tone. Use this to get a consistent voice name that can be passed to the `text_to_speech` tool for multiple calls.
@@ -96,7 +96,7 @@ print(transcribe_result)
 
 ### builtin_artifact_tools.py
 **Purpose:** This file provides the core tools for artifact management, allowing the agent to create, read, list, update, and delete data artifacts within the current session.
-**Import:** `from src.agent.tools.builtin_artifact_tools import list_artifacts, load_artifact, signal_artifact_for_return, append_to_artifact, apply_embed_and_create_artifact, extract_content_from_artifact, delete_artifact`
+**Import:** `from src.solace_agent_mesh.agent.tools.builtin_artifact_tools import list_artifacts, load_artifact, signal_artifact_for_return, append_to_artifact, apply_embed_and_create_artifact, extract_content_from_artifact, delete_artifact`
 
 **Functions:**
 - `list_artifacts(tool_context: ToolContext = None) -> Dict[str, Any]` - Lists all available data artifact filenames and their versions for the current session.

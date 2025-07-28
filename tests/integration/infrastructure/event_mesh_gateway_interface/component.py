@@ -4,15 +4,15 @@ from typing import Any, Dict, Union, Optional, List
 from solace_ai_connector.common.message import Message as SolaceMessage
 
 from sam_event_mesh_gateway.component import EventMeshGatewayComponent
-from src.common.a2a_protocol import _topic_matches_subscription
-from src.common.types import (
+from src.solace_agent_mesh.common.a2a_protocol import _topic_matches_subscription
+from src.solace_agent_mesh.common.types import (
     Task,
     JSONRPCError,
     TaskStatusUpdateEvent,
     TaskArtifactUpdateEvent,
 )
 from solace_ai_connector.common.log import log
-from src.gateway.base.component import BaseGatewayComponent
+from src.solace_agent_mesh.gateway.base.component import BaseGatewayComponent
 
 info = {
     "class_name": "TestEventMeshGatewayComponent",

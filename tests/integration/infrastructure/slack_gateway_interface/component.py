@@ -3,7 +3,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Union, Optional, Tuple
 
 from sam_slack.component import SlackGatewayComponent
-from src.common.types import (
+from src.solace_agent_mesh.common.types import (
     Task,
     JSONRPCError,
     TaskStatusUpdateEvent,

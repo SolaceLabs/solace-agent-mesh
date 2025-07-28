@@ -35,7 +35,7 @@ log:
 apps:
   - name: universal_webhook_gateway_instance_01
     app_base_path: . # Assuming running from project root where src/ is located
-    app_module: src.gateway.webhook.app # Path to the WebhookGatewayApp module
+    app_module: src.solace_agent_mesh.gateway.webhook.app # Path to the WebhookGatewayApp module
     
     broker: # Broker settings for the gateway app itself
       <<: *broker_connection
@@ -176,7 +176,7 @@ apps:
 
   # Example of a simple echo agent for testing webhook submissions
   - name: echo_agent_app
-    app_module: src.agent.sac.app # Path to A2A_ADK_App
+    app_module: src.solace_agent_mesh.agent.sac.app # Path to A2A_ADK_App
     broker: # Broker settings for the agent app
       <<: *broker_connection
     app_config:

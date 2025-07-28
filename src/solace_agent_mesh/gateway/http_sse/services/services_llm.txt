@@ -19,7 +19,7 @@ The `services` directory contains the business logic layer for the HTTP SSE Gate
 
 ### agent_service.py
 **Purpose:** Provides high-level methods for accessing information about discovered A2A agents from the shared `AgentRegistry`.
-**Import:** `from src.gateway.http_sse.services.agent_service import AgentService`
+**Import:** `from src.solace_agent_mesh.gateway.http_sse.services.agent_service import AgentService`
 
 **Classes:**
 - `AgentService(agent_registry: AgentRegistry)` - A service that provides methods for accessing information about discovered A2A agents.
@@ -29,9 +29,9 @@ The `services` directory contains the business logic layer for the HTTP SSE Gate
 **Usage Examples:**
 ```python
 from typing import List, Optional
-from src.gateway.http_sse.services.agent_service import AgentService
-from src.common.agent_registry import AgentRegistry
-from src.common.types import AgentCard
+from src.solace_agent_mesh.gateway.http_sse.services.agent_service import AgentService
+from src.solace_agent_mesh.common.agent_registry import AgentRegistry
+from src.solace_agent_mesh.common.types import AgentCard
 
 # In a real application, AgentRegistry would be a shared instance.
 # For this example, we'll create a new one and populate it.
@@ -64,7 +64,7 @@ print(f"Result for 'non-existent-agent': {missing_agent}")
 
 ### people_service.py
 **Purpose:** Acts as a layer on top of a configured `IdentityService` to provide user search functionality. If no identity service is configured, it gracefully returns empty results.
-**Import:** `from src.gateway.http_sse.services.people_service import PeopleService`
+**Import:** `from src.solace_agent_mesh.gateway.http_sse.services.people_service import PeopleService`
 
 **Classes:**
 - `PeopleService(identity_service: Optional[BaseIdentityService])` - A service for searching and retrieving user information.
@@ -74,8 +74,8 @@ print(f"Result for 'non-existent-agent': {missing_agent}")
 ```python
 import asyncio
 from typing import Any, Dict, List, Optional
-from src.gateway.http_sse.services.people_service import PeopleService
-from src.common.services.identity_service import BaseIdentityService
+from src.solace_agent_mesh.gateway.http_sse.services.people_service import PeopleService
+from src.solace_agent_mesh.common.services.identity_service import BaseIdentityService
 
 # Define a mock identity service for the example
 class MockIdentityService(BaseIdentityService):
@@ -111,7 +111,7 @@ if __name__ == "__main__":
 
 ### task_service.py
 **Purpose:** Handles the business logic for cancelling A2A tasks. It uses `CoreA2AService` to construct the cancellation message and a provided publisher function to send it over the messaging fabric.
-**Import:** `from src.gateway.http_sse.services.task_service import TaskService, PublishFunc`
+**Import:** `from src.solace_agent_mesh.gateway.http_sse.services.task_service import TaskService, PublishFunc`
 
 **Classes:**
 - `TaskService(core_a2a_service: CoreA2AService, publish_func: PublishFunc, namespace: str, gateway_id: str, sse_manager: SSEManager, task_context_map: Dict[str, Dict], task_context_lock: threading.Lock, app_name: str)` - A service for managing A2A task operations.
@@ -126,9 +126,9 @@ import asyncio
 import threading
 from typing import Callable, Dict, Optional
 
-from src.gateway.http_sse.services.task_service import TaskService, PublishFunc
-from src.core_a2a.service import CoreA2AService
-from src.gateway.http_sse.sse_manager import SSEManager
+from src.solace_agent_mesh.gateway.http_sse.services.task_service import TaskService, PublishFunc
+from src.solace_agent_mesh.core_a2a.service import CoreA2AService
+from src.solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager
 
 # Mock dependencies for the example
 class MockCoreA2AService(CoreA2AService):

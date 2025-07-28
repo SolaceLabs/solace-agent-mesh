@@ -11,7 +11,7 @@ from tests.integration.infrastructure.llm_server.server import (
 from tests.integration.infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )
-from src.common.types import (
+from src.solace_agent_mesh.common.types import (
     TextPart,
     Task,
     TaskStatusUpdateEvent,

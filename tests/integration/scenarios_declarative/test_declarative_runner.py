@@ -21,7 +21,7 @@ from tests.integration.infrastructure.artifact_service.service import (
     TestInMemoryArtifactService,
 )
 from tests.integration.infrastructure.a2a_validator.validator import A2AMessageValidator
-from src.common.types import (
+from src.solace_agent_mesh.common.types import (
     TextPart,
     DataPart,
     Task,
@@ -29,8 +29,8 @@ from src.common.types import (
     TaskArtifactUpdateEvent,
     JSONRPCError,
 )
-from src.agent.sac.app import SamAgentApp
-from src.agent.sac.component import SamAgentComponent
+from src.solace_agent_mesh.agent.sac.app import SamAgentApp
+from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
 from google.genai import types as adk_types  # Add this import
 import re
 import json
@@ -40,7 +40,7 @@ from ..scenarios_programmatic.test_helpers import (
     get_all_task_events,
     extract_outputs_from_event_list,
 )
-from src.agent.testing.debug_utils import pretty_print_event_history
+from src.solace_agent_mesh.agent.testing.debug_utils import pretty_print_event_history
 
 TEST_RUNNER_MATH_SYMBOLS = {
     "abs": abs,

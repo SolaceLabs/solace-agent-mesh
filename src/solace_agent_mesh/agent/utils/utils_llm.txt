@@ -11,7 +11,7 @@ The `utils` directory provides a collection of helper modules designed to suppor
 
 ### artifact_helpers.py
 **Purpose:** This module offers a comprehensive set of asynchronous functions for interacting with an artifact storage service. It handles saving artifacts with automatically generated metadata, inferring schemas for common data types, loading artifact content or just metadata, and listing available artifacts.
-**Import:** `from src.agent.utils.artifact_helpers import is_filename_safe, ensure_correct_extension, save_artifact_with_metadata, load_artifact_content_or_metadata, get_latest_artifact_version, get_artifact_info_list, format_metadata_for_llm, decode_and_get_bytes`
+**Import:** `from src.solace_agent_mesh.agent.utils.artifact_helpers import is_filename_safe, ensure_correct_extension, save_artifact_with_metadata, load_artifact_content_or_metadata, get_latest_artifact_version, get_artifact_info_list, format_metadata_for_llm, decode_and_get_bytes`
 
 **Functions:**
 - `is_filename_safe(filename: str) -> bool` - Checks if a filename is safe for artifact creation (e.g., no path traversal).
@@ -33,7 +33,7 @@ import asyncio
 import datetime
 from typing import Dict, Any, Optional, List, Union
 from google.adk.artifacts import BaseArtifactService, MemoryArtifactService
-from src.agent.utils.artifact_helpers import (
+from src.solace_agent_mesh.agent.utils.artifact_helpers import (
     save_artifact_with_metadata,
     load_artifact_content_or_metadata,
     get_artifact_info_list,
@@ -93,7 +93,7 @@ async def manage_artifacts():
 
 ### config_parser.py
 **Purpose:** This module provides a utility to resolve configuration values that can be either a static string or a dynamic, callable "invoke" block. This is primarily used for parsing the agent's `instruction` configuration.
-**Import:** `from src.agent.utils.config_parser import resolve_instruction_provider`
+**Import:** `from src.solace_agent_mesh.agent.utils.config_parser import resolve_instruction_provider`
 
 **Functions:**
 - `resolve_instruction_provider(component, config_value: Any) -> Union[str, Callable[[ReadonlyContext], str]]` - Resolves an instruction from a configuration value. If the value is a string, it's returned directly. If it's a dictionary with an "invoke" key that resolves to a callable, the callable is returned.
@@ -118,7 +118,7 @@ instruction_func = resolve_instruction_provider(my_agent_component, instruction_
 
 ### context_helpers.py
 **Purpose:** This module provides safe and stable helper functions to extract information from the ADK's `CallbackContext` and other invocation context objects, abstracting away internal attribute access.
-**Import:** `from src.agent.utils.context_helpers import get_session_from_callback_context, get_original_session_id`
+**Import:** `from src.solace_agent_mesh.agent.utils.context_helpers import get_session_from_callback_context, get_original_session_id`
 
 **Functions:**
 - `get_session_from_callback_context(callback_context: CallbackContext) -> Session` - Safely retrieves the persistent `Session` object from a `CallbackContext`.
@@ -128,7 +128,7 @@ instruction_func = resolve_instruction_provider(my_agent_component, instruction_
 ```python
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.sessions import Session, SessionId
-from src.agent.utils.context_helpers import get_session_from_callback_context, get_original_session_id
+from src.solace_agent_mesh.agent.utils.context_helpers import get_session_from_callback_context, get_original_session_id
 
 # Mock context objects for demonstration
 class MockInvocationContext:

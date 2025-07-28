@@ -4,8 +4,8 @@
 
 import pytest
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
-from src.agent.sac.app import SamAgentApp
-from src.agent.sac.component import SamAgentComponent
+from src.solace_agent_mesh.agent.sac.app import SamAgentApp
+from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
 from tests.integration.infrastructure.rest_gateway_interface.app import TestRestGatewayApp
 from tests.integration.infrastructure.rest_gateway_interface.component import TestRestGatewayComponent
 from tests.integration.infrastructure.slack_gateway_interface.app import TestSlackGatewayApp
@@ -157,7 +157,7 @@ def gateway_test_solace_connector(
             "name": "GatewayTestTargetAgentApp",
             "app_config": sam_agent_app_config,
             "broker": {"dev_mode": True},
-            "app_module": "src.agent.sac.app",
+            "app_module": "src.solace_agent_mesh.agent.sac.app",
         },
         {
             "name": "TestRestGatewayApp",
@@ -192,7 +192,7 @@ def gateway_test_solace_connector(
     ]
 
     session_monkeypatch.setattr(
-        "src.agent.adk.services.TestInMemoryArtifactService",
+        "src.solace_agent_mesh.agent.adk.services.TestInMemoryArtifactService",
         lambda: test_artifact_service_instance,
     )
 
