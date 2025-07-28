@@ -45,10 +45,10 @@ This checklist corresponds to the `IMPLEMENTATION_PLAN.md` document and should b
     - [x] 2.3.4. Instantiate `A2AFastAPIApplication`.
     - [x] 2.3.5. Call `.build()` to get the FastAPI app.
     - [x] 2.3.6. Add FastAPI middleware to capture requests.
-- [ ] **2.4. Lifecycle Management:**
-    - [ ] 2.4.1. Implement `start()` method to run `uvicorn` in a thread.
-    - [ ] 2.4.2. Implement `stop()` method to shut down `uvicorn`.
-    - [ ] 2.4.3. Implement `clear_captured_requests()` and `clear_stateful_cache()` methods.
+- [x] **2.4. Lifecycle Management:**
+    - [x] 2.4.1. Implement `start()` method to run `uvicorn` in a thread.
+    - [x] 2.4.2. Implement `stop()` method to shut down `uvicorn`.
+    - [x] 2.4.3. Implement `clear_captured_requests()` and `clear_stateful_cache()` methods.
 
 ## Phase 2: Test Framework Integration
 

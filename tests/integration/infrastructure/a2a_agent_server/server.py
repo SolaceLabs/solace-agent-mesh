@@ -76,3 +76,90 @@ class TestA2AAgentServer:
     def url(self) -> str:
         """Returns the base URL of the running server."""
         return f"http://{self.host}:{self.port}"
+
+    @property
+    def started(self) -> bool:
+        """Checks if the uvicorn server instance is started."""
+        return self._uvicorn_server is not None and self._uvicorn_server.started
+
+    def start(self):
+        """Starts the FastAPI server in a separate thread."""
+        if self._server_thread is not None and self._server_thread.is_alive():
+            log.warning("[TestA2AAgentServer] Server is already running.")
+            return
+
+        self.clear_captured_requests()
+        self.clear_stateful_cache()
+
+        config = uvicorn.Config(
+            self.app, host=self.host, port=self.port, log_level="warning"
+        )
+        self._uvicorn_server = uvicorn.Server(config)
+
+        async def async_serve_wrapper():
+            try:
+                if self._uvicorn_server:
+                    await self._uvicorn_server.serve()
+            except asyncio.CancelledError:
+                log.info("[TestA2AAgentServer] Server.serve() task was cancelled.")
+            except Exception as e:
+                log.error(
+                    f"[TestA2AAgentServer] Error during server.serve(): {e}",
+                    exc_info=True,
+                )
+
+        def run_server_in_new_loop():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(async_serve_wrapper())
+            finally:
+                try:
+                    all_tasks = asyncio.all_tasks(loop)
+                    if all_tasks:
+                        for task in all_tasks:
+                            task.cancel()
+                        loop.run_until_complete(
+                            asyncio.gather(*all_tasks, return_exceptions=True)
+                        )
+                    if hasattr(loop, "shutdown_asyncgens"):
+                        loop.run_until_complete(loop.shutdown_asyncgens())
+                except Exception as e:
+                    log.error(
+                        f"[TestA2AAgentServer] Error during loop shutdown: {e}",
+                        exc_info=True,
+                    )
+                finally:
+                    loop.close()
+                    log.info(
+                        "[TestA2AAgentServer] Event loop in server thread closed."
+                    )
+
+        self._server_thread = threading.Thread(
+            target=run_server_in_new_loop, daemon=True
+        )
+        self._server_thread.start()
+        log.info(f"[TestA2AAgentServer] Starting on http://{self.host}:{self.port}...")
+
+    def stop(self):
+        """Stops the FastAPI server."""
+        if self._uvicorn_server:
+            self._uvicorn_server.should_exit = True
+
+        if self._server_thread and self._server_thread.is_alive():
+            log.info("[TestA2AAgentServer] Stopping, joining thread...")
+            self._server_thread.join(timeout=5.0)
+            if self._server_thread.is_alive():
+                log.warning("[TestA2AAgentServer] Server thread did not exit cleanly.")
+        self._server_thread = None
+        self._uvicorn_server = None
+        log.info("[TestA2AAgentServer] Stopped.")
+
+    def clear_captured_requests(self):
+        """Clears the list of captured requests."""
+        self.captured_requests.clear()
+
+    def clear_stateful_cache(self):
+        """Clears the stateful response cache."""
+        with self._stateful_cache_lock:
+            self._stateful_responses_cache.clear()
