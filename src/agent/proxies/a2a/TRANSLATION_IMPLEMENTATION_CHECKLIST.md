@@ -33,17 +33,17 @@ This checklist corresponds to the `TRANSLATION_IMPLEMENTATION_PLAN.md` document 
 
 ### 3. Implement Outbound Translator (Modern A2A -> Legacy SAM)
 
-- [ ] **3.1. Function Definition:** Create `translate_modern_to_sam_response`.
-- [ ] **3.2. Task Translation:**
-    - [ ] 3.2.1. Handle `Task` objects, creating a legacy dictionary.
-    - [ ] 3.2.2. Map `modern_event.context_id` to `legacy_task['sessionId']`.
-    - [ ] 3.2.3. Recursively translate `Message` objects in `history` and `status.message`.
-    - [ ] 3.2.4. Copy other compatible fields.
-- [ ] **3.3. Event Translation (`TaskStatusUpdateEvent` / `TaskArtifactUpdateEvent`):**
-    - [ ] 3.3.1. Handle event objects, creating a legacy dictionary.
-    - [ ] 3.3.2. Map `modern_event.task_id` to `legacy_event['id']`.
-    - [ ] 3.3.3. Recursively translate nested objects.
-- [ ] **3.4. Return Value:** Ensure the function returns a JSON-serializable dictionary.
+- [x] **3.1. Function Definition:** Create `translate_modern_to_sam_response`.
+- [x] **3.2. Task Translation:**
+    - [x] 3.2.1. Handle `Task` objects, creating a legacy dictionary.
+    - [x] 3.2.2. Map `modern_event.context_id` to `legacy_task['sessionId']`.
+    - [x] 3.2.3. Recursively translate `Message` objects in `history` and `status.message`.
+    - [x] 3.2.4. Copy other compatible fields.
+- [x] **3.3. Event Translation (`TaskStatusUpdateEvent` / `TaskArtifactUpdateEvent`):**
+    - [x] 3.3.1. Handle event objects, creating a legacy dictionary.
+    - [x] 3.3.2. Map `modern_event.task_id` to `legacy_event['id']`.
+    - [x] 3.3.3. Recursively translate nested objects.
+- [x] **3.4. Return Value:** Ensure the function returns a JSON-serializable dictionary.
 
 ## Phase 2: Integrate Translators into `BaseProxyComponent`
 

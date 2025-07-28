@@ -4,7 +4,7 @@ and the modern, standardized A2A protocol.
 """
 
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 import a2a.types as modern_types
 from a2a.types import (
@@ -14,6 +14,9 @@ from a2a.types import (
     MessageSendParams,
     SendMessageRequest,
     SendStreamingMessageRequest,
+    Task as ModernTask,
+    TaskArtifactUpdateEvent as ModernTaskArtifactUpdateEvent,
+    TaskStatusUpdateEvent as ModernTaskStatusUpdateEvent,
 )
 from pydantic import TypeAdapter
 from solace_ai_connector.common.log import log
@@ -107,3 +110,61 @@ def translate_sam_to_modern_request(
     else:
         # This case should not be reached due to the initial check
         raise ValueError(f"Internal error: No constructor for method {modern_method}")
+
+
+def translate_modern_to_sam_response(
+    modern_event: Union[
+        ModernTask, ModernTaskStatusUpdateEvent, ModernTaskArtifactUpdateEvent
+    ]
+) -> Dict[str, Any]:
+    """
+    Translates a modern A2A response/event object to a legacy SAM A2A dictionary.
+
+    Args:
+        modern_event: The modern Pydantic event object from the a2a-python SDK.
+
+    Returns:
+        A dictionary conforming to the legacy SAM A2A protocol structure.
+    """
+    log_identifier = "[A2ATranslation:Outbound]"
+
+    # Get a dictionary representation of the modern object
+    modern_dict = modern_event.model_dump(mode="json", exclude_none=True)
+    legacy_dict = modern_dict.copy()  # Start with a copy
+
+    if isinstance(modern_event, ModernTask):
+        log.debug("%s Translating modern Task to legacy Task.", log_identifier)
+        if "context_id" in legacy_dict:
+            legacy_dict["sessionId"] = legacy_dict.pop("context_id")
+        # Note: Message structure is compatible enough that recursive translation
+        # of history/status.message is not needed for field mapping.
+        return legacy_dict
+
+    elif isinstance(modern_event, ModernTaskStatusUpdateEvent):
+        log.debug(
+            "%s Translating modern TaskStatusUpdateEvent to legacy.", log_identifier
+        )
+        if "task_id" in legacy_dict:
+            legacy_dict["id"] = legacy_dict.pop("task_id")
+        if "context_id" in legacy_dict:
+            del legacy_dict["context_id"]  # No equivalent in legacy event
+        return legacy_dict
+
+    elif isinstance(modern_event, ModernTaskArtifactUpdateEvent):
+        log.debug(
+            "%s Translating modern TaskArtifactUpdateEvent to legacy.", log_identifier
+        )
+        if "task_id" in legacy_dict:
+            legacy_dict["id"] = legacy_dict.pop("task_id")
+        if "context_id" in legacy_dict:
+            del legacy_dict["context_id"]  # No equivalent in legacy event
+        return legacy_dict
+
+    else:
+        log.warning(
+            "%s Received unhandled modern event type for translation: %s",
+            log_identifier,
+            type(modern_event).__name__,
+        )
+        # Return the original dict as a fallback
+        return modern_dict
