@@ -28,8 +28,8 @@ This checklist corresponds to the `IMPLEMENTATION_PLAN.md` document and should b
         - [x] 1.3.7.3. Deserialize the dictionary into the correct Pydantic A2A event model.
         - [x] 1.3.7.4. Enqueue the Pydantic event object into the `event_queue`.
     - [x] 1.3.8. **Finalization:** Close the event queue after enqueuing all events for the turn.
-- [ ] **1.4. Implement `cancel` Method:**
-    - [ ] 1.4.1. Create a `TaskUpdater` and call `await updater.cancel()`.
+- [x] **1.4. Implement `cancel` Method:**
+    - [x] 1.4.1. Create a `TaskUpdater` and call `await updater.cancel()`.
 
 ### 2. Create the `TestA2AAgentServer`
 
