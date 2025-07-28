@@ -6,30 +6,30 @@ This checklist corresponds to the `TRANSLATION_IMPLEMENTATION_PLAN.md` document 
 
 ### 1. Create a New Translation Module
 
-- [ ] **1.1. File Creation:** Create `src/agent/proxies/a2a/translation.py`.
+- [x] **1.1. File Creation:** Create `src/agent/proxies/a2a/translation.py`.
 
 ### 2. Implement Inbound Translator (Legacy SAM -> Modern A2A)
 
-- [ ] **2.1. Function Definition:** Create `translate_sam_to_modern_request`.
-- [ ] **2.2. Method Translation:**
-    - [ ] 2.2.1. Read the `method` from the legacy payload.
-    - [ ] 2.2.2. Map `tasks/send` to `message/send`.
-    - [ ] 2.2.3. Map `tasks/sendSubscribe` to `message/stream`.
-    - [ ] 2.2.4. Handle compatible methods (e.g., `tasks/cancel`).
-- [ ] **2.3. Parameter Translation (`TaskSendParams` -> `MessageSendParams`):**
-    - [ ] 2.3.1. Extract the legacy `params` object.
-    - [ ] 2.3.2. Create a new modern `a2a.types.Message` object.
-        - [ ] 2.3.2.1. Copy `parts` and `role`.
-        - [ ] 2.3.2.2. Map `legacy_params['id']` to `modern_message.task_id`.
-        - [ ] 2.3.2.3. Map `legacy_params['sessionId']` to `modern_message.context_id`.
-        - [ ] 2.3.2.4. Generate a new UUID for `modern_message.message_id`.
-    - [ ] 2.3.3. Create a new modern `a2a.types.MessageSendConfiguration` object.
-        - [ ] 2.3.3.1. Map `legacy_params['pushNotification']`.
-        - [ ] 2.3.3.2. Map `legacy_params['historyLength']`.
-    - [ ] 2.3.4. Create the final modern `a2a.types.MessageSendParams` object.
-- [ ] **2.4. Request Assembly:**
-    - [ ] 2.4.1. Construct the final modern request object (e.g., `SendMessageRequest`).
-    - [ ] 2.4.2. Return the validated Pydantic object.
+- [x] **2.1. Function Definition:** Create `translate_sam_to_modern_request`.
+- [x] **2.2. Method Translation:**
+    - [x] 2.2.1. Read the `method` from the legacy payload.
+    - [x] 2.2.2. Map `tasks/send` to `message/send`.
+    - [x] 2.2.3. Map `tasks/sendSubscribe` to `message/stream`.
+    - [x] 2.2.4. Handle compatible methods (e.g., `tasks/cancel`).
+- [x] **2.3. Parameter Translation (`TaskSendParams` -> `MessageSendParams`):**
+    - [x] 2.3.1. Extract the legacy `params` object.
+    - [x] 2.3.2. Create a new modern `a2a.types.Message` object.
+        - [x] 2.3.2.1. Copy `parts` and `role`.
+        - [x] 2.3.2.2. Map `legacy_params['id']` to `modern_message.task_id`.
+        - [x] 2.3.2.3. Map `legacy_params['sessionId']` to `modern_message.context_id`.
+        - [x] 2.3.2.4. Generate a new UUID for `modern_message.message_id`.
+    - [x] 2.3.3. Create a new modern `a2a.types.MessageSendConfiguration` object.
+        - [x] 2.3.3.1. Map `legacy_params['pushNotification']`.
+        - [x] 2.3.3.2. Map `legacy_params['historyLength']`.
+    - [x] 2.3.4. Create the final modern `a2a.types.MessageSendParams` object.
+- [x] **2.4. Request Assembly:**
+    - [x] 2.4.1. Construct the final modern request object (e.g., `SendMessageRequest`).
+    - [x] 2.4.2. Return the validated Pydantic object.
 
 ### 3. Implement Outbound Translator (Modern A2A -> Legacy SAM)
 
