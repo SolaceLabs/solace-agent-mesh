@@ -86,9 +86,10 @@ This is the case for all the model names, such as LLMs, image generators, embedd
 :::
 
 :::info[Running the project using Official Docker image]
-If you decide to run the project using official Docker image later on, make sure:
-- do not use Solace PubSub+ broker container.
-- set `FastAPI Host` to `0.0.0.0`.
+
+For deployments that use the official Docker image, ensure the following:
+- Do not use Solace PubSub+ broker container.
+- Set `FastAPI Host` to `0.0.0.0`.
 :::
 
 </details>
