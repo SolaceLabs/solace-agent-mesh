@@ -132,7 +132,7 @@ playwright install
 ```
 :::
 
-1. Run the following SAM CLI command (`solace-agent-mesh`) to verify your installation:
+2. Run the following SAM CLI command (`solace-agent-mesh`) to verify your installation:
 
 ```sh
 solace-agent-mesh --version
