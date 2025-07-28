@@ -28,7 +28,7 @@ try:
     from solace_agent_mesh.agent.tools.registry import tool_registry
 except ImportError as err:
     try:
-        from src.agent.tools.registry import tool_registry
+        from src.solace_agent_mesh.agent.tools.registry import tool_registry
     except ImportError as exc:
         log.error(
             "Importing tool_registry failed. Ensure all the dependencies are installed and the import paths are correct, Error: %s",
