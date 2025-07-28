@@ -436,14 +436,14 @@ class BaseProxyComponent(ComponentBase, ABC):
                 exc_info=future.exception(),
             )
 
-    def run(self):
+    def on_ready(self):
         """
-        Called by the framework to start the component's active operations.
+        Called by the framework when the flow is ready.
         Performs initial agent discovery and starts the discovery timer.
         """
-        super().run()
+        super().on_ready()
         log.info(
-            "%s Component is running. Starting active operations.", self.log_identifier
+            "%s Component is ready. Starting active operations.", self.log_identifier
         )
 
         # Perform initial blocking discovery
@@ -463,7 +463,7 @@ class BaseProxyComponent(ComponentBase, ABC):
         # Schedule the recurring discovery timer
         if self.discovery_interval_sec > 0:
             self.add_timer(
-                delay_ms=1000,  # Initial delay
+                delay_ms=self.discovery_interval_sec * 1000,
                 timer_id=self._discovery_timer_id,
                 interval_ms=self.discovery_interval_sec * 1000,
             )
@@ -472,6 +472,13 @@ class BaseProxyComponent(ComponentBase, ABC):
                 self.log_identifier,
                 self.discovery_interval_sec,
             )
+
+    def run(self):
+        """
+        Called by the framework to start the component's background tasks.
+        The main startup logic is in on_ready().
+        """
+        super().run()
 
     def cleanup(self):
         """Cleans up resources on component shutdown."""
