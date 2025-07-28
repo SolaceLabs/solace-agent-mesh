@@ -54,15 +54,15 @@ This checklist corresponds to the `IMPLEMENTATION_PLAN.md` document and should b
 
 ### 3. Integrate with `conftest.py`
 
-- [ ] **3.1. File Modification:** Open `tests/integration/conftest.py` for editing.
-- [ ] **3.2. Create `test_a2a_agent_server` Fixture:**
-    - [ ] 3.2.1. Define a session-scoped pytest fixture named `test_a2a_agent_server`.
-    - [ ] 3.2.2. Define a static `AgentCard` for the test agent.
-    - [ ] 3.2.3. Instantiate `TestA2AAgentServer`.
-    - [ ] 3.2.4. Call `server.start()`.
-    - [ ] 3.2.5. Implement a readiness check loop.
-    - [ ] 3.2.6. `yield` the server instance.
-    - [ ] 3.2.7. Call `server.stop()` in the teardown block.
+- [x] **3.1. File Modification:** Open `tests/integration/conftest.py` for editing.
+- [x] **3.2. Create `test_a2a_agent_server` Fixture:**
+    - [x] 3.2.1. Define a session-scoped pytest fixture named `test_a2a_agent_server`.
+    - [x] 3.2.2. Define a static `AgentCard` for the test agent.
+    - [x] 3.2.3. Instantiate `TestA2AAgentServer`.
+    - [x] 3.2.4. Call `server.start()`.
+    - [x] 3.2.5. Implement a readiness check loop.
+    - [x] 3.2.6. `yield` the server instance.
+    - [x] 3.2.7. Call `server.stop()` in the teardown block.
 - [ ] **3.3. Create State-Clearing Fixture:**
     - [ ] 3.3.1. Define a function-scoped, `autouse=True` fixture named `clear_a2a_agent_server_state`.
     - [ ] 3.3.2. The fixture takes `test_a2a_agent_server` as an argument.
