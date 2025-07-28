@@ -54,8 +54,6 @@ docker run --rm -it -v "$(pwd):/app" -p 5002:5002 solace/solace-agent-mesh:lates
 
 If the OS architecture on your host is not `linux/amd64`, you would need to add `--platform linux/amd64` when running container.
 
-If you use `--gui` flag and the browser on your host does not open the configuration portal automatically, open your browser and go to http://localhost:5002 or http://127.0.0.1:5002.
-
 </details>
 
 :::tip[Non-Interactive Mode]
