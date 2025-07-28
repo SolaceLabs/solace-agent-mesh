@@ -146,8 +146,8 @@ def test_a2a_agent_server():
     agent_card = AgentCard(
         name="DownstreamTestAgent",
         description="A test agent running on HTTP for proxy tests.",
+        version="1.0.0",
         url="http://127.0.0.1:8090/a2a",
-        protocolVersion="1.0",
         capabilities=AgentCapabilities(streaming=True),
         defaultInputModes=["text"],
         defaultOutputModes=["text"],
