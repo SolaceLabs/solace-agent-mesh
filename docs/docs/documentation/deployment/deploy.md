@@ -17,6 +17,8 @@ sam run
 
 For a production environment, use a containerized and reproducible setup. We recommend Docker or Kubernetes.
 
+If your host system architecture is not `linux/amd64`, add the `--platform linux/amd64` flag when you run the container.
+
 ### Docker Deployment
 
 Below is a sample Dockerfile for a Solace Agent Mesh project:

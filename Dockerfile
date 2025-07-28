@@ -3,6 +3,8 @@ FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
 
+ENV CONFIG_PORTAL_HOST="0.0.0.0"
+
 # Install dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends git curl ffmpeg && \
