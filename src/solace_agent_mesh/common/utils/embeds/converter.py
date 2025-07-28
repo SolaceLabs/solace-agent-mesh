@@ -327,7 +327,7 @@ def serialize_data(
     Args:
         data: The data to serialize.
         data_format: The current DataFormat of the data, or None if unknown/numeric.
-        target_string_format: The desired final string format (e.g., "text", "json", "datauri", "html", or Python format spec like ".2f").
+        target_string_format: The desired final string format (e.g., "text", "json", "datauri", or Python format spec like ".2f").
                               If None or empty, defaults to "text".
         original_mime_type: The original MIME type of the artifact (needed for datauri).
         log_id: Identifier for logging.
@@ -368,14 +368,6 @@ def serialize_data(
         target_fmt_lower = target_fmt.lower()
 
         if target_fmt_lower == "text":
-            string_data, _, error = convert_data(
-                data, data_format, DataFormat.STRING, log_id, original_mime_type
-            )
-            if error:
-                return f"[Serialization Error: {error}]", error
-            return string_data, None
-
-        elif target_fmt_lower == "html":
             string_data, _, error = convert_data(
                 data, data_format, DataFormat.STRING, log_id, original_mime_type
             )
