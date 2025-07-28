@@ -49,20 +49,20 @@ This checklist corresponds to the `TRANSLATION_IMPLEMENTATION_PLAN.md` document 
 
 ### 4. Modify `BaseProxyComponent` (`src/agent/proxies/base/component.py`)
 
-- [ ] **4.1. Import Translators:** Import functions from `src.agent.proxies.a2a.translation`.
-- [ ] **4.2. Update `_handle_a2a_request`:**
-    - [ ] 4.2.1. Remove `TypeAdapter` validation logic.
-    - [ ] 4.2.2. Call `translate_sam_to_modern_request` on the payload.
-    - [ ] 4.2.3. Pass the modern request object to `_forward_request`.
-    - [ ] 4.2.4. Update the `except` block to handle translation errors.
-- [ ] **4.3. Update `_publish_status_update`:**
-    - [ ] 4.3.1. Change the method signature to accept a modern `a2a.types.TaskStatusUpdateEvent`.
-    - [ ] 4.3.2. Call `translate_modern_to_sam_response` on the event.
-    - [ ] 4.3.3. Use the translated dictionary as the `result` for the `JSONRPCResponse`.
-- [ ] **4.4. Update `_publish_final_response`:**
-    - [ ] 4.4.1. Change the method signature to accept a modern `a2a.types.Task`.
-    - [ ] 4.4.2. Call `translate_modern_to_sam_response` on the task.
-    - [ ] 4.4.3. Use the translated dictionary as the `result` for the `JSONRPCResponse`.
+- [x] **4.1. Import Translators:** Import functions from `src.agent.proxies.a2a.translation`.
+- [x] **4.2. Update `_handle_a2a_request`:**
+    - [x] 4.2.1. Remove `TypeAdapter` validation logic.
+    - [x] 4.2.2. Call `translate_sam_to_modern_request` on the payload.
+    - [x] 4.2.3. Pass the modern request object to `_forward_request`.
+    - [x] 4.2.4. Update the `except` block to handle translation errors.
+- [x] **4.3. Update `_publish_status_update`:**
+    - [x] 4.3.1. Change the method signature to accept a modern `a2a.types.TaskStatusUpdateEvent`.
+    - [x] 4.3.2. Call `translate_modern_to_sam_response` on the event.
+    - [x] 4.3.3. Use the translated dictionary as the `result` for the `JSONRPCResponse`.
+- [x] **4.4. Update `_publish_final_response`:**
+    - [x] 4.4.1. Change the method signature to accept a modern `a2a.types.Task`.
+    - [x] 4.4.2. Call `translate_modern_to_sam_response` on the task.
+    - [x] 4.4.3. Use the translated dictionary as the `result` for the `JSONRPCResponse`.
 
 ## Phase 3: Update `A2AProxyComponent`
 
