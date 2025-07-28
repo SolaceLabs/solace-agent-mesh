@@ -55,7 +55,7 @@ def run_flask_plugin_catalog(host, port, shared_data):
 )
 def catalog(port: int, installer_command: str):
     """Launches the SAM Plugin catalog web interface."""
-    host = os.environ.get(env_flask_host, "127.0.0.1")
+    host = os.environ.get(config_portal_host, "127.0.0.1")
     try:
         if installer_command:
             installer_command.format(package="dummy")  # Test if the command is valid
