@@ -31,7 +31,7 @@ from a2a.types import (
     Task,
     TaskStatusUpdateEvent,
 )
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 from ...adk.services import initialize_artifact_service
 
 if TYPE_CHECKING:
@@ -166,8 +166,8 @@ class BaseProxyComponent(ComponentBase, ABC):
                 raise ValueError("Payload is not a dictionary.")
 
             jsonrpc_request_id = payload.get("id")
-            a2a_request_validated = A2ARequest.validate_python(payload)
-            a2a_request = a2a_request_validated.root
+            adapter = TypeAdapter(A2ARequest.model_fields["root"].annotation)
+            a2a_request = adapter.validate_python(payload)
             jsonrpc_request_id = a2a_request.id
             logical_task_id = a2a_request.params.id
 
