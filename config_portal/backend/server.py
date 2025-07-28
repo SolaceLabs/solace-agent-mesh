@@ -24,7 +24,7 @@ cli_flask = sys.modules["flask.cli"]
 cli_flask.show_server_banner = lambda *x: None
 litellm.suppress_debug_info = True
 
-config_portal_host = "FLASK_HOST"
+config_portal_host = "CONFIG_PORTAL_HOST"
 
 try:
     from solace_agent_mesh.agent.tools.registry import tool_registry
