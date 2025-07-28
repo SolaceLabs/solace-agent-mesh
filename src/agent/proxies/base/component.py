@@ -180,7 +180,14 @@ class BaseProxyComponent(ComponentBase, ABC):
 
             # 4.2.2: Call inbound translator
             a2a_request = translate_sam_to_modern_request(payload)
-            logical_task_id = a2a_request.params.id
+
+            # Get logical task ID based on the modern request type
+            if isinstance(
+                a2a_request, (SendMessageRequest, SendStreamingMessageRequest)
+            ):
+                logical_task_id = a2a_request.params.message.task_id
+            else:
+                logical_task_id = a2a_request.params.id
 
             # 4.2.3: Pass modern request to forwarder
             if isinstance(
