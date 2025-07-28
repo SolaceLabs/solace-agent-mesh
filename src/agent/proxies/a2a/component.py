@@ -7,7 +7,6 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Dict, Optional, TYPE_CHECKING, Union
 
-import httpx
 from a2a.client import (
     A2ACardResolver,
     A2AClient,
@@ -51,7 +50,6 @@ class A2AProxyComponent(BaseProxyComponent):
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
         self._a2a_clients: Dict[str, A2AClient] = {}
-        self._httpx_client = httpx.AsyncClient()
         self._credential_store = InMemoryContextCredentialStore()
         self._auth_interceptor = AuthInterceptor(self._credential_store)
 
@@ -248,5 +246,5 @@ class A2AProxyComponent(BaseProxyComponent):
 
     async def cleanup(self):
         """Cleans up resources on component shutdown."""
-        await self._httpx_client.aclose()
+        # httpx_client is now closed by the base class
         await super().cleanup()

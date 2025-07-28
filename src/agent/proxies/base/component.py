@@ -11,6 +11,8 @@ import threading
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
+import httpx
+
 from solace_ai_connector.common.event import Event, EventType
 from solace_ai_connector.common.log import log
 from solace_ai_connector.common.message import Message as SolaceMessage
@@ -76,6 +78,7 @@ class BaseProxyComponent(ComponentBase, ABC):
         self.agent_registry = AgentRegistry()
         self.artifact_service: Optional[BaseArtifactService] = None
         self.active_tasks: Dict[str, ProxyTaskContext] = {}
+        self._httpx_client = httpx.AsyncClient()
         self.active_tasks_lock = threading.Lock()
 
         self._async_loop: Optional[asyncio.AbstractEventLoop] = None
@@ -446,6 +449,17 @@ class BaseProxyComponent(ComponentBase, ABC):
                 task_context.cancellation_event.set()
 
         if self._async_loop and self._async_loop.is_running():
+            # Schedule the client cleanup and wait for it
+            cleanup_future = asyncio.run_coroutine_threadsafe(
+                self._httpx_client.aclose(), self._async_loop
+            )
+            try:
+                cleanup_future.result(timeout=5)
+            except Exception as e:
+                log.error(
+                    "%s Error closing httpx client: %s", self.log_identifier, e
+                )
+
             self._async_loop.call_soon_threadsafe(self._async_loop.stop)
         if self._async_thread and self._async_thread.is_alive():
             self._async_thread.join(timeout=5)
