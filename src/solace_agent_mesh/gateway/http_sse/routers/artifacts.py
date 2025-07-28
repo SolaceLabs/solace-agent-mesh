@@ -26,7 +26,7 @@ from google.adk.artifacts import BaseArtifactService
 import io
 import json
 from datetime import datetime, timezone
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote
 
 from ..dependencies import (
     get_shared_artifact_service,
@@ -306,10 +306,11 @@ async def get_latest_artifact(
                 log_prefix,
             )
 
+        filename_encoded = quote(filename)
         return StreamingResponse(
             io.BytesIO(data_bytes),
             media_type=mime_type,
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"}
         )
 
     except FileNotFoundError:
@@ -478,10 +479,11 @@ async def get_specific_artifact_version(
                 log_prefix,
             )
 
+        filename_encoded = quote(filename)
         return StreamingResponse(
             io.BytesIO(data_bytes),
             media_type=mime_type,
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"}
         )
 
     except FileNotFoundError:
@@ -606,7 +608,12 @@ async def get_artifact_by_uri(
         content_bytes = loaded_artifact.get("raw_bytes")
         mime_type = loaded_artifact.get("mime_type", "application/octet-stream")
 
-        return StreamingResponse(io.BytesIO(content_bytes), media_type=mime_type)
+        filename_encoded = quote(filename)
+        return StreamingResponse(
+            io.BytesIO(content_bytes),
+            media_type=mime_type,
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"}
+        )
 
     except (ValueError, IndexError) as e:
         raise HTTPException(status_code=400, detail=f"Invalid artifact URI: {e}")
