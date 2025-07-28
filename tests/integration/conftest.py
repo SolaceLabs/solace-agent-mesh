@@ -443,6 +443,7 @@ def shared_solace_connector(
         },
         {
             "name": "TestA2AProxyApp",
+            "class_name": "A2AProxyApp",
             "app_config": {
                 "namespace": "test_namespace",
                 "proxied_agents": [
