@@ -18,7 +18,7 @@ from solace_ai_connector.components.component_base import ComponentBase
 
 from ....common.a2a_protocol import get_agent_request_topic, get_discovery_topic
 from ....common.agent_registry import AgentRegistry
-from ....common.types import (
+from a2a.types import (
     A2ARequest,
     AgentCard,
     CancelTaskRequest,
@@ -31,6 +31,7 @@ from ....common.types import (
     Task,
     TaskStatusUpdateEvent,
 )
+from pydantic import ValidationError
 from ...adk.services import initialize_artifact_service
 
 if TYPE_CHECKING:
@@ -165,7 +166,8 @@ class BaseProxyComponent(ComponentBase, ABC):
                 raise ValueError("Payload is not a dictionary.")
 
             jsonrpc_request_id = payload.get("id")
-            a2a_request = A2ARequest.model_validate(payload)
+            a2a_request_validated = A2ARequest.validate_python(payload)
+            a2a_request = a2a_request_validated.root
             jsonrpc_request_id = a2a_request.id
             logical_task_id = a2a_request.params.id
 
@@ -210,7 +212,7 @@ class BaseProxyComponent(ComponentBase, ABC):
 
             message.call_acknowledgements()
 
-        except (ValueError, TypeError, JSONParseError) as e:
+        except (ValueError, TypeError, ValidationError) as e:
             log.error(
                 "%s Failed to parse or validate A2A request: %s",
                 self.log_identifier,
