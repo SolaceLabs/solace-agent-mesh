@@ -26,8 +26,8 @@ from a2a.types import (
     InvalidRequestError,
     JSONParseError,
     JSONRPCResponse,
-    SendTaskRequest,
-    SendTaskStreamingRequest,
+    SendMessageRequest,
+    SendStreamingMessageRequest,
     Task,
     TaskStatusUpdateEvent,
 )
@@ -171,7 +171,7 @@ class BaseProxyComponent(ComponentBase, ABC):
             jsonrpc_request_id = a2a_request.id
             logical_task_id = a2a_request.params.id
 
-            if isinstance(a2a_request, (SendTaskRequest, SendTaskStreamingRequest)):
+            if isinstance(a2a_request, (SendMessageRequest, SendStreamingMessageRequest)):
                 from .proxy_task_context import ProxyTaskContext
 
                 a2a_context = {
