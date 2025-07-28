@@ -1,0 +1,25 @@
+test_case_id: "a2a_proxy_simple_echo_001"
+description: "Tests that the A2A proxy can forward a request to a downstream agent and return the response."
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "ProxiedDownstreamAgent"
+  user_identity: "proxy_tester@example.com"
+  prompt:
+    parts:
+      - text: >
+          This is a simple echo request.
+          [test_case_id=a2a_proxy_simple_echo_001]
+          [responses_json=W1t7ImtpbmQiOiAidGFzayIsICJzdGF0dXMiOiB7InN0YXRlIjogImNvbXBsZXRlZCIsICJtZXNzYWdlIjogeyJyb2xlIjogImFnZW50IiwgInBhcnRzIjogW3sia2luZCI6ICJ0ZXh0IiwgInRleHQiOiAiRWNobyBmcm9tIHRlc3QgYWdlbnQifV19fX1d]]
+
+# The proxy itself does not interact with the LLM.
+llm_interactions: []
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_contains: "Echo from test agent"
+
+expected_artifacts: []

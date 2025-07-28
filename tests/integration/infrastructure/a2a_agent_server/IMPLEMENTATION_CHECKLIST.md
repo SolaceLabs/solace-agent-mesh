@@ -77,16 +77,16 @@ This checklist corresponds to the `IMPLEMENTATION_PLAN.md` document and should b
 
 ### 4. Create Initial Declarative Test Case
 
-- [ ] **4.1. File Creation:** Create the directory `tests/integration/scenarios_declarative/test_data/proxy/`.
-- [ ] **4.2. Create YAML Test File:** Create `test_a2a_proxy_simple.yaml` inside the new directory.
-- [ ] **4.3. Test Case Definition:**
-    - [ ] 4.3.1. Define `test_case_id`.
-    - [ ] 4.3.2. Define `description`.
-    - [ ] 4.3.3. Define `gateway_input` with `target_agent_name` and a prompt containing the control directives.
-    - [ ] 4.3.4. Create and Base64-encode the `responses_json` content.
-    - [ ] 4.3.5. Define an empty `llm_interactions` list.
-    - [ ] 4.3.6. Define `expected_gateway_output` with assertions for the final response.
-    - [ ] 4.3.7. Define an empty `expected_artifacts` list.
+- [x] **4.1. File Creation:** Create the directory `tests/integration/scenarios_declarative/test_data/proxy/`.
+- [x] **4.2. Create YAML Test File:** Create `test_a2a_proxy_simple.yaml` inside the new directory.
+- [x] **4.3. Test Case Definition:**
+    - [x] 4.3.1. Define `test_case_id`.
+    - [x] 4.3.2. Define `description`.
+    - [x] 4.3.3. Define `gateway_input` with `target_agent_name` and a prompt containing the control directives.
+    - [x] 4.3.4. Create and Base64-encode the `responses_json` content.
+    - [x] 4.3.5. Define an empty `llm_interactions` list.
+    - [x] 4.3.6. Define `expected_gateway_output` with assertions for the final response.
+    - [x] 4.3.7. Define an empty `expected_artifacts` list.
 
 ### 5. Run and Verify
 
