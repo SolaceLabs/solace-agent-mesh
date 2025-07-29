@@ -106,7 +106,7 @@ def test_llm_server():
     server.start()
 
     max_retries = 250
-    retry_delay = 0.25
+    retry_delay = 1
     ready = False
     for i in range(max_retries):
         time.sleep(retry_delay)
