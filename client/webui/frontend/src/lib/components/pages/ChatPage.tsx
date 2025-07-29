@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { PanelLeftIcon } from "lucide-react";
+import { PanelLeftIcon, Edit } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
@@ -32,7 +32,7 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
-    const { sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel } = useChatContext();
+    const { sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, handleNewSession, openSidePanelTab, setTaskIdInSidePanel } = useChatContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
     const sessionPreview = useSessionPreview();
@@ -189,15 +189,20 @@ export function ChatPage() {
                     title={sessionPreview}
                     leadingAction={
                         isSessionSidePanelCollapsed ? (
-                            <Button variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Sessions Panel">
-                                <PanelLeftIcon className="size-5" />
-                            </Button>
+                            <div className="flex items-center gap-2">
+                                <Button variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Sessions Panel">
+                                    <PanelLeftIcon className="size-5" />
+                                </Button>
+                                <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
+                                <Button variant="ghost" onClick={handleNewSession} className="h-10 w-10 p-0" tooltip="Start New Chat Session">
+                                    <Edit className="size-5" />
+                                </Button>
+                            </div>
                         ) : null
                     }
                 />
             </div>
             <div className="flex min-h-0 flex-1">
-                {/* Main content */}
                 <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
                         <ResizablePanel defaultSize={chatPanelSizes.default} minSize={chatPanelSizes.min} maxSize={chatPanelSizes.max} id="chat-panel">

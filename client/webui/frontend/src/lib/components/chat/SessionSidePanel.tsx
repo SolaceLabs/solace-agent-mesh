@@ -24,8 +24,8 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle }) 
                 <Button variant="ghost" onClick={onToggle} className="p-2" tooltip="Collapse Sessions Panel">
                     <PanelLeftIcon className="size-5" />
                 </Button>
-                <Button variant="ghost" onClick={handleNewSessionClick} className="justify-start" tooltip="Start New Chat Session">
-                    <Edit className="mr-2 h-4 w-4" />
+                <Button variant="ghost" onClick={handleNewSessionClick} tooltip="Start New Chat Session">
+                    <Edit className="size-5" />
                     New chat
                 </Button>
             </div>
