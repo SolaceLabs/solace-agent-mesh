@@ -495,12 +495,12 @@ class BaseProxyComponent(ComponentBase, ABC):
                 agent_alias,
             )
 
-    def on_ready(self):
+
+    def run(self):
         """
-        Called by the framework when the flow is ready.
-        Publishes the initially discovered agent cards and starts the discovery timer.
+        Called by the framework to start the component's background tasks.
+        This is the component's main entry point for active operations.
         """
-        super().on_ready()
         log.info(
             "%s Component is ready. Starting active operations.", self.log_identifier
         )
@@ -521,11 +521,6 @@ class BaseProxyComponent(ComponentBase, ABC):
                 self.discovery_interval_sec,
             )
 
-    def run(self):
-        """
-        Called by the framework to start the component's background tasks.
-        The main startup logic is in on_ready().
-        """
         super().run()
 
     def cleanup(self):
