@@ -291,7 +291,7 @@ class A2AProxyComponent(BaseProxyComponent):
             )
             final_task = Task(
                 id=task_context.task_id,
-                status=TaskStatus(state=TaskState.COMPLETED, message=event_payload),
+                status=TaskStatus(state=TaskState.completed, message=event_payload),
                 # Note: history might be incomplete here if not managed by the proxy
             )
             await self._publish_final_response(final_task, task_context.a2a_context)
