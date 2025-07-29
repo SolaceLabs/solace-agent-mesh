@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 import socket
 
 import httpx
-import html2text
+from markdownify import markdownify as md
 from bs4 import BeautifulSoup
 
 from google.adk.tools import ToolContext
@@ -161,10 +161,12 @@ async def web_request(
         if response_status_code < 400:
             if original_content_type.startswith("text/html"):
                 soup = BeautifulSoup(response_content_bytes, "html.parser")
-                h = html2text.HTML2Text()
-                h.ignore_links = False
-                h.ignore_images = True
-                final_content_to_save_str = h.handle(str(soup))
+
+                # Remove images before conversion
+                for img in soup.find_all('img'):
+                    img.decompose()
+
+                final_content_to_save_str = md(str(soup), heading_style="ATX")
                 final_content_to_save_bytes = final_content_to_save_str.encode("utf-8")
                 processed_content_type = "text/markdown"
                 log.debug(f"{log_identifier} Converted HTML to Markdown.")
