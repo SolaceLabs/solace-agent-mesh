@@ -41,11 +41,11 @@ const AgentBasicInfoStep: React.FC<StepProps> = ({
 
     if (
       typeof processedInstruction === "string" &&
-      processedInstruction.includes("{agent_name}")
+      processedInstruction.includes("__AGENT_NAME__")
     ) {
       const agentName = data.agent_name;
       processedInstruction = processedInstruction.replace(
-        /\{agent_name\}/g,
+        /__AGENT_NAME__/g,
         agentName
       );
 
@@ -67,7 +67,7 @@ const AgentBasicInfoStep: React.FC<StepProps> = ({
         label="Agent Name"
         htmlFor="agent_name"
         required
-        helpText="Unique name for this agent (will be CamelCased by the system)."
+        helpText="Unique name for this agent (will be PascalCase by the system)."
       >
         <Input
           id="agent_name"
@@ -106,7 +106,7 @@ const AgentBasicInfoStep: React.FC<StepProps> = ({
       <FormField
         label="Instruction"
         htmlFor="instruction"
-        helpText="System instruction for the agent. Use {agent_name} to refer to the agent's name."
+        helpText="System instruction for the agent. Use __AGENT_NAME__ to refer to the agent's name."
       >
         <textarea
           id="instruction"
@@ -115,7 +115,7 @@ const AgentBasicInfoStep: React.FC<StepProps> = ({
             data.instruction !== undefined
               ? data.instruction
               : instructionDefault.replace(
-                  "{agent_name}",
+                  "__AGENT_NAME__",
                   data.agent_name || "NewAgent"
                 )
           }

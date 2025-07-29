@@ -89,7 +89,7 @@ def get_agent_field_definitions():
             "label": "Instruction",
             "type": "textarea",
             "default": AGENT_DEFAULTS["instruction"].replace(
-                "__AGENT_NAME__", "{agent_name}"
+                "__AGENT_NAME__", "__AGENT_NAME__"
             ),
             "description": "System instruction for the agent.",
         }
