@@ -20,6 +20,7 @@ from solace_ai_connector.components.component_base import ComponentBase
 
 from ....common.a2a_protocol import get_agent_request_topic, get_discovery_topic
 from ....common.agent_registry import AgentRegistry
+from ....common.types import JSONRPCResponse
 from a2a.types import (
     A2ARequest,
     AgentCard,
@@ -27,7 +28,6 @@ from a2a.types import (
     InternalError,
     InvalidRequestError,
     JSONParseError,
-    JSONRPCResponse,
     SendMessageRequest,
     SendStreamingMessageRequest,
     Task,
