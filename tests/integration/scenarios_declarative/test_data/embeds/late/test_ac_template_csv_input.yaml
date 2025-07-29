@@ -1,5 +1,5 @@
 test_case_id: "embed_ac_template_csv_input_001"
-description: "Tests «artifact_content:data.csv>>>apply_to_template:table.mustache>>>format:html»."
+description: "Tests «artifact_content:data.csv>>>apply_to_template:table.mustache>>>format:text»."
 skip_intermediate_events: true
 setup_artifacts:
   - filename: "data.csv"
@@ -14,7 +14,7 @@ gateway_input:
   parts: [{type: "text", text: "Render data.csv with table.mustache"}]
 llm_interactions:
   - static_response:
-      choices: [{message: {role: "assistant", content: "Result: «artifact_content:data.csv>>>apply_to_template:table.mustache>>>format:html»"}}]
+      choices: [{message: {role: "assistant", content: "Result: «artifact_content:data.csv>>>apply_to_template:table.mustache>>>format:text»"}}]
 expected_gateway_output:
   - type: "final_response"
     content_parts:

@@ -10,7 +10,7 @@ The `client` directory provides a Python-based client library for Agent-to-Agent
 
 ### __init__.py
 **Purpose:** This file makes the main client classes available directly under the `client` package, simplifying imports for developers.
-**Import:** `from src.common.client import A2AClient, A2ACardResolver`
+**Import:** `from src.solace_agent_mesh.common.client import A2AClient, A2ACardResolver`
 
 **Constants/Variables:**
 - `__all__: list[str]` - A list of the public objects that are exported from this module: `["A2AClient", "A2ACardResolver"]`.
@@ -19,7 +19,7 @@ The `client` directory provides a Python-based client library for Agent-to-Agent
 
 ### card_resolver.py
 **Purpose:** This file provides a utility to resolve and fetch an agent's "Agent Card". The Agent Card is a JSON file that describes the agent's capabilities, its endpoint URL, and other metadata.
-**Import:** `from src.common.client import A2ACardResolver`
+**Import:** `from src.solace_agent_mesh.common.client import A2ACardResolver`
 
 **Classes:**
 - `A2ACardResolver(base_url: str, agent_card_path: str = "/.well-known/agent.json")` - A client to discover and fetch an agent's capability card.
@@ -27,8 +27,8 @@ The `client` directory provides a Python-based client library for Agent-to-Agent
 
 **Usage Examples:**
 ```python
-from src.common.client import A2ACardResolver
-from src.common.types import AgentCard, A2AClientHTTPError
+from src.solace_agent_mesh.common.client import A2ACardResolver
+from src.solace_agent_mesh.common.types import AgentCard, A2AClientHTTPError
 
 # --- Example 1: Standard usage ---
 # Create a resolver for an agent hosted at a specific domain
@@ -60,7 +60,7 @@ print(f"Agent name from custom path: {custom_agent_card.name}")
 
 ### client.py
 **Purpose:** This file contains the core `A2AClient`, which is used to communicate with a remote agent's API endpoint. It handles sending various types of JSON-RPC requests for task management. All methods are asynchronous.
-**Import:** `from src.common.client import A2AClient`
+**Import:** `from src.solace_agent_mesh.common.client import A2AClient`
 
 **Classes:**
 - `A2AClient(agent_card: AgentCard = None, url: str = None)` - The main client for interacting with a remote agent. You must provide either an `AgentCard` object (from `A2ACardResolver`) or a direct `url` string to its API endpoint.
@@ -74,10 +74,10 @@ print(f"Agent name from custom path: {custom_agent_card.name}")
 **Usage Examples:**
 ```python
 import asyncio
-from src.common.client import A2AClient, A2ACardResolver
+from src.solace_agent_mesh.common.client import A2AClient, A2ACardResolver
 
 # Assume these types are available for type hinting
-# from src.common.types import SendTaskResponse, SendTaskStreamingResponse
+# from src.solace_agent_mesh.common.types import SendTaskResponse, SendTaskStreamingResponse
 
 async def main():
     # First, discover the agent's capabilities and endpoint URL

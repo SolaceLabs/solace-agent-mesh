@@ -151,3 +151,6 @@ tests/integration/reports/
 node_modules/
 my-dev-project
 .roo
+
+# workaround requirements.txt not working in ci
+requirements.txt

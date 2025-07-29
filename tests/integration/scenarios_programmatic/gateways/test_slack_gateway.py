@@ -1,10 +1,14 @@
 import pytest
 import asyncio
 from google.genai import types as adk_types
-from tests.integration.infrastructure.artifact_service.service import TestInMemoryArtifactService
-from tests.integration.infrastructure.slack_gateway_interface.component import TestSlackGatewayComponent
-from src.agent.sac.component import SamAgentComponent
-from src.common.types import Task, TaskStatus, TaskState
+from tests.integration.infrastructure.artifact_service.service import (
+    TestInMemoryArtifactService,
+)
+from tests.integration.infrastructure.slack_gateway_interface.component import (
+    TestSlackGatewayComponent,
+)
+from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
+from src.solace_agent_mesh.common.types import Task, TaskStatus, TaskState
 from tests.integration.scenarios_programmatic.test_helpers import (
     get_all_task_events,
     extract_outputs_from_event_list,
@@ -12,6 +16,7 @@ from tests.integration.scenarios_programmatic.test_helpers import (
 from tests.integration.scenarios_programmatic.gateways.common import create_llm_response
 
 pytestmark = pytest.mark.asyncio
+
 
 async def test_submit_prompt_and_get_response(
     test_slack_gateway_component: TestSlackGatewayComponent,
@@ -102,12 +107,14 @@ async def test_submit_prompt_and_get_streaming_response(
     all_events = await get_all_task_events(
         test_slack_gateway_component, task_id, overall_timeout=10.0
     )
-    terminal_event, intermediate_events, terminal_event_text = extract_outputs_from_event_list(
-        all_events, f"test_slack_gateway_{task_id}"
+    terminal_event, intermediate_events, terminal_event_text = (
+        extract_outputs_from_event_list(all_events, f"test_slack_gateway_{task_id}")
     )
 
     assert terminal_event is not None, "Did not receive a terminal event"
-    assert intermediate_events is not None, "Did not receive any intermediate streaming events"
+    assert (
+        intermediate_events is not None
+    ), "Did not receive any intermediate streaming events"
     assert len(intermediate_events) > 0, "Expected at least one intermediate event"
     assert terminal_event.status.state == "completed"
     assert terminal_event_text == "This is a streamed response."
@@ -143,9 +150,7 @@ async def test_submit_request_with_artifact(
             {"type": "text", "text": "Please process this artifact."},
             {
                 "type": "file",
-                "file": {
-                    "uri": f"session://GatewayTestAgent/{artifact_filename}"
-                }
+                "file": {"uri": f"session://GatewayTestAgent/{artifact_filename}"},
             },
         ],
         "user": "test-user",
@@ -409,7 +414,7 @@ async def test_submit_request_with_malformed_part(
     }
 
     # 2. Act & Assert
-    with pytest.raises(Exception): # Changed from pydantic.ValidationError to Exception
+    with pytest.raises(Exception):  # Changed from pydantic.ValidationError to Exception
         await test_slack_gateway_component.send_test_input(test_input)
 
 

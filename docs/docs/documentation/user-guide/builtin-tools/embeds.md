@@ -88,7 +88,6 @@ This is the **required** final step in an `artifact_content` chain, defining the
 | `json` / `json_pretty` | A compact or indented JSON string.                                       |
 | `csv`           | A CSV formatted string.                                                        |
 | `datauri`       | A Base64-encoded data URI, typically for images (`data:image/png;base64,...`). |
-| `html`          | A raw HTML string, typically used after applying a template.                   |
 
 **`artifact_content` Examples:**
 - To embed an image for display in a UI:
@@ -98,7 +97,7 @@ This is the **required** final step in an `artifact_content` chain, defining the
 - To get the last 10 lines of a log file:
   `«artifact_content:debug.log >>> tail:10 >>> format:text»`
 - To filter a CSV file and render it using an HTML template:
-  `«artifact_content:users.csv >>> filter_rows_eq:Status:Active >>> apply_to_template:active_users.html >>> format:html»`
+  `«artifact_content:users.csv >>> filter_rows_eq:Status:Active >>> apply_to_template:active_users.html >>> format:text»`
 
 ### Technical Details
 
@@ -191,13 +190,13 @@ With the data and template artifacts stored, the agent can construct an `artifac
 - **Data Context**: The data provided to the template engine is the output of the preceding modifier in the chain.
   - If the data is a **list**, it is automatically wrapped in a dictionary of the form `{'items': your_list}`. The template should use `{{#items}}` to iterate over this list.
   - If the data is a **dictionary**, it is used directly as the rendering context.
-- **Output Format**: It is **mandatory** to terminate the chain with a `format:` step (for example, `format:html` or `format:text`) to specify the MIME type of the final rendered output.
+- **Output Format**: It is **mandatory** to terminate the chain with a `format:` step (for example, `format:text`) to specify the MIME type of the final rendered output.
 
 **Complete Example**:
 The following embed chain processes a JSON file and renders its content using the HTML template created in Step 1.
 
 ```
-«artifact_content:user_data.json >>> jsonpath:$.users[*] >>> select_fields:name,status >>> apply_to_template:user_table.html.mustache >>> format:html»
+«artifact_content:user_data.json >>> jsonpath:$.users[*] >>> select_fields:name,status >>> apply_to_template:user_table.html.mustache >>> format:text»
 ```
 
 **Execution Flow**:
@@ -205,7 +204,6 @@ The following embed chain processes a JSON file and renders its content using th
 2.  `jsonpath:$.users[*]`: Applies a JSONPath expression to extract the list of user objects.
 3.  `select_fields:name,status`: Filters each object in the list to retain only the `name` and `status` fields.
 4.  `apply_to_template:user_table.html.mustache`: Renders the resulting list of users using the specified Mustache template.
-5.  `format:html`: Declares that the final output string should be treated as HTML.
 
 ### Error Handling
 - **Template Not Found**: If the specified template artifact does not exist, the embed resolves to `[Error: Template artifact '...' not found]`.

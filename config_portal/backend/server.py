@@ -24,11 +24,13 @@ cli_flask = sys.modules["flask.cli"]
 cli_flask.show_server_banner = lambda *x: None
 litellm.suppress_debug_info = True
 
+config_portal_host = "CONFIG_PORTAL_HOST"
+
 try:
     from solace_agent_mesh.agent.tools.registry import tool_registry
 except ImportError as err:
     try:
-        from src.agent.tools.registry import tool_registry
+        from src.solace_agent_mesh.agent.tools.registry import tool_registry
     except ImportError as exc:
         log.error(
             "Importing tool_registry failed. Ensure all the dependencies are installed and the import paths are correct, Error: %s",
@@ -635,6 +637,7 @@ def create_app(shared_config=None):
 
 
 def run_flask(host="127.0.0.1", port=5002, shared_config=None):
+    host = os.environ.get(config_portal_host, host)
     app = create_app(shared_config)
     app.logger.setLevel(logging.INFO)
     app.logger.info(f"Starting Flask app on {host}:{port}")

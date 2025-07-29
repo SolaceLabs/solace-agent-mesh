@@ -4,19 +4,38 @@
 
 import pytest
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
-from src.agent.sac.app import SamAgentApp
-from src.agent.sac.component import SamAgentComponent
-from tests.integration.infrastructure.rest_gateway_interface.app import TestRestGatewayApp
-from tests.integration.infrastructure.rest_gateway_interface.component import TestRestGatewayComponent
-from tests.integration.infrastructure.slack_gateway_interface.app import TestSlackGatewayApp
-from tests.integration.infrastructure.slack_gateway_interface.component import TestSlackGatewayComponent
+from src.solace_agent_mesh.agent.sac.app import SamAgentApp
+from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
+from tests.integration.infrastructure.rest_gateway_interface.app import (
+    TestRestGatewayApp,
+)
+from tests.integration.infrastructure.rest_gateway_interface.component import (
+    TestRestGatewayComponent,
+)
+from tests.integration.infrastructure.slack_gateway_interface.app import (
+    TestSlackGatewayApp,
+)
+from tests.integration.infrastructure.slack_gateway_interface.component import (
+    TestSlackGatewayComponent,
+)
 from tests.integration.infrastructure.web_gateway_interface.app import TestWebGatewayApp
-from tests.integration.infrastructure.web_gateway_interface.component import TestWebGatewayComponent
-from tests.integration.infrastructure.event_mesh_gateway_interface.app import TestEventMeshGatewayApp
-from tests.integration.infrastructure.event_mesh_gateway_interface.component import TestEventMeshGatewayComponent
-from tests.integration.infrastructure.webhook_gateway_interface.app import TestWebhookGatewayApp
-from tests.integration.infrastructure.webhook_gateway_interface.component import TestWebhookGatewayComponent
+from tests.integration.infrastructure.web_gateway_interface.component import (
+    TestWebGatewayComponent,
+)
+from tests.integration.infrastructure.event_mesh_gateway_interface.app import (
+    TestEventMeshGatewayApp,
+)
+from tests.integration.infrastructure.event_mesh_gateway_interface.component import (
+    TestEventMeshGatewayComponent,
+)
+from tests.integration.infrastructure.webhook_gateway_interface.app import (
+    TestWebhookGatewayApp,
+)
+from tests.integration.infrastructure.webhook_gateway_interface.component import (
+    TestWebhookGatewayComponent,
+)
 import time
+
 
 @pytest.fixture(scope="session")
 def gateway_test_solace_connector(
@@ -55,7 +74,7 @@ def gateway_test_solace_connector(
                 "defaultInputModes": ["text"],
                 "defaultOutputModes": ["text"],
                 "jsonrpc": "2.0",
-                "id": "agent_card_pub"
+                "id": "agent_card_pub",
             },
             "agent_card_publishing": {"interval_seconds": 1},
             "agent_discovery": {"enabled": True},
@@ -68,7 +87,7 @@ def gateway_test_solace_connector(
 
     test_agent_tools = [
         {"tool_type": "builtin", "tool_name": "time_delay"},
-        {"tool_type": "builtin", "tool_name": "create_artifact"}
+        {"tool_type": "builtin", "tool_name": "create_artifact"},
     ]
     sam_agent_app_config = create_agent_config(
         agent_name="GatewayTestAgent",
@@ -119,7 +138,7 @@ def gateway_test_solace_connector(
                 "input_expression": "input.payload:text",
                 "target_agent_name": "GatewayTestAgent",
                 "on_success": "test_output_handler",
-                "user_identity_expression": "user_data.user_id"
+                "user_identity_expression": "user_data.user_id",
             },
             {
                 "name": "non_existent_agent_handler",
@@ -127,8 +146,8 @@ def gateway_test_solace_connector(
                 "input_expression": "input.payload:text",
                 "target_agent_name": "NonExistentAgent",
                 "on_success": "test_output_handler",
-                "user_identity_expression": "user_data.user_id"
-            }
+                "user_identity_expression": "user_data.user_id",
+            },
         ],
         "output_handlers": [
             {
@@ -157,7 +176,7 @@ def gateway_test_solace_connector(
             "name": "GatewayTestTargetAgentApp",
             "app_config": sam_agent_app_config,
             "broker": {"dev_mode": True},
-            "app_module": "src.agent.sac.app",
+            "app_module": "src.solace_agent_mesh.agent.sac.app",
         },
         {
             "name": "TestRestGatewayApp",
@@ -192,7 +211,7 @@ def gateway_test_solace_connector(
     ]
 
     session_monkeypatch.setattr(
-        "src.agent.adk.services.TestInMemoryArtifactService",
+        "src.solace_agent_mesh.agent.adk.services.TestInMemoryArtifactService",
         lambda: test_artifact_service_instance,
     )
 
@@ -210,14 +229,20 @@ def gateway_test_solace_connector(
     connector.stop()
     connector.cleanup()
 
+
 @pytest.fixture(scope="session")
-def sam_app_for_gateway_test(gateway_test_solace_connector: SolaceAiConnector) -> SamAgentApp:
+def sam_app_for_gateway_test(
+    gateway_test_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
     app_instance = gateway_test_solace_connector.get_app("GatewayTestTargetAgentApp")
     assert isinstance(app_instance, SamAgentApp)
     return app_instance
 
+
 @pytest.fixture(scope="session")
-def main_agent_component_for_gateway_test(sam_app_for_gateway_test: SamAgentApp) -> SamAgentComponent:
+def main_agent_component_for_gateway_test(
+    sam_app_for_gateway_test: SamAgentApp,
+) -> SamAgentComponent:
     for group in sam_app_for_gateway_test.flows[0].component_groups:
         for component_wrapper in group:
             component = (
@@ -229,15 +254,21 @@ def main_agent_component_for_gateway_test(sam_app_for_gateway_test: SamAgentApp)
                 return component
     raise RuntimeError("SamAgentComponent not found in the application flow.")
 
+
 # REST Gateway Fixtures
 @pytest.fixture(scope="session")
-def test_rest_gateway_app(gateway_test_solace_connector: SolaceAiConnector) -> TestRestGatewayApp:
+def test_rest_gateway_app(
+    gateway_test_solace_connector: SolaceAiConnector,
+) -> TestRestGatewayApp:
     app_instance = gateway_test_solace_connector.get_app("TestRestGatewayApp")
     assert isinstance(app_instance, TestRestGatewayApp)
     return app_instance
 
+
 @pytest.fixture(scope="session")
-def test_rest_gateway_component(test_rest_gateway_app: TestRestGatewayApp) -> TestRestGatewayComponent:
+def test_rest_gateway_component(
+    test_rest_gateway_app: TestRestGatewayApp,
+) -> TestRestGatewayComponent:
     for group in test_rest_gateway_app.flows[0].component_groups:
         for comp_wrapper in group:
             actual_comp = (
@@ -249,15 +280,21 @@ def test_rest_gateway_component(test_rest_gateway_app: TestRestGatewayApp) -> Te
                 return actual_comp
     pytest.fail("TestRestGatewayComponent not found in the application flow.")
 
+
 # Slack Gateway Fixtures
 @pytest.fixture(scope="session")
-def test_slack_gateway_app(gateway_test_solace_connector: SolaceAiConnector) -> TestSlackGatewayApp:
+def test_slack_gateway_app(
+    gateway_test_solace_connector: SolaceAiConnector,
+) -> TestSlackGatewayApp:
     app_instance = gateway_test_solace_connector.get_app("TestSlackGatewayApp")
     assert isinstance(app_instance, TestSlackGatewayApp)
     return app_instance
 
+
 @pytest.fixture(scope="session")
-def test_slack_gateway_component(test_slack_gateway_app: TestSlackGatewayApp) -> TestSlackGatewayComponent:
+def test_slack_gateway_component(
+    test_slack_gateway_app: TestSlackGatewayApp,
+) -> TestSlackGatewayComponent:
     for group in test_slack_gateway_app.flows[0].component_groups:
         for comp_wrapper in group:
             actual_comp = (
@@ -269,15 +306,21 @@ def test_slack_gateway_component(test_slack_gateway_app: TestSlackGatewayApp) ->
                 return actual_comp
     pytest.fail("TestSlackGatewayComponent not found in the application flow.")
 
+
 # Web Gateway Fixtures
 @pytest.fixture(scope="session")
-def test_web_gateway_app(gateway_test_solace_connector: SolaceAiConnector) -> TestWebGatewayApp:
+def test_web_gateway_app(
+    gateway_test_solace_connector: SolaceAiConnector,
+) -> TestWebGatewayApp:
     app_instance = gateway_test_solace_connector.get_app("TestWebGatewayApp")
     assert isinstance(app_instance, TestWebGatewayApp)
     return app_instance
 
+
 @pytest.fixture(scope="session")
-def test_web_gateway_component(test_web_gateway_app: TestWebGatewayApp) -> TestWebGatewayComponent:
+def test_web_gateway_component(
+    test_web_gateway_app: TestWebGatewayApp,
+) -> TestWebGatewayComponent:
     for group in test_web_gateway_app.flows[0].component_groups:
         for comp_wrapper in group:
             actual_comp = (
@@ -289,15 +332,21 @@ def test_web_gateway_component(test_web_gateway_app: TestWebGatewayApp) -> TestW
                 return actual_comp
     pytest.fail("TestWebGatewayComponent not found in the application flow.")
 
+
 # Event Mesh Gateway Fixtures
 @pytest.fixture(scope="session")
-def test_event_mesh_gateway_app(gateway_test_solace_connector: SolaceAiConnector) -> TestEventMeshGatewayApp:
+def test_event_mesh_gateway_app(
+    gateway_test_solace_connector: SolaceAiConnector,
+) -> TestEventMeshGatewayApp:
     app_instance = gateway_test_solace_connector.get_app("TestEventMeshGatewayApp")
     assert isinstance(app_instance, TestEventMeshGatewayApp)
     return app_instance
 
+
 @pytest.fixture(scope="session")
-def test_event_mesh_gateway_component(test_event_mesh_gateway_app: TestEventMeshGatewayApp) -> TestEventMeshGatewayComponent:
+def test_event_mesh_gateway_component(
+    test_event_mesh_gateway_app: TestEventMeshGatewayApp,
+) -> TestEventMeshGatewayComponent:
     for group in test_event_mesh_gateway_app.flows[0].component_groups:
         for comp_wrapper in group:
             actual_comp = (
@@ -309,15 +358,21 @@ def test_event_mesh_gateway_component(test_event_mesh_gateway_app: TestEventMesh
                 return actual_comp
     pytest.fail("TestEventMeshGatewayComponent not found in the application flow.")
 
+
 # Webhook Gateway Fixtures
 @pytest.fixture(scope="session")
-def test_webhook_gateway_app(gateway_test_solace_connector: SolaceAiConnector) -> TestWebhookGatewayApp:
+def test_webhook_gateway_app(
+    gateway_test_solace_connector: SolaceAiConnector,
+) -> TestWebhookGatewayApp:
     app_instance = gateway_test_solace_connector.get_app("TestWebhookGatewayApp")
     assert isinstance(app_instance, TestWebhookGatewayApp)
     return app_instance
 
+
 @pytest.fixture(scope="session")
-def test_webhook_gateway_component(test_webhook_gateway_app: TestWebhookGatewayApp) -> TestWebhookGatewayComponent:
+def test_webhook_gateway_component(
+    test_webhook_gateway_app: TestWebhookGatewayApp,
+) -> TestWebhookGatewayComponent:
     for group in test_webhook_gateway_app.flows[0].component_groups:
         for comp_wrapper in group:
             actual_comp = (
@@ -329,8 +384,15 @@ def test_webhook_gateway_component(test_webhook_gateway_app: TestWebhookGatewayA
                 return actual_comp
     pytest.fail("TestWebhookGatewayComponent not found in the application flow.")
 
+
 @pytest.fixture(autouse=True)
-def clear_gateway_component_states(test_rest_gateway_component: TestRestGatewayComponent, test_slack_gateway_component: TestSlackGatewayComponent, test_web_gateway_component: TestWebGatewayComponent, test_event_mesh_gateway_component: TestEventMeshGatewayComponent, test_webhook_gateway_component: TestWebhookGatewayComponent):
+def clear_gateway_component_states(
+    test_rest_gateway_component: TestRestGatewayComponent,
+    test_slack_gateway_component: TestSlackGatewayComponent,
+    test_web_gateway_component: TestWebGatewayComponent,
+    test_event_mesh_gateway_component: TestEventMeshGatewayComponent,
+    test_webhook_gateway_component: TestWebhookGatewayComponent,
+):
     """
     Clears the state of all test gateway components before each test.
     """

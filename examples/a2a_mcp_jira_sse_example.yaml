@@ -20,7 +20,7 @@ log:
 apps:
   - name: jira_mcp_sse_agent_app
     app_base_path: . # Assuming execution from the root of the project
-    app_module: src.agent.sac.app # Custom app class for A2A ADK Host
+    app_module: src.solace_agent_mesh.agent.sac.app # Custom app class for A2A ADK Host
     broker:
       <<: *broker_connection # From shared_config.yaml
 

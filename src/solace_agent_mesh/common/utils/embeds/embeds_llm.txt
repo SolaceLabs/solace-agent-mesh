@@ -17,7 +17,7 @@ The `embeds` directory provides a system for finding, parsing, and resolving emb
 ### __init__.py
 **Purpose:** This module serves as the main public entry point for the `embeds` package, exporting the most commonly used functions and constants from the other modules. Developers should typically import from here.
 
-**Import:** `from src.common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed, EMBED_REGEX`
+**Import:** `from src.solace_agent_mesh.common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed, EMBED_REGEX`
 
 *(Note: Detailed documentation is available under each source file's section.)*
 
@@ -43,7 +43,7 @@ The `embeds` directory provides a system for finding, parsing, and resolving emb
 ### constants.py
 **Purpose:** This file defines all the static constants that govern the syntax and classification of embeds. This includes delimiters, separators, the master regular expression for parsing, and sets that categorize embed types for phased resolution.
 
-**Import:** `from src.common.utils.embeds.constants import EMBED_REGEX, EARLY_EMBED_TYPES`
+**Import:** `from src.solace_agent_mesh.common.utils.embeds.constants import EMBED_REGEX, EARLY_EMBED_TYPES`
 
 **Classes:**
 - None
@@ -65,7 +65,7 @@ The `embeds` directory provides a system for finding, parsing, and resolving emb
 **Usage Examples:**
 ```python
 import re
-from src.common.utils.embeds.constants import EMBED_REGEX
+from src.solace_agent_mesh.common.utils.embeds.constants import EMBED_REGEX
 
 text = "The price is «math:10 * 1.15 | .2f» and the ID is «uuid:new»."
 
@@ -84,7 +84,7 @@ for match in EMBED_REGEX.finditer(text):
 ### converter.py
 **Purpose:** This file provides the core logic for data conversion and serialization. It can transform data between different `DataFormat` representations (e.g., `BYTES` to `STRING`, `STRING` to `LIST_OF_DICTS`) and serialize any format into a final string representation (e.g., `json`, `csv`, `datauri`).
 
-**Import:** `from src.common.utils.embeds.converter import convert_data, serialize_data`
+**Import:** `from src.solace_agent_mesh.common.utils.embeds.converter import convert_data, serialize_data`
 
 **Classes:**
 - None
@@ -98,8 +98,8 @@ for match in EMBED_REGEX.finditer(text):
 
 **Usage Examples:**
 ```python
-from src.common.utils.embeds.converter import convert_data, serialize_data
-from src.common.utils.embeds.types import DataFormat
+from src.solace_agent_mesh.common.utils.embeds.converter import convert_data, serialize_data
+from src.solace_agent_mesh.common.utils.embeds.types import DataFormat
 
 # Example 1: Convert CSV bytes to a list of dictionaries
 csv_bytes = b"id,name\n1,Alice\n2,Bob"

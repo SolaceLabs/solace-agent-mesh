@@ -1,7 +1,7 @@
 # Solace AI Connector Example: A2A ADK Agent Host Configuration
 #
 # This file demonstrates how to configure an A2A ADK Agent Host application.
-# It uses the custom A2A_ADK_App class defined in src.agent.sac.app.
+# It uses the custom A2A_ADK_App class defined in src.solace_agent_mesh.agent.sac.app.
 #
 # Required Environment Variables:
 # - NAMESPACE: The A2A topic namespace (e.g., "myorg/dev").
@@ -23,7 +23,7 @@ log:
 apps:
   - name: my_adk_agent_host_app # Name for this specific SAC application instance
     app_base_path: . # Assuming running from project root where src/ is located
-    app_module: src.agent.sac.app # Use the custom App class
+    app_module: src.solace_agent_mesh.agent.sac.app # Use the custom App class
 
     broker:
       <<: *broker_connection

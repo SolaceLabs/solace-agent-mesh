@@ -1,10 +1,19 @@
 import pytest
 import asyncio
 from google.genai import types as adk_types
-from tests.integration.infrastructure.artifact_service.service import TestInMemoryArtifactService
-from tests.integration.infrastructure.rest_gateway_interface.component import TestRestGatewayComponent
-from src.agent.sac.component import SamAgentComponent
-from src.common.types import Task, TextPart, JSONRPCError, TaskArtifactUpdateEvent
+from tests.integration.infrastructure.artifact_service.service import (
+    TestInMemoryArtifactService,
+)
+from tests.integration.infrastructure.rest_gateway_interface.component import (
+    TestRestGatewayComponent,
+)
+from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
+from src.solace_agent_mesh.common.types import (
+    Task,
+    TextPart,
+    JSONRPCError,
+    TaskArtifactUpdateEvent,
+)
 from tests.integration.scenarios_programmatic.test_helpers import (
     get_all_task_events,
     extract_outputs_from_event_list,
@@ -14,6 +23,7 @@ from tests.integration.scenarios_programmatic.gateways.common import create_llm_
 
 # Mark all tests in this file as asyncio
 pytestmark = pytest.mark.asyncio
+
 
 async def test_submit_prompt_and_get_response(
     test_rest_gateway_component: TestRestGatewayComponent,
@@ -78,7 +88,7 @@ async def test_submit_prompt_and_get_streaming_response(
     # 1. Arrange
     test_input = {
         "target_agent_name": "GatewayTestAgent",
-        "a2a_parts": [{"type": "text", "text": "Hello, stream!"}]
+        "a2a_parts": [{"type": "text", "text": "Hello, stream!"}],
     }
     # Prime the server with a single, complete response. The server will chunk it for us.
     test_llm_server.prime_responses(
@@ -102,12 +112,14 @@ async def test_submit_prompt_and_get_streaming_response(
     all_events = await get_all_task_events(
         test_rest_gateway_component, task_id, overall_timeout=10.0
     )
-    terminal_event, intermediate_events, terminal_event_text = extract_outputs_from_event_list(
-        all_events, f"test_rest_gateway_{task_id}"
+    terminal_event, intermediate_events, terminal_event_text = (
+        extract_outputs_from_event_list(all_events, f"test_rest_gateway_{task_id}")
     )
 
     assert terminal_event is not None, "Did not receive a terminal event"
-    assert intermediate_events is not None, "Did not receive any intermediate streaming events"
+    assert (
+        intermediate_events is not None
+    ), "Did not receive any intermediate streaming events"
     assert len(intermediate_events) > 0, "Expected at least one intermediate event"
     assert terminal_event.status.state == "completed"
     # The final text from the terminal event should match the full content
@@ -135,7 +147,7 @@ async def test_submit_request_with_artifact(
     await test_artifact_service_instance.save_artifact(
         app_name="GatewayTestAgent",
         user_id="test-user@example.com",
-        session_id="test-session-for-artifacts", # A mock session ID
+        session_id="test-session-for-artifacts",  # A mock session ID
         filename=artifact_filename,
         artifact=artifact_part,
     )
@@ -147,14 +159,10 @@ async def test_submit_request_with_artifact(
             {"type": "text", "text": "Please process this artifact."},
             {
                 "type": "file",
-                "file": {
-                    "uri": f"session://GatewayTestAgent/{artifact_filename}"
-                }
+                "file": {"uri": f"session://GatewayTestAgent/{artifact_filename}"},
             },
         ],
-        "external_context_override": {
-            "a2a_session_id": "test-session-for-artifacts"
-        }
+        "external_context_override": {"a2a_session_id": "test-session-for-artifacts"},
     }
 
     # Prime the LLM to give a simple response
@@ -233,7 +241,7 @@ async def test_submit_request_with_malformed_part(
     }
 
     # 2. Act & Assert
-    with pytest.raises(Exception): # Changed from pydantic.ValidationError to Exception
+    with pytest.raises(Exception):  # Changed from pydantic.ValidationError to Exception
         await test_rest_gateway_component.send_test_input(test_input)
 
 
@@ -393,8 +401,7 @@ async def test_submit_concurrent_requests(
 
     # 2. Act
     tasks = [
-        test_rest_gateway_component.send_test_input(input_data)
-        for input_data in inputs
+        test_rest_gateway_component.send_test_input(input_data) for input_data in inputs
     ]
     task_ids = await asyncio.gather(*tasks)
 
@@ -440,9 +447,7 @@ async def test_tool_call_create_artifact(
                 "text": f"Create an artifact named '{artifact_filename}' with content '{artifact_content}'",
             }
         ],
-        "external_context_override": {
-            "a2a_session_id": "test-session-for-artifacts"
-        }
+        "external_context_override": {"a2a_session_id": "test-session-for-artifacts"},
     }
 
     test_llm_server.prime_responses(

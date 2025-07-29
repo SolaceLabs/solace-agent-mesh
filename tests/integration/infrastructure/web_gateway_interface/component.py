@@ -5,9 +5,9 @@ from typing import Any, Dict, List, Union, Optional, Tuple
 
 import uvicorn
 import threading
-from src.gateway.base.component import BaseGatewayComponent
-from src.gateway.http_sse.component import WebUIBackendComponent
-from src.common.types import (
+from src.solace_agent_mesh.gateway.base.component import BaseGatewayComponent
+from src.solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
+from src.solace_agent_mesh.common.types import (
     Task,
     JSONRPCError,
     TaskStatusUpdateEvent,
@@ -21,11 +21,18 @@ info = {
     "description": "Test component for the Web Gateway.",
 }
 
+
 class TestWebGatewayComponent(WebUIBackendComponent):
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
-        self._captured_outputs: Dict[str, asyncio.Queue[Union[Task, JSONRPCError, TaskStatusUpdateEvent, TaskArtifactUpdateEvent]]] = \
-            defaultdict(asyncio.Queue)
+        self._captured_outputs: Dict[
+            str,
+            asyncio.Queue[
+                Union[
+                    Task, JSONRPCError, TaskStatusUpdateEvent, TaskArtifactUpdateEvent
+                ]
+            ],
+        ] = defaultdict(asyncio.Queue)
         self._captured_artifacts: Dict[str, List[Any]] = defaultdict(list)
         # Mock out the visualization processor task as it's not needed for these tests
         self._visualization_processor_task = None
@@ -37,7 +44,12 @@ class TestWebGatewayComponent(WebUIBackendComponent):
         is_final_chunk_of_update: bool,
     ):
         task_id = event_data.id
-        log.debug("%s Capturing A2A update for task %s: %s", self.log_identifier, task_id, type(event_data).__name__)
+        log.debug(
+            "%s Capturing A2A update for task %s: %s",
+            self.log_identifier,
+            task_id,
+            type(event_data).__name__,
+        )
         if isinstance(event_data, TaskArtifactUpdateEvent):
             self._captured_artifacts[task_id].append(event_data.artifact)
         await self._captured_outputs[task_id].put(event_data)
@@ -48,8 +60,10 @@ class TestWebGatewayComponent(WebUIBackendComponent):
         task_id = task_data.id
         if self._captured_artifacts[task_id]:
             task_data.artifacts = self._captured_artifacts[task_id]
-        
-        log.debug("%s Capturing A2A final response for task %s", self.log_identifier, task_id)
+
+        log.debug(
+            "%s Capturing A2A final response for task %s", self.log_identifier, task_id
+        )
         await self._captured_outputs[task_id].put(task_data)
 
     async def _send_error_to_external(
@@ -57,13 +71,24 @@ class TestWebGatewayComponent(WebUIBackendComponent):
     ):
         task_id = external_request_context.get("a2a_task_id_for_event")
         if task_id:
-            log.debug("%s Capturing A2A error for task %s: %s", self.log_identifier, task_id, error_data.message)
+            log.debug(
+                "%s Capturing A2A error for task %s: %s",
+                self.log_identifier,
+                task_id,
+                error_data.message,
+            )
             await self._captured_outputs[task_id].put(error_data)
         else:
             await self._captured_outputs["__unassigned_errors__"].put(error_data)
-            log.warning("%s Captured error for UNKNOWN_TASK: %s", self.log_identifier, error_data.message)
+            log.warning(
+                "%s Captured error for UNKNOWN_TASK: %s",
+                self.log_identifier,
+                error_data.message,
+            )
 
-    async def authenticate_and_enrich_user(self, external_event_data: Any) -> Optional[Dict[str, Any]]:
+    async def authenticate_and_enrich_user(
+        self, external_event_data: Any
+    ) -> Optional[Dict[str, Any]]:
         return {"id": "test-user@example.com", "name": "Test User"}
 
     async def send_test_input(self, test_input_data: Dict[str, Any]) -> str:
@@ -72,7 +97,7 @@ class TestWebGatewayComponent(WebUIBackendComponent):
             self.log_identifier,
             test_input_data,
         )
-        
+
         user_identity = await self.authenticate_and_enrich_user(test_input_data)
         if user_identity is None:
             raise PermissionError("Test user authentication failed.")
@@ -88,14 +113,23 @@ class TestWebGatewayComponent(WebUIBackendComponent):
             user_identity=user_identity,
             is_streaming=test_input_data.get("is_streaming", True),
         )
-        log.info("%s TestWebGatewayComponent: Submitted task %s for agent %s.", self.log_identifier, task_id, target_agent_name)
+        log.info(
+            "%s TestWebGatewayComponent: Submitted task %s for agent %s.",
+            self.log_identifier,
+            task_id,
+            target_agent_name,
+        )
         return task_id
 
     async def get_next_captured_output(
         self, task_id: str, timeout: float = 5.0
-    ) -> Optional[Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent, Task, JSONRPCError]]:
+    ) -> Optional[
+        Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent, Task, JSONRPCError]
+    ]:
         try:
-            output = await asyncio.wait_for(self._captured_outputs[task_id].get(), timeout=timeout)
+            output = await asyncio.wait_for(
+                self._captured_outputs[task_id].get(), timeout=timeout
+            )
             self._captured_outputs[task_id].task_done()
             return output
         except asyncio.TimeoutError:
@@ -121,14 +155,21 @@ class TestWebGatewayComponent(WebUIBackendComponent):
         a2a_parts = external_event.get("a2a_parts", [])
 
         constructed_external_context = {
-            "test_input_event_id": external_event.get("test_event_id", f"test-event-{asyncio.get_running_loop().time()}"),
+            "test_input_event_id": external_event.get(
+                "test_event_id", f"test-event-{asyncio.get_running_loop().time()}"
+            ),
             "app_name_for_artifacts": target_agent_name,
             "user_id_for_artifacts": "test-user@example.com",
             "a2a_session_id": f"test-session-{asyncio.get_running_loop().time()}",
         }
 
-        if "external_context_override" in external_event and "a2a_session_id" in external_event["external_context_override"]:
-            constructed_external_context["a2a_session_id"] = external_event["external_context_override"]["a2a_session_id"]
+        if (
+            "external_context_override" in external_event
+            and "a2a_session_id" in external_event["external_context_override"]
+        ):
+            constructed_external_context["a2a_session_id"] = external_event[
+                "external_context_override"
+            ]["a2a_session_id"]
 
         return target_agent_name, a2a_parts, constructed_external_context
 
@@ -148,11 +189,17 @@ class TestWebGatewayComponent(WebUIBackendComponent):
             self.log_identifier,
         )
         if self.fastapi_thread and self.fastapi_thread.is_alive():
-            log.warning("%s FastAPI server thread already started.", self.log_identifier)
+            log.warning(
+                "%s FastAPI server thread already started.", self.log_identifier
+            )
             return
 
         try:
-            from src.gateway.http_sse.main import app as fastapi_app_instance, setup_dependencies
+            from src.solace_agent_mesh.gateway.http_sse.main import (
+                app as fastapi_app_instance,
+                setup_dependencies,
+            )
+
             self.fastapi_app = fastapi_app_instance
             setup_dependencies(self)
 
@@ -167,7 +214,10 @@ class TestWebGatewayComponent(WebUIBackendComponent):
 
             @self.fastapi_app.on_event("startup")
             async def capture_event_loop():
-                log.info("%s [_start_listener] TEST FastAPI startup event triggered.", self.log_identifier)
+                log.info(
+                    "%s [_start_listener] TEST FastAPI startup event triggered.",
+                    self.log_identifier,
+                )
                 try:
                     self.fastapi_event_loop = asyncio.get_running_loop()
                     log.info(
@@ -212,31 +262,54 @@ class TestWebGatewayComponent(WebUIBackendComponent):
             "%s TestWebGatewayComponent._stop_listener called. Shutting down Uvicorn server.",
             self.log_identifier,
         )
-        if self.uvicorn_server and self.fastapi_event_loop and self.fastapi_event_loop.is_running():
-            log.info("%s Shutting down Uvicorn server gracefully...", self.log_identifier)
-            future = asyncio.run_coroutine_threadsafe(self.uvicorn_server.shutdown(), self.fastapi_event_loop)
+        if (
+            self.uvicorn_server
+            and self.fastapi_event_loop
+            and self.fastapi_event_loop.is_running()
+        ):
+            log.info(
+                "%s Shutting down Uvicorn server gracefully...", self.log_identifier
+            )
+            future = asyncio.run_coroutine_threadsafe(
+                self.uvicorn_server.shutdown(), self.fastapi_event_loop
+            )
             try:
                 future.result(timeout=10)
                 log.info("%s Uvicorn server shutdown complete.", self.log_identifier)
             except Exception as e:
-                log.warning("%s Error during Uvicorn server graceful shutdown: %s. Forcing exit.", self.log_identifier, e)
+                log.warning(
+                    "%s Error during Uvicorn server graceful shutdown: %s. Forcing exit.",
+                    self.log_identifier,
+                    e,
+                )
                 self.uvicorn_server.should_exit = True
         elif self.uvicorn_server:
             self.uvicorn_server.should_exit = True
-            log.info("%s Signaled Uvicorn server to exit (event loop not available).", self.log_identifier)
+            log.info(
+                "%s Signaled Uvicorn server to exit (event loop not available).",
+                self.log_identifier,
+            )
 
         if self.fastapi_thread and self.fastapi_thread.is_alive():
-            log.info("%s Waiting for FastAPI server thread to exit...", self.log_identifier)
+            log.info(
+                "%s Waiting for FastAPI server thread to exit...", self.log_identifier
+            )
             self.fastapi_thread.join(timeout=10)
             if self.fastapi_thread.is_alive():
-                log.warning("%s FastAPI server thread did not exit gracefully.", self.log_identifier)
+                log.warning(
+                    "%s FastAPI server thread did not exit gracefully.",
+                    self.log_identifier,
+                )
 
     def cleanup(self):
         """
         Custom cleanup for the test component. This method provides a safe shutdown
         sequence, bypassing the problematic cleanup logic in the parent class.
         """
-        log.info("%s Running custom cleanup for TestWebGatewayComponent...", self.log_identifier)
+        log.info(
+            "%s Running custom cleanup for TestWebGatewayComponent...",
+            self.log_identifier,
+        )
 
         # Log all running threads for diagnostics
         log.info("--- Active Threads Before Cleanup ---")
@@ -249,7 +322,12 @@ class TestWebGatewayComponent(WebUIBackendComponent):
 
         # 2. Call the grandparent's cleanup to release base resources,
         #    bypassing the broken WebUIBackendComponent.cleanup() entirely.
-        log.info("%s Calling BaseGatewayComponent.cleanup() directly...", self.log_identifier)
+        log.info(
+            "%s Calling BaseGatewayComponent.cleanup() directly...", self.log_identifier
+        )
         BaseGatewayComponent.cleanup(self)
 
-        log.info("%s Custom cleanup for TestWebGatewayComponent finished.", self.log_identifier)
+        log.info(
+            "%s Custom cleanup for TestWebGatewayComponent finished.",
+            self.log_identifier,
+        )

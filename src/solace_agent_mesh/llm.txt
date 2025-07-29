@@ -1,0 +1,228 @@
+Here is the comprehensive developer guide for the `src` directory.
+
+## Quick Summary
+The `src` directory serves as the main source code root for the Solace AI Connector, containing four primary subsystems that work together to enable comprehensive AI agent communication and hosting. The `agent` directory provides a complete framework for hosting Google ADK agents with A2A protocol support, the `common` directory offers foundational A2A protocol infrastructure and utilities, the `core_a2a` directory provides a reusable service layer for core A2A operations, and the `gateway` directory implements various gateway patterns for external platform integration. These components work together to create a distributed AI agent ecosystem with real-time communication, task delegation, and multi-platform integration capabilities.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `__init__.py`: Empty package initialization file.
+- **Subdirectories:**
+  - `agent/`: Complete ADK agent hosting framework with A2A protocol integration and comprehensive tool library.
+  - `common/`: Foundational A2A protocol infrastructure, type systems, and client/server implementations.
+  - `core_a2a/`: Reusable service layer for core A2A interactions and agent registry operations.
+  - `gateway/`: Gateway framework with HTTP/SSE, Slack, and Webhook implementations for external platform integration.
+
+## Developer API Reference
+
+### Direct Files
+
+#### __init__.py
+**Purpose:** Standard Python package initializer. It allows the `src` directory and its subdirectories to be treated as a package.
+**Import:** `from src import agent, common, gateway`
+
+**Classes/Functions/Constants:**
+This file is empty and has no public interfaces.
+
+### Subdirectory APIs
+
+#### agent/
+**Purpose:** Provides a complete framework for hosting Google ADK agents with A2A protocol support and a comprehensive, extensible tool library.
+**Key Exports:** `SamAgentApp`, `SamAgentComponent`, `AppLlmAgent`, and a wide array of built-in tools for data analysis, web requests, multimedia processing, and inter-agent communication.
+**Import Examples:**
+```python
+from src.solace_agent_mesh.agent.sac.app import SamAgentApp
+from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
+from src.solace_agent_mesh.agent.adk.app_llm_agent import AppLlmAgent
+from src.solace_agent_mesh.agent.tools.builtin_data_analysis_tools import query_data_with_sql
+from src.solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool
+from src.solace_agent_mesh.agent.tools.web_tools import web_request
+from src.solace_agent_mesh.agent.tools.image_tools import create_image_from_description
+```
+
+#### common/
+**Purpose:** Provides the foundational infrastructure for Agent-to-Agent (A2A) communication, including the core protocol, data types, message translation, and client/server implementations.
+**Key Exports:** A2A protocol functions, Pydantic type definitions (`Message`, `Task`, `AgentCard`), `A2AClient` for interacting with agents, `A2AServer` for building agents, and various utilities.
+**Import Examples:**
+```python
+from src.solace_agent_mesh.common.a2a_protocol import get_agent_request_topic
+from src.solace_agent_mesh.common.types import Message, Task, AgentCard, TextPart
+from src.solace_agent_mesh.common.client import A2AClient, A2ACardResolver
+from src.solace_agent_mesh.common.server import A2AServer, InMemoryTaskManager
+from src.solace_agent_mesh.common.agent_registry import AgentRegistry
+from src.solace_agent_mesh.common.utils.embeds import resolve_embeds_in_string
+```
+
+#### core_a2a/
+**Purpose:** Provides a reusable, decoupled service layer for core A2A interactions, handling task submission, cancellation, and agent discovery.
+**Key Exports:** `CoreA2AService` for managing A2A protocol logic without being tied to a specific gateway or messaging implementation.
+**Import Examples:**
+```python
+from src.solace_agent_mesh.core_a2a.service import CoreA2AService
+```
+
+#### gateway/
+**Purpose:** Provides a framework and multiple implementations for building gateways that bridge external platforms (like web UIs, Slack, or webhooks) with the A2A messaging system.
+**Key Exports:** `BaseGatewayApp` and `BaseGatewayComponent` for creating custom gateways, and concrete implementations like `WebUIBackendApp`, `SlackGatewayApp`, and `WebhookGatewayApp`.
+**Import Examples:**
+```python
+from src.solace_agent_mesh.gateway.base.app import BaseGatewayApp
+from src.solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
+from src.solace_agent_mesh.gateway.slack.app import SlackGatewayApp
+from src.solace_agent_mesh.gateway.webhook.app import WebhookGatewayApp
+from src.solace_agent_mesh.gateway.base.authorization_service import ConfigurableRbacAuthorizationService
+```
+
+## Complete Usage Guide
+This guide demonstrates how the different subdirectories within `src` work together to build a complete, distributed AI agent system.
+
+### 1. How to import and use functionality from subdirectories
+The following examples show how to import and instantiate components from each major subdirectory.
+
+```python
+# 1. Import from the 'agent' directory to create an AI agent
+from src.solace_agent_mesh.agent.sac.app import SamAgentApp
+
+# 2. Import from the 'common' and 'core_a2a' directories for protocol infrastructure
+from src.solace_agent_mesh.common.agent_registry import AgentRegistry
+from src.solace_agent_mesh.common.types import AgentCard, AgentCapabilities, AgentSkill
+from src.solace_agent_mesh.core_a2a.service import CoreA2AService
+
+# 3. Import from the 'gateway' directory to create interfaces
+from src.solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
+from src.solace_agent_mesh.gateway.slack.app import SlackGatewayApp
+from src.solace_agent_mesh.gateway.webhook.app import WebhookGatewayApp
+
+# 4. Import tools from the 'agent/tools' subdirectory
+from src.solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool
+from src.solace_agent_mesh.agent.tools.builtin_data_analysis_tools import query_data_with_sql
+```
+
+### 2. How different parts work together
+This section shows a step-by-step process for building a system, illustrating the synergy between the components.
+
+#### Step 1: Create an ADK-powered agent (`agent/`)
+First, define and configure an agent. This agent will automatically be equipped with a rich set of tools and A2A communication capabilities.
+
+```python
+# File: my_system.py
+from src.solace_agent_mesh.agent.sac.app import SamAgentApp
+
+# Configure the agent with all capabilities
+agent_config = {
+    "name": "data-analyst-agent",
+    "app_config": {
+        "namespace": "myorg/ai-agents",
+        "agent_name": "data_analyst",
+        "model": "gemini-1.5-pro",
+        "instruction": "You are a data analysis expert with access to SQL, charting, web tools, and peer collaboration.",
+        "agent_card": {
+            "description": "AI agent for comprehensive data analysis and reporting",
+            "capabilities": ["data_analysis", "web_research", "chart_generation", "peer_collaboration"]
+        },
+        "agent_card_publishing": {"interval_seconds": 30},
+        "agent_discovery": {"enabled": True},
+        "inter_agent_communication": {"allow_list": ["*"]}
+    }
+}
+
+# Create the agent app (in a real scenario, this is run by the SAC framework)
+agent_app = SamAgentApp(agent_config)
+```
+
+#### Step 2: Set Up A2A Protocol Infrastructure (`common/` and `core_a2a/`)
+Next, set up the core services that manage agent discovery and task routing. This is often handled by the gateway components but can be used directly.
+
+```python
+# File: my_system.py (continued)
+from src.solace_agent_mesh.common.agent_registry import AgentRegistry
+from src.solace_agent_mesh.common.types import AgentCard, AgentCapabilities, AgentSkill
+from src.solace_agent_mesh.core_a2a.service import CoreA2AService
+
+# Initialize a shared agent registry
+agent_registry = AgentRegistry()
+
+# Create the core A2A service, which uses the registry
+namespace = "myorg/ai-agents"
+a2a_service = CoreA2AService(agent_registry, namespace)
+
+# Manually register an agent's capabilities (this is usually done automatically by the agent itself)
+data_analyst_card = AgentCard(
+    name="data_analyst",
+    display_name="Data Analyst",
+    description="AI agent for data analysis",
+    url=f"a2a://{namespace}/data_analyst",
+    version="1.0.0",
+    capabilities=AgentCapabilities(streaming=True, pushNotifications=True),
+    skills=[AgentSkill(id="sql_analysis", name="SQL Data Analysis")]
+)
+a2a_service.process_discovery_message(data_analyst_card)
+```
+
+#### Step 3: Create Gateway Integrations (`gateway/`)
+Create one or more gateways to expose the agent(s) to external platforms.
+
+```python
+# File: my_system.py (continued)
+from src.solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
+from src.solace_agent_mesh.gateway.slack.app import SlackGatewayApp
+
+# Web UI Gateway for browser-based interactions
+webui_config = {
+    "name": "web-gateway",
+    "app_config": {
+        "namespace": "myorg/ai-agents",
+        "gateway_id": "web-ui-gateway",
+        "session_secret_key": "a-very-secret-key",
+        "fastapi_host": "0.0.0.0",
+        "fastapi_port": 8080,
+        "artifact_service": {"type": "local_file", "base_path": "./artifacts"}
+    }
+}
+webui_app = WebUIBackendApp(webui_config)
+
+# Slack Gateway for team collaboration
+slack_config = {
+    "name": "slack-gateway",
+    "app_config": {
+        "namespace": "myorg/ai-agents",
+        "gateway_id": "slack-gateway",
+        "slack_bot_token": "${SLACK_BOT_TOKEN}",
+        "slack_app_token": "${SLACK_APP_TOKEN}",
+        "default_agent_name": "data_analyst"
+    }
+}
+slack_app = SlackGatewayApp(slack_config)
+```
+
+### 3. Common usage patterns
+
+#### Pattern 1: Inter-Agent Communication
+An agent can use the `PeerAgentTool` (from `agent/tools/`) to delegate tasks to other agents, leveraging the `common/` protocol infrastructure.
+
+```python
+# This code would run within an agent's tool execution context.
+from src.solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool
+
+async def analyze_and_delegate_report(component, tool_context):
+    # Assume 'component' is the SamAgentComponent instance hosting the current agent.
+    
+    # Step 1: Perform local analysis (using another tool)
+    # ... analysis_result = await query_data_with_sql(...) ...
+
+    # Step 2: Delegate report generation to a specialist agent
+    peer_tool = PeerAgentTool(
+        target_agent_name="report_generator",
+        host_component=component
+    )
+    
+    report_result = await peer_tool.run_async(
+        args={
+            "task_description": "Generate a professional PDF report from this analysis",
+            "analysis_data": "artifact://analysis_result.json",
+            "report_format": "PDF"
+        },
+        tool_context=tool_context
+    )
+    
+    return report_result
+```

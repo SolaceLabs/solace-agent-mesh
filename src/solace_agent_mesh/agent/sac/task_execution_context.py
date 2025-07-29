@@ -71,9 +71,7 @@ class TaskExecutionContext:
         with self.lock:
             self.active_peer_sub_tasks[sub_task_id] = correlation_data
 
-    def claim_sub_task_completion(
-        self, sub_task_id: str
-    ) -> Optional[Dict[str, Any]]:
+    def claim_sub_task_completion(self, sub_task_id: str) -> Optional[Dict[str, Any]]:
         """
         Atomically retrieves and removes a sub-task's correlation data.
         This is the core atomic operation to prevent race conditions.

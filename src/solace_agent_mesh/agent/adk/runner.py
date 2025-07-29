@@ -132,9 +132,7 @@ async def run_adk_async_task_thread_wrapper(
             logical_task_id,
             tce,
         )
-        sub_tasks_to_cancel = (
-            task_context.active_peer_sub_tasks if task_context else {}
-        )
+        sub_tasks_to_cancel = task_context.active_peer_sub_tasks if task_context else {}
 
         if sub_tasks_to_cancel:
             log.info(

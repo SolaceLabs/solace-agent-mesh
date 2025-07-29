@@ -18,7 +18,7 @@ from tests.integration.infrastructure.gateway_interface.component import (
 from tests.integration.infrastructure.a2a_validator.validator import (
     A2AMessageValidator,
 )
-from src.agent.sac.app import SamAgentApp
+from src.solace_agent_mesh.agent.sac.app import SamAgentApp
 
 from .test_helpers import (
     prime_llm_server,

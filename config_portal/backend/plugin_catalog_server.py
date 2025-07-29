@@ -15,7 +15,6 @@ if not logger.hasHandlers():
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
-
 registry_manager = RegistryManager()
 plugin_scraper = PluginScraper()
 

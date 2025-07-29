@@ -20,7 +20,7 @@ The main components are `SamAgentApp`, which handles the initial setup and confi
 ---
 ### app.py
 **Purpose:** Provides a custom SAC `App` class (`SamAgentApp`) that simplifies the configuration of an A2A agent. It automatically generates the required Solace topic subscriptions and configures the message broker based on the provided `namespace` and `agent_name` in the configuration file. This class is the main entry point for running an agent host.
-**Import:** `from src.agent.sac.app import SamAgentApp`
+**Import:** `from src.solace_agent_mesh.agent.sac.app import SamAgentApp`
 
 **Classes:**
 - `SamAgentApp(app_info: Dict[str, Any], **kwargs)` - A custom App class for the SAM Agent Host. It handles namespace prefixing, automatic subscription generation, and programmatic definition of the `SamAgentComponent`.
@@ -38,7 +38,7 @@ The main components are `SamAgentApp`, which handles the initial setup and confi
 
 # --- Example agent-config.yaml ---
 # app:
-#   class_name: src.agent.sac.app.SamAgentApp
+#   class_name: src.solace_agent_mesh.agent.sac.app.SamAgentApp
 #   app_config:
 #     namespace: "my-org/production"
 #     agent_name: "customer-support-agent"
@@ -63,7 +63,7 @@ The main components are `SamAgentApp`, which handles the initial setup and confi
 ---
 ### component.py
 **Purpose:** This is the core component that hosts a Google ADK agent and bridges its communication to the A2A protocol over Solace. It handles incoming task requests, manages the agent's lifecycle, processes ADK events, orchestrates tool calls (including peer agent delegation), and sends status updates and final responses. Developers can interact with this component's state and lifecycle via custom initialization and cleanup functions.
-**Import:** `from src.agent.sac.component import SamAgentComponent`
+**Import:** `from src.solace_agent_mesh.agent.sac.component import SamAgentComponent`
 
 **Classes:**
 - `SamAgentComponent(**kwargs)` - A Solace AI Connector component that hosts a Google ADK agent and communicates via the A2A protocol.
@@ -96,8 +96,8 @@ The main components are `SamAgentApp`, which handles the initial setup and confi
 
 # --- In a custom init module (e.g., my_agent_init.py) ---
 import asyncio
-from src.agent.sac.component import SamAgentComponent
-from src.common.types import A2AMessage, TextPart
+from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
+from src.solace_agent_mesh.common.types import A2AMessage, TextPart
 
 # This function would be configured in the agent's YAML config
 def initialize_my_agent(host_component: SamAgentComponent, config: dict):

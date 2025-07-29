@@ -1,10 +1,19 @@
 import pytest
 import asyncio
 from google.genai import types as adk_types
-from tests.integration.infrastructure.artifact_service.service import TestInMemoryArtifactService
-from tests.integration.infrastructure.event_mesh_gateway_interface.component import TestEventMeshGatewayComponent
-from src.agent.sac.component import SamAgentComponent
-from src.common.types import Task, TextPart, JSONRPCError, TaskArtifactUpdateEvent
+from tests.integration.infrastructure.artifact_service.service import (
+    TestInMemoryArtifactService,
+)
+from tests.integration.infrastructure.event_mesh_gateway_interface.component import (
+    TestEventMeshGatewayComponent,
+)
+from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
+from src.solace_agent_mesh.common.types import (
+    Task,
+    TextPart,
+    JSONRPCError,
+    TaskArtifactUpdateEvent,
+)
 from tests.integration.scenarios_programmatic.test_helpers import (
     get_all_task_events,
     extract_outputs_from_event_list,
@@ -43,7 +52,9 @@ async def test_submit_prompt_and_get_response(
     )
 
     # 2. Act: Send the input to the gateway using our helper method
-    task_id = await test_event_mesh_gateway_component.send_test_input(topic, payload, user_properties)
+    task_id = await test_event_mesh_gateway_component.send_test_input(
+        topic, payload, user_properties
+    )
     assert task_id is not None
 
     # 3. Assert: Retrieve the captured output and verify it
@@ -91,19 +102,25 @@ async def test_submit_prompt_and_get_streaming_response(
     )
 
     # 2. Act
-    task_id = await test_event_mesh_gateway_component.send_test_input(topic, payload, user_properties)
+    task_id = await test_event_mesh_gateway_component.send_test_input(
+        topic, payload, user_properties
+    )
     assert task_id is not None
 
     # 3. Assert
     all_events = await get_all_task_events(
         test_event_mesh_gateway_component, task_id, overall_timeout=10.0
     )
-    terminal_event, intermediate_events, terminal_event_text = extract_outputs_from_event_list(
-        all_events, f"test_event_mesh_gateway_{task_id}"
+    terminal_event, intermediate_events, terminal_event_text = (
+        extract_outputs_from_event_list(
+            all_events, f"test_event_mesh_gateway_{task_id}"
+        )
     )
 
     assert terminal_event is not None, "Did not receive a terminal event"
-    assert intermediate_events is not None, "Did not receive any intermediate streaming events"
+    assert (
+        intermediate_events is not None
+    ), "Did not receive any intermediate streaming events"
     assert len(intermediate_events) > 0, "Expected at least one intermediate event"
     assert terminal_event.status.state == "completed"
     assert terminal_event_text == "This is a streamed response."
@@ -136,11 +153,7 @@ async def test_submit_request_with_artifact(
     topic = "test/topic"
     payload = {
         "text": "Please process this artifact.",
-        "files": [
-            {
-                "uri": f"session://GatewayTestAgent/{artifact_filename}"
-            }
-        ]
+        "files": [{"uri": f"session://GatewayTestAgent/{artifact_filename}"}],
     }
     user_properties = {"user_id": "test-user@example.com"}
 
@@ -154,7 +167,9 @@ async def test_submit_request_with_artifact(
     )
 
     # 2. Act
-    task_id = await test_event_mesh_gateway_component.send_test_input(topic, payload, user_properties)
+    task_id = await test_event_mesh_gateway_component.send_test_input(
+        topic, payload, user_properties
+    )
     assert task_id is not None
 
     # 3. Assert
@@ -200,7 +215,9 @@ async def test_submit_request_with_multimodal_data(
     )
 
     # 2. Act
-    task_id = await test_event_mesh_gateway_component.send_test_input(topic, payload, user_properties)
+    task_id = await test_event_mesh_gateway_component.send_test_input(
+        topic, payload, user_properties
+    )
     assert task_id is not None
 
     # 3. Assert
@@ -254,7 +271,9 @@ async def test_long_running_task(
 
     # 2. Act
     start_time = asyncio.get_event_loop().time()
-    task_id = await test_event_mesh_gateway_component.send_test_input(topic, payload, user_properties)
+    task_id = await test_event_mesh_gateway_component.send_test_input(
+        topic, payload, user_properties
+    )
     assert task_id is not None
 
     all_events = await get_all_task_events(
@@ -314,7 +333,9 @@ async def test_submit_concurrent_requests(
     # 3. Assert
     # Instead of relying on the flawed return values, we inspect the captured
     # outputs in the test component, which are keyed by the correct task IDs.
-    await asyncio.sleep(0.5)  # Allow time for all responses to be processed and captured
+    await asyncio.sleep(
+        0.5
+    )  # Allow time for all responses to be processed and captured
     assert len(test_event_mesh_gateway_component._captured_outputs) == num_requests
 
     received_responses = []
@@ -350,7 +371,9 @@ async def test_submit_request_to_non_existent_agent(
 
     # 2. Act & Assert
     with pytest.raises(PermissionError, match="Agent NonExistentAgent not found"):
-        await test_event_mesh_gateway_component.send_test_input(topic, payload, user_properties)
+        await test_event_mesh_gateway_component.send_test_input(
+            topic, payload, user_properties
+        )
 
 
 @pytest.mark.skip(reason="No payload validation in the test component.")
@@ -414,6 +437,7 @@ async def test_submit_request_with_unauthorized_user(
     """
     pass
 
+
 @pytest.mark.skip(
     reason="Component handles missing target agent internally, does not raise ValueError"
 )
@@ -442,12 +466,12 @@ async def test_component_instantiation(
     Tests that the TestEventMeshGatewayComponent can be instantiated without errors.
     """
     assert test_event_mesh_gateway_component is not None
-    assert isinstance(
-        test_event_mesh_gateway_component, TestEventMeshGatewayComponent
-    )
+    assert isinstance(test_event_mesh_gateway_component, TestEventMeshGatewayComponent)
 
 
-@pytest.mark.skip(reason="Skipping due to persistent issues with artifact event capturing.")
+@pytest.mark.skip(
+    reason="Skipping due to persistent issues with artifact event capturing."
+)
 async def test_tool_call_create_artifact(
     test_event_mesh_gateway_component: TestEventMeshGatewayComponent,
     test_llm_server,
@@ -463,7 +487,10 @@ async def test_tool_call_create_artifact(
     payload = {
         "text": f"Create an artifact named '{artifact_filename}' with content '{artifact_content}'"
     }
-    user_properties = {"user_id": "test-user@example.com", "a2a_session_id": "test-session-for-artifacts"}
+    user_properties = {
+        "user_id": "test-user@example.com",
+        "a2a_session_id": "test-session-for-artifacts",
+    }
 
     test_llm_server.prime_responses(
         [

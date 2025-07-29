@@ -3,7 +3,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Union, Optional, Tuple
 
 from sam_webhook_gateway.component import WebhookGatewayComponent
-from src.common.types import (
+from src.solace_agent_mesh.common.types import (
     Task,
     JSONRPCError,
     TaskStatusUpdateEvent,
@@ -17,19 +17,32 @@ info = {
     "description": "Test component for the Webhook Gateway.",
 }
 
+
 class TestWebhookGatewayComponent(WebhookGatewayComponent):
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
-        self._captured_outputs: Dict[str, asyncio.Queue[Union[Task, JSONRPCError, TaskStatusUpdateEvent, TaskArtifactUpdateEvent]]] = \
-            defaultdict(asyncio.Queue)
+        self._captured_outputs: Dict[
+            str,
+            asyncio.Queue[
+                Union[
+                    Task, JSONRPCError, TaskStatusUpdateEvent, TaskArtifactUpdateEvent
+                ]
+            ],
+        ] = defaultdict(asyncio.Queue)
         self._captured_artifacts: Dict[str, List[Any]] = defaultdict(list)
 
     def _start_listener(self) -> None:
-        log.debug("%s TestWebhookGatewayComponent: _start_listener called (no-op).", self.log_identifier)
+        log.debug(
+            "%s TestWebhookGatewayComponent: _start_listener called (no-op).",
+            self.log_identifier,
+        )
         pass
 
     def _stop_listener(self) -> None:
-        log.debug("%s TestWebhookGatewayComponent: _stop_listener called (no-op).", self.log_identifier)
+        log.debug(
+            "%s TestWebhookGatewayComponent: _stop_listener called (no-op).",
+            self.log_identifier,
+        )
         pass
 
     async def _send_update_to_external(
@@ -39,7 +52,12 @@ class TestWebhookGatewayComponent(WebhookGatewayComponent):
         is_final_chunk_of_update: bool,
     ):
         task_id = event_data.id
-        log.debug("%s Capturing A2A update for task %s: %s", self.log_identifier, task_id, type(event_data).__name__)
+        log.debug(
+            "%s Capturing A2A update for task %s: %s",
+            self.log_identifier,
+            task_id,
+            type(event_data).__name__,
+        )
         if isinstance(event_data, TaskArtifactUpdateEvent):
             self._captured_artifacts[task_id].append(event_data.artifact)
         await self._captured_outputs[task_id].put(event_data)
@@ -50,8 +68,10 @@ class TestWebhookGatewayComponent(WebhookGatewayComponent):
         task_id = task_data.id
         if self._captured_artifacts[task_id]:
             task_data.artifacts = self._captured_artifacts[task_id]
-        
-        log.debug("%s Capturing A2A final response for task %s", self.log_identifier, task_id)
+
+        log.debug(
+            "%s Capturing A2A final response for task %s", self.log_identifier, task_id
+        )
         await self._captured_outputs[task_id].put(task_data)
 
     async def _send_error_to_external(
@@ -59,13 +79,24 @@ class TestWebhookGatewayComponent(WebhookGatewayComponent):
     ):
         task_id = external_request_context.get("a2a_task_id_for_event")
         if task_id:
-            log.debug("%s Capturing A2A error for task %s: %s", self.log_identifier, task_id, error_data.message)
+            log.debug(
+                "%s Capturing A2A error for task %s: %s",
+                self.log_identifier,
+                task_id,
+                error_data.message,
+            )
             await self._captured_outputs[task_id].put(error_data)
         else:
             await self._captured_outputs["__unassigned_errors__"].put(error_data)
-            log.warning("%s Captured error for UNKNOWN_TASK: %s", self.log_identifier, error_data.message)
+            log.warning(
+                "%s Captured error for UNKNOWN_TASK: %s",
+                self.log_identifier,
+                error_data.message,
+            )
 
-    async def authenticate_and_enrich_user(self, external_event_data: Any) -> Optional[Dict[str, Any]]:
+    async def authenticate_and_enrich_user(
+        self, external_event_data: Any
+    ) -> Optional[Dict[str, Any]]:
         """
         Mocks the authentication and returns a hardcoded user identity.
         """
@@ -111,12 +142,16 @@ class TestWebhookGatewayComponent(WebhookGatewayComponent):
 
     async def get_next_captured_output(
         self, task_id: str, timeout: float = 5.0
-    ) -> Optional[Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent, Task, JSONRPCError]]:
+    ) -> Optional[
+        Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent, Task, JSONRPCError]
+    ]:
         """
         Retrieves the next captured A2A output for a given task_id.
         """
         try:
-            output = await asyncio.wait_for(self._captured_outputs[task_id].get(), timeout=timeout)
+            output = await asyncio.wait_for(
+                self._captured_outputs[task_id].get(), timeout=timeout
+            )
             self._captured_outputs[task_id].task_done()
             return output
         except asyncio.TimeoutError:
@@ -124,7 +159,9 @@ class TestWebhookGatewayComponent(WebhookGatewayComponent):
 
     def get_captured_output(
         self, task_id: str
-    ) -> List[Union[Task, JSONRPCError, TaskStatusUpdateEvent, TaskArtifactUpdateEvent]]:
+    ) -> List[
+        Union[Task, JSONRPCError, TaskStatusUpdateEvent, TaskArtifactUpdateEvent]
+    ]:
         """
         Retrieves all captured A2A outputs for a given task_id.
         """
@@ -156,19 +193,29 @@ class TestWebhookGatewayComponent(WebhookGatewayComponent):
         a2a_parts = external_event.get("a2a_parts", [])
 
         constructed_external_context = {
-            "test_input_event_id": external_event.get("test_event_id", f"test-event-{asyncio.get_running_loop().time()}"),
+            "test_input_event_id": external_event.get(
+                "test_event_id", f"test-event-{asyncio.get_running_loop().time()}"
+            ),
             "app_name_for_artifacts": target_agent_name,
             "user_id_for_artifacts": "test-user@example.com",
             "a2a_session_id": f"test-session-{asyncio.get_running_loop().time()}",
         }
 
-        if "external_context_override" in external_event and "a2a_session_id" in external_event["external_context_override"]:
-            constructed_external_context["a2a_session_id"] = external_event["external_context_override"]["a2a_session_id"]
+        if (
+            "external_context_override" in external_event
+            and "a2a_session_id" in external_event["external_context_override"]
+        ):
+            constructed_external_context["a2a_session_id"] = external_event[
+                "external_context_override"
+            ]["a2a_session_id"]
 
         return target_agent_name, a2a_parts, constructed_external_context
 
     async def _translate_external_input(
-        self, request: Any, endpoint_config: Dict[str, Any], user_identity: Dict[str, Any]
+        self,
+        request: Any,
+        endpoint_config: Dict[str, Any],
+        user_identity: Dict[str, Any],
     ) -> Tuple[str, List[A2APart], Dict[str, Any]]:
         """
         This is overridden to do nothing, preventing the real component's logic.

@@ -3,7 +3,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Union, Optional, Tuple
 
 from sam_slack.component import SlackGatewayComponent
-from src.common.types import (
+from src.solace_agent_mesh.common.types import (
     Task,
     JSONRPCError,
     TaskStatusUpdateEvent,
@@ -17,6 +17,7 @@ info = {
     "description": "Test component for the Slack Gateway.",
 }
 
+
 class TestSlackGatewayComponent(SlackGatewayComponent):
     def __init__(self, **kwargs: Any):
         # Mock slack dependencies before calling super().__init__
@@ -24,16 +25,28 @@ class TestSlackGatewayComponent(SlackGatewayComponent):
         self.slack_handler = None
 
         super().__init__(**kwargs)
-        self._captured_outputs: Dict[str, asyncio.Queue[Union[Task, JSONRPCError, TaskStatusUpdateEvent, TaskArtifactUpdateEvent]]] = \
-            defaultdict(asyncio.Queue)
+        self._captured_outputs: Dict[
+            str,
+            asyncio.Queue[
+                Union[
+                    Task, JSONRPCError, TaskStatusUpdateEvent, TaskArtifactUpdateEvent
+                ]
+            ],
+        ] = defaultdict(asyncio.Queue)
         self._captured_artifacts: Dict[str, List[Any]] = defaultdict(list)
 
     def _start_listener(self) -> None:
-        log.debug("%s TestSlackGatewayComponent: _start_listener called (no-op).", self.log_identifier)
+        log.debug(
+            "%s TestSlackGatewayComponent: _start_listener called (no-op).",
+            self.log_identifier,
+        )
         pass
 
     def _stop_listener(self) -> None:
-        log.debug("%s TestSlackGatewayComponent: _stop_listener called (no-op).", self.log_identifier)
+        log.debug(
+            "%s TestSlackGatewayComponent: _stop_listener called (no-op).",
+            self.log_identifier,
+        )
         pass
 
     async def _send_update_to_external(
@@ -43,7 +56,12 @@ class TestSlackGatewayComponent(SlackGatewayComponent):
         is_final_chunk_of_update: bool,
     ):
         task_id = event_data.id
-        log.debug("%s Capturing A2A update for task %s: %s", self.log_identifier, task_id, type(event_data).__name__)
+        log.debug(
+            "%s Capturing A2A update for task %s: %s",
+            self.log_identifier,
+            task_id,
+            type(event_data).__name__,
+        )
         if isinstance(event_data, TaskArtifactUpdateEvent):
             self._captured_artifacts[task_id].append(event_data.artifact)
         await self._captured_outputs[task_id].put(event_data)
@@ -56,8 +74,10 @@ class TestSlackGatewayComponent(SlackGatewayComponent):
         # This simulates the aggregation that the real gateway component does.
         if self._captured_artifacts[task_id]:
             task_data.artifacts = self._captured_artifacts[task_id]
-        
-        log.debug("%s Capturing A2A final response for task %s", self.log_identifier, task_id)
+
+        log.debug(
+            "%s Capturing A2A final response for task %s", self.log_identifier, task_id
+        )
         await self._captured_outputs[task_id].put(task_data)
 
     async def _send_error_to_external(
@@ -65,13 +85,24 @@ class TestSlackGatewayComponent(SlackGatewayComponent):
     ):
         task_id = external_request_context.get("a2a_task_id_for_event")
         if task_id:
-            log.debug("%s Capturing A2A error for task %s: %s", self.log_identifier, task_id, error_data.message)
+            log.debug(
+                "%s Capturing A2A error for task %s: %s",
+                self.log_identifier,
+                task_id,
+                error_data.message,
+            )
             await self._captured_outputs[task_id].put(error_data)
         else:
             await self._captured_outputs["__unassigned_errors__"].put(error_data)
-            log.warning("%s Captured error for UNKNOWN_TASK: %s", self.log_identifier, error_data.message)
+            log.warning(
+                "%s Captured error for UNKNOWN_TASK: %s",
+                self.log_identifier,
+                error_data.message,
+            )
 
-    async def authenticate_and_enrich_user(self, external_event_data: Any) -> Optional[Dict[str, Any]]:
+    async def authenticate_and_enrich_user(
+        self, external_event_data: Any
+    ) -> Optional[Dict[str, Any]]:
         """
         Mocks the authentication and returns a hardcoded user identity.
         """
@@ -86,7 +117,7 @@ class TestSlackGatewayComponent(SlackGatewayComponent):
             self.log_identifier,
             test_input_data,
         )
-        
+
         user_identity = await self.authenticate_and_enrich_user(test_input_data)
         if user_identity is None:
             raise PermissionError("Test user authentication failed.")
@@ -102,17 +133,26 @@ class TestSlackGatewayComponent(SlackGatewayComponent):
             user_identity=user_identity,
             is_streaming=test_input_data.get("is_streaming", True),
         )
-        log.info("%s TestSlackGatewayComponent: Submitted task %s for agent %s.", self.log_identifier, task_id, target_agent_name)
+        log.info(
+            "%s TestSlackGatewayComponent: Submitted task %s for agent %s.",
+            self.log_identifier,
+            task_id,
+            target_agent_name,
+        )
         return task_id
 
     async def get_next_captured_output(
         self, task_id: str, timeout: float = 5.0
-    ) -> Optional[Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent, Task, JSONRPCError]]:
+    ) -> Optional[
+        Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent, Task, JSONRPCError]
+    ]:
         """
         Retrieves the next captured A2A output for a given task_id.
         """
         try:
-            output = await asyncio.wait_for(self._captured_outputs[task_id].get(), timeout=timeout)
+            output = await asyncio.wait_for(
+                self._captured_outputs[task_id].get(), timeout=timeout
+            )
             self._captured_outputs[task_id].task_done()
             return output
         except asyncio.TimeoutError:

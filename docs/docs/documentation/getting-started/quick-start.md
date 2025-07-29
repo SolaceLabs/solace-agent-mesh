@@ -85,6 +85,13 @@ For example: `openai/llama-3.3-7b`
 This is the case for all the model names, such as LLMs, image generators, embedding models, etc.
 :::
 
+:::info[Running the project using Official Docker image]
+
+For deployments that use the official Docker image, ensure the following:
+- Do not use Solace PubSub+ broker container.
+- Set `FastAPI Host` to `0.0.0.0`.
+:::
+
 </details>
 
 ## Running the Project
@@ -109,6 +116,8 @@ You can also run your Solace Agent Mesh project using the official Docker image.
 ```sh
 docker run --rm -it -v "$(pwd):/app" -p 8000:8000 solace/solace-agent-mesh:latest run
 ```
+
+If your host system architecture is not `linux/amd64`, add the `--platform linux/amd64` flag when you run the container.
 
 :::warning
 If you are using third-party Python packages or Solace Agent Mesh plugins, you need to build a custom Docker image off the official image and install the required packages there, and then run that custom image instead.
@@ -137,7 +146,7 @@ docker run --rm -it -v "$(pwd):/app" -p 8000:8000 my-custom-image run
 
 You can use different gateway interfaces to communicate with the system such as REST, Web UI, Slack, MS Teams, and so on. To keep it simple for this demo, we use the browser UI.
 
-To connect to the browser UI, open a browser and navigate to `http://localhost:8000`. If you chose another port during the `init` step, use that port instead.
+To access the browser UI, navigate to `http://localhost:8000` in your web browser. If you specified a different port during the init step, use that port instead. For Docker deployments with custom port mappings (using the `-p` flag), use the host port specified in your port mapping configuration.
 
 Try some commands like `Suggest some good outdoor activities in London given the season and current weather conditions.` or `Generate a mermaid diagram of the OAuth login flow`.
 
