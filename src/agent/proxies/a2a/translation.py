@@ -4,7 +4,7 @@ and the modern, standardized A2A protocol.
 """
 
 import uuid
-from typing import Any, Dict, Union
+from typing import Any, Dict, List, Union
 
 import a2a.types as modern_types
 import a2a.types as modern_types
