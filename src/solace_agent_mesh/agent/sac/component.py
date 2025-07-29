@@ -787,9 +787,7 @@ class SamAgentComponent(ComponentBase):
                     peer_agent_name,
                     sub_task_id,
                 )
-                task_id_for_peer = sub_task_id.replace(
-                    self.CORRELATION_DATA_PREFIX, "", 1
-                )
+                task_id_for_peer = sub_task_id.replace(CORRELATION_DATA_PREFIX, "", 1)
                 cancel_params = TaskIdParams(id=task_id_for_peer)
                 cancel_request = CancelTaskRequest(params=cancel_params)
                 user_props = {"clientId": self.agent_name}
