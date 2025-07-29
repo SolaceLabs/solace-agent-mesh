@@ -7,6 +7,7 @@ import uuid
 from typing import Any, Dict, Union
 
 import a2a.types as modern_types
+import a2a.types as modern_types
 from a2a.types import (
     CancelTaskRequest,
     Message,
@@ -21,11 +22,77 @@ from a2a.types import (
 from pydantic import TypeAdapter
 from solace_ai_connector.common.log import log
 
+from ....common import types as sam_types
+
 # This maps legacy methods to their modern equivalents.
 METHOD_MAP = {
     "tasks/send": "message/send",
     "tasks/sendSubscribe": "message/stream",
 }
+
+
+def translate_modern_card_to_sam_card(
+    modern_card: modern_types.AgentCard,
+) -> sam_types.AgentCard:
+    """
+    Translates a modern A2A AgentCard to the legacy SAM AgentCard format.
+
+    Args:
+        modern_card: The agent card object conforming to the modern a2a-python spec.
+
+    Returns:
+        An agent card object conforming to the legacy SAM spec.
+    """
+    log_identifier = "[A2ATranslation:Card]"
+    log.debug(
+        "%s Translating modern AgentCard for '%s' to legacy SAM format.",
+        log_identifier,
+        modern_card.name,
+    )
+
+    # Translate capabilities
+    sam_capabilities = sam_types.AgentCapabilities(
+        streaming=modern_card.capabilities.streaming or False,
+        pushNotifications=modern_card.capabilities.push_notifications or False,
+        stateTransitionHistory=modern_card.capabilities.state_transition_history
+        or False,
+    )
+
+    # Translate skills (assuming the AgentSkill model is compatible)
+    sam_skills = (
+        [sam_types.AgentSkill(**skill.model_dump()) for skill in modern_card.skills]
+        if modern_card.skills
+        else []
+    )
+
+    # Translate provider (assuming the AgentProvider model is compatible)
+    sam_provider = (
+        sam_types.AgentProvider(**modern_card.provider.model_dump())
+        if modern_card.provider
+        else None
+    )
+
+    # Construct the legacy SAM AgentCard
+    sam_card = sam_types.AgentCard(
+        name=modern_card.name,
+        display_name=modern_card.name,  # Use name as display_name for compatibility
+        description=modern_card.description,
+        url=modern_card.url,
+        provider=sam_provider,
+        version=modern_card.version,
+        documentationUrl=modern_card.documentation_url,
+        capabilities=sam_capabilities,
+        defaultInputModes=modern_card.default_input_modes,
+        defaultOutputModes=modern_card.default_output_modes,
+        skills=sam_skills,
+        # Fields from modern spec not in legacy spec are omitted:
+        # - security_schemes, protocol_version, etc.
+        # Fields from legacy spec not in modern spec are omitted or defaulted:
+        # - authentication, tools, peer_agents
+        peer_agents={},
+    )
+
+    return sam_card
 
 
 def translate_sam_to_modern_request(

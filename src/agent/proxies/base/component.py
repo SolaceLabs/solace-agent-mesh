@@ -37,6 +37,7 @@ from a2a.types import (
 from pydantic import ValidationError
 from ...adk.services import initialize_artifact_service
 from ..a2a.translation import (
+    translate_modern_card_to_sam_card,
     translate_modern_to_sam_response,
     translate_sam_to_modern_request,
 )
@@ -305,22 +306,23 @@ class BaseProxyComponent(ComponentBase, ABC):
         log.info("%s Starting recurring agent discovery cycle...", self.log_identifier)
         for agent_config in self.proxied_agents_config:
             try:
-                agent_card = await self._fetch_agent_card(agent_config)
-                if not agent_card:
+                modern_card = await self._fetch_agent_card(agent_config)
+                if not modern_card:
                     continue
 
                 agent_alias = agent_config["name"]
-                card_for_proxy = agent_card.model_copy(deep=True)
+                card_for_proxy = modern_card.model_copy(deep=True)
                 card_for_proxy.name = agent_alias
                 self.agent_registry.add_or_update_agent(card_for_proxy)
 
-                card_to_publish = card_for_proxy.model_copy(deep=True)
-                card_to_publish.url = (
+                # Translate to legacy SAM format before publishing
+                sam_card_to_publish = translate_modern_card_to_sam_card(card_for_proxy)
+                sam_card_to_publish.url = (
                     f"solace:{get_agent_request_topic(self.namespace, agent_alias)}"
                 )
                 discovery_topic = get_discovery_topic(self.namespace)
                 self._publish_a2a_message(
-                    card_to_publish.model_dump(exclude_none=True), discovery_topic
+                    sam_card_to_publish.model_dump(exclude_none=True), discovery_topic
                 )
                 log.info(
                     "%s Refreshed and published card for agent '%s'.",
@@ -477,17 +479,18 @@ class BaseProxyComponent(ComponentBase, ABC):
         """Publishes all agent cards currently in the registry."""
         log.info("%s Publishing initially discovered agent cards...", self.log_identifier)
         for agent_alias in self.agent_registry.get_agent_names():
-            card_for_proxy = self.agent_registry.get_agent(agent_alias)
-            if not card_for_proxy:
+            modern_card = self.agent_registry.get_agent(agent_alias)
+            if not modern_card:
                 continue
 
-            card_to_publish = card_for_proxy.model_copy(deep=True)
-            card_to_publish.url = (
+            # Translate to legacy SAM format before publishing
+            sam_card_to_publish = translate_modern_card_to_sam_card(modern_card)
+            sam_card_to_publish.url = (
                 f"solace:{get_agent_request_topic(self.namespace, agent_alias)}"
             )
             discovery_topic = get_discovery_topic(self.namespace)
             self._publish_a2a_message(
-                card_to_publish.model_dump(exclude_none=True), discovery_topic
+                sam_card_to_publish.model_dump(exclude_none=True), discovery_topic
             )
             log.info(
                 "%s Published initially discovered card for agent '%s'.",
