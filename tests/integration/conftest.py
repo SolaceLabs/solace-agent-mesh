@@ -105,7 +105,7 @@ def test_llm_server():
     server = TestLLMServer(host="127.0.0.1", port=8088)
     server.start()
 
-    max_retries = 80
+    max_retries = 250
     retry_delay = 0.25
     ready = False
     for i in range(max_retries):
