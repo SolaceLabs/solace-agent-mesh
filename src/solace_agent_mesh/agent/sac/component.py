@@ -1841,7 +1841,8 @@ class SamAgentComponent(ComponentBase):
                     len(unprocessed_tail.encode("utf-8")),
                 )
         else:
-            resolved_text = resolved_text + unprocessed_tail
+            if unprocessed_tail:
+                resolved_text = resolved_text + unprocessed_tail
 
         if signals_found:
             log.info(

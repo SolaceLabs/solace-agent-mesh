@@ -146,7 +146,7 @@ def clear_llm_server_configs(test_llm_server: TestLLMServer):
     test_llm_server.clear_all_configurations()
 
 
-@pytest.fixture()
+@pytest.fixture(autouse=True, scope="function")
 def clear_tool_registry_fixture():
     """
     A pytest fixture that clears the tool_registry singleton.
@@ -607,9 +607,9 @@ def _clear_agent_component_state(agent_app: SamAgentApp):
 
         # The following state is still managed at the component level and needs
         # to be cleared for test isolation.
-        if hasattr(component, "_agent_registry") and component._agent_registry:
+        if hasattr(component, "_agent_registry"):
             component._agent_registry.clear()
-        if hasattr(component, "peer_agents") and component.peer_agents:
+        if hasattr(component, "peer_agents"):
             component.peer_agents.clear()
         if (
             hasattr(component, "invocation_monitor")

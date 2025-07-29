@@ -962,6 +962,7 @@ async def test_declarative_scenario(
     mock_gemini_client: None,
     sam_app_under_test: SamAgentApp,  # Added to get component for patching
     monkeypatch: pytest.MonkeyPatch,  # Added monkeypatch fixture
+    clear_tool_registry_fixture: None,
 ):
     """
     Executes a single declarative test scenario discovered by pytest_generate_tests.
