@@ -114,7 +114,7 @@ quote-style = "double"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-addopts = "--ignore=tests/integration --tb=short --strict-markers --disable-warnings -p pytest_asyncio"
+addopts = "--tb=short --strict-markers --disable-warnings -p pytest_asyncio"
 python_files = ["test_*.py", "*_test.py", "tests.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
