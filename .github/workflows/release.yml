@@ -26,7 +26,6 @@ jobs:
       whitesource_project_name: "solace-agent-mesh"
       whitesource_product_name: "solaceai"
       whitesource_config_file: "wss-unified-agent.config"
-      slack_notification_profile: "ai-connector"
       npm_package_path: client/webui/frontend
       node_version: 20
       npm_lock_file: package-lock.json
