@@ -31,6 +31,29 @@ METHOD_MAP = {
 }
 
 
+def _translate_modern_parts_to_sam(parts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Recursively translates modern Part dictionaries to legacy SAM format."""
+    if not parts:
+        return []
+    translated_parts = []
+    for part in parts:
+        translated_part = part.copy()
+        if "kind" in translated_part:
+            translated_part["type"] = translated_part.pop("kind")
+
+        if (
+            translated_part.get("type") == "file"
+            and "file" in translated_part
+            and isinstance(translated_part["file"], dict)
+        ):
+            file_content = translated_part["file"]
+            if "mime_type" in file_content:
+                file_content["mimeType"] = file_content.pop("mime_type")
+
+        translated_parts.append(translated_part)
+    return translated_parts
+
+
 def translate_modern_card_to_sam_card(
     modern_card: modern_types.AgentCard,
 ) -> sam_types.AgentCard:
@@ -211,8 +234,19 @@ def translate_modern_to_sam_response(
         log.debug("%s Translating modern Task to legacy Task.", log_identifier)
         if "context_id" in legacy_dict:
             legacy_dict["sessionId"] = legacy_dict.pop("context_id")
-        # Note: Message structure is compatible enough that recursive translation
-        # of history/status.message is not needed for field mapping.
+
+        # Translate parts in status message
+        if legacy_dict.get("status", {}).get("message", {}).get("parts"):
+            legacy_dict["status"]["message"]["parts"] = _translate_modern_parts_to_sam(
+                legacy_dict["status"]["message"]["parts"]
+            )
+
+        # Translate parts in history messages
+        if legacy_dict.get("history"):
+            for msg in legacy_dict["history"]:
+                if msg.get("parts"):
+                    msg["parts"] = _translate_modern_parts_to_sam(msg["parts"])
+
         return legacy_dict
 
     elif isinstance(modern_event, ModernTaskStatusUpdateEvent):
@@ -223,6 +257,12 @@ def translate_modern_to_sam_response(
             legacy_dict["id"] = legacy_dict.pop("task_id")
         if "context_id" in legacy_dict:
             del legacy_dict["context_id"]  # No equivalent in legacy event
+
+        # Translate parts in status message
+        if legacy_dict.get("status", {}).get("message", {}).get("parts"):
+            legacy_dict["status"]["message"]["parts"] = _translate_modern_parts_to_sam(
+                legacy_dict["status"]["message"]["parts"]
+            )
         return legacy_dict
 
     elif isinstance(modern_event, ModernTaskArtifactUpdateEvent):
@@ -233,6 +273,12 @@ def translate_modern_to_sam_response(
             legacy_dict["id"] = legacy_dict.pop("task_id")
         if "context_id" in legacy_dict:
             del legacy_dict["context_id"]  # No equivalent in legacy event
+
+        # Translate parts in artifact
+        if legacy_dict.get("artifact", {}).get("parts"):
+            legacy_dict["artifact"]["parts"] = _translate_modern_parts_to_sam(
+                legacy_dict["artifact"]["parts"]
+            )
         return legacy_dict
 
     else:
