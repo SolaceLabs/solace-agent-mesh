@@ -4,6 +4,7 @@ and the modern, standardized A2A protocol.
 """
 
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Union
 
 import a2a.types as modern_types
@@ -255,9 +256,14 @@ def translate_modern_to_sam_response(
         """Translates a modern TaskStatus dictionary to a legacy SAM TaskStatus dictionary."""
         if not modern_status:
             return {}
+
+        timestamp = modern_status.get("timestamp")
+        if not timestamp:
+            timestamp = datetime.now(timezone.utc).isoformat()
+
         legacy_status = {
-            "state": str(modern_status.get("state", "UNKNOWN")).upper(),
-            "timestamp": modern_status.get("timestamp"),
+            "state": str(modern_status.get("state", "unknown")).lower(),
+            "timestamp": timestamp,
         }
         if "message" in modern_status and modern_status["message"]:
             legacy_status["message"] = _translate_modern_message_to_sam_dict(
