@@ -89,6 +89,10 @@ extra-dependencies = [
     "solace-agent-mesh[database,cli,gcs,vertex,employee_tools]",
 ]
 
+# Override to ensure integration tests are explicitly skipped in CI
+[tool.hatch.envs.hatch-test.overrides]
+env.CI.env-vars = "PYTEST_ADDOPTS=--ignore=tests/integration --tb=short --strict-markers --disable-warnings -p pytest_asyncio"
+
 [[tool.hatch.envs.hatch-test.matrix]]
 python = ["3.10", "3.13"]
 

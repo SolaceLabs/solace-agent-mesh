@@ -3,8 +3,12 @@ on:
   push:
     branches:
       - main
+      - dev
   pull_request:
     types: [opened, synchronize]
+    branches:
+      - main
+      - dev
 
 permissions:
   repository-projects: read
@@ -16,14 +20,13 @@ permissions:
 
 jobs:
   ci:
-    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_ci.yml@main
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_ci.yml@d61e8c29ce1cebcf86a9eb3f9d84a1284096de43
     with:
       min-python-version: "3.10"
       max-python-version: "3.13"
       whitesource_project_name: "solace-agent-mesh"
       whitesource_product_name: "solaceai"
       whitesource_config_file: "wss-unified-agent.config"
-      slack_notification_profile: "ai-connector"
       npm_package_path: client/webui/frontend
       node_version: 20
       npm_lock_file: package-lock.json
@@ -34,9 +37,6 @@ jobs:
       WHITESOURCE_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
       MANIFEST_AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_READ_ONLY_AWS_ACCESS_KEY_ID }}
       MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
-      AUTOBOTS_BASE_URL: ${{ secrets.AUTOBOTS_BASE_URL }}
-      AUTOBOTS_WHITESOURCE_API_URL: ${{ secrets.AUTOBOTS_WHITESOURCE_API_URL }}
-      SLACK_CHANNEL_LINK: ${{ secrets.SLACK_CHANNEL_LINK }}
   docker-build:
     name: Build Docker Image
     runs-on: ubuntu-latest
