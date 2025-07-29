@@ -7,6 +7,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Dict, Optional, TYPE_CHECKING, Union
 
+import httpx
+
 from a2a.client import (
     A2ACardResolver,
     A2AClient,
