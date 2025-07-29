@@ -1,4 +1,4 @@
-Here is the comprehensive developer guide for the `src` directory.
+# DEVELOPER GUIDE: src
 
 ## Quick Summary
 The `src` directory serves as the main source code root for the Solace AI Connector, containing four primary subsystems that work together to enable comprehensive AI agent communication and hosting. The `agent` directory provides a complete framework for hosting Google ADK agents with A2A protocol support, the `common` directory offers foundational A2A protocol infrastructure and utilities, the `core_a2a` directory provides a reusable service layer for core A2A operations, and the `gateway` directory implements various gateway patterns for external platform integration. These components work together to create a distributed AI agent ecosystem with real-time communication, task delegation, and multi-platform integration capabilities.
@@ -226,3 +226,130 @@ async def analyze_and_delegate_report(component, tool_context):
     
     return report_result
 ```
+
+#### Pattern 2: Building a Custom Gateway
+Create a custom gateway to integrate with a new platform.
+
+```python
+# File: my_custom_gateway/app.py
+from src.gateway.base.app import BaseGatewayApp
+from .component import MyCustomGatewayComponent
+
+class MyCustomGatewayApp(BaseGatewayApp):
+    SPECIFIC_APP_SCHEMA_PARAMS = [
+        {
+            "name": "my_platform_api_key",
+            "required": True,
+            "type": "string",
+            "description": "API key for My Platform"
+        }
+    ]
+
+    def _get_gateway_component_class(self):
+        return MyCustomGatewayComponent
+
+# File: my_custom_gateway/component.py
+from src.gateway.base.component import BaseGatewayComponent
+from src.common.types import TextPart
+
+class MyCustomGatewayComponent(BaseGatewayComponent):
+    
+    def _extract_initial_claims(self, external_event_data):
+        # Extract user identity from platform event
+        user_id = external_event_data.get("user_id")
+        return {"id": user_id} if user_id else None
+    
+    def _translate_external_input(self, external_event):
+        # Convert platform input to A2A format
+        agent_name = external_event.get("target_agent", "default-agent")
+        message_text = external_event.get("message", "")
+        a2a_parts = [TextPart(text=message_text)]
+        context = {"platform_user_id": external_event.get("user_id")}
+        return agent_name, a2a_parts, context
+    
+    # ... implement other abstract methods
+```
+
+#### Pattern 3: Using the Client Library
+Interact with remote agents using the client library.
+
+```python
+import asyncio
+from src.common.client import A2AClient, A2ACardResolver
+
+async def interact_with_remote_agent():
+    # Discover agent capabilities
+    resolver = A2ACardResolver(base_url="https://remote-agent.example.com")
+    agent_card = resolver.get_agent_card()
+    
+    # Create client
+    client = A2AClient(agent_card=agent_card)
+    
+    # Send a task
+    task_payload = {
+        "action": "analyze_data",
+        "data": "sales_data.csv",
+        "analysis_type": "trend_analysis"
+    }
+    
+    # For streaming responses
+    async for chunk in client.send_task_streaming(payload=task_payload):
+        print(f"Received update: {chunk.result.content_chunk}")
+    
+    # For non-streaming responses
+    response = await client.send_task(payload=task_payload)
+    print(f"Task completed: {response.result.task_id}")
+
+# Run the client example
+asyncio.run(interact_with_remote_agent())
+```
+
+#### Pattern 4: Working with Artifacts and Tools
+Use the comprehensive tool library for data processing and artifact management.
+
+```python
+from src.agent.tools.builtin_artifact_tools import list_artifacts, load_artifact, signal_artifact_for_return
+from src.agent.tools.builtin_data_analysis_tools import query_data_with_sql
+from src.agent.tools.image_tools import create_image_from_description
+from src.agent.tools.audio_tools import text_to_speech
+
+async def comprehensive_data_workflow(tool_context):
+    # 1. List available data artifacts
+    artifacts = await list_artifacts(tool_context=tool_context)
+    print(f"Available artifacts: {artifacts}")
+    
+    # 2. Load and analyze data
+    data_artifact = await load_artifact(
+        filename="sales_data.csv",
+        version=1,
+        tool_context=tool_context
+    )
+    
+    # 3. Query the data
+    analysis_result = await query_data_with_sql(
+        sql_query="SELECT region, SUM(sales) as total_sales FROM data GROUP BY region",
+        data_source="sales_data.csv:1",
+        tool_context=tool_context
+    )
+    
+    # 4. Create visualization
+    chart_result = await create_image_from_description(
+        image_description="A bar chart showing total sales by region based on the analysis",
+        output_filename="sales_by_region.png",
+        tool_context=tool_context
+    )
+    
+    # 5. Generate audio summary
+    audio_result = await text_to_speech(
+        text="The sales analysis shows strong performance in the North region with $2.5M in total sales.",
+        output_filename="sales_summary.mp3",
+        tool_context=tool_context
+    )
+    
+    # 6. Signal final artifacts for return
+    await signal_artifact_for_return(
+        filename="sales_by_region.png",
+        version=1,
+        tool
+
+# content_hash: e28ca9170a5b2a8fe61fe2cbb00a982e3f89d213d587ad0d2b548e44260cf72c

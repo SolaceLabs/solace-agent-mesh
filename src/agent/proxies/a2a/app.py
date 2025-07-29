@@ -11,6 +11,10 @@ from ..base.app import BaseProxyApp
 from ..base.component import BaseProxyComponent
 from .component import A2AProxyComponent
 
+info = {
+    "class_name": "A2AProxyApp",
+}
+
 
 class A2AProxyApp(BaseProxyApp):
     """
@@ -59,6 +63,7 @@ class A2AProxyApp(BaseProxyApp):
         }
 
     def __init__(self, app_info: Dict[str, Any], **kwargs):
+        app_info["class_name"] = "A2AProxyApp"
         super().__init__(app_info, **kwargs)
 
     def _get_component_class(self) -> Type[BaseProxyComponent]:

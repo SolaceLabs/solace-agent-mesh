@@ -1,4 +1,4 @@
-Here is the comprehensive developer guide for the `http_sse` directory.
+# DEVELOPER GUIDE: http_sse
 
 ## Quick Summary
 The `http_sse` directory implements a complete HTTP/SSE (Server-Sent Events) gateway for the A2A (Agent-to-Agent) system. Its primary purpose is to serve a web-based user interface and act as a bridge between standard web protocols (HTTP, WebSockets/SSE) and the backend A2A messaging fabric.
@@ -6,58 +6,297 @@ The `http_sse` directory implements a complete HTTP/SSE (Server-Sent Events) gat
 The architecture is centered around the `WebUIBackendComponent`, a custom Solace AI Connector (SAC) component that hosts an embedded FastAPI web server. This component manages shared state and resources, such as the `SSEManager` for real-time updates, the `SessionManager` for user sessions, and the `AgentRegistry` for discovering available agents.
 
 Subdirectories organize the functionality:
--   `routers/` defines the REST API endpoints (e.g., `/tasks`, `/agents`).
--   `services/` contains the business logic that the API endpoints call.
--   `dependencies.py` uses FastAPI's dependency injection system to provide the routers and services with safe access to the shared resources managed by the main component.
--   `components/` contains specialized SAC components, for example, to forward A2A messages for real-time visualization.
+- `routers/` defines the REST API endpoints (e.g., `/tasks`, `/agents`).
+- `services/` contains the business logic that the API endpoints call.
+- `components/` contains specialized SAC components for message forwarding and visualization.
+- `dependencies.py` uses FastAPI's dependency injection system to provide the routers and services with safe access to the shared resources managed by the main component.
 
 This design creates a clean separation of concerns, where the web layer (FastAPI) is decoupled from the core messaging and state management layer (SAC Component).
 
 ## Files and Subdirectories Overview
 - **Direct files:**
-    - `__init__.py`: Standard Python package initializer.
-    - `app.py`: Defines the main SAC `WebUIBackendApp`, which specifies configuration and launches the component.
-    - `component.py`: The core SAC component that hosts the FastAPI server and manages all shared resources and A2A logic.
-    - `dependencies.py`: Provides FastAPI dependency injectors for accessing shared resources like services and managers.
-    - `main.py`: The main FastAPI application instance, including middleware, router mounting, and exception handling.
-    - `session_manager.py`: Manages web user sessions and maps them to unique A2A client and session IDs.
-    - `sse_manager.py`: Manages Server-Sent Event (SSE) connections for streaming real-time updates to clients.
+  - `__init__.py`: Standard Python package initializer
+  - `app.py`: Defines the main SAC `WebUIBackendApp` with configuration schema
+  - `component.py`: Core SAC component hosting FastAPI server and managing shared resources
+  - `dependencies.py`: FastAPI dependency injectors for accessing shared resources
+  - `main.py`: FastAPI application instance with middleware and router mounting
+  - `session_manager.py`: Manages web user sessions and A2A client/session ID mapping
+  - `sse_manager.py`: Manages Server-Sent Event connections for real-time updates
+
 - **Subdirectories:**
-    - `components/`: Contains specialized SAC components, such as for forwarding messages to the visualization system.
-    - `routers/`: Defines the FastAPI `APIRouter` modules for all REST API endpoints.
-    - `services/`: Encapsulates business logic for agents, tasks, and other domain-specific operations.
+  - `components/`: Specialized SAC components for message forwarding and visualization
+  - `routers/`: FastAPI APIRouter modules for REST API endpoints
+  - `services/`: Business logic layer for agents, tasks, and domain operations
 
 ## Developer API Reference
 
 ### Direct Files
 
 #### app.py
-**Purpose:** This file defines the `WebUIBackendApp`, a custom SAC (Solace AI Connector) App class. It is responsible for defining the configuration schema for the entire HTTP/SSE gateway and programmatically creating the `WebUIBackendComponent`.
+**Purpose:** Defines the `WebUIBackendApp`, a custom SAC App class that specifies configuration schema and creates the `WebUIBackendComponent`
 **Import:** `from gateway.http_sse.app import WebUIBackendApp`
 
 **Classes/Functions/Constants:**
--   **`WebUIBackendApp(BaseGatewayApp)`**: The main application class. It extends `BaseGatewayApp` and adds a list of WebUI-specific configuration parameters to the application schema.
--   **`SPECIFIC_APP_SCHEMA_PARAMS: List[Dict[str, Any]]`**: A constant list defining the configuration parameters specific to the HTTP/SSE gateway, such as `session_secret_key`, `fastapi_host`, `fastapi_port`, and various frontend-related settings.
+- **`WebUIBackendApp(BaseGatewayApp)`**: Main application class extending `BaseGatewayApp`
+  - `__init__(app_info: Dict[str, Any], **kwargs)`: Initializes the WebUI backend app
+  - `_get_gateway_component_class() -> type[BaseGatewayComponent]`: Returns `WebUIBackendComponent` class
+- **`SPECIFIC_APP_SCHEMA_PARAMS: List[Dict[str, Any]]`**: Configuration parameters specific to HTTP/SSE gateway (session_secret_key, fastapi_host, fastapi_port, frontend settings, SSL configuration, etc.)
 
 #### component.py
-**Purpose:** This is the core component of the gateway. It hosts the FastAPI server, manages all shared state (like the SSE and Session managers), handles the lifecycle of the web server, and implements the logic for translating between external HTTP requests and internal A2A messages.
+**Purpose:** Core component hosting FastAPI server, managing shared state, and implementing A2A message translation
 **Import:** `from gateway.http_sse.component import WebUIBackendComponent`
 
 **Classes/Functions/Constants:**
--   **`WebUIBackendComponent(BaseGatewayComponent)`**: The main component class. Developers will primarily interact with its instances via the dependency injection system.
-    -   **Public Accessor Methods (for Dependencies):**
-        -   `get_sse_manager() -> SSEManager`: Returns the shared `SSEManager` instance.
-        -   `get_session_manager() -> SessionManager`: Returns the shared `SessionManager` instance.
-        -   `get_agent_registry() -> AgentRegistry`: Returns the shared `AgentRegistry` instance.
-        -   `get_core_a2a_service() -> CoreA2AService`: Returns the core service for creating A2A messages.
-        -   `get_shared_artifact_service() -> Optional[BaseArtifactService]`: Returns the service for artifact storage.
-        -   `get_namespace() -> str`: Returns the configured A2A namespace.
-        -   `get_gateway_id() -> str`: Returns the unique ID of this gateway.
-    -   **Core Logic Methods:**
-        -   `publish_a2a(topic: str, payload: Dict, user_properties: Optional[Dict] = None)`: Publishes a message onto the A2A messaging fabric. This is the primary method for sending data to agents.
-    -   **Gateway-Development-Kit (GDK) Hooks:** These methods implement the `BaseGatewayComponent` abstract interface.
-        -   `_start_listener()`: Starts the FastAPI/Uvicorn server.
-        -   `_stop_listener()`: Stops the FastAPI/Uvicorn server.
-        -   `_translate_external_input(...)`: Translates an incoming HTTP request (e.g., form data with files) into a structured A2A message (`List[A2APart]`).
-        -   `_send_update_to_external(...)`: Sends an intermediate status update from an agent back to the client via SSE.
-        -
+- **`WebUIBackendComponent(BaseGatewayComponent)`**: Main component class
+  - **Public Accessor Methods:**
+    - `get_sse_manager() -> SSEManager`: Returns shared SSEManager instance
+    - `get_session_manager() -> SessionManager`: Returns shared SessionManager instance
+    - `get_agent_registry() -> AgentRegistry`: Returns shared AgentRegistry instance
+    - `get_core_a2a_service() -> CoreA2AService`: Returns core A2A service
+    - `get_shared_artifact_service() -> Optional[BaseArtifactService]`: Returns artifact storage service
+    - `get_namespace() -> str`: Returns configured A2A namespace
+    - `get_gateway_id() -> str`: Returns unique gateway ID
+    - `get_cors_origins() -> List[str]`: Returns CORS allowed origins
+    - `get_embed_config() -> Dict[str, Any]`: Returns embed-related configuration
+    - `get_config_resolver() -> ConfigResolver`: Returns ConfigResolver instance
+  - **Core Logic Methods:**
+    - `publish_a2a(topic: str, payload: Dict, user_properties: Optional[Dict] = None)`: Publishes A2A message
+  - **GDK Hook Methods:**
+    - `_start_listener()`: Starts FastAPI/Uvicorn server
+    - `_stop_listener()`: Stops FastAPI/Uvicorn server
+    - `_translate_external_input(external_event_data: Dict[str, Any]) -> Tuple[str, List[A2APart], Dict[str, Any]]`: Translates HTTP request to A2A message
+    - `_send_update_to_external(external_request_context: Dict[str, Any], event_data: Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent], is_final_chunk_of_update: bool)`: Sends intermediate updates via SSE
+    - `_send_final_response_to_external(external_request_context: Dict[str, Any], task_data: Task)`: Sends final response via SSE
+    - `_send_error_to_external(external_request_context: Dict[str, Any], error_data: JSONRPCError)`: Sends error via SSE
+
+#### dependencies.py
+**Purpose:** FastAPI dependency injectors for accessing shared resources managed by WebUIBackendComponent
+**Import:** `from gateway.http_sse.dependencies import get_sac_component, get_agent_registry, get_sse_manager, etc.`
+
+**Classes/Functions/Constants:**
+- **Setup Functions:**
+  - `set_component_instance(component: WebUIBackendComponent)`: Sets component instance for dependencies
+  - `set_api_config(config: Dict[str, Any])`: Sets API configuration
+- **Core Dependencies:**
+  - `get_sac_component() -> WebUIBackendComponent`: Gets component instance
+  - `get_agent_registry() -> AgentRegistry`: Gets AgentRegistry
+  - `get_sse_manager() -> SSEManager`: Gets SSEManager
+  - `get_session_manager() -> SessionManager`: Gets SessionManager
+  - `get_user_id(request: Request) -> str`: Gets user ID from request
+  - `ensure_session_id(request: Request) -> str`: Ensures session ID exists
+- **Service Dependencies:**
+  - `get_agent_service() -> AgentService`: Gets AgentService instance
+  - `get_task_service() -> TaskService`: Gets TaskService instance
+  - `get_people_service() -> PeopleService`: Gets PeopleService instance
+- **Configuration Dependencies:**
+  - `get_namespace() -> str`: Gets A2A namespace
+  - `get_gateway_id() -> str`: Gets gateway ID
+  - `get_app_config() -> Dict[str, Any]`: Gets application configuration
+  - `get_user_config(request: Request) -> Dict[str, Any]`: Gets user-specific configuration
+
+#### main.py
+**Purpose:** FastAPI application instance with middleware, routers, and exception handling
+**Import:** `from gateway.http_sse.main import app, setup_dependencies`
+
+**Classes/Functions/Constants:**
+- **`app: FastAPI`**: Main FastAPI application instance
+- **`setup_dependencies(component: WebUIBackendComponent)`**: Configures middleware and routers
+- **Exception Handlers:**
+  - `http_exception_handler(request: FastAPIRequest, exc: HTTPException)`: Handles HTTP exceptions
+  - `validation_exception_handler(request: FastAPIRequest, exc: RequestValidationError)`: Handles validation errors
+  - `generic_exception_handler(request: FastAPIRequest, exc: Exception)`: Handles unexpected exceptions
+- **Health Endpoint:**
+  - `read_root()`: Basic health check endpoint at `/health`
+
+#### session_manager.py
+**Purpose:** Manages web user sessions and mapping to A2A client/session IDs
+**Import:** `from gateway.http_sse.session_manager import SessionManager`
+
+**Classes/Functions/Constants:**
+- **`SessionManager(secret_key: str, app_config: Dict[str, Any])`**: Session management class
+  - `get_a2a_client_id(request: Request) -> str`: Gets/creates A2A client ID
+  - `get_a2a_session_id(request: Request) -> Optional[str]`: Gets current A2A session ID
+  - `start_new_a2a_session(request: Request) -> str`: Creates new A2A session
+  - `ensure_a2a_session(request: Request) -> str`: Ensures session exists
+  - `store_auth_tokens(request: Request, access_token: str, refresh_token: Optional[str])`: Stores auth tokens
+  - `get_access_token(request: Request) -> Optional[str]`: Gets access token
+  - `get_refresh_token(request: Request) -> Optional[str]`: Gets refresh token
+  - `clear_auth_tokens(request: Request)`: Clears auth tokens
+  - `dep_get_client_id() -> Callable`: Returns FastAPI dependency callable
+  - `dep_ensure_session_id() -> Callable`: Returns FastAPI dependency callable
+
+#### sse_manager.py
+**Purpose:** Manages Server-Sent Event connections for streaming real-time updates
+**Import:** `from gateway.http_sse.sse_manager import SSEManager`
+
+**Classes/Functions/Constants:**
+- **`SSEManager(max_queue_size: int = 200)`**: SSE connection manager
+  - `create_sse_connection(task_id: str) -> asyncio.Queue`: Creates SSE connection queue
+  - `remove_sse_connection(task_id: str, connection_queue: asyncio.Queue)`: Removes connection
+  - `send_event(task_id: str, event_data: Dict[str, Any], event_type: str = "message")`: Sends event to connections
+  - `close_connection(task_id: str, connection_queue: asyncio.Queue)`: Closes specific connection
+  - `close_all_for_task(task_id: str)`: Closes all connections for task
+  - `close_all()`: Closes all active connections
+
+### Subdirectory APIs
+
+#### components/
+**Purpose:** Specialized SAC components for message forwarding and visualization
+**Key Exports:** `VisualizationForwarderComponent`
+**Import Examples:**
+```python
+from gateway.http_sse.components import VisualizationForwarderComponent
+```
+
+#### routers/
+**Purpose:** FastAPI APIRouter modules defining REST API endpoints
+**Key Exports:** Router instances for agents, tasks, SSE, artifacts, visualization, sessions, people, auth, users, config
+**Import Examples:**
+```python
+from gateway.http_sse.routers import agents, tasks, sse, artifacts
+from gateway.http_sse.routers.tasks import CancelTaskApiPayload
+```
+
+#### services/
+**Purpose:** Business logic layer for domain-specific operations
+**Key Exports:** `AgentService`, `TaskService`, `PeopleService`
+**Import Examples:**
+```python
+from gateway.http_sse.services.agent_service import AgentService
+from gateway.http_sse.services.task_service import TaskService, PublishFunc
+from gateway.http_sse.services.people_service import PeopleService
+```
+
+## Complete Usage Guide
+
+### 1. Basic Setup and Initialization
+
+```python
+# Create and configure the WebUI backend app
+from gateway.http_sse.app import WebUIBackendApp
+
+app_config = {
+    "name": "my-webui-backend",
+    "session_secret_key": "your-secret-key",
+    "fastapi_host": "0.0.0.0",
+    "fastapi_port": 8000,
+    "namespace": "/my-namespace",
+    "gateway_id": "webui-gateway-01"
+}
+
+webui_app = WebUIBackendApp(app_info=app_config)
+webui_app.run()
+```
+
+### 2. Using Dependencies in FastAPI Routes
+
+```python
+from fastapi import APIRouter, Depends
+from gateway.http_sse.dependencies import (
+    get_agent_service, 
+    get_task_service,
+    get_user_id,
+    ensure_session_id
+)
+from gateway.http_sse.services.agent_service import AgentService
+from gateway.http_sse.services.task_service import TaskService
+
+router = APIRouter()
+
+@router.get("/my-agents")
+async def get_my_agents(
+    agent_service: AgentService = Depends(get_agent_service),
+    user_id: str = Depends(get_user_id)
+):
+    agents = agent_service.get_all_agents()
+    return {"user_id": user_id, "agents": [agent.model_dump() for agent in agents]}
+
+@router.post("/my-task-cancel")
+async def cancel_my_task(
+    agent_name: str,
+    task_id: str,
+    task_service: TaskService = Depends(get_task_service),
+    user_id: str = Depends(get_user_id),
+    session_id: str = Depends(ensure_session_id)
+):
+    await task_service.cancel_task(agent_name, task_id, session_id, user_id)
+    return {"status": "cancelled"}
+```
+
+### 3. Working with SSE for Real-time Updates
+
+```python
+from fastapi import Depends
+from fastapi.responses import StreamingResponse
+from gateway.http_sse.dependencies import get_sse_manager
+from gateway.http_sse.sse_manager import SSEManager
+import asyncio
+import json
+
+@router.get("/stream/{task_id}")
+async def stream_task_updates(
+    task_id: str,
+    sse_manager: SSEManager = Depends(get_sse_manager)
+):
+    async def event_generator():
+        connection_queue = await sse_manager.create_sse_connection(task_id)
+        try:
+            while True:
+                event = await connection_queue.get()
+                if event is None:  # Close signal
+                    break
+                yield f"event: {event['event']}\ndata: {event['data']}\n\n"
+        finally:
+            await sse_manager.remove_sse_connection(task_id, connection_queue)
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
+    )
+```
+
+### 4. Publishing A2A Messages
+
+```python
+from gateway.http_sse.dependencies import get_publish_a2a_func, PublishFunc
+
+@router.post("/send-message")
+async def send_a2a_message(
+    topic: str,
+    message: dict,
+    publish_func: PublishFunc = Depends(get_publish_a2a_func)
+):
+    user_properties = {"source": "webui", "timestamp": "2024-01-01T00:00:00Z"}
+    publish_func(topic, message, user_properties)
+    return {"status": "sent", "topic": topic}
+```
+
+### 5. Working with Sessions and User Context
+
+```python
+from gateway.http_sse.dependencies import (
+    get_session_manager,
+    get_user_config,
+    get_app_config
+)
+from gateway.http_sse.session_manager import SessionManager
+
+@router.post("/new-session")
+async def create_new_session(
+    request: Request,
+    session_manager: SessionManager = Depends(get_session_manager)
+):
+    new_session_id = session_manager.start_new_a2a_session(request)
+    client_id = session_manager.get_a2a_client_id(request)
+    return {
+        "session_id": new_session_id,
+        "client_id": client_id
+    }
+
+@router.get("/user-config")
+async def get_my_config(
+    user_config: dict = Depends(get_user_config),
+    app_config: dict = Depends(get_app_config)
+
+# content_hash: 119cd18acc7c3e2a62453c45e31b1249548a44dceed18fbd045b7498e9491fc3

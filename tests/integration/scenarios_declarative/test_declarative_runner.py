@@ -966,7 +966,7 @@ async def test_declarative_scenario(
     """
     Executes a single declarative test scenario discovered by pytest_generate_tests.
     """
-    scenario_id = declarative_scenario.get("test_   case_id", "N/A")
+    scenario_id = declarative_scenario.get("test_case_id", "N/A")
     scenario_description = declarative_scenario.get("description", "No description")
     print(f"\nRunning declarative scenario: {scenario_id} - {scenario_description}")
 

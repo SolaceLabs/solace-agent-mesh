@@ -1,107 +1,84 @@
-Here is the developer guide for the `embeds` directory.
+# DEVELOPER GUIDE: embeds
 
 ## Quick Summary
-The `embeds` directory provides a system for finding, parsing, and resolving embedded expressions within strings. These expressions, denoted by `«...»`, can represent dynamic values like mathematical calculations, datetimes, or content from stored artifacts. The system supports multi-step data transformation pipelines on artifact content, recursive embed resolution, and safety features like depth and size limits. It is a core component for dynamic content generation and data processing.
+The `embeds` directory provides a comprehensive system for finding, parsing, and resolving embedded expressions within strings. These expressions use `«...»` syntax and can represent dynamic values like mathematical calculations, datetimes, UUIDs, or content from stored artifacts. The system supports multi-step data transformation pipelines, recursive embed resolution, and includes safety features like depth and size limits. It's designed as a core component for dynamic content generation and data processing in AI applications.
 
 ## Files Overview
-- `__init__.py`: Exports the primary public functions and constants for easy access.
-- `constants.py`: Defines the syntax (delimiters, separators), regular expressions, and type classifications for embeds.
-- `converter.py`: Provides functions for converting data between different formats (e.g., bytes, string, JSON) and for serializing data into a final string representation.
-- `evaluators.py`: Contains the specific logic for evaluating simple embed types like `math`, `datetime`, and `uuid`.
-- `modifiers.py`: Implements a library of data transformation functions (e.g., `jsonpath`, `slice_rows`, `grep`) that can be chained together.
-- `resolver.py`: The core engine that orchestrates the entire embed resolution process, including handling modifier chains and recursion.
-- `types.py`: Defines the `DataFormat` enum used to track data types during transformations.
+- `__init__.py` - Main public entry point exporting key functions and constants
+- `constants.py` - Defines embed syntax (delimiters, separators), regex patterns, and type classifications
+- `converter.py` - Data format conversion and serialization functions
+- `evaluators.py` - Specific evaluation logic for simple embed types (math, datetime, uuid, etc.)
+- `modifiers.py` - Data transformation functions that can be chained together (jsonpath, slice, grep, etc.)
+- `resolver.py` - Core orchestration engine handling embed resolution, modifier chains, and recursion
+- `types.py` - DataFormat enum for tracking data types during transformations
 
 ## Developer API Reference
 
 ### __init__.py
-**Purpose:** This module serves as the main public entry point for the `embeds` package, exporting the most commonly used functions and constants from the other modules. Developers should typically import from here.
+**Purpose:** Main public entry point that exports the most commonly used functions and constants from other modules.
 
-**Import:** `from src.common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed, EMBED_REGEX`
-
-*(Note: Detailed documentation is available under each source file's section.)*
-
-**Classes:**
-- None
+**Import:** `from common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed, EMBED_REGEX`
 
 **Functions:**
-- `evaluate_embed(...)`: Evaluates a single, parsed embed expression.
-- `resolve_embeds_in_string(...)`: Resolves embeds in a string for a single pass (non-recursive).
-- `resolve_embeds_recursively_in_string(...)`: Recursively finds and resolves all embeds in a string, respecting depth and size limits.
+- `evaluate_embed(...)` - Evaluates a single, parsed embed expression
+- `resolve_embeds_in_string(...)` - Resolves embeds in a string for a single pass (non-recursive)
+- `resolve_embeds_recursively_in_string(...)` - Recursively resolves all embeds in a string with safety limits
 
 **Constants/Variables:**
-- `EMBED_DELIMITER_OPEN: str`: The opening delimiter for an embed (`«`).
-- `EMBED_DELIMITER_CLOSE: str`: The closing delimiter for an embed (`»`).
-- `EMBED_TYPE_SEPARATOR: str`: The separator between an embed's type and its expression (`:`).
-- `EMBED_FORMAT_SEPARATOR: str`: The separator for an optional format specifier (`|`).
-- `EMBED_CHAIN_DELIMITER: str`: The separator for modifier steps in an `artifact_content` chain (`>>>`).
-- `EMBED_REGEX: re.Pattern`: The compiled regular expression used to find embeds.
-- `EARLY_EMBED_TYPES: Set[str]`: A set of embed types that are resolved in an initial pass.
-- `LATE_EMBED_TYPES: Set[str]`: A set of embed types (like `artifact_content`) resolved in a subsequent pass.
+- `EMBED_DELIMITER_OPEN: str` - Opening delimiter (`«`)
+- `EMBED_DELIMITER_CLOSE: str` - Closing delimiter (`»`)
+- `EMBED_TYPE_SEPARATOR: str` - Type/expression separator (`:`)
+- `EMBED_FORMAT_SEPARATOR: str` - Format specifier separator (`|`)
+- `EMBED_CHAIN_DELIMITER: str` - Modifier chain separator (`>>>`)
+- `EMBED_REGEX: re.Pattern` - Compiled regex for finding embeds
+- `EARLY_EMBED_TYPES: Set[str]` - Types resolved in initial pass
+- `LATE_EMBED_TYPES: Set[str]` - Types resolved in subsequent pass
 
----
 ### constants.py
-**Purpose:** This file defines all the static constants that govern the syntax and classification of embeds. This includes delimiters, separators, the master regular expression for parsing, and sets that categorize embed types for phased resolution.
+**Purpose:** Defines all static constants governing embed syntax and classification.
 
-**Import:** `from src.common.utils.embeds.constants import EMBED_REGEX, EARLY_EMBED_TYPES`
-
-**Classes:**
-- None
-
-**Functions:**
-- None
+**Import:** `from common.utils.embeds.constants import EMBED_REGEX, EARLY_EMBED_TYPES`
 
 **Constants/Variables:**
-- `EMBED_DELIMITER_OPEN: str`: The character that marks the beginning of an embed (`«`).
-- `EMBED_DELIMITER_CLOSE: str`: The character that marks the end of an embed (`»`).
-- `EMBED_TYPE_SEPARATOR: str`: The character separating the embed type from its expression (`:`).
-- `EMBED_FORMAT_SEPARATOR: str`: The character separating an expression from its optional format specifier (`|`).
-- `EMBED_CHAIN_DELIMITER: str`: The string separating transformation steps in an `artifact_content` embed (`>>>`).
-- `EMBED_REGEX: re.Pattern`: A compiled regular expression to find and capture the `type`, `expression`, and optional `format` from an embed string.
-- `EARLY_EMBED_TYPES: Set[str]`: A set of embed types (`math`, `datetime`, etc.) that are resolved first, as they are generally simple, self-contained, and do not involve recursion.
-- `LATE_EMBED_TYPES: Set[str]`: A set of embed types (`artifact_content`) that are resolved later, as they can be complex, involve I/O, and may contain further embeds that require recursive resolution.
-- `TEXT_CONTAINER_MIME_TYPES: Set[str]`: A set of MIME types that are considered to contain text and can be safely decoded to a string.
+- `EMBED_DELIMITER_OPEN: str` - Opening delimiter (`«`)
+- `EMBED_DELIMITER_CLOSE: str` - Closing delimiter (`»`)
+- `EMBED_TYPE_SEPARATOR: str` - Type/expression separator (`:`)
+- `EMBED_FORMAT_SEPARATOR: str` - Format specifier separator (`|`)
+- `EMBED_CHAIN_DELIMITER: str` - Modifier chain separator (`>>>`)
+- `EMBED_REGEX: re.Pattern` - Compiled regex with capture groups for type, expression, and format
+- `EARLY_EMBED_TYPES: Set[str]` - Simple types resolved first: `{'math', 'datetime', 'uuid', 'artifact_meta', 'status_update'}`
+- `LATE_EMBED_TYPES: Set[str]` - Complex types resolved later: `{'artifact_content'}`
+- `TEXT_CONTAINER_MIME_TYPES: Set[str]` - MIME types considered text-based
 
 **Usage Examples:**
 ```python
 import re
-from src.common.utils.embeds.constants import EMBED_REGEX
+from common.utils.embeds.constants import EMBED_REGEX
 
 text = "The price is «math:10 * 1.15 | .2f» and the ID is «uuid:new»."
 
 for match in EMBED_REGEX.finditer(text):
     embed_type = match.group(1)
     expression = match.group(2)
-    format_spec = match.group(3) # This will be None if not present
+    format_spec = match.group(3)  # None if not present
     print(f"Type: {embed_type}, Expression: '{expression}', Format: '{format_spec}'")
-
-# Expected Output:
-# Type: math, Expression: '10 * 1.15 ', Format: ' .2f'
-# Type: uuid, Expression: 'new', Format: 'None'
 ```
 
----
 ### converter.py
-**Purpose:** This file provides the core logic for data conversion and serialization. It can transform data between different `DataFormat` representations (e.g., `BYTES` to `STRING`, `STRING` to `LIST_OF_DICTS`) and serialize any format into a final string representation (e.g., `json`, `csv`, `datauri`).
+**Purpose:** Provides core data conversion between different formats and serialization to final string representations.
 
-**Import:** `from src.common.utils.embeds.converter import convert_data, serialize_data`
-
-**Classes:**
-- None
+**Import:** `from common.utils.embeds.converter import convert_data, serialize_data`
 
 **Functions:**
-- `convert_data(current_data: Any, current_format: Optional[DataFormat], target_format: DataFormat, log_id: str = "[Converter]", original_mime_type: Optional[str] = None) -> Tuple[Any, DataFormat, Optional[str]]`: Converts data from a source format to a target format. It uses `original_mime_type` as a hint for parsing (e.g., knowing that a string is JSON or CSV). Returns a tuple of `(converted_data, resulting_format, error_message)`.
-- `serialize_data(data: Any, data_format: Optional[DataFormat], target_string_format: Optional[str], original_mime_type: Optional[str], log_id: str = "[Serializer]") -> Tuple[str, Optional[str]]`: Serializes data from any `DataFormat` into a final string. `target_string_format` can be a keyword like `"json"`, `"csv"`, `"datauri"`, or a Python format specifier for numbers (e.g., `".2f"`). Returns a tuple of `(serialized_string, error_message)`.
-
-**Constants/Variables:**
-- None
+- `convert_data(current_data: Any, current_format: Optional[DataFormat], target_format: DataFormat, log_id: str = "[Converter]", original_mime_type: Optional[str] = None) -> Tuple[Any, DataFormat, Optional[str]]` - Converts data between DataFormat types using MIME type hints for parsing
+- `serialize_data(data: Any, data_format: Optional[DataFormat], target_string_format: Optional[str], original_mime_type: Optional[str], log_id: str = "[Serializer]") -> Tuple[str, Optional[str]]` - Serializes data to final string format (supports "json", "csv", "datauri", Python format specs)
 
 **Usage Examples:**
 ```python
-from src.common.utils.embeds.converter import convert_data, serialize_data
-from src.common.utils.embeds.types import DataFormat
+from common.utils.embeds.converter import convert_data, serialize_data
+from common.utils.embeds.types import DataFormat
 
-# Example 1: Convert CSV bytes to a list of dictionaries
+# Convert CSV bytes to list of dictionaries
 csv_bytes = b"id,name\n1,Alice\n2,Bob"
 list_of_dicts, new_format, err = convert_data(
     current_data=csv_bytes,
@@ -109,16 +86,133 @@ list_of_dicts, new_format, err = convert_data(
     target_format=DataFormat.LIST_OF_DICTS,
     original_mime_type="text/csv"
 )
-if not err:
-    print(f"Converted data: {list_of_dicts}")
-    # Converted data: [{'id': '1', 'name': 'Alice'}, {'id': '2', 'name': 'Bob'}]
 
-# Example 2: Serialize the list of dictionaries back to a pretty JSON string
-json_string, err = serialize_data(
-    data=list_of_dicts,
-    data_format=DataFormat.LIST_OF_DICTS,
-    target_string_format="json_pretty",
-    original_mime_type=None
-)
+# Serialize to pretty JSON
 if not err:
-    print(f"Serialized JSON:\n{json_string}")
+    json_string, err = serialize_data(
+        data=list_of_dicts,
+        data_format=DataFormat.LIST_OF_DICTS,
+        target_string_format="json_pretty",
+        original_mime_type=None
+    )
+```
+
+### evaluators.py
+**Purpose:** Contains evaluation logic for simple embed types and the evaluator registry.
+
+**Import:** `from common.utils.embeds.evaluators import EMBED_EVALUATORS`
+
+**Constants/Variables:**
+- `EMBED_EVALUATORS: Dict[str, Callable]` - Registry mapping embed types to evaluator functions
+- `MATH_SAFE_SYMBOLS: Dict[str, Any]` - Safe mathematical functions and constants for math embeds
+
+**Functions:**
+- Individual evaluator functions (private, accessed via registry)
+
+**Usage Examples:**
+```python
+# Math embed with format specifier
+# «math:sqrt(16) + 2 | .2f» → "6.00"
+
+# Datetime embed
+# «datetime:now» → "2024-01-15T10:30:00.123456"
+# «datetime:%Y-%m-%d» → "2024-01-15"
+
+# UUID embed
+# «uuid:new» → "550e8400-e29b-41d4-a716-446655440000"
+```
+
+### modifiers.py
+**Purpose:** Implements data transformation functions that can be chained together in artifact_content embeds.
+
+**Import:** `from common.utils.embeds.modifiers import MODIFIER_DEFINITIONS`
+
+**Constants/Variables:**
+- `MODIFIER_DEFINITIONS: Dict[str, Dict[str, Any]]` - Registry of available modifiers with their input/output formats
+
+**Functions:**
+- Individual modifier functions (private, accessed via registry)
+
+**Usage Examples:**
+```python
+# Chain example in an embed:
+# «artifact_content:data.json >>> jsonpath:$.users[*] >>> select_fields:name,email >>> format:json»
+
+# Available modifiers:
+# - jsonpath: Extract data using JSONPath expressions
+# - select_cols/select_fields: Select specific columns/fields
+# - filter_rows_eq: Filter rows by column value equality
+# - slice_rows/slice_lines: Slice data by index range
+# - grep: Filter text lines by regex pattern
+# - head/tail: Get first/last N lines
+# - apply_to_template: Apply Mustache template from artifact
+```
+
+### resolver.py
+**Purpose:** Core orchestration engine that handles the complete embed resolution process.
+
+**Import:** `from common.utils.embeds.resolver import resolve_embeds_recursively_in_string, evaluate_embed`
+
+**Functions:**
+- `resolve_embeds_in_string(text: str, context: Any, resolver_func: Callable, types_to_resolve: Set[str], log_identifier: str = "[EmbedUtil]", config: Optional[Dict[str, Any]] = None) -> Tuple[str, int, List[Tuple[int, Any]]]` - Single-pass embed resolution with buffering support
+- `resolve_embeds_recursively_in_string(text: str, context: Any, resolver_func: Callable, types_to_resolve: Set[str], log_identifier: str, config: Optional[Dict], max_depth: int, current_depth: int = 0, visited_artifacts: Optional[Set[Tuple[str, int]]] = None, accumulated_size: int = 0, max_total_size: int = -1) -> str` - Recursive embed resolution with safety limits
+- `evaluate_embed(embed_type: str, expression: str, format_spec: Optional[str], context: Dict[str, Any], log_identifier: str, config: Optional[Dict] = None, current_depth: int = 0, visited_artifacts: Optional[Set[Tuple[str, int]]] = None) -> Union[Tuple[str, Optional[str], int], Tuple[None, str, Any]]` - Evaluates individual embeds, handling both simple types and complex artifact_content chains
+
+**Usage Examples:**
+```python
+from common.utils.embeds.resolver import resolve_embeds_recursively_in_string, evaluate_embed
+from common.utils.embeds.constants import EARLY_EMBED_TYPES, LATE_EMBED_TYPES
+
+# Context setup
+context = {
+    "artifact_service": artifact_service_instance,
+    "session_context": {
+        "app_name": "my_app",
+        "user_id": "user123",
+        "session_id": "session456"
+    },
+    "config": {
+        "gateway_recursive_embed_depth": 12,
+        "gateway_max_artifact_resolve_size_bytes": 10485760
+    }
+}
+
+# Resolve all embeds recursively
+text = "Price: «math:10 * 1.15 | .2f», Data: «artifact_content:report.csv >>> head:5 >>> format:text»"
+resolved = await resolve_embeds_recursively_in_string(
+    text=text,
+    context=context,
+    resolver_func=evaluate_embed,
+    types_to_resolve=EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES),
+    log_identifier="[MyApp]",
+    config=context["config"],
+    max_depth=12
+)
+```
+
+### types.py
+**Purpose:** Defines the DataFormat enum used to track data types during transformations.
+
+**Import:** `from common.utils.embeds.types import DataFormat`
+
+**Classes:**
+- `DataFormat(Enum)` - Enumeration of internal data formats
+  - `BYTES` - Raw binary data
+  - `STRING` - Text data
+  - `JSON_OBJECT` - Parsed JSON (dict/list)
+  - `LIST_OF_DICTS` - Structured tabular data
+
+**Usage Examples:**
+```python
+from common.utils.embeds.types import DataFormat
+
+# Check data format
+if current_format == DataFormat.JSON_OBJECT:
+    # Handle JSON data
+    pass
+elif current_format == DataFormat.LIST_OF_DICTS:
+    # Handle tabular data
+    pass
+```
+
+# content_hash: e432576d9997c97db12a4e1c4031b2c6a8f3208a54091c20cf46b7bad4b4fbd2

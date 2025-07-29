@@ -1,37 +1,248 @@
-Here is the DEVELOPER GUIDE for the `routers` directory.
+# DEVELOPER GUIDE: routers
 
 ## Quick Summary
 The `routers` directory contains FastAPI `APIRouter` modules that define the REST API endpoints for the HTTP SSE Gateway. Each file groups endpoints by a specific domain of functionality, such as agent discovery, artifact management, user authentication, task submission, and real-time event streaming. These routers are the primary interface for frontend applications and other clients to interact with the gateway.
 
 ## Files Overview
-- `__init__.py`: Marks the directory as a Python package.
-- `agents.py`: API endpoints for discovering available A2A agents.
-- `artifacts.py`: REST endpoints for managing session-specific artifacts (upload, download, list, delete).
-- `auth.py`: Endpoints for handling the user authentication flow (login, callback, refresh, CSRF).
-- `config.py`: API endpoint for providing configuration settings to the frontend application.
-- `people.py`: API endpoints for user search functionality, typically for autocomplete features.
-- `sessions.py`: API endpoints for managing user sessions (creating new sessions, getting current session info).
-- `sse.py`: The Server-Sent Events (SSE) endpoint for streaming real-time task updates to the client.
-- `tasks.py`: API endpoints for submitting tasks to agents and managing their lifecycle (e.g., cancellation).
-- `users.py`: API endpoint for retrieving information about the currently authenticated user.
-- `visualization.py`: API endpoints for managing A2A message visualization streams for monitoring and debugging.
+- `__init__.py` - Marks the directory as a Python package
+- `agents.py` - API endpoints for discovering available A2A agents
+- `artifacts.py` - REST endpoints for managing session-specific artifacts (upload, download, list, delete)
+- `auth.py` - Endpoints for handling the user authentication flow (login, callback, refresh, CSRF)
+- `config.py` - API endpoint for providing configuration settings to the frontend application
+- `people.py` - API endpoints for user search functionality, typically for autocomplete features
+- `sessions.py` - API endpoints for managing user sessions (creating new sessions, getting current session info)
+- `sse.py` - The Server-Sent Events (SSE) endpoint for streaming real-time task updates to the client
+- `tasks.py` - API endpoints for submitting tasks to agents and managing their lifecycle (e.g., cancellation)
+- `users.py` - API endpoint for retrieving information about the currently authenticated user
+- `visualization.py` - API endpoints for managing A2A message visualization streams for monitoring and debugging
 
 ## Developer API Reference
 
 ### agents.py
-**Purpose:** Provides REST endpoints for agent discovery.
-**Import:** `from src.gateway.http_sse.routers.agents import router`
+**Purpose:** Provides REST endpoints for agent discovery
+**Import:** `from gateway.http_sse.routers.agents import router`
 
 **Functions:**
-- `get_discovered_agents() -> List[AgentCard]`: Retrieves a list of all currently discovered and available A2A agents. The `AgentCard` type contains details about each agent.
+- `get_discovered_agents() -> List[AgentCard]` - Retrieves a list of all currently discovered and available A2A agents
 
 **Usage Examples:**
 ```python
 # To include this router in a FastAPI application
 from fastapi import FastAPI
-from src.gateway.http_sse.routers.agents import router
+from gateway.http_sse.routers.agents import router
 
 app = FastAPI()
 app.include_router(router, prefix="/api/v1")
 
-# A client would make a GET request to /api/v1/agents
+# Client would make GET request to /api/v1/agents
+```
+
+### artifacts.py
+**Purpose:** Manages session-specific artifacts via REST endpoints
+**Import:** `from gateway.http_sse.routers.artifacts import router`
+
+**Functions:**
+- `list_artifact_versions(filename: str) -> List[int]` - Lists available version numbers for a specific artifact
+- `list_artifacts() -> List[ArtifactInfo]` - Retrieves detailed information for all artifacts in current session
+- `get_latest_artifact(filename: str) -> StreamingResponse` - Downloads the latest version of an artifact
+- `get_specific_artifact_version(filename: str, version: Union[int, str]) -> StreamingResponse` - Downloads a specific version
+- `get_artifact_by_uri(uri: str) -> StreamingResponse` - Resolves artifact:// URI and streams content
+- `upload_artifact(filename: str, upload_file: UploadFile, metadata_json: Optional[str]) -> Dict[str, Any]` - Uploads new artifact version
+- `delete_artifact(filename: str) -> Response` - Deletes an artifact and all its versions
+
+**Usage Examples:**
+```python
+# Upload an artifact
+import httpx
+
+async with httpx.AsyncClient() as client:
+    with open("document.pdf", "rb") as f:
+        response = await client.post(
+            "/api/v1/artifacts/document.pdf",
+            files={"upload_file": f},
+            data={"metadata_json": '{"description": "Important document"}'}
+        )
+
+# Download latest version
+response = await client.get("/api/v1/artifacts/document.pdf")
+```
+
+### auth.py
+**Purpose:** Handles user authentication flow
+**Import:** `from gateway.http_sse.routers.auth import router`
+
+**Functions:**
+- `initiate_login() -> RedirectResponse` - Initiates login flow by redirecting to external auth service
+- `get_csrf_token() -> Dict[str, str]` - Generates and returns CSRF token
+- `auth_callback(code: str) -> RedirectResponse` - Handles callback from OIDC provider
+- `refresh_token(refresh_token: str) -> Dict[str, str]` - Refreshes access token
+
+**Usage Examples:**
+```python
+# Get CSRF token
+response = await client.get("/api/v1/csrf-token")
+csrf_token = response.json()["csrf_token"]
+
+# Refresh token
+response = await client.post(
+    "/api/v1/auth/refresh",
+    json={"refresh_token": "your_refresh_token"}
+)
+```
+
+### config.py
+**Purpose:** Provides frontend configuration settings
+**Import:** `from gateway.http_sse.routers.config import router`
+
+**Functions:**
+- `get_app_config() -> Dict[str, Any]` - Returns configuration settings needed by frontend
+
+**Usage Examples:**
+```python
+# Get frontend configuration
+response = await client.get("/api/v1/config")
+config = response.json()
+# Returns: frontend_server_url, frontend_auth_login_url, etc.
+```
+
+### people.py
+**Purpose:** User search functionality for autocomplete
+**Import:** `from gateway.http_sse.routers.people import router`
+
+**Functions:**
+- `search_people(q: str, limit: int = 10) -> List[Dict[str, Any]]` - Searches for users by name/email
+
+**Usage Examples:**
+```python
+# Search for users
+response = await client.get("/api/v1/people/search?q=john&limit=5")
+users = response.json()
+```
+
+### sessions.py
+**Purpose:** Manages user sessions
+**Import:** `from gateway.http_sse.routers.sessions import router`
+
+**Functions:**
+- `create_new_session() -> JSONRPCResponse` - Forces creation of new A2A session
+- `get_current_session() -> JSONRPCResponse` - Returns current session information
+
+**Usage Examples:**
+```python
+# Create new session
+response = await client.post("/api/v1/sessions/new")
+session_id = response.json()["result"]["sessionId"]
+
+# Get current session info
+response = await client.get("/api/v1/sessions/current")
+session_info = response.json()["result"]
+```
+
+### sse.py
+**Purpose:** Server-Sent Events for real-time updates
+**Import:** `from gateway.http_sse.routers.sse import router`
+
+**Functions:**
+- `subscribe_to_task_events(task_id: str) -> EventSourceResponse` - Establishes SSE connection for task updates
+
+**Usage Examples:**
+```python
+# JavaScript client-side SSE connection
+const eventSource = new EventSource(`/api/v1/sse/subscribe/${taskId}`);
+eventSource.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+    console.log('Task update:', data);
+};
+```
+
+### tasks.py
+**Purpose:** Task submission and management
+**Import:** `from gateway.http_sse.routers.tasks import router`
+
+**Classes:**
+- `CancelTaskApiPayload(BaseModel)` - Request body for task cancellation
+  - `agent_name: str` - Name of agent handling the task
+  - `task_id: str` - ID of task to cancel
+
+**Functions:**
+- `send_task_to_agent(agent_name: str, message: str, files: List[UploadFile]) -> JSONRPCResponse` - Submits non-streaming task
+- `subscribe_task_from_agent(agent_name: str, message: str, files: List[UploadFile]) -> JSONRPCResponse` - Submits streaming task
+- `cancel_agent_task(payload: CancelTaskApiPayload) -> Dict[str, str]` - Cancels a task
+
+**Usage Examples:**
+```python
+# Submit a task
+response = await client.post(
+    "/api/v1/tasks/send",
+    data={"agent_name": "my-agent", "message": "Hello"},
+    files=[("files", ("doc.txt", b"content", "text/plain"))]
+)
+task_id = response.json()["result"]["taskId"]
+
+# Cancel a task
+from gateway.http_sse.routers.tasks import CancelTaskApiPayload
+cancel_payload = CancelTaskApiPayload(agent_name="my-agent", task_id=task_id)
+await client.post("/api/v1/tasks/cancel", json=cancel_payload.model_dump())
+```
+
+### users.py
+**Purpose:** User information endpoints
+**Import:** `from gateway.http_sse.routers.users import router`
+
+**Functions:**
+- `get_current_user() -> Dict[str, Any]` - Retrieves information about currently authenticated user
+
+**Usage Examples:**
+```python
+# Get current user info
+response = await client.get("/api/v1/users/me")
+user_info = response.json()
+# Returns: username, authenticated, auth_method
+```
+
+### visualization.py
+**Purpose:** A2A message visualization streams for monitoring
+**Import:** `from gateway.http_sse.routers.visualization import router`
+
+**Classes:**
+- `SubscriptionTarget(BaseModel)` - Defines a target for A2A message monitoring
+  - `type: str` - Type of target (e.g., "my_a2a_messages", "agent_a2a_messages")
+  - `identifier: Optional[str]` - Target identifier (namespace, agent name, etc.)
+
+- `VisualizationSubscribeRequest(BaseModel)` - Request to initiate visualization stream
+  - `subscription_targets: Optional[List[SubscriptionTarget]]` - Targets to monitor
+  - `client_stream_id: Optional[str]` - Client-generated stream ID
+
+- `VisualizationSubscribeResponse(BaseModel)` - Response for successful subscription
+  - `stream_id: str` - Unique stream ID
+  - `sse_endpoint_url: str` - URL for SSE connection
+  - `actual_subscribed_targets: List[ActualSubscribedTarget]` - Processed targets with status
+
+**Functions:**
+- `subscribe_to_visualization_stream(request_data: VisualizationSubscribeRequest) -> VisualizationSubscribeResponse` - Initiates visualization stream
+- `get_visualization_stream_events(stream_id: str) -> EventSourceResponse` - SSE endpoint for visualization events
+- `update_visualization_stream_config(stream_id: str, update_request: VisualizationConfigUpdateRequest) -> VisualizationConfigUpdateResponse` - Updates stream configuration
+- `unsubscribe_from_visualization_stream(stream_id: str) -> Response` - Terminates visualization stream
+
+**Usage Examples:**
+```python
+# Subscribe to visualization stream
+from gateway.http_sse.routers.visualization import VisualizationSubscribeRequest, SubscriptionTarget
+
+request = VisualizationSubscribeRequest(
+    subscription_targets=[
+        SubscriptionTarget(type="agent_a2a_messages", identifier="my-agent")
+    ]
+)
+response = await client.post("/api/v1/visualization/subscribe", json=request.model_dump())
+stream_info = response.json()
+
+# Connect to SSE stream (JavaScript)
+const eventSource = new EventSource(stream_info.sse_endpoint_url);
+eventSource.onmessage = function(event) {
+    const message = JSON.parse(event.data);
+    console.log('A2A Message:', message);
+};
+```
+
+# content_hash: c4effd7ba68b4a50be27f9508159f1b818ff68e04e1973b7eab7f7a7b3392fe3

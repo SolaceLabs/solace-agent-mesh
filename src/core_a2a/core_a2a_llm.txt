@@ -21,8 +21,8 @@ No public classes, functions, or constants defined.
 
 **Classes:**
 - `CoreA2AService(agent_registry: AgentRegistry, namespace: str)` - Main service class for A2A operations
-  - `submit_task(agent_name: str, a2a_message: A2AMessage, session_id: str, client_id: str, reply_to_topic: str, user_id: str = "default_user", a2a_user_scopes: Optional[List[str]] = None, metadata_override: Optional[Dict[str, Any]] = None) -> Tuple[str, Dict, Dict]` - Constructs topic, payload, and user properties for non-streaming task requests
-  - `submit_streaming_task(agent_name: str, a2a_message: A2AMessage, session_id: str, client_id: str, reply_to_topic: str, status_to_topic: str, user_id: str = "default_user", a2a_user_scopes: Optional[List[str]] = None, metadata_override: Optional[Dict[str, Any]] = None) -> Tuple[str, Dict, Dict]` - Constructs topic, payload, and user properties for streaming task requests
+  - `submit_task(agent_name: str, a2a_message: A2AMessage, session_id: str, client_id: str, reply_to_topic: str, user_id: str = "default_user", a2a_user_config: Optional[Dict[str, Any]] = None, metadata_override: Optional[Dict[str, Any]] = None) -> Tuple[str, Dict, Dict]` - Constructs topic, payload, and user properties for non-streaming task requests
+  - `submit_streaming_task(agent_name: str, a2a_message: A2AMessage, session_id: str, client_id: str, reply_to_topic: str, status_to_topic: str, user_id: str = "default_user", a2a_user_config: Optional[Dict[str, Any]] = None, metadata_override: Optional[Dict[str, Any]] = None) -> Tuple[str, Dict, Dict]` - Constructs topic, payload, and user properties for streaming task requests
   - `cancel_task(agent_name: str, task_id: str, client_id: str, user_id: str = "default_user") -> Tuple[str, Dict, Dict]` - Constructs topic, payload, and user properties for task cancellation
   - `get_agent(agent_name: str) -> Optional[AgentCard]` - Retrieves a specific agent card by name from the registry
   - `get_all_agents() -> List[AgentCard]` - Retrieves all currently discovered agent cards from the registry
@@ -86,3 +86,5 @@ all_agents = service.get_all_agents()
 agent_card = AgentCard(name="new_agent", description="A new agent")
 service.process_discovery_message(agent_card)
 ```
+
+# content_hash: b3d56974dc9be38b9bf0b07616ffccf5e845e2eb48bc1c6790de06d9023ec6a2

@@ -1,67 +1,327 @@
-Here is the comprehensive developer guide for the `utils` directory.
+# DEVELOPER GUIDE: utils
 
 ## Quick Summary
-The `utils` directory provides a collection of essential, cross-cutting utilities for the Solace AI Connector. Its purpose is to offer robust, reusable solutions for common application needs, including caching, platform compatibility, secure communication, logging, and dynamic content generation.
+The `utils` directory provides a comprehensive collection of essential, cross-cutting utilities for the Solace AI Connector. Its purpose is to offer robust, reusable solutions for common application needs including caching, platform compatibility, secure communication, logging, MIME type handling, and dynamic content generation.
 
-The architecture consists of standalone utility files for specific tasks and a more complex, self-contained subdirectory for advanced functionality. Direct files provide services like a thread-safe in-memory cache (`in_memory_cache.py`), JWT-based authentication for push notifications (`push_notification_auth.py`), custom logging formatters (`log_formatters.py`), and a critical patch for asyncio on macOS (`asyncio_macos_fix.py`).
+The architecture consists of standalone utility files for specific tasks and a sophisticated `embeds` subdirectory for advanced dynamic expression processing. Direct files provide services like thread-safe in-memory caching, JWT-based push notification authentication, custom logging formatters, asyncio platform fixes, and MIME type classification. The `embeds` subdirectory provides a powerful system for finding, parsing, and resolving dynamic expressions embedded within strings using `«...»` syntax.
 
-The `embeds` subdirectory provides a powerful system for finding, parsing, and resolving dynamic expressions embedded within strings. These utilities are designed to work together. For instance, a request handler might use `mime_helpers` to validate content type, use the `embeds` system to process the content, and then store the result in the `InMemoryCache` to optimize future requests.
+These utilities are designed to work together seamlessly - for instance, a request handler might use `mime_helpers` to validate content type, use the `embeds` system to process dynamic content, and then store results in the `InMemoryCache` for optimization.
 
 ## Files and Subdirectories Overview
 - **Direct files:**
-    - `__init__.py`: Exposes key utility functions from the package for convenient access.
-    - `asyncio_macos_fix.py`: Automatically applies a patch to fix asyncio subprocess issues on macOS.
-    - `in_memory_cache.py`: Implements a thread-safe, singleton in-memory cache with TTL support.
-    - `log_formatters.py`: Provides custom logging formatters, such as a Datadog-compatible JSON formatter.
-    - `mime_helpers.py`: Contains helper functions to classify and identify text-based MIME types.
-    - `push_notification_auth.py`: Implements JWT-based authentication for sending and receiving push notifications.
+  - `__init__.py` - Exposes key utility functions from the package for convenient access
+  - `asyncio_macos_fix.py` - Automatically applies a patch to fix asyncio subprocess issues on macOS
+  - `in_memory_cache.py` - Thread-safe, singleton in-memory cache with TTL support
+  - `log_formatters.py` - Custom logging formatters including Datadog-compatible JSON formatter
+  - `mime_helpers.py` - Helper functions to classify and identify text-based MIME types
+  - `push_notification_auth.py` - JWT-based authentication for sending and receiving push notifications
 
 - **Subdirectories:**
-    - `embeds/`: Provides a comprehensive system for processing embedded dynamic expressions (e.g., math, datetimes, artifact content).
+  - `embeds/` - Comprehensive system for processing embedded dynamic expressions with multi-step transformations
 
 ## Developer API Reference
 
 ### Direct Files
 
 #### __init__.py
-**Purpose:** Serves as the main entry point for the `utils` package, exporting the most common utility functions for easy importing.
+**Purpose:** Main entry point for the utils package, exporting the most commonly used utility functions
 **Import:** `from solace_ai_connector.common.utils import is_text_based_mime_type`
 
 **Classes/Functions/Constants:**
-*   `is_text_based_mime_type(mime_type: Optional[str]) -> bool`: Checks if a given MIME type is considered text-based.
+- `is_text_based_mime_type(mime_type: Optional[str]) -> bool` - Checks if a MIME type is text-based
 
 #### asyncio_macos_fix.py
-**Purpose:** Provides a targeted, automatic fix for a `NotImplementedError` that occurs when creating subprocesses with asyncio on macOS. This module is imported for its side effects and should be loaded early in the application's lifecycle.
-**Import:** `from solace_ai_connector.common.utils import asyncio_macos_fix` (Importing the module is sufficient to apply the patch).
+**Purpose:** Provides automatic fix for asyncio subprocess creation issues on macOS by patching the event loop policy
+**Import:** `from solace_ai_connector.common.utils import asyncio_macos_fix` (importing applies the patch)
 
 **Classes/Functions/Constants:**
-*   `ensure_asyncio_compatibility() -> bool`: The core function that applies the patch. It is called automatically when the module is first imported.
+- `apply_macos_asyncio_fix() -> bool` - Applies the asyncio fix for macOS subprocess support
+- `ensure_asyncio_compatibility() -> bool` - Ensures asyncio compatibility (called automatically on import)
 
 #### in_memory_cache.py
-**Purpose:** Provides a simple, thread-safe, in-memory cache implemented as a singleton. It's useful for storing frequently accessed data with an optional time-to-live (TTL).
+**Purpose:** Thread-safe singleton in-memory cache with TTL support for storing frequently accessed data
 **Import:** `from solace_ai_connector.common.utils.in_memory_cache import InMemoryCache`
 
 **Classes/Functions/Constants:**
-*   **`InMemoryCache`**: A singleton class for caching.
-    *   `set(self, key: str, value: Any, ttl: Optional[int] = None) -> None`: Sets a key-value pair with an optional TTL in seconds.
-    *   `get(self, key: str, default: Any = None) -> Any`: Retrieves a value by its key, returning a default if the key is not found or has expired.
-    *   `delete(self, key: str) -> bool`: Deletes a key-value pair from the cache.
-    *   `clear(self) -> bool`: Removes all items from the cache.
+- **`InMemoryCache`** - Singleton cache class
+  - `set(key: str, value: Any, ttl: Optional[int] = None) -> None` - Store key-value with optional TTL
+  - `get(key: str, default: Any = None) -> Any` - Retrieve value by key with default fallback
+  - `delete(key: str) -> bool` - Delete specific key-value pair
+  - `clear() -> bool` - Remove all cached data
 
 #### log_formatters.py
-**Purpose:** Contains custom logging formatters to structure log output for specific platforms, such as Datadog.
+**Purpose:** Custom logging formatters for structured log output compatible with monitoring platforms
 **Import:** `from solace_ai_connector.common.utils.log_formatters import DatadogJsonFormatter`
 
 **Classes/Functions/Constants:**
-*   **`DatadogJsonFormatter(logging.Formatter)`**: A formatter that outputs log records as a JSON string, compatible with Datadog's standard log attributes. It automatically includes tracing information (`dd.trace_id`, `dd.span_id`) if available.
+- **`DatadogJsonFormatter(logging.Formatter)`** - JSON formatter for Datadog compatibility
+  - `format(record) -> str` - Formats log records as JSON with Datadog-standard fields
 
 #### mime_helpers.py
-**Purpose:** Provides utilities for handling and classifying MIME types, with a focus on identifying which types represent text-based content.
-**Import:** `from solace_ai_connector.common.utils.mime_helpers import is_text_based_mime_type, TEXT_CONTAINER_MIME_TYPES`
+**Purpose:** Utilities for handling and classifying MIME types, focusing on text-based content identification
+**Import:** `from solace_ai_connector.common.utils.mime_helpers import is_text_based_mime_type, is_text_based_file, TEXT_CONTAINER_MIME_TYPES`
 
 **Classes/Functions/Constants:**
-*   `is_text_based_mime_type(mime_type: Optional[str]) -> bool`: Returns `True` if the MIME type starts with `text/` or is in the list of known text-based application types (like `application/json`).
-*   `TEXT_CONTAINER_MIME_TYPES: Set[str]`: A set of non-`text/*` MIME types that are considered to contain text (e.g., `application/json`, `application/yaml`).
+- `is_text_based_mime_type(mime_type: Optional[str]) -> bool` - Check if MIME type represents text content
+- `is_text_based_file(mime_type: Optional[str], content_bytes: Optional[bytes] = None) -> bool` - Advanced text detection with content analysis
+- `TEXT_CONTAINER_MIME_TYPES: Set[str]` - Set of non-text/* MIME types that contain text (JSON, XML, etc.)
 
 #### push_notification_auth.py
-**Purpose:**
+**Purpose:** JWT-based authentication system for secure push notification sending and receiving
+**Import:** `from solace_ai_connector.common.utils.push_notification_auth import PushNotificationSenderAuth, PushNotificationReceiverAuth`
+
+**Classes/Functions/Constants:**
+- **`PushNotificationSenderAuth`** - Handles sending authenticated notifications
+  - `generate_jwk() -> None` - Generate RSA key pair for signing
+  - `handle_jwks_endpoint(request: Request) -> JSONResponse` - Serve public keys endpoint
+  - `send_push_notification(url: str, data: dict) -> None` - Send authenticated notification
+  - `verify_push_notification_url(url: str) -> bool` - Verify notification endpoint
+- **`PushNotificationReceiverAuth`** - Handles receiving and verifying notifications
+  - `load_jwks(jwks_url: str) -> None` - Load public keys from JWKS endpoint
+  - `verify_push_notification(request: Request) -> bool` - Verify incoming notification
+
+### Subdirectory APIs
+
+#### embeds/
+**Purpose:** Comprehensive system for processing embedded dynamic expressions using `«...»` syntax with support for math, datetime, UUIDs, and artifact content with transformation pipelines
+**Key Exports:** Main resolution functions, evaluators, and constants for embed processing
+**Import Examples:**
+```python
+from solace_ai_connector.common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed, EMBED_REGEX
+from solace_ai_connector.common.utils.embeds.constants import EARLY_EMBED_TYPES, LATE_EMBED_TYPES
+from solace_ai_connector.common.utils.embeds.types import DataFormat
+```
+
+## Complete Usage Guide
+
+### 1. Basic Utility Usage
+
+#### MIME Type Classification
+```python
+from solace_ai_connector.common.utils import is_text_based_mime_type
+from solace_ai_connector.common.utils.mime_helpers import is_text_based_file, TEXT_CONTAINER_MIME_TYPES
+
+# Basic MIME type checking
+if is_text_based_mime_type("application/json"):
+    print("JSON is text-based")
+
+# Advanced file content analysis
+content = b'{"key": "value"}'
+if is_text_based_file("application/octet-stream", content):
+    print("Content appears to be text despite generic MIME type")
+
+# Check against known text containers
+if "application/yaml" in TEXT_CONTAINER_MIME_TYPES:
+    print("YAML is a known text container")
+```
+
+#### In-Memory Caching
+```python
+from solace_ai_connector.common.utils.in_memory_cache import InMemoryCache
+
+# Get singleton cache instance
+cache = InMemoryCache()
+
+# Store data with TTL
+cache.set("user_session", {"user_id": "123", "role": "admin"}, ttl=3600)
+cache.set("config", {"debug": True})  # No TTL - persists until cleared
+
+# Retrieve data
+session = cache.get("user_session", {})
+config = cache.get("config")
+
+# Clean up
+cache.delete("user_session")
+cache.clear()  # Remove all data
+```
+
+#### Custom Logging
+```python
+import logging
+from solace_ai_connector.common.utils.log_formatters import DatadogJsonFormatter
+
+# Set up Datadog-compatible logging
+logger = logging.getLogger("my_app")
+handler = logging.StreamHandler()
+handler.setFormatter(DatadogJsonFormatter())
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+# Log with automatic JSON formatting
+logger.info("User action completed", extra={"user_id": "123", "action": "login"})
+```
+
+### 2. Push Notification Authentication
+
+#### Sender Setup
+```python
+from solace_ai_connector.common.utils.push_notification_auth import PushNotificationSenderAuth
+from starlette.applications import Starlette
+from starlette.routing import Route
+
+# Initialize sender
+sender_auth = PushNotificationSenderAuth()
+sender_auth.generate_jwk()
+
+# Set up JWKS endpoint for clients
+app = Starlette(routes=[
+    Route("/.well-known/jwks.json", sender_auth.handle_jwks_endpoint, methods=["GET"])
+])
+
+# Send authenticated notification
+await sender_auth.send_push_notification(
+    url="https://client.example.com/webhook",
+    data={"event": "user_login", "user_id": "123", "timestamp": "2024-01-15T10:30:00Z"}
+)
+```
+
+#### Receiver Setup
+```python
+from solace_ai_connector.common.utils.push_notification_auth import PushNotificationReceiverAuth
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+
+# Initialize receiver
+receiver_auth = PushNotificationReceiverAuth()
+await receiver_auth.load_jwks("https://sender.example.com/.well-known/jwks.json")
+
+# Verify incoming notifications
+async def webhook_handler(request: Request):
+    try:
+        if await receiver_auth.verify_push_notification(request):
+            data = await request.json()
+            # Process verified notification
+            return JSONResponse({"status": "success"})
+        else:
+            return JSONResponse({"error": "Invalid authentication"}, status_code=401)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+```
+
+### 3. Embedded Expressions Processing
+
+#### Basic Embed Resolution
+```python
+from solace_ai_connector.common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed
+from solace_ai_connector.common.utils.embeds.constants import EARLY_EMBED_TYPES, LATE_EMBED_TYPES
+
+# Simple math and datetime embeds
+text = "Price: «math:10 * 1.15 | .2f», Generated: «datetime:%Y-%m-%d %H:%M», ID: «uuid:new»"
+
+context = {
+    "session_context": {"app_name": "my_app"},
+    "config": {"gateway_recursive_embed_depth": 5}
+}
+
+resolved = await resolve_embeds_recursively_in_string(
+    text=text,
+    context=context,
+    resolver_func=evaluate_embed,
+    types_to_resolve=EARLY_EMBED_TYPES,
+    log_identifier="[MyApp]",
+    config=context["config"],
+    max_depth=5
+)
+# Result: "Price: 11.50, Generated: 2024-01-15 10:30, ID: 550e8400-e29b-41d4-a716-446655440000"
+```
+
+#### Advanced Artifact Content Processing
+```python
+# Complex artifact processing with transformation chains
+template = """
+Report Summary:
+«artifact_content:sales_data.csv >>> head:10 >>> select_cols:product,revenue >>> format:text»
+
+Top Products (JSON):
+«artifact_content:sales_data.csv >>> jsonpath:$[?(@.revenue > 1000)] >>> select_fields:product,revenue >>> format:json_pretty»
+
+Configuration:
+«artifact_content:config.json >>> jsonpath:$.database >>> format:json»
+"""
+
+context = {
+    "artifact_service": artifact_service_instance,
+    "session_context": {
+        "app_name": "sales_app",
+        "user_id": "analyst_123"
+    },
+    "config": {
+        "gateway_recursive_embed_depth": 12,
+        "gateway_max_artifact_resolve_size_bytes": 10485760
+    }
+}
+
+resolved_report = await resolve_embeds_recursively_in_string(
+    text=template,
+    context=context,
+    resolver_func=evaluate_embed,
+    types_to_resolve=EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES),
+    log_identifier="[SalesReport]",
+    config=context["config"],
+    max_depth=12
+)
+```
+
+### 4. Integrated Usage Patterns
+
+#### Request Processing Pipeline
+```python
+from solace_ai_connector.common.utils import is_text_based_mime_type
+from solace_ai_connector.common.utils.in_memory_cache import InMemoryCache
+from solace_ai_connector.common.utils.embeds import resolve_embeds_recursively_in_string
+
+async def process_request(content_type: str, template: str, context: dict):
+    cache = InMemoryCache()
+    
+    # Validate content type
+    if not is_text_based_mime_type(content_type):
+        raise ValueError(f"Unsupported content type: {content_type}")
+    
+    # Check cache first
+    cache_key = f"processed_{hash(template)}"
+    cached_result = cache.get(cache_key)
+    if cached_result:
+        return cached_result
+    
+    # Process embeds
+    result = await resolve_embeds_recursively_in_string(
+        text=template,
+        context=context,
+        resolver_func=evaluate_embed,
+        types_to_resolve=EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES),
+        log_identifier="[RequestProcessor]",
+        config=context.get("config", {}),
+        max_depth=10
+    )
+    
+    # Cache result for 5 minutes
+    cache.set(cache_key, result, ttl=300)
+    return result
+```
+
+#### Platform Compatibility Setup
+```python
+# Early in application startup
+from solace_ai_connector.common.utils import asyncio_macos_fix
+
+# The fix is applied automatically on import, but you can check status
+if asyncio_macos_fix.ensure_asyncio_compatibility():
+    print("Asyncio compatibility ensured")
+else:
+    print("Warning: Asyncio compatibility could not be ensured")
+
+# Now safe to use asyncio subprocess operations on macOS
+import asyncio
+
+async def run_subprocess():
+    process = await asyncio.create_subprocess_exec(
+        "echo", "Hello World",
+        stdout=asyncio.subprocess.PIPE
+    )
+    stdout, _ = await process.communicate()
+    return stdout.decode()
+```
+
+This comprehensive guide provides developers with everything needed to effectively use the `utils` directory, from basic utility functions to complex embedded expression processing and secure communication patterns.
+
+# content_hash: ba11166cc7e984a70b285dfab39c6fab6a0f272117ad984c7d0299b2120f8c98

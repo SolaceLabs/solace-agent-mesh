@@ -41,6 +41,15 @@
             "justMyCode": false,
         },
         {
+            "name": "SAM (with A2A proxy)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/a2a_orchestrator.yaml examples/a2a_proxy.yaml examples/webui_backend.yaml",
+            "justMyCode": false,
+        },
+        {
             "name": "Employee",
             "type": "debugpy",
             "request": "launch",
@@ -173,6 +182,18 @@
                 "PYTHONPATH": "${workspaceFolder}"
             },
             "subProcess": true
+        },
+        {
+            "name": "Python: Debug Test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "purpose": ["debug-test"],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
         },
     ]
 }

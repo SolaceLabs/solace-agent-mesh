@@ -97,13 +97,17 @@ class A2AProxyComponent(BaseProxyComponent):
         """
         Forwards an A2A request to a downstream A2A-over-HTTPS agent.
         """
-        log_identifier = f"{self.log_identifier}[ForwardRequest:{task_context.task_id}:{agent_name}]"
+        log_identifier = (
+            f"{self.log_identifier}[ForwardRequest:{task_context.task_id}:{agent_name}]"
+        )
 
         try:
             # Get or create A2AClient
             client = await self._get_or_create_a2a_client(agent_name, task_context)
             if not client:
-                raise ValueError(f"Could not create A2A client for agent '{agent_name}'")
+                raise ValueError(
+                    f"Could not create A2A client for agent '{agent_name}'"
+                )
 
             # Handle inbound artifacts
             await self._handle_inbound_artifacts(request)
@@ -123,7 +127,11 @@ class A2AProxyComponent(BaseProxyComponent):
                 )
                 await self._process_downstream_response(response, task_context, client)
             else:
-                log.warning("%s Unhandled request type for forwarding: %s", log_identifier, type(request))
+                log.warning(
+                    "%s Unhandled request type for forwarding: %s",
+                    log_identifier,
+                    type(request),
+                )
 
         except Exception as e:
             log.exception("%s Error forwarding request: %s", log_identifier, e)
@@ -131,7 +139,9 @@ class A2AProxyComponent(BaseProxyComponent):
             # and publish an error response.
             raise
 
-    async def _get_or_create_a2a_client(self, agent_name: str, task_context: "ProxyTaskContext") -> Optional[A2AClient]:
+    async def _get_or_create_a2a_client(
+        self, agent_name: str, task_context: "ProxyTaskContext"
+    ) -> Optional[A2AClient]:
         """
         Gets a cached A2AClient or creates a new one for the given agent.
         """
@@ -192,7 +202,10 @@ class A2AProxyComponent(BaseProxyComponent):
     async def _process_downstream_response(
         self,
         response: Union[
-            SendMessageResponse, SendStreamingMessageResponse, Task, TaskStatusUpdateEvent
+            SendMessageResponse,
+            SendStreamingMessageResponse,
+            Task,
+            TaskStatusUpdateEvent,
         ],
         task_context: "ProxyTaskContext",
         client: A2AClient,
@@ -200,7 +213,9 @@ class A2AProxyComponent(BaseProxyComponent):
         """
         Processes a single response from the downstream agent.
         """
-        log_identifier = f"{self.log_identifier}[ProcessResponse:{task_context.task_id}]"
+        log_identifier = (
+            f"{self.log_identifier}[ProcessResponse:{task_context.task_id}]"
+        )
 
         # Unwrap the actual event payload from the JSON-RPC response object.
         event_payload = None

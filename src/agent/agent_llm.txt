@@ -1,15 +1,15 @@
-Here is the comprehensive developer guide for the `agent` directory.
+# DEVELOPER GUIDE: agent
 
 ## Quick Summary
 The `agent` directory provides a comprehensive framework for hosting Google ADK (Agent Development Kit) agents within the Solace AI Connector ecosystem. It bridges ADK agents with the A2A (Agent-to-Agent) protocol over Solace messaging, enabling distributed agent communication, task delegation, and rich tool functionality.
 
 The architecture is modular, consisting of several key components:
-*   **`sac/` (Solace AI Connector):** The main entry point, providing the `SamAgentApp` and `SamAgentComponent` to host the agent and manage its lifecycle and communication over the Solace event mesh.
-*   **`adk/` (Agent Development Kit):** The core integration layer with Google's ADK. It defines the custom `AppLlmAgent`, manages asynchronous task execution, and provides a rich set of callbacks to augment agent behavior.
-*   **`tools/`:** A comprehensive and extensible library of tools available to the agent, covering data analysis, artifact management, web requests, multimedia processing, and inter-agent communication.
-*   **`protocol/`:** The underlying implementation of the A2A (Agent-to-Agent) communication protocol, handling message routing and event processing.
-*   **`utils/`:** A collection of helper modules for common tasks like artifact management, configuration parsing, and context handling.
-*   **`testing/`:** Utilities to aid in debugging and testing custom agent implementations.
+- **`sac/` (Solace AI Connector):** The main entry point, providing the `SamAgentApp` and `SamAgentComponent` to host the agent and manage its lifecycle and communication over the Solace event mesh.
+- **`adk/` (Agent Development Kit):** The core integration layer with Google's ADK. It defines the custom `AppLlmAgent`, manages asynchronous task execution, and provides a rich set of callbacks to augment agent behavior.
+- **`tools/`:** A comprehensive and extensible library of tools available to the agent, covering data analysis, artifact management, web requests, multimedia processing, and inter-agent communication.
+- **`protocol/`:** The underlying implementation of the A2A (Agent-to-Agent) communication protocol, handling message routing and event processing.
+- **`utils/`:** A collection of helper modules for common tasks like artifact management, configuration parsing, and context handling.
+- **`testing/`:** Utilities to aid in debugging and testing custom agent implementations.
 
 These components work together to create a robust environment where an ADK agent can be configured with specific instructions and tools, communicate with other agents, and execute complex tasks in a distributed, event-driven manner.
 
@@ -38,4 +38,324 @@ These components work together to create a robust environment where an ADK agent
 
 #### adk/
 **Purpose:** Provides the core integration layer between the Solace AI Connector and Google's ADK.
-**Key Exports:** `App
+**Key Exports:** `AppLlmAgent`, `initialize_adk_agent`, `initialize_adk_runner`, `load_adk_tools`, `FilesystemArtifactService`, `LiteLlm`
+**Import Examples:**
+```python
+from agent.adk.app_llm_agent import AppLlmAgent
+from agent.adk.setup import load_adk_tools, initialize_adk_agent, initialize_adk_runner
+from agent.adk.filesystem_artifact_service import FilesystemArtifactService
+from agent.adk.models.lite_llm import LiteLlm
+from agent.adk.runner import run_adk_async_task_thread_wrapper
+```
+
+#### protocol/
+**Purpose:** Implements the core A2A protocol event handling and message routing.
+**Key Exports:** `process_event`, `handle_a2a_request`, `handle_agent_card_message`, `publish_agent_card`
+**Import Examples:**
+```python
+from agent.protocol.event_handlers import process_event, handle_a2a_request, publish_agent_card
+```
+
+#### sac/
+**Purpose:** Provides the Solace AI Connector app and component for hosting ADK agents.
+**Key Exports:** `SamAgentApp`, `SamAgentComponent`, `TaskExecutionContext`
+**Import Examples:**
+```python
+from agent.sac.app import SamAgentApp
+from agent.sac.component import SamAgentComponent
+from agent.sac.task_execution_context import TaskExecutionContext
+```
+
+#### testing/
+**Purpose:** Provides debugging utilities for testing agent implementations.
+**Key Exports:** `pretty_print_event_history`
+**Import Examples:**
+```python
+from agent.testing.debug_utils import pretty_print_event_history
+```
+
+#### tools/
+**Purpose:** Comprehensive registry-based tool library for AI agents.
+**Key Exports:** `tool_registry`, `BuiltinTool`, `PeerAgentTool`, and various tool functions
+**Import Examples:**
+```python
+from agent.tools.registry import tool_registry
+from agent.tools.tool_definition import BuiltinTool
+from agent.tools.peer_agent_tool import PeerAgentTool
+from agent.tools.builtin_artifact_tools import list_artifacts, load_artifact
+from agent.tools.audio_tools import text_to_speech
+from agent.tools.image_tools import create_image_from_description
+```
+
+#### utils/
+**Purpose:** Helper utilities for artifact management, configuration, and context handling.
+**Key Exports:** Artifact helpers, config parsers, and context utilities
+**Import Examples:**
+```python
+from agent.utils.artifact_helpers import save_artifact_with_metadata, load_artifact_content_or_metadata
+from agent.utils.config_parser import resolve_instruction_provider
+from agent.utils.context_helpers import get_session_from_callback_context
+```
+
+## Complete Usage Guide
+
+### 1. Setting Up a Complete Agent
+
+```python
+from agent.sac.app import SamAgentApp
+from agent.sac.component import SamAgentComponent
+from agent.adk.setup import load_adk_tools, initialize_adk_agent, initialize_adk_runner
+from agent.adk.services import initialize_session_service, initialize_artifact_service, initialize_memory_service
+from agent.adk.models.lite_llm import LiteLlm
+
+# Create the SAC app (typically done via YAML config)
+app = SamAgentApp({
+    "namespace": "my-org/production",
+    "agent_name": "customer-support-agent",
+    "model": "gpt-4-turbo",
+    "tools": [
+        {"tool_type": "builtin", "tool_name": "list_artifacts"},
+        {"tool_type": "builtin", "tool_name": "text_to_speech"}
+    ]
+})
+
+# Initialize component
+component = SamAgentComponent()
+
+# Initialize services
+session_service = initialize_session_service(component)
+artifact_service = initialize_artifact_service(component)
+memory_service = initialize_memory_service(component)
+
+# Load tools and initialize agent
+loaded_tools, builtin_tools = await load_adk_tools(component)
+agent = initialize_adk_agent(component, loaded_tools, builtin_tools)
+runner = initialize_adk_runner(component)
+```
+
+### 2. Creating Custom Tools
+
+```python
+from agent.tools.tool_definition import BuiltinTool
+from agent.tools.registry import tool_registry
+from google.genai import types as adk_types
+
+# Define a custom tool function
+async def my_custom_tool(query: str, tool_context=None, tool_config=None):
+    """Processes a custom query and returns results."""
+    # Access host component if needed
+    host_component = tool_context.host_component if tool_context else None
+    
+    # Your custom logic here
+    result = f"Processed: {query}"
+    
+    return {"result": result, "status": "success"}
+
+# Create tool definition
+custom_tool = BuiltinTool(
+    name="my_custom_tool",
+    implementation=my_custom_tool,
+    description="A custom tool that processes queries",
+    parameters=adk_types.Schema(
+        type=adk_types.Type.OBJECT,
+        properties={
+            "query": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="The query to process"
+            )
+        },
+        required=["query"]
+    ),
+    category="custom"
+)
+
+# Register the tool
+tool_registry.register(custom_tool)
+```
+
+### 3. Working with Artifacts
+
+```python
+from agent.utils.artifact_helpers import save_artifact_with_metadata, load_artifact_content_or_metadata
+from agent.tools.builtin_artifact_tools import list_artifacts, load_artifact
+import datetime
+
+# Save an artifact with metadata
+csv_data = b"name,age\nAlice,30\nBob,25"
+result = await save_artifact_with_metadata(
+    artifact_service=artifact_service,
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456",
+    filename="employee_data.csv",
+    content_bytes=csv_data,
+    mime_type="text/csv",
+    metadata_dict={
+        "source": "hr_system",
+        "description": "Employee demographics",
+        "created_by": "data_import_tool"
+    },
+    timestamp=datetime.datetime.now(datetime.timezone.utc)
+)
+
+# List all artifacts using the tool
+artifacts_list = await list_artifacts(tool_context=tool_context)
+
+# Load specific artifact
+loaded_artifact = await load_artifact(
+    filename="employee_data.csv",
+    version=1,
+    tool_context=tool_context
+)
+```
+
+### 4. Agent-to-Agent Communication
+
+```python
+from agent.tools.peer_agent_tool import PeerAgentTool
+from common.types import A2AMessage, TextPart
+
+# Create a peer agent tool for delegation
+peer_tool = PeerAgentTool(
+    target_agent_name="data_analyst_agent",
+    host_component=component
+)
+
+# Submit a task to another agent (typically done by the LLM)
+async def delegate_analysis_task(component, data_description):
+    message = A2AMessage(
+        role="user",
+        parts=[TextPart(text=f"Please analyze this data: {data_description}")]
+    )
+    
+    sub_task_id = component.submit_a2a_task(
+        target_agent_name="data_analyst_agent",
+        a2a_message=message,
+        original_session_id="session123",
+        main_logical_task_id="task456",
+        user_id="user789",
+        user_config={},
+        sub_task_id="analysis_001"
+    )
+    return sub_task_id
+```
+
+### 5. Multimedia Processing
+
+```python
+from agent.tools.audio_tools import text_to_speech, multi_speaker_text_to_speech
+from agent.tools.image_tools import create_image_from_description, describe_image
+
+# Generate audio from text
+audio_result = await text_to_speech(
+    text="Welcome to our customer service. How can I help you today?",
+    output_filename="greeting.mp3",
+    gender="female",
+    tone="friendly",
+    language="en-US",
+    tool_context=tool_context
+)
+
+# Create multi-speaker conversation
+conversation_result = await multi_speaker_text_to_speech(
+    conversation_text="Agent: How can I help?\nCustomer: I need account information.",
+    speaker_configs=[
+        {"name": "Agent", "gender": "female", "tone": "professional"},
+        {"name": "Customer", "gender": "male", "tone": "neutral"}
+    ],
+    tool_context=tool_context
+)
+
+# Generate image
+image_result = await create_image_from_description(
+    image_description="A professional customer service representative at a modern desk",
+    output_filename="service_rep.png",
+    tool_context=tool_context
+)
+
+# Analyze existing image
+description = await describe_image(
+    image_filename="uploaded_document.jpg",
+    prompt="Extract all text and identify the document type",
+    tool_context=tool_context
+)
+```
+
+### 6. Event Processing and Protocol Handling
+
+```python
+from agent.protocol.event_handlers import process_event, publish_agent_card
+from solace_ai_connector.common.event import Event, EventType
+
+# Process incoming events (typically handled by the framework)
+async def handle_incoming_event(component, event):
+    await process_event(component, event)
+
+# Publish agent capabilities
+publish_agent_card(component)
+```
+
+### 7. Testing and Debugging
+
+```python
+from agent.testing.debug_utils import pretty_print_event_history
+from agent.adk.invocation_monitor import InvocationMonitor
+
+# Set up monitoring for debugging
+monitor = InvocationMonitor()
+
+# Log events during testing
+monitor.log_message_event(
+    direction="inbound",
+    topic="a2a/v1/agent/request/MyAgent",
+    payload={"method": "tasks/sendSubscribe", "params": {...}},
+    component_identifier="MyAgent"
+)
+
+# Debug test failures
+def test_agent_behavior():
+    event_history = []
+    try:
+        # Your test code here
+        pass
+    except AssertionError:
+        pretty_print_event_history(event_history)
+        raise
+    finally:
+        monitor.cleanup()
+```
+
+### 8. Custom Configuration and Initialization
+
+```python
+from agent.utils.config_parser import resolve_instruction_provider
+from agent.utils.context_helpers import get_session_from_callback_context
+
+# Custom initialization function
+def initialize_my_agent(host_component, config):
+    """Custom agent initialization."""
+    # Set up database connection
+    db_config = config.get('database', {})
+    db_connection = create_database_connection(db_config)
+    host_component.set_agent_specific_state('db_connection', db_connection)
+    
+    # Configure dynamic instructions
+    def dynamic_instructions(context):
+        user_id = context.get('user_id', 'unknown')
+        return f"You are a customer service agent helping user {user_id}."
+    
+    host_component.set_agent_system_instruction_callback(dynamic_instructions)
+
+# Use in tool functions
+async def database_query_tool(query: str, tool_context=None):
+    """Tool that queries the database."""
+    if tool_context and tool_context.host_component:
+        db_connection = tool_context.host_component.get_agent_specific_state('db_connection')
+        if db_connection:
+            return db_connection.execute(query)
+    return {"error": "Database not available"}
+```
+
+This comprehensive guide demonstrates how all components of the `agent` directory work together to create a powerful, distributed AI agent system that can handle complex tasks, communicate with other agents, process multimedia content, and maintain rich state and artifact management.
+
+# content_hash: b3bf3006eccb057ecef51660d32a4e3a95efd6c563dff669b4151baa89cb70e4

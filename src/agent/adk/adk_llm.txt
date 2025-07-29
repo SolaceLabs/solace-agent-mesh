@@ -1,4 +1,4 @@
-Here is the comprehensive developer guide for the `adk` directory.
+# DEVELOPER GUIDE: adk
 
 ## Quick Summary
 The `adk` directory serves as the core integration layer between the Solace AI Connector framework and Google's Agent Development Kit (ADK). It provides the essential components for building, configuring, and running sophisticated AI agents within a Solace messaging environment.
@@ -90,4 +90,228 @@ Once initialized, the `AppLlmAgent` (a custom agent class) is managed by the `ru
 **Classes/Functions/Constants:**
 - `async load_adk_tools(component) -> Tuple[...]`: Loads all configured tools, including Python functions, MCP tools, and built-ins, wrapping them with `ADKToolWrapper`.
 - `initialize_adk_agent(component, loaded_explicit_tools, ...)`: Creates an `AppLlmAgent` instance, assigns all the necessary callbacks from `callbacks.py`, and attaches the tools.
-- `initialize_adk_
+- `initialize_adk_runner(component)`: Creates an ADK `Runner` instance that orchestrates the agent execution.
+
+#### stream_parser.py
+**Purpose:** A stateful parser for extracting fenced artifact blocks from streaming LLM responses.
+**Import:** `from agent.adk.stream_parser import FencedBlockStreamParser, BlockStartedEvent, BlockCompletedEvent`
+
+**Classes/Functions/Constants:**
+- `FencedBlockStreamParser(progress_update_interval_bytes: int = 4096)`: Parses streaming text to identify artifact blocks.
+  - `process_chunk(text_chunk: str) -> ParserResult`: Processes a chunk of streaming text.
+  - `finalize() -> ParserResult`: Finalizes parsing at the end of a stream.
+- `BlockStartedEvent`, `BlockCompletedEvent`, `BlockInvalidatedEvent`: Events emitted during parsing.
+
+#### tool_wrapper.py
+**Purpose:** A wrapper that makes Python functions compatible with ADK by handling embed resolution and configuration injection.
+**Import:** `from agent.adk.tool_wrapper import ADKToolWrapper`
+
+**Classes/Functions/Constants:**
+- `ADKToolWrapper(original_func, tool_config, tool_name, raw_string_args=None)`: Wraps a Python function for ADK compatibility.
+  - `async __call__(*args, **kwargs)`: Executes the wrapped function with embed resolution and error handling.
+
+### Subdirectory APIs
+
+#### models/
+**Purpose:** Contains concrete LLM client implementations that interface with various model providers.
+**Key Exports:** `LiteLlm` class for accessing hundreds of models through the `litellm` library.
+**Import Examples:**
+```python
+from agent.adk.models.lite_llm import LiteLlm
+```
+
+## Complete Usage Guide
+
+### 1. Basic Agent Setup
+
+```python
+from agent.adk.setup import load_adk_tools, initialize_adk_agent, initialize_adk_runner
+from agent.adk.services import initialize_session_service, initialize_artifact_service, initialize_memory_service
+from agent.adk.models.lite_llm import LiteLlm
+
+# Initialize services
+session_service = initialize_session_service(component)
+artifact_service = initialize_artifact_service(component)
+memory_service = initialize_memory_service(component)
+
+# Load tools
+loaded_tools, builtin_tools = await load_adk_tools(component)
+
+# Initialize agent
+agent = initialize_adk_agent(component, loaded_tools, builtin_tools)
+
+# Initialize runner
+runner = initialize_adk_runner(component)
+```
+
+### 2. Custom LLM Configuration
+
+```python
+from agent.adk.models.lite_llm import LiteLlm
+
+# Configure LiteLlm for different providers
+openai_model = LiteLlm(
+    model="gpt-4-turbo",
+    temperature=0.7,
+    max_tokens=2048
+)
+
+anthropic_model = LiteLlm(
+    model="claude-3-opus-20240229",
+    temperature=0.5
+)
+
+vertex_model = LiteLlm(
+    model="vertex_ai/gemini-pro",
+    temperature=0.3
+)
+```
+
+### 3. Artifact Service Usage
+
+```python
+from agent.adk.filesystem_artifact_service import FilesystemArtifactService
+from google.genai import types as adk_types
+
+# Initialize filesystem artifact service
+artifact_service = FilesystemArtifactService(
+    base_path="/path/to/artifacts",
+    scope_identifier="my_agent"
+)
+
+# Save an artifact
+content = b"Hello, world!"
+artifact = adk_types.Part.from_bytes(content, "text/plain")
+version = await artifact_service.save_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456",
+    filename="greeting.txt",
+    artifact=artifact
+)
+
+# Load an artifact
+loaded_artifact = await artifact_service.load_artifact(
+    app_name="my_app",
+    user_id="user123", 
+    session_id="session456",
+    filename="greeting.txt",
+    version=version
+)
+```
+
+### 4. Tool Wrapper Usage
+
+```python
+from agent.adk.tool_wrapper import ADKToolWrapper
+
+def my_custom_tool(query: str, tool_config: dict = None):
+    """A custom tool that processes queries."""
+    return {"result": f"Processed: {query}"}
+
+# Wrap the tool for ADK compatibility
+wrapped_tool = ADKToolWrapper(
+    original_func=my_custom_tool,
+    tool_config={"setting": "value"},
+    tool_name="my_custom_tool"
+)
+
+# The wrapper handles embed resolution and error handling automatically
+```
+
+### 5. Running Agent Tasks
+
+```python
+from agent.adk.runner import run_adk_async_task_thread_wrapper
+from google.genai import types as adk_types
+from google.adk.agents import RunConfig
+
+# Create input content
+content = adk_types.Content(
+    role="user",
+    parts=[adk_types.Part.from_text("Hello, how can you help me?")]
+)
+
+# Configure run parameters
+run_config = RunConfig(
+    max_llm_calls=10,
+    max_tool_calls=20
+)
+
+# Execute the task
+await run_adk_async_task_thread_wrapper(
+    component=component,
+    adk_session=session,
+    adk_content=content,
+    run_config=run_config,
+    a2a_context={"logical_task_id": "task123"}
+)
+```
+
+### 6. Monitoring and Debugging
+
+```python
+from agent.adk.invocation_monitor import InvocationMonitor
+
+# Initialize monitor
+monitor = InvocationMonitor()
+
+# Log message events
+monitor.log_message_event(
+    direction="inbound",
+    topic="a2a/v1/agent/request/MyAgent",
+    payload={"method": "tasks/sendSubscribe", "params": {...}},
+    component_identifier="MyAgent"
+)
+
+# Cleanup when done
+monitor.cleanup()
+```
+
+### 7. Custom Callbacks
+
+```python
+from agent.adk import callbacks
+import functools
+
+# Use built-in callbacks with component reference
+dynamic_instructions_callback = functools.partial(
+    callbacks.inject_dynamic_instructions_callback,
+    host_component=component,
+    active_builtin_tools=builtin_tools
+)
+
+# Assign to agent
+agent.before_model_callback = dynamic_instructions_callback
+```
+
+### 8. Working with Streaming Responses
+
+```python
+from agent.adk.stream_parser import FencedBlockStreamParser
+
+# Initialize parser for artifact blocks
+parser = FencedBlockStreamParser(progress_update_interval_bytes=1024)
+
+# Process streaming chunks
+for chunk in llm_stream:
+    result = parser.process_chunk(chunk)
+    
+    # Handle user-facing text
+    if result.user_facing_text:
+        print(result.user_facing_text, end="")
+    
+    # Handle parser events
+    for event in result.events:
+        if isinstance(event, BlockStartedEvent):
+            print(f"Artifact started: {event.params}")
+        elif isinstance(event, BlockCompletedEvent):
+            print(f"Artifact completed: {event.params}")
+
+# Finalize at end of stream
+final_result = parser.finalize()
+```
+
+This comprehensive guide shows how the various components of the `adk` directory work together to create a powerful, extensible AI agent framework that integrates seamlessly with Solace messaging and supports a wide variety of LLM providers and tools.
+
+# content_hash: 17e0a9a7d0e60610a97ba81b7966cec2ac26232a286206c3269727499500d4ba

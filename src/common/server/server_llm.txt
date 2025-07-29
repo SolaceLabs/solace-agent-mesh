@@ -1,169 +1,163 @@
+# DEVELOPER GUIDE for server
+
 ## Quick Summary
-The `server` directory provides a complete, stand-alone Agent-to-Agent (A2A) communication server. It is built using Starlette and implements the JSON-RPC 2.0 protocol for handling various task-related requests, including standard request-response, task streaming via Server-Sent Events (SSE), and push notification management. It features an extensible task management system with a default in-memory implementation.
+The `server` directory provides a complete Agent-to-Agent (A2A) communication server built on Starlette that implements JSON-RPC 2.0 protocol. It handles task management, streaming responses via Server-Sent Events (SSE), push notifications, and agent discovery through standardized endpoints.
 
 ## Files Overview
-- `__init__.py`: Exposes the primary public classes (`A2AServer`, `TaskManager`, `InMemoryTaskManager`) for easy access.
-- `server.py`: Contains the main `A2AServer` class, which sets up the Starlette web application, defines HTTP endpoints, and routes incoming A2A requests to the task manager.
-- `task_manager.py`: Defines the `TaskManager` abstract base class, which outlines the contract for handling all task operations, and provides a concrete `InMemoryTaskManager` implementation.
-- `utils.py`: A collection of utility functions for creating standardized error responses and checking modality compatibility.
+- `__init__.py` - Exposes main public classes for easy importing
+- `server.py` - Core A2A HTTP server implementation with JSON-RPC request routing
+- `task_manager.py` - Abstract task management interface and in-memory implementation
+- `utils.py` - Utility functions for error responses and modality compatibility checks
 
 ## Developer API Reference
 
 ### __init__.py
-**Purpose:** This file makes the core server components available for direct import from the `server` package, simplifying access for developers.
+**Purpose:** Provides convenient access to the main server components
 **Import:** `from solace_ai_connector.common.server import A2AServer, TaskManager, InMemoryTaskManager`
 
----
-
 ### server.py
-**Purpose:** Implements the core HTTP server for Agent-to-Agent (A2A) communication. It handles JSON-RPC request parsing, routing to the appropriate task manager methods, and response generation, including support for Server-Sent Events (SSE).
+**Purpose:** Main HTTP server that handles A2A communication via JSON-RPC 2.0 protocol
 **Import:** `from solace_ai_connector.common.server import A2AServer`
 
 **Classes:**
-- `A2AServer(host: str = "0.0.0.0", port: int = 5000, endpoint: str = "/", agent_card: AgentCard = None, task_manager: TaskManager = None)` - A Starlette-based web server that exposes A2A endpoints.
-  - `start() -> None` - Starts the web server using uvicorn. Raises a `ValueError` if `agent_card` or `task_manager` are not set.
-  - `host: str` - The host address the server will bind to.
-  - `port: int` - The port the server will listen on.
-  - `endpoint: str` - The main API endpoint path for receiving JSON-RPC requests.
-  - `task_manager: TaskManager` - The handler responsible for all task-related business logic.
-  - `agent_card: AgentCard` - The metadata for the agent, served at `/.well-known/agent.json`.
-  
+- `A2AServer(host: str = "0.0.0.0", port: int = 5000, endpoint: str = "/", agent_card: AgentCard = None, task_manager: TaskManager = None)` - Starlette-based web server for A2A communication
+  - `start() -> None` - Starts the uvicorn server (raises ValueError if agent_card or task_manager not set)
+  - `host: str` - Server bind address
+  - `port: int` - Server port number
+  - `endpoint: str` - Main API endpoint path
+  - `agent_card: AgentCard` - Agent metadata served at `/.well-known/agent.json`
+  - `task_manager: TaskManager` - Handler for task operations
+
 **Usage Examples:**
 ```python
-# main.py
 from solace_ai_connector.common.server import A2AServer, InMemoryTaskManager
 from solace_ai_connector.common.types import AgentCard
 
-# 1. Define the agent's capabilities and metadata
-my_agent_card = AgentCard(
-    id="my-awesome-agent-v1",
-    name="Awesome Agent",
+# Create agent metadata
+agent_card = AgentCard(
+    id="my-agent-v1",
+    name="My Agent",
     version="1.0.0",
-    description="An agent that does awesome things.",
-    documentation_url="https://example.com/docs",
-    supported_tasks=["summarize", "translate"],
+    description="A sample agent",
+    supported_tasks=["summarize"],
     input_modalities=["text/plain"],
     output_modalities=["text/plain"]
 )
 
-# 2. Instantiate a task manager (or use your own custom implementation)
-# This example uses a basic in-memory manager.
-# For a real agent, you would extend InMemoryTaskManager to implement your logic.
-class MyAgentTaskManager(InMemoryTaskManager):
+# Create custom task manager
+class MyTaskManager(InMemoryTaskManager):
     async def on_send_task(self, request):
-        # Implement your agent's logic here
-        pass
-    async def on_send_task_subscribe(self, request):
-        # Implement your agent's streaming logic here
-        pass
+        # Your agent logic here
+        task = await self.upsert_task(request.params)
+        # Process task...
+        return SendTaskResponse(id=request.id, result=task)
 
-task_manager = MyAgentTaskManager()
-
-# 3. Create and configure the server
+# Start server
 server = A2AServer(
     host="127.0.0.1",
     port=8080,
-    endpoint="/api/v1/a2a",
-    agent_card=my_agent_card,
-    task_manager=task_manager
+    agent_card=agent_card,
+    task_manager=MyTaskManager()
 )
-
-# 4. Start the server
-if __name__ == "__main__":
-    print("Starting A2A Server...")
-    server.start()
+server.start()
 ```
 
----
-
 ### task_manager.py
-**Purpose:** Defines the abstract interface for task management and provides a ready-to-use, in-memory implementation. This is the core component for implementing an agent's business logic.
+**Purpose:** Defines task management interface and provides in-memory implementation
 **Import:** `from solace_ai_connector.common.server import TaskManager, InMemoryTaskManager`
 
 **Classes:**
-- `TaskManager()` - An abstract base class that defines the interface for handling all A2A task-related operations. Developers must implement these methods in a subclass.
-  - `on_get_task(request: GetTaskRequest) -> GetTaskResponse` - Handles a request to retrieve the status and details of a task.
-  - `on_cancel_task(request: CancelTaskRequest) -> CancelTaskResponse` - Handles a request to cancel an ongoing task.
-  - `on_send_task(request: SendTaskRequest) -> SendTaskResponse` - Handles a standard request-response task submission.
-  - `on_send_task_subscribe(request: SendTaskStreamingRequest) -> Union[AsyncIterable[SendTaskStreamingResponse], JSONRPCResponse]` - Handles a task submission that requires a streaming response (SSE).
-  - `on_set_task_push_notification(request: SetTaskPushNotificationRequest) -> SetTaskPushNotificationResponse` - Handles a request to configure push notifications for a task.
-  - `on_get_task_push_notification(request: GetTaskPushNotificationRequest) -> GetTaskPushNotificationResponse` - Handles a request to retrieve the push notification configuration for a task.
-  - `on_resubscribe_to_task(request: TaskResubscriptionRequest) -> Union[AsyncIterable[SendTaskResponse], JSONRPCResponse]` - Handles a request to resubscribe to a streaming task.
+- `TaskManager()` - Abstract base class defining task management interface
+  - `on_get_task(request: GetTaskRequest) -> GetTaskResponse` - Retrieve task status and details
+  - `on_cancel_task(request: CancelTaskRequest) -> CancelTaskResponse` - Cancel an ongoing task
+  - `on_send_task(request: SendTaskRequest) -> SendTaskResponse` - Handle standard task submission
+  - `on_send_task_subscribe(request: SendTaskStreamingRequest) -> Union[AsyncIterable[SendTaskStreamingResponse], JSONRPCResponse]` - Handle streaming task submission
+  - `on_set_task_push_notification(request: SetTaskPushNotificationRequest) -> SetTaskPushNotificationResponse` - Configure push notifications
+  - `on_get_task_push_notification(request: GetTaskPushNotificationRequest) -> GetTaskPushNotificationResponse` - Get push notification config
+  - `on_resubscribe_to_task(request: TaskResubscriptionRequest) -> Union[AsyncIterable[SendTaskResponse], JSONRPCResponse]` - Resubscribe to streaming task
 
-- `InMemoryTaskManager()` - A concrete implementation of `TaskManager` that stores tasks and push notification configurations in memory. It provides helper methods to manage task state and SSE subscriptions. It is designed to be extended.
-  - `upsert_task(task_send_params: TaskSendParams) -> Task` - Creates a new task or retrieves an existing one by its ID, adding the new message to its history.
-  - `update_store(task_id: str, status: TaskStatus, artifacts: list[Artifact]) -> Task` - Updates the status, message history, and artifacts of a specific task.
-  - `set_push_notification_info(task_id: str, notification_config: PushNotificationConfig) -> None` - Stores the push notification configuration for a given task.
-  - `get_push_notification_info(task_id: str) -> PushNotificationConfig` - Retrieves the push notification configuration for a given task.
-  - `has_push_notification_info(task_id: str) -> bool` - Checks if a push notification configuration exists for a task.
-  - `setup_sse_consumer(task_id: str, is_resubscribe: bool = False) -> asyncio.Queue` - Creates and registers an `asyncio.Queue` for a new SSE subscriber for a given task.
-  - `enqueue_events_for_sse(task_id: str, task_update_event: Any) -> None` - Puts a new event (e.g., `TaskStatusUpdateEvent`) into the queues of all active SSE subscribers for a task.
-  - `dequeue_events_for_sse(request_id: str, task_id: str, sse_event_queue: asyncio.Queue) -> AsyncIterable[SendTaskStreamingResponse]` - An async generator that yields events from an SSE queue, wrapping them in `SendTaskStreamingResponse` objects.
+- `InMemoryTaskManager()` - Concrete implementation with in-memory storage and SSE support
+  - `upsert_task(task_send_params: TaskSendParams) -> Task` - Create or update task with new message
+  - `update_store(task_id: str, status: TaskStatus, artifacts: list[Artifact]) -> Task` - Update task status and artifacts
+  - `set_push_notification_info(task_id: str, notification_config: PushNotificationConfig) -> None` - Store push notification config
+  - `get_push_notification_info(task_id: str) -> PushNotificationConfig` - Retrieve push notification config
+  - `has_push_notification_info(task_id: str) -> bool` - Check if push notification config exists
+  - `setup_sse_consumer(task_id: str, is_resubscribe: bool = False) -> asyncio.Queue` - Create SSE subscriber queue
+  - `enqueue_events_for_sse(task_id: str, task_update_event: Any) -> None` - Send event to all SSE subscribers
+  - `dequeue_events_for_sse(request_id: str, task_id: str, sse_event_queue: asyncio.Queue) -> AsyncIterable[SendTaskStreamingResponse]` - Async generator for SSE events
 
 **Usage Examples:**
 ```python
-# custom_task_manager.py
 import asyncio
 from solace_ai_connector.common.server import InMemoryTaskManager
 from solace_ai_connector.common.types import (
-    SendTaskRequest, SendTaskResponse, Task, TaskStatus, TaskState,
-    SendTaskStreamingRequest, SendTaskStreamingResponse, TaskStatusUpdateEvent
+    SendTaskRequest, SendTaskResponse, TaskStatus, TaskState,
+    SendTaskStreamingRequest, TaskStatusUpdateEvent
 )
-from typing import AsyncIterable, Union
 
-class MyCustomTaskManager(InMemoryTaskManager):
-    # Implement the core logic for a standard task
+class MyTaskManager(InMemoryTaskManager):
     async def on_send_task(self, request: SendTaskRequest) -> SendTaskResponse:
+        # Create/update task
         task = await self.upsert_task(request.params)
-        print(f"Received task {task.id} with message: {request.params.message.content}")
         
-        # Simulate work
-        await asyncio.sleep(2)
+        # Process task (your logic here)
+        result = f"Processed: {request.params.message.content}"
         
-        # Update task status to completed
-        final_status = TaskStatus(state=TaskState.COMPLETED)
-        await self.update_store(task.id, final_status, [])
+        # Update task as completed
+        status = TaskStatus(state=TaskState.COMPLETED)
+        await self.update_store(task.id, status, [])
         
         return SendTaskResponse(id=request.id, result=task)
 
-    # Implement the core logic for a streaming task
-    async def on_send_task_subscribe(
-        self, request: SendTaskStreamingRequest
-    ) -> Union[AsyncIterable[SendTaskStreamingResponse], JSONRPCResponse]:
-        
+    async def on_send_task_subscribe(self, request: SendTaskStreamingRequest):
         await self.upsert_task(request.params)
         sse_queue = await self.setup_sse_consumer(request.params.id)
-
-        # Start the background task processing
-        asyncio.create_task(self._process_streaming_task(request.params.id))
-
-        # Return the async generator that will stream responses
+        
+        # Start background processing
+        asyncio.create_task(self._process_streaming(request.params.id))
+        
+        # Return SSE generator
         return self.dequeue_events_for_sse(request.id, request.params.id, sse_queue)
-
-    async def _process_streaming_task(self, task_id: str):
-        # Simulate streaming work
-        for i in range(5):
+    
+    async def _process_streaming(self, task_id: str):
+        for i in range(3):
             await asyncio.sleep(1)
-            update = TaskStatusUpdateEvent(
+            event = TaskStatusUpdateEvent(
                 status=TaskStatus(state=TaskState.IN_PROGRESS),
                 message={"content": f"Step {i+1} complete"}
             )
-            # Enqueue the update for all subscribers
-            await self.enqueue_events_for_sse(task_id, update)
+            await self.enqueue_events_for_sse(task_id, event)
         
-        # Send final event
-        final_update = TaskStatusUpdateEvent(
+        # Final event
+        final_event = TaskStatusUpdateEvent(
             status=TaskStatus(state=TaskState.COMPLETED),
             final=True
         )
-        await self.enqueue_events_for_sse(task_id, final_update)
+        await self.enqueue_events_for_sse(task_id, final_event)
 ```
 
----
-
 ### utils.py
-**Purpose:** Provides common utility functions used within the server, primarily for creating standardized JSON-RPC error responses and performing compatibility checks.
+**Purpose:** Utility functions for error handling and compatibility checks
 **Import:** `from solace_ai_connector.common.server.utils import are_modalities_compatible, new_incompatible_types_error, new_not_implemented_error`
 
 **Functions:**
-- `are_modalities_compatible(server_output_
+- `are_modalities_compatible(server_output_modes: List[str], client_output_modes: List[str]) -> bool` - Check if modality lists have common elements
+- `new_incompatible_types_error(request_id) -> JSONRPCResponse` - Create content type not supported error response
+- `new_not_implemented_error(request_id) -> JSONRPCResponse` - Create unsupported operation error response
+
+**Usage Examples:**
+```python
+from solace_ai_connector.common.server.utils import are_modalities_compatible, new_not_implemented_error
+
+# Check modality compatibility
+server_modes = ["text/plain", "application/json"]
+client_modes = ["text/plain"]
+if are_modalities_compatible(server_modes, client_modes):
+    print("Compatible modalities")
+
+# Return error for unimplemented feature
+def some_handler(request):
+    return new_not_implemented_error(request.id)
+```
+
+# content_hash: eeddd5631483c2e4f109b8b4d2f9ab222c69bcee6b37e72a8ea0eace0b03a946

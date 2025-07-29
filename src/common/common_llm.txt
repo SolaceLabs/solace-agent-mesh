@@ -1,34 +1,35 @@
-Here is the comprehensive developer guide for the `common` directory.
+# DEVELOPER GUIDE: common
 
 ## Quick Summary
 The `common` directory provides the foundational infrastructure for Agent-to-Agent (A2A) communication within the Solace AI Connector. It establishes the core protocol, data types, and message translation logic that underpins all interactions between AI agents and gateways.
 
 The architecture is designed for clarity and extensibility. Core, low-level definitions are located in **direct files**:
-*   `types.py` defines the canonical data structures (e.g., `Message`, `Task`, `AgentCard`).
-*   `a2a_protocol.py` handles the construction of Solace topics and the translation between A2A and Google ADK message formats.
-*   `agent_registry.py` provides a simple, thread-safe mechanism for discovering and tracking available agents.
+- `types.py` defines the canonical data structures (e.g., `Message`, `Task`, `AgentCard`).
+- `a2a_protocol.py` handles the construction of Solace topics and the translation between A2A and Google ADK message formats.
+- `agent_registry.py` provides a simple, thread-safe mechanism for discovering and tracking available agents.
 
 This foundation is then leveraged by specialized **subdirectories**, which provide higher-level, ready-to-use components:
-*   `client/`: A complete client library for discovering and interacting with remote agents.
-*   `server/`: A stand-alone server implementation for building A2A-compliant agents.
-*   `middleware/`: A pluggable framework for customizing configuration and feature access.
-*   `services/`: A factory-based system for integrating identity and other external data sources.
-*   `utils/`: A collection of cross-cutting utilities for caching, logging, and dynamic content processing.
+- `client/`: A complete client library for discovering and interacting with remote agents.
+- `server/`: A stand-alone server implementation for building A2A-compliant agents.
+- `middleware/`: A pluggable framework for customizing configuration and feature access.
+- `services/`: A factory-based system for integrating identity and other external data sources.
+- `utils/`: A collection of cross-cutting utilities for caching, logging, and dynamic content processing.
 
 Together, these components form a cohesive ecosystem, enabling developers to either build new agents from scratch using the `server` components or interact with existing agents using the `client` library, all while relying on the same underlying protocol and types.
 
 ## Files and Subdirectories Overview
 - **Direct files:**
-    - `__init__.py`: Package initialization file.
-    - `a2a_protocol.py`: Handles A2A topic construction and translation between A2A and ADK message formats.
-    - `agent_registry.py`: A thread-safe registry for managing discovered agent cards.
-    - `types.py`: Contains all Pydantic models for A2A protocol messages, tasks, and data structures.
+  - `__init__.py`: Package initialization file.
+  - `a2a_protocol.py`: Handles A2A topic construction and translation between A2A and ADK message formats.
+  - `agent_registry.py`: A thread-safe registry for managing discovered agent cards.
+  - `constants.py`: Common constants used across the A2A system.
+  - `types.py`: Contains all Pydantic models for A2A protocol messages, tasks, and data structures.
 - **Subdirectories:**
-    - `client/`: Provides a high-level client for discovering and communicating with remote A2A agents.
-    - `middleware/`: A pluggable framework for configuration resolution and system extensibility.
-    - `server/`: A complete A2A server implementation with JSON-RPC support and task management.
-    - `services/`: Provides shared services like identity management using a factory pattern.
-    - `utils/`: Contains common utility functions and an embedded expression processing system.
+  - `client/`: Provides a high-level client for discovering and communicating with remote A2A agents.
+  - `middleware/`: A pluggable framework for configuration resolution and system extensibility.
+  - `server/`: A complete A2A server implementation with JSON-RPC support and task management.
+  - `services/`: Provides shared services like identity management using a factory pattern.
+  - `utils/`: Contains common utility functions and an embedded expression processing system.
 
 ## Developer API Reference
 
@@ -39,54 +40,61 @@ Together, these components form a cohesive ecosystem, enabling developers to eit
 **Import:** `from common.a2a_protocol import get_agent_request_topic, translate_a2a_to_adk_content`
 
 **Classes/Functions/Constants:**
-*   **Constants**:
-    *   `A2A_VERSION: str`: The current version of the A2A protocol (e.g., "v1").
-    *   `A2A_BASE_PATH: str`: The base path used in all A2A topics (e.g., "a2a/v1").
-*   **Topic Construction Functions**:
-    *   `get_a2a_base_topic(namespace: str) -> str`: Returns the base topic prefix for all A2A communication.
-    *   `get_discovery_topic(namespace: str) -> str`: Returns the topic for agent card discovery.
-    *   `get_agent_request_topic(namespace: str, agent_name: str) -> str`: Returns the topic for sending requests to a specific agent.
-    *   `get_gateway_status_topic(namespace: str, gateway_id: str, task_id: str) -> str`: Returns the topic for an agent to publish status updates to a gateway.
-    *   `get_gateway_response_topic(namespace: str, gateway_id: str, task_id: str) -> str`: Returns the topic for an agent to publish final responses to a gateway.
-    *   `get_client_response_topic(namespace: str, client_id: str) -> str`: Returns the topic for publishing final responses to a specific client.
-    *   `get_client_status_topic(namespace: str, client_id: str, task_id: str) -> str`: Returns the topic for publishing status updates to a specific client.
-    *   ... and various functions for subscription topics (e.g., `get_gateway_status_subscription_topic`).
-*   **Message Translation Functions**:
-    *   `translate_a2a_to_adk_content(a2a_message: A2AMessage, log_identifier: str) -> adk_types.Content`: Translates an A2A `Message` object into the Google ADK `Content` format.
-    *   `format_adk_event_as_a2a(...) -> Tuple[Optional[JSONRPCResponse], ...]`: Translates an ADK `Event` into an A2A `JSONRPCResponse` containing a `TaskStatusUpdateEvent`.
-    *   `format_and_route_adk_event(...) -> Tuple[Optional[Dict], Optional[str], ...]`: A higher-level wrapper that formats an ADK event and determines the correct Solace topic to publish it to.
+- **Constants**:
+  - `A2A_VERSION: str`: The current version of the A2A protocol (e.g., "v1").
+  - `A2A_BASE_PATH: str`: The base path used in all A2A topics (e.g., "a2a/v1").
+- **Topic Construction Functions**:
+  - `get_a2a_base_topic(namespace: str) -> str`: Returns the base topic prefix for all A2A communication.
+  - `get_discovery_topic(namespace: str) -> str`: Returns the topic for agent card discovery.
+  - `get_agent_request_topic(namespace: str, agent_name: str) -> str`: Returns the topic for sending requests to a specific agent.
+  - `get_gateway_status_topic(namespace: str, gateway_id: str, task_id: str) -> str`: Returns the topic for an agent to publish status updates to a gateway.
+  - `get_gateway_response_topic(namespace: str, gateway_id: str, task_id: str) -> str`: Returns the topic for an agent to publish final responses to a gateway.
+  - `get_client_response_topic(namespace: str, client_id: str) -> str`: Returns the topic for publishing final responses to a specific client.
+  - `get_client_status_topic(namespace: str, client_id: str, task_id: str) -> str`: Returns the topic for publishing status updates to a specific client.
+  - ... and various functions for subscription topics (e.g., `get_gateway_status_subscription_topic`).
+- **Message Translation Functions**:
+  - `translate_a2a_to_adk_content(a2a_message: A2AMessage, log_identifier: str) -> adk_types.Content`: Translates an A2A `Message` object into the Google ADK `Content` format.
+  - `format_adk_event_as_a2a(...) -> Tuple[Optional[JSONRPCResponse], ...]`: Translates an ADK `Event` into an A2A `JSONRPCResponse` containing a `TaskStatusUpdateEvent`.
+  - `format_and_route_adk_event(...) -> Tuple[Optional[Dict], Optional[str], ...]`: A higher-level wrapper that formats an ADK event and determines the correct Solace topic to publish it to.
 
 #### agent_registry.py
 **Purpose:** Provides a simple, thread-safe, in-memory store for discovered `AgentCard` objects. This is useful for components that need to keep track of available agents in the network.
 **Import:** `from common.agent_registry import AgentRegistry`
 
 **Classes/Functions/Constants:**
-*   **`AgentRegistry`**: A thread-safe class for storing and managing agent cards.
-    *   `add_or_update_agent(self, agent_card: AgentCard)`: Adds a new agent or updates an existing one.
-    *   `get_agent(self, agent_name: str) -> Optional[AgentCard]`: Retrieves an agent card by its unique name.
-    *   `get_agent_names(self) -> List[str]`: Returns a sorted list of all discovered agent names.
-    *   `clear(self)`: Clears all agents from the registry.
+- **`AgentRegistry`**: A thread-safe class for storing and managing agent cards.
+  - `add_or_update_agent(self, agent_card: AgentCard)`: Adds a new agent or updates an existing one.
+  - `get_agent(self, agent_name: str) -> Optional[AgentCard]`: Retrieves an agent card by its unique name.
+  - `get_agent_names(self) -> List[str]`: Returns a sorted list of all discovered agent names.
+  - `clear(self)`: Clears all agents from the registry.
+
+#### constants.py
+**Purpose:** Defines common constants used throughout the A2A system.
+**Import:** `from common.constants import DEFAULT_COMMUNICATION_TIMEOUT`
+
+**Classes/Functions/Constants:**
+- `DEFAULT_COMMUNICATION_TIMEOUT: int`: Default timeout for A2A communications (600 seconds / 10 minutes).
 
 #### types.py
 **Purpose:** Defines all the Pydantic data models that constitute the A2A protocol. These types ensure data consistency and provide validation across all components.
 **Import:** `from common.types import Message, Task, AgentCard, JSONRPCRequest, TaskState`
 
 **Classes/Functions/Constants:**
-*   **Core Data Structures**:
-    *   `Message`: Represents a message from a user or agent, containing a list of `Part` objects.
-    *   `Part`: A discriminated union of `TextPart`, `FilePart`, and `DataPart`.
-    *   `Task`: The central object representing a complete task, including its ID, status, history, and artifacts.
-    *   `TaskStatus`: Describes the current state of a task (e.g., `WORKING`, `COMPLETED`).
-    *   `TaskState(Enum)`: An enumeration of all possible task states.
-    *   `AgentCard`: A comprehensive description of an agent's identity, capabilities, and skills.
-    *   `Artifact`: Represents a task output, such as a generated file or structured data.
-*   **JSON-RPC Structures**:
-    *   `JSONRPCRequest`: The base model for all JSON-RPC requests.
-    *   `JSONRPCResponse`: The base model for all JSON-RPC responses.
-    *   `SendTaskRequest`, `GetTaskRequest`, etc.: Specific request types inheriting from `JSONRPCRequest`.
-*   **Error Structures**:
-    *   `JSONRPCError`: The base model for errors.
-    *   `InternalError`, `TaskNotFoundError`, etc.: Specific error types inheriting from `JSONRPCError`.
+- **Core Data Structures**:
+  - `Message`: Represents a message from a user or agent, containing a list of `Part` objects.
+  - `Part`: A discriminated union of `TextPart`, `FilePart`, and `DataPart`.
+  - `Task`: The central object representing a complete task, including its ID, status, history, and artifacts.
+  - `TaskStatus`: Describes the current state of a task (e.g., `WORKING`, `COMPLETED`).
+  - `TaskState(Enum)`: An enumeration of all possible task states.
+  - `AgentCard`: A comprehensive description of an agent's identity, capabilities, and skills.
+  - `Artifact`: Represents a task output, such as a generated file or structured data.
+- **JSON-RPC Structures**:
+  - `JSONRPCRequest`: The base model for all JSON-RPC requests.
+  - `JSONRPCResponse`: The base model for all JSON-RPC responses.
+  - `SendTaskRequest`, `GetTaskRequest`, etc.: Specific request types inheriting from `JSONRPCRequest`.
+- **Error Structures**:
+  - `JSONRPCError`: The base model for errors.
+  - `InternalError`, `TaskNotFoundError`, etc.: Specific error types inheriting from `JSONRPCError`.
 
 ### Subdirectory APIs
 
@@ -129,11 +137,10 @@ from common.services.identity_service import create_identity_service, BaseIdenti
 ```python
 from common.utils.in_memory_cache import InMemoryCache
 from common.utils import is_text_based_mime_type
-from common.utils.embeds import resolve_embeds_in_string
+from common.utils.embeds import resolve_embeds_recursively_in_string
 ```
 
 ## Complete Usage Guide
-These examples demonstrate how to use the components from the `common` directory to build and interact with A2A agents.
 
 ### 1. How to import and use classes from direct files
 This example shows basic usage of the protocol, types, and agent registry, which form the foundation of any A2A component.
@@ -141,4 +148,181 @@ This example shows basic usage of the protocol, types, and agent registry, which
 ```python
 import uuid
 from common.a2a_protocol import get_agent_request_topic, get_gateway_status_topic
-from common.types import AgentCard,
+from common.types import AgentCard, Message, TextPart, Task, TaskStatus, TaskState
+from common.agent_registry import AgentRegistry
+from common.constants import DEFAULT_COMMUNICATION_TIMEOUT
+
+# Create an agent card
+agent_card = AgentCard(
+    name="my-agent",
+    display_name="My AI Agent",
+    description="A helpful AI assistant",
+    url="https://my-agent.example.com/api",
+    version="1.0.0",
+    capabilities={
+        "streaming": True,
+        "pushNotifications": False,
+        "stateTransitionHistory": True
+    },
+    defaultInputModes=["text"],
+    defaultOutputModes=["text"],
+    skills=[
+        {
+            "id": "text-analysis",
+            "name": "Text Analysis",
+            "description": "Analyze and summarize text content"
+        }
+    ],
+    peer_agents={}
+)
+
+# Use the agent registry
+registry = AgentRegistry()
+registry.add_or_update_agent(agent_card)
+
+# Get agent names
+available_agents = registry.get_agent_names()
+print(f"Available agents: {available_agents}")
+
+# Create A2A message
+message = Message(
+    role="user",
+    parts=[TextPart(text="Please analyze this document")]
+)
+
+# Create task
+task = Task(
+    id=str(uuid.uuid4()),
+    status=TaskStatus(state=TaskState.SUBMITTED, message=message),
+    history=[message]
+)
+
+# Generate topic names for communication
+namespace = "my-company/ai-agents"
+request_topic = get_agent_request_topic(namespace, "my-agent")
+status_topic = get_gateway_status_topic(namespace, "gateway-1", task.id)
+
+print(f"Request topic: {request_topic}")
+print(f"Status topic: {status_topic}")
+print(f"Default timeout: {DEFAULT_COMMUNICATION_TIMEOUT} seconds")
+```
+
+### 2. How to import and use functionality from subdirectories
+This example demonstrates using the higher-level components from subdirectories.
+
+```python
+import asyncio
+from common.client import A2AClient, A2ACardResolver
+from common.server import A2AServer, InMemoryTaskManager
+from common.middleware import ConfigResolver, MiddlewareRegistry
+from common.services.identity_service import create_identity_service
+from common.utils.in_memory_cache import InMemoryCache
+from common.utils import is_text_based_mime_type
+
+async def client_example():
+    """Example of using the A2A client to interact with remote agents."""
+    
+    # Discover agent capabilities
+    resolver = A2ACardResolver(base_url="https://remote-agent.example.com")
+    agent_card = resolver.get_agent_card()
+    
+    # Create client
+    client = A2AClient(agent_card=agent_card)
+    
+    # Send a task
+    task_payload = {
+        "id": str(uuid.uuid4()),
+        "message": {
+            "role": "user",
+            "parts": [{"type": "text", "text": "Summarize this document"}]
+        }
+    }
+    
+    response = await client.send_task(payload=task_payload)
+    print(f"Task submitted: {response.result.id}")
+    
+    # Get task status
+    status_response = await client.get_task(payload={"id": response.result.id})
+    print(f"Task status: {status_response.result.status.state}")
+
+def server_example():
+    """Example of creating an A2A server."""
+    
+    # Create custom task manager
+    class MyTaskManager(InMemoryTaskManager):
+        async def on_send_task(self, request):
+            # Custom task processing logic
+            task = await self.upsert_task(request.params)
+            
+            # Simulate processing
+            import time
+            time.sleep(1)
+            
+            # Update task as completed
+            from common.types import TaskStatus, TaskState
+            completed_status = TaskStatus(state=TaskState.COMPLETED)
+            await self.update_store(task.id, completed_status, [])
+            
+            return {"id": request.id, "result": task}
+    
+    # Create server
+    server = A2AServer(
+        host="0.0.0.0",
+        port=8080,
+        agent_card=agent_card,  # From previous example
+        task_manager=MyTaskManager()
+    )
+    
+    # Start server (this blocks)
+    # server.start()
+
+async def services_example():
+    """Example of using services for identity and caching."""
+    
+    # Set up identity service
+    identity_config = {
+        "type": "local_file",
+        "file_path": "users.json",
+        "lookup_key": "email"
+    }
+    identity_service = create_identity_service(identity_config)
+    
+    if identity_service:
+        # Look up user profile
+        auth_claims = {"email": "user@example.com"}
+        profile = await identity_service.get_user_profile(auth_claims)
+        print(f"User profile: {profile}")
+    
+    # Use caching
+    cache = InMemoryCache()
+    cache.set("user_session", {"user_id": "123"}, ttl=3600)
+    session = cache.get("user_session")
+    print(f"Cached session: {session}")
+    
+    # Check MIME types
+    if is_text_based_mime_type("application/json"):
+        print("JSON is text-based")
+
+# Run examples
+asyncio.run(client_example())
+# server_example()  # Uncomment to run server
+asyncio.run(services_example())
+```
+
+### 3. How different parts work together
+This example shows a complete workflow using multiple components together.
+
+```python
+import asyncio
+import json
+from common.types import *
+from common.a2a_protocol import *
+from common.client import A2AClient
+from common.server import A2AServer, InMemoryTaskManager
+from common.middleware import ConfigResolver
+from common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed
+from common.utils.in_memory_cache import InMemoryCache
+
+class Integr
+
+# content_hash: 9dd1a4f0293c17f2a8dfb97d394d603a46e56ee0c0dec1c67af478028e95f525

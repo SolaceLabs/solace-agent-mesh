@@ -17,7 +17,7 @@ The core architecture revolves around factory functions (`create_identity_servic
 
 #### employee_service.py
 **Purpose:** Defines the abstract base class (`BaseEmployeeService`) that all employee service providers must implement, and a factory function (`create_employee_service`) to instantiate them. It enforces a canonical schema for employee data to ensure consistency across different providers.
-**Import:** `from solace_ai_connector.common.services import BaseEmployeeService, create_employee_service`
+**Import:** `from solace_ai_connector.common.services.employee_service import BaseEmployeeService, create_employee_service`
 
 **Classes/Functions/Constants:**
 - **`class BaseEmployeeService(ABC)`**: The abstract base class for employee service providers.
@@ -30,7 +30,7 @@ The core architecture revolves around factory functions (`create_identity_servic
 
 #### identity_service.py
 **Purpose:** Defines the abstract base class (`BaseIdentityService`) for identity providers and a factory function (`create_identity_service`) to create instances of them. This service is used for user lookups and profile enrichment.
-**Import:** `from solace_ai_connector.common.services import BaseIdentityService, create_identity_service`
+**Import:** `from solace_ai_connector.common.services.identity_service import BaseIdentityService, create_identity_service`
 
 **Classes/Functions/Constants:**
 - **`class BaseIdentityService(ABC)`**: The abstract base class for identity service providers.
@@ -42,32 +42,31 @@ The core architecture revolves around factory functions (`create_identity_servic
 ### Subdirectory APIs
 
 #### providers/
-**Purpose:** This subdirectory contains concrete implementations of the abstract service classes. It ships with a built-in provider for the `IdentityService` that is useful for development and testing.
+**Purpose:** Contains concrete implementations of the abstract service classes. It ships with a built-in provider for the `IdentityService` that is useful for development and testing.
 **Key Exports:** `LocalFileIdentityService`
 **Import Examples:**
 ```python
-# Typically, you would use the factory function.
-# But for direct instantiation (e.g., in tests), you can do this:
-from solace_ai_connector.common.services.providers import LocalFileIdentityService
+# Direct import of the concrete implementation
+from solace_ai_connector.common.services.providers.local_file_identity_service import LocalFileIdentityService
+
+# Or import the entire providers module
+from solace_ai_connector.common.services import providers
 ```
 
 ## Complete Usage Guide
-The following examples demonstrate how to use the services framework, from basic instantiation using factories to creating custom providers.
 
-### 1. How to Use the Service Factories (Recommended)
-The factories are the primary way to create and use services. They abstract away the specific implementation details.
+### 1. Using the Service Factories (Recommended Approach)
+The factories are the primary way to create and use services. They abstract away the specific implementation details and handle plugin loading.
 
-**Example: Creating a File-Based Identity Service and a Plugin-Based Employee Service**
+**Example: Creating Identity and Employee Services**
 
 ```python
 import asyncio
-from solace_ai_connector.common.services import create_identity_service, create_employee_service
-
-# Assume you have a users.json file for the identity service
-# and a plugin installed for the employee service.
+from solace_ai_connector.common.services.identity_service import create_identity_service
+from solace_ai_connector.common.services.employee_service import create_employee_service
 
 async def main():
-    # --- Identity Service Example (using a built-in provider) ---
+    # --- Identity Service Example (using built-in provider) ---
     identity_config = {
         "type": "local_file",
         "file_path": "path/to/your/users.json",
@@ -87,10 +86,9 @@ async def main():
         search_results = await identity_service.search_users("Jane")
         print(f"Search Results: {search_results}")
 
-    # --- Employee Service Example (using an external plugin) ---
-    # The 'type' must match the name of a registered plugin entry point.
+    # --- Employee Service Example (using external plugin) ---
     employee_config = {
-        "type": "bamboohr_plugin",
+        "type": "bamboohr_plugin",  # Must match plugin entry point name
         "api_key": "your-secret-api-key",
         "subdomain": "your-company",
         "cache_ttl_seconds": 7200
@@ -99,7 +97,7 @@ async def main():
 
     if employee_service:
         print("\nEmployee Service created.")
-        # Get a detailed employee profile
+        # Get employee profile
         employee_profile = await employee_service.get_employee_profile("jane.doe@example.com")
         print(f"Employee Profile: {employee_profile}")
 
@@ -107,26 +105,191 @@ async def main():
         time_off = await employee_service.get_time_off_data("jane.doe@example.com")
         print(f"Time Off Data: {time_off}")
 
-# To run this example:
-# asyncio.run(main())
+        # Get entire employee directory
+        df = await employee_service.get_employee_dataframe()
+        print(f"Employee Directory shape: {df.shape}")
+
+asyncio.run(main())
 ```
 
-### 2. How to Use Functionality from Subdirectories
-While factories are preferred, you can instantiate providers from the `providers/` directory directly. This is useful for testing or when you know you will always use a specific built-in provider.
+### 2. Direct Instantiation of Built-in Providers
+For testing or when you know you'll always use a specific built-in provider, you can instantiate directly.
 
-**Example: Direct Instantiation of `LocalFileIdentityService`**
+**Example: Using LocalFileIdentityService Directly**
 
 ```python
 import asyncio
-from solace_ai_connector.common.services.providers import LocalFileIdentityService
+import json
+from solace_ai_connector.common.services.providers.local_file_identity_service import LocalFileIdentityService
 
-async def main():
-    # Configuration does not need a 'type' key for direct instantiation
+async def setup_and_use_local_identity():
+    # Create sample users.json file
+    users_data = [
+        {
+            "id": "jdoe",
+            "email": "jane.doe@example.com", 
+            "name": "Jane Doe",
+            "title": "Senior Engineer",
+            "manager_id": "ssmith"
+        },
+        {
+            "id": "ssmith",
+            "email": "sam.smith@example.com",
+            "name": "Sam Smith", 
+            "title": "Engineering Manager"
+        }
+    ]
+
+    with open("users.json", "w") as f:
+        json.dump(users_data, f)
+
+    # Configuration without 'type' key for direct instantiation
     config = {
-        "file_path": "path/to/your/users.json",
-        "lookup_key": "id"
+        "file_path": "users.json",
+        "lookup_key": "id",
+        "cache_ttl_seconds": 1800
     }
 
-    # Instantiate the class directly
+    # Instantiate directly
     local_service = LocalFileIdentityService(config)
-    print("LocalFileIdentityService
+    
+    # Use the service
+    auth_claims = {"id": "jdoe"}
+    profile = await local_service.get_user_profile(auth_claims)
+    print(f"User profile: {profile}")
+    
+    # Search functionality
+    results = await local_service.search_users("jane", limit=5)
+    print(f"Search results: {results}")
+
+asyncio.run(setup_and_use_local_identity())
+```
+
+### 3. Creating Custom Service Providers
+To create your own service provider, inherit from the appropriate base class and implement all abstract methods.
+
+**Example: Custom Employee Service Provider**
+
+```python
+import pandas as pd
+from typing import Any, Dict, List, Optional
+from solace_ai_connector.common.services.employee_service import BaseEmployeeService
+
+class CustomEmployeeService(BaseEmployeeService):
+    """Custom employee service that connects to your HR system."""
+    
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__(config)
+        self.api_endpoint = config.get("api_endpoint")
+        self.api_key = config.get("api_key")
+    
+    async def get_employee_dataframe(self) -> pd.DataFrame:
+        """Fetch all employees and return as DataFrame."""
+        # Your implementation here
+        # This should return a DataFrame with canonical schema columns
+        employees_data = await self._fetch_all_employees()
+        return pd.DataFrame(employees_data)
+    
+    async def get_employee_profile(self, employee_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch single employee profile."""
+        # Your implementation here
+        return await self._fetch_employee_by_id(employee_id)
+    
+    async def get_time_off_data(self, employee_id: str) -> List[Dict[str, Any]]:
+        """Fetch time off data for employee."""
+        # Must return list of dicts with 'start', 'end', 'type', 'amount' keys
+        return await self._fetch_time_off(employee_id)
+    
+    async def get_employee_profile_picture(self, employee_id: str) -> Optional[str]:
+        """Fetch profile picture as data URI."""
+        return await self._fetch_profile_picture(employee_id)
+    
+    # Your private helper methods
+    async def _fetch_all_employees(self):
+        # Implementation details
+        pass
+    
+    async def _fetch_employee_by_id(self, employee_id: str):
+        # Implementation details
+        pass
+    
+    async def _fetch_time_off(self, employee_id: str):
+        # Implementation details
+        pass
+    
+    async def _fetch_profile_picture(self, employee_id: str):
+        # Implementation details
+        pass
+
+# Usage
+config = {
+    "api_endpoint": "https://your-hr-system.com/api",
+    "api_key": "your-api-key",
+    "cache_ttl_seconds": 3600
+}
+
+custom_service = CustomEmployeeService(config)
+```
+
+### 4. Working with Both Services Together
+Often you'll want to use both identity and employee services together for comprehensive user information.
+
+**Example: Combined Service Usage**
+
+```python
+import asyncio
+from solace_ai_connector.common.services.identity_service import create_identity_service
+from solace_ai_connector.common.services.employee_service import create_employee_service
+
+async def comprehensive_user_lookup(user_identifier: str):
+    # Setup both services
+    identity_config = {
+        "type": "local_file",
+        "file_path": "users.json",
+        "lookup_key": "email"
+    }
+    
+    employee_config = {
+        "type": "your_hr_plugin",
+        "api_key": "your-key"
+    }
+    
+    identity_service = create_identity_service(identity_config)
+    employee_service = create_employee_service(employee_config)
+    
+    # Get comprehensive user information
+    auth_claims = {"email": user_identifier}
+    
+    # Get identity information
+    identity_profile = None
+    if identity_service:
+        identity_profile = await identity_service.get_user_profile(auth_claims)
+    
+    # Get employee information
+    employee_profile = None
+    time_off_data = None
+    profile_picture = None
+    
+    if employee_service:
+        employee_profile = await employee_service.get_employee_profile(user_identifier)
+        time_off_data = await employee_service.get_time_off_data(user_identifier)
+        profile_picture = await employee_service.get_employee_profile_picture(user_identifier)
+    
+    # Combine all information
+    comprehensive_profile = {
+        "identity": identity_profile,
+        "employee": employee_profile,
+        "time_off": time_off_data,
+        "profile_picture": profile_picture
+    }
+    
+    return comprehensive_profile
+
+# Usage
+user_info = asyncio.run(comprehensive_user_lookup("jane.doe@example.com"))
+print(f"Complete user information: {user_info}")
+```
+
+This guide demonstrates the flexibility of the services framework, from simple factory usage to creating custom providers and combining multiple services for comprehensive functionality.
+
+# content_hash: 82b39425a596ce17f7d767465a57a6393931091b51fbc6d4996ae7f953daf269

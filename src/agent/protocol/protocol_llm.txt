@@ -9,13 +9,49 @@ The `protocol` directory implements the core logic for Agent-to-Agent (A2A) comm
 
 ### __init__.py
 **Purpose:** Standard Python package initialization file.
-**Import:** `from src.agent.protocol import *`
+**Import:** `from agent.protocol import *`
 
 This is an empty package initialization file and has no public interfaces.
 
 ### event_handlers.py
 **Purpose:** This file is the central hub for processing all events related to the A2A protocol. It receives events from the Solace AI Connector framework, determines their type (e.g., new task request, peer agent response, discovery message, timer), and routes them to the appropriate handler function. It manages the lifecycle of tasks, from initiation and cancellation to handling responses from peer agents.
-**Import:** `from src.agent.protocol.event_handlers import process_event, handle_a2a_request, handle_agent_card_message, handle_a2a_response, publish_agent_card`
+**Import:** `from agent.protocol.event_handlers import process_event, handle_a2a_request, handle_agent_card_message, handle_a2a_response, publish_agent_card`
 
 **Functions:**
-- `process_event(component: "SamAgentComponent", event: Event
+- `process_event(component: "SamAgentComponent", event: Event) -> None` - Main event router that processes all incoming events (messages, timers, cache expiry) and delegates to appropriate handlers
+- `handle_a2a_request(component: "SamAgentComponent", message: SolaceMessage) -> None` - Handles incoming A2A task requests (SendTask, SendTaskStreaming, CancelTask) and initiates ADK execution
+- `handle_agent_card_message(component: "SamAgentComponent", message: SolaceMessage) -> None` - Processes agent discovery messages and updates the peer agent registry
+- `handle_a2a_response(component: "SamAgentComponent", message: SolaceMessage) -> None` - Handles responses from peer agents and manages parallel task completion
+- `publish_agent_card(component: "SamAgentComponent") -> None` - Publishes the agent's capabilities and information to the discovery topic
+
+**Private Functions:**
+- `_format_artifact_summary_from_manifest(component: "SamAgentComponent", produced_artifacts: List[Dict[str, Any]], peer_agent_name: str, correlation_data: Dict[str, Any]) -> str` - Formats artifact metadata into human-readable YAML summary
+- `_register_peer_artifacts_in_parent_context(parent_task_context: "TaskExecutionContext", peer_task_object: Task, log_identifier: str) -> None` - Registers artifacts from peer agents in the parent task context
+
+**Usage Examples:**
+```python
+# Main event processing (typically called by the SAC framework)
+from agent.protocol.event_handlers import process_event
+from solace_ai_connector.common.event import Event, EventType
+
+# Process an incoming message event
+await process_event(component, event)
+
+# Manually publish agent card (typically done on timer)
+from agent.protocol.event_handlers import publish_agent_card
+publish_agent_card(component)
+
+# Handle specific message types (usually called internally by process_event)
+from agent.protocol.event_handlers import handle_a2a_request, handle_agent_card_message
+await handle_a2a_request(component, solace_message)
+handle_agent_card_message(component, solace_message)
+```
+
+**Key Integration Points:**
+- Integrates with `SamAgentComponent` for task management and configuration
+- Uses `TaskExecutionContext` for tracking active tasks and parallel execution
+- Leverages the ADK runner for actual agent execution
+- Manages artifact handling and peer agent communication
+- Handles session management for both persistent and run-based sessions
+
+# content_hash: be0edddbc86e00baa0e1602247dc7305a2b84e37c0a2be13906f4c8aea60f6ac
