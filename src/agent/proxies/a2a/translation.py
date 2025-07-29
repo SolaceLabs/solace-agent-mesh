@@ -219,9 +219,8 @@ def translate_modern_to_sam_response(
     ],
 ) -> Dict[str, Any]:
     """
-    Translates a modern A2A response/event object to a legacy SAM A2A dictionary.
-    This function inspects the dictionary representation and translates all known
-    modern fields to their legacy equivalents.
+    Translates a modern A2A response/event object to a legacy SAM A2A dictionary
+    by constructing a new dictionary from scratch.
 
     Args:
         modern_event: The modern Pydantic event object from the a2a-python SDK.
@@ -236,51 +235,112 @@ def translate_modern_to_sam_response(
         type(modern_event).__name__,
     )
 
-    modern_dict = modern_event.model_dump(mode="json", exclude_none=True)
-    legacy_dict = modern_dict
+    def _translate_modern_message_to_sam_dict(
+        modern_message: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Translates a modern Message dictionary to a legacy SAM Message dictionary."""
+        if not modern_message:
+            return {}
+        legacy_message = {
+            "role": modern_message.get("role"),
+            "parts": _translate_modern_parts_to_sam(modern_message.get("parts", [])),
+        }
+        if "metadata" in modern_message and modern_message["metadata"] is not None:
+            legacy_message["metadata"] = modern_message["metadata"]
+        return legacy_message
 
-    # Translate top-level fields based on event type
-    if isinstance(modern_event, ModernTask):
-        if "context_id" in legacy_dict:
-            legacy_dict["sessionId"] = legacy_dict.pop("context_id")
-    else:  # For TaskStatusUpdateEvent and TaskArtifactUpdateEvent
-        if "task_id" in legacy_dict:
-            legacy_dict["id"] = legacy_dict.pop("task_id")
-        if "context_id" in legacy_dict:
-            del legacy_dict["context_id"]
-
-    # Translate nested Part objects wherever they may appear
-    # In Task.status.message or TaskStatusUpdateEvent.status.message
-    if "status" in legacy_dict and isinstance(legacy_dict["status"], dict):
-        if "message" in legacy_dict["status"] and isinstance(
-            legacy_dict["status"]["message"], dict
-        ):
-            if "parts" in legacy_dict["status"]["message"] and isinstance(
-                legacy_dict["status"]["message"]["parts"], list
-            ):
-                legacy_dict["status"]["message"]["parts"] = (
-                    _translate_modern_parts_to_sam(
-                        legacy_dict["status"]["message"]["parts"]
-                    )
-                )
-
-    # In Task.history
-    if "history" in legacy_dict and isinstance(legacy_dict["history"], list):
-        for msg in legacy_dict["history"]:
-            if (
-                isinstance(msg, dict)
-                and "parts" in msg
-                and isinstance(msg["parts"], list)
-            ):
-                msg["parts"] = _translate_modern_parts_to_sam(msg["parts"])
-
-    # In TaskArtifactUpdateEvent.artifact
-    if "artifact" in legacy_dict and isinstance(legacy_dict["artifact"], dict):
-        if "parts" in legacy_dict["artifact"] and isinstance(
-            legacy_dict["artifact"]["parts"], list
-        ):
-            legacy_dict["artifact"]["parts"] = _translate_modern_parts_to_sam(
-                legacy_dict["artifact"]["parts"]
+    def _translate_modern_status_to_sam_dict(
+        modern_status: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Translates a modern TaskStatus dictionary to a legacy SAM TaskStatus dictionary."""
+        if not modern_status:
+            return {}
+        legacy_status = {
+            "state": str(modern_status.get("state", "UNKNOWN")).upper(),
+            "timestamp": modern_status.get("timestamp"),
+        }
+        if "message" in modern_status and modern_status["message"]:
+            legacy_status["message"] = _translate_modern_message_to_sam_dict(
+                modern_status["message"]
             )
+        return legacy_status
 
-    return legacy_dict
+    def _translate_modern_artifact_to_sam_dict(
+        modern_artifact_event: ModernTaskArtifactUpdateEvent,
+    ) -> Dict[str, Any]:
+        """Translates a modern TaskArtifactUpdateEvent to a legacy SAM Artifact dictionary."""
+        modern_artifact = modern_artifact_event.artifact
+        legacy_artifact = {
+            "name": modern_artifact.name,
+            "description": modern_artifact.description,
+            "parts": _translate_modern_parts_to_sam(
+                modern_artifact.model_dump(mode="json").get("parts", [])
+            ),
+            "metadata": modern_artifact.metadata,
+            "append": modern_artifact_event.append,
+            "lastChunk": modern_artifact_event.last_chunk,
+        }
+        return {k: v for k, v in legacy_artifact.items() if v is not None}
+
+    if isinstance(modern_event, ModernTask):
+        modern_dict = modern_event.model_dump(mode="json", exclude_none=True)
+        legacy_task = {
+            "id": modern_dict.get("id"),
+            "sessionId": modern_dict.get("context_id"),
+            "status": _translate_modern_status_to_sam_dict(
+                modern_dict.get("status", {})
+            ),
+        }
+        if "history" in modern_dict and modern_dict["history"]:
+            legacy_task["history"] = [
+                _translate_modern_message_to_sam_dict(msg)
+                for msg in modern_dict["history"]
+            ]
+        if "metadata" in modern_dict:
+            legacy_task["metadata"] = modern_dict["metadata"]
+        if "artifacts" in modern_dict and modern_dict["artifacts"]:
+            legacy_artifacts = []
+            for modern_artifact_dict in modern_dict["artifacts"]:
+                legacy_artifacts.append(
+                    {
+                        "name": modern_artifact_dict.get("name"),
+                        "description": modern_artifact_dict.get("description"),
+                        "parts": _translate_modern_parts_to_sam(
+                            modern_artifact_dict.get("parts", [])
+                        ),
+                        "metadata": modern_artifact_dict.get("metadata"),
+                    }
+                )
+            legacy_task["artifacts"] = legacy_artifacts
+
+        return {k: v for k, v in legacy_task.items() if v is not None}
+
+    elif isinstance(modern_event, ModernTaskStatusUpdateEvent):
+        modern_dict = modern_event.model_dump(mode="json", exclude_none=True)
+        legacy_event = {
+            "id": modern_dict.get("task_id"),
+            "status": _translate_modern_status_to_sam_dict(
+                modern_dict.get("status", {})
+            ),
+            "final": modern_dict.get("final", False),
+        }
+        if "metadata" in modern_dict:
+            legacy_event["metadata"] = modern_dict["metadata"]
+        return {k: v for k, v in legacy_event.items() if v is not None}
+
+    elif isinstance(modern_event, ModernTaskArtifactUpdateEvent):
+        legacy_event = {
+            "id": modern_event.task_id,
+            "artifact": _translate_modern_artifact_to_sam_dict(modern_event),
+        }
+        if modern_event.metadata:
+            legacy_event["metadata"] = modern_event.metadata
+        return {k: v for k, v in legacy_event.items() if v is not None}
+
+    else:
+        log.warning(
+            "%s Received unhandled modern event type for translation: %s",
+            log_identifier,
+            type(modern_event).__name__,
+        )
+        return modern_event.model_dump(mode="json", exclude_none=True)
