@@ -22,8 +22,7 @@
     "build-types": "tsc --emitDeclarationOnly --outDir dist --project tsconfig.lib.json",
     "build-package": "npm run build-lib && npm run build-types",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "postinstall": "playwright install"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.11",
@@ -62,7 +61,6 @@
     "react-dom": ">=19.0.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.45.3",
     "@eslint/js": "^9.25.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/js-yaml": "^4.0.9",
