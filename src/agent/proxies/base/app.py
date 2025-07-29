@@ -48,7 +48,12 @@ class BaseProxyApp(App, ABC):
                             "type": "string",
                             "required": True,
                             "description": "The name the agent will have on the Solace mesh.",
-                        }
+                        },
+                        "request_timeout_seconds": {
+                            "type": "integer",
+                            "required": False,
+                            "description": "Optional timeout override for this specific agent.",
+                        },
                     },
                 },
             },
@@ -65,6 +70,13 @@ class BaseProxyApp(App, ABC):
                 "type": "integer",
                 "default": 60,
                 "description": "Interval (seconds) to re-fetch agent cards. <= 0 disables periodic discovery.",
+            },
+            {
+                "name": "default_request_timeout_seconds",
+                "required": False,
+                "type": "integer",
+                "default": 300,
+                "description": "Default timeout in seconds for requests to downstream agents.",
             },
         ]
     }

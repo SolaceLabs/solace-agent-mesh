@@ -61,6 +61,11 @@ class A2AProxyApp(BaseProxyApp):
                 },
             },
         }
+        proxied_agents_schema["items"]["properties"]["request_timeout_seconds"] = {
+            "type": "integer",
+            "required": False,
+            "description": "Optional timeout override for this specific agent.",
+        }
 
     def __init__(self, app_info: Dict[str, Any], **kwargs):
         app_info["class_name"] = "A2AProxyApp"

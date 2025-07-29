@@ -70,11 +70,12 @@ class A2AProxyComponent(BaseProxyComponent):
 
         try:
             log.info("%s Fetching agent card from %s", log_identifier, agent_url)
-            resolver = A2ACardResolver(
-                httpx_client=self._httpx_client, base_url=agent_url
-            )
-            agent_card = await resolver.get_agent_card()
-            return agent_card
+            async with httpx.AsyncClient() as client:
+                resolver = A2ACardResolver(
+                    httpx_client=client, base_url=agent_url
+                )
+                agent_card = await resolver.get_agent_card()
+                return agent_card
         except A2AClientHTTPError as e:
             log.error(
                 "%s HTTP error fetching agent card from %s: %s",
@@ -165,6 +166,16 @@ class A2AProxyComponent(BaseProxyComponent):
             log.error(f"Agent card not found for '{agent_name}' in registry.")
             return None
 
+        # Resolve timeout
+        default_timeout = self.get_config("default_request_timeout_seconds", 300)
+        agent_timeout = agent_config.get("request_timeout_seconds", default_timeout)
+        log.info(
+            f"Using timeout of {agent_timeout}s for agent '{agent_name}'."
+        )
+
+        # Create a new httpx client with the specific timeout for this agent
+        httpx_client_for_agent = httpx.AsyncClient(timeout=agent_timeout)
+
         # Setup authentication if configured
         auth_config = agent_config.get("authentication")
         if auth_config:
@@ -174,7 +185,7 @@ class A2AProxyComponent(BaseProxyComponent):
             )
 
         client = A2AClient(
-            httpx_client=self._httpx_client,
+            httpx_client=httpx_client_for_agent,
             agent_card=agent_card,
             interceptors=[self._auth_interceptor],
         )
@@ -334,7 +345,27 @@ class A2AProxyComponent(BaseProxyComponent):
                 # part.file.bytes = None
                 pass  # Placeholder for artifact saving logic
 
-    async def cleanup(self):
+    def cleanup(self):
         """Cleans up resources on component shutdown."""
-        # httpx_client is now closed by the base class
-        await super().cleanup()
+        log.info("%s Cleaning up A2A proxy component resources...", self.log_identifier)
+
+        async def _async_cleanup():
+            # Close all created httpx clients
+            for agent_name, client in self._a2a_clients.items():
+                if client._client and not client._client.is_closed:
+                    log.info(
+                        "%s Closing httpx client for agent '%s'",
+                        self.log_identifier,
+                        agent_name,
+                    )
+                    await client._client.aclose()
+            self._a2a_clients.clear()
+
+        if self._async_loop and self._async_loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(_async_cleanup(), self._async_loop)
+            try:
+                future.result(timeout=5)
+            except Exception as e:
+                log.error("%s Error during async cleanup: %s", self.log_identifier, e)
+
+        super().cleanup()
