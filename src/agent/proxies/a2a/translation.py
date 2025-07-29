@@ -7,7 +7,6 @@ import uuid
 from typing import Any, Dict, List, Union
 
 import a2a.types as modern_types
-import a2a.types as modern_types
 from a2a.types import (
     CancelTaskRequest,
     Message,
@@ -142,7 +141,11 @@ def translate_sam_to_modern_request(
         # For methods that are compatible or don't need translation (e.g., tasks/cancel),
         # we can try to validate directly.
         if legacy_method == "tasks/cancel":
-            log.debug("%s Passing through compatible method '%s'.", log_identifier, legacy_method)
+            log.debug(
+                "%s Passing through compatible method '%s'.",
+                log_identifier,
+                legacy_method,
+            )
             return CancelTaskRequest.model_validate(legacy_payload)
         raise ValueError(f"Unknown or untranslatable legacy method: {legacy_method}")
 
@@ -213,7 +216,7 @@ def translate_sam_to_modern_request(
 def translate_modern_to_sam_response(
     modern_event: Union[
         ModernTask, ModernTaskStatusUpdateEvent, ModernTaskArtifactUpdateEvent
-    ]
+    ],
 ) -> Dict[str, Any]:
     """
     Translates a modern A2A response/event object to a legacy SAM A2A dictionary.
@@ -255,16 +258,20 @@ def translate_modern_to_sam_response(
             if "parts" in legacy_dict["status"]["message"] and isinstance(
                 legacy_dict["status"]["message"]["parts"], list
             ):
-                legacy_dict["status"]["message"][
-                    "parts"
-                ] = _translate_modern_parts_to_sam(
-                    legacy_dict["status"]["message"]["parts"]
+                legacy_dict["status"]["message"]["parts"] = (
+                    _translate_modern_parts_to_sam(
+                        legacy_dict["status"]["message"]["parts"]
+                    )
                 )
 
     # In Task.history
     if "history" in legacy_dict and isinstance(legacy_dict["history"], list):
         for msg in legacy_dict["history"]:
-            if isinstance(msg, dict) and "parts" in msg and isinstance(msg["parts"], list):
+            if (
+                isinstance(msg, dict)
+                and "parts" in msg
+                and isinstance(msg["parts"], list)
+            ):
                 msg["parts"] = _translate_modern_parts_to_sam(msg["parts"])
 
     # In TaskArtifactUpdateEvent.artifact
