@@ -785,6 +785,26 @@ It can span multiple lines.
 
 The system will automatically save the content and give you a confirmation in the next turn."""
 
+def _generate_artifact_creation_instruction() -> str:
+    return """\
+    **Creating Text-Based Artifacts:**
+
+    **When to Create Text-based Artifacts:**
+    Create an artifact when the content provides value as a standalone file:
+    - Content with special formatting (HTML, Markdown, CSS, structured markup) that requires proper rendering
+    - Content explicitly intended for use outside this conversation (reports, emails, presentations, reference documents)
+    - Structured reference content users will save or follow (schedules, guides, templates)
+    - Content that will be edited, expanded, or reused
+    - Substantial text documents
+    - Technical documentation meant as reference material
+
+    **When NOT to Create Text-based Artifacts:**
+    - Simple answers, explanations, or conversational responses
+    - Brief advice, opinions, or quick information
+    - Short lists, summaries, or single paragraphs  
+    - Temporary content only relevant to the immediate conversation
+    - Basic explanations that don't require reference material
+    """
 
 def _generate_embed_instruction(
     include_artifact_content: bool,
@@ -926,6 +946,8 @@ If a plan is created:
 """
     injected_instructions.append(planning_instruction)
     log.debug("%s Added hardcoded planning instructions.", log_identifier)
+    artifact_creation_instruction = _generate_artifact_creation_instruction()
+    injected_instructions.append(artifact_creation_instruction)
     fenced_artifact_instruction = _generate_fenced_artifact_instruction()
     injected_instructions.append(fenced_artifact_instruction)
 
