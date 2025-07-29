@@ -217,6 +217,8 @@ def translate_modern_to_sam_response(
 ) -> Dict[str, Any]:
     """
     Translates a modern A2A response/event object to a legacy SAM A2A dictionary.
+    This function inspects the dictionary representation and translates all known
+    modern fields to their legacy equivalents.
 
     Args:
         modern_event: The modern Pydantic event object from the a2a-python SDK.
@@ -225,67 +227,53 @@ def translate_modern_to_sam_response(
         A dictionary conforming to the legacy SAM A2A protocol structure.
     """
     log_identifier = "[A2ATranslation:Outbound]"
+    log.debug(
+        "%s Translating modern event of type %s to legacy SAM dictionary.",
+        log_identifier,
+        type(modern_event).__name__,
+    )
 
-    # Get a dictionary representation of the modern object
     modern_dict = modern_event.model_dump(mode="json", exclude_none=True)
-    legacy_dict = modern_dict.copy()  # Start with a copy
+    legacy_dict = modern_dict
 
+    # Translate top-level fields based on event type
     if isinstance(modern_event, ModernTask):
-        log.debug("%s Translating modern Task to legacy Task.", log_identifier)
         if "context_id" in legacy_dict:
             legacy_dict["sessionId"] = legacy_dict.pop("context_id")
-
-        # Translate parts in status message
-        if legacy_dict.get("status", {}).get("message", {}).get("parts"):
-            legacy_dict["status"]["message"]["parts"] = _translate_modern_parts_to_sam(
-                legacy_dict["status"]["message"]["parts"]
-            )
-
-        # Translate parts in history messages
-        if legacy_dict.get("history"):
-            for msg in legacy_dict["history"]:
-                if msg.get("parts"):
-                    msg["parts"] = _translate_modern_parts_to_sam(msg["parts"])
-
-        return legacy_dict
-
-    elif isinstance(modern_event, ModernTaskStatusUpdateEvent):
-        log.debug(
-            "%s Translating modern TaskStatusUpdateEvent to legacy.", log_identifier
-        )
+    else:  # For TaskStatusUpdateEvent and TaskArtifactUpdateEvent
         if "task_id" in legacy_dict:
             legacy_dict["id"] = legacy_dict.pop("task_id")
         if "context_id" in legacy_dict:
-            del legacy_dict["context_id"]  # No equivalent in legacy event
+            del legacy_dict["context_id"]
 
-        # Translate parts in status message
-        if legacy_dict.get("status", {}).get("message", {}).get("parts"):
-            legacy_dict["status"]["message"]["parts"] = _translate_modern_parts_to_sam(
-                legacy_dict["status"]["message"]["parts"]
-            )
-        return legacy_dict
+    # Translate nested Part objects wherever they may appear
+    # In Task.status.message or TaskStatusUpdateEvent.status.message
+    if "status" in legacy_dict and isinstance(legacy_dict["status"], dict):
+        if "message" in legacy_dict["status"] and isinstance(
+            legacy_dict["status"]["message"], dict
+        ):
+            if "parts" in legacy_dict["status"]["message"] and isinstance(
+                legacy_dict["status"]["message"]["parts"], list
+            ):
+                legacy_dict["status"]["message"][
+                    "parts"
+                ] = _translate_modern_parts_to_sam(
+                    legacy_dict["status"]["message"]["parts"]
+                )
 
-    elif isinstance(modern_event, ModernTaskArtifactUpdateEvent):
-        log.debug(
-            "%s Translating modern TaskArtifactUpdateEvent to legacy.", log_identifier
-        )
-        if "task_id" in legacy_dict:
-            legacy_dict["id"] = legacy_dict.pop("task_id")
-        if "context_id" in legacy_dict:
-            del legacy_dict["context_id"]  # No equivalent in legacy event
+    # In Task.history
+    if "history" in legacy_dict and isinstance(legacy_dict["history"], list):
+        for msg in legacy_dict["history"]:
+            if isinstance(msg, dict) and "parts" in msg and isinstance(msg["parts"], list):
+                msg["parts"] = _translate_modern_parts_to_sam(msg["parts"])
 
-        # Translate parts in artifact
-        if legacy_dict.get("artifact", {}).get("parts"):
+    # In TaskArtifactUpdateEvent.artifact
+    if "artifact" in legacy_dict and isinstance(legacy_dict["artifact"], dict):
+        if "parts" in legacy_dict["artifact"] and isinstance(
+            legacy_dict["artifact"]["parts"], list
+        ):
             legacy_dict["artifact"]["parts"] = _translate_modern_parts_to_sam(
                 legacy_dict["artifact"]["parts"]
             )
-        return legacy_dict
 
-    else:
-        log.warning(
-            "%s Received unhandled modern event type for translation: %s",
-            log_identifier,
-            type(modern_event).__name__,
-        )
-        # Return the original dict as a fallback
-        return modern_dict
+    return legacy_dict
