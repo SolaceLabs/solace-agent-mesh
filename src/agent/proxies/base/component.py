@@ -172,8 +172,18 @@ class BaseProxyComponent(ComponentBase, ABC):
                 raise ValueError("Message has no topic.")
             target_agent_name = topic.split("/")[-1]
 
+            # Determine if this is a new task
+            is_new_task = False
+            if payload.get("method") in ["tasks/send", "tasks/sendSubscribe"]:
+                legacy_params = payload.get("params", {})
+                legacy_task_id = legacy_params.get("id")
+                if legacy_task_id:
+                    with self.active_tasks_lock:
+                        if legacy_task_id not in self.active_tasks:
+                            is_new_task = True
+
             # 4.2.2: Call inbound translator
-            a2a_request = translate_sam_to_modern_request(payload)
+            a2a_request = translate_sam_to_modern_request(payload, is_new_task=is_new_task)
 
             # Get logical task ID based on the modern request type
             if isinstance(

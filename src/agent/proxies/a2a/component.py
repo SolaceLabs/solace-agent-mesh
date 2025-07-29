@@ -242,6 +242,27 @@ class A2AProxyComponent(BaseProxyComponent):
             )
             return
 
+        # Get the original ID the caller is expecting
+        original_task_id = task_context.task_id
+
+        # Mutate the payload to use the original ID before publishing
+        if hasattr(event_payload, "task_id") and event_payload.task_id:
+            log.debug(
+                "%s Rewriting task_id from '%s' to original '%s'",
+                log_identifier,
+                event_payload.task_id,
+                original_task_id,
+            )
+            event_payload.task_id = original_task_id
+        elif hasattr(event_payload, "id") and event_payload.id:
+            log.debug(
+                "%s Rewriting id from '%s' to original '%s'",
+                log_identifier,
+                event_payload.id,
+                original_task_id,
+            )
+            event_payload.id = original_task_id
+
         # Handle outbound artifacts using the unwrapped payload
         await self._handle_outbound_artifacts(event_payload, task_context, client)
 

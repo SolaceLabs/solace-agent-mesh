@@ -96,7 +96,7 @@ def translate_modern_card_to_sam_card(
 
 
 def translate_sam_to_modern_request(
-    legacy_payload: Dict[str, Any]
+    legacy_payload: Dict[str, Any], is_new_task: bool = False
 ) -> modern_types.A2ARequest:
     """
     Translates a legacy SAM A2A request payload to the modern A2A spec.
@@ -133,10 +133,18 @@ def translate_sam_to_modern_request(
     legacy_params = legacy_payload.get("params", {})
     legacy_message = legacy_params.get("message", {})
 
+    task_id_for_modern_message = legacy_params.get("id")
+    if is_new_task:
+        log.info(
+            "%s Detected new task. Setting task_id to None for modern request.",
+            log_identifier,
+        )
+        task_id_for_modern_message = None
+
     # 2.3.2: Create modern Message
     modern_message = Message(
         message_id=str(uuid.uuid4()),
-        task_id=legacy_params.get("id"),
+        task_id=task_id_for_modern_message,
         context_id=legacy_params.get("sessionId"),
         role=legacy_message.get("role"),
         parts=legacy_message.get("parts", []),
