@@ -23,7 +23,7 @@ class RegistryManager:
         default_official_registry = Registry(
             id=default_id,
             path_or_url=DEFAULT_OFFICIAL_REGISTRY_URL,
-            name="Official SAM Plugins",
+            name="official_sam_plugins",
             type=(
                 "git"
                 if DEFAULT_OFFICIAL_REGISTRY_URL.startswith(
