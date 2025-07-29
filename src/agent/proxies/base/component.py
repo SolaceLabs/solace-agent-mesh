@@ -185,13 +185,11 @@ class BaseProxyComponent(ComponentBase, ABC):
             # 4.2.2: Call inbound translator
             a2a_request = translate_sam_to_modern_request(payload, is_new_task=is_new_task)
 
-            # Get logical task ID based on the modern request type
-            if isinstance(
-                a2a_request, (SendMessageRequest, SendStreamingMessageRequest)
-            ):
-                logical_task_id = a2a_request.params.message.task_id
-            else:
-                logical_task_id = a2a_request.params.id
+            # The modern request might have task_id=None, but we need the original ID for tracking.
+            legacy_params = payload.get("params", {})
+            logical_task_id = legacy_params.get("id")
+            if not logical_task_id:
+                raise ValueError("Legacy request is missing 'id' in params.")
 
             # 4.2.3: Pass modern request to forwarder
             if isinstance(
@@ -202,6 +200,7 @@ class BaseProxyComponent(ComponentBase, ABC):
                 a2a_context = {
                     "jsonrpc_request_id": jsonrpc_request_id,
                     "logical_task_id": logical_task_id,
+                    "sessionId": legacy_params.get("sessionId"),
                     "statusTopic": message.get_user_properties().get("a2aStatusTopic"),
                     "replyToTopic": message.get_user_properties().get("replyTo"),
                 }

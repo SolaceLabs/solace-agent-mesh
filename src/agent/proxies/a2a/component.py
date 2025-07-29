@@ -291,6 +291,7 @@ class A2AProxyComponent(BaseProxyComponent):
             )
             final_task = Task(
                 id=task_context.task_id,
+                context_id=task_context.a2a_context.get("sessionId"),
                 status=TaskStatus(state=TaskState.completed, message=event_payload),
                 # Note: history might be incomplete here if not managed by the proxy
             )
