@@ -45,7 +45,7 @@ expected_gateway_output:
   - type: final_response
     content_parts:
       - type: text
-        text_exact: "I have created the graph and saved it as 'diagram-no-extension.png'.
+        text_exact: "I have created the graph and saved it as 'diagram-no-extension.png'."
 
 expected_artifacts:
   - filename: "diagram-no-extension.png"

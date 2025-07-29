@@ -14,8 +14,3 @@ expected_gateway_output:
     content_parts:
       - type: "text"
         text_contains: "Result is «:»." # Expect original string as it's an invalid type
-````
-
-````yaml
-tests/integration/scenarios_declarative/test_data/embeds/general/test_embed_mixed_with_text.yaml
-<<<<<<< SEARCH

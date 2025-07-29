@@ -14,8 +14,3 @@ expected_gateway_output:
     content_parts:
       - type: "text"
         text_contains: "Result is 2." # Expect successful resolution as spaces around type/expr are trimmed
-````
-
-````yaml
-tests/integration/scenarios_declarative/test_data/embeds/general/test_embed_unknown_type.yaml
-<<<<<<< SEARCH
