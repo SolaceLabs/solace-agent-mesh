@@ -9,7 +9,7 @@ import concurrent.futures
 import functools
 import threading
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 import httpx
 

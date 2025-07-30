@@ -5,7 +5,7 @@ Concrete implementation of a proxy for standard A2A-over-HTTPS agents.
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, Optional, TYPE_CHECKING, Union
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 
 import httpx
 
