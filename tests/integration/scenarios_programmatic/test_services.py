@@ -165,4 +165,3 @@ def test_employee_service_factory():
     # Test with some dummy configuration, but plugin not installed, so expect ValueError when metadata.entry_points(group="solace_agent_mesh.plugins")
     with pytest.raises(ValueError):
         create_employee_service({"type": "dummy_type"})
-        print("Correctly raised ValueError for invalid employee service type.")
