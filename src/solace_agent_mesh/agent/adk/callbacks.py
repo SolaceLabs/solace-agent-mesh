@@ -786,7 +786,7 @@ It can span multiple lines.
 The system will automatically save the content and give you a confirmation in the next turn."""
 
 def _generate_artifact_creation_instruction() -> str:
-    return """\
+    return """
     **Creating Text-Based Artifacts:**
 
     **When to Create Text-based Artifacts:**
