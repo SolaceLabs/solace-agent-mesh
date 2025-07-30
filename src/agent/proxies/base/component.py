@@ -20,7 +20,7 @@ from solace_ai_connector.components.component_base import ComponentBase
 
 from ....common.a2a_protocol import get_agent_request_topic, get_discovery_topic
 from ....common.agent_registry import AgentRegistry
-from ....common.types import JSONRPCResponse
+from ....common.types import JSONRPCError as LegacyJSONRPCError, JSONRPCResponse
 from a2a.types import (
     A2ARequest,
     AgentCard,
@@ -426,7 +426,13 @@ class BaseProxyComponent(ComponentBase, ABC):
                 self.log_identifier,
             )
             return
-        response = JSONRPCResponse(id=request_id, error=error)
+
+        # Translate modern error to legacy error dict
+        legacy_error = LegacyJSONRPCError(
+            code=error.code, message=error.message, data=error.data
+        )
+
+        response = JSONRPCResponse(id=request_id, error=legacy_error)
         self._publish_a2a_message(response.model_dump(exclude_none=True), target_topic)
 
     def _publish_a2a_message(

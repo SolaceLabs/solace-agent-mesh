@@ -383,39 +383,6 @@ class A2AProxyComponent(BaseProxyComponent):
                 f"Received unhandled response payload type: {type(event_payload)}"
             )
 
-    async def _handle_outbound_artifacts(
-        self,
-        response: Any,
-        task_context: "ProxyTaskContext",
-        client: A2AClient,
-    ):
-        """
-        Checks for artifacts in the response, saves them, and rewrites the response.
-        """
-        parts_to_check = []
-        if isinstance(response, Task) and response.status and response.status.message:
-            parts_to_check = response.status.message.parts
-        elif (
-            isinstance(response, TaskStatusUpdateEvent)
-            and response.status
-            and response.status.message
-        ):
-            parts_to_check = response.status.message.parts
-        elif isinstance(response, TaskArtifactUpdateEvent):
-            parts_to_check = response.artifact.parts
-        elif isinstance(response, Message):
-            parts_to_check = response.parts
-
-        for part in parts_to_check:
-            if isinstance(part, FilePart) and part.file and part.file.bytes:
-                # Save artifact and rewrite part
-                # This is a simplified placeholder.
-                log.info(f"Saving outbound artifact: {part.file.name}")
-                # saved_uri = await self.artifact_service.save(...)
-                # part.file.uri = saved_uri
-                # part.file.bytes = None
-                pass  # Placeholder for artifact saving logic
-
     def cleanup(self):
         """Cleans up resources on component shutdown."""
         log.info("%s Cleaning up A2A proxy component resources...", self.log_identifier)
