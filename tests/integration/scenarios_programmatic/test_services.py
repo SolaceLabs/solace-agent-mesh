@@ -62,7 +62,6 @@ def test_local_file_identity_service_invalid_json():
 
     with pytest.raises(json.JSONDecodeError):
         LocalFileIdentityService(invalid_json_config)
-        print("Correctly raised JSONDecodeError for invalid JSON file.")
 
 def test_local_file_identity_service_load_data():
     """
