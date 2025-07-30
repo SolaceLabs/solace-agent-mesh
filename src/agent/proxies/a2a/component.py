@@ -27,6 +27,7 @@ from a2a.types import (
     Artifact as ModernArtifact,
     DataPart,
     FilePart,
+    FileWithUri,
     Message,
     SendMessageRequest,
     SendMessageResponse,
@@ -282,8 +283,11 @@ class A2AProxyComponent(BaseProxyComponent):
                         data_version = save_result.get("data_version")
                         saved_uri = f"artifact://{self.name}/{user_id}/{session_id}/{file_content.name}?version={data_version}"
 
-                        file_content.uri = saved_uri
-                        file_content.bytes = None
+                        file_part.file = FileWithUri(
+                            uri=saved_uri,
+                            mime_type=file_content.mime_type,
+                            name=file_content.name,
+                        )
 
                         saved_artifacts_manifest.append(
                             {"filename": file_content.name, "version": data_version}
