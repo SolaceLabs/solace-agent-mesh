@@ -218,6 +218,7 @@ def translate_modern_to_sam_response(
     modern_event: Union[
         ModernTask, ModernTaskStatusUpdateEvent, ModernTaskArtifactUpdateEvent
     ],
+    produced_artifacts: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
     Translates a modern A2A response/event object to a legacy SAM A2A dictionary
@@ -225,6 +226,8 @@ def translate_modern_to_sam_response(
 
     Args:
         modern_event: The modern Pydantic event object from the a2a-python SDK.
+        produced_artifacts: A list of artifacts produced by the proxy, to be
+                            added to the task's metadata.
 
     Returns:
         A dictionary conforming to the legacy SAM A2A protocol structure.

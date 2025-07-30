@@ -200,6 +200,7 @@ class BaseProxyComponent(ComponentBase, ABC):
                     "jsonrpc_request_id": jsonrpc_request_id,
                     "logical_task_id": logical_task_id,
                     "sessionId": legacy_params.get("sessionId"),
+                    "userId": message.get_user_properties().get("userId", "default_user"),
                     "statusTopic": message.get_user_properties().get("a2aStatusTopic"),
                     "replyToTopic": message.get_user_properties().get("replyTo"),
                 }
@@ -367,7 +368,9 @@ class BaseProxyComponent(ComponentBase, ABC):
         )
         self._publish_a2a_message(response.model_dump(exclude_none=True), target_topic)
 
-    async def _publish_final_response(self, task: Task, a2a_context: Dict):
+    async def _publish_final_response(
+        self, task: Task, a2a_context: Dict, produced_artifacts: Optional[List[Dict]] = None
+    ):
         """Publishes the final Task object to the appropriate Solace topic."""
         target_topic = a2a_context.get("replyToTopic")
         if not target_topic:
@@ -379,7 +382,9 @@ class BaseProxyComponent(ComponentBase, ABC):
             return
 
         # 4.4.2: Call outbound translator
-        legacy_task_dict = translate_modern_to_sam_response(task)
+        legacy_task_dict = translate_modern_to_sam_response(
+            task, produced_artifacts=produced_artifacts
+        )
 
         # 4.4.3: Use translated dict as result
         response = JSONRPCResponse(

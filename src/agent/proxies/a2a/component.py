@@ -18,9 +18,12 @@ from a2a.client import (
 )
 from solace_ai_connector.common.log import log
 
+from datetime import datetime, timezone
+
 from a2a.types import (
     A2ARequest,
     AgentCard,
+    Artifact as ModernArtifact,
     FilePart,
     Message,
     SendMessageRequest,
@@ -112,9 +115,6 @@ class A2AProxyComponent(BaseProxyComponent):
                     f"Could not create A2A client for agent '{agent_name}'"
                 )
 
-            # Handle inbound artifacts
-            await self._handle_inbound_artifacts(request)
-
             # Forward the request
             if isinstance(request, SendStreamingMessageRequest):
                 response_generator = client.send_message_streaming(
@@ -194,23 +194,114 @@ class A2AProxyComponent(BaseProxyComponent):
         self._a2a_clients[agent_name] = client
         return client
 
-    async def _handle_inbound_artifacts(self, request: A2ARequest):
+    async def _handle_outbound_artifacts(
+        self,
+        response: Any,
+        task_context: "ProxyTaskContext",
+    ) -> List[Dict[str, Any]]:
         """
-        Checks for artifact references in the request and loads their content.
-        """
-        if not hasattr(request.params, "message") or not request.params.message.parts:
-            return
+        Finds artifacts with byte content, saves them to the proxy's artifact store,
+        and mutates the response object to replace bytes with a URI.
+        It also uses TextParts within an artifact as a description for the saved file.
 
-        for part in request.params.message.parts:
-            if isinstance(part, FilePart) and part.file and part.file.uri:
-                if part.file.uri.startswith("artifact://"):
-                    # This is a simplified placeholder. A real implementation
-                    # would need to parse the URI and use the artifact service.
-                    log.info(f"Loading artifact from URI: {part.file.uri}")
-                    # loaded_content = await self.artifact_service.load(...)
-                    # part.file.bytes = loaded_content
-                    # part.file.uri = None
-                    pass  # Placeholder for artifact loading logic
+        Returns:
+            A list of dictionaries, each representing a saved artifact with its filename and version.
+        """
+        from ....agent.utils.artifact_helpers import save_artifact_with_metadata
+        from a2a.types import TextPart
+
+        log_identifier = (
+            f"{self.log_identifier}[HandleOutboundArtifacts:{task_context.task_id}]"
+        )
+        saved_artifacts_manifest = []
+
+        artifacts_to_process: List[ModernArtifact] = []
+        if isinstance(response, Task) and response.artifacts:
+            artifacts_to_process = response.artifacts
+        elif isinstance(response, TaskArtifactUpdateEvent):
+            artifacts_to_process = [response.artifact]
+
+        if not artifacts_to_process:
+            return saved_artifacts_manifest
+
+        if not self.artifact_service:
+            log.warning(
+                "%s Artifact service not configured. Cannot save outbound artifacts.",
+                log_identifier,
+            )
+            return saved_artifacts_manifest
+
+        for artifact in artifacts_to_process:
+            contextual_description = "\n".join(
+                [
+                    part.root.text
+                    for part in artifact.parts
+                    if isinstance(part.root, TextPart)
+                ]
+            )
+
+            for part in artifact.parts:
+                if (
+                    isinstance(part.root, FilePart)
+                    and part.root.file
+                    and part.root.file.bytes
+                ):
+                    file_part = part.root
+                    file_content = file_part.file
+                    log.info(
+                        "%s Found outbound artifact '%s' with byte content. Saving...",
+                        log_identifier,
+                        file_content.name,
+                    )
+
+                    metadata_to_save = artifact.metadata or {}
+                    if artifact.description:
+                        metadata_to_save["description"] = artifact.description
+                    elif contextual_description:
+                        metadata_to_save["description"] = contextual_description
+
+                    metadata_to_save["proxied_from_artifact_id"] = artifact.artifact_id
+                    user_id = task_context.a2a_context.get("userId", "default_user")
+                    session_id = task_context.a2a_context.get("sessionId")
+
+                    save_result = await save_artifact_with_metadata(
+                        artifact_service=self.artifact_service,
+                        app_name=self.name,
+                        user_id=user_id,
+                        session_id=session_id,
+                        filename=file_content.name,
+                        content_bytes=file_content.bytes,
+                        mime_type=file_content.mime_type,
+                        metadata_dict=metadata_to_save,
+                        timestamp=datetime.now(timezone.utc),
+                    )
+
+                    if save_result.get("status") in ["success", "partial_success"]:
+                        data_version = save_result.get("data_version")
+                        saved_uri = f"artifact://{self.name}/{user_id}/{session_id}/{file_content.name}?version={data_version}"
+
+                        file_content.uri = saved_uri
+                        file_content.bytes = None
+
+                        saved_artifacts_manifest.append(
+                            {"filename": file_content.name, "version": data_version}
+                        )
+                        log.info(
+                            "%s Saved artifact '%s' as version %d. URI: %s",
+                            log_identifier,
+                            file_content.name,
+                            data_version,
+                            saved_uri,
+                        )
+                    else:
+                        log.error(
+                            "%s Failed to save artifact '%s': %s",
+                            log_identifier,
+                            file_content.name,
+                            save_result.get("message"),
+                        )
+
+        return saved_artifacts_manifest
 
     async def _process_downstream_response(
         self,
@@ -230,7 +321,6 @@ class A2AProxyComponent(BaseProxyComponent):
             f"{self.log_identifier}[ProcessResponse:{task_context.task_id}]"
         )
 
-        # Unwrap the actual event payload from the JSON-RPC response object.
         event_payload = None
         if isinstance(response, (SendMessageResponse, SendStreamingMessageResponse)):
             if hasattr(response.root, "result") and response.root.result:
@@ -244,7 +334,6 @@ class A2AProxyComponent(BaseProxyComponent):
                 # TODO: Translate and forward the error to the original client.
                 return
         else:
-            # This path is for backward compatibility or direct event passing.
             event_payload = response
 
         if not event_payload:
@@ -255,49 +344,28 @@ class A2AProxyComponent(BaseProxyComponent):
             )
             return
 
-        # Get the original ID the caller is expecting
-        original_task_id = task_context.task_id
+        produced_artifacts = await self._handle_outbound_artifacts(
+            event_payload, task_context
+        )
 
-        # Mutate the payload to use the original ID before publishing
+        original_task_id = task_context.task_id
         if hasattr(event_payload, "task_id") and event_payload.task_id:
-            log.debug(
-                "%s Rewriting task_id from '%s' to original '%s'",
-                log_identifier,
-                event_payload.task_id,
-                original_task_id,
-            )
             event_payload.task_id = original_task_id
         elif hasattr(event_payload, "id") and event_payload.id:
-            log.debug(
-                "%s Rewriting id from '%s' to original '%s'",
-                log_identifier,
-                event_payload.id,
-                original_task_id,
-            )
             event_payload.id = original_task_id
 
-        # Handle outbound artifacts using the unwrapped payload
-        await self._handle_outbound_artifacts(event_payload, task_context, client)
-
-        # Publish response back to Solace
         if isinstance(event_payload, (Task, TaskStatusUpdateEvent)):
             if isinstance(event_payload, Task):
-                # This is a final response
                 await self._publish_final_response(
-                    event_payload, task_context.a2a_context
+                    event_payload, task_context.a2a_context, produced_artifacts
                 )
             else:
-                # This is a status update
                 await self._publish_status_update(
                     event_payload, task_context.a2a_context
                 )
         elif isinstance(event_payload, TaskArtifactUpdateEvent):
-            # This is already handled by _handle_outbound_artifacts, but we could
-            # forward the event if needed. For now, we assume saving is enough.
             await self._publish_artifact_update(event_payload, task_context.a2a_context)
         elif isinstance(event_payload, Message):
-            # A direct message response is a final response. The proxy should wrap
-            # it in a completed Task to send back.
             log.info(
                 "%s Received a direct Message response. Wrapping in a completed Task.",
                 log_identifier,
@@ -306,9 +374,10 @@ class A2AProxyComponent(BaseProxyComponent):
                 id=task_context.task_id,
                 context_id=task_context.a2a_context.get("sessionId"),
                 status=TaskStatus(state=TaskState.completed, message=event_payload),
-                # Note: history might be incomplete here if not managed by the proxy
             )
-            await self._publish_final_response(final_task, task_context.a2a_context)
+            await self._publish_final_response(
+                final_task, task_context.a2a_context, produced_artifacts
+            )
         else:
             log.warning(
                 f"Received unhandled response payload type: {type(event_payload)}"
