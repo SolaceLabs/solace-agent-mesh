@@ -27,9 +27,8 @@ apps:
       # store it here before forwarding it on the Solace mesh.
       artifact_service:
         type: "filesystem"
-        base_path: "/tmp/sam_proxy_artifacts"
-        artifact_scope: namespace # 'namespace', 'app', or 'custom'
-        artifact_scope: namespace # 'namespace', 'app', or 'custom'
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace # Default scope, shares artifacts within the NAMESPACE
 
       # How the proxy should handle artifacts it sends over Solace.
       # 'reference': Sends an artifact:// URI.
@@ -38,7 +37,7 @@ apps:
 
       # Interval in seconds for the proxy to re-fetch agent cards from
       # downstream agents. Set to 0 to disable periodic checks.
-      discovery_interval_seconds: 60
+      discovery_interval_seconds: 5
 
       # --- List of Downstream Agents to Proxy ---
       proxied_agents:

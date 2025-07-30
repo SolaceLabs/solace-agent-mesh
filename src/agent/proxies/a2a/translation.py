@@ -1,6 +1,9 @@
 """
 This module contains functions for translating between the legacy SAM A2A protocol
 and the modern, standardized A2A protocol.
+
+THIS IS VERY TEMPORARY UNTIL SAM UPGRADES A2A
+
 """
 
 import uuid
@@ -240,7 +243,7 @@ def translate_modern_to_sam_response(
     )
 
     def _translate_modern_message_to_sam_dict(
-        modern_message: Dict[str, Any]
+        modern_message: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Translates a modern Message dictionary to a legacy SAM Message dictionary."""
         if not modern_message:
@@ -254,7 +257,7 @@ def translate_modern_to_sam_response(
         return legacy_message
 
     def _translate_modern_status_to_sam_dict(
-        modern_status: Dict[str, Any]
+        modern_status: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Translates a modern TaskStatus dictionary to a legacy SAM TaskStatus dictionary."""
         if not modern_status:
