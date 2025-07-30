@@ -322,6 +322,11 @@ def translate_modern_to_sam_response(
                 )
             legacy_task["artifacts"] = legacy_artifacts
 
+        if produced_artifacts:
+            if "metadata" not in legacy_task or legacy_task["metadata"] is None:
+                legacy_task["metadata"] = {}
+            legacy_task["metadata"]["produced_artifacts"] = produced_artifacts
+
         return {k: v for k, v in legacy_task.items() if v is not None}
 
     elif isinstance(modern_event, ModernTaskStatusUpdateEvent):
