@@ -7,7 +7,7 @@ __current_dir__ = os.path.dirname(os.path.abspath(__file__))
 __test_support_dir__ = os.path.join(__current_dir__, "../test_support")
 
 
-invalid_json_config =  {
+invalid_json_config = {
         "file_path": os.path.join(__test_support_dir__, "identity_service_users_invalid_json.json"),
         "lookup_key": "id",
         "type": "local_file"
