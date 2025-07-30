@@ -50,7 +50,7 @@ docker run --rm -it -v "$(pwd):/app" -p 5002:5002 solace/solace-agent-mesh:lates
 
 If the OS architecture on your host is not `linux/amd64`, you would need to add `--platform linux/amd64` when running container.
 
-For `Broker Setup`, do not choose Broker Type of `New local Solace PubSub+ broker container`. Because when you click `Download and Run Container` later, it tries to download image within the container, which is not supported.
+For Broker Setup, do not select the Broker Type `New local Solace PubSub+ broker container`. This option is incompatible with Docker deployments because the `Download and Run Container` action attempts to download a container image from within the already running container, which causes the operation to fail.
 
 </details>
 
