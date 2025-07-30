@@ -5,6 +5,7 @@ Concrete implementation of a proxy for standard A2A-over-HTTPS agents.
 from __future__ import annotations
 
 import asyncio
+import uuid
 from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 
 import httpx
@@ -396,7 +397,9 @@ class A2AProxyComponent(BaseProxyComponent):
 
                 if not event_payload.status.message:
                     event_payload.status.message = Message(
-                        role="agent", parts=[summary_message_part]
+                        message_id=str(uuid.uuid4()),
+                        role="agent",
+                        parts=[summary_message_part],
                     )
                 else:
                     event_payload.status.message.parts.append(summary_message_part)
