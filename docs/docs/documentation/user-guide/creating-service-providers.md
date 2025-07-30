@@ -130,7 +130,6 @@ To make the provider discoverable by SAM, it must be registered as a plugin via 
 
 **1. Add an entry point in `pyproject.toml`:**
 The key assigned here (`corphr`) is used as the `type` identifier in YAML configurations.
-
 ```toml
 [project.entry-points."solace_agent_mesh.plugins"]
 corphr = "my_corp_hr_provider:info"
@@ -138,7 +137,6 @@ corphr = "my_corp_hr_provider:info"
 
 **2. Define the `info` object in the plugin's `__init__.py`:**
 This object points to the provider's class path and provides a brief description.
-
 ```python
 # my_corp_hr_provider/__init__.py
 info = {
@@ -163,7 +161,6 @@ app_config:
 
 **For an Agent (Employee Service Role):**
 This example demonstrates configuring the provider for the `employee_tools` group.
-
 ```yaml
 app_config:
   tools:

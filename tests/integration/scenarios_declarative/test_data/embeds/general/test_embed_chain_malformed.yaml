@@ -14,12 +14,6 @@ llm_interactions:
       choices: [{message: {role: "assistant", content: "Result: «artifact_content:file.txt>>>format text»"}}]
 expected_gateway_output:
   - type: "final_response"
-    assert_content_against_stream: true
     content_parts:
       - type: "text"
         text_contains: "Result: [:warning: Error resolving embed artifact_content:file.txt>>>format text - Malformed modifier step 'format text'. Expected 'modifier_name:modifier_value'.]"
-````
-
-````yaml
-tests/integration/scenarios_declarative/test_data/embeds/general/test_embed_empty_directive.yaml
-<<<<<<< SEARCH

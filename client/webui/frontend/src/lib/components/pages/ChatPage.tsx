@@ -11,6 +11,7 @@ import { useAgents, useChatContext, useSessionPreview, useTaskContext } from "@/
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
 import { SessionSidePanel } from "../chat/SessionSidePanel";
+import type { ChatMessageListRef } from "../ui/chat/chat-message-list";
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
@@ -39,6 +40,7 @@ export function ChatPage() {
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
 
     // Refs for resizable panel state
+    const chatMessageListRef = useRef<ChatMessageListRef>(null);
     const chatSidePanelRef = useRef<ImperativePanelHandle>(null);
     const lastExpandedSizeRef = useRef<number | null>(null);
 
@@ -72,7 +74,6 @@ export function ChatPage() {
 
     const handleSidepanelResize = useCallback((size: number) => {
         // Only store the size if the panel is not collapsed
-        // This ensures we remember the user's preferred expanded size
         if (size > COLLAPSED_SIZE + 1) {
             lastExpandedSizeRef.current = size;
         }
@@ -82,9 +83,7 @@ export function ChatPage() {
         setIsSessionSidePanelCollapsed(!isSessionSidePanelCollapsed);
     }, [isSessionSidePanelCollapsed]);
 
-    // Listen for expand-side-panel events from openSidePanelTab
     useEffect(() => {
-        // Ensure chat side panel is resized to collapsed size if needed
         if (chatSidePanelRef.current && isSidePanelCollapsed) {
             chatSidePanelRef.current.resize(COLLAPSED_SIZE);
         }
@@ -98,7 +97,6 @@ export function ChatPage() {
                 const targetSize = lastExpandedSizeRef.current || sidePanelSizes.default;
                 chatSidePanelRef.current.resize(targetSize);
 
-                // Update collapsed state
                 setIsSidePanelCollapsed(false);
 
                 // Reset transitioning state after animation completes
@@ -207,7 +205,7 @@ export function ChatPage() {
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
                         <ResizablePanel defaultSize={chatPanelSizes.default} minSize={chatPanelSizes.min} maxSize={chatPanelSizes.max} id="chat-panel">
                             <div className="flex h-full w-full flex-col py-6">
-                                <ChatMessageList className="text-base">
+                                <ChatMessageList className="text-base" ref={chatMessageListRef}>
                                     {messages.map((message, index) => {
                                         const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
                                         return <ChatMessage message={message} key={`${message.metadata?.sessionId || "session"}-${index}-${message.isUser ? "received" : "sent"}`} isLastWithTaskId={isLastWithTaskId} />;
@@ -215,7 +213,7 @@ export function ChatPage() {
                                 </ChatMessageList>
                                 <div style={CHAT_STYLES}>
                                     {loadingMessage && <LoadingMessageRow statusText={loadingMessage.text} onViewWorkflow={handleViewProgressClick} />}
-                                    <ChatInputArea agents={agents} />
+                                    <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                                 </div>
                             </div>
                         </ResizablePanel>

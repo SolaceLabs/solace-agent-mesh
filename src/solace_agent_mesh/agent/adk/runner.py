@@ -132,7 +132,7 @@ async def run_adk_async_task_thread_wrapper(
             logical_task_id,
             tce,
         )
-        sub_tasks_to_cancel = task_context.peer_sub_tasks if task_context else []
+        sub_tasks_to_cancel = task_context.active_peer_sub_tasks if task_context else {}
 
         if sub_tasks_to_cancel:
             log.info(
@@ -141,18 +141,22 @@ async def run_adk_async_task_thread_wrapper(
                 len(sub_tasks_to_cancel),
                 logical_task_id,
             )
-            for sub_task_info in sub_tasks_to_cancel:
+            for sub_task_id, sub_task_info in sub_tasks_to_cancel.items():
                 try:
-                    sub_task_id = sub_task_info.get("sub_task_id")
                     target_peer_agent_name = sub_task_info.get("peer_agent_name")
                     if not sub_task_id or not target_peer_agent_name:
                         log.warning(
-                            "%s Incomplete sub-task info found, cannot cancel: %s",
+                            "%s Incomplete sub-task info found for sub-task %s, cannot cancel: %s",
                             component.log_identifier,
+                            sub_task_id,
                             sub_task_info,
                         )
                         continue
-                    peer_cancel_params = TaskIdParams(id=sub_task_id)
+
+                    task_id_for_peer = sub_task_id.replace(
+                        component.CORRELATION_DATA_PREFIX, "", 1
+                    )
+                    peer_cancel_params = TaskIdParams(id=task_id_for_peer)
                     peer_cancel_request = CancelTaskRequest(params=peer_cancel_params)
                     peer_cancel_user_props = {"clientId": component.agent_name}
                     peer_request_topic = component._get_agent_request_topic(
@@ -167,7 +171,7 @@ async def run_adk_async_task_thread_wrapper(
                     log.error(
                         "%s Failed to send CancelTaskRequest for sub-task %s: %s",
                         component.log_identifier,
-                        sub_task_info.get("sub_task_id"),
+                        sub_task_id,
                         e_peer_cancel,
                         exc_info=True,
                     )

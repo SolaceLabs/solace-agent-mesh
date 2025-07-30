@@ -248,7 +248,7 @@ async def process_event(component, event: Event):
             elif topic.startswith(agent_response_sub_prefix) or topic.startswith(
                 agent_status_sub_prefix
             ):
-                handle_a2a_response(component, message)
+                await handle_a2a_response(component, message)
             else:
                 log.warning(
                     "%s Received message on unhandled topic: %s",
@@ -264,31 +264,8 @@ async def process_event(component, event: Event):
             if timer_data.get("timer_id") == component._card_publish_timer_id:
                 publish_agent_card(component)
         elif event.event_type == EventType.CACHE_EXPIRY:
-            cache_data = event.data
-            log.info(
-                "%s Received cache expiry event: %s",
-                component.log_identifier,
-                cache_data,
-            )
-            sub_task_id = cache_data.get("key")
-            if sub_task_id and sub_task_id.startswith(
-                component.CORRELATION_DATA_PREFIX
-            ):
-                expired_data = cache_data.get("expired_data")
-                if expired_data:
-                    await component._handle_peer_timeout(sub_task_id, expired_data)
-                else:
-                    log.error(
-                        "%s Missing expired_data in cache expiry event for sub-task %s. Cannot process timeout.",
-                        component.log_identifier,
-                        sub_task_id,
-                    )
-            else:
-                log.debug(
-                    "%s Cache expiry for key '%s' is not a peer sub-task timeout.",
-                    component.log_identifier,
-                    sub_task_id,
-                )
+            # Delegate cache expiry handling to the component itself.
+            await component.handle_cache_expiry_event(event.data)
         else:
             log.warning(
                 "%s Received unknown event type: %s",
@@ -854,10 +831,9 @@ def handle_agent_card_message(component, message: SolaceMessage):
         component.handle_error(e, Event(EventType.MESSAGE, message))
 
 
-def handle_a2a_response(component, message: SolaceMessage):
+async def handle_a2a_response(component, message: SolaceMessage):
     """Handles incoming responses/status updates from peer agents."""
     sub_task_id = None
-    agent_name = component.get_config("agent_name")
     payload_to_queue = None
     is_final_response = False
 
@@ -932,10 +908,8 @@ def handle_a2a_response(component, message: SolaceMessage):
                                             component.log_identifier,
                                             sub_task_id,
                                         )
-                                        correlation_data = (
-                                            component.cache_service.get_data(
-                                                sub_task_id
-                                            )
+                                        correlation_data = await component._get_correlation_data_for_sub_task(
+                                            sub_task_id
                                         )
                                         if not correlation_data:
                                             log.warning(
@@ -1227,7 +1201,12 @@ def handle_a2a_response(component, message: SolaceMessage):
                     "error": f"Failed to parse response from peer: {parse_error}",
                     "code": "PEER_PARSE_ERROR",
                 }
-                is_final_response = True
+                # Print out the stack trace for debugging
+                log.exception(
+                    "%s Exception stack trace: %s",
+                    component.log_identifier,
+                    parse_error,
+                )
 
         if not is_final_response:
             # This is an intermediate status update for monitoring.
@@ -1240,13 +1219,9 @@ def handle_a2a_response(component, message: SolaceMessage):
             message.call_acknowledgements()
             return
 
-        correlation_data = component.cache_service.get_data(sub_task_id)
+        correlation_data = await component._claim_peer_sub_task_completion(sub_task_id)
         if not correlation_data:
-            log.warning(
-                "%s No correlation data found for sub-task %s. Cannot process response. Ignoring.",
-                component.log_identifier,
-                sub_task_id,
-            )
+            # The helper method logs the reason (timeout, already claimed, etc.)
             message.call_acknowledgements()
             return
 

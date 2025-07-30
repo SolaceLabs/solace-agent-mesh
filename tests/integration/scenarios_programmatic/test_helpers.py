@@ -167,12 +167,19 @@ async def get_all_task_events(
         )
         if event:
             captured_events.append(event)
-            print(f"TestHelper: Scenario {scenario_id_for_log}: Captured event {type(event).__name__} for task {task_id}.")
+            print(
+                f"TestHelper: Scenario {scenario_id_for_log}: Captured event {type(event).__name__} for task {task_id}."
+            )
             if type(event).__name__ in ("Task", "JSONRPCError"):
-                print(f"TestHelper: Scenario {scenario_id_for_log}: Terminal event ({type(event).__name__}) received for task {task_id}.")
+                print(
+                    f"TestHelper: Scenario {scenario_id_for_log}: Terminal event ({type(event).__name__}) received for task {task_id}."
+                )
                 return captured_events
 
-    if not captured_events or type(captured_events[-1]).__name__ not in ("Task", "JSONRPCError"):
+    if not captured_events or type(captured_events[-1]).__name__ not in (
+        "Task",
+        "JSONRPCError",
+    ):
         pytest.fail(
             f"Scenario {scenario_id_for_log}: Timeout ({overall_timeout}s). "
             f"No terminal event (Task or JSONRPCError) received for task {task_id}. "

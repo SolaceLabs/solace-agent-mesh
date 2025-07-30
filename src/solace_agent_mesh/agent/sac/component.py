@@ -53,6 +53,8 @@ from ...common.types import (
     TaskStatusUpdateEvent,
     TaskArtifactUpdateEvent,
     SendTaskRequest,
+    CancelTaskRequest,
+    TaskIdParams,
 )
 from ...common.a2a_protocol import (
     get_a2a_base_topic,
@@ -536,49 +538,123 @@ class SamAgentComponent(ComponentBase):
         if timer_data.get("timer_id") == self._card_publish_timer_id:
             publish_agent_card(self)
 
-    def handle_cache_expiry_event(self, cache_data: Dict[str, Any]):
-        """Handles cache expiry events, specifically for peer timeouts."""
+    async def handle_cache_expiry_event(self, cache_data: Dict[str, Any]):
+        """
+        Handles cache expiry events for peer timeouts by calling the atomic claim helper.
+        """
         log.debug("%s Received cache expiry event: %s", self.log_identifier, cache_data)
-        expired_key = cache_data.get("key")
-        expired_data = cache_data.get("expired_data")
+        sub_task_id = cache_data.get("key")
+        logical_task_id = cache_data.get("expired_data")
 
-        if expired_key and expired_key.startswith(CORRELATION_DATA_PREFIX):
-            sub_task_id = expired_key
-            log.warning(
-                "%s Detected timeout for sub-task ID: %s",
+        if not (
+            sub_task_id
+            and sub_task_id.startswith(CORRELATION_DATA_PREFIX)
+            and logical_task_id
+        ):
+            log.debug(
+                "%s Cache expiry for key '%s' is not a peer sub-task timeout or is missing data.",
                 self.log_identifier,
                 sub_task_id,
             )
-            if expired_data:
-                try:
-                    original_task_context = expired_data.get("original_task_context")
-                    if original_task_context:
-                        self._handle_peer_timeout(sub_task_id, expired_data)
-                    else:
-                        log.error(
-                            "%s Missing 'original_task_context' in expired cache data for sub-task %s. Cannot process timeout.",
-                            self.log_identifier,
-                            sub_task_id,
-                        )
-                except Exception as e:
-                    log.exception(
-                        "%s Error handling peer timeout for sub-task %s: %s",
-                        self.log_identifier,
-                        sub_task_id,
-                        e,
-                    )
-            else:
-                log.error(
-                    "%s Missing expired_data in cache expiry event for sub-task %s. Cannot process timeout.",
-                    self.log_identifier,
-                    sub_task_id,
-                )
-        else:
-            log.debug(
-                "%s Cache expiry for key '%s' is not a peer sub-task timeout.",
+            return
+
+        correlation_data = await self._claim_peer_sub_task_completion(
+            sub_task_id=sub_task_id, logical_task_id_from_event=logical_task_id
+        )
+
+        if correlation_data:
+            log.warning(
+                "%s Detected timeout for sub-task %s (Main Task: %s). Claimed successfully.",
                 self.log_identifier,
-                expired_key,
+                sub_task_id,
+                logical_task_id,
             )
+            await self._handle_peer_timeout(sub_task_id, correlation_data)
+        else:
+            log.info(
+                "%s Ignoring timeout event for sub-task %s as it was already completed.",
+                self.log_identifier,
+                sub_task_id,
+            )
+
+    async def _get_correlation_data_for_sub_task(
+        self, sub_task_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Non-destructively retrieves correlation data for a sub-task.
+        Used for intermediate events where the sub-task should remain active.
+        """
+        logical_task_id = self.cache_service.get_data(sub_task_id)
+        if not logical_task_id:
+            log.warning(
+                "%s No cache entry for sub-task %s. Cannot get correlation data.",
+                self.log_identifier,
+                sub_task_id,
+            )
+            return None
+
+        with self.active_tasks_lock:
+            task_context = self.active_tasks.get(logical_task_id)
+
+        if not task_context:
+            log.error(
+                "%s TaskExecutionContext not found for task %s, but cache entry existed for sub-task %s. This may indicate a cleanup issue.",
+                self.log_identifier,
+                logical_task_id,
+                sub_task_id,
+            )
+            return None
+
+        with task_context.lock:
+            return task_context.active_peer_sub_tasks.get(sub_task_id)
+
+    async def _claim_peer_sub_task_completion(
+        self, sub_task_id: str, logical_task_id_from_event: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Atomically claims a sub-task as complete, preventing race conditions.
+        This is a destructive operation that removes state.
+
+        Args:
+            sub_task_id: The ID of the sub-task to claim.
+            logical_task_id_from_event: The parent task ID, if provided by the event (e.g., a timeout).
+                                        If not provided, it will be looked up from the cache.
+        """
+        log_id = f"{self.log_identifier}[ClaimSubTask:{sub_task_id}]"
+        logical_task_id = logical_task_id_from_event
+
+        if not logical_task_id:
+            logical_task_id = self.cache_service.get_data(sub_task_id)
+            if not logical_task_id:
+                log.warning(
+                    "%s No cache entry found. Task has likely timed out and been cleaned up. Cannot claim.",
+                    log_id,
+                )
+                return None
+
+        with self.active_tasks_lock:
+            task_context = self.active_tasks.get(logical_task_id)
+
+        if not task_context:
+            log.error(
+                "%s TaskExecutionContext not found for task %s. Cleaning up stale cache entry.",
+                log_id,
+                logical_task_id,
+            )
+            self.cache_service.remove_data(sub_task_id)
+            return None
+
+        correlation_data = task_context.claim_sub_task_completion(sub_task_id)
+
+        if correlation_data:
+            # If we successfully claimed the task, remove the timeout tracker from the cache.
+            self.cache_service.remove_data(sub_task_id)
+            log.info("%s Successfully claimed completion.", log_id)
+            return correlation_data
+        else:
+            # This means the task was already claimed by a competing event (e.g., timeout vs. response).
+            log.warning("%s Failed to claim; it was already completed.", log_id)
+            return None
 
     async def _retrigger_agent_with_peer_responses(
         self,
@@ -686,8 +762,9 @@ class SamAgentComponent(ComponentBase):
         correlation_data: Dict[str, Any],
     ):
         """
-        Handles the timeout of a peer agent task by updating the completion counter
-        and potentially re-triggering the runner if all parallel tasks are now complete.
+        Handles the timeout of a peer agent task. It sends a cancellation request
+        to the peer, updates the local completion counter, and potentially
+        re-triggers the runner if all parallel tasks are now complete.
         """
         logical_task_id = correlation_data.get("logical_task_id")
         invocation_id = correlation_data.get("invocation_id")
@@ -700,6 +777,36 @@ class SamAgentComponent(ComponentBase):
             invocation_id,
         )
 
+        # Proactively send a cancellation request to the peer agent.
+        peer_agent_name = correlation_data.get("peer_agent_name")
+        if peer_agent_name:
+            try:
+                log.info(
+                    "%s Sending CancelTaskRequest to peer '%s' for timed-out sub-task %s.",
+                    log_retrigger,
+                    peer_agent_name,
+                    sub_task_id,
+                )
+                task_id_for_peer = sub_task_id.replace(CORRELATION_DATA_PREFIX, "", 1)
+                cancel_params = TaskIdParams(id=task_id_for_peer)
+                cancel_request = CancelTaskRequest(params=cancel_params)
+                user_props = {"clientId": self.agent_name}
+                peer_topic = self._get_agent_request_topic(peer_agent_name)
+                self._publish_a2a_message(
+                    payload=cancel_request.model_dump(exclude_none=True),
+                    topic=peer_topic,
+                    user_properties=user_props,
+                )
+            except Exception as e:
+                log.error(
+                    "%s Failed to send CancelTaskRequest to peer '%s' for sub-task %s: %s",
+                    log_retrigger,
+                    peer_agent_name,
+                    sub_task_id,
+                    e,
+                )
+
+        # Process the timeout locally.
         with self.active_tasks_lock:
             task_context = self.active_tasks.get(logical_task_id)
 

@@ -243,13 +243,18 @@ class PeerAgentTool(BaseTool):
                 "adk_function_call_id": tool_context.function_call_id,
                 "original_task_context": original_task_context,
                 "peer_tool_name": self.name,
+                "peer_agent_name": self.target_agent_name,
                 "logical_task_id": main_logical_task_id,
                 "invocation_id": invocation_id,
             }
 
+            # Register the sub-task's state within the parent task's context.
+            task_context_obj.register_peer_sub_task(sub_task_id, correlation_data)
+
+            # Add a simple mapping to the cache for timeout tracking.
             self.host_component.cache_service.add_data(
                 key=sub_task_id,
-                value=correlation_data,
+                value=main_logical_task_id,
                 expiry=timeout_sec,
                 component=self.host_component,
             )
@@ -263,10 +268,6 @@ class PeerAgentTool(BaseTool):
                 user_config=user_config,
                 sub_task_id=sub_task_id,
                 function_call_id=tool_context.function_call_id,
-            )
-
-            task_context_obj.register_peer_sub_task(
-                sub_task_id=sub_task_id, peer_agent_name=self.target_agent_name
             )
             log.info(
                 "%s Registered active peer sub-task %s for main task %s.",

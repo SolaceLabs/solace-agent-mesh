@@ -662,7 +662,7 @@ def a2a_message_validator(
                     break
             if sam_agent_component_instance:
                 break
-            
+
     def get_component_from_app(app: SamAgentApp):
         if app.flows and app.flows[0].component_groups:
             for group in app.flows[0].component_groups:

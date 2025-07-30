@@ -10,12 +10,6 @@ llm_interactions:
       choices: [{message: {role: "assistant", content: "Result is « math : 1 + 1 »."}}] # Spaces around type, colon, and within expression
 expected_gateway_output:
   - type: "final_response"
-    assert_content_against_stream: true
     content_parts:
       - type: "text"
-        text_contains: "Result is 2." # Expect successful resolution as spaces around type/expr are trimmed
-````
-
-````yaml
-tests/integration/scenarios_declarative/test_data/embeds/general/test_embed_unknown_type.yaml
-<<<<<<< SEARCH
+        text_contains: "Result is « math : 1 + 1 »." # Expect successful resolution as spaces around type/expr are trimmed

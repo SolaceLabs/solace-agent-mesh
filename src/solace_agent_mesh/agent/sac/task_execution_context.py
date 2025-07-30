@@ -27,7 +27,7 @@ class TaskExecutionContext:
         self.cancellation_event: asyncio.Event = asyncio.Event()
         self.streaming_buffer: str = ""
         self.run_based_response_buffer: str = ""
-        self.peer_sub_tasks: List[Dict[str, Any]] = []
+        self.active_peer_sub_tasks: Dict[str, Dict[str, Any]] = {}
         self.parallel_tool_calls: Dict[str, Dict[str, Any]] = {}
         self.produced_artifacts: List[Dict[str, Any]] = []
         self.artifact_signals_to_return: List[Dict[str, Any]] = []
@@ -64,12 +64,21 @@ class TaskExecutionContext:
         with self.lock:
             self.run_based_response_buffer += text
 
-    def register_peer_sub_task(self, sub_task_id: str, peer_agent_name: str) -> None:
-        """Adds a new peer sub-task to the tracking list."""
+    def register_peer_sub_task(
+        self, sub_task_id: str, correlation_data: Dict[str, Any]
+    ) -> None:
+        """Adds a new peer sub-task's correlation data to the tracking dictionary."""
         with self.lock:
-            self.peer_sub_tasks.append(
-                {"sub_task_id": sub_task_id, "peer_agent_name": peer_agent_name}
-            )
+            self.active_peer_sub_tasks[sub_task_id] = correlation_data
+
+    def claim_sub_task_completion(self, sub_task_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Atomically retrieves and removes a sub-task's correlation data.
+        This is the core atomic operation to prevent race conditions.
+        Returns the correlation data if the claim is successful, otherwise None.
+        """
+        with self.lock:
+            return self.active_peer_sub_tasks.pop(sub_task_id, None)
 
     def register_parallel_call_sent(self, invocation_id: str) -> None:
         """

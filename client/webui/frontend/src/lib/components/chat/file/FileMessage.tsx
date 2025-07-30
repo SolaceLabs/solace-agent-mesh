@@ -29,35 +29,33 @@ export const FileMessage: React.FC<Readonly<FileMessageProps>> = ({ filename, on
     const FileIcon = useMemo(() => getFileIcon(artifact), [artifact]);
 
     return (
-        <>
-            <div className="ml-4 flex flex-shrink items-center gap-2 rounded-lg bg-[var(--accent-background)] px-2 py-1 h-11 max-w-xs">
-                {FileIcon}
-                <span className="min-w-0 h-9 flex-1 truncate text-sm leading-9" title={filename}>
-                    <strong>
-                        <code>{filename}</code>
-                    </strong>
-                </span>
+        <div className="ml-4 flex flex-shrink items-center gap-2 rounded-lg bg-[var(--accent-background)] px-2 py-1 h-11 max-w-xs">
+            {FileIcon}
+            <span className="min-w-0 h-9 flex-1 truncate text-sm leading-9" title={filename}>
+                <strong>
+                    <code>{filename}</code>
+                </strong>
+            </span>
 
-                {artifact && (
-                    <Button
-                        variant="ghost"
-                        onClick={e => {
-                            e.stopPropagation();
-                            openSidePanelTab("files");
-                            setPreviewArtifact(artifact);
-                        }}
-                        tooltip="Preview"
-                    >
-                        <Eye className="h-4 w-4" />
-                    </Button>
-                )}
+            {artifact && (
+                <Button
+                    variant="ghost"
+                    onClick={e => {
+                        e.stopPropagation();
+                        openSidePanelTab("files");
+                        setPreviewArtifact(artifact);
+                    }}
+                    tooltip="Preview"
+                >
+                    <Eye className="h-4 w-4" />
+                </Button>
+            )}
 
-                {onDownload && (
-                    <Button variant="ghost" onClick={() => onDownload()} tooltip="Download file">
-                        <Download className="h-4 w-4" />
-                    </Button>
-                )}
-            </div>
-        </>
+            {onDownload && (
+                <Button variant="ghost" onClick={() => onDownload()} tooltip="Download file">
+                    <Download className="h-4 w-4" />
+                </Button>
+            )}
+        </div>
     );
 };

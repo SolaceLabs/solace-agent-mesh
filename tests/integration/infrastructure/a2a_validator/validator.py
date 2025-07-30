@@ -167,9 +167,6 @@ class A2AMessageValidator:
         Fails the test immediately using pytest.fail() if validation errors occur.
         """
         if "/discovery/agentcards" in topic:
-            print(
-                f"A2AMessageValidator: Skipping validation for agent card on topic '{topic}'"
-            )
             return
 
         try:
