@@ -124,13 +124,15 @@ class A2AProxyComponent(BaseProxyComponent):
                 )
                 async for response in response_generator:
                     await self._process_downstream_response(
-                        response, task_context, client
+                        response, task_context, client, agent_name
                     )
             elif isinstance(request, SendMessageRequest):
                 response = await client.send_message(
                     request, context=task_context.a2a_context
                 )
-                await self._process_downstream_response(response, task_context, client)
+                await self._process_downstream_response(
+                    response, task_context, client, agent_name
+                )
             else:
                 log.warning(
                     "%s Unhandled request type for forwarding: %s",
@@ -198,6 +200,7 @@ class A2AProxyComponent(BaseProxyComponent):
         self,
         response: Any,
         task_context: "ProxyTaskContext",
+        agent_name: str,
     ) -> List[Dict[str, Any]]:
         """
         Finds artifacts with byte content, saves them to the proxy's artifact store,
@@ -260,7 +263,7 @@ class A2AProxyComponent(BaseProxyComponent):
                         metadata_to_save["description"] = contextual_description
                     else:
                         metadata_to_save["description"] = (
-                            f"Artifact created by {self.name}"
+                            f"Artifact created by {agent_name}"
                         )
 
                     metadata_to_save["proxied_from_artifact_id"] = artifact.artifact_id
@@ -269,7 +272,7 @@ class A2AProxyComponent(BaseProxyComponent):
 
                     save_result = await save_artifact_with_metadata(
                         artifact_service=self.artifact_service,
-                        app_name=self.name,
+                        app_name=agent_name,
                         user_id=user_id,
                         session_id=session_id,
                         filename=file_content.name,
@@ -281,7 +284,7 @@ class A2AProxyComponent(BaseProxyComponent):
 
                     if save_result.get("status") in ["success", "partial_success"]:
                         data_version = save_result.get("data_version")
-                        saved_uri = f"artifact://{self.name}/{user_id}/{session_id}/{file_content.name}?version={data_version}"
+                        saved_uri = f"artifact://{agent_name}/{user_id}/{session_id}/{file_content.name}?version={data_version}"
 
                         file_part.file = FileWithUri(
                             uri=saved_uri,
@@ -319,6 +322,7 @@ class A2AProxyComponent(BaseProxyComponent):
         ],
         task_context: "ProxyTaskContext",
         client: A2AClient,
+        agent_name: str,
     ):
         """
         Processes a single response from the downstream agent.
@@ -351,7 +355,7 @@ class A2AProxyComponent(BaseProxyComponent):
             return
 
         produced_artifacts = await self._handle_outbound_artifacts(
-            event_payload, task_context
+            event_payload, task_context, agent_name
         )
 
         original_task_id = task_context.task_id
