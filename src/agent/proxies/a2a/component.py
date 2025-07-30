@@ -24,6 +24,7 @@ from a2a.types import (
     A2ARequest,
     AgentCard,
     Artifact as ModernArtifact,
+    DataPart,
     FilePart,
     Message,
     SendMessageRequest,
@@ -35,6 +36,7 @@ from a2a.types import (
     TaskState,
     TaskStatus,
     TaskStatusUpdateEvent,
+    TextPart,
 )
 from ..base.component import BaseProxyComponent
 
@@ -208,7 +210,6 @@ class A2AProxyComponent(BaseProxyComponent):
             A list of dictionaries, each representing a saved artifact with its filename and version.
         """
         from ....agent.utils.artifact_helpers import save_artifact_with_metadata
-        from a2a.types import TextPart
 
         log_identifier = (
             f"{self.log_identifier}[HandleOutboundArtifacts:{task_context.task_id}]"
@@ -353,6 +354,52 @@ class A2AProxyComponent(BaseProxyComponent):
             event_payload.task_id = original_task_id
         elif hasattr(event_payload, "id") and event_payload.id:
             event_payload.id = original_task_id
+
+        if isinstance(event_payload, Task) and event_payload.artifacts:
+            text_only_artifacts_content = []
+            remaining_artifacts = []
+            for artifact in event_payload.artifacts:
+                is_text_only = True
+                artifact_text_parts = []
+                if not artifact.parts:
+                    is_text_only = False
+
+                for part in artifact.parts:
+                    if isinstance(part.root, TextPart):
+                        artifact_text_parts.append(part.root.text)
+                    elif isinstance(part.root, (FilePart, DataPart)):
+                        is_text_only = False
+                        break
+
+                if is_text_only:
+                    text_only_artifacts_content.extend(artifact_text_parts)
+                else:
+                    remaining_artifacts.append(artifact)
+
+            if text_only_artifacts_content:
+                log.info(
+                    "%s Consolidating %d text-only artifacts into status message.",
+                    log_identifier,
+                    len(event_payload.artifacts) - len(remaining_artifacts),
+                )
+                event_payload.artifacts = (
+                    remaining_artifacts if remaining_artifacts else None
+                )
+
+                consolidated_text = "\n".join(text_only_artifacts_content)
+                summary_message_part = TextPart(
+                    text=(
+                        "The following text-only artifacts were returned and have been consolidated into this message:\n\n---\n\n"
+                        f"{consolidated_text}"
+                    )
+                )
+
+                if not event_payload.status.message:
+                    event_payload.status.message = Message(
+                        role="agent", parts=[summary_message_part]
+                    )
+                else:
+                    event_payload.status.message.parts.append(summary_message_part)
 
         if isinstance(event_payload, (Task, TaskStatusUpdateEvent)):
             if isinstance(event_payload, Task):
