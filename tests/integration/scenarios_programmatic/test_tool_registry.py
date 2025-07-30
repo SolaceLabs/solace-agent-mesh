@@ -12,7 +12,7 @@ pytestmark = pytest.mark.asyncio
 
 
 async def test_initial_tool_registry_state(
-    main_agent_component: SamAgentComponent,
+    #main_agent_component: SamAgentComponent,
 ):
     """
     Tests that the tool_registry is populated with the configured built-in tools
@@ -22,6 +22,7 @@ async def test_initial_tool_registry_state(
     print(f"\nRunning scenario: {scenario_id}")
 
     web_request_tool = tool_registry.get_tool_by_name("web_request")
+    assert web_request_tool == "webrequest"
     assert web_request_tool is not None
     assert isinstance(web_request_tool, BuiltinTool)
     assert web_request_tool.name == "web_request"
@@ -63,7 +64,7 @@ async def test_initial_tool_registry_state(
 
 
 async def test_get_tool_by_name_integration(
-    main_agent_component: SamAgentComponent,
+    #main_agent_component: SamAgentComponent,
 ):
     """
     Tests that get_tool_by_name works correctly in an integrated environment.
@@ -86,7 +87,7 @@ async def test_get_tool_by_name_integration(
 
 
 async def test_get_tools_by_category_integration(
-    main_agent_component: SamAgentComponent,
+    #main_agent_component: SamAgentComponent,
 ):
     """
     Tests that get_tools_by_category works correctly in an integrated environment.
@@ -120,7 +121,7 @@ async def test_get_tools_by_category_integration(
 
 
 async def test_peer_tools_are_separate_from_registry(
-    main_agent_component: SamAgentComponent,
+    #main_agent_component: SamAgentComponent,
 ):
     """
     Tests that dynamically created PeerAgentTools are not added to the
