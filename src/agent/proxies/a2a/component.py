@@ -79,9 +79,7 @@ class A2AProxyComponent(BaseProxyComponent):
         try:
             log.info("%s Fetching agent card from %s", log_identifier, agent_url)
             async with httpx.AsyncClient() as client:
-                resolver = A2ACardResolver(
-                    httpx_client=client, base_url=agent_url
-                )
+                resolver = A2ACardResolver(httpx_client=client, base_url=agent_url)
                 agent_card = await resolver.get_agent_card()
                 return agent_card
         except A2AClientHTTPError as e:
@@ -174,9 +172,7 @@ class A2AProxyComponent(BaseProxyComponent):
         # Resolve timeout
         default_timeout = self.get_config("default_request_timeout_seconds", 300)
         agent_timeout = agent_config.get("request_timeout_seconds", default_timeout)
-        log.info(
-            f"Using timeout of {agent_timeout}s for agent '{agent_name}'."
-        )
+        log.info(f"Using timeout of {agent_timeout}s for agent '{agent_name}'.")
 
         # Create a new httpx client with the specific timeout for this agent
         httpx_client_for_agent = httpx.AsyncClient(timeout=agent_timeout)
@@ -261,6 +257,10 @@ class A2AProxyComponent(BaseProxyComponent):
                         metadata_to_save["description"] = artifact.description
                     elif contextual_description:
                         metadata_to_save["description"] = contextual_description
+                    else:
+                        metadata_to_save["description"] = (
+                            f"Artifact created by {self.name}"
+                        )
 
                     metadata_to_save["proxied_from_artifact_id"] = artifact.artifact_id
                     user_id = task_context.a2a_context.get("userId", "default_user")
@@ -450,7 +450,9 @@ class A2AProxyComponent(BaseProxyComponent):
             self._a2a_clients.clear()
 
         if self._async_loop and self._async_loop.is_running():
-            future = asyncio.run_coroutine_threadsafe(_async_cleanup(), self._async_loop)
+            future = asyncio.run_coroutine_threadsafe(
+                _async_cleanup(), self._async_loop
+            )
             try:
                 future.result(timeout=5)
             except Exception as e:
