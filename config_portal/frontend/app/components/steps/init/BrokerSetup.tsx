@@ -4,22 +4,7 @@ import Input from "../../ui/Input";
 import Select from "../../ui/Select";
 import Button from "../../ui/Button";
 import { InfoBox, WarningBox, StatusBox } from "../../ui/InfoBoxes";
-
-type BrokerSetupProps = {
-  data: {
-    broker_type: string;
-    broker_url: string;
-    broker_vpn: string;
-    broker_username: string;
-    broker_password: string;
-    container_engine?: string;
-    container_started?: boolean;
-    [key: string]: string | boolean | undefined;
-  };
-  updateData: (data: Record<string, string | boolean | undefined>) => void;
-  onNext: () => void;
-  onPrevious: () => void;
-};
+import { StepComponentProps } from "../../InitializationFlow";
 
 const brokerOptions = [
   { value: "solace", label: "Existing Solace Pub/Sub+ broker" },
@@ -63,7 +48,25 @@ export default function BrokerSetup({
   updateData,
   onNext,
   onPrevious,
-}: Readonly<BrokerSetupProps>) {
+}: StepComponentProps) {
+  const {
+    broker_type,
+    broker_url,
+    broker_vpn,
+    broker_username,
+    broker_password,
+    container_engine,
+    container_started,
+  } = data as {
+    broker_type?: string;
+    broker_url?: string;
+    broker_vpn?: string;
+    broker_username?: string;
+    broker_password?: string;
+    container_engine?: string;
+    container_started?: boolean;
+  };
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isRunningContainer, setIsRunningContainer] = useState(false);
   const [containerStatus, setContainerStatus] = useState<{
@@ -72,26 +75,26 @@ export default function BrokerSetup({
     message: ReactNode;
   }>({
     isRunning: false,
-    success: data.container_started === true,
-    message: data.container_started
+    success: container_started === true,
+    message: container_started
       ? "Container already started successfully"
       : "",
   });
 
   useEffect(() => {
-    if (!data.container_engine && data.broker_type === "container") {
+    if (!container_engine && broker_type === "container") {
       updateData({ container_engine: "podman" });
     }
-    if (data.container_engine && data.broker_type !== "container") {
+    if (container_engine && broker_type !== "container") {
       updateData({ container_engine: "" });
     }
 
-    if (data.broker_type !== "dev_mode") {
+    if (broker_type !== "dev_mode") {
       updateData({ dev_mode: false });
-    } else if (data.broker_type === "dev_mode") {
+    } else if (broker_type === "dev_mode") {
       updateData({ dev_mode: true });
     }
-  }, [data.broker_type]);
+  }, [broker_type, container_engine, updateData]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -103,22 +106,22 @@ export default function BrokerSetup({
     const newErrors: Record<string, string> = {};
     let isValid = true;
 
-    if (brokerType === "solace") {
-      if (!data.broker_url) {
+    if (broker_type === "solace") {
+      if (!broker_url) {
         newErrors.broker_url = "Broker URL is required";
         isValid = false;
       }
-      if (!data.broker_vpn) {
+      if (!broker_vpn) {
         newErrors.broker_vpn = "VPN name is required";
         isValid = false;
       }
-      if (!data.broker_username) {
+      if (!broker_username) {
         newErrors.broker_username = "Username is required";
         isValid = false;
       }
     }
 
-    if (brokerType === "container" && !containerStatus.success) {
+    if (broker_type === "container" && !containerStatus.success) {
       newErrors.container =
         "You must successfully run the container before proceeding";
       isValid = false;
@@ -143,7 +146,7 @@ export default function BrokerSetup({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          container_engine: data.container_engine,
+          container_engine: container_engine,
         }),
       });
 
@@ -156,7 +159,7 @@ export default function BrokerSetup({
           message: result.message ?? "Container started successfully!",
         });
         updateData({
-          container_engine: data.container_engine,
+          container_engine: container_engine,
           container_started: true,
         });
       } else {
@@ -186,7 +189,7 @@ export default function BrokerSetup({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateForm()) {
-      if (brokerType === "container") {
+      if (broker_type === "container") {
         data.broker_url = "ws://localhost:8008";
         data.broker_vpn = "default";
         data.broker_username = "default";
@@ -196,10 +199,8 @@ export default function BrokerSetup({
     }
   };
 
-  const brokerType = data.broker_type;
-
-  const showBrokerDetails = brokerType === "solace";
-  const showContainerDetails = brokerType === "container";
+  const showBrokerDetails = broker_type === "solace";
+  const showContainerDetails = broker_type === "container";
 
   const getStatusBoxVariant = () => {
     if (containerStatus.isRunning) return "loading";
@@ -281,7 +282,7 @@ export default function BrokerSetup({
             id="broker_type"
             name="broker_type"
             options={brokerOptions}
-            value={brokerType}
+            value={broker_type || ""}
             onChange={handleChange}
             disabled={
               containerStatus.success && data.broker_type === "container"
@@ -305,7 +306,7 @@ export default function BrokerSetup({
               <Input
                 id="broker_url"
                 name="broker_url"
-                value={data.broker_url || ""}
+                value={broker_url || ""}
                 onChange={handleChange}
                 placeholder="ws://localhost:8008"
               />
@@ -320,7 +321,7 @@ export default function BrokerSetup({
               <Input
                 id="broker_vpn"
                 name="broker_vpn"
-                value={data.broker_vpn || ""}
+                value={broker_vpn || ""}
                 onChange={handleChange}
                 placeholder="default"
               />
@@ -335,7 +336,7 @@ export default function BrokerSetup({
               <Input
                 id="broker_username"
                 name="broker_username"
-                value={data.broker_username || ""}
+                value={broker_username || ""}
                 onChange={handleChange}
                 placeholder="default"
               />
@@ -350,7 +351,7 @@ export default function BrokerSetup({
                 id="broker_password"
                 name="broker_password"
                 type="password"
-                value={data.broker_password || ""}
+                value={broker_password || ""}
                 onChange={handleChange}
                 placeholder="Enter password"
               />
@@ -376,7 +377,7 @@ export default function BrokerSetup({
                 id="container_engine"
                 name="container_engine"
                 options={containerEngineOptions}
-                value={data.container_engine ?? ""}
+                value={container_engine ?? ""}
                 onChange={handleChange}
                 disabled={containerStatus.isRunning || containerStatus.success}
               />
@@ -451,7 +452,7 @@ export default function BrokerSetup({
           </div>
         )}
 
-        {brokerType === "dev_mode" && (
+        {broker_type === "dev_mode" && (
           <WarningBox>
             <strong>Warning:</strong> Dev mode runs everything in a single
             process and is not recommended for production use.
@@ -468,15 +469,15 @@ export default function BrokerSetup({
           type="submit"
           disabled={
             isRunningContainer ||
-            (brokerType === "container" && !containerStatus.success)
+            (broker_type === "container" && !containerStatus.success)
           }
           variant={
-            brokerType === "container" && !containerStatus.success
+            broker_type === "container" && !containerStatus.success
               ? "secondary"
               : "primary"
           }
         >
-          {brokerType === "container" &&
+          {broker_type === "container" &&
             !containerStatus.success &&
             !isRunningContainer && (
               <span className="flex items-center">
@@ -497,7 +498,7 @@ export default function BrokerSetup({
               </span>
             )}
           {!(
-            brokerType === "container" &&
+            broker_type === "container" &&
             !containerStatus.success &&
             !isRunningContainer
           ) && "Next"}

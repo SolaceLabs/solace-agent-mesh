@@ -41,6 +41,7 @@ from ...common.a2a_protocol import (
     get_client_response_topic,
     get_agent_response_subscription_topic,
     get_agent_status_subscription_topic,
+    get_mop_subscription_topic,
     _extract_text_from_parts,
 )
 from ...agent.utils.artifact_helpers import (
@@ -237,6 +238,9 @@ async def process_event(component, event: Event):
             agent_status_sub_prefix = (
                 get_agent_status_subscription_topic(namespace, agent_name)[:-2] + "/"
             )
+            mop_sub_prefix = (
+                get_mop_subscription_topic(namespace, agent_name)[:-2] + "/"
+            )
             if topic == agent_request_topic:
                 await handle_a2a_request(component, message)
             elif topic == discovery_topic:
@@ -249,6 +253,8 @@ async def process_event(component, event: Event):
                 agent_status_sub_prefix
             ):
                 handle_a2a_response(component, message)
+            elif topic.startswith(mop_sub_prefix):
+                await handle_mop_request(component, message)
             else:
                 log.warning(
                     "%s Received message on unhandled topic: %s",
@@ -313,6 +319,65 @@ async def process_event(component, event: Event):
                     nack_e,
                 )
         component.handle_error(e, event)
+
+
+async def handle_mop_request(component: "SamAgentComponent", message: SolaceMessage):
+    """Handles an incoming MOP request message."""
+    log_identifier = f"{component.log_identifier}[MOPHandler]"
+    log.info(
+        "%s Received MOP request on topic: %s", log_identifier, message.get_topic()
+    )
+    try:
+        payload = message.get_payload()
+        if not isinstance(payload, dict):
+            raise ValueError("MOP payload is not a dictionary.")
+
+        # Extract required fields from payload
+        session_id = payload.get("session_id")
+        user_id = payload.get("user_id")
+        agent_name = component.get_config("agent_name")
+
+        if not all([session_id, user_id, agent_name]):
+            raise ValueError(
+                f"Missing required fields for session deletion. "
+                f"session_id: {session_id}, user_id: {user_id}, agent_name: {agent_name}"
+            )
+
+        log.info(
+            "%s Processing MOP session delete for session_id: %s, user_id: %s",
+            log_identifier,
+            session_id,
+            user_id,
+        )
+
+        # Use the ADK session service to delete the session
+        if component.session_service:
+            await component.session_service.delete_session(
+                app_name=agent_name, user_id=user_id, session_id=session_id
+            )
+            log.info(
+                "%s Successfully deleted ADK session %s for user %s.",
+                log_identifier,
+                session_id,
+                user_id,
+            )
+        else:
+            log.error(
+                "%s Session service is not initialized. Cannot delete session.",
+                log_identifier,
+            )
+            raise RuntimeError("Session service not available.")
+
+        message.call_acknowledgements()
+
+    except Exception as e:
+        log.exception("%s Error processing MOP request: %s", log_identifier, e)
+        try:
+            message.call_negative_acknowledgements()
+        except Exception as nack_e:
+            log.error(
+                "%s Failed to NACK MOP message after error: %s", log_identifier, nack_e
+            )
 
 
 async def handle_a2a_request(component, message: SolaceMessage):
@@ -495,6 +560,21 @@ async def handle_a2a_request(component, message: SolaceMessage):
             effective_session_id = original_session_id
             is_run_based_session = False
             temporary_run_session_id_for_cleanup = None
+
+            # New logic to extract session_id from DataPart
+            session_id_from_data = None
+            if a2a_request.params.message and a2a_request.params.message.parts:
+                for part in a2a_request.params.message.parts:
+                    if isinstance(part, DataPart) and "session_id" in part.data:
+                        session_id_from_data = part.data["session_id"]
+                        log.info(
+                            f"Extracted session_id '{session_id_from_data}' from DataPart."
+                        )
+                        break
+
+            if session_id_from_data:
+                original_session_id = session_id_from_data
+
             if session_behavior == "RUN_BASED":
                 is_run_based_session = True
                 effective_session_id = f"{original_session_id}:{task_id}:run"
@@ -516,6 +596,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     effective_session_id,
                     task_id,
                 )
+
             adk_session_for_run = await component.session_service.get_session(
                 app_name=agent_name, user_id=user_id, session_id=effective_session_id
             )
@@ -531,6 +612,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     effective_session_id,
                     task_id,
                 )
+
             else:
                 log.info(
                     "%s Reusing existing ADK session '%s' for task '%s'.",
@@ -538,6 +620,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     effective_session_id,
                     task_id,
                 )
+
             if is_run_based_session:
                 try:
                     original_adk_session_data = (
@@ -880,7 +963,7 @@ def handle_a2a_response(component, message: SolaceMessage):
                 component.log_identifier,
                 topic,
             )
-            message.call_negative_acknowledgements()
+            message.call_negative_acknowledgEMENTS()
             return
 
         log.debug("%s Extracted sub-task ID: %s", component.log_identifier, sub_task_id)

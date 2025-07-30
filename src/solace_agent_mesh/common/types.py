@@ -163,13 +163,29 @@ class JSONRPCRequest(JSONRPCMessage):
     params: dict[str, Any] | None = None
 
 
-class JSONRPCError(BaseModel):
-    code: int
-    message: str
-    data: Any | None = None
+class CustomBaseException(Exception):
+    def __init__(self, message, code=None, data=None):
+        super().__init__(message)
+        self.message = message
+        self.code = code
+        self.data = data
+
+    def model_dump(self, exclude_none=True):
+        return {
+            "message": self.message,
+            "code": self.code,
+            "data": self.data,
+        }
+
+
+class JSONRPCError(CustomBaseException):
+    def __init__(self, message, code, data=None):
+        super().__init__(message, code, data)
 
 
 class JSONRPCResponse(JSONRPCMessage):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     result: Any | None = None
     error: JSONRPCError | None = None
 
@@ -252,63 +268,53 @@ A2ARequest = TypeAdapter(
 
 
 class JSONParseError(JSONRPCError):
-    code: int = -32700
-    message: str = "Invalid JSON payload"
-    data: Any | None = None
+    def __init__(self, data=None):
+        super().__init__("Invalid JSON payload", -32700, data)
 
 
 class InvalidRequestError(JSONRPCError):
-    code: int = -32600
-    message: str = "Request payload validation error"
-    data: Any | None = None
+    def __init__(self, data=None):
+        super().__init__("Request payload validation error", -32600, data)
 
 
 class MethodNotFoundError(JSONRPCError):
-    code: int = -32601
-    message: str = "Method not found"
-    data: None = None
+    def __init__(self, data=None):
+        super().__init__("Method not found", -32601, data)
 
 
 class InvalidParamsError(JSONRPCError):
-    code: int = -32602
-    message: str = "Invalid parameters"
-    data: Any | None = None
+    def __init__(self, data=None):
+        super().__init__("Invalid parameters", -32602, data)
 
 
 class InternalError(JSONRPCError):
-    code: int = -32603
-    message: str = "Internal error"
-    data: Any | None = None
+    def __init__(self, data=None):
+        super().__init__("Internal error", -32603, data)
 
 
 class TaskNotFoundError(JSONRPCError):
-    code: int = -32001
-    message: str = "Task not found"
-    data: None = None
+    def __init__(self, data=None):
+        super().__init__("Task not found", -32001, data)
 
 
 class TaskNotCancelableError(JSONRPCError):
-    code: int = -32002
-    message: str = "Task cannot be canceled"
-    data: None = None
+    def __init__(self, data=None):
+        super().__init__("Task cannot be canceled", -32002, data)
 
 
 class PushNotificationNotSupportedError(JSONRPCError):
-    code: int = -32003
-    message: str = "Push Notification is not supported"
-    data: None = None
+    def __init__(self, data=None):
+        super().__init__("Push Notification is not supported", -32003, data)
 
 
 class UnsupportedOperationError(JSONRPCError):
-    code: int = -32004
-    message: str = "This operation is not supported"
-    data: None = None
+    def __init__(self, data=None):
+        super().__init__("This operation is not supported", -32004, data)
 
 
 class ContentTypeNotSupportedError(JSONRPCError):
-    code: int = -32005
-    message: str = "Incompatible content types"
-    data: None = None
+    def __init__(self, data=None):
+        super().__init__("Incompatible content types", -32005, data)
 
 
 class AgentProvider(BaseModel):

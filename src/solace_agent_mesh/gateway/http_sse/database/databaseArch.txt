@@ -1,0 +1,30 @@
+# Solace Agent Mesh Database Architecture
+
+This document outlines the database architecture for projects created with the Solace Agent Mesh (SAM) framework.
+
+## Core Concepts
+
+The key architectural goal is to separate the framework's logic from the user's project data. The `solace-agent-mesh` package is installed via pip and provides the core application logic, including database migration scripts. The user's project, created with `sam init`, contains its own unique data, including a project-specific database.
+
+## `sam init` - Project Initialization
+
+When a user runs `sam init`, the following database-related actions occur:
+
+1.  **No Database Creation**: `sam init` does *not* create the database file itself.
+2.  **.env File Configuration**: It creates a `.env` file in the root of the user's new project directory.
+3.  **Database URL**: A `DATABASE_URL` variable is added to this `.env` file. By default, it points to a local SQLite database within the project directory (e.g., `sqlite:///gatewayDatabase.db`). This ensures that each project has its own isolated database for storing chat history, sessions, and other persistence data.
+4.  **No Migrations Run**: The `init` command does not run any database migrations.
+
+## `sam run` - Application Execution and Migrations
+
+The `sam run` command is responsible for both running the application and ensuring the database is up-to-date.
+
+1.  **Load Environment**: It first loads the environment variables from the project's `.env` file, including the `DATABASE_URL`.
+2.  **Locate Migrations**: It locates the `alembic.ini` configuration and the `alembic/` migration scripts *from within the installed `solace-agent-mesh` package*. This is crucial, as it means the migration logic is shipped with the framework.
+3.  **Run Migrations**: Using the `DATABASE_URL` from the `.env` file, it runs `alembic upgrade head`. This command connects to the user's project-specific database and applies any migrations that have not yet been run. If the database file doesn't exist, Alembic creates it and runs all migrations to bring it to the latest version.
+4.  **Start Application**: After the database is confirmed to be up-to-date, the main Solace Agent Mesh application starts.
+
+This architecture ensures that:
+- The framework can be updated (`pip install --upgrade solace-agent-mesh`), bringing in new database migrations.
+- When the user runs their project with `sam run`, these new migrations are automatically applied to their existing database without any manual intervention.
+- Each user project remains self-contained with its own database.

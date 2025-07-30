@@ -21,6 +21,7 @@ from ...common.a2a_protocol import (
     get_discovery_topic,
     get_agent_response_subscription_topic,
     get_agent_status_subscription_topic,
+    get_mop_subscription_topic,
 )
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...agent.sac.component import SamAgentComponent
@@ -263,6 +264,13 @@ class SamAgentApp(App):
                 "type": "object",
                 "default": {"type": "memory"},
                 "description": "Configuration for ADK Memory Service (defaults to memory).",
+            },
+            {
+                "name": "persistence_db_base_path",
+                "required": False,
+                "type": "string",
+                "default": None,
+                "description": "Base directory for the enterprise persistence database. Overrides default (`~/.solace/a2a-agent-enterprise`).",
             },
             # --- Tool Output Handling (Generalized) ---
             {
@@ -542,6 +550,13 @@ class SamAgentApp(App):
                 "default": 20,
                 "description": "Maximum number of LLM calls allowed for a single A2A task. A value of 0 or less means unlimited.",
             },
+            {
+                "name": "database_url",
+                "required": False,
+                "type": "string",
+                "default": None,
+                "description": "Database connection URL (e.g., 'sqlite:///solace_agent_mesh.db').",
+            },
         ]
     }
 
@@ -560,6 +575,10 @@ class SamAgentApp(App):
             raise ValueError(
                 "Internal Error: Agent name missing or invalid after validation."
             )
+
+        database_url = app_config.get("database_url")
+        if database_url:
+            os.environ["DATABASE_URL"] = database_url
 
         artifact_mode = app_config.get("artifact_handling_mode", "ignore").lower()
         if artifact_mode not in ["ignore", "embed", "reference"]:
@@ -605,6 +624,7 @@ class SamAgentApp(App):
             get_discovery_topic(namespace),
             get_agent_response_subscription_topic(namespace, agent_name),
             get_agent_status_subscription_topic(namespace, agent_name),
+            get_mop_subscription_topic(namespace, agent_name),
         ]
         generated_subs = [{"topic": topic} for topic in required_topics]
         log.info(

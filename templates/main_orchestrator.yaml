@@ -27,7 +27,10 @@ apps:
       inject_system_purpose: true
       inject_response_format: true
       inject_user_profile: true
-      session_service: __SESSION_SERVICE__
+      session_service: 
+        type: __SESSION_SERVICE_TYPE__
+        default_behavior: __SESSION_SERVICE_BEHAVIOR__
+        __SESSION_DB_URL_LINE__
       artifact_service: __ARTIFACT_SERVICE__
       artifact_handling_mode: "__ARTIFACT_HANDLING_MODE__" 
       enable_embed_resolution: __ENABLE_EMBED_RESOLUTION__ 

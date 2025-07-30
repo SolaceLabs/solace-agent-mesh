@@ -11,6 +11,7 @@ import { useAgents, useChatContext, useSessionPreview, useTaskContext } from "@/
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
 import { SessionSidePanel } from "../chat/SessionSidePanel";
+import { DeleteConfirmationModal } from "../chat/DeleteConfirmationModal";
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
@@ -32,7 +33,21 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
-    const { sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, handleNewSession, openSidePanelTab, setTaskIdInSidePanel } = useChatContext();
+    const {
+        sessionId,
+        messages,
+        setMessages,
+        selectedAgentName,
+        setSelectedAgentName,
+        isSidePanelCollapsed,
+        setIsSidePanelCollapsed,
+        sessionToDelete,
+        confirmSessionDelete,
+        closeSessionDeleteModal,
+        openSidePanelTab,
+        setTaskIdInSidePanel,
+        handleNewSession,
+    } = useChatContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
     const sessionPreview = useSessionPreview();
@@ -240,6 +255,12 @@ export function ChatPage() {
                     </ResizablePanelGroup>
                 </div>
             </div>
+            <DeleteConfirmationModal
+                isOpen={!!sessionToDelete}
+                onClose={closeSessionDeleteModal}
+                onConfirm={confirmSessionDelete}
+                sessionName={sessionToDelete?.name || `Session ${sessionToDelete?.id.substring(0, 8)}`}
+            />
         </div>
     );
 }

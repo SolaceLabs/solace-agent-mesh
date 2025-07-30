@@ -6,6 +6,7 @@ import Button from "../../ui/Button";
 import ConfirmationModal from "../../ui/ConfirmationModal";
 import AutocompleteInput from "../../ui/AutocompleteInput";
 import { InfoBox, WarningBox } from "../../ui/InfoBoxes";
+import { StepComponentProps } from "../../InitializationFlow";
 
 import {
   PROVIDER_ENDPOINTS,
@@ -15,25 +16,19 @@ import {
   formatModelName,
 } from "../../../common/providerModels";
 
-type AIProviderSetupProps = {
-  data: {
-    llm_provider: string;
-    llm_endpoint_url: string;
-    llm_api_key: string;
-    llm_model_name: string;
-    [key: string]: string | boolean | number;
-  };
-  updateData: (data: Record<string, string | boolean | number>) => void;
-  onNext: () => void;
-  onPrevious: () => void;
-};
-
 export default function AIProviderSetup({
   data,
   updateData,
   onNext,
   onPrevious,
-}: Readonly<AIProviderSetupProps>) {
+}: StepComponentProps) {
+  const { llm_provider, llm_endpoint_url, llm_api_key, llm_model_name } = data as {
+    llm_provider?: string;
+    llm_endpoint_url?: string;
+    llm_api_key?: string;
+    llm_model_name?: string;
+  };
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isTestingConfig, setIsTestingConfig] = useState<boolean>(false);
   const [testError, setTestError] = useState<string | null>(null);
@@ -44,10 +39,9 @@ export default function AIProviderSetup({
   const [previousProvider, setPreviousProvider] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log(data.setupPath);
     const updates: Record<string, string | boolean | number> = {};
 
-    if (!data.llm_provider) {
+    if (!llm_provider) {
       updates.llm_provider = "openai";
     }
 
@@ -57,14 +51,14 @@ export default function AIProviderSetup({
   }, [data, updateData]);
 
   useEffect(() => {
-    if (data.llm_provider) {
+    if (llm_provider) {
       const updates: Record<string, string | boolean | number> = {};
 
-      if (previousProvider !== null && previousProvider !== data.llm_provider) {
+      if (previousProvider !== null && previousProvider !== llm_provider) {
         updates.llm_model_name = "";
 
-        if (data.llm_provider !== "openai_compatible") {
-          const endpointUrl = PROVIDER_ENDPOINTS[data.llm_provider] || "";
+        if (llm_provider !== "openai_compatible") {
+          const endpointUrl = PROVIDER_ENDPOINTS[llm_provider as keyof typeof PROVIDER_ENDPOINTS] || "";
           updates.llm_endpoint_url = endpointUrl;
         } else {
           updates.llm_endpoint_url = "";
@@ -75,17 +69,17 @@ export default function AIProviderSetup({
         }
       }
 
-      setPreviousProvider(data.llm_provider);
+      setPreviousProvider(llm_provider);
     }
-  }, [data.llm_provider, previousProvider, updateData]);
+  }, [llm_provider, previousProvider, updateData]);
 
   useEffect(() => {
-    if (data.llm_provider && data.llm_provider !== "openai_compatible") {
-      setLlmModelSuggestions(PROVIDER_MODELS[data.llm_provider] || []);
+    if (llm_provider && llm_provider !== "openai_compatible") {
+      setLlmModelSuggestions(PROVIDER_MODELS[llm_provider as keyof typeof PROVIDER_MODELS] || []);
     } else {
       setLlmModelSuggestions([]);
     }
-  }, [data.llm_provider]);
+  }, [llm_provider]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -95,15 +89,15 @@ export default function AIProviderSetup({
 
   const fetchCustomModels = useCallback(async () => {
     if (
-      data.llm_provider === "openai_compatible" &&
-      data.llm_endpoint_url &&
-      data.llm_api_key
+      llm_provider === "openai_compatible" &&
+      llm_endpoint_url &&
+      llm_api_key
     ) {
       setIsLoadingModels(true);
       try {
         const models = await fetchModelsFromCustomEndpoint(
-          data.llm_endpoint_url,
-          data.llm_api_key
+          llm_endpoint_url,
+          llm_api_key
         );
         setLlmModelSuggestions(models);
       } catch (error) {
@@ -113,27 +107,27 @@ export default function AIProviderSetup({
       }
     }
     return [];
-  }, [data.llm_provider, data.llm_endpoint_url, data.llm_api_key]);
+  }, [llm_provider, llm_endpoint_url, llm_api_key]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     let isValid = true;
 
-    if (!data.llm_provider) {
+    if (!llm_provider) {
       newErrors.llm_provider = "LLM provider is required";
       isValid = false;
     }
 
-    if (data.llm_provider === "openai_compatible" && !data.llm_endpoint_url) {
+    if (llm_provider === "openai_compatible" && !llm_endpoint_url) {
       newErrors.llm_endpoint_url = `LLM endpoint is required for OpenAI compatible endpoint}`;
       isValid = false;
     }
 
-    if (!data.llm_model_name) {
+    if (!llm_model_name) {
       newErrors.llm_model_name = "LLM model name is required";
       isValid = false;
     }
-    if (!data.llm_api_key) {
+    if (!llm_api_key) {
       newErrors.llm_api_key = "LLM API key is required";
       isValid = false;
     }
@@ -148,13 +142,13 @@ export default function AIProviderSetup({
 
     try {
       const baseUrl =
-        data.llm_provider !== "openai_compatible"
-          ? PROVIDER_ENDPOINTS[data.llm_provider] || data.llm_endpoint_url
-          : data.llm_endpoint_url;
+        llm_provider !== "openai_compatible"
+          ? PROVIDER_ENDPOINTS[llm_provider as keyof typeof PROVIDER_ENDPOINTS] || llm_endpoint_url
+          : llm_endpoint_url;
 
       const formattedModelName = formatModelName(
-        data.llm_model_name,
-        data.llm_provider
+        llm_model_name || "",
+        llm_provider || ""
       );
 
       const response = await fetch("/api/test_llm_config", {
@@ -164,7 +158,7 @@ export default function AIProviderSetup({
         },
         body: JSON.stringify({
           model: formattedModelName,
-          api_key: data.llm_api_key,
+          api_key: llm_api_key,
           base_url: baseUrl,
         }),
       });
@@ -220,14 +214,13 @@ export default function AIProviderSetup({
             <Select
               id="llm_provider"
               name="llm_provider"
-              value={data.llm_provider || ""}
+              value={llm_provider || ""}
               onChange={handleChange}
               options={LLM_PROVIDER_OPTIONS}
             />
           </FormField>
 
-          {(data.llm_provider === "openai_compatible" ||
-            data.llm_provider === "azure") && (
+          {(llm_provider === "openai_compatible" || llm_provider === "azure") && (
             <FormField
               label="LLM Endpoint URL"
               htmlFor="llm_endpoint_url"
@@ -237,7 +230,7 @@ export default function AIProviderSetup({
               <Input
                 id="llm_endpoint_url"
                 name="llm_endpoint_url"
-                value={data.llm_endpoint_url}
+                value={llm_endpoint_url || ""}
                 onChange={handleChange}
                 placeholder="https://api.example.com/v1"
               />
@@ -254,13 +247,13 @@ export default function AIProviderSetup({
               id="llm_api_key"
               name="llm_api_key"
               type="password"
-              value={data.llm_api_key}
+              value={llm_api_key || ""}
               onChange={handleChange}
               placeholder="Enter your API key"
             />
           </FormField>
 
-          {data.llm_provider === "azure" && (
+          {llm_provider === "azure" && (
             <WarningBox className="mb-4">
               <strong>Important:</strong> For Azure, in the "LLM Model Name"
               field, enter your <strong>deployment name</strong> (not the
@@ -288,12 +281,12 @@ export default function AIProviderSetup({
             <AutocompleteInput
               id="llm_model_name"
               name="llm_model_name"
-              value={data.llm_model_name}
+              value={llm_model_name || ""}
               onChange={handleChange}
               placeholder="Select or type a model name"
               suggestions={llmModelSuggestions}
               onFocus={
-                data.llm_provider === "openai_compatible"
+                llm_provider === "openai_compatible"
                   ? fetchCustomModels
                   : undefined
               }
@@ -306,7 +299,7 @@ export default function AIProviderSetup({
       <div className="mt-8 flex justify-end space-x-4">
         <Button
           onClick={onPrevious}
-          disabled={data.setupPath === "quick"}
+          disabled={(data as {setupPath?: string}).setupPath === "quick"}
           variant="outline"
         >
           Previous

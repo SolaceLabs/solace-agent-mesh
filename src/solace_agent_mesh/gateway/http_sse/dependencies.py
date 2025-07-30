@@ -26,6 +26,7 @@ from ...gateway.base.task_context import TaskContextManager
 from ...core_a2a.service import CoreA2AService
 from ...common.services.identity_service import BaseIdentityService
 from ...common.middleware.config_resolver import ConfigResolver
+from .database.persistence_service import PersistenceService
 
 from google.adk.artifacts import BaseArtifactService
 
@@ -34,6 +35,7 @@ if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
 
 sac_component_instance: "WebUIBackendComponent" = None
+persistence_service_instance: "PersistenceService" = None
 
 api_config: Optional[Dict[str, Any]] = None
 
@@ -45,6 +47,28 @@ def set_component_instance(component: "WebUIBackendComponent"):
         sac_component_instance = component
         log.info("[Dependencies] SAC Component instance provided.")
     else:
+
+def set_persistence_service(persistence_service: "PersistenceService"):
+    """Called by the component during its startup to provide its instance."""
+    global persistence_service_instance
+    if persistence_service_instance is None:
+        persistence_service_instance = persistence_service
+        log.info("[Dependencies] Persistence Service instance provided.")
+    else:
+        log.warning("[Dependencies] Persistence Service instance already set.")
+
+
+def get_persistence_service() -> "PersistenceService":
+    """FastAPI dependency to get the PersistenceService instance."""
+    if persistence_service_instance is None:
+        log.critical(
+            "[Dependencies] PersistenceService instance accessed before it was set!"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Persistence service not yet initialized.",
+        )
+    return persistence_service_instance
         log.warning("[Dependencies] SAC Component instance already set.")
 
 

@@ -20,6 +20,7 @@ from solace_ai_connector.flow.app import App as SACApp
 from solace_ai_connector.components.inputs_outputs.broker_input import (
     BrokerInput,
 )
+from .database.database_persistence_service import DatabasePersistenceService
 
 from ...gateway.http_sse.sse_manager import SSEManager
 
@@ -41,6 +42,7 @@ from ...common.types import (
     TextPart,
     FilePart,
     FileContent,
+    DataPart,
 )
 from ...common.a2a_protocol import (
     _topic_matches_subscription,
@@ -838,7 +840,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
             setup_dependencies(self)
 
-            port = self.fastapi_https_port if self.ssl_keyfile and self.ssl_certfile else self.fastapi_port
+            port = (
+                self.fastapi_https_port
+                if self.ssl_keyfile and self.ssl_certfile
+                else self.fastapi_port
+            )
 
             config = uvicorn.Config(
                 app=self.fastapi_app,

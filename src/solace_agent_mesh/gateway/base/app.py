@@ -64,13 +64,6 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "default": 12,
             "description": "Maximum depth for recursively resolving 'artifact_content' embeds within files.",
         },
-        # --- Default User Identity Configuration ---
-        {
-            "name": "default_user_identity",
-            "required": False,
-            "type": "string",
-            "description": "Default user identity to use when no user authentication is provided. WARNING: Only use in development environments with trusted access!",
-        },
         {
             "name": "force_user_identity",
             "required": False,

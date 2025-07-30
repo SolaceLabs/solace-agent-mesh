@@ -3,7 +3,8 @@ from pathlib import Path
 import yaml
 import re
 from ...utils import ask_if_not_provided, load_template, get_formatted_names
-from config_portal.backend.common import DEFAULT_COMMUNICATION_TIMEOUT
+import os
+
 
 ORCHESTRATOR_DEFAULTS = {
     "agent_name": "OrchestratorAgent",
@@ -11,7 +12,9 @@ ORCHESTRATOR_DEFAULTS = {
     "artifact_handling_mode": "embed",
     "enable_embed_resolution": True,
     "enable_artifact_content_instruction": True,
-    "session_service": {"type": "memory", "default_behavior": "PERSISTENT"},
+    "enable_builtin_artifact_tools": {"enabled": True},
+    "enable_builtin_data_tools": {"enabled": True},
+    "session_service": {"type": "sql", "default_behavior": "PERSISTENT"},
     "artifact_service": {
         "type": "filesystem",
         "base_path": "/tmp/samv2",
@@ -27,7 +30,7 @@ ORCHESTRATOR_DEFAULTS = {
     "agent_discovery": {"enabled": True},
     "inter_agent_communication": {
         "allow_list": ["*"],
-        "request_timeout_seconds": DEFAULT_COMMUNICATION_TIMEOUT,
+        "request_timeout_seconds": 60,
     },
 }
 
@@ -82,8 +85,11 @@ def create_orchestrator_config(
         "Enter session service type",
         ORCHESTRATOR_DEFAULTS["session_service"]["type"],
         skip_interactive,
-        choices=["memory", "vertex_rag"],
+        choices=["sql", "memory", "vertex_rag"],
     )
+
+    if session_type == "sql":
+        options["use_orchestrator_db"] = True
 
     session_behavior = ask_if_not_provided(
         options,
@@ -281,6 +287,17 @@ def create_orchestrator_config(
                 placeholder, str(value)
             )
 
+        if not artifact_base_path_line:
+            modified_shared_content = re.sub(
+                r"\s*# __DEFAULT_ARTIFACT_SERVICE_BASE_PATH_LINE__.*",
+                "",
+                modified_shared_content,
+            )
+        else:
+            modified_shared_content = modified_shared_content.replace(
+                "# __DEFAULT_ARTIFACT_SERVICE_BASE_PATH_LINE__", artifact_base_path_line
+            )
+
         shared_config_dest_path.parent.mkdir(parents=True, exist_ok=True)
         with open(shared_config_dest_path, "w", encoding="utf-8") as f:
             f.write(modified_shared_content)
@@ -302,8 +319,8 @@ def create_orchestrator_config(
     try:
         orchestrator_template_content = load_template("main_orchestrator.yaml")
 
-        session_service_block_for_orchestrator = "*default_session_service"
-        artifact_service_block_for_orchestrator = "*default_artifact_service"
+        formatted_name = get_formatted_names(options["agent_name"])
+        kebab_case_name = formatted_name.get("KEBAB_CASE_NAME")
 
         deny_list_line = ""
         if deny_list:
@@ -312,7 +329,7 @@ def create_orchestrator_config(
                 .strip()
                 .replace("'", '"')
             )
-            deny_list_line = f"deny_list: {deny_list_yaml}\n        "
+            deny_list_line = f"deny_list: {deny_list_yaml}"
 
         default_instruction = """You are the Orchestrator Agent within an AI agentic system. Your primary responsibilities are to:
         1. Process tasks received from external sources via the system Gateway.
@@ -326,18 +343,16 @@ def create_orchestrator_config(
         - You must then review the list of artifacts and return the ones that are important for the user by using the `signal_artifact_for_return` tool.
         - Provide regular progress updates using `status_update` embed directives, especially before initiating any tool call."""
 
-        formatted_name = get_formatted_names(options["agent_name"])
-        kebab_case_name = formatted_name.get("KEBAB_CASE_NAME")
-
         orchestrator_replacements = {
+            "__SESSION_SERVICE_TYPE__": session_type,
+            "__SESSION_SERVICE_BEHAVIOR__": session_behavior,
             "__NAMESPACE__": "${NAMESPACE}",
             "__APP_NAME__": f"{kebab_case_name}_app",
             "__SUPPORTS_STREAMING__": str(options["supports_streaming"]).lower(),
             "__AGENT_NAME__": options["agent_name"],
             "__LOG_FILE_NAME__": f"{kebab_case_name}.log",
             "__INSTRUCTION__": default_instruction,
-            "__SESSION_SERVICE__": session_service_block_for_orchestrator,
-            "__ARTIFACT_SERVICE__": artifact_service_block_for_orchestrator,
+            "__ARTIFACT_SERVICE__": "*default_artifact_service",
             "__ARTIFACT_HANDLING_MODE__": artifact_handling_mode,
             "__ENABLE_EMBED_RESOLUTION__": str(enable_embed_resolution).lower(),
             "__ENABLE_ARTIFACT_CONTENT_INSTRUCTION__": str(
@@ -361,7 +376,6 @@ def create_orchestrator_config(
             )
             .strip()
             .replace("'", '"'),
-            "__INTER_AGENT_COMMUNICATION_DENY_LIST_LINE__": deny_list_line,
             "__INTER_AGENT_COMMUNICATION_TIMEOUT__": str(
                 inter_agent_communication_timeout
             ),
@@ -371,6 +385,34 @@ def create_orchestrator_config(
         for placeholder, value in orchestrator_replacements.items():
             modified_orchestrator_content = modified_orchestrator_content.replace(
                 placeholder, str(value)
+            )
+
+        if options.get("use_orchestrator_db"):
+            modified_orchestrator_content = modified_orchestrator_content.replace(
+                "__SESSION_DB_URL_LINE__",
+                "database_url: ${ORCHESTRATOR_DATABASE_URL}",
+            )
+        else:
+            # If the placeholder is on a line by itself, this will remove the line
+            modified_orchestrator_content = re.sub(
+                r"^\s*__SESSION_DB_URL_LINE__\n?$",
+                "",
+                modified_orchestrator_content,
+                flags=re.MULTILINE,
+            )
+
+        if deny_list:
+            modified_orchestrator_content = modified_orchestrator_content.replace(
+                "__INTER_AGENT_COMMUNICATION_DENY_LIST_LINE__",
+                deny_list_line,
+            )
+        else:
+            # If the placeholder is on a line by itself, this will remove the line
+            modified_orchestrator_content = re.sub(
+                r"^\s*__INTER_AGENT_COMMUNICATION_DENY_LIST_LINE__\n?$",
+                "",
+                modified_orchestrator_content,
+                flags=re.MULTILINE,
             )
 
         main_orchestrator_path.parent.mkdir(parents=True, exist_ok=True)

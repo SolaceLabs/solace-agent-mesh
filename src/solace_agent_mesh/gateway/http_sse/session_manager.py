@@ -26,7 +26,7 @@ class SessionManager:
             raise ValueError("Session secret key cannot be empty.")
         self.secret_key = secret_key
         self.force_user_identity = app_config.get("force_user_identity")
-        self.default_user_identity = app_config.get("default_user_identity")
+        self.use_authorization = app_config.get("frontend_use_authorization", False)
         self._temp_code_cache = {}
         log.info("[SessionManager] Initialized.")
         if self.force_user_identity:
@@ -34,10 +34,11 @@ class SessionManager:
                 f"[SessionManager] Forcing user identity to: {self.force_user_identity}"
             )
 
-    def _get_or_create_client_id(self, request: Request) -> str:
+    def _get_or_create_client_id(self, request: Request) -> Optional[str]:
         """
         Retrieves the A2A Client ID. It prioritizes the authenticated user from
         `request.state.user` and falls back to session-based or generated IDs.
+        If authorization is enabled, it returns None if no user can be identified.
         """
         if self.force_user_identity:
             return self.force_user_identity
@@ -64,31 +65,31 @@ class SessionManager:
             return user_id
 
         client_id = request.session.get(SESSION_KEY_CLIENT_ID)
-        if not client_id:
-            if self.default_user_identity:
-                log.info(
-                    "[SessionManager] Using default_user_identity as A2A Client ID: %s",
-                    self.default_user_identity,
-                )
-                client_id = self.default_user_identity
-            else:
-                client_id = f"web-client-{uuid.uuid4().hex}"
-                log.info(
-                    "[SessionManager] Created new A2A Client ID: %s for web session.",
-                    client_id,
-                )
-            request.session[SESSION_KEY_CLIENT_ID] = client_id
-        else:
+        if client_id:
             log.debug(
                 "[SessionManager] Using existing A2A Client ID: %s for web session.",
                 client_id,
             )
-        return client_id
+            return client_id
 
-    def get_a2a_client_id(self, request: Request) -> str:
+        if not self.use_authorization:
+            client_id = "sam_dev_user"
+            log.info(
+                "[SessionManager] No authenticated user and auth is disabled, using client ID: %s for web session.",
+                client_id,
+            )
+            request.session[SESSION_KEY_CLIENT_ID] = client_id
+            return client_id
+
+        log.warning(
+            "[SessionManager] Could not determine client ID and authorization is enabled."
+        )
+        return None
+
+    def get_a2a_client_id(self, request: Request) -> Optional[str]:
         """
         FastAPI dependency callable to get the A2A Client ID for the current request.
-        Ensures a client ID exists in the session.
+        Ensures a client ID exists in the session if auth is disabled.
         """
         return self._get_or_create_client_id(request)
 
@@ -107,6 +108,11 @@ class SessionManager:
         This should be called when the user explicitly starts a new chat or switches agents.
         """
         client_id = self._get_or_create_client_id(request)
+        if not client_id:
+            # This case should ideally be prevented by middleware raising 401
+            raise RuntimeError(
+                "Cannot start a new A2A session without a client ID when authorization is enabled."
+            )
         new_session_id = f"web-session-{uuid.uuid4().hex}"
         request.session[SESSION_KEY_SESSION_ID] = new_session_id
         log.info(
@@ -174,7 +180,7 @@ class SessionManager:
         """
         return request.session.get(SESSION_KEY_USER_ID)
 
-    def dep_get_client_id(self) -> Callable[[Request], str]:
+    def dep_get_client_id(self) -> Callable[[Request], Optional[str]]:
         """Returns a callable suitable for FastAPI Depends to get the client ID."""
         return self.get_a2a_client_id
 
