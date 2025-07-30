@@ -51,7 +51,6 @@ def test_local_file_identity_service_invalid_path():
 
     with pytest.raises(FileNotFoundError):
         LocalFileIdentityService(invalid_path_config)
-        print("Correctly raised FileNotFoundError for invalid file path.")
 
 def test_local_file_identity_service_invalid_json():
     """
