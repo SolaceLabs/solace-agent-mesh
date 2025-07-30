@@ -63,6 +63,35 @@ class BaseProxyApp(App, ABC):
                 "type": "object",
                 "default": {"type": "memory"},
                 "description": "Configuration for the shared Artifact Service.",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "required": True,
+                        "description": "Service type (e.g., 'memory', 'gcs', 'filesystem').",
+                    },
+                    "base_path": {
+                        "type": "string",
+                        "required": False,
+                        "description": "Base directory path (required for type 'filesystem').",
+                    },
+                    "bucket_name": {
+                        "type": "string",
+                        "required": False,
+                        "description": "GCS bucket name (required for type 'gcs').",
+                    },
+                    "artifact_scope": {
+                        "type": "string",
+                        "required": False,
+                        "default": "namespace",
+                        "enum": ["namespace", "app", "custom"],
+                        "description": "Scope for filesystem artifacts: 'namespace', 'app', or 'custom'.",
+                    },
+                    "artifact_scope_value": {
+                        "type": "string",
+                        "required": False,
+                        "description": "Custom identifier for artifact scope (required if 'artifact_scope' is 'custom').",
+                    },
+                },
             },
             {
                 "name": "discovery_interval_seconds",

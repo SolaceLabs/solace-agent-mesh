@@ -29,6 +29,7 @@ apps:
         type: "filesystem"
         base_path: "/tmp/sam_proxy_artifacts"
         artifact_scope: namespace # 'namespace', 'app', or 'custom'
+        artifact_scope: namespace # 'namespace', 'app', or 'custom'
 
       # How the proxy should handle artifacts it sends over Solace.
       # 'reference': Sends an artifact:// URI.
