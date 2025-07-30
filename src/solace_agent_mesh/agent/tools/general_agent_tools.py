@@ -397,7 +397,8 @@ async def mermaid_diagram_generator(
                 "message": "Failed to render Mermaid diagram. No image data returned.",
             }
         try:
-            image_data = await _convert_svg_to_png_with_playwright(svg_image_data.decode("utf-8"))
+            scale = max(2, len(mermaid_syntax.splitlines()) // 10)
+            image_data = await _convert_svg_to_png_with_playwright(svg_image_data.decode("utf-8"), scale)
         except Exception as e:
             log.error(
                 "%s Failed to convert SVG to PNG with Playwright: %s",
@@ -410,8 +411,9 @@ async def mermaid_diagram_generator(
             }
 
         log.debug(
-            "%s Mermaid diagram rendered successfully, image_data length: %d bytes",
+            "%s Mermaid diagram rendered successfully with scale %d, image_data length: %d bytes",
             log_identifier,
+            scale,
             len(image_data),
         )
 
