@@ -82,9 +82,7 @@ async def test_get_tool_by_name_integration():
     print(f"Scenario {scenario_id}: Completed successfully.")
 
 
-async def test_get_tools_by_category_integration(
-    #main_agent_component: SamAgentComponent,
-):
+async def test_get_tools_by_category_integration():
     """
     Tests that get_tools_by_category works correctly in an integrated environment.
     """
