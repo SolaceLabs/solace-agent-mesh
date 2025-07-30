@@ -42,14 +42,7 @@ apps:
       # --- List of Downstream Agents to Proxy ---
       proxied_agents:
         # Example 1: A simple agent without authentication
-        - name: "MarkitdownAgent" # The name this agent will have on the Solace mesh
-          url: "http://localhost:8001" # The real HTTP endpoint of the agent
-
-        # Example 2: An agent that requires authentication
-        - name: "WebAgent"
-          url: "http://localhost:8002"
-          # Optional authentication for this specific agent.
-          # The proxy will add the token to its requests to this agent.
-          authentication:
-            scheme: "bearer" # The scheme to use (e.g., 'bearer', 'apikey')
-            token: "${WEB_AGENT_TOKEN}" # The token, loaded from an environment variable
+        - name: "HelloWorld" # The name this agent will have on the Solace mesh
+          url: "http://localhost:9999" # The real HTTP endpoint of the agent
+        - name: "AnalysisAgent"
+          url: "http://127.0.0.1:10001" 
