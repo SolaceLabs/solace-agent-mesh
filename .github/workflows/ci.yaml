@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   ci:
-    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_ci.yml@ws-block
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_ci.yml@add-prisma
     with:
       min-python-version: "3.10"
       max-python-version: "3.13"
@@ -37,6 +37,7 @@ jobs:
       WHITESOURCE_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
       MANIFEST_AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_READ_ONLY_AWS_ACCESS_KEY_ID }}
       MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
+      MANIFEST_AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
   docker-build:
     name: Build Docker Image
     runs-on: ubuntu-latest
