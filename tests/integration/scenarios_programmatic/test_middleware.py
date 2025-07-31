@@ -148,21 +148,25 @@ def test_initialize_middleware():
     """
     from src.solace_agent_mesh.common.middleware.registry import MiddlewareRegistry
 
-    global callback_test_value
-    callback_test_value = "test_callback_value"
+    class callback_test_value:
+        def __init__(self, value):
+            self.callback_test_value = value
+
+        def set_callback_value(self, value):
+            self.callback_test_value = value
+
+    callback_test_value_instance = callback_test_value("initial_value")
 
     # Initialize the registry
-    MiddlewareRegistry._config_resolver = None
     def sample_callback():
-        global callback_test_value
-        callback_test_value = "test_callback_value_changed!!!!"
+        callback_test_value_instance.set_callback_value("callback_called!")
 
     MiddlewareRegistry.register_initialization_callback(sample_callback)
     assert sample_callback in MiddlewareRegistry._initialization_callbacks
     MiddlewareRegistry.initialize_middleware()
 
     # Verify that the registry is initialized correctly with the callback
-    assert callback_test_value == "test_callback_value_changed!!!!"
+    assert callback_test_value_instance.callback_test_value == "callback_called!"
 
     print("MiddlewareRegistry initialized successfully with callback.")
 
