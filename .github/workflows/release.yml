@@ -19,12 +19,14 @@ permissions:
 
 jobs:
   release:
-    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_pypi.yml@ws-block
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_pypi.yml@main
     with:
       ENVIRONMENT: pypi
       version: ${{ github.event.inputs.version }}
       whitesource_project_name: "solace-agent-mesh"
       whitesource_product_name: "solaceai"
+      prisma_check: true
+      sonarqube_hotspot_check: true
       npm_package_path: client/webui/frontend
       node_version: 20
       npm_lock_file: package-lock.json
@@ -33,9 +35,17 @@ jobs:
     secrets:
       COMMIT_KEY: ${{ secrets.COMMIT_KEY }}
       PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+      PRISMA_DOCKER_IMAGE_TO_CHECK: ${{ secrets.DOCKER_IMAGE_TO_CHECK }}
+      PRISMA_ACCESS_KEY: ${{ secrets.PRISMA_ACCESS_KEY_ID }}
+      PRISMA_ACCESS_KEY_SECRET: ${{ secrets.PRISMA_SECRET_ACCESS_KEY }}
+      SONARQUBE_PROJECT_KEY: ${{ secrets.SONARQUBE_PROJECT_KEY }}
+      SONARQUBE_PROJECT_MAIN_BRANCH: "main"
+      SONARQUBE_QUERY_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+      SONARQUBE_HOTSPOTS_API_URL: ${{ secrets.SONARQUBE_HOTSPOTS_API_URL }}
       WHITESOURCE_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
-      MANIFEST_AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_AWS_ACCESS_KEY_ID }}
-      MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_AWS_SECRET_ACCESS_KEY }}
+      MANIFEST_AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+      MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+      MANIFEST_AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
 
   build_and_push_docker:
     name: Build and Push Docker Image
@@ -45,24 +55,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          fetch-tags: true
+          ref: ${{ needs.release.outputs.commit_hash }}
 
-      - name: Get Latest Tag
-        id: get_latest_tag
-        run: |
-          latest_tag=$(git describe --tags --abbrev=0)
-          if [[ -z "${latest_tag}" ]]; then
-            echo "No git tags found. The semver_release_pypi job might have failed to create a tag."
-            exit 1
-          fi
-          echo "latest_tag=${latest_tag}" >> $GITHUB_OUTPUT
-          echo "Using latest tag for Docker image: ${latest_tag}"
-
-      - name: Push Docker Image using Composite Action
+      - name: Build and Push Docker Image to DockerHub
         uses: ./.github/actions/push-docker
         with:
-          version_tag: ${{ steps.get_latest_tag.outputs.latest_tag }}
-          push_latest: true # Or false, depending on your preference for release tags
+          version_tag: ${{ needs.release.outputs.new_version }}
+          push_latest: true
           docker_username: ${{ secrets.DOCKER_USERNAME }}
           docker_password: ${{ secrets.DOCKER_PASSWORD }}

@@ -3,12 +3,10 @@ on:
   push:
     branches:
       - main
-      - dev
   pull_request:
     types: [opened, synchronize]
     branches:
       - main
-      - dev
 
 permissions:
   repository-projects: read
@@ -20,7 +18,7 @@ permissions:
 
 jobs:
   ci:
-    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_ci.yml@ws-block
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_ci.yml@main
     with:
       min-python-version: "3.10"
       max-python-version: "3.13"
@@ -37,6 +35,7 @@ jobs:
       WHITESOURCE_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
       MANIFEST_AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_READ_ONLY_AWS_ACCESS_KEY_ID }}
       MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
+      MANIFEST_AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
   docker-build:
     name: Build Docker Image
     runs-on: ubuntu-latest
@@ -48,6 +47,36 @@ jobs:
         id: get_commit_hash
         run: |
           echo "commit_hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "short_sha=${GITHUB_SHA:0:10}" >> $GITHUB_OUTPUT
+
+      - name: Get Version from hatch
+        id: get_version
+        run: |
+          python3 -m pip install hatch
+          echo "version=$(hatch version)" >> $GITHUB_OUTPUT
+          echo "Found version: $(hatch version)"
+
+      - name: Determine Release Tag
+        id: release_tag
+        run: |
+          # Sanitize ref_name for Docker tag compatibility (replace / with -)
+          sanitized_ref="${{ github.ref_name }}"
+          sanitized_ref="${sanitized_ref//\//-}"
+          echo "release_tag=${sanitized_ref}" >> $GITHUB_OUTPUT
+          echo "Using sanitized branch name as release tag: ${sanitized_ref} (from ${{ github.ref_name }})"
+
+      - name: Set Build Params
+        id: set_build_params
+        run: |
+          if [[ "${{ github.event_name  == 'push' }}" == "true" ]]; then
+            export DOCKER_PUSH=true
+            export UPDATE_MANIFEST=true
+          else
+            export DOCKER_PUSH=false
+            export UPDATE_MANIFEST=false
+          fi
+          echo "DOCKER_PUSH=$DOCKER_PUSH" >> $GITHUB_ENV
+          echo "UPDATE_MANIFEST=$UPDATE_MANIFEST" >> $GITHUB_ENV
 
       - name: Setup Qemu
         uses: docker/setup-qemu-action@v3.6.0
@@ -55,12 +84,88 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3.10.0
 
-      - name: Build Docker Image
+      - name: Configure AWS credentials
+        if: fromJSON(env.DOCKER_PUSH)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      - name: Login to Amazon ECR
+        if: fromJSON(env.DOCKER_PUSH)
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Tag Images
+        id: tag_images
+        shell: bash
+        run: |
+          version="${{ steps.get_version.outputs.version }}"
+          release_tag="${{ steps.release_tag.outputs.release_tag }}"
+          short_sha="${{ steps.get_commit_hash.outputs.short_sha }}"
+
+          # Determine image name based on event and branch
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
+            # Push to default branch - use ECR registry
+            image_name="${{ secrets.SAM_AWS_ECR_REGISTRY }}/solace-agent-mesh"
+            echo "Using ECR registry for default branch push"
+          else
+            # PR or other branch - use GitHub repo name
+            image_name="${{ github.repository }}"
+            echo "Using GitHub repository name for PR/branch build"
+          fi
+
+          # Create tags array
+          tags="${image_name}:${version}"
+          tags="${tags},${image_name}:${version}-${short_sha}"
+          tags="${tags},${image_name}:${release_tag}"
+          tags="${tags},${image_name}:${release_tag}-${short_sha}"
+
+          echo "tags=${tags}" >> $GITHUB_OUTPUT
+          echo "Created tags: ${tags}"
+
+      - name: Build and Push Docker Image
         uses: docker/build-push-action@v6.16.0
         with:
           context: .
           file: Dockerfile
-          tags: solace/solace-agent-mesh:${{ steps.get_commit_hash.outputs.commit_hash }}
-          push: false
+          tags: ${{ steps.tag_images.outputs.tags }}
+          push: ${{ fromJSON(env.DOCKER_PUSH)}}
           cache-from: type=gha
           cache-to: type=gha
+
+      - name: Update Release Manifest
+        if: fromJSON(env.UPDATE_MANIFEST)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+        run: |
+          # Set release manifest variables
+          export release_version="${{ steps.get_version.outputs.version }}-${{ steps.get_commit_hash.outputs.short_sha }}"
+          export version="${{ steps.get_version.outputs.version }}"
+          export image_tag="${{ steps.get_version.outputs.version }}-${{ steps.get_commit_hash.outputs.short_sha }}"
+          export chart_version="n/a"
+          export sha="${{ steps.get_commit_hash.outputs.commit_hash }}"
+          export squad="ai"
+          export repository="solace-agent-mesh"
+          export release_tag="${{ steps.release_tag.outputs.release_tag }}"
+
+          # Update DynamoDB manifest
+          aws dynamodb update-item \
+              --table-name solace-cloud-manifest \
+              --key "{\"squad\":{\"S\":\"${squad}\"},\"repository\": {\"S\": \"${repository}\"} }"\
+              --update-expression "SET dev = :r" \
+              --expression-attribute-values \
+              """{\":r\":
+                      {\"M\":
+                          {
+                            \"version\":{\"S\":\"${version}\"},
+                            \"image_tag\":{\"S\":\"${image_tag}\"},
+                            \"chart_version\": {\"S\": \"${chart_version}\"},
+                            \"sha\": {\"S\": \"${sha}\"},
+                            \"release_version\": {\"S\": \"${release_version}\"}
+                          }
+                      }
+              }"""

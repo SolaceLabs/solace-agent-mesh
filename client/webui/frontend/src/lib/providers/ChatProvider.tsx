@@ -752,8 +752,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             });
 
             if (response.status === 202) {
-                addNotification(`Cancellation signal sent for task ${currentTaskId}. Waiting for confirmation...`);
-
                 if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
                 cancelTimeoutRef.current = setTimeout(() => {
                     addNotification(`Cancellation for task ${currentTaskId} timed out. Allowing new input.`);

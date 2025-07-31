@@ -10,6 +10,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/comp
 import { useAgents, useChatContext, useSessionPreview, useTaskContext } from "@/lib/hooks";
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
+import { ChatSessionDialog } from "../chat/ChatSessionDialog";
 import { SessionSidePanel } from "../chat/SessionSidePanel";
 import type { ChatMessageListRef } from "../ui/chat/chat-message-list";
 
@@ -33,11 +34,14 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
-    const { sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, handleNewSession, openSidePanelTab, setTaskIdInSidePanel } = useChatContext();
+    const { sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel } = useChatContext();
+    const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
+
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
     const sessionPreview = useSessionPreview();
-    const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
+    const [isChatSessionDialogOpen, setChatSessionDialogOpen] = useState(false);
+
 
     // Refs for resizable panel state
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
@@ -181,7 +185,6 @@ export function ChatPage() {
             <div className={`absolute top-0 left-0 z-20 h-screen transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
                 <SessionSidePanel onToggle={handleSessionSidePanelToggle} />
             </div>
-            {/* Header */}
             <div className={`transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
                 <Header
                     title={sessionPreview}
@@ -192,7 +195,7 @@ export function ChatPage() {
                                     <PanelLeftIcon className="size-5" />
                                 </Button>
                                 <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
-                                <Button variant="ghost" onClick={handleNewSession} className="h-10 w-10 p-0" tooltip="Start New Chat Session">
+                                <Button variant="ghost" onClick={() => setChatSessionDialogOpen(true)} className="h-10 w-10 p-0" tooltip="Start New Chat Session">
                                     <Edit className="size-5" />
                                 </Button>
                             </div>
@@ -238,6 +241,7 @@ export function ChatPage() {
                     </ResizablePanelGroup>
                 </div>
             </div>
+            <ChatSessionDialog isOpen={isChatSessionDialogOpen} onClose={() => setChatSessionDialogOpen(false)} />
         </div>
     );
 }

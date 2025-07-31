@@ -1,22 +1,18 @@
-import React from "react";
+import React, { useState } from "react";
 
 import { PanelLeftIcon, Edit } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
-import { useChatContext } from "@/lib/hooks";
 
 import { ChatSessions } from "./ChatSessions";
+import { ChatSessionDialog } from "./ChatSessionDialog";
 
 interface SessionSidePanelProps {
     onToggle: () => void;
 }
 
 export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle }) => {
-    const { handleNewSession } = useChatContext();
-
-    const handleNewSessionClick = () => {
-        handleNewSession();
-    };
+    const [chatSessionDialogOpen, setChatSessionDialogOpen] = useState(false);
 
     return (
         <div className={`bg-background flex h-full w-100 flex-col border-r`}>
@@ -24,7 +20,7 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle }) 
                 <Button variant="ghost" onClick={onToggle} className="p-2" tooltip="Collapse Sessions Panel">
                     <PanelLeftIcon className="size-5" />
                 </Button>
-                <Button variant="ghost" onClick={handleNewSessionClick} tooltip="Start New Chat Session">
+                <Button variant="ghost" onClick={() => setChatSessionDialogOpen(true)} tooltip="Start New Chat Session">
                     <Edit className="size-5" />
                     New chat
                 </Button>
@@ -34,6 +30,8 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle }) 
             <div className="mt-1 min-h-0 flex-1">
                 <ChatSessions />
             </div>
+
+            <ChatSessionDialog isOpen={chatSessionDialogOpen} onClose={() => setChatSessionDialogOpen(false)} />
         </div>
     );
 };
