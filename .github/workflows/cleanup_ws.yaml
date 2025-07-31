@@ -19,7 +19,7 @@ jobs:
         env:
           WS_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
           WS_PRODUCT_NAME: "solaceai"
-          WS_PROJECT_NAME: "${{ github.repository }}-pr-${{ github.event.number }}"
+          WS_PROJECT_NAMES: "${{ github.repository }}-pr-${{ github.event.number }}"
         with:
           entrypoint: /bin/sh
           args: >
