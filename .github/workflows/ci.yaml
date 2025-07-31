@@ -49,6 +49,19 @@ jobs:
         id: get_commit_hash
         run: |
           echo "commit_hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "short_sha=${GITHUB_SHA:0:10}" >> $GITHUB_OUTPUT
+
+      - name: Set Build Params
+        run: |
+          if [[ ${{ github.event_name  == 'push' && (github.ref_name  == 'main' ||  github.ref_name  == 'dev') }} == "true" ]]; then
+            export DOCKER_PUSH=true
+            export UPDATE_MANIFEST=true
+          else
+            export DOCKER_PUSH=false
+            export UPDATE_MANIFEST=false
+          fi
+          echo "DOCKER_PUSH=$DOCKER_PUSH" >> $GITHUB_ENV
+          echo "UPDATE_MANIFEST=$UPDATE_MANIFEST" >> $GITHUB_ENV
 
       - name: Setup Qemu
         uses: docker/setup-qemu-action@v3.6.0
@@ -56,12 +69,62 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3.10.0
 
-      - name: Build Docker Image
+      - name: Configure AWS credentials
+        if: fromJSON(env.DOCKER_PUSH)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      - name: Login to Amazon ECR
+        if: fromJSON(env.DOCKER_PUSH)
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push Docker Image
         uses: docker/build-push-action@v6.16.0
         with:
           context: .
           file: Dockerfile
-          tags: solace/solace-agent-mesh:${{ steps.get_commit_hash.outputs.commit_hash }}
-          push: false
+          tags: |
+            ${{ fromJSON(env.DOCKER_PUSH) && format('{0}/solace-agent-mesh:{1}', secrets.SAM_AWS_ECR_REGISTRY, github.ref_name) || '' }}
+            ${{ fromJSON(env.DOCKER_PUSH) && format('{0}/solace-agent-mesh:{1}-{2}', secrets.SAM_AWS_ECR_REGISTRY, github.ref_name, steps.get_commit_hash.outputs.short_sha) || '' }}
+          push: ${{ fromJSON(env.DOCKER_PUSH) }}
           cache-from: type=gha
           cache-to: type=gha
+
+      - name: Update Release Manifest
+        if: fromJSON(env.UPDATE_MANIFEST)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+        run: |
+          # Set release manifest variables
+          export release_version="${{ github.ref_name }}-${{ steps.get_commit_hash.outputs.short_sha }}"
+          export version="${{ github.ref_name }}"
+          export image_tag="${{ github.ref_name }}-${{ steps.get_commit_hash.outputs.short_sha }}"
+          export chart_version="n/a"
+          export sha="${{ steps.get_commit_hash.outputs.commit_hash }}"
+          export squad="ai"
+          export repository="solace-agent-mesh"
+          export release_tag="${{ github.ref_name }}"
+
+          # Update DynamoDB manifest
+          aws dynamodb update-item \
+              --table-name solace-cloud-manifest \
+              --key "{\"squad\":{\"S\":\"${squad}\"},\"repository\": {\"S\": \"${repository}\"} }"\
+              --update-expression "SET ${release_tag} = :r" \
+              --expression-attribute-values \
+              """{\":r\":
+                      {\"M\":
+                          {
+                            \"version\":{\"S\":\"${version}\"},
+                            \"image_tag\":{\"S\":\"${image_tag}\"},
+                            \"chart_version\": {\"S\": \"${chart_version}\"},
+                            \"sha\": {\"S\": \"${sha}\"},
+                            \"release_version\": {\"S\": \"${release_version}\"}
+                          }
+                      }
+              }"""
