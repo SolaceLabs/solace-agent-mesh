@@ -52,15 +52,9 @@ jobs:
       - name: Get Version from __init__.py
         id: get_version
         run: |
-          version=$(python -c "
-          import re
-          with open('cli/__init__.py', 'r') as f:
-              content = f.read()
-              match = re.search(r'__version__\s*=\s*[\"\'](.*?)[\"\']', content)
-              print(match.group(1) if match else 'unknown')
-          ")
-          echo "version=$version" >> $GITHUB_OUTPUT
-          echo "Found version: $version"
+          python3 -m pip install hatch
+          echo "version=$(hatch version)" >> $GITHUB_OUTPUT
+          echo "Found version: $(hatch version)"
 
       - name: Determine Release Tag
         id: release_tag

@@ -54,23 +54,12 @@ jobs:
           echo "commit_hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "short_sha=${GITHUB_SHA:0:10}" >> $GITHUB_OUTPUT
 
-      - name: Get Version from __init__.py or input
+      - name: Get Version from hatch
         id: get_version
         run: |
-          if [[ -n "${{ github.event.inputs.version }}" ]]; then
-            version="${{ github.event.inputs.version }}"
-            echo "Using provided version: $version"
-          else
-            version=$(python -c "
-            import re
-            with open('cli/__init__.py', 'r') as f:
-                content = f.read()
-                match = re.search(r'__version__\s*=\s*[\"\'](.*?)[\"\']', content)
-                print(match.group(1) if match else 'unknown')
-            ")
-            echo "Using version from __init__.py: $version"
-          fi
-          echo "version=$version" >> $GITHUB_OUTPUT
+          python3 -m pip install hatch
+          echo "version=$(hatch version)" >> $GITHUB_OUTPUT
+          echo "Found version: $(hatch version)"
 
       - name: Push to DockerHub
         if: github.event.inputs.destination == 'DockerHub'
