@@ -4,6 +4,7 @@ on:
     branches:
       - main
       - dev
+      - test-prisma
   pull_request:
     types: [opened, synchronize]
     branches:
@@ -53,7 +54,7 @@ jobs:
 
       - name: Set Build Params
         run: |
-          if [[ ${{ github.event_name  == 'push' && (github.ref_name  == 'main' ||  github.ref_name  == 'dev') }} == "true" ]]; then
+          if [[ "${{ github.event_name  == 'push' }}" == "true" ]]; then
             export DOCKER_PUSH=true
             export UPDATE_MANIFEST=true
           else
