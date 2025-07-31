@@ -4,6 +4,7 @@ on:
     branches:
       - main
       - dev
+      - test-prisma
   pull_request:
     types: [opened, synchronize]
     branches:
@@ -106,16 +107,30 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Tag Images
+        id: tag_images
+        shell: bash
+        run: |
+          registry="${{ secrets.SAM_AWS_ECR_REGISTRY }}"
+          version="${{ steps.get_version.outputs.version }}"
+          release_tag="${{ steps.release_tag.outputs.release_tag }}"
+          short_sha="${{ steps.get_commit_hash.outputs.short_sha }}"
+
+          # Create tags array
+          tags="${registry}/solace-agent-mesh:${version}"
+          tags="${tags},${registry}/solace-agent-mesh:${version}-${short_sha}"
+          tags="${tags},${registry}/solace-agent-mesh:${release_tag}"
+          tags="${tags},${registry}/solace-agent-mesh:${release_tag}-${short_sha}"
+
+          echo "tags=${tags}" >> $GITHUB_OUTPUT
+          echo "Created tags: ${tags}"
+
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v6.16.0
         with:
           context: .
           file: Dockerfile
-          tags: |
-            ${{ fromJSON(env.DOCKER_PUSH) && format('{0}/solace-agent-mesh:{1}', secrets.SAM_AWS_ECR_REGISTRY, steps.get_version.outputs.version) || '' }}
-            ${{ fromJSON(env.DOCKER_PUSH) && format('{0}/solace-agent-mesh:{1}-{2}', secrets.SAM_AWS_ECR_REGISTRY, steps.get_version.outputs.version, steps.get_commit_hash.outputs.short_sha) || '' }}
-            ${{ fromJSON(env.DOCKER_PUSH) && format('{0}/solace-agent-mesh:{1}', secrets.SAM_AWS_ECR_REGISTRY, steps.release_tag.outputs.release_tag) || '' }}
-            ${{ fromJSON(env.DOCKER_PUSH) && format('{0}/solace-agent-mesh:{1}-{2}', secrets.SAM_AWS_ECR_REGISTRY, steps.release_tag.outputs.release_tag, steps.get_commit_hash.outputs.short_sha) || '' }}
+          tags: ${{ steps.tag_images.outputs.tags }}
           push: ${{ fromJSON(env.DOCKER_PUSH) }}
           cache-from: type=gha
           cache-to: type=gha
@@ -141,7 +156,7 @@ jobs:
           aws dynamodb update-item \
               --table-name solace-cloud-manifest \
               --key "{\"squad\":{\"S\":\"${squad}\"},\"repository\": {\"S\": \"${repository}\"} }"\
-              --update-expression "SET ${release_tag} = :r" \
+              --update-expression "SET dev = :r" \
               --expression-attribute-values \
               """{\":r\":
                       {\"M\":
