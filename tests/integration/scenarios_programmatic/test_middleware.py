@@ -225,8 +225,8 @@ def test_get_registry_status():
 
     # Get the registry status
     status = MiddlewareRegistry.get_registry_status()
-    assert status["config_resolver"] == "CustomConfigResolver_name"
-    assert status["initialization_callbacks"] == 1
-    assert status["has_custom_bindings"]
+    assert status["config_resolver"] == "CustomConfigResolver_name", "Expected config_resolver to be 'CustomConfigResolver_name'."
+    assert status["initialization_callbacks"] == 1, "Expected exactly 1 initialization callback."
+    assert status["has_custom_bindings"], "Expected registry to have custom bindings."
 
-    print("MiddlewareRegistry status retrieved successfully:", status)
+    # Removed print statement as assertion messages provide sufficient context.
