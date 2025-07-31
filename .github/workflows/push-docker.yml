@@ -107,7 +107,7 @@ jobs:
         id: ecr_tags
         shell: bash
         run: |
-          registry="${{ secrets.SAM_AWS_ECR_REGISTRY }}"
+          registry="${{ github.event.inputs.destination == 'ECR' && secrets.SAM_AWS_ECR_REGISTRY || 'solace' }}"
           version="${{ steps.get_version.outputs.version }}"
           short_sha="${{ steps.get_commit_hash.outputs.short_sha }}"
           ref_name="${{ github.event.inputs.ref-to-checkout }}"
