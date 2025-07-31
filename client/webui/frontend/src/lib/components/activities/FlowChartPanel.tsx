@@ -315,9 +315,22 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
         }
     }, []);
 
+    const handlePopoverClose = useCallback(() => {
+        setIsPopoverOpen(false);
+        setSelectedStep(null);
+    }, []);
+
     const handleNodeClick = useCallback(
         (_event: React.MouseEvent, node: Node) => {
             setHasUserInteracted(true);
+
+            // If clicking on a group container, treat it like clicking on empty space
+            if (node.type === "group") {
+                setHighlightedStepId(null);
+                setSelectedEdgeId(null);
+                handlePopoverClose();
+                return;
+            }
 
             const sourceHandles = getNodeSourceHandles(node);
 
@@ -340,17 +353,12 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
                 handleEdgeClick(_event, targetEdge);
             }
         },
-        [getNodeSourceHandles, findEdgeBySourceAndHandle, handleEdgeClick, edges]
+        [getNodeSourceHandles, setHighlightedStepId, handlePopoverClose, findEdgeBySourceAndHandle, edges, handleEdgeClick]
     );
 
     const handleUserMove = useCallback((event: MouseEvent | TouchEvent | null) => {
         if (!event?.isTrusted) return; // Ignore synthetic events
         setHasUserInteracted(true);
-    }, []);
-
-    const handlePopoverClose = useCallback(() => {
-        setIsPopoverOpen(false);
-        setSelectedStep(null);
     }, []);
 
     useEffect(() => {
