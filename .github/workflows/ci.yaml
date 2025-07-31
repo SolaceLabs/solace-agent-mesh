@@ -3,12 +3,10 @@ on:
   push:
     branches:
       - main
-      - dev
   pull_request:
     types: [opened, synchronize]
     branches:
       - main
-      - dev
 
 permissions:
   repository-projects: read
@@ -20,7 +18,7 @@ permissions:
 
 jobs:
   ci:
-    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_ci.yml@add-prisma
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_ci.yml@main
     with:
       min-python-version: "3.10"
       max-python-version: "3.13"
@@ -51,9 +49,32 @@ jobs:
           echo "commit_hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "short_sha=${GITHUB_SHA:0:10}" >> $GITHUB_OUTPUT
 
-      - name: Set Build Params
+      - name: Get Version from __init__.py
+        id: get_version
         run: |
-          if [[ ${{ github.event_name  == 'push' && (github.ref_name  == 'main' ||  github.ref_name  == 'dev') }} == "true" ]]; then
+          version=$(python -c "
+          import re
+          with open('cli/__init__.py', 'r') as f:
+              content = f.read()
+              match = re.search(r'__version__\s*=\s*[\"\'](.*?)[\"\']', content)
+              print(match.group(1) if match else 'unknown')
+          ")
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "Found version: $version"
+
+      - name: Determine Release Tag
+        id: release_tag
+        run: |
+          # Sanitize ref_name for Docker tag compatibility (replace / with -)
+          sanitized_ref="${{ github.ref_name }}"
+          sanitized_ref="${sanitized_ref//\//-}"
+          echo "release_tag=${sanitized_ref}" >> $GITHUB_OUTPUT
+          echo "Using sanitized branch name as release tag: ${sanitized_ref} (from ${{ github.ref_name }})"
+
+      - name: Set Build Params
+        id: set_build_params
+        run: |
+          if [[ "${{ github.event_name  == 'push' }}" == "true" ]]; then
             export DOCKER_PUSH=true
             export UPDATE_MANIFEST=true
           else
@@ -82,15 +103,41 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Tag Images
+        id: tag_images
+        shell: bash
+        run: |
+          version="${{ steps.get_version.outputs.version }}"
+          release_tag="${{ steps.release_tag.outputs.release_tag }}"
+          short_sha="${{ steps.get_commit_hash.outputs.short_sha }}"
+
+          # Determine image name based on event and branch
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
+            # Push to default branch - use ECR registry
+            image_name="${{ secrets.SAM_AWS_ECR_REGISTRY }}/solace-agent-mesh"
+            echo "Using ECR registry for default branch push"
+          else
+            # PR or other branch - use GitHub repo name
+            image_name="${{ github.repository }}"
+            echo "Using GitHub repository name for PR/branch build"
+          fi
+
+          # Create tags array
+          tags="${image_name}:${version}"
+          tags="${tags},${image_name}:${version}-${short_sha}"
+          tags="${tags},${image_name}:${release_tag}"
+          tags="${tags},${image_name}:${release_tag}-${short_sha}"
+
+          echo "tags=${tags}" >> $GITHUB_OUTPUT
+          echo "Created tags: ${tags}"
+
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v6.16.0
         with:
           context: .
           file: Dockerfile
-          tags: |
-            ${{ fromJSON(env.DOCKER_PUSH) && format('{0}/solace-agent-mesh:{1}', secrets.SAM_AWS_ECR_REGISTRY, github.ref_name) || '' }}
-            ${{ fromJSON(env.DOCKER_PUSH) && format('{0}/solace-agent-mesh:{1}-{2}', secrets.SAM_AWS_ECR_REGISTRY, github.ref_name, steps.get_commit_hash.outputs.short_sha) || '' }}
-          push: ${{ fromJSON(env.DOCKER_PUSH) }}
+          tags: ${{ steps.tag_images.outputs.tags }}
+          push: ${{ fromJSON(env.DOCKER_PUSH)}}
           cache-from: type=gha
           cache-to: type=gha
 
@@ -102,20 +149,20 @@ jobs:
           AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
         run: |
           # Set release manifest variables
-          export release_version="${{ github.ref_name }}-${{ steps.get_commit_hash.outputs.short_sha }}"
-          export version="${{ github.ref_name }}"
-          export image_tag="${{ github.ref_name }}-${{ steps.get_commit_hash.outputs.short_sha }}"
+          export release_version="${{ steps.get_version.outputs.version }}-${{ steps.get_commit_hash.outputs.short_sha }}"
+          export version="${{ steps.get_version.outputs.version }}"
+          export image_tag="${{ steps.get_version.outputs.version }}-${{ steps.get_commit_hash.outputs.short_sha }}"
           export chart_version="n/a"
           export sha="${{ steps.get_commit_hash.outputs.commit_hash }}"
           export squad="ai"
           export repository="solace-agent-mesh"
-          export release_tag="${{ github.ref_name }}"
+          export release_tag="${{ steps.release_tag.outputs.release_tag }}"
 
           # Update DynamoDB manifest
           aws dynamodb update-item \
               --table-name solace-cloud-manifest \
               --key "{\"squad\":{\"S\":\"${squad}\"},\"repository\": {\"S\": \"${repository}\"} }"\
-              --update-expression "SET ${release_tag} = :r" \
+              --update-expression "SET dev = :r" \
               --expression-attribute-values \
               """{\":r\":
                       {\"M\":
