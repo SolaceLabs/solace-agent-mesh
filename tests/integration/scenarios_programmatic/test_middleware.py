@@ -197,7 +197,8 @@ def test_reset_bindings():
     assert MiddlewareRegistry._config_resolver is None
     assert len(MiddlewareRegistry._initialization_callbacks) == 0
 
-    print("MiddlewareRegistry bindings reset successfully.")
+    import logging
+    logging.info("MiddlewareRegistry bindings reset successfully.")
 
 def test_get_registry_status():
     """
