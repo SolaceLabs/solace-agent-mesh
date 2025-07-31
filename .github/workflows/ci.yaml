@@ -4,7 +4,6 @@ on:
     branches:
       - main
       - dev
-      - test-prisma
   pull_request:
     types: [opened, synchronize]
     branches:
