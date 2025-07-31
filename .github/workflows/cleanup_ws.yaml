@@ -9,22 +9,6 @@ permissions:
 
 jobs:
   cleanup-whitesource:
-    name: Remove WhiteSource Project
-    runs-on: ubuntu-latest
-    steps:
-      - name: Cleanup WhiteSource Project for PR ${{ github.event.number }}
-        id: whitesource-policy-gate
-        uses: docker://ghcr.io/solacedev/maas-build-actions:latest
-        continue-on-error: true
-        env:
-          WS_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
-          WS_PRODUCT_NAME: "solaceai"
-          WS_PROJECT_NAMES: "${{ github.repository }}-pr-${{ github.event.number }}"
-        with:
-          entrypoint: /bin/sh
-          args: >
-            -c "
-            . $VIRTUAL_ENV/bin/activate &&
-            cd $ACTIONS_PATH/whitesource-project-remover &&
-            python whitesource_project_remover.py
-            "
+    uses: SolaceDev/solace-public-workflows/.github/workflows/cleanup_ws.yml@main
+    secrets:
+      ws_api_key: ${{ secrets.WHITESOURCE_API_KEY }}
