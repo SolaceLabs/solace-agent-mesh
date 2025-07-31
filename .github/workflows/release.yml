@@ -54,8 +54,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.commit_hash }}
 
-      - name: Build and Push Docker Image
-        shell: bash
-        run: |
-          echo "Would push docker image solace/solace-agent-mesh:${{ needs.release.outputs.new_version }}"
+      - name: Build and Push Docker Image to DockerHub
+        uses: ./.github/actions/push-docker
+        with:
+          version_tag: ${{ needs.release.outputs.new_version }}
+          push_latest: true
+          docker_username: ${{ secrets.DOCKER_USERNAME }}
+          docker_password: ${{ secrets.DOCKER_PASSWORD }}
