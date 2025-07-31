@@ -963,7 +963,7 @@ def handle_a2a_response(component, message: SolaceMessage):
                 component.log_identifier,
                 topic,
             )
-            message.call_negative_acknowledgEMENTS()
+            message.call_negative_acknowledgements()
             return
 
         log.debug("%s Extracted sub-task ID: %s", component.log_identifier, sub_task_id)

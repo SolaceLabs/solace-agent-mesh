@@ -7,6 +7,7 @@ from starlette.requests import Request
 from typing import Optional, Callable, Dict, Any
 
 from solace_ai_connector.common.log import log
+from .database.persistence_service import PersistenceService
 
 SESSION_KEY_CLIENT_ID = "a2a_client_id"
 SESSION_KEY_SESSION_ID = "a2a_session_id"
@@ -21,12 +22,18 @@ class SessionManager:
     Generates and stores unique A2A Client IDs and manages the current A2A Session ID per web session.
     """
 
-    def __init__(self, secret_key: str, app_config: Dict[str, Any]):
+    def __init__(
+        self,
+        secret_key: str,
+        app_config: Dict[str, Any],
+        persistence_service: "PersistenceService",
+    ):
         if not secret_key:
             raise ValueError("Session secret key cannot be empty.")
         self.secret_key = secret_key
         self.force_user_identity = app_config.get("force_user_identity")
         self.use_authorization = app_config.get("frontend_use_authorization", False)
+        self.persistence_service = persistence_service
         self._temp_code_cache = {}
         log.info("[SessionManager] Initialized.")
         if self.force_user_identity:

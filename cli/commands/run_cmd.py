@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
 from cli.utils import error_exit
-import cli
 
 
 def _execute_with_solace_ai_connector(config_file_paths: list[str]):

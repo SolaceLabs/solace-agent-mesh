@@ -3,7 +3,7 @@ from pathlib import Path
 import yaml
 import re
 from ...utils import ask_if_not_provided, load_template, get_formatted_names
-import os
+from config_portal.backend.common import DEFAULT_COMMUNICATION_TIMEOUT
 
 
 ORCHESTRATOR_DEFAULTS = {
@@ -30,7 +30,7 @@ ORCHESTRATOR_DEFAULTS = {
     "agent_discovery": {"enabled": True},
     "inter_agent_communication": {
         "allow_list": ["*"],
-        "request_timeout_seconds": 60,
+        "request_timeout_seconds": DEFAULT_COMMUNICATION_TIMEOUT,
     },
 }
 

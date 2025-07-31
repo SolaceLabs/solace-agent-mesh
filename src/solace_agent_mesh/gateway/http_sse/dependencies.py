@@ -47,6 +47,8 @@ def set_component_instance(component: "WebUIBackendComponent"):
         sac_component_instance = component
         log.info("[Dependencies] SAC Component instance provided.")
     else:
+        log.warning("[Dependencies] SAC Component instance already set.")
+
 
 def set_persistence_service(persistence_service: "PersistenceService"):
     """Called by the component during its startup to provide its instance."""
@@ -69,7 +71,6 @@ def get_persistence_service() -> "PersistenceService":
             detail="Persistence service not yet initialized.",
         )
     return persistence_service_instance
-        log.warning("[Dependencies] SAC Component instance already set.")
 
 
 def set_api_config(config: Dict[str, Any]):

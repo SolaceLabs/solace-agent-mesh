@@ -1,8 +1,8 @@
-"""Create initial tables
+"""Unified migration for initial schema
 
-Revision ID: 3c9a54a8a4a1
+Revision ID: V1
 Revises:
-Create Date: 2025-07-10 23:18:21.135241
+Create Date: 2025-07-31 17:21:00.000000
 
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = "3c9a54a8a4a1"
+revision: str = "d5b3f8f2e9a0"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -33,6 +33,8 @@ def upgrade() -> None:
         "sessions",
         sa.Column("id", sa.String(), nullable=False),
         sa.Column("user_id", sa.String(), nullable=True),
+        sa.Column("agent_id", sa.String(), nullable=True),
+        sa.Column("name", sa.String(), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=True),
         sa.Column("updated_at", sa.DateTime(), nullable=True),
         sa.ForeignKeyConstraint(
@@ -43,13 +45,13 @@ def upgrade() -> None:
     )
     op.create_table(
         "chat_messages",
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column("id", sa.String(), nullable=False),
         sa.Column("session_id", sa.String(), nullable=False),
         sa.Column("message", sa.Text(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=True),
         sa.Column("sender_type", sa.String(), nullable=True),
         sa.Column("sender_name", sa.String(), nullable=True),
-        sa.Column("parent_message_id", sa.Integer(), nullable=True),
+        sa.Column("parent_message_id", sa.String(), nullable=True),
         sa.ForeignKeyConstraint(
             ["session_id"],
             ["sessions.id"],

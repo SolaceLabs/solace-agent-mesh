@@ -50,6 +50,7 @@ class DatabasePersistenceService(PersistenceService):
             self.logger.info(
                 f"Successfully stored message {chat_message.id} for session {session_id}"
             )
+            return chat_message.id
         except Exception as e:
             self.logger.error(f"Error storing chat message: {e}")
             session.rollback()

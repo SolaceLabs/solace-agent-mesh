@@ -6,7 +6,7 @@ Defines configuration schema and programmatically creates the WebUIBackendCompon
 from typing import Any, Dict, List
 import os
 from alembic import command
-from alemic.config import Config
+from alembic.config import Config
 from solace_ai_connector.common.log import log
 
 from ...gateway.http_sse.component import WebUIBackendComponent
@@ -186,48 +186,26 @@ class WebUIBackendApp(BaseGatewayApp):
             "%s Initializing WebUIBackendApp...",
             app_info.get("name", "WebUIBackendApp"),
         )
-        
+        super().__init__(app_info, **kwargs)
 
-alembic_cfg = Config(alembic_cfg_path)
-alembic_cfg.set_main_option(
-    "script_location",
-    os.path.join(os.path.dirname(__file__), "alembic"),
-)
-session_service_config = self.get_config("session_service", {})
-db_url = session_service_config.get("database_url")
-if db_url:
-    alembic_cfg.set_main_option("sqlalchemy.url", db_url)
-    command.upgrade(alembic_cfg, "head")
-else:
-    log.warning("Database URL not configured. Skipping migrations.")
+        try:
+            # alembic_cfg_path was not defined. Assuming it's not needed and creating a config programmatically.
+            alembic_cfg = Config()
+            alembic_cfg.set_main_option(
+                "script_location",
+                os.path.join(os.path.dirname(__file__), "alembic"),
+            )
+            session_service_config = self.get_config("session_service", {})
+            db_url = session_service_config.get("database_url")
+            if db_url:
+                alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+                command.upgrade(alembic_cfg, "head")
+            else:
+                log.warning("Database URL not configured. Skipping migrations.")
+        except Exception as e:
+            log.warning(f"Alembic migration failed: {e}")
+
         log.debug("%s WebUIBackendApp initialization complete.", self.name)
-        
-
-alembic_cfg = Config(alembic_cfg_path)
-alembic_cfg.set_main_option(
-    "script_location",
-    os.path.join(os.path.dirname(__file__), "alembic"),
-)
-session_service_config = self.get_config("session_service", {})
-db_url = session_service_config.get("database_url")
-if db_url:
-    alembic_cfg.set_main_option("sqlalchemy.url", db_url)
-    command.upgrade(alembic_cfg, "head")
-else:
-    log.warning("Database URL not configured. Skipping migrations.")
-        
-        alembic_cfg = Config(alembic_cfg_path)
-        alembic_cfg.set_main_option(
-            "script_location",
-            os.path.join(os.path.dirname(__file__), "alembic"),
-        )
-        session_service_config = self.get_config("session_service", {})
-        db_url = session_service_config.get("database_url")
-        if db_url:
-            alembic_cfg.set_main_option("sqlalchemy.url", db_url)
-            command.upgrade(alembic_cfg, "head")
-        else:
-            log.warning("Database URL not configured. Skipping migrations.")
 
     def _get_gateway_component_class(self) -> type[BaseGatewayComponent]:
         return WebUIBackendComponent

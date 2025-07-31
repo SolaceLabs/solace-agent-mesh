@@ -13,7 +13,23 @@ from ...utils import (
     get_formatted_names,
     load_template,
     indent_multiline_string,
+    ask_yes_no_question,
 )
+from sqlalchemy import create_engine
+
+
+def _append_to_env_file(project_root: Path, key: str, value: str):
+    """Appends a key-value pair to the .env file."""
+    env_path = project_root / ".env"
+    try:
+        with open(env_path, "a", encoding="utf-8") as f:
+            f.write(f'\n{key}="{value}"\n')
+        return True
+    except IOError as e:
+        click.echo(
+            click.style(f"Error appending to .env file: {e}", fg="red"), err=True
+        )
+        return False
 
 
 def _write_agent_yaml_from_data(
@@ -44,9 +60,22 @@ def _write_agent_yaml_from_data(
             behavior_val = config_options.get(
                 "session_service_behavior", AGENT_DEFAULTS["session_service_behavior"]
             )
-            session_service_block = (
-                f'\n        type: "{type_val}"\n'
-                f'        default_behavior: "{behavior_val}"'
+
+            session_service_lines = [
+                f'type: "{type_val}"',
+                f'default_behavior: "{behavior_val}"',
+            ]
+
+            if type_val == "sql":
+                database_url_placeholder = (
+                    f"${{{formatted_names['SNAKE_UPPER_CASE_NAME']}_DATABASE_URL}}"
+                )
+                session_service_lines.append(
+                    f'database_url: "{database_url_placeholder}"'
+                )
+
+            session_service_block = "\n" + "\n".join(
+                [f"        {line}" for line in session_service_lines]
             )
         else:
             session_service_block = "*default_session_service"
@@ -264,6 +293,9 @@ def _write_agent_yaml_from_data(
             f.write(modified_content)
 
         relative_file_path = str(agent_config_file_path.relative_to(project_root))
+        if config_options.get("database_url"):
+            env_key = f"{formatted_names['SNAKE_UPPER_CASE_NAME']}_DATABASE_URL"
+            _append_to_env_file(project_root, env_key, config_options["database_url"])
         return (
             True,
             f"Agent configuration created: {relative_file_path}",
@@ -346,9 +378,49 @@ def create_agent_config(
         "Session service type",
         AGENT_DEFAULTS["session_service_type"],
         skip_interactive,
-        choices=[USE_DEFAULT_SHARED_SESSION, "memory", "vertex_rag"],
+        choices=[USE_DEFAULT_SHARED_SESSION, "sql", "memory", "vertex_rag"],
     )
-    if collected_options["session_service_type"] != USE_DEFAULT_SHARED_SESSION:
+
+    if collected_options.get("session_service_type") == "sql":
+        use_own_db = False
+        if not skip_interactive:
+            use_own_db = ask_yes_no_question(
+                f"Do you want to use your own database for the '{agent_name_camel_case}' agent?",
+                default=False,
+            )
+
+        if use_own_db:
+            database_url = ask_if_not_provided(
+                collected_options,
+                "database_url",
+                f"Enter the full database URL for the {agent_name_camel_case} agent (e.g., postgresql://user:pass@host/db)",
+                none_interactive=skip_interactive,
+            )
+            collected_options["database_url"] = database_url
+        else:
+            data_dir = project_root / "data"
+            data_dir.mkdir(exist_ok=True)
+            db_file = data_dir / f"{formatted_names['SNAKE_CASE_NAME']}.db"
+            database_url = f"sqlite:///{db_file.resolve()}"
+            click.echo(
+                f"  Using default SQLite database for {agent_name_camel_case} agent: {db_file}"
+            )
+            collected_options["database_url"] = database_url
+
+        if collected_options.get("database_url", "").startswith("sqlite://"):
+            db_file_path_str = collected_options["database_url"].replace(
+                "sqlite:///", ""
+            )
+            db_file_path = Path(db_file_path_str)
+            db_file_path.parent.mkdir(parents=True, exist_ok=True)
+            if not db_file_path.exists():
+                click.echo(f"  Creating database file: {db_file_path}")
+                engine = create_engine(collected_options["database_url"])
+                with engine.connect() as connection:
+                    pass  # This creates the file
+                engine.dispose()
+
+    if collected_options.get("session_service_type") != USE_DEFAULT_SHARED_SESSION:
         collected_options["session_service_behavior"] = ask_if_not_provided(
             collected_options,
             "session_service_behavior",
@@ -549,7 +621,7 @@ def create_agent_config(
 @click.option("--instruction", help="Custom instruction for the agent.")
 @click.option(
     "--session-service-type",
-    type=click.Choice(["memory", "vertex_rag"]),
+    type=click.Choice(["sql", "memory", "vertex_rag"]),
     help="Session service type.",
 )
 @click.option(

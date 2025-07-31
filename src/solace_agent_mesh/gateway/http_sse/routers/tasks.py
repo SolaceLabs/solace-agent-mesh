@@ -29,7 +29,7 @@ from ....common.types import (
 from ....gateway.http_sse.dependencies import (
     get_sac_component,
     get_session_manager,
-    get_current_user,
+    get_user_id,
 )
 from typing import TYPE_CHECKING
 
@@ -54,7 +54,7 @@ async def send_task_to_agent(
     files: List[UploadFile] = File([]),
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    user: dict = Depends(get_current_user),
+    user_id: str = Depends(get_user_id),
 ):
     """
     Submits a non-streaming task request to the specified agent.
@@ -64,7 +64,6 @@ async def send_task_to_agent(
     log.info("%sReceived request for agent: %s", log_prefix, agent_name)
 
     try:
-
         client_id = session_manager.get_a2a_client_id(request)
         session_id = session_manager.ensure_a2a_session(request)
 
@@ -79,12 +78,14 @@ async def send_task_to_agent(
             "client_id": client_id,
             "a2a_session_id": session_id,
         }
-        target_agent, a2a_parts, external_request_context = (
-            await component._translate_external_input(external_event_data)
-        )
+        (
+            target_agent,
+            a2a_parts,
+            external_request_context,
+        ) = await component._translate_external_input(external_event_data)
 
         # The user identity is already resolved by the `get_current_user` dependency.
-        user_identity = user
+        user_identity = {"id": user_id}
         log.info(
             "%sAuthenticated user identity: %s",
             log_prefix,
@@ -136,7 +137,7 @@ async def subscribe_task_from_agent(
     session_id: Optional[str] = Form(None),
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    user: dict = Depends(get_current_user),
+    user_id: str = Depends(get_user_id),
     persistence_service: PersistenceService = Depends(get_persistence_service),
 ):
     """
@@ -146,13 +147,23 @@ async def subscribe_task_from_agent(
     log.info("%sReceived streaming request for agent: %s", log_prefix, agent_name)
 
     try:
-
         client_id = session_manager.get_a2a_client_id(request)
 
         # If session_id is not provided by the client, create a new one.
         if not session_id:
             log.info("%sNo session_id provided, creating a new one.", log_prefix)
             session_id = session_manager.start_new_a2a_session(request)
+
+        parent_message_id = persistence_service.store_chat_message(
+            session_id=session_id,
+            message={
+                "content": message,
+                "sender_type": "user",
+                "sender_name": user_id,
+            },
+            user_id=user_id,
+            agent_id=agent_name,
+        )
 
         log.info(
             "%sUsing ClientID: %s, SessionID: %s", log_prefix, client_id, session_id
@@ -164,13 +175,16 @@ async def subscribe_task_from_agent(
             "files": files,
             "client_id": client_id,
             "a2a_session_id": session_id,
+            "parent_message_id": parent_message_id,
         }
-        target_agent, a2a_parts, external_request_context = (
-            await component._translate_external_input(external_event_data)
-        )
+        (
+            target_agent,
+            a2a_parts,
+            external_request_context,
+        ) = await component._translate_external_input(external_event_data)
 
         # The user identity is already resolved by the `get_current_user` dependency.
-        user_identity = user
+        user_identity = {"id": user_id}
         log.info(
             "%sAuthenticated user identity: %s",
             log_prefix,
