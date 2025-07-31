@@ -43,10 +43,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Push Docker Image using Composite Action
-        uses: ./.github/actions/push-docker
-        with:
-          version_tag: ${{ needs.release.outputs.new_version }}
-          push_latest: true # Or false, depending on your preference for release tags
-          docker_username: ${{ secrets.DOCKER_USERNAME }}
-          docker_password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Build and Push Docker Image
+        shell: bash
+        run: |
+          echo "Would push docker image solace/solace-agent-mesh:${{ needs.release.outputs.new_version }}"

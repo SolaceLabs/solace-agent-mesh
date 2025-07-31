@@ -52,6 +52,30 @@ jobs:
           echo "commit_hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "short_sha=${GITHUB_SHA:0:10}" >> $GITHUB_OUTPUT
 
+      - name: Get Version from __init__.py
+        id: get_version
+        run: |
+          version=$(python -c "
+          import re
+          with open('cli/__init__.py', 'r') as f:
+              content = f.read()
+              match = re.search(r'__version__\s*=\s*[\"\'](.*?)[\"\']', content)
+              print(match.group(1) if match else 'unknown')
+          ")
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "Found version: $version"
+
+      - name: Determine Release Tag
+        id: release_tag
+        run: |
+          if [[ "${{ github.ref_name }}" == "test-prisma" ]]; then
+            echo "release_tag=main" >> $GITHUB_OUTPUT
+            echo "Using 'main' as release tag for test-prisma branch"
+          else
+            echo "release_tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "Using branch name as release tag: ${{ github.ref_name }}"
+          fi
+
       - name: Set Build Params
         run: |
           if [[ "${{ github.event_name  == 'push' }}" == "true" ]]; then
@@ -89,8 +113,10 @@ jobs:
           context: .
           file: Dockerfile
           tags: |
-            ${{ fromJSON(env.DOCKER_PUSH) && format('{0}/solace-agent-mesh:{1}', secrets.SAM_AWS_ECR_REGISTRY, github.ref_name) || '' }}
-            ${{ fromJSON(env.DOCKER_PUSH) && format('{0}/solace-agent-mesh:{1}-{2}', secrets.SAM_AWS_ECR_REGISTRY, github.ref_name, steps.get_commit_hash.outputs.short_sha) || '' }}
+            ${{ fromJSON(env.DOCKER_PUSH) && format('{0}/solace-agent-mesh:{1}', secrets.SAM_AWS_ECR_REGISTRY, steps.get_version.outputs.version) || '' }}
+            ${{ fromJSON(env.DOCKER_PUSH) && format('{0}/solace-agent-mesh:{1}-{2}', secrets.SAM_AWS_ECR_REGISTRY, steps.get_version.outputs.version, steps.get_commit_hash.outputs.short_sha) || '' }}
+            ${{ fromJSON(env.DOCKER_PUSH) && format('{0}/solace-agent-mesh:{1}', secrets.SAM_AWS_ECR_REGISTRY, steps.release_tag.outputs.release_tag) || '' }}
+            ${{ fromJSON(env.DOCKER_PUSH) && format('{0}/solace-agent-mesh:{1}-{2}', secrets.SAM_AWS_ECR_REGISTRY, steps.release_tag.outputs.release_tag, steps.get_commit_hash.outputs.short_sha) || '' }}
           push: ${{ fromJSON(env.DOCKER_PUSH) }}
           cache-from: type=gha
           cache-to: type=gha
@@ -103,14 +129,14 @@ jobs:
           AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
         run: |
           # Set release manifest variables
-          export release_version="${{ github.ref_name }}-${{ steps.get_commit_hash.outputs.short_sha }}"
-          export version="${{ github.ref_name }}"
-          export image_tag="${{ github.ref_name }}-${{ steps.get_commit_hash.outputs.short_sha }}"
+          export release_version="${{ steps.get_version.outputs.version }}-${{ steps.get_commit_hash.outputs.short_sha }}"
+          export version="${{ steps.get_version.outputs.version }}"
+          export image_tag="${{ steps.get_version.outputs.version }}-${{ steps.get_commit_hash.outputs.short_sha }}"
           export chart_version="n/a"
           export sha="${{ steps.get_commit_hash.outputs.commit_hash }}"
           export squad="ai"
           export repository="solace-agent-mesh"
-          export release_tag="${{ github.ref_name }}"
+          export release_tag="${{ steps.release_tag.outputs.release_tag }}"
 
           # Update DynamoDB manifest
           aws dynamodb update-item \
