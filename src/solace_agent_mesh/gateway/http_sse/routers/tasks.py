@@ -241,7 +241,7 @@ async def cancel_agent_task(
         )
     except Exception as e:
         log.exception("%sUnexpected error sending cancellation: %s", log_prefix, e)
-        error_resp = InternalError(data="Unexpected server error: %s" % e)
+        error_resp = InternalError(message="Unexpected server error: %s" % e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_resp.model_dump(exclude_none=True),

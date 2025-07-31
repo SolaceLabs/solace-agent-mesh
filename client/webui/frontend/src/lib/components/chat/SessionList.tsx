@@ -24,10 +24,16 @@ export const SessionList: React.FC = () => {
 
     const fetchSessions = async () => {
         const url = `${apiPrefix}/sessions`;
-        const response = await authenticatedFetch(url);
-        if (response.ok) {
-            const data = await response.json();
-            setSessions(data);
+        try {
+            const response = await authenticatedFetch(url);
+            if (response.ok) {
+                const data = await response.json();
+                setSessions(data);
+            } else {
+                console.error(`Failed to fetch sessions: ${response.status} ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error("An error occurred while fetching sessions:", error);
         }
     };
 

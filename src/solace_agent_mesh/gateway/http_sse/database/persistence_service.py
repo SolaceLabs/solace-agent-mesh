@@ -21,5 +21,5 @@ class PersistenceService(ABC):
         pass
 
     @abstractmethod
-    def get_latest_chat_message(self, session_id):
+    def get_latest_chat_message(self, session_id: str) -> dict:
         pass

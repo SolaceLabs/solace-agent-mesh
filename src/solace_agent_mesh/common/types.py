@@ -288,8 +288,8 @@ class InvalidParamsError(JSONRPCError):
 
 
 class InternalError(JSONRPCError):
-    def __init__(self, data=None):
-        super().__init__("Internal error", -32603, data)
+    def __init__(self, message=None):
+        super().__init__("Internal error", -32603, message)
 
 
 class TaskNotFoundError(JSONRPCError):

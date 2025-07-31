@@ -189,12 +189,21 @@ class WebUIBackendApp(BaseGatewayApp):
         super().__init__(app_info, **kwargs)
 
         try:
-            # alembic_cfg_path was not defined. Assuming it's not needed and creating a config programmatically.
-            alembic_cfg = Config()
-            alembic_cfg.set_main_option(
-                "script_location",
-                os.path.join(os.path.dirname(__file__), "alembic"),
-            )
+            # Attempt to load Alembic configuration from alembic.ini if it exists.
+            alembic_ini_path = os.path.join(os.path.dirname(__file__), "alembic.ini")
+            if os.path.exists(alembic_ini_path):
+                log.debug("Loading Alembic configuration from alembic.ini.")
+                alembic_cfg = Config(alembic_ini_path)
+            else:
+                log.warning(
+                    "alembic.ini not found. Falling back to programmatic configuration."
+                )
+                alembic_cfg = Config()
+                alembic_cfg.set_main_option(
+                    "script_location",
+                    os.path.join(os.path.dirname(__file__), "alembic"),
+                )
+            # Update the database URL in the configuration.
             session_service_config = self.get_config("session_service", {})
             db_url = session_service_config.get("database_url")
             if db_url:

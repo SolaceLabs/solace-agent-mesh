@@ -36,7 +36,6 @@ class DatabasePersistenceService(PersistenceService):
                 )
                 db_session.agent_id = agent_id
 
-            db_session.updated_at = func.now()
             chat_message = ChatMessage(
                 id=str(uuid.uuid4()),
                 session_id=session_id,

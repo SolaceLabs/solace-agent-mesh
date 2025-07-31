@@ -153,6 +153,8 @@ async def delete_session(
         try:
             publish_a2a_func(topic, payload)
             log.info("Successfully published delete event to topic: %s", topic)
+            persistence_service.delete_session(session_id)
+            log.info("Session %s deleted successfully from orchestrator", session_id)
         except Exception as e:
             log.error(
                 "Failed to publish delete event for session %s to agent %s: %s",
@@ -164,6 +166,4 @@ async def delete_session(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to notify agent of session deletion.",
             ) from e
-
-    persistence_service.delete_session(session_id)
     log.info("Session %s deleted successfully from orchestrator", session_id)

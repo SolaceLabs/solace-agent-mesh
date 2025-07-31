@@ -1,6 +1,6 @@
 """Unified migration for initial schema
 
-Revision ID: V1
+Revision ID: d5b3f8f2e9a0
 Revises:
 Create Date: 2025-07-31 17:21:00.000000
 
