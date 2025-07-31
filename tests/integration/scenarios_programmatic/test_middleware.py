@@ -168,7 +168,7 @@ def test_initialize_middleware():
     # Verify that the registry is initialized correctly with the callback
     assert callback_test_value_instance.callback_test_value == "callback_called!"
 
-    print("MiddlewareRegistry initialized successfully with callback.")
+    # MiddlewareRegistry initialized successfully with callback.
 
 def test_reset_bindings():
     """
