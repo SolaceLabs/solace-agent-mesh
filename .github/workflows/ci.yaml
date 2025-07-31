@@ -69,8 +69,11 @@ jobs:
             echo "release_tag=main" >> $GITHUB_OUTPUT
             echo "Using 'main' as release tag for test-prisma branch"
           else
-            echo "release_tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-            echo "Using branch name as release tag: ${{ github.ref_name }}"
+            # Sanitize ref_name for Docker tag compatibility (replace / with -)
+            sanitized_ref="${{ github.ref_name }}"
+            sanitized_ref="${sanitized_ref//\//-}"
+            echo "release_tag=${sanitized_ref}" >> $GITHUB_OUTPUT
+            echo "Using sanitized branch name as release tag: ${sanitized_ref} (from ${{ github.ref_name }})"
           fi
 
       - name: Set Build Params
