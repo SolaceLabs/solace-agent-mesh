@@ -7,6 +7,7 @@ from .directory_step import create_project_directories
 from .project_files_step import create_project_files
 from .env_step import create_env_file, ENV_DEFAULTS
 from .broker_step import broker_setup_step
+from .database_step import database_setup_step
 from .orchestrator_step import (
     create_orchestrator_config,
     ORCHESTRATOR_DEFAULTS as O_DEFAULTS,
@@ -121,6 +122,9 @@ def run_init_flow(skip_interactive: bool, use_web_based_init_flag: bool, **cli_o
             default=True,
         )
 
+    project_root = Path.cwd()
+    click.echo(f"Project will be initialized in: {project_root}")
+
     if actual_use_web_init:
         if skip_interactive:
             click.echo(
@@ -133,10 +137,7 @@ def run_init_flow(skip_interactive: bool, use_web_based_init_flag: bool, **cli_o
             options = perform_web_init(options)
             skip_interactive = True
 
-    project_root = Path.cwd()
-    click.echo(f"Project will be initialized in: {project_root}")
-
-    shared_post_data_gathering_steps = [
+    steps = [
         ("Broker Setup", broker_setup_step),
         (
             "Project Directory Setup",
@@ -159,19 +160,19 @@ def run_init_flow(skip_interactive: bool, use_web_based_init_flag: bool, **cli_o
             ),
         ),
         (
+            "Database Setup",
+            lambda opts, defs, skip: database_setup_step(project_root, opts, skip),
+        ),
+        (
             ".env File Creation",
             lambda opts, defs, skip: create_env_file(project_root, opts, skip),
         ),
     ]
 
-    current_steps_sequence = shared_post_data_gathering_steps
-
     step_count = 0
-    total_display_steps = len(
-        [s_name for s_name, _ in current_steps_sequence if s_name]
-    )
+    total_display_steps = len([s_name for s_name, _ in steps if s_name])
 
-    for step_name, step_function in current_steps_sequence:
+    for step_name, step_function in steps:
         if step_name:
             step_count += 1
             click.echo(
@@ -253,7 +254,7 @@ def run_init_flow(skip_interactive: bool, use_web_based_init_flag: bool, **cli_o
 )
 @click.option(
     "--session-service-type",
-    type=click.Choice(["memory", "vertex_rag"]),
+    type=click.Choice(["memory", "vertex_rag", "sql"]),
     help="Session service type.",
 )
 @click.option(
@@ -353,10 +354,16 @@ def run_init_flow(skip_interactive: bool, use_web_based_init_flag: bool, **cli_o
 )
 @click.option("--webui-fastapi-host", type=str, help="Host for Web UI FastAPI server.")
 @click.option("--webui-fastapi-port", type=int, help="Port for Web UI FastAPI server.")
-@click.option("--webui-fastapi-https-port", type=int, help="HTTPS port for Web UI FastAPI server.")
+@click.option(
+    "--webui-fastapi-https-port", type=int, help="HTTPS port for Web UI FastAPI server."
+)
 @click.option("--webui-ssl-keyfile", type=str, help="SSL key file path for Web UI.")
-@click.option("--webui-ssl-certfile", type=str, help="SSL certificate file path for Web UI.")
-@click.option("--webui-ssl-keyfile-password", type=str, help="SSL key file passphrase for Web UI.")
+@click.option(
+    "--webui-ssl-certfile", type=str, help="SSL certificate file path for Web UI."
+)
+@click.option(
+    "--webui-ssl-keyfile-password", type=str, help="SSL key file passphrase for Web UI."
+)
 @click.option(
     "--webui-enable-embed-resolution",
     is_flag=True,
@@ -377,11 +384,23 @@ def run_init_flow(skip_interactive: bool, use_web_based_init_flag: bool, **cli_o
     default=None,
     help="Enable feedback collection in Web UI.",
 )
+@click.option(
+    "--web-ui-gateway-database-url",
+    type=str,
+    help="Database URL for the WebUI Gateway.",
+)
+@click.option(
+    "--orchestrator-database-url",
+    type=str,
+    help="Database URL for the Orchestrator.",
+)
 def init(**kwargs):
     """
     Initialize a new Solace application project.
     Creates a directory structure, default configuration files, and a .env file.
     """
+    use_web_based_init_val = kwargs.get("gui", False)
+
     if kwargs.get("dev_mode_flag"):
         if kwargs.get("broker_type") is None:
             kwargs["broker_type"] = "dev"

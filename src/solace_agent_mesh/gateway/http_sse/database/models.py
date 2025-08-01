@@ -1,0 +1,68 @@
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.sql import func
+
+Base = declarative_base()
+
+
+class Session(Base):
+    __tablename__ = "sessions"
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=True)
+    user_id = Column(String, ForeignKey("users.id"))
+    agent_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    messages = relationship("ChatMessage", back_populates="session")
+    user = relationship("User", back_populates="sessions")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "user_id": self.user_id,
+            "agent_id": self.agent_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id = Column(String, primary_key=True)
+    session_id = Column(String, ForeignKey("sessions.id"), nullable=False)
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=func.now())
+    sender_type = Column(String)  # 'user' or 'llm'
+    sender_name = Column(String)
+    parent_message_id = Column(String, ForeignKey("chat_messages.id"), nullable=True)
+    session = relationship("Session", back_populates="messages")
+    parent_message = relationship("ChatMessage", remote_side=[id], backref="responses")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "session_id": self.session_id,
+            "message": self.message,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "sender_type": self.sender_type,
+            "sender_name": self.sender_name,
+            "parent_message_id": self.parent_message_id,
+        }
+
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(String, primary_key=True)
+    info = Column(Text)  # Storing user info as a JSON string
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    sessions = relationship("Session", back_populates="user")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "info": self.info,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }

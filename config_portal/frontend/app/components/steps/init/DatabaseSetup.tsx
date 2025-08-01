@@ -5,13 +5,13 @@ import Button from "../../ui/Button";
 import { InfoBox } from "../../ui/InfoBoxes";
 import { StepComponentProps } from "../../InitializationFlow";
 
-export default function ProjectSetup({
+export default function DatabaseSetup({
   data,
   updateData,
   onNext,
   onPrevious,
 }: StepComponentProps) {
-  const { namespace } = data as { namespace?: string };
+  const { database_url } = data as { database_url?: string };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     updateData({ [e.target.name]: e.target.value });
@@ -26,24 +26,22 @@ export default function ProjectSetup({
     <form onSubmit={handleSubmit}>
       <div className="space-y-4">
         <InfoBox className="mb-4">
-          The namespace is a unique identifier that will be prefixed to all your
-          event topics in the Solace Agent Mesh. Choose something meaningful to
-          your organization or project.
+          A local SQLite database will be created for your project to store chat
+          history and session data. You can override this by providing a
+          connection string to a different database.
         </InfoBox>
 
         <FormField
-          label="Project Namespace"
-          htmlFor="namespace"
-          helpText="Any simple text identifier that makes sense for your project (e.g., 'my-project', 'acme-corp')"
-          required
+          label="Database URL"
+          htmlFor="database_url"
+          helpText="Leave blank to use the default SQLite database."
         >
           <Input
-            id="namespace"
-            name="namespace"
-            value={namespace || ""}
+            id="database_url"
+            name="database_url"
+            value={database_url || ""}
             onChange={handleChange}
-            placeholder="Enter a namespace (e.g., my-project)"
-            required
+            placeholder="e.g., sqlite:///database.db"
           />
         </FormField>
       </div>
@@ -52,7 +50,7 @@ export default function ProjectSetup({
         <Button onClick={onPrevious} variant="outline">
           Previous
         </Button>
-        <Button type="submit" disabled={!namespace?.trim()}>
+        <Button type="submit">
           Next
         </Button>
       </div>

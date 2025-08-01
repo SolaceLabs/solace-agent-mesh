@@ -12,6 +12,7 @@ import { useAgents, useChatContext, useSessionPreview, useTaskContext } from "@/
 import { ChatSidePanel } from "../chat/ChatSidePanel";
 import { ChatSessionDialog } from "../chat/ChatSessionDialog";
 import { SessionSidePanel } from "../chat/SessionSidePanel";
+import { DeleteConfirmationModal } from "../chat/DeleteConfirmationModal";
 import type { ChatMessageListRef } from "../ui/chat/chat-message-list";
 
 // Constants for sidepanel behavior
@@ -34,9 +35,21 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
-    const { sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel } = useChatContext();
+    const {
+        sessionId,
+        messages,
+        setMessages,
+        selectedAgentName,
+        setSelectedAgentName,
+        isSidePanelCollapsed,
+        setIsSidePanelCollapsed,
+        sessionToDelete,
+        confirmSessionDelete,
+        closeSessionDeleteModal,
+        openSidePanelTab,
+        setTaskIdInSidePanel,
+    } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
-
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
     const sessionPreview = useSessionPreview();
@@ -242,6 +255,12 @@ export function ChatPage() {
                 </div>
             </div>
             <ChatSessionDialog isOpen={isChatSessionDialogOpen} onClose={() => setChatSessionDialogOpen(false)} />
+            <DeleteConfirmationModal
+                isOpen={!!sessionToDelete}
+                onClose={closeSessionDeleteModal}
+                onConfirm={confirmSessionDelete}
+                sessionName={sessionToDelete?.name || `Session ${sessionToDelete?.id.substring(0, 8)}`}
+            />
         </div>
     );
 }

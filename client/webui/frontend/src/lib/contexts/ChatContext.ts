@@ -1,9 +1,9 @@
 import React, { createContext, type FormEvent } from "react";
-
-import type { ArtifactInfo, FileAttachment, MessageFE, Notification } from "@/lib/types";
+import type { ArtifactInfo, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
 
 export interface ChatState {
     sessionId: string;
+    sessionName: string | null;
     messages: MessageFE[];
     userInput: string;
     isResponding: boolean;
@@ -20,6 +20,7 @@ export interface ChatState {
     // Delete Modal State
     isDeleteModalOpen: boolean;
     artifactToDelete: ArtifactInfo | null;
+    sessionToDelete: Session | null;
     // Artifact Edit Mode State
     isArtifactEditMode: boolean;
     selectedArtifactFilenames: Set<string>;
@@ -32,10 +33,13 @@ export interface ChatState {
 }
 
 export interface ChatActions {
+    setSessionId: React.Dispatch<React.SetStateAction<string>>;
+    setSessionName: React.Dispatch<React.SetStateAction<string | null>>;
     setMessages: React.Dispatch<React.SetStateAction<MessageFE[]>>;
     setUserInput: React.Dispatch<React.SetStateAction<string>>;
     setTaskIdInSidePanel: React.Dispatch<React.SetStateAction<string | null>>;
     handleNewSession: () => void;
+    handleSwitchSession: (sessionId: string) => Promise<void>;
     handleSubmit: (event: FormEvent, files?: File[] | null, message?: string | null) => Promise<void>;
     handleCancel: () => void;
     addNotification: (message: string, type?: "success" | "info" | "error") => void;
@@ -49,6 +53,9 @@ export interface ChatActions {
     openDeleteModal: (artifact: ArtifactInfo) => void;
     closeDeleteModal: () => void;
     confirmDelete: () => Promise<void>;
+    openSessionDeleteModal: (session: Session) => void;
+    closeSessionDeleteModal: () => void;
+    confirmSessionDelete: () => Promise<void>;
     /** Artifact Edit Mode Actions */
     setIsArtifactEditMode: React.Dispatch<React.SetStateAction<boolean>>;
     setSelectedArtifactFilenames: React.Dispatch<React.SetStateAction<Set<string>>>;
@@ -61,6 +68,9 @@ export interface ChatActions {
     navigateArtifactVersion: (artifactFilename: string, targetVersion: number) => Promise<FileAttachment | null>;
     /** Message Attachment Preview Action */
     openMessageAttachmentForPreview: (file: FileAttachment, autoRun?: boolean) => void;
+    /* Session Management Actions */
+    updateSessionName: (sessionId: string, newName: string) => Promise<void>;
+    deleteSession: (sessionId: string) => Promise<void>;
 }
 
 export type ChatContextValue = ChatState & ChatActions;
