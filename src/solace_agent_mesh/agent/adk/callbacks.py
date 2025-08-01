@@ -938,7 +938,7 @@ When faced with a complex goal or request that involves multiple steps, data ret
 Simple, direct requests like 'create an image of a dog' or 'write an email to thank my boss' do not require a plan.
 
 If a plan is created:
-1. It should be a terse, hierarchical list describing the steps needed.
+1. It should be a terse, hierarchical list describing the steps needed, with each checkbox item on its own line.
 2. Use '☐' (empty checkbox emoji) for pending items and '☑' (checked checkbox emoji) for completed items.
 3. If the plan changes significantly during execution, restate the updated plan.
 4. As items are completed, update the plan to check them off.
