@@ -52,10 +52,12 @@ class SSEManager:
             return {k: self._sanitize_json(v) for k, v in obj.items()}
         elif isinstance(obj, list):
             return [self._sanitize_json(v) for v in obj]
-        elif isinstance(obj, float):
+        elif isinstance(obj, (float, int)):
             if math.isnan(obj) or math.isinf(obj):
                 return None
-        return str(obj)
+        elif isinstance(obj, object):
+            return str(obj)
+        return obj
 
 
     async def create_sse_connection(self, task_id: str) -> asyncio.Queue:
