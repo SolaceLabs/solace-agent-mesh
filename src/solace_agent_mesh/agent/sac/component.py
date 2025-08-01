@@ -111,7 +111,7 @@ info = {
             "name": "max_message_size_bytes",
             "required": False,
             "type": "integer",
-            "default": 10000000,
+            "default": 10_000_000,
             "description": "Maximum allowed message size in bytes before rejecting publication to prevent broker disconnections. Default: 10MB",
         }
     ],
@@ -242,6 +242,9 @@ class SamAgentComponent(ComponentBase):
                 raise ValueError(
                     "Internal Error: Inter-agent comms config missing after validation."
                 )
+            
+            self.max_message_size_bytes = self.get_config("max_message_size_bytes", 10_000_000)
+            
             log.info("%s Configuration retrieved successfully.", self.log_identifier)
         except Exception as e:
             log.error(
@@ -2978,8 +2981,7 @@ class SamAgentComponent(ComponentBase):
     ):
         """Helper to publish A2A messages via the SAC App."""
         try:
-            # Get the configured maximum message size
-            max_size_bytes = self.get_config("max_message_size_bytes", 10000000)
+            max_size_bytes = self.max_message_size_bytes
 
             # Validate message size
             is_valid, actual_size = validate_message_size(

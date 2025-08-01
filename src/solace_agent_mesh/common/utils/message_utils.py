@@ -10,6 +10,9 @@ from typing import Any, Dict, Tuple
 
 from solace_ai_connector.common.log import log
 
+# Maximum bytes per character in UTF-8 encoding (4 bytes for full Unicode range)
+MAX_UTF8_BYTES_PER_CHARACTER = 4
+
 
 def calculate_message_size(payload: Dict[str, Any]) -> int:
     """Calculate the exact size of a message payload in bytes.
@@ -44,8 +47,8 @@ def calculate_message_size(payload: Dict[str, Any]) -> int:
                 f"Fallback size calculation also failed: {fallback_error}. "
                 f"Returning conservative estimate."
             )
-            # Conservative estimate - assume each character is 4 bytes (max UTF-8)
-            return len(str(payload)) * 4
+            # Conservative estimate using maximum UTF-8 bytes per character
+            return len(str(payload)) * MAX_UTF8_BYTES_PER_CHARACTER
 
 
 def validate_message_size(
@@ -65,7 +68,6 @@ def validate_message_size(
         - int: The actual size of the payload in bytes
 
     Note:
-        Logs a warning if size exceeds 80% of the limit.
         Logs an error if size exceeds the limit.
     """
     actual_size = calculate_message_size(payload)
@@ -78,14 +80,5 @@ def validate_message_size(
             f"size ({max_size_bytes} bytes)"
         )
         return False, actual_size
-
-    # Check if size exceeds 80% of the limit (warning threshold)
-    warning_threshold = int(max_size_bytes * 0.8)
-    if actual_size > warning_threshold:
-        log.warning(
-            f"Message size warning for {component_identifier}: "
-            f"payload size ({actual_size} bytes) exceeds 80% of maximum "
-            f"allowed size ({max_size_bytes} bytes)"
-        )
 
     return True, actual_size
