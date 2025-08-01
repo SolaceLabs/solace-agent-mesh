@@ -431,7 +431,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             const isEndOfThisTurn = (isFinalStatusUpdate && !isEmptyLlmResponseSignal) || isFinalResponseEvent || isErrorResponse;
 
-            console.log(`%cHANDLER: Calling setMessages. isEndOfThisTurn=${isEndOfThisTurn}`, "color: orange;");
             setMessages(prevMessages => {
                 let newMessages = [...prevMessages];
                 const lastMessageIsStatusBubble = newMessages[newMessages.length - 1]?.isStatusBubble;
@@ -863,7 +862,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     useEffect(() => {
         if (currentTaskId && apiPrefix) {
-            console.log(`%cEFFECT: RUNNING for taskId ${currentTaskId}. Setting up new EventSource.`, "color: green; font-weight: bold;");
+            console.log(`ChatProvider Effect: currentTaskId is ${currentTaskId}. Setting up EventSource.`);
             const accessToken = getAccessToken();
             const eventSourceUrl = `${apiPrefix}/sse/subscribe/${currentTaskId}${accessToken ? `?token=${accessToken}` : ""}`;
             const eventSource = new EventSource(eventSourceUrl, { withCredentials: true });
@@ -877,7 +876,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             eventSource.addEventListener("error", handleSseMessage);
 
             return () => {
-                console.log(`%cEFFECT CLEANUP: CLOSING EventSource for taskId ${currentTaskId}.`, "color: red; font-weight: bold;");
+                console.log(`ChatProvider Effect Cleanup: currentTaskId was ${currentTaskId}. Closing EventSource.`);
                 closeCurrentEventSource();
             };
         } else {
