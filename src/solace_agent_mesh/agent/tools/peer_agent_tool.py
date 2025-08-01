@@ -279,7 +279,7 @@ class PeerAgentTool(BaseTool):
                 )
                 return {
                     "status": "error",
-                    "message": f"Error: {str(e)}. Please reduce the size of your request or artifacts.",
+                    "message": f"Error: {str(e)}. Message size exceeded for peer agent request.",
                 }
 
             log.info(
