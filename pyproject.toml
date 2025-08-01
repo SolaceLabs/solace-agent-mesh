@@ -55,7 +55,7 @@ dependencies = [
     "uvicorn[standard]>=0.20",
     "sse-starlette>=1.6",
     "itsdangerous>=2.0",
-    "solace-ai-connector~=1.1.7",
+    "solace-ai-connector~=1.1.8",
     "holidays>=0.24",
     "rouge~=1.0.1"
 ]
