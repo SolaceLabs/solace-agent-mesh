@@ -35,7 +35,7 @@ def initialize():
             except Exception as e:
                 log.error("Failed to load JSON config from SAM_ENTERPRISE_CONFIG: %s", e, exc_info=True)
                 raise
-        elif enterprise_config.startswith('{') or enterprise_config.startswith('['):
+        else:
             try:
                 enterprise_config = json.loads(enterprise_config)
             except json.JSONDecodeError as e:
