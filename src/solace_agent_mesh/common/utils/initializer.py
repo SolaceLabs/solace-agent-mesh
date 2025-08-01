@@ -20,7 +20,7 @@ def initialize():
         return
     
     enterprise_config = os.getenv("SAM_ENTERPRISE_CONFIG")
-    if enterprise_config and  isinstance(enterprise_config, str):
+    if enterprise_config and isinstance(enterprise_config, str):
         if enterprise_config.endswith('.yaml') or enterprise_config.endswith('.yml'):
             try:
                 with open(enterprise_config, 'r', encoding='utf-8') as file:
