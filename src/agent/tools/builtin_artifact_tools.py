@@ -38,6 +38,7 @@ from google.adk.models import LlmRequest
 from google.adk.models.registry import LLMRegistry
 from ...common.utils.mime_helpers import is_text_based_file
 
+
 async def _internal_create_artifact(
     filename: str,
     content: str,
@@ -479,6 +480,19 @@ async def signal_artifact_for_return(
             "version": None,
             "message": "Version parameter is required. Use list_artifacts() to find available versions.",
         }
+    if isinstance(version, str):
+        try:
+            version = int(version)
+        except ValueError:
+            log.error(
+                f"Invalid version specified: '{version}'. Must be a positive integer"
+            )
+            return {
+                "status": "error",
+                "filename": filename,
+                "version": "invalid",
+                "message": "Version parameter must be an integer 0 or greater",
+            }
 
     try:
         inv_context = tool_context._invocation_context
@@ -564,7 +578,7 @@ async def signal_artifact_for_return(
 async def apply_embed_and_create_artifact(
     output_filename: str,
     embed_directive: str,
-    output_metadata: Optional[Dict[str, Any]] = None,
+    output_metadata_json: Optional[str] = None,
     tool_context: ToolContext = None,
 ) -> Dict[str, Any]:
     """
@@ -574,8 +588,8 @@ async def apply_embed_and_create_artifact(
 
     Args:
         output_filename: The desired name for the new artifact.
-        embed_directive: The full '«artifact_content:...>>>...>>>format:...»' string.
-        output_metadata (dict, optional): Metadata for the new artifact.
+        embed_directive: The full '«artifact_content:...>>>...>>>format:...»' string, including start/end delimiters.
+        output_metadata_json (optional): Metadata for the new artifact as a json string.
         tool_context: The context provided by the ADK framework.
 
     Returns:
@@ -701,6 +715,26 @@ async def apply_embed_and_create_artifact(
         if not artifact_service:
             raise ValueError("ArtifactService is not available in the context.")
 
+        metadata = {
+            "source_directive": embed_directive,
+        }
+        if output_metadata_json:
+            try:
+                metadata.update(json.loads(output_metadata_json))
+            except (json.JSONDecodeError, TypeError):
+                log.warning(
+                    "%s Invalid JSON in output_metadata_json attribute: %s",
+                    log_identifier,
+                    output_metadata_json,
+                )
+
+            metadata["metadata_parsing_error"] = (
+                f"Invalid metadata JSON provided: {output_metadata_json}"
+            )
+
+        if metadata.get("mime_type"):
+            output_mime_type = metadata["mime_type"]
+
         save_result = await save_artifact_with_metadata(
             artifact_service=artifact_service,
             app_name=inv_context.app_name,
@@ -709,12 +743,7 @@ async def apply_embed_and_create_artifact(
             filename=output_filename,
             content_bytes=resolved_bytes,
             mime_type=output_mime_type,
-            metadata_dict=(
-                lambda base_meta, user_meta: (
-                    base_meta.update(user_meta or {}),
-                    base_meta,
-                )[1]
-            )({"source_directive": embed_directive}, output_metadata),
+            metadata_dict=metadata,
             timestamp=inv_context.session.last_update_time
             or datetime.now(timezone.utc),
             schema_max_keys=(
@@ -971,7 +1000,7 @@ async def extract_content_from_artifact(
         mime_type=normalized_source_mime_type,
         content_bytes=source_artifact_content_bytes,
     )
-            
+
     if is_text_based:
         try:
             artifact_text_content = source_artifact_content_bytes.decode("utf-8")
@@ -1777,7 +1806,7 @@ signal_artifact_for_return_tool_def = BuiltinTool(
 apply_embed_and_create_artifact_tool_def = BuiltinTool(
     name="apply_embed_and_create_artifact",
     implementation=apply_embed_and_create_artifact,
-    description="Resolves an 'artifact_content' embed directive (including modifiers and formatting) and saves the resulting content as a new artifact. The entire embed directive must be provided as a string.",
+    description="Resolves an 'artifact_content' embed directive (including modifiers and formatting) and saves the resulting content as a new artifact. The entire embed directive (including start/end delimiters) must be provided as a string.",
     category="artifact_management",
     required_scopes=["tool:artifact:create", "tool:artifact:load"],
     parameters=adk_types.Schema(
@@ -1791,9 +1820,9 @@ apply_embed_and_create_artifact_tool_def = BuiltinTool(
                 type=adk_types.Type.STRING,
                 description="The full '«artifact_content:...>>>...>>>format:...»' string.",
             ),
-            "output_metadata": adk_types.Schema(
-                type=adk_types.Type.OBJECT,
-                description="Optional metadata for the new artifact.",
+            "output_metadata_json": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="Optional metadata for the new artifact in json.",
                 nullable=True,
             ),
         },

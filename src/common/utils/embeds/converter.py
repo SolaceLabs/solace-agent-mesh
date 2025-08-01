@@ -93,6 +93,196 @@ def _parse_string_to_list_of_dicts(
         )
 
 
+def _detect_embedded_csv(text: str) -> bool:
+    """
+    Detects if a string contains valid CSV content with strict validation.
+
+    Requirements:
+    - Must have at least 2 lines (header + at least one data row)
+    - Lines should contain comma-separated values
+
+    Args:
+        text: The string to check for CSV content
+
+    Returns:
+        True if the string appears to contain valid CSV content, False otherwise
+    """
+    if not isinstance(text, str) or not text.strip():
+        return False
+
+    lines = text.strip().split("\n")
+
+    # Must have at least 2 lines (header + data)
+    if len(lines) < 2:
+        return False
+
+    # Check that lines contain commas (basic CSV indicator)
+    for line in lines:
+        if "," not in line.strip():
+            return False
+
+    # Check that header and first data row have same number of fields
+    try:
+        header_fields = len(lines[0].split(","))
+        first_row_fields = len(lines[1].split(","))
+        if header_fields != first_row_fields:
+            return False
+    except (IndexError, AttributeError):
+        return False
+
+    return True
+
+
+def _parse_embedded_csv(
+    text: str, log_id: str
+) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    """
+    Attempts to parse a string as CSV content using csv.DictReader.
+
+    Args:
+        text: The string to parse as CSV
+        log_id: Identifier for logging
+
+    Returns:
+        A tuple containing:
+        - List of dictionaries representing the CSV data (empty list on failure)
+        - Error message string if parsing failed, None on success
+    """
+    if not text or not isinstance(text, str):
+        return [], "Input text is empty or not a string"
+
+    try:
+        string_io = io.StringIO(text.strip())
+        reader = csv.DictReader(string_io)
+
+        # Convert to list and validate we got actual data
+        rows = list(reader)
+
+        if not rows:
+            return [], "CSV parsing produced no data rows"
+
+        # Validate that all rows have the same keys as the header and no None keys
+        if rows:
+            header_keys = set(rows[0].keys())
+            for i, row in enumerate(rows):
+                # Check for None keys (indicates extra fields)
+                if None in row.keys():
+                    return [], f"Row {i+1} has more fields than header"
+                # Check for missing or extra fields
+                if set(row.keys()) != header_keys:
+                    return [], f"Row {i+1} has different fields than header"
+
+        log.debug("%s Successfully parsed embedded CSV with %d rows", log_id, len(rows))
+        return rows, None
+
+    except csv.Error as e:
+        error_msg = f"CSV parsing error: {e}"
+        log.debug("%s %s", log_id, error_msg)
+        return [], error_msg
+    except Exception as e:
+        error_msg = f"Unexpected error parsing CSV: {e}"
+        log.debug("%s %s", log_id, error_msg)
+        return [], error_msg
+
+
+def _handle_csv_serialization(
+    data: Any,
+    data_format: Optional[DataFormat],
+    original_mime_type: Optional[str],
+    log_id: str,
+) -> Tuple[str, Optional[str]]:
+    """
+    Enhanced CSV serialization that can handle embedded CSV strings.
+
+    This function attempts to detect and parse embedded CSV content from:
+    - Direct string values
+    - Single-element lists containing strings
+
+    Falls back to the original LIST_OF_DICTS conversion logic if no embedded CSV is detected.
+
+    Args:
+        data: The data to serialize as CSV
+        data_format: The current format of the data
+        original_mime_type: The original MIME type
+        log_id: Identifier for logging
+
+    Returns:
+        A tuple containing:
+        - The CSV string representation
+        - Error message if serialization failed, None on success
+    """
+    # Check for single string that might contain embedded CSV
+    if isinstance(data, str):
+        if _detect_embedded_csv(data):
+            log.debug("%s Detected embedded CSV in string data", log_id)
+            parsed_data, parse_error = _parse_embedded_csv(data, log_id)
+            if parse_error:
+                return f"[Serialization Error: {parse_error}]", parse_error
+
+            # Convert parsed data back to CSV format
+            return _convert_list_of_dicts_to_csv(parsed_data, log_id)
+        else:
+            # Single string without CSV content - return error
+            error_msg = "Cannot convert single string to CSV format (string does not contain valid CSV content)"
+            return f"[Serialization Error: {error_msg}]", error_msg
+
+    # Check for single-element list containing a string
+    elif isinstance(data, list) and len(data) == 1 and isinstance(data[0], str):
+        csv_string = data[0]
+        if _detect_embedded_csv(csv_string):
+            log.debug("%s Detected embedded CSV in single-element list", log_id)
+            parsed_data, parse_error = _parse_embedded_csv(csv_string, log_id)
+            if parse_error:
+                return f"[Serialization Error: {parse_error}]", parse_error
+
+            # Convert parsed data back to CSV format
+            return _convert_list_of_dicts_to_csv(parsed_data, log_id)
+
+    # Fall back to original logic: convert to LIST_OF_DICTS first
+    log.debug(
+        "%s Using standard LIST_OF_DICTS conversion for CSV serialization", log_id
+    )
+    list_of_dicts, _, error1 = convert_data(
+        data, data_format, DataFormat.LIST_OF_DICTS, log_id, original_mime_type
+    )
+    if error1:
+        return f"[Serialization Error: {error1}]", error1
+
+    return _convert_list_of_dicts_to_csv(list_of_dicts, log_id)
+
+
+def _convert_list_of_dicts_to_csv(
+    list_of_dicts: List[Dict[str, Any]], log_id: str
+) -> Tuple[str, Optional[str]]:
+    """
+    Converts a list of dictionaries to CSV string format.
+
+    Args:
+        list_of_dicts: The data to convert
+        log_id: Identifier for logging
+
+    Returns:
+        A tuple containing:
+        - The CSV string representation
+        - Error message if conversion failed, None on success
+    """
+    try:
+        if not list_of_dicts:
+            return "", None
+
+        output_io = io.StringIO()
+        fieldnames = list(list_of_dicts[0].keys())
+        writer = csv.DictWriter(output_io, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(list_of_dicts)
+        return output_io.getvalue().strip("\r\n"), None
+
+    except Exception as e:
+        error_msg = f"Failed to format list of dicts as CSV string: {e}"
+        log.warning("%s %s", log_id, error_msg)
+        return f"[Serialization Error: {error_msg}]", error_msg
+
+
 def convert_data(
     current_data: Any,
     current_format: Optional[DataFormat],
@@ -408,21 +598,9 @@ def serialize_data(
                 return f"[Serialization Error: {err_msg}]", err_msg
 
         elif target_fmt_lower == "csv":
-            list_of_dicts, _, error1 = convert_data(
-                data, data_format, DataFormat.LIST_OF_DICTS, log_id, original_mime_type
+            return _handle_csv_serialization(
+                data, data_format, original_mime_type, log_id
             )
-            if error1:
-                return f"[Serialization Error: {error1}]", error1
-            csv_string, _, error2 = convert_data(
-                list_of_dicts,
-                DataFormat.LIST_OF_DICTS,
-                DataFormat.STRING,
-                log_id,
-                "text/csv",
-            )
-            if error2:
-                return f"[Serialization Error: {error2}]", error2
-            return csv_string, None
 
         elif target_fmt_lower == "datauri":
             byte_data, _, error = convert_data(

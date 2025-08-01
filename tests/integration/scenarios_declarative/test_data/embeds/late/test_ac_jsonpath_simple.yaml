@@ -16,4 +16,4 @@ expected_gateway_output:
   - type: "final_response"
     content_parts:
       - type: "text"
-        text_contains: 'Result: ["value"]'
+        text_contains: 'Result: value'
