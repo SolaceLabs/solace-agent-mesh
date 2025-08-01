@@ -121,6 +121,10 @@ docker run --rm -it -v "$(pwd):/app" -p 8000:8000 solace/solace-agent-mesh:lates
 
 If your host system architecture is not `linux/amd64`, add the `--platform linux/amd64` flag when you run the container.
 
+:::danger[FastAPI Host]
+Make sure to set the environment variables `FASTAPI_HOST="0.0.0.0"` in your `.env` file or system environment variables. This is necessary to expose the FastAPI server to the host machine. 
+:::
+
 :::warning
 If you are using third-party Python packages or Solace Agent Mesh plugins, you need to build a custom Docker image off the official image and install the required packages there, and then run that custom image instead.
 
