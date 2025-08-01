@@ -92,6 +92,8 @@ from ...agent.adk.invocation_monitor import InvocationMonitor
 from ...common.middleware.registry import MiddlewareRegistry
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...agent.tools.registry import tool_registry
+from ...common.utils.message_utils import validate_message_size
+from ...common.exceptions import MessageSizeExceededError
 
 if TYPE_CHECKING:
     from .task_execution_context import TaskExecutionContext
@@ -104,7 +106,15 @@ info = {
         "NOTE: Configuration is defined in the app-level 'app_config' block "
         "and validated by 'SamAgentApp.app_schema' when using the associated App class."
     ),
-    "config_parameters": [],
+    "config_parameters": [
+        {
+            "name": "max_message_size_bytes",
+            "required": False,
+            "type": "integer",
+            "default": 10000000,
+            "description": "Maximum allowed message size in bytes before rejecting publication to prevent broker disconnections. Default: 10MB",
+        }
+    ],
     "input_schema": {
         "type": "object",
         "description": "Not typically used; component reacts to events.",
@@ -2968,6 +2978,30 @@ class SamAgentComponent(ComponentBase):
     ):
         """Helper to publish A2A messages via the SAC App."""
         try:
+            # Get the configured maximum message size
+            max_size_bytes = self.get_config("max_message_size_bytes", 10000000)
+
+            # Validate message size
+            is_valid, actual_size = validate_message_size(
+                payload, max_size_bytes, self.log_identifier
+            )
+
+            if not is_valid:
+                error_msg = (
+                    f"Message size validation failed: payload size ({actual_size} bytes) "
+                    f"exceeds maximum allowed size ({max_size_bytes} bytes)"
+                )
+                log.error("%s %s", self.log_identifier, error_msg)
+                raise MessageSizeExceededError(actual_size, max_size_bytes, error_msg)
+
+            # Debug logging to show message size when publishing
+            log.debug(
+                "%s Publishing message to topic %s (size: %d bytes)",
+                self.log_identifier,
+                topic,
+                actual_size,
+            )
+
             app = self.get_app()
             if app:
                 if self.invocation_monitor:
@@ -2985,6 +3019,9 @@ class SamAgentComponent(ComponentBase):
                     "%s Cannot publish message: Not running within a SAC App context.",
                     self.log_identifier,
                 )
+        except MessageSizeExceededError:
+            # Re-raise MessageSizeExceededError without wrapping
+            raise
         except Exception as e:
             log.exception(
                 "%s Failed to publish A2A message to topic %s: %s",
