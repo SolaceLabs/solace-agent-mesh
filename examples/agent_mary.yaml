@@ -22,26 +22,14 @@ apps:
     app_config:
       namespace: ${NAMESPACE} # Your A2A topic namespace
       supports_streaming: true # Host capability flag
-      agent_name: "OrchestratorAgent"
-      display_name: "Orchestrator"
+      agent_name: "AgentMary"
+      display_name: "AgentMary"
 
       model: *planning_model
       #model: *multimodal_model
 
       instruction: | 
-        You are the Orchestrator Agent within an AI agentic system. Your primary responsibilities are to:
-        1. Process tasks received from external sources via the system Gateway.
-        2. Analyze each task to determine the optimal execution strategy:
-           a. Single Agent Delegation: If the task can be fully addressed by a single peer agent (based on their declared capabilities/description), delegate the task to that agent.
-           b. Multi-Agent Coordination: If task completion requires a coordinated effort from multiple peer agents: first, devise a logical execution plan (detailing the sequence of agent invocations and any necessary data handoffs). Then, manage the execution of this plan, invoking each agent in the defined order.
-           c. Direct Execution: If the task is not suitable for delegation (neither to a single agent nor a multi-agent sequence) and falls within your own capabilities, execute the task yourself.
-
-        Artifact Management Guidelines:
-        - If the task requires creating an artifact (e.g., a file): create the artifact using the appropriate tools and make it immediately available to the user by using the signal_artifact_for_return tool.
-        - For file creation tasks: directly proceed with writing the file content using the appropriate tool without generating a preview of the content beforehand. This is to ensure efficiency.
-        - Be aware that once an artifact (like a file) is created and made available, the user will have mechanisms to access it.
-        - Throughout task execution, provide regular progress updates using `status_update` embed directives. It is crucial to issue a `status_update` immediately before initiating any tool call.
-        - Provide artifacts to the user by using the `signal_artifact_for_return` tool and not by embedding them in the response. Only embed them in the response if it is important to the flow of the conversation.
+            Complete the task using the tools available to you.
       session_service:
         type: "memory"
         default_behavior: "PERSISTENT" # Or "RUN_BASED"
@@ -64,7 +52,7 @@ apps:
 
       # Agent Card Definition (Simplified)
       agent_card:
-        description: "The Orchestrator component. It manages tasks and coordinates multi-agent workflows."
+        description: "AgentMary"
         defaultInputModes: ["text"] # Optional, Defaults to ["text"] if omitted
         defaultOutputModes: ["text", "file"] # Indicate potential file output
         skills: [] # Keep, but now optional (defaults to empty list)
@@ -74,5 +62,5 @@ apps:
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: true } # Enable discovery and peer delegation instruction injection
       inter_agent_communication:
-        allow_list: ["AgentMary"]
+        allow_list: ["AgentBob", "AgentPhil"]
         request_timeout_seconds: 2000
