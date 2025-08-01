@@ -52,7 +52,7 @@ apps:
 
       # Agent Card Definition (Simplified)
       agent_card:
-        description: "Agentjudy "
+        description: "AgentJudy"
         defaultInputModes: ["text"] # Optional, Defaults to ["text"] if omitted
         defaultOutputModes: ["text", "file"] # Indicate potential file output
         skills: [] # Keep, but now optional (defaults to empty list)
@@ -62,5 +62,5 @@ apps:
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: true } # Enable discovery and peer delegation instruction injection
       inter_agent_communication:
-        allow_list: ["AgentBob"]
+        allow_list: []
         request_timeout_seconds: 2000
