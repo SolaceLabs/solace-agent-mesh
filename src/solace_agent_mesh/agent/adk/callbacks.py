@@ -134,7 +134,7 @@ async def process_artifact_blocks_callback(
                         params_str = " ".join(
                             [f'{k}="{v}"' for k, v in event.params.items()]
                         )
-                        original_text = f"«««save_artifact: {params_str}\n"
+                        original_text = f"{ARTIFACT_BLOCK_DELIMITER_OPEN}save_artifact: {params_str}\n"
                         session.state["artifact_block_original_text"] = original_text
 
                     elif isinstance(event, BlockProgressedEvent):
@@ -161,7 +161,7 @@ async def process_artifact_blocks_callback(
                             "artifact_block_original_text", ""
                         )
                         original_text += event.content
-                        original_text += "»»»"
+                        original_text += ARTIFACT_BLOCK_DELIMITER_CLOSE
 
                         tool_context_for_call = ToolContext(
                             callback_context._invocation_context
@@ -771,17 +771,28 @@ def _generate_fenced_artifact_instruction() -> str:
 To create an artifact from content you generate (like code, a report, or a document), you MUST use a special `save_artifact` block. This is the only reliable way to ensure your content is saved correctly.
 
 **Syntax:**
-```
+
 {open_delim}save_artifact: filename="your_filename.ext" mime_type="text/plain" description="A brief description."
 The full content you want to save goes here.
 It can span multiple lines.
 {close_delim}
-```
 
-- **Rules:**
+**Rules:**
   - The parameters `filename` and `mime_type` are required. `description` is optional but recommended.
   - All parameter values **MUST** be enclosed in double quotes.
   - You **MUST NOT** use double quotes `"` inside the parameter values (e.g., within the description string). Use single quotes or rephrase instead.
+
+**Example**
+
+User: Create a nice haiku and save it in a text file
+
+Assistant:
+
+{open_delim}save_artifact: filename="haiku.txt" mime_type="text/plain" description="A haiku"
+Morning dew glistens
+On petals soft as whispers—
+Spring's gentle greeting
+{close_delim}
 
 The system will automatically save the content and give you a confirmation in the next turn."""
 
@@ -831,6 +842,7 @@ This host resolves the following embed types *early* (before sending to the LLM 
         - `{open_delim}artifact_content:logs.txt {chain_delim} grep:ERROR {chain_delim} head:10 {chain_delim} format:text{close_delim}` (Get first 10 error lines)
         - `{open_delim}artifact_content:products.csv {chain_delim} apply_to_template:product_table.html.mustache {chain_delim} format:text{close_delim}` (CSV is auto-parsed to `headers` and `data_rows` for the HTML template)
         - `{open_delim}artifact_content:config.json {chain_delim} jsonpath:$.userPreferences.theme {chain_delim} format:text{close_delim}` (Extract a single value from a JSON artifact)
+        - `{open_delim}artifact_content:result.json {chain_delim} jsonpath:$.content[0].text {chain_delim} format:csv{close_delim}` (Extract a single value from a JSON artifact and create a CSV file from it)
         - `{open_delim}artifact_content:sensor_readings.csv {chain_delim} filter_rows_eq:status:critical {chain_delim} select_cols:timestamp,sensor_id,value {chain_delim} format:csv{close_delim}` (Filter critical sensor readings and select specific columns, output as CSV)
         - `{open_delim}artifact_content:server.log {chain_delim} tail:100 {chain_delim} grep:WARN {chain_delim} format:text{close_delim}` (Get warning lines from the last 100 lines of a log file)"""
 

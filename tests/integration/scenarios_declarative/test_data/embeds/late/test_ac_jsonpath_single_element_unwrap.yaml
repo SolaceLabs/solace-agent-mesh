@@ -1,0 +1,21 @@
+test_case_id: "embed_ac_jsonpath_single_element_unwrap_001"
+description: "Tests that JSONPath unwraps single-element arrays for both format:text and format:json."
+skip_intermediate_events: true
+setup_artifacts:
+  - filename: "test_data.json"
+    mime_type: "application/json"
+    content: '{"content":[{"type":"text","text":"date,order_id,customer_id,customer_name,product_category,product_brand,product_model,quantity,unit_price,total_price,sales_rep,payment_method,store_location\n2025-04-01,ORD-2025-001,CUST-1001,John Smith,Receiver,Yamaha,RX-V685,1,599.99,599.99,Mike J ..."}],"isError":false}'
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_late_tester@example.com"
+  parts: [{type: "text", text: "Test single element unwrapping with both text and json formats"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "Text format: «artifact_content:test_data.json>>>jsonpath:$.content[0].text>>>format:text»\nJSON format: «artifact_content:test_data.json>>>jsonpath:$.content[0].text>>>format:json»"}}]
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: 'Text format: date,order_id,customer_id,customer_name,product_category,product_brand,product_model,quantity,unit_price,total_price,sales_rep,payment_method,store_location'
+      - type: "text"
+        text_contains: 'JSON format: "date,order_id,customer_id,customer_name,product_category,product_brand,product_model,quantity,unit_price,total_price,sales_rep,payment_method,store_location'

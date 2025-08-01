@@ -1,0 +1,25 @@
+test_case_id: "embed_ac_embedded_csv_serialization_001"
+description: "Tests enhanced CSV serialization that can parse embedded CSV content from JSONPath results."
+skip_intermediate_events: true
+setup_artifacts:
+  - filename: "embedded_csv_data.json"
+    mime_type: "application/json"
+    content: '{"content":[{"type":"text","text":"name,age,city\nJohn,25,NYC\nJane,30,LA\nBob,35,Chicago"}],"metadata":{"format":"csv"}}'
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_late_tester@example.com"
+  parts: [{type: "text", text: "Extract and format the embedded CSV data"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "Embedded CSV: «artifact_content:embedded_csv_data.json>>>jsonpath:$.content[0].text>>>format:csv»"}}]
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: 'Embedded CSV: name,age,city'
+      - type: "text"
+        text_contains: 'John,25,NYC'
+      - type: "text"
+        text_contains: 'Jane,30,LA'
+      - type: "text"
+        text_contains: 'Bob,35,Chicago'
