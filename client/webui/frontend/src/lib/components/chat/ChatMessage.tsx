@@ -66,7 +66,7 @@ const MessageWrapper: React.FC<{ message: MessageFE; children: ReactNode; classN
 const getUploadedFiles = (message: MessageFE) => {
     if (message.uploadedFiles && message.uploadedFiles.length > 0) {
         return (
-            <MessageWrapper message={message} className="flex flex-wrap justify-end gap-1">
+            <MessageWrapper message={message} className="flex flex-wrap justify-end gap-2">
                 {message.uploadedFiles.map((file, fileIdx) => (
                     <FileMessage key={`uploaded-${message.metadata?.messageId}-${fileIdx}`} filename={file.name} />
                 ))}

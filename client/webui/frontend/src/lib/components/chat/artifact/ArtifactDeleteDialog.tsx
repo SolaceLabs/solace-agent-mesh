@@ -14,16 +14,18 @@ export const ArtifactDeleteDialog: React.FC = () => {
         <Dialog open={isDeleteModalOpen} onOpenChange={closeDeleteModal}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Delete?</DialogTitle>
-                    <DialogDescription>
-                        The file{" "}
-                        <strong>
+                    <DialogTitle className="flex flex-row gap-1 max-w-[400px]">
+                        Delete
+                        <span className="inline-block truncate" title={artifactToDelete.filename}>
                             <code>{artifactToDelete.filename}</code>
-                        </strong>{" "}
-                        will be permanently deleted.
+                        </span>
+                        ?
+                    </DialogTitle>
+                    <DialogDescription className="flex flex-col gap-2">
+                        <div>This file will be permanently deleted. </div>
                     </DialogDescription>
                 </DialogHeader>
-                <div className="flex justify-end space-x-2">
+                <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={closeDeleteModal}>
                         Cancel
                     </Button>

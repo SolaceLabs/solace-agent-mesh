@@ -371,11 +371,11 @@ class FilesystemArtifactService(BaseArtifactService):
         sorted_versions = sorted(versions)
         logger.debug("%sFound versions: %s", log_prefix, sorted_versions)
         return sorted_versions
-    
+
     def _normalize_filename_unicode(self, filename: str) -> str:
         """
         Normalizes Unicode characters in a filename to their standard form.
         Specifically targets compatibility characters like non-breaking spaces (\u202f)
         and converts them to their regular ASCII equivalents (a standard space).
         """
-        return unicodedata.normalize('NFKC', filename)
+        return unicodedata.normalize("NFKC", filename)

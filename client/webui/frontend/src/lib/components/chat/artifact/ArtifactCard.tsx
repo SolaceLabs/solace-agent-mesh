@@ -87,7 +87,7 @@ export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview 
 
     return (
         <div
-            className={`group relative w-full border-b p-3 transition-all duration-150 ${isPreview ? "" : "cursor-pointer hover:bg-[var(--accent-background)]"}`}
+            className={`group relative w-full border-b px-4 py-3 transition-all duration-150 ${isPreview ? "" : "cursor-pointer hover:bg-[var(--accent-background)]"}`}
             onClick={e => {
                 e.stopPropagation();
                 setPreviewArtifact(artifact);
@@ -103,14 +103,12 @@ export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview 
             role="button"
             aria-expanded={isExpanded}
         >
-            {/* Content */}
             <div className="flex items-start space-x-2">
                 <div className="flex-shrink-0 pt-0.5">
                     {getFileIcon(artifact, "h-4 w-4 flex-shrink-0")}
                 </div>
                 <div className="min-w-0 flex-grow">
-                    <ArtifactDetails artifactInfo={artifact} isExpanded={isExpanded} onDelete={onDelete} onDownload={onDownload} setIsExpanded={setIsExpanded} displayVersionNavigation={isPreview} />
-                    {/* Expanded View */}
+                    <ArtifactDetails artifactInfo={artifact} isExpanded={isExpanded} onDelete={onDelete} onDownload={onDownload} setIsExpanded={setIsExpanded} isPreview={isPreview} />
                     {isExpanded && (
                         <div className={`text-xs`}>
                             <div className="mt-1 text-xs break-words whitespace-pre-wrap italic">{artifact.description || "No description."}</div>

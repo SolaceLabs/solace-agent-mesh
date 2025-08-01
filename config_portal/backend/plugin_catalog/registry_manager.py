@@ -6,7 +6,11 @@ from typing import List, Optional, Dict, Any
 from pydantic import ValidationError
 
 from .models import Registry
-from .constants import DEFAULT_OFFICIAL_REGISTRY_URL, USER_REGISTRIES_PATH, OFFICIAL_REGISTRY_GIT_BRANCH
+from .constants import (
+    DEFAULT_OFFICIAL_REGISTRY_URL,
+    USER_REGISTRIES_PATH,
+    OFFICIAL_REGISTRY_GIT_BRANCH,
+)
 
 
 class RegistryManager:
@@ -33,7 +37,7 @@ class RegistryManager:
             ),
             is_default=True,
             is_official_source=True,
-            git_branch=OFFICIAL_REGISTRY_GIT_BRANCH
+            git_branch=OFFICIAL_REGISTRY_GIT_BRANCH,
         )
 
         registries_map: Dict[str, Registry] = {

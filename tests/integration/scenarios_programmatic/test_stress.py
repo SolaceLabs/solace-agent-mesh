@@ -26,15 +26,15 @@ try:
 except ImportError:
     objgraph = None
 
-from tests.integration.infrastructure.llm_server.server import TestLLMServer
-from tests.integration.infrastructure.gateway_interface.component import (
+from sam_test_infrastructure.llm_server.server import TestLLMServer
+from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )
-from src.solace_agent_mesh.common.types import Task, JSONRPCError
-from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
-from src.solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache
+from solace_agent_mesh.common.types import Task, JSONRPCError
+from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
-from tests.integration.infrastructure.memory_monitor import MemoryMonitor
+from sam_test_infrastructure.memory_monitor import MemoryMonitor
 from .test_helpers import (
     create_gateway_input_data,
     submit_test_input,
@@ -320,8 +320,8 @@ async def test_concurrency_stress_with_variety(
     app_cache = InMemoryCache()
     llm_cache = test_llm_server._stateful_responses_cache
     assert (
-        len(main_agent_component.active_peer_sub_tasks) == 0
-    ), "Main agent should have no lingering peer sub-tasks."
+        len(main_agent_component.active_tasks) == 0
+    ), "Main agent should have no lingering active tasks."
     assert (
         len(test_gateway_app_instance.task_context_manager._contexts) == 0
     ), "Gateway task context manager should be empty."
@@ -374,8 +374,8 @@ async def test_longevity_with_variety_and_peer_calls(
     app_cache = InMemoryCache()
     llm_cache = test_llm_server._stateful_responses_cache
     assert (
-        len(main_agent_component.active_peer_sub_tasks) == 0
-    ), "Main agent should have no lingering peer sub-tasks."
+        len(main_agent_component.active_tasks) == 0
+    ), "Main agent should have no lingering active tasks."
     assert (
         len(test_gateway_app_instance.task_context_manager._contexts) == 0
     ), "Gateway task context manager should be empty."
@@ -432,8 +432,8 @@ async def test_very_long_longevity_soak_test(
     app_cache = InMemoryCache()
     llm_cache = test_llm_server._stateful_responses_cache
     assert (
-        len(main_agent_component.active_peer_sub_tasks) == 0
-    ), "Main agent should have no lingering peer sub-tasks."
+        len(main_agent_component.active_tasks) == 0
+    ), "Main agent should have no lingering active tasks."
     assert (
         len(test_gateway_app_instance.task_context_manager._contexts) == 0
     ), "Gateway task context manager should be empty."

@@ -133,7 +133,31 @@ By sending a request and observing the response, you can verify an agent's behav
 
 ## System Logs
 
-System logs provide additional insights into the system's behavior. These logs are written to a log file at the root of the project directory.
+System logs provide detailed insights into the system's behavior. The logging behavior is configured in the `configs/logging_config.ini` file, which controls both console (STDOUT) and file-based logging.
 
+By default, the system is configured to:
+- Output logs with a severity of `INFO` and higher to the console (STDOUT).
+- Write more detailed logs with a severity of `DEBUG` and higher to a rotating log file named `sam.log` in the project's root directory.
 
-All input/output messages, warnings, and errors are logged to help your understanding of the system's state and identify potential issues.
+### Configuring Log Rotation
+
+The log file rotation is managed by the `rotatingFileHandler` in `configs/logging_config.ini`. You can customize its behavior by modifying the `args` line:
+
+```ini
+[handler_rotatingFileHandler]
+class=logging.handlers.RotatingFileHandler
+level=DEBUG
+formatter=simpleFormatter
+args=('sam.log', 'a', 52428800, 10)
+```
+
+The `args` tuple is defined as follows:
+- `'sam.log'`: The name of the log file.
+- `'a'`: The file mode (append).
+- `52428800`: The maximum size of the log file in bytes before it is rotated. In this case, it's 50 MB.
+- `10`: The number of backup log files to keep.
+
+For example, to change the log file size to 20 MB and keep 5 backup files, you would modify the line to:
+`args=('sam.log', 'a', 20971520, 5)`
+
+This level of configuration allows you to manage log verbosity and disk space usage according to your needs.

@@ -28,7 +28,7 @@ from google.adk.memory import (
 from .filesystem_artifact_service import FilesystemArtifactService
 
 try:
-    from tests.integration.infrastructure.artifact_service.service import (
+    from sam_test_infrastructure.artifact_service.service import (
         TestInMemoryArtifactService,
     )
 except ImportError:

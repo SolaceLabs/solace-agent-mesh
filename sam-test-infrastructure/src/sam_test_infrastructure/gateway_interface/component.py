@@ -11,8 +11,8 @@ from typing import Any, Dict, List, Union, Optional, Tuple
 
 from solace_ai_connector.common.log import log
 
-from src.solace_agent_mesh.gateway.base.component import BaseGatewayComponent
-from src.solace_agent_mesh.common.types import (
+from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
+from solace_agent_mesh.common.types import (
     Part as A2APart,
     TextPart,
     FilePart,
@@ -47,8 +47,14 @@ class TestGatewayComponent(BaseGatewayComponent):
         super().__init__(**kwargs)
         self.name = self.component_config.get("gateway_id", "TestGateway")
 
-        self._captured_outputs: Dict[str, asyncio.Queue[Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent, Task, JSONRPCError]]] = \
-            defaultdict(asyncio.Queue)
+        self._captured_outputs: Dict[
+            str,
+            asyncio.Queue[
+                Union[
+                    TaskStatusUpdateEvent, TaskArtifactUpdateEvent, Task, JSONRPCError
+                ]
+            ],
+        ] = defaultdict(asyncio.Queue)
         self.captured_cancel_calls: List[str] = []
         self.context_lock = threading.Lock()
         log.info("%s TestGatewayComponent initialized.", self.log_identifier)
@@ -268,26 +274,30 @@ class TestGatewayComponent(BaseGatewayComponent):
         )
         return task_id
 
-    async def cancel_task(self, agent_name: str, task_id: str, user_identity: str = "test_user"):
+    async def cancel_task(
+        self, agent_name: str, task_id: str, user_identity: str = "test_user"
+    ):
         """
         Constructs and sends a task cancellation request.
         """
-        log.info(f"{self.log_identifier} TestGatewayComponent: Cancelling task {task_id} for agent {agent_name}.")
+        log.info(
+            f"{self.log_identifier} TestGatewayComponent: Cancelling task {task_id} for agent {agent_name}."
+        )
         self.captured_cancel_calls.append(task_id)
-        
+
         target_topic, payload, user_properties = self.core_a2a_service.cancel_task(
             agent_name=agent_name,
             task_id=task_id,
             client_id=self.gateway_id,
-            user_id=user_identity
+            user_id=user_identity,
         )
-        
+
         self.publish_a2a_message(
-            topic=target_topic,
-            payload=payload,
-            user_properties=user_properties
+            topic=target_topic, payload=payload, user_properties=user_properties
         )
-        log.info(f"{self.log_identifier} TestGatewayComponent: Cancellation message for task {task_id} sent.")
+        log.info(
+            f"{self.log_identifier} TestGatewayComponent: Cancellation message for task {task_id} sent."
+        )
 
     async def get_next_captured_output(
         self, task_id: str, timeout: float = 5.0
@@ -391,7 +401,10 @@ class TestGatewayComponent(BaseGatewayComponent):
     def clear_all_captured_cancel_calls(self) -> None:
         """Clears the list of captured cancellation calls."""
         self.captured_cancel_calls = []
-        log.debug("%s TestGatewayComponent: Cleared all captured cancel calls.", self.log_identifier)
+        log.debug(
+            "%s TestGatewayComponent: Cleared all captured cancel calls.",
+            self.log_identifier,
+        )
 
     def was_cancel_called_for_task(self, task_id: str) -> bool:
         """Checks if cancel_task was called for a specific task ID."""

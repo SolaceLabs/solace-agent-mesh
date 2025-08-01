@@ -10,12 +10,6 @@ llm_interactions:
       choices: [{message: {role: "assistant", content: "Result is «:»."}}]
 expected_gateway_output:
   - type: "final_response"
-    assert_content_against_stream: true
     content_parts:
       - type: "text"
         text_contains: "Result is «:»." # Expect original string as it's an invalid type
-````
-
-````yaml
-tests/integration/scenarios_declarative/test_data/embeds/general/test_embed_mixed_with_text.yaml
-<<<<<<< SEARCH

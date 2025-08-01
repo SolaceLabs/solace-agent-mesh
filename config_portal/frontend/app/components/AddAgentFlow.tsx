@@ -367,37 +367,14 @@ export default function AddAgentFlow() {
   useEffect(() => {
     if (isLoading) return;
 
-    const currentTools = Array.isArray(formData.tools) ? formData.tools : [];
-    const updatedTools = [...currentTools];
-
-    const hasArtifactGroup = updatedTools.some(
-      (t) => t.id === "default-artifact-management"
-    );
-    const hasDataGroup = updatedTools.some(
-      (t) => t.id === "default-data-analysis"
-    );
-
-    if (!hasArtifactGroup) {
-      updatedTools.push({
-        id: "default-artifact-management",
-        tool_type: "builtin-group",
-        group_name: "artifact_management",
-      });
-    }
-
-    if (!hasDataGroup) {
-      updatedTools.push({
-        id: "default-data-analysis",
-        tool_type: "builtin-group",
-        group_name: "data_analysis",
-      });
-    }
-
-    if (JSON.stringify(updatedTools) !== JSON.stringify(currentTools)) {
-      updateFormDataCb({ tools: updatedTools });
-    }
+    const updatedTools: Tool[] = [];
+    updatedTools.push({
+      id: "default-artifact-management",
+      tool_type: "builtin-group",
+      group_name: "artifact_management",
+    });
+    updateFormDataCb({ tools: updatedTools });
   }, [
-    formData.tools,
     updateFormDataCb,
     isLoading,
   ]);

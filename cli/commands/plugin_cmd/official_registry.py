@@ -4,7 +4,8 @@ from functools import lru_cache
 from typing import Dict, Optional
 import click
 from config_portal.backend.plugin_catalog.constants import (
-    DEFAULT_OFFICIAL_REGISTRY_URL, OFFICIAL_REGISTRY_GIT_BRANCH
+    DEFAULT_OFFICIAL_REGISTRY_URL,
+    OFFICIAL_REGISTRY_GIT_BRANCH,
 )
 
 IGNORE_SUB_DIRS = [".git", "__pycache__", ".venv", "node_modules", ".vscode", ".github"]

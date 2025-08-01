@@ -5,7 +5,7 @@ import yaml from "js-yaml";
 
 import { Button, JSONViewer } from "@/lib/components";
 
-import type { BaseRendererProps } from ".";
+import { TextRenderer, type BaseRendererProps } from ".";
 
 interface StructuredDataRendererProps extends BaseRendererProps {
     rendererType: "json" | "yaml";
@@ -43,29 +43,24 @@ export const StructuredDataRenderer: React.FC<StructuredDataRendererProps> = ({ 
     }, [content, rendererType, setRenderError]);
 
     return (
-        <div className="flex min-h-0 max-w-[100vw] flex-col">
-            <div className="bg-background relative flex-1 overflow-auto">
-                <Button variant={"default"} onClick={() => setShowRawTextView(!showRawTextView)} className="absolute top-4 right-4 z-10" title={showRawTextView ? "Show Structured View" : "Show Raw Text"}>
+        <div className="flex flex-col h-full overflow-hidden bg-background relative">
+            <div className="absolute top-4 right-4 z-10">
+                <Button onClick={() => setShowRawTextView(!showRawTextView)} title={showRawTextView ? "Show Structured View" : "Show Raw Text"}>
                     {showRawTextView ? (
                         <>
-                            <Eye className="mr-1 h-3.5 w-3.5" /> Structured
+                            <Eye /> Structured
                         </>
                     ) : (
                         <>
-                            <Code className="mr-1 h-3.5 w-3.5" /> Raw Text
+                            <Code /> Raw Text
                         </>
                     )}
                 </Button>
-                {showRawTextView ? (
-                    <div className="p-4 border overflow-auto">
-                        <pre className="whitespace-pre-wrap" style={{
-                                overflowWrap: "anywhere",
-                            }}
-                        >{rawData}</pre>
-                    </div>
-                ) : (
-                    <JSONViewer data={parsedData} maxDepth={4} className="p-2 rounded-none" />
-                )}
+            </div>
+            <div className="flex min-h-0 flex-col">
+                <div className="flex-1 overflow-auto">
+                    {showRawTextView ? <TextRenderer content={rawData} setRenderError={setRenderError} /> : <JSONViewer data={parsedData} maxDepth={4} className="min-h-16 border-none p-2" />}
+                </div>
             </div>
         </div>
     );

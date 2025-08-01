@@ -9,7 +9,7 @@ import type { AgentCard } from "@/lib/types";
 
 import { FileBadge } from "./file/FileBadge";
 
-export const ChatInputArea: React.FC<{ agents: AgentCard[] }> = ({ agents }) => {
+export const ChatInputArea: React.FC<{ agents: AgentCard[], scrollToBottom?: () => void }> = ({ agents, scrollToBottom }) => {
     const { isResponding, isCancelling, userInput, selectedAgentName, setSelectedAgentName, setUserInput, handleSubmit, handleCancel } = useChatContext();
 
     // File selection support
@@ -98,6 +98,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCard[] }> = ({ agents }) => 
             await handleSubmit(event, selectedFiles, inputValue.trim());
             setSelectedFiles([]);
             setInputValue("");
+            scrollToBottom?.();
         }
     };
 

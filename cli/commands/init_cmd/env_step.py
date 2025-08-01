@@ -23,6 +23,7 @@ ENV_DEFAULTS = {
     "SSL_KEYFILE": "",
     "SSL_CERTFILE": "",
     "SSL_KEYFILE_PASSWORD": "",
+    "LOGGING_CONFIG_PATH": "configs/logging_config.ini"
 }
 
 
@@ -161,6 +162,13 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
             "Enable Embed Resolution for Web UI? (true/false)",
             False,
             "ENABLE_EMBED_RESOLUTION",
+        ),
+        (
+            "logging_config_path",
+            "LOGGING_CONFIG_PATH",
+            "Enter Logging Config Path",
+            False,
+            "LOGGING_CONFIG_PATH",
         ),
     ]
 

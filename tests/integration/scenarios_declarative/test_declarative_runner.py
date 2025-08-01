@@ -9,19 +9,19 @@ import os
 from pathlib import Path
 from typing import Dict, Any, List, Union, Optional, Tuple
 
-from tests.integration.infrastructure.llm_server.server import (
+from sam_test_infrastructure.llm_server.server import (
     TestLLMServer,
     ChatCompletionRequest,
 )
 
-from tests.integration.infrastructure.gateway_interface.component import (
+from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )
-from tests.integration.infrastructure.artifact_service.service import (
+from sam_test_infrastructure.artifact_service.service import (
     TestInMemoryArtifactService,
 )
-from tests.integration.infrastructure.a2a_validator.validator import A2AMessageValidator
-from src.solace_agent_mesh.common.types import (
+from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
+from solace_agent_mesh.common.types import (
     TextPart,
     DataPart,
     Task,
@@ -29,8 +29,8 @@ from src.solace_agent_mesh.common.types import (
     TaskArtifactUpdateEvent,
     JSONRPCError,
 )
-from src.solace_agent_mesh.agent.sac.app import SamAgentApp
-from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
+from solace_agent_mesh.agent.sac.app import SamAgentApp
+from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from google.genai import types as adk_types  # Add this import
 import re
 import json
@@ -40,7 +40,7 @@ from ..scenarios_programmatic.test_helpers import (
     get_all_task_events,
     extract_outputs_from_event_list,
 )
-from src.solace_agent_mesh.agent.testing.debug_utils import pretty_print_event_history
+from solace_agent_mesh.agent.testing.debug_utils import pretty_print_event_history
 
 TEST_RUNNER_MATH_SYMBOLS = {
     "abs": abs,

@@ -88,6 +88,7 @@ dependencies = [
 ]
 extra-dependencies = [
     "solace-agent-mesh[database,cli,gcs,vertex,employee_tools]",
+    "sam-test-infrastructure @ {root:uri}/sam-test-infrastructure"
 ]
 
 # Override to ensure integration tests are explicitly skipped in CI

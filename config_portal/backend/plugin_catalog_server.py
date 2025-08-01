@@ -18,6 +18,7 @@ if not logger.hasHandlers():
 registry_manager = RegistryManager()
 plugin_scraper = PluginScraper()
 
+
 def create_plugin_catalog_app(shared_config=None):
     current_dir = Path(__file__).parent
     static_folder_path = (

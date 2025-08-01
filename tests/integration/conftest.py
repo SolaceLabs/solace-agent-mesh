@@ -2,19 +2,19 @@ import pytest
 import time
 
 
-from src.solace_agent_mesh.agent.sac.app import SamAgentApp
-from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
-from src.solace_agent_mesh.agent.tools.registry import tool_registry
-from tests.integration.infrastructure.gateway_interface.app import TestGatewayApp
-from tests.integration.infrastructure.gateway_interface.component import (
+from solace_agent_mesh.agent.sac.app import SamAgentApp
+from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from solace_agent_mesh.agent.tools.registry import tool_registry
+from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
+from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )
-from tests.integration.infrastructure.llm_server.server import TestLLMServer
-from tests.integration.infrastructure.artifact_service.service import (
+from sam_test_infrastructure.llm_server.server import TestLLMServer
+from sam_test_infrastructure.artifact_service.service import (
     TestInMemoryArtifactService,
 )
 
-from tests.integration.infrastructure.a2a_validator.validator import A2AMessageValidator
+from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
 
 
@@ -248,7 +248,7 @@ def shared_solace_connector(
     test_agent_tools = [
         {
             "tool_type": "python",
-            "component_module": "src.solace_agent_mesh.agent.tools.test_tools",
+            "component_module": "solace_agent_mesh.agent.tools.test_tools",
             "function_name": "time_delay",
             "component_base_path": ".",
         },
@@ -347,31 +347,31 @@ def shared_solace_connector(
             "name": "TestSamAgentApp",
             "app_config": sam_agent_app_config,
             "broker": {"dev_mode": True},
-            "app_module": "src.solace_agent_mesh.agent.sac.app",
+            "app_module": "solace_agent_mesh.agent.sac.app",
         },
         {
             "name": "TestPeerAgentA_App",
             "app_config": peer_a_config,
             "broker": {"dev_mode": True},
-            "app_module": "src.solace_agent_mesh.agent.sac.app",
+            "app_module": "solace_agent_mesh.agent.sac.app",
         },
         {
             "name": "TestPeerAgentB_App",
             "app_config": peer_b_config,
             "broker": {"dev_mode": True},
-            "app_module": "src.solace_agent_mesh.agent.sac.app",
+            "app_module": "solace_agent_mesh.agent.sac.app",
         },
         {
             "name": "TestPeerAgentC_App",
             "app_config": peer_c_config,
             "broker": {"dev_mode": True},
-            "app_module": "src.solace_agent_mesh.agent.sac.app",
+            "app_module": "solace_agent_mesh.agent.sac.app",
         },
         {
             "name": "TestPeerAgentD_App",
             "app_config": peer_d_config,
             "broker": {"dev_mode": True},
-            "app_module": "src.solace_agent_mesh.agent.sac.app",
+            "app_module": "solace_agent_mesh.agent.sac.app",
         },
         {
             "name": "TestHarnessGatewayApp",
@@ -381,12 +381,12 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
             },
             "broker": {"dev_mode": True},
-            "app_module": "tests.integration.infrastructure.gateway_interface.app",
+            "app_module": "sam_test_infrastructure.gateway_interface.app",
         },
     ]
 
     session_monkeypatch.setattr(
-        "src.solace_agent_mesh.agent.adk.services.TestInMemoryArtifactService",
+        "solace_agent_mesh.agent.adk.services.TestInMemoryArtifactService",
         lambda: test_artifact_service_instance,
     )
 
@@ -662,7 +662,7 @@ def a2a_message_validator(
                     break
             if sam_agent_component_instance:
                 break
-            
+
     def get_component_from_app(app: SamAgentApp):
         if app.flows and app.flows[0].component_groups:
             for group in app.flows[0].component_groups:

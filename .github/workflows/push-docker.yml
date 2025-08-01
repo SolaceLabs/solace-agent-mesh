@@ -3,18 +3,39 @@ name: Push Docker Image (Manual Dispatch)
 on:
   workflow_dispatch:
     inputs:
+      ref-to-checkout:
+        description: "The ref to checkout"
+        required: true
+        type: string
+        default: "main"
       version:
         description: "The version tag for the Docker image (e.g., 1.0.0). If not provided, it will attempt to use the latest git tag."
         required: false
         type: string
+        default: ""
+
+      destination:
+        description: "The destination to push the Docker image to"
+        required: false
+        type: choice
+        default: "ECR"
+        options:
+          - ECR
+          - DockerHub
       push_latest:
         description: 'Whether to also tag and push as "latest"'
         required: false
         type: boolean
-        default: true
+        default: false
+      update_manifest:
+        description: "Whether to update the image manifest"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   build_and_push:
@@ -25,28 +46,116 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          ref: ${{ github.event.inputs.ref-to-checkout }}
 
-      - name: Determine Version Tag
-        id: get_version
-        shell: bash
+      - name: Get Commit Hash
+        id: get_commit_hash
         run: |
-          if [[ -n "${{ github.event.inputs.version }}" ]]; then
-            echo "version_tag=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-            echo "Using provided version: ${{ github.event.inputs.version }}"
-          else
-            latest_tag=$(git describe --tags --abbrev=0)
-            if [[ -z "${latest_tag}" ]]; then
-              echo "::error::No git tags found and no version specified as input."
-              exit 1
-            fi
-            echo "version_tag=${latest_tag}" >> $GITHUB_OUTPUT
-            echo "Using latest git tag: ${latest_tag}"
-          fi
+          echo "commit_hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "short_sha=${GITHUB_SHA:0:10}" >> $GITHUB_OUTPUT
 
-      - name: Push Docker Image
+      - name: Get Version from hatch
+        id: get_version
+        run: |
+          python3 -m pip install hatch
+          echo "version=$(hatch version)" >> $GITHUB_OUTPUT
+          echo "Found version: $(hatch version)"
+
+      - name: Push to DockerHub
+        if: github.event.inputs.destination == 'DockerHub'
         uses: ./.github/actions/push-docker
         with:
-          version_tag: ${{ steps.get_version.outputs.version_tag }}
+          version_tag: ${{ steps.get_version.outputs.version }}
           push_latest: ${{ github.event.inputs.push_latest }}
           docker_username: ${{ secrets.DOCKER_USERNAME }}
           docker_password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Setup Qemu
+        if: github.event.inputs.destination == 'ECR'
+        uses: docker/setup-qemu-action@v3.6.0
+
+      - name: Setup Docker Buildx
+        if: github.event.inputs.destination == 'ECR'
+        uses: docker/setup-buildx-action@v3.10.0
+
+      - name: Configure AWS credentials
+        if: github.event.inputs.destination == 'ECR'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      - name: Login to Amazon ECR
+        if: github.event.inputs.destination == 'ECR'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Create ECR Tags
+        if: github.event.inputs.destination == 'ECR'
+        id: ecr_tags
+        shell: bash
+        run: |
+          registry="${{ github.event.inputs.destination == 'ECR' && secrets.SAM_AWS_ECR_REGISTRY || 'solace' }}"
+          version="${{ steps.get_version.outputs.version }}"
+          short_sha="${{ steps.get_commit_hash.outputs.short_sha }}"
+          ref_name="${{ github.event.inputs.ref-to-checkout }}"
+
+          # Create tags array
+          tags="${registry}/solace-agent-mesh:${version}"
+          tags="${tags},${registry}/solace-agent-mesh:${version}-${short_sha}"
+          tags="${tags},${registry}/solace-agent-mesh:${ref_name}"
+          tags="${tags},${registry}/solace-agent-mesh:${ref_name}-${short_sha}"
+
+          if [[ "${{ github.event.inputs.push_latest }}" == "true" ]]; then
+            tags="${tags},${registry}/solace-agent-mesh:latest"
+          fi
+
+          echo "tags=${tags}" >> $GITHUB_OUTPUT
+          echo "Created ECR tags: ${tags}"
+
+      - name: Build and Push to ECR
+        if: github.event.inputs.destination == 'ECR'
+        uses: docker/build-push-action@v6.16.0
+        with:
+          context: .
+          file: Dockerfile
+          tags: ${{ steps.ecr_tags.outputs.tags }}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha
+
+      - name: Update Release Manifest
+        if: github.event.inputs.destination == 'ECR' && github.event.inputs.update_manifest == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+        run: |
+          # Set release manifest variables
+          export release_version="${{ steps.get_version.outputs.version }}-${{ steps.get_commit_hash.outputs.short_sha }}"
+          export version="${{ steps.get_version.outputs.version }}"
+          export image_tag="${{ steps.get_version.outputs.version }}-${{ steps.get_commit_hash.outputs.short_sha }}"
+          export chart_version="n/a"
+          export sha="${{ steps.get_commit_hash.outputs.commit_hash }}"
+          export squad="ai"
+          export repository="solace-agent-mesh"
+          export release_tag="${{ github.event.inputs.ref-to-checkout }}"
+
+          # Update DynamoDB manifest
+          aws dynamodb update-item \
+              --table-name solace-cloud-manifest \
+              --key "{\"squad\":{\"S\":\"${squad}\"},\"repository\": {\"S\": \"${repository}\"} }"\
+              --update-expression "SET dev = :r" \
+              --expression-attribute-values \
+              """{\":r\":
+                      {\"M\":
+                          {
+                            \"version\":{\"S\":\"${version}\"},
+                            \"image_tag\":{\"S\":\"${image_tag}\"},
+                            \"chart_version\": {\"S\": \"${chart_version}\"},
+                            \"sha\": {\"S\": \"${sha}\"},
+                            \"release_version\": {\"S\": \"${release_version}\"}
+                          }
+                      }
+              }"""

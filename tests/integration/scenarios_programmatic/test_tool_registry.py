@@ -3,17 +3,14 @@ Programmatic integration tests for the BuiltinTool registry.
 """
 
 import pytest
-from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
-from src.solace_agent_mesh.agent.tools.registry import tool_registry
-from src.solace_agent_mesh.agent.tools.tool_definition import BuiltinTool
+from solace_agent_mesh.agent.tools.registry import tool_registry
+from solace_agent_mesh.agent.tools.tool_definition import BuiltinTool
 from google.genai import types as adk_types
 
 pytestmark = pytest.mark.asyncio
 
 
-async def test_initial_tool_registry_state(
-    main_agent_component: SamAgentComponent,
-):
+async def test_initial_tool_registry_state():
     """
     Tests that the tool_registry is populated with the configured built-in tools
     after the agent component has been initialized.
@@ -62,9 +59,7 @@ async def test_initial_tool_registry_state(
     print(f"Scenario {scenario_id}: Completed successfully.")
 
 
-async def test_get_tool_by_name_integration(
-    main_agent_component: SamAgentComponent,
-):
+async def test_get_tool_by_name_integration():
     """
     Tests that get_tool_by_name works correctly in an integrated environment.
     """
@@ -76,7 +71,9 @@ async def test_get_tool_by_name_integration(
     assert isinstance(sql_tool, BuiltinTool)
     assert sql_tool.name == "create_chart_from_plotly_config"
     assert sql_tool.category == "data_analysis"
-    print(f"Scenario {scenario_id}: Successfully retrieved 'create_chart_from_plotly_config' tool.")
+    print(
+        f"Scenario {scenario_id}: Successfully retrieved 'create_chart_from_plotly_config' tool."
+    )
 
     non_existent_tool = tool_registry.get_tool_by_name("non_existent_tool_123")
     assert non_existent_tool is None
@@ -85,9 +82,7 @@ async def test_get_tool_by_name_integration(
     print(f"Scenario {scenario_id}: Completed successfully.")
 
 
-async def test_get_tools_by_category_integration(
-    main_agent_component: SamAgentComponent,
-):
+async def test_get_tools_by_category_integration():
     """
     Tests that get_tools_by_category works correctly in an integrated environment.
     """
@@ -119,9 +114,7 @@ async def test_get_tools_by_category_integration(
     print(f"Scenario {scenario_id}: Completed successfully.")
 
 
-async def test_peer_tools_are_separate_from_registry(
-    main_agent_component: SamAgentComponent,
-):
+async def test_peer_tools_are_separate_from_registry():
     """
     Tests that dynamically created PeerAgentTools are not added to the
     BuiltinTool registry.

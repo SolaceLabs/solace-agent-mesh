@@ -196,7 +196,7 @@ export const MermaidRenderer: React.FC<BaseRendererProps> = ({ content, setRende
     }, [sanitizedContent]);
 
     return (
-        <div className="bg-background h-full max-w-[100vw] overflow-hidden border">
+        <div className="bg-background h-full max-w-[100vw] overflow-hidden p-4">
             <iframe
                 srcDoc={srcDoc}
                 title="Mermaid Diagram Preview"

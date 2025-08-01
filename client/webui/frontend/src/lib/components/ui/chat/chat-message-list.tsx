@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useImperativeHandle } from "react";
 
 import { ArrowDown } from "lucide-react";
 
@@ -8,8 +8,11 @@ import { CHAT_STYLES } from "./chatStyles";
 interface ChatMessageListProps extends React.HTMLAttributes<HTMLDivElement> {
     smooth?: boolean;
 }
+export interface ChatMessageListRef {
+    scrollToBottom: () => void;
+}
 
-const ChatMessageList = React.forwardRef<HTMLDivElement, ChatMessageListProps>(({ className = "", children, ...props }, ref) => {
+const ChatMessageList = React.forwardRef<ChatMessageListRef, ChatMessageListProps>(({ className = "", children, ...props }, ref) => {
     const {
         scrollRef,
         isAtBottom,
@@ -18,11 +21,15 @@ const ChatMessageList = React.forwardRef<HTMLDivElement, ChatMessageListProps>((
     } = useAutoScroll({
         smooth: true,
         content: children,
-        autoScrollOnNewContent: true
     });
 
+
+    useImperativeHandle(ref, () => ({
+        scrollToBottom
+    }));
+    
     return (
-        <div className={`fade-both-mask min-h-0 flex-1 py-3 relative h-full w-full ${className}`} ref={ref}>
+        <div className={`fade-both-mask min-h-0 flex-1 py-3 relative h-full w-full ${className}`}>
             <div className="flex h-full w-full flex-col overflow-y-auto p-4" ref={scrollRef} onWheel={disableAutoScroll} onTouchMove={disableAutoScroll} {...props} style={{
                 scrollBehavior: "smooth"
             }}>

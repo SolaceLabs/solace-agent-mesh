@@ -3,7 +3,7 @@ Programmatic integration tests for basic agent flows.
 """
 
 import pytest
-from tests.integration.infrastructure.llm_server.server import (
+from sam_test_infrastructure.llm_server.server import (
     TestLLMServer,
     ChatCompletionResponse,
     Message,
@@ -12,13 +12,13 @@ from tests.integration.infrastructure.llm_server.server import (
     ToolCallFunction,
     Usage,
 )
-from tests.integration.infrastructure.gateway_interface.component import (
+from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )
-from tests.integration.infrastructure.a2a_validator.validator import (
+from sam_test_infrastructure.a2a_validator.validator import (
     A2AMessageValidator,
 )
-from src.solace_agent_mesh.agent.sac.app import SamAgentApp
+from solace_agent_mesh.agent.sac.app import SamAgentApp
 
 from .test_helpers import (
     prime_llm_server,

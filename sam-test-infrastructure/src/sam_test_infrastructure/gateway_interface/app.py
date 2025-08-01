@@ -8,8 +8,8 @@ from typing import Any, Dict, List, Type
 
 from solace_ai_connector.common.log import log
 
-from src.solace_agent_mesh.gateway.base.app import BaseGatewayApp
-from src.solace_agent_mesh.gateway.base.component import BaseGatewayComponent
+from solace_agent_mesh.gateway.base.app import BaseGatewayApp
+from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
 
 from .component import TestGatewayComponent
 

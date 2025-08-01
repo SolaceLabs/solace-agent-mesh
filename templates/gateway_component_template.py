@@ -2,7 +2,7 @@
 Solace Agent Mesh Component class for the __GATEWAY_NAME_PASCAL_CASE__ Gateway.
 """
 
-import asyncio # If needed for async operations with external system
+import asyncio  # If needed for async operations with external system
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from solace_ai_connector.common.log import log
@@ -10,14 +10,15 @@ from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
 from solace_agent_mesh.common.types import (
     Part as A2APart,
     TextPart,
-    FilePart, # If handling files
-    DataPart, # If handling structured data
+    FilePart,  # If handling files
+    DataPart,  # If handling structured data
     Task,
     TaskStatusUpdateEvent,
     TaskArtifactUpdateEvent,
     JSONRPCError,
-    FileContent, # Added for FilePart example
+    FileContent,  # Added for FilePart example
 )
+
 # from solace_agent_mesh.core_a2a.service import CoreA2AService # If direct interaction needed
 
 info = {
@@ -26,7 +27,7 @@ info = {
         "Implements the A2A __GATEWAY_NAME_PASCAL_CASE__ Gateway, inheriting from BaseGatewayComponent. "
         "Handles communication between the __GATEWAY_NAME_SNAKE_CASE__ system and the A2A agent ecosystem."
     ),
-    "config_parameters": [], # Defined by __GATEWAY_NAME_PASCAL_CASE__GatewayApp
+    "config_parameters": [],  # Defined by __GATEWAY_NAME_PASCAL_CASE__GatewayApp
     "input_schema": {
         "type": "object",
         "description": "Not typically used directly by GDK; component reacts to external events or A2A control messages.",
@@ -36,6 +37,7 @@ info = {
         "description": "Not typically used directly by GDK; component publishes results to external system or A2A.",
     },
 }
+
 
 class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
     """
@@ -72,8 +74,11 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         - For SDKs with callbacks: Register your callbacks here.
         """
         log_id_prefix = f"{self.log_identifier}[StartListener]"
-        log.info("%s Starting listener for __GATEWAY_NAME_SNAKE_CASE__ system...", log_id_prefix)
-        
+        log.info(
+            "%s Starting listener for __GATEWAY_NAME_SNAKE_CASE__ system...",
+            log_id_prefix,
+        )
+
         # Example for a polling mechanism (adapt as needed):
         # if self.async_loop and self.async_loop.is_running():
         #     self.async_loop.create_task(self._poll_external_system())
@@ -85,7 +90,9 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         # a blocking call to start, manage that appropriately (e.g., in a separate thread
         # that communicates back to the async_loop via asyncio.run_coroutine_threadsafe).
 
-        log.info("%s __GATEWAY_NAME_SNAKE_CASE__ listener startup initiated.", log_id_prefix)
+        log.info(
+            "%s __GATEWAY_NAME_SNAKE_CASE__ listener startup initiated.", log_id_prefix
+        )
 
     # async def _poll_external_system(self): # Example polling loop
     #     log_id_prefix = f"{self.log_identifier}[PollLoop]"
@@ -111,7 +118,6 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
     #             await asyncio.sleep(60) # Wait before retrying on error
     #     log.info("%s __GATEWAY_NAME_SNAKE_CASE__ polling loop stopped.", log_id_prefix)
 
-
     def _stop_listener(self) -> None:
         """
         GDK Hook: Stop listening for events/requests and clean up resources.
@@ -121,15 +127,18 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         - For SDKs: Unregister callbacks, close connections.
         """
         log_id_prefix = f"{self.log_identifier}[StopListener]"
-        log.info("%s Stopping listener for __GATEWAY_NAME_SNAKE_CASE__ system...", log_id_prefix)
-        
+        log.info(
+            "%s Stopping listener for __GATEWAY_NAME_SNAKE_CASE__ system...",
+            log_id_prefix,
+        )
+
         # self.stop_signal is already set by BaseGatewayComponent before calling this.
         # Ensure your _start_listener logic (e.g., polling loop) respects self.stop_signal.
 
         # Example: If you started a thread for a blocking SDK client:
         # if hasattr(self, "sdk_thread") and self.sdk_thread.is_alive():
         #     # Signal SDK to shutdown if possible, then join thread
-        #     # self.external_client.shutdown() 
+        #     # self.external_client.shutdown()
         #     self.sdk_thread.join(timeout=10)
 
         # Example: If an asyncio task was created for polling:
@@ -137,11 +146,12 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         #     self.polling_task.cancel()
         #     # Optionally await it if _stop_listener can be async, or manage in cleanup
 
-        log.info("%s __GATEWAY_NAME_SNAKE_CASE__ listener shutdown initiated.", log_id_prefix)
-
+        log.info(
+            "%s __GATEWAY_NAME_SNAKE_CASE__ listener shutdown initiated.", log_id_prefix
+        )
 
     async def _authenticate_external_user(
-        self, external_event_data: Any # Type hint with actual external event data type
+        self, external_event_data: Any  # Type hint with actual external event data type
     ) -> Optional[str]:
         """
         GDK Hook: Authenticates the user or system from the external event data.
@@ -163,13 +173,14 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         # else:
         #     log.warning("%s Authentication failed: API key mismatch or missing.", log_id_prefix)
         #     return None
-        
+
         # If no authentication is needed for this gateway:
-        # return "anonymous___GATEWAY_NAME_SNAKE_CASE___user" 
+        # return "anonymous___GATEWAY_NAME_SNAKE_CASE___user"
 
-        log.warning("%s _authenticate_external_user not fully implemented.", log_id_prefix)
-        return "placeholder_user_identity" # Replace with actual logic
-
+        log.warning(
+            "%s _authenticate_external_user not fully implemented.", log_id_prefix
+        )
+        return "placeholder_user_identity"  # Replace with actual logic
 
     async def _translate_external_input(
         self, external_event_data: Any, authenticated_user_identity: str
@@ -178,7 +189,7 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         GDK Hook: Translates the incoming external event/request into an A2A task.
         - `external_event_data`: The raw data from the external system.
         - `authenticated_user_identity`: The identity returned by _authenticate_external_user.
-        
+
         Returns a tuple:
         - `target_agent_name` (str | None): Name of the A2A agent to route the task to. None if translation fails.
         - `a2a_parts` (List[A2APart]): List of A2A Parts (TextPart, FilePart, DataPart) for the task.
@@ -189,12 +200,14 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         # log.debug("%s Translating external event: %s", log_id_prefix, external_event_data)
 
         a2a_parts: List[A2APart] = []
-        target_agent_name: Optional[str] = None # Determine this based on event data or config
+        target_agent_name: Optional[str] = (
+            None  # Determine this based on event data or config
+        )
         external_request_context: Dict[str, Any] = {
             "user_id_for_a2a": authenticated_user_identity,
-            "app_name_for_artifacts": self.gateway_id, # For artifact service context
+            "app_name_for_artifacts": self.gateway_id,  # For artifact service context
             "user_id_for_artifacts": authenticated_user_identity,
-            "a2a_session_id": f"__GATEWAY_NAME_SNAKE_CASE__-session-{self.generate_uuid()}", # Example session ID
+            "a2a_session_id": f"__GATEWAY_NAME_SNAKE_CASE__-session-{self.generate_uuid()}",  # Example session ID
             # Add any other relevant context from external_event_data needed for response handling
             # "original_request_id": external_event_data.get("id"),
         }
@@ -208,7 +221,7 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         #          if rule.matches(external_event_data):
         #              target_agent_name = rule.get_agent_name()
         #              break
-        target_agent_name = "OrchestratorAgent" # Placeholder
+        target_agent_name = "OrchestratorAgent"  # Placeholder
 
         # 2. Construct A2A Parts:
         #    - Extract text:
@@ -222,7 +235,7 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         #      #     file_name = external_event_data.get("file_name", "attachment.dat")
         #      #     mime_type = external_event_data.get("mime_type", "application/octet-stream")
         #      #     artifact_uri = await self.save_to_artifact_service(
-        #      #         file_bytes, file_name, mime_type, 
+        #      #         file_bytes, file_name, mime_type,
         #      #         authenticated_user_identity, external_request_context["a2a_session_id"]
         #      #     )
         #      #     if artifact_uri:
@@ -233,20 +246,31 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         #      #    a2a_parts.append(DataPart(data=structured_data, metadata={"source": "__GATEWAY_NAME_SNAKE_CASE__"}))
 
         # Example: Simple text passthrough
-        raw_text = str(external_event_data.get("text_input_field", "Default text from __GATEWAY_NAME_SNAKE_CASE__"))
+        raw_text = str(
+            external_event_data.get(
+                "text_input_field", "Default text from __GATEWAY_NAME_SNAKE_CASE__"
+            )
+        )
         a2a_parts.append(TextPart(text=raw_text))
-        
+
         if not target_agent_name:
             log.error("%s Could not determine target_agent_name.", log_id_prefix)
-            return None, [], {} # Indicate translation failure
+            return None, [], {}  # Indicate translation failure
 
         if not a2a_parts:
-            log.warning("%s No A2A parts created from external event. Task might be empty.", log_id_prefix)
+            log.warning(
+                "%s No A2A parts created from external event. Task might be empty.",
+                log_id_prefix,
+            )
             # Depending on requirements, you might want to return None, [], {} here too.
 
-        log.info("%s Translation complete. Target: %s, Parts: %d", log_id_prefix, target_agent_name, len(a2a_parts))
+        log.info(
+            "%s Translation complete. Target: %s, Parts: %d",
+            log_id_prefix,
+            target_agent_name,
+            len(a2a_parts),
+        )
         return target_agent_name, a2a_parts, external_request_context
-
 
     async def _send_final_response_to_external(
         self, external_request_context: Dict[str, Any], task_data: Task
@@ -274,14 +298,17 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         #                break
         #    if task_data.status and task_data.status.state == TaskState.FAILED:
         #        response_text = f"Task failed: {response_text}"
-        
+
         # 3. Use information from external_request_context to send the response
         #    (e.g., reply-to address, original request ID).
         #    # original_request_id = external_request_context.get("original_request_id")
         #    # await self.external_client.send_reply(original_request_id, response_text)
 
-        log.warning("%s _send_final_response_to_external not fully implemented for task %s.", log_id_prefix, task_data.id)
-
+        log.warning(
+            "%s _send_final_response_to_external not fully implemented for task %s.",
+            log_id_prefix,
+            task_data.id,
+        )
 
     async def _send_error_to_external(
         self, external_request_context: Dict[str, Any], error_data: JSONRPCError
@@ -301,8 +328,11 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         # # original_request_id = external_request_context.get("original_request_id")
         # # await self.external_client.send_error_reply(original_request_id, error_message_to_send)
 
-        log.warning("%s _send_error_to_external not fully implemented. Error: %s", log_id_prefix, error_data.message)
-
+        log.warning(
+            "%s _send_error_to_external not fully implemented. Error: %s",
+            log_id_prefix,
+            error_data.message,
+        )
 
     async def _send_update_to_external(
         self,
@@ -318,7 +348,7 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         """
         log_id_prefix = f"{self.log_identifier}[SendUpdate]"
         # task_id = event_data.id
-        # log.debug("%s Received A2A update for task %s. Type: %s. FinalChunk: %s", 
+        # log.debug("%s Received A2A update for task %s. Type: %s. FinalChunk: %s",
         #           log_id_prefix, task_id, type(event_data).__name__, is_final_chunk_of_update)
 
         # --- Implement Logic to Send Intermediate Update (if supported) ---
@@ -334,15 +364,16 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         # elif isinstance(event_data, TaskArtifactUpdateEvent):
         #     # Handle artifact updates (e.g., notify external system of new artifact URI)
         #     pass
-        
+
         # Default: Log that this gateway does not handle intermediate updates.
-        # log.debug("%s __GATEWAY_NAME_PASCAL_CASE__ Gateway does not process intermediate updates. Update for task %s ignored.", 
+        # log.debug("%s __GATEWAY_NAME_PASCAL_CASE__ Gateway does not process intermediate updates. Update for task %s ignored.",
         #           log_id_prefix, task_id)
-        pass # No-op by default
+        pass  # No-op by default
 
     # --- Optional: Helper methods for your gateway ---
-    def generate_uuid(self) -> str: # Made this a method of the class
+    def generate_uuid(self) -> str:  # Made this a method of the class
         import uuid
+
         return str(uuid.uuid4())
 
     # async def save_to_artifact_service(self, content_bytes: bytes, filename: str, mime_type: str, user_id: str, session_id: str) -> Optional[str]:
@@ -393,7 +424,7 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         # Example: Close any persistent connections not handled in _stop_listener
         # if hasattr(self, "persistent_connection") and self.persistent_connection.is_open():
         #     self.persistent_connection.close()
-        super().cleanup() # Important to call super().cleanup()
+        super().cleanup()  # Important to call super().cleanup()
         log.info(
             "%s __GATEWAY_NAME_PASCAL_CASE__ Gateway Component cleanup finished.",
             self.log_identifier,

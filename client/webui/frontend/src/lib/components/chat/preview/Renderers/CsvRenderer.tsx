@@ -88,9 +88,9 @@ export const CsvRenderer: React.FC<BaseRendererProps> = ({ content, setRenderErr
     }
 
     return (
-        <div className="block w-full overflow-x-scroll border">
+        <div className="block w-full overflow-x-scroll p-4">
             <div style={{ minWidth: "min(100%, max-content)" }}>
-                <table className="border-collapse text-sm w-full">
+                <table className="border text-sm w-full">
                     <thead className="sticky top-0 z-10 shadow-sm">
                         {rows.length > 0 && (
                             <tr>

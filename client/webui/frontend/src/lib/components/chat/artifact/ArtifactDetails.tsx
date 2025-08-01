@@ -9,7 +9,7 @@ import type { ArtifactInfo } from "@/lib/types";
 
 interface ArtifactDetailsProps {
     artifactInfo: ArtifactInfo;
-    displayVersionNavigation?: boolean;
+    isPreview?: boolean;
     isExpanded?: boolean;
     onDelete?: (artifact: ArtifactInfo) => void;
     onDownload?: (artifact: ArtifactInfo) => void;
@@ -18,7 +18,7 @@ interface ArtifactDetailsProps {
 
 export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({
     artifactInfo,
-    displayVersionNavigation = false,
+    isPreview = false,
     isExpanded = false,
     onDelete,
     onDownload,
@@ -39,8 +39,7 @@ export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({
                     </div>
                 </div>
 
-                {/* Version Dropdown */}
-                {displayVersionNavigation && versions.length > 1 && (
+                {isPreview && versions.length > 1 && (
                     <div className="align-right">
                         <Select
                             value={currentPreviewedVersionNumber?.toString()}
@@ -62,7 +61,7 @@ export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({
                     </div>
                 )}
             </div>
-            <div className="whitespace-nowrap opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
+            <div className={`whitespace-nowrap ${isPreview ? "opacity-100" : "opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100"}`}>
                 {setIsExpanded && (
                     <Button
                         variant="ghost"
@@ -74,7 +73,7 @@ export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({
                         }}
                         tooltip={isExpanded ? "Collapse Details" : "Expand Details"}
                     >
-                        <Info className="h-4 w-4" />
+                        <Info />
                     </Button>
                 )}
                 {onDownload && (
@@ -88,7 +87,7 @@ export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({
                         }}
                         tooltip="Download"
                     >
-                        <Download className="h-4 w-4" />
+                        <Download />
                     </Button>
                 )}
                 {onDelete && (
@@ -102,7 +101,7 @@ export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({
                         }}
                         tooltip="Delete"
                     >
-                        <Trash className="h-4 w-4" />
+                        <Trash />
                     </Button>
                 )}
             </div>

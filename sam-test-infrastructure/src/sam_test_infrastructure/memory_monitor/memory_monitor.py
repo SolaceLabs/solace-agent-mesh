@@ -25,9 +25,9 @@ except ImportError:
     summary = None
     asizeof = None
 
-from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
-from src.solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool
-from src.solace_agent_mesh.common.types import Task, TaskStatusUpdateEvent
+from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool
+from solace_agent_mesh.common.types import Task, TaskStatusUpdateEvent
 from .depth_based_profiler import DepthBasedProfiler, DepthProfilerConfig, MemoryNode
 from .diff_generator import MemoryDiffGenerator, MemoryDiffReportGenerator
 

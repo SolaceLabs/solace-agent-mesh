@@ -38,6 +38,7 @@ except ImportError as err:
         )
         raise err from exc
 
+
 def get_agent_field_definitions():
     fields = []
     fields.append(

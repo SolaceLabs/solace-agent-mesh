@@ -3,6 +3,7 @@ from pathlib import Path
 
 try:
     from cli.utils import get_sam_cli_home_dir
+
     SAM_HOME = get_sam_cli_home_dir()
 except ImportError:
     print(
@@ -14,7 +15,7 @@ except ImportError:
     SAM_HOME.mkdir(parents=True, exist_ok=True)
 
 DEFAULT_OFFICIAL_REGISTRY_URL = (
-        "https://github.com/SolaceLabs/solace-agent-mesh-core-plugins"
+    "https://github.com/SolaceLabs/solace-agent-mesh-core-plugins"
 )
 OFFICIAL_REGISTRY_GIT_BRANCH = "main"
 IGNORE_OFFICIAL_FLAG_REPOS = []

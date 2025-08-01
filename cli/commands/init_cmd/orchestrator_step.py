@@ -312,6 +312,26 @@ def create_orchestrator_config(
         )
         return False
 
+    try:
+        logging_config_dest_path = project_root / "configs" / "logging_config.ini"
+        logging_template_content = load_template("logging_config_template.ini")
+        with open(logging_config_dest_path, "w", encoding="utf-8") as f:
+            f.write(logging_template_content)
+        click.echo(
+            f"  Configured: {logging_config_dest_path.relative_to(project_root)}"
+        )
+    except Exception as e:
+        error_message = (
+            f"Error configuring file {logging_config_dest_path}: {e}"
+            if logging_config_dest_path
+            else f"Error configuring logging configuration: {e}"
+        )
+        click.echo(
+            click.style(error_message, fg="red"),
+            err=True,
+        )
+        return False
+
     main_orchestrator_path = (
         project_root / "configs" / "agents" / "main_orchestrator.yaml"
     )

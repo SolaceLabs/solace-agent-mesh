@@ -7,7 +7,8 @@ import {
     ImageRenderer, 
     MarkdownRenderer, 
     MermaidRenderer, 
-    StructuredDataRenderer 
+    StructuredDataRenderer,
+    TextRenderer
 } from "./Renderers";
 
 interface ContentRendererProps {
@@ -18,8 +19,6 @@ interface ContentRendererProps {
 }
 
 export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, rendererType, mime_type, setRenderError }) => {
-
-    // Delegate to the appropriate renderer based on rendererType
     switch (rendererType) {
         case "csv":
             return <CsvRenderer content={content} setRenderError={setRenderError} />;
@@ -37,12 +36,6 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, rende
         case "audio":
             return <AudioRenderer content={content} mime_type={mime_type} setRenderError={setRenderError} />;
         default:
-            return (
-                <div className="p-4 overflow-auto">
-                    <pre className="whitespace-pre-wrap" style={{
-                        overflowWrap: "anywhere"
-                    }}>{content}</pre>
-                </div>
-            );
+            return <TextRenderer content={content} setRenderError={setRenderError} />;
     }
 };
