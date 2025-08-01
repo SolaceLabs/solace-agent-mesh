@@ -23,25 +23,24 @@ def test_A2A_server():
         AgentSkill,
     )
 
-    # define a simple test agent card
-    test_agent_capabilities_1 = AgentCapabilities(
-                id="skill-1",
-                name="Skill 1",
-                description="Description for Skill 1",
-                tags=["tag1", "tag2"],
-                examples=["Example 1", "Example 2"],
-                inputModes=["text/plain"],
-                outputModes=["text/plain"]
-            )
-    test_agent_capabilities_2 = AgentCapabilities(
-                id="skill-2",
-                name="Skill 2",
-                description="Description for Skill 2",
-                tags=["tag1", "tag2"],
-                examples=["Example 1", "Example 2"],
-                inputModes=["text/plain"],
-                outputModes=["text/plain"]
-            )
+    # Helper to create AgentCapabilities with different IDs
+    def make_agent_capabilities(id, name, description):
+        return AgentCapabilities(
+            id=id,
+            name=name,
+            description=description,
+            tags=["tag1", "tag2"],
+            examples=["Example 1", "Example 2"],
+            inputModes=["text/plain"],
+            outputModes=["text/plain"]
+        )
+
+    test_agent_capabilities_1 = make_agent_capabilities(
+        "skill-1", "Skill 1", "Description for Skill 1"
+    )
+    test_agent_capabilities_2 = make_agent_capabilities(
+        "skill-2", "Skill 2", "Description for Skill 2"
+    )
     test_agent_skills = AgentSkill(
         id="skill-1",
         name="Skill 1",
