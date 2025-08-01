@@ -650,7 +650,6 @@ export function createTimelineEdge(
         const label = step.title && step.title.length > 30 ? step.type.replace(/_/g, " ").toLowerCase() : step.title || "";
 
         // For initial edge creation, assume all agent-to-tool requests start animated
-        // The animation service will determine the actual state during replay
         const isAgentToToolRequest = edgeAnimationService.isRequestStep(step);
 
         const newEdge: Edge = {
