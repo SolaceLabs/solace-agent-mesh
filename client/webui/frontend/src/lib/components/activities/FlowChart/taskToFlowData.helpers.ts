@@ -177,28 +177,34 @@ export function findSubflowByFunctionCallId(context: TimelineLayoutManager, func
     const phase = getCurrentPhase(context);
     if (!phase) return null;
 
-    // Find ALL matching subflows
-    const matchingSubflows = phase.subflows.filter(sf => sf.functionCallId === functionCallId);
-
-    if (matchingSubflows.length === 0) {
-        return null;
-    }
-
-    // Return the last one in the array, as it's the most recently created instance.
-    return matchingSubflows[matchingSubflows.length - 1];
+    return phase.subflows.findLast(sf => sf.functionCallId === functionCallId) || null;
 }
 
 export function findSubflowBySubTaskId(context: TimelineLayoutManager, subTaskId: string | undefined): SubflowContext | null {
     if (!subTaskId) return null;
     const phase = getCurrentPhase(context);
     if (!phase) return null;
-
-    return phase.subflows.find(sf => sf.id === subTaskId) || null;
+    // Find the first subflow that matches the subTaskId
+    return phase.subflows.findLast(sf => sf.id === subTaskId) || null;
 }
 
 // Enhanced context resolution with multiple fallback strategies
 export function resolveSubflowContext(manager: TimelineLayoutManager, step: VisualizerStep): SubflowContext | null {
-    // Strategy 1: Direct function call ID match (for parallel flows)
+    const currentSubflow = getCurrentSubflow(manager);
+
+    // Strategy 1: Match currentSubflow AND step.source name
+    if (currentSubflow && step.source) {
+        // Check if the current subflow's peer agent name matches the step source
+        const normalizedStepSource = step.source.replace(/[^a-zA-Z0-9_]/g, "_");
+        const normalizedStepTarget = step.target?.replace(/[^a-zA-Z0-9_]/g, "_");
+        const peerAgentId = currentSubflow.peerAgent.id;
+        if (peerAgentId.includes(normalizedStepSource) || (normalizedStepTarget && peerAgentId.includes(normalizedStepTarget))) {
+            console.log("Match found for currentSubflow and step.source:", step.source);
+            return currentSubflow;
+        }
+    }
+
+    // Strategy 2: Direct function call ID match (for parallel flows)
     if (step.functionCallId) {
         const directMatch = findSubflowByFunctionCallId(manager, step.functionCallId);
         if (directMatch) {
@@ -207,7 +213,7 @@ export function resolveSubflowContext(manager: TimelineLayoutManager, step: Visu
         }
     }
 
-    // Strategy 2: Match by owning task ID (for nested delegations)
+    // Strategy 3: Match by owning task ID (for nested delegations)
     if (step.owningTaskId && step.isSubTaskStep) {
         const taskMatch = findSubflowBySubTaskId(manager, step.owningTaskId);
         if (taskMatch) {
@@ -216,24 +222,14 @@ export function resolveSubflowContext(manager: TimelineLayoutManager, step: Visu
         }
     }
 
-    // Strategy 3: Use current subflow context (for sequential flows)
-    const currentSubflow = getCurrentSubflow(manager);
+    // Strategy 4: Return the currentSubflow as the last resort
     if (currentSubflow) {
-        // Verify this is the right context by checking nesting level
-        if (step.nestingLevel > 0 && step.isSubTaskStep) {
-            console.log("Using current subflow context for nesting level:", step.nestingLevel);
-            return currentSubflow;
-        }
+        console.log("Using currentSubflow as last resort");
+        return currentSubflow;
     }
 
-    // Strategy 4: Find by agent name and nesting level
-    if (step.source && step.nestingLevel > 0) {
-        const agentMatch = findSubflowByAgentAndLevel(manager, step.source, step.nestingLevel);
-        if (agentMatch) {
-            console.log("Match found for agent name:", step.source, "at nesting level:", step.nestingLevel);
-            return agentMatch;
-        }
-    }
+    console.log("No matching subflow found for step:", step.id);
+
     return null;
 }
 
@@ -245,8 +241,7 @@ export function findSubflowByAgentAndLevel(manager: TimelineLayoutManager, agent
     // Normalize agent name
     const normalizedAgentName = agentName.replace(/[^a-zA-Z0-9_]/g, "_");
 
-    // For nesting level 1, look in current phase subflows
-    if (nestingLevel === 1) {
+    if (nestingLevel > 0) {
         const subflow = currentPhase.subflows.find(sf => sf.peerAgent.id.includes(normalizedAgentName));
         if (subflow) return subflow;
     }

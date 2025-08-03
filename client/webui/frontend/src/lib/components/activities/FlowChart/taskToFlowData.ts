@@ -332,6 +332,7 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
 
             // 2. ALL parallel tasks are done. Create a SINGLE "join" node.
             const sourceSubflows = currentPhase.subflows.filter(sf => parallelFlow.subflowFunctionCallIds.includes(sf.functionCallId));
+            console.log("sourceSubflows:", sourceSubflows);
 
             const joinTargetAgentName = step.target || "OrchestratorAgent";
             let joinNode: NodeInstance;
@@ -345,6 +346,7 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
                 joinNodeHandle = "orch-top-input";
                 manager.currentSubflowIndex = -1; // Return to main flow context
             } else {
+                console.log("Creating join node for peer return:", joinTargetAgentName);
                 // The parallel tasks are returning to a PEER agent (nested parallel).
                 // Create ONE new instance of that peer agent for them to join to.
                 manager.indentationLevel = Math.max(0, manager.indentationLevel - 1);
