@@ -202,6 +202,7 @@ export function resolveSubflowContext(manager: TimelineLayoutManager, step: Visu
     if (step.functionCallId) {
         const directMatch = findSubflowByFunctionCallId(manager, step.functionCallId);
         if (directMatch) {
+            console.log("Direct match found for functionCallId:", step.functionCallId);
             return directMatch;
         }
     }
@@ -210,6 +211,7 @@ export function resolveSubflowContext(manager: TimelineLayoutManager, step: Visu
     if (step.owningTaskId && step.isSubTaskStep) {
         const taskMatch = findSubflowBySubTaskId(manager, step.owningTaskId);
         if (taskMatch) {
+            console.log("Match found for owningTaskId:", step.owningTaskId);
             return taskMatch;
         }
     }
@@ -219,6 +221,7 @@ export function resolveSubflowContext(manager: TimelineLayoutManager, step: Visu
     if (currentSubflow) {
         // Verify this is the right context by checking nesting level
         if (step.nestingLevel > 0 && step.isSubTaskStep) {
+            console.log("Using current subflow context for nesting level:", step.nestingLevel);
             return currentSubflow;
         }
     }
@@ -227,6 +230,7 @@ export function resolveSubflowContext(manager: TimelineLayoutManager, step: Visu
     if (step.source && step.nestingLevel > 0) {
         const agentMatch = findSubflowByAgentAndLevel(manager, step.source, step.nestingLevel);
         if (agentMatch) {
+            console.log("Match found for agent name:", step.source, "at nesting level:", step.nestingLevel);
             return agentMatch;
         }
     }

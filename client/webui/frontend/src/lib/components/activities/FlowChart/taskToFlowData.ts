@@ -31,6 +31,9 @@ import {
 } from "./taskToFlowData.helpers";
 import { EdgeAnimationService } from "./edgeAnimationService";
 
+// Relevant step types that should be processed in the flow chart
+const RELEVANT_STEP_TYPES = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED"];
+
 interface FlowData {
     nodes: Node[];
     edges: Edge[];
@@ -313,6 +316,8 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             ([_id, pf]) => pf.subflowFunctionCallIds.includes(returningFunctionCallId || "")
         );
+
+        console.log(parallelFlowEntry);
 
         if (parallelFlowEntry) {
             // It's a parallel return. Handle the special join logic.
@@ -655,9 +660,7 @@ export const transformProcessedStepsToTimelineFlow = (processedSteps: Visualizer
         indentationStep: 50, // Pixels to indent per level
     };
 
-    const relevantStepTypes = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED"];
-
-    const filteredSteps = processedSteps.filter(step => relevantStepTypes.includes(step.type));
+    const filteredSteps = processedSteps.filter(step => RELEVANT_STEP_TYPES.includes(step.type));
 
     for (const step of filteredSteps) {
         // Special handling for AGENT_LLM_RESPONSE_TOOL_DECISION if it's a peer delegation trigger
