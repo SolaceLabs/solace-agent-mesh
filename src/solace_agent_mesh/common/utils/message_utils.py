@@ -74,11 +74,6 @@ def validate_message_size(
 
     # Check if size exceeds the limit
     if actual_size > max_size_bytes:
-        log.error(
-            f"Message size validation failed for {component_identifier}: "
-            f"payload size ({actual_size} bytes) exceeds maximum allowed "
-            f"size ({max_size_bytes} bytes)"
-        )
         return False, actual_size
 
     return True, actual_size

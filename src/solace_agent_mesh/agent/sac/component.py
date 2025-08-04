@@ -106,15 +106,7 @@ info = {
         "NOTE: Configuration is defined in the app-level 'app_config' block "
         "and validated by 'SamAgentApp.app_schema' when using the associated App class."
     ),
-    "config_parameters": [
-        {
-            "name": "max_message_size_bytes",
-            "required": False,
-            "type": "integer",
-            "default": 10_000_000,
-            "description": "Maximum allowed message size in bytes before rejecting publication to prevent broker disconnections. Default: 10MB",
-        }
-    ],
+    "config_parameters": [],
     "input_schema": {
         "type": "object",
         "description": "Not typically used; component reacts to events.",
@@ -242,9 +234,11 @@ class SamAgentComponent(ComponentBase):
                 raise ValueError(
                     "Internal Error: Inter-agent comms config missing after validation."
                 )
-            
-            self.max_message_size_bytes = self.get_config("max_message_size_bytes", 10_000_000)
-            
+
+            self.max_message_size_bytes = self.get_config(
+                "max_message_size_bytes", 10_000_000
+            )
+
             log.info("%s Configuration retrieved successfully.", self.log_identifier)
         except Exception as e:
             log.error(
