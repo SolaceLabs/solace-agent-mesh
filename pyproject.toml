@@ -21,7 +21,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
 dependencies = [
-    "a2a-python>=0.0.1",
+    "a2a-sdk>=0.0.1",
     "google-adk==1.7.0",
     "pydantic>=2.0",
     "click~=8.1.7",

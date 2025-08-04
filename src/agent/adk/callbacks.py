@@ -844,7 +844,8 @@ This host resolves the following embed types *early* (before sending to the LLM 
         - `{open_delim}artifact_content:config.json {chain_delim} jsonpath:$.userPreferences.theme {chain_delim} format:text{close_delim}` (Extract a single value from a JSON artifact)
         - `{open_delim}artifact_content:result.json {chain_delim} jsonpath:$.content[0].text {chain_delim} format:csv{close_delim}` (Extract a single value from a JSON artifact and create a CSV file from it)
         - `{open_delim}artifact_content:sensor_readings.csv {chain_delim} filter_rows_eq:status:critical {chain_delim} select_cols:timestamp,sensor_id,value {chain_delim} format:csv{close_delim}` (Filter critical sensor readings and select specific columns, output as CSV)
-        - `{open_delim}artifact_content:server.log {chain_delim} tail:100 {chain_delim} grep:WARN {chain_delim} format:text{close_delim}` (Get warning lines from the last 100 lines of a log file)"""
+        - `{open_delim}artifact_content:server.log {chain_delim} tail:100 {chain_delim} grep:WARN {chain_delim} format:text{close_delim}` (Get warning lines from the last 100 lines of a log file)        
+        """
 
     final_instruction = base_instruction
     if include_artifact_content:
