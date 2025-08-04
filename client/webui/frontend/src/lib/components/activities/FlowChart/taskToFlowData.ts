@@ -332,7 +332,6 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
 
             // 2. ALL parallel tasks are done. Create a SINGLE "join" node.
             const sourceSubflows = currentPhase.subflows.filter(sf => parallelFlow.subflowFunctionCallIds.includes(sf.functionCallId));
-            console.log("sourceSubflows:", sourceSubflows);
 
             const joinTargetAgentName = step.target || "OrchestratorAgent";
             let joinNode: NodeInstance;
@@ -359,7 +358,7 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
             // 3. Connect ALL completed parallel agents to this single join node.
             sourceSubflows.forEach(subflow => {
                 createTimelineEdge(
-                    subflow.peerAgent.id,
+                    subflow.lastSubflow?.peerAgent.id ?? subflow.peerAgent.id,
                     joinNode.id,
                     step, // Use the final step as the representative event for the join
                     edges,

@@ -60,6 +60,7 @@ export interface SubflowContext {
     // Parent context tracking for nested parallel flows
     parentSubflowId?: string; // ID of the parent subflow (if nested)
     inheritedXOffset?: number; // X offset inherited from parent parallel flow
+    lastSubflow?: SubflowContext; // Last subflow context for this subflow for nested flows
 }
 
 export interface ParallelFlowContext {
@@ -234,23 +235,6 @@ export function resolveSubflowContext(manager: TimelineLayoutManager, step: Visu
     console.log("No matching subflow found for step:", step.id);
 
     return null;
-}
-
-// Find subflow by agent name and nesting level
-export function findSubflowByAgentAndLevel(manager: TimelineLayoutManager, agentName: string, nestingLevel: number): SubflowContext | null {
-    const currentPhase = getCurrentPhase(manager);
-    if (!currentPhase) return null;
-
-    // Normalize agent name
-    const normalizedAgentName = agentName.replace(/[^a-zA-Z0-9_]/g, "_");
-
-    if (nestingLevel > 0) {
-        const subflow = currentPhase.subflows.find(sf => sf.peerAgent.id.includes(normalizedAgentName));
-        if (subflow) return subflow;
-    }
-
-    // For higher nesting levels, use current subflow as fallback
-    return getCurrentSubflow(manager);
 }
 
 // Enhanced subflow finder by sub-task ID with better matching
@@ -515,6 +499,9 @@ export function startNewSubflow(manager: TimelineLayoutManager, peerAgentName: s
         inheritedXOffset: parentParallelSubflow?.groupNode.xPosition,
     };
     currentPhase.subflows.push(newSubflow);
+    if (parentParallelSubflow) {
+        parentParallelSubflow.lastSubflow = newSubflow; // Track last subflow for nested flows
+    }
     manager.currentSubflowIndex = currentPhase.subflows.length - 1;
 
     if (isParallel && parallelFlow) {
