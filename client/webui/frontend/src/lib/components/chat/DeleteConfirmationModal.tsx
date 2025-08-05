@@ -12,12 +12,14 @@ interface DeleteConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  sessionName: string;
 }
 
 const DeleteConfirmationModal = ({
   isOpen,
   onClose,
   onConfirm,
+  sessionName,
 }: DeleteConfirmationModalProps) => {
   if (!isOpen) {
     return null;
@@ -30,7 +32,7 @@ const DeleteConfirmationModal = ({
           <DialogTitle>Are you sure?</DialogTitle>
           <DialogDescription>
             This action cannot be undone. This will permanently delete the chat
-            session.
+            session: <strong>{sessionName}</strong>.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

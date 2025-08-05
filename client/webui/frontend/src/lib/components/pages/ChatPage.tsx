@@ -12,7 +12,7 @@ import { useAgents, useChatContext, useSessionPreview, useTaskContext } from "@/
 import { ChatSidePanel } from "../chat/ChatSidePanel";
 import { ChatSessionDialog } from "../chat/ChatSessionDialog";
 import { SessionSidePanel } from "../chat/SessionSidePanel";
-import { DeleteConfirmationModal } from "../chat/DeleteConfirmationModal";
+import DeleteConfirmationModal from "../chat/DeleteConfirmationModal";
 import type { ChatMessageListRef } from "../ui/chat/chat-message-list";
 
 // Constants for sidepanel behavior
