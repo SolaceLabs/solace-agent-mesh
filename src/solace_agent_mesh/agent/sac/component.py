@@ -33,6 +33,7 @@ from google.adk.runners import Runner
 from google.adk.models import LlmResponse
 from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.events import Event as ADKEvent
+from google.adk.events.event_actions import EventActions
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from google.genai import types as adk_types
@@ -2585,12 +2586,15 @@ class SamAgentComponent(ComponentBase):
                 "%s Critical error during session history repair: %s", log_identifier, e
             )
 
-    def finalize_task_limit_reached(
-        self, a2a_context: Dict, exception: LlmCallsLimitExceededError
+    async def finalize_task_limit_reached(
+        self,
+        a2a_context: Dict,
+        exception: LlmCallsLimitExceededError,
+        custom_message: Optional[str] = None,
     ):
         """
         Finalizes a task when the LLM call limit is reached, prompting the user to continue.
-        Sends a COMPLETED status with an informative message.
+        Sends a COMPLETED status with an informative message and sets a session flag.
         """
         logical_task_id = a2a_context.get("logical_task_id")
         original_message: Optional[SolaceMessage] = a2a_context.get(
@@ -2608,19 +2612,85 @@ class SamAgentComponent(ComponentBase):
             namespace = self.get_config("namespace")
             agent_name = self.get_config("agent_name")
             original_session_id = a2a_context.get("session_id")
+            session_id_to_retrieve = a2a_context.get(
+                "effective_session_id", original_session_id
+            )
+            user_id = a2a_context.get("user_id")
 
-            limit_message_text = (
-                f"This interaction has reached its processing limit. "
+            # Set a flag in the session state to indicate it's continuable
+            session = await self.session_service.get_session(
+                app_name=agent_name, user_id=user_id, session_id=session_id_to_retrieve
+            )
+            if session:
+                try:
+                    # Use an ADK event to reliably modify the session state
+                    limit_event = ADKEvent(
+                        invocation_id=a2a_context.get(
+                            "invocation_id", a2a_context.get("logical_task_id")
+                        ),
+                        author="A2A_Host_System",
+                        content=adk_types.Content(
+                            parts=[
+                                adk_types.Part(
+                                    text="LLM call limit reached. Task is now continuable."
+                                )
+                            ]
+                        ),
+                        actions=EventActions(
+                            state_delta={
+                                "a2a_llm_limit_reached": True,
+                                "a2a_continuable_task_id": logical_task_id,
+                            }
+                        ),
+                    )
+                    await self.session_service.append_event(
+                        session=session, event=limit_event
+                    )
+                    log.info(
+                        "%s Appended limit_reached event to session %s to mark as continuable.",
+                        self.log_identifier,
+                        session_id_to_retrieve,
+                    )
+                except Exception as e_event:
+                    log.error(
+                        "%s Failed to append limit_reached event to session %s: %s",
+                        self.log_identifier,
+                        session_id_to_retrieve,
+                        e_event,
+                    )
+            else:
+                log.warning(
+                    "%s Could not find session %s to set llm_limit_reached flag.",
+                    self.log_identifier,
+                    session_id_to_retrieve,
+                )
+
+            limit_message_text = custom_message or (
+                "This interaction has reached its processing limit. "
                 "If you'd like to continue this conversation, please type 'continue'. "
                 "Otherwise, you can start a new topic."
             )
 
-            error_payload = InternalError(
-                message=limit_message_text,
-                data={"taskId": logical_task_id, "reason": "llm_call_limit_reached"},
+            final_status = TaskStatus(
+                state=TaskState.FAILED,
+                message=A2AMessage(
+                    role="agent", parts=[TextPart(text=limit_message_text)]
+                ),
             )
 
-            final_response = JSONRPCResponse(id=jsonrpc_request_id, error=error_payload)
+            final_task_metadata = {
+                "agent_name": agent_name,
+                "reason": "llm_call_limit_reached",
+            }
+
+            final_task = Task(
+                id=logical_task_id,
+                sessionId=original_session_id,
+                status=final_status,
+                metadata=final_task_metadata,
+            )
+
+            final_response = JSONRPCResponse(id=jsonrpc_request_id, result=final_task)
             a2a_payload = final_response.model_dump(exclude_none=True)
 
             target_topic = peer_reply_topic or get_client_response_topic(
@@ -2629,7 +2699,7 @@ class SamAgentComponent(ComponentBase):
 
             self._publish_a2a_event(a2a_payload, target_topic, a2a_context)
             log.info(
-                "%s Published ERROR response for task %s to %s (LLM limit reached, user guided to continue).",
+                "%s Published final COMPLETED response for task %s to %s (LLM limit reached, user guided to continue).",
                 self.log_identifier,
                 logical_task_id,
                 target_topic,
@@ -2664,13 +2734,19 @@ class SamAgentComponent(ComponentBase):
                 logical_task_id,
                 e,
             )
-            self.finalize_task_error(e, a2a_context)
+            # Fallback to the generic error handler if the success-style finalization fails
+            await self.finalize_task_error(e, a2a_context, custom_message)
 
-    async def finalize_task_error(self, exception: Exception, a2a_context: Dict):
+    async def finalize_task_error(self, exception: Exception, a2a_context: Dict, custom_error_message: Optional[str] = None):
         """
         Finalizes a task with an error. Publishes a final A2A Task with a FAILED
         status and NACKs the original message.
         Called by the background ADK thread wrapper.
+        
+        Args:
+            exception: The exception that occurred
+            a2a_context: The context dictionary for the task
+            custom_error_message: Optional custom error message to display to the user
         """
         logical_task_id = a2a_context.get("logical_task_id")
         original_message: Optional[SolaceMessage] = a2a_context.get(
@@ -2692,15 +2768,15 @@ class SamAgentComponent(ComponentBase):
             peer_reply_topic = a2a_context.get("replyToTopic")
             namespace = self.get_config("namespace")
 
+            error_message_text = (
+                custom_error_message
+                or f"An unexpected error occurred while processing your request: {str(exception)}. Please try again. If the problem persists, contact an administrator."
+            )
             failed_status = TaskStatus(
                 state=TaskState.FAILED,
                 message=A2AMessage(
                     role="agent",
-                    parts=[
-                        TextPart(
-                            text="An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
-                        )
-                    ],
+                    parts=[TextPart(text=error_message_text)],
                 ),
             )
 
@@ -2810,7 +2886,12 @@ class SamAgentComponent(ComponentBase):
                         if isinstance(exception, TaskCancelledError):
                             self.finalize_task_canceled(a2a_context)
                         elif isinstance(exception, LlmCallsLimitExceededError):
-                            self.finalize_task_limit_reached(a2a_context, exception)
+                            await self.finalize_task_limit_reached(
+                                a2a_context, exception
+                            )
+                            # After sending the FAILED message, we treat the task as paused
+                            # so it doesn't get cleaned up and can be continued.
+                            is_paused = True
                         else:
                             await self.finalize_task_error(exception, a2a_context)
                     else:

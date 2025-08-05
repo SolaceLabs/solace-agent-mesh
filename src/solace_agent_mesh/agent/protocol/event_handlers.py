@@ -32,6 +32,7 @@ from ...common.types import (
     TaskStatus,
     TaskState,
     DataPart,
+    TextPart,
     A2ARequest,
 )
 from ...common.a2a_protocol import (
@@ -53,7 +54,7 @@ from google.adk.agents import RunConfig
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
 from google.adk.agents.run_config import StreamingMode
-from google.adk.events import Event as ADKEvent
+from google.adk.events import Event as ADKEvent, EventActions
 from google.genai import types as adk_types
 
 
@@ -432,6 +433,26 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 )
             return None
         elif isinstance(a2a_request, (SendTaskRequest, SendTaskStreamingRequest)):
+            # Handle "continue" command for sessions that hit the LLM limit
+            is_continue_request = False
+            if a2a_request.params.message and a2a_request.params.message.parts:
+                for part in a2a_request.params.message.parts:
+                    if (
+                        hasattr(part, "text")
+                        and part.text
+                        and part.text.strip().lower() == "continue"
+                    ):
+                        is_continue_request = True
+                        break
+            if is_continue_request:
+                log.info(
+                    "%s Received 'continue' command for task %s.",
+                    component.log_identifier,
+                    a2a_request.params.id,
+                )
+                await handle_continue_request(component, message, a2a_request)
+                return
+
             original_session_id = a2a_request.params.sessionId
             task_id = a2a_request.params.id
             task_metadata = a2a_request.params.metadata or {}
@@ -775,6 +796,189 @@ async def handle_a2a_request(component, message: SolaceMessage):
 
         component.handle_error(e, Event(EventType.MESSAGE, message))
         return None
+
+
+async def handle_continue_request(
+    component: "SamAgentComponent",
+    message: SolaceMessage,
+    a2a_request: Union[SendTaskRequest, SendTaskStreamingRequest],
+):
+    """
+    Handles a "continue" request to resume a task that previously hit an LLM call limit.
+    """
+    new_task_id = a2a_request.params.id
+    original_session_id = a2a_request.params.sessionId
+    user_id = message.get_user_properties().get("userId", "default_user")
+    agent_name = component.get_config("agent_name")
+    jsonrpc_request_id = a2a_request.id
+    client_id = message.get_user_properties().get("clientId", "default_client")
+    namespace = component.get_config("namespace")
+
+    log_continue = f"{component.log_identifier}[ContinueRequest:{new_task_id}]"
+
+    try:
+        session = await component.session_service.get_session(
+            app_name=agent_name, user_id=user_id, session_id=original_session_id
+        )
+
+        if (
+            not session
+            or not hasattr(session, "state")
+            or not session.state.get("a2a_llm_limit_reached")
+        ):
+            log.warning(
+                "%s Received 'continue' but session %s is not marked as continuable. Ignoring.",
+                log_continue,
+                original_session_id,
+            )
+            no_continue_response = Task(
+                id=new_task_id,
+                sessionId=original_session_id,
+                status=TaskStatus(
+                    state=TaskState.COMPLETED,
+                    message=A2AMessage(
+                        role="agent",
+                        parts=[
+                            TextPart(
+                                text="There is nothing to continue. Please start a new topic."
+                            )
+                        ],
+                    ),
+                ),
+                metadata={"agent_name": agent_name},
+            )
+            final_response = JSONRPCResponse(
+                id=jsonrpc_request_id, result=no_continue_response
+            )
+            target_topic = get_client_response_topic(namespace, client_id)
+            component._publish_a2a_message(
+                final_response.model_dump(exclude_none=True), target_topic
+            )
+            message.call_acknowledgements()
+            return
+
+        log.info(
+            "%s Session %s is continuable. State: %s",
+            log_continue,
+            original_session_id,
+            session.state,
+        )
+        original_task_id = session.state.get("a2a_continuable_task_id")
+        if not original_task_id:
+            log.error(
+                "%s Session %s is continuable but 'a2a_continuable_task_id' is missing from state. Cannot continue.",
+                log_continue,
+                original_session_id,
+            )
+            message.call_negative_acknowledgements()
+            return
+
+        # Clear the flags to prevent multiple continues by appending a new event
+        # with a state_delta. This is the ADK-idiomatic way to modify session state.
+        clear_event = ADKEvent(
+            invocation_id=new_task_id,  # Use the new task ID for this system event
+            author="A2A_Host_System",
+            content=adk_types.Content(
+                parts=[adk_types.Part(text="Continuing task after LLM limit.")]
+            ),
+            actions=EventActions(
+                state_delta={
+                    "a2a_llm_limit_reached": None,
+                    "a2a_continuable_task_id": None,
+                }
+            ),
+        )
+        await component.session_service.append_event(session=session, event=clear_event)
+        log.info(
+            "%s Appended event to clear continuation flags for session %s.",
+            log_continue,
+            original_session_id,
+        )
+
+        # Re-use the original a2a_context from the task that was paused
+        with component.active_tasks_lock:
+            task_context = component.active_tasks.get(original_task_id)
+
+        if not task_context:
+            log.error(
+                "%s TaskExecutionContext not found for original task %s. Cannot continue.",
+                log_continue,
+                original_task_id,
+            )
+            message.call_negative_acknowledgements()
+            return
+
+        log.info(
+            "%s Found original TaskExecutionContext for task %s. History length: %d",
+            log_continue,
+            original_task_id,
+            len(session.events),
+        )
+        if session.events:
+            log.debug(
+                "%s Last event in history before continue: %s",
+                log_continue,
+                session.events[-1],
+            )
+
+        # Update the context with the new request details
+        task_context.a2a_context["original_solace_message"] = message
+        task_context.a2a_context["jsonrpc_request_id"] = jsonrpc_request_id
+        # IMPORTANT: Update the logical_task_id in the context to the *new* one
+        task_context.a2a_context["logical_task_id"] = new_task_id
+        log.info(
+            "%s Reusing existing TaskExecutionContext from original task %s for new task %s.",
+            log_continue,
+            original_task_id,
+            new_task_id,
+        )
+        # Move the context to the new task ID in the active_tasks dict
+        with component.active_tasks_lock:
+            component.active_tasks[new_task_id] = component.active_tasks.pop(
+                original_task_id
+            )
+
+        # Reset the LLM call count and re-run the agent from where it left off
+        max_llm_calls_per_task = component.get_config("max_llm_calls_per_task", 20)
+        run_config = RunConfig(
+            streaming_mode=StreamingMode.SSE, max_llm_calls=max_llm_calls_per_task
+        )
+
+        log.info(
+            "%s Retriggering ADK runner for continued task %s (original %s).",
+            log_continue,
+            new_task_id,
+            original_task_id,
+        )
+        log.debug(
+            "%s Runner will be re-triggered with a2a_context: %s",
+            log_continue,
+            task_context.a2a_context,
+        )
+        await run_adk_async_task_thread_wrapper(
+            component,
+            session,
+            None,  # No new content, just continue the run
+            run_config,
+            task_context.a2a_context,
+        )
+
+    except Exception as e:
+        log.exception("%s Error handling 'continue' request: %s", log_continue, e)
+        error_response = JSONRPCResponse(
+            id=jsonrpc_request_id,
+            error=InternalError(
+                message=f"Unexpected server error while continuing task: {e}",
+                data={"taskId": new_task_id},
+            ),
+        )
+        target_topic = get_client_response_topic(namespace, client_id)
+        if target_topic:
+            component._publish_a2a_message(
+                error_response.model_dump(exclude_none=True),
+                target_topic,
+            )
+        message.call_negative_acknowledgements()
 
 
 def handle_agent_card_message(component, message: SolaceMessage):
@@ -1175,6 +1379,60 @@ async def handle_a2a_response(component, message: SolaceMessage):
                         sub_task_id,
                         a2a_response.error,
                     )
+                    # Check if this is an LLM call limit reached error
+                    error_data = a2a_response.error.data or {}
+                    error_reason = error_data.get("reason")
+                    
+                    if error_reason == "llm_call_limit_reached":
+                        log.warning(
+                            "%s Peer agent reached its LLM call limit for sub-task %s. Error: %s",
+                            component.log_identifier,
+                            sub_task_id,
+                            a2a_response.error.message,
+                        )
+                        correlation_data = await component._get_correlation_data_for_sub_task(
+                            sub_task_id
+                        )
+                        if correlation_data:
+                            original_task_context = correlation_data.get(
+                                "original_task_context", {}
+                            )
+                            peer_agent_name = correlation_data.get(
+                                "peer_agent_name", "A peer agent"
+                            )
+                            custom_message = (
+                                f"The `{peer_agent_name}` agent reached its processing limit for a sub-task. "
+                                "The overall task may be incomplete. "
+                                "You can type 'continue' to let the main agent proceed with the information it has, "
+                                "or you can start a new topic."
+                            )
+                            from google.adk.agents.invocation_context import (
+                                LlmCallsLimitExceededError,
+                            )
+
+                            llm_limit_error = LlmCallsLimitExceededError(
+                                a2a_response.error.message
+                            )
+                            loop = component.get_async_loop()
+                            if loop and loop.is_running():
+                                asyncio.run_coroutine_threadsafe(
+                                    component.finalize_task_limit_reached(
+                                        original_task_context,
+                                        llm_limit_error,
+                                        custom_message=custom_message,
+                                    ),
+                                    loop,
+                                )
+                                message.call_acknowledgements()
+                                return
+                        else:
+                            log.error(
+                                "%s Could not retrieve correlation data for sub-task %s after LLM limit error. Cannot finalize task.",
+                                component.log_identifier,
+                                sub_task_id,
+                            )
+                    
+                    # Normal error handling for other types of errors
                     payload_to_queue = {
                         "error": a2a_response.error.message,
                         "code": a2a_response.error.code,
