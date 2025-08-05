@@ -4,7 +4,7 @@ This document outlines the files to be modified and created to implement the pas
 
 ## Files to Modify
 
-1. [ ] **`src/solace_agent_mesh/agent/tools/peer_agent_tool.py`**
+1. [x] **`src/solace_agent_mesh/agent/tools/peer_agent_tool.py`**
     -   Change the `data_artifacts` parameter to `artifacts` to accept artifact identifiers (filename/version).
     -   Stop loading artifact content; instead, place the identifiers into the A2A message metadata.
 
