@@ -16,6 +16,7 @@ from ...common.types import (
     AgentCard,
 )
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
+from ...common.exceptions import MessageSizeExceededError
 
 PEER_TOOL_PREFIX = "peer_"
 CORRELATION_DATA_PREFIX = "a2a_subtask_"
@@ -259,16 +260,28 @@ class PeerAgentTool(BaseTool):
                 component=self.host_component,
             )
 
-            self.host_component.submit_a2a_task(
-                target_agent_name=self.target_agent_name,
-                a2a_message=a2a_message,
-                original_session_id=original_session_id,
-                main_logical_task_id=main_logical_task_id,
-                user_id=user_id,
-                user_config=user_config,
-                sub_task_id=sub_task_id,
-                function_call_id=tool_context.function_call_id,
-            )
+            try:
+                self.host_component.submit_a2a_task(
+                    target_agent_name=self.target_agent_name,
+                    a2a_message=a2a_message,
+                    original_session_id=original_session_id,
+                    main_logical_task_id=main_logical_task_id,
+                    user_id=user_id,
+                    user_config=user_config,
+                    sub_task_id=sub_task_id,
+                    function_call_id=tool_context.function_call_id,
+                )
+            except MessageSizeExceededError as e:
+                log.error(
+                    "%s Message size exceeded for peer agent request: %s",
+                    log_identifier,
+                    e,
+                )
+                return {
+                    "status": "error",
+                    "message": f"Error: {str(e)}. Message size exceeded for peer agent request.",
+                }
+
             log.info(
                 "%s Registered active peer sub-task %s for main task %s.",
                 log_identifier,

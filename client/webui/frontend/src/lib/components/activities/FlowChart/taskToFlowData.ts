@@ -31,6 +31,9 @@ import {
 } from "./taskToFlowData.helpers";
 import { EdgeAnimationService } from "./edgeAnimationService";
 
+// Relevant step types that should be processed in the flow chart
+const RELEVANT_STEP_TYPES = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED"];
+
 interface FlowData {
     nodes: Node[];
     edges: Edge[];
@@ -352,7 +355,7 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
             // 3. Connect ALL completed parallel agents to this single join node.
             sourceSubflows.forEach(subflow => {
                 createTimelineEdge(
-                    subflow.peerAgent.id,
+                    subflow.lastSubflow?.peerAgent.id ?? subflow.peerAgent.id,
                     joinNode.id,
                     step, // Use the final step as the representative event for the join
                     edges,
@@ -385,7 +388,11 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
         } else {
             // Peer-to-peer sequential return.
             manager.indentationLevel = Math.max(0, manager.indentationLevel - 1);
-            const newSubflow = startNewSubflow(manager, targetAgentName, step, nodes, false);
+
+            // Check if we need to consider parallel flow context for this return
+            const isWithinParallelContext = isParallelFlow(step, manager) || Array.from(manager.parallelFlows.values()).some(pf => pf.subflowFunctionCallIds.some(id => currentPhase.subflows.some(sf => sf.functionCallId === id)));
+
+            const newSubflow = startNewSubflow(manager, targetAgentName, step, nodes, isWithinParallelContext);
             if (newSubflow) {
                 createTimelineEdge(sourceAgent.id, newSubflow.peerAgent.id, step, edges, manager, edgeAnimationService, processedSteps, "peer-bottom-output", "peer-top-input");
             }
@@ -655,9 +662,7 @@ export const transformProcessedStepsToTimelineFlow = (processedSteps: Visualizer
         indentationStep: 50, // Pixels to indent per level
     };
 
-    const relevantStepTypes = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED"];
-
-    const filteredSteps = processedSteps.filter(step => relevantStepTypes.includes(step.type));
+    const filteredSteps = processedSteps.filter(step => RELEVANT_STEP_TYPES.includes(step.type));
 
     for (const step of filteredSteps) {
         // Special handling for AGENT_LLM_RESPONSE_TOOL_DECISION if it's a peer delegation trigger

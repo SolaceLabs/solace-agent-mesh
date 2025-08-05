@@ -341,6 +341,13 @@ class SamAgentApp(App):
                 "description": "Minimum size in bytes for accumulated text from LLM stream before sending a status update. If 0 or less, batching is disabled and updates are sent per chunk. Final LLM chunks are always sent regardless of this threshold.",
             },
             {
+                "name": "max_message_size_bytes",
+                "required": False,
+                "type": "integer",
+                "default": 10_000_000,
+                "description": "Maximum allowed message size in bytes before rejecting publication to prevent broker disconnections. Default: 10MB",
+            },
+            {
                 "name": "enable_artifact_content_instruction",
                 "required": False,
                 "type": "boolean",

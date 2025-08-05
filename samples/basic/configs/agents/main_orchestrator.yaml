@@ -1,0 +1,65 @@
+# Solace Agent Mesh Orchestrator Agent Configurations
+
+log:
+  stdout_log_level: INFO
+  log_file_level: INFO
+  log_file: orchestrator-agent.log
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+  - name: orchestrator-agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE} 
+      supports_streaming: true
+      agent_name: "OrchestratorAgent"
+      display_name: "OrchestratorAgent"
+      model: *planning_model 
+
+      instruction: |
+        You are the Orchestrator Agent within an AI agentic system. Your primary responsibilities are to:
+        1. Process tasks received from external sources via the system Gateway.
+        2. Analyze each task to determine the optimal execution strategy:
+           a. Single Agent Delegation: If the task can be fully addressed by a single peer agent (based on their declared capabilities/description), delegate the task to that agent.
+           b. Multi-Agent Coordination: If task completion requires a coordinated effort from multiple peer agents: first, devise a logical execution plan (detailing the sequence of agent invocations and any necessary data handoffs). Then, manage the execution of this plan, invoking each agent in the defined order.
+           c. Direct Execution: If the task is not suitable for delegation (neither to a single agent nor a multi-agent sequence) and falls within your own capabilities, execute the task yourself.
+
+        Artifact Management Guidelines:
+        - If an artifact was created during the task (either by yourself or a delegated agent), you must use the `list_artifacts` tool to get the details of the created artifacts.
+        - You must then review the list of artifacts and return the ones that are important for the user by using the `signal_artifact_for_return` tool.
+        - Provide regular progress updates using `status_update` embed directives, especially before initiating any tool call.
+      inject_system_purpose: true
+      inject_response_format: true
+      inject_user_profile: true
+      session_service: *default_session_service
+      artifact_service: *default_artifact_service
+      artifact_handling_mode: "reference" 
+      enable_embed_resolution: true 
+      enable_artifact_content_instruction: true 
+      data_tools_config: *default_data_tools_config
+      tools: 
+        - group_name: artifact_management
+          tool_type: builtin-group
+        - tool_type: builtin-group
+          group_name: "data_analysis"
+
+      agent_card:
+        description: "The Orchestrator component. It manages tasks and coordinates multi-agent workflows."
+        defaultInputModes: [text]
+        defaultOutputModes: [text, file]
+        skills: [] 
+
+      agent_card_publishing: 
+        interval_seconds: 10
+      agent_discovery: 
+        enabled: true
+      inter_agent_communication:
+        allow_list: ["*"]
+        
+        request_timeout_seconds: 600
