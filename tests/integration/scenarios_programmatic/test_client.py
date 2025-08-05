@@ -81,7 +81,7 @@ mock_sse_task_response = {
     }
 }
 
-mock_task_callback_response =  {
+mock_task_callback_response = {
     "id": "task-123",
     "pushNotificationConfig": PushNotificationConfig(
         url="http://test.com/notify",
