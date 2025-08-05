@@ -50,8 +50,6 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
     const { highlightedStepId, setHighlightedStepId } = useTaskContext();
     const { taskIdInSidePanel } = useChatContext();
 
-    console.log(processedSteps);
-
     const prevProcessedStepsRef = useRef<VisualizerStep[]>([]);
     const [hasUserInteracted, setHasUserInteracted] = useState(false);
 

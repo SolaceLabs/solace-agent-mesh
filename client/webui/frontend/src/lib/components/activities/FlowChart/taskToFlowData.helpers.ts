@@ -188,7 +188,6 @@ export function findSubflowBySubTaskId(context: TimelineLayoutManager, subTaskId
     if (!subTaskId) return null;
     const phase = getCurrentPhase(context);
     if (!phase) return null;
-    // Find the first subflow that matches the subTaskId
     return phase.subflows.findLast(sf => sf.id === subTaskId) || null;
 }
 
@@ -196,44 +195,35 @@ export function findSubflowBySubTaskId(context: TimelineLayoutManager, subTaskId
 export function resolveSubflowContext(manager: TimelineLayoutManager, step: VisualizerStep): SubflowContext | null {
     const currentSubflow = getCurrentSubflow(manager);
 
-    // Strategy 1: Match currentSubflow AND step.source name
+    if (step.owningTaskId && step.isSubTaskStep) {
+        const taskMatch = findSubflowBySubTaskId(manager, step.owningTaskId);
+        const subflows = getCurrentPhase(manager)?.subflows || [];
+        const subflowIdHasDuplicate = new Set(subflows.map(sf => sf.id)).size !== subflows.length;
+        if (taskMatch && !subflowIdHasDuplicate) {
+            return taskMatch;
+        }
+    }
+
     if (currentSubflow && step.source) {
         // Check if the current subflow's peer agent name matches the step source
         const normalizedStepSource = step.source.replace(/[^a-zA-Z0-9_]/g, "_");
         const normalizedStepTarget = step.target?.replace(/[^a-zA-Z0-9_]/g, "_");
         const peerAgentId = currentSubflow.peerAgent.id;
         if (peerAgentId.includes(normalizedStepSource) || (normalizedStepTarget && peerAgentId.includes(normalizedStepTarget))) {
-            console.log("Match found for currentSubflow and step.source:", step.source);
             return currentSubflow;
         }
     }
 
-    // Strategy 2: Direct function call ID match (for parallel flows)
     if (step.functionCallId) {
         const directMatch = findSubflowByFunctionCallId(manager, step.functionCallId);
         if (directMatch) {
-            console.log("Direct match found for functionCallId:", step.functionCallId);
             return directMatch;
         }
     }
 
-    // Strategy 3: Match by owning task ID (for nested delegations)
-    if (step.owningTaskId && step.isSubTaskStep) {
-        const taskMatch = findSubflowBySubTaskId(manager, step.owningTaskId);
-        if (taskMatch) {
-            console.log("Match found for owningTaskId:", step.owningTaskId);
-            return taskMatch;
-        }
-    }
-
-    // Strategy 4: Return the currentSubflow as the last resort
     if (currentSubflow) {
-        console.log("Using currentSubflow as last resort");
         return currentSubflow;
     }
-
-    console.log("No matching subflow found for step:", step.id);
-
     return null;
 }
 
@@ -404,7 +394,7 @@ export function startNewSubflow(manager: TimelineLayoutManager, peerAgentName: s
         manager.indentationLevel++;
     }
 
-    const subflowId = step.delegationInfo?.[0]?.subTaskId || `subflow_${currentPhase.subflows.length}`;
+    const subflowId = step.delegationInfo?.[0]?.subTaskId || step.owningTaskId;
     const peerAgentNodeId = generateNodeId(manager, `${peerAgentName}_${subflowId}`);
     const groupNodeId = generateNodeId(manager, `group_${peerAgentName}_${subflowId}`);
 
@@ -510,7 +500,6 @@ export function startNewSubflow(manager: TimelineLayoutManager, peerAgentName: s
     } else {
         manager.nextAvailableGlobalY = newSubflow.groupNode.yPosition + newSubflow.groupNode.height + VERTICAL_SPACING;
     }
-
     return newSubflow;
 }
 
@@ -631,10 +620,10 @@ export function createNewToolNodeInContext(
             };
         }
 
-        manager.nextAvailableGlobalY = subflow.groupNode.yPosition + subflow.groupNode.height + VERTICAL_SPACING;
+        manager.nextAvailableGlobalY = Math.max(manager.nextAvailableGlobalY, subflow.groupNode.yPosition + subflow.groupNode.height + VERTICAL_SPACING);
     } else {
         currentPhase.maxY = Math.max(currentPhase.maxY, newMaxYInContext);
-        manager.nextAvailableGlobalY = currentPhase.maxY + VERTICAL_SPACING;
+        manager.nextAvailableGlobalY = Math.max(manager.nextAvailableGlobalY, currentPhase.maxY + VERTICAL_SPACING);
     }
 
     return toolInstance;
@@ -671,7 +660,6 @@ export function createNewUserNodeAtBottom(manager: TimelineLayoutManager, curren
     // Update layout tracking
     const newMaxY = userNodeY + NODE_HEIGHT;
     currentPhase.maxY = Math.max(currentPhase.maxY, newMaxY);
-    manager.nextAvailableGlobalY = newMaxY + VERTICAL_SPACING;
 
     return userNodeInstance;
 }
