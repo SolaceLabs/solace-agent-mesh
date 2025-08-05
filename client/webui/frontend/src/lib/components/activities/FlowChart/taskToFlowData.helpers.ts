@@ -57,6 +57,10 @@ export interface SubflowContext {
     maxY: number; // Max Y (absolute) reached by elements within this subflow group
     maxContentXRelative: number; // Max X reached by content relative to group's left edge
     callingPhaseId: string;
+    // Parent context tracking for nested parallel flows
+    parentSubflowId?: string; // ID of the parent subflow (if nested)
+    inheritedXOffset?: number; // X offset inherited from parent parallel flow
+    lastSubflow?: SubflowContext; // Last subflow context for this subflow for nested flows
 }
 
 export interface ParallelFlowContext {
@@ -177,28 +181,39 @@ export function findSubflowByFunctionCallId(context: TimelineLayoutManager, func
     const phase = getCurrentPhase(context);
     if (!phase) return null;
 
-    // Find ALL matching subflows
-    const matchingSubflows = phase.subflows.filter(sf => sf.functionCallId === functionCallId);
-
-    if (matchingSubflows.length === 0) {
-        return null;
-    }
-
-    // Return the last one in the array, as it's the most recently created instance.
-    return matchingSubflows[matchingSubflows.length - 1];
+    return phase.subflows.findLast(sf => sf.functionCallId === functionCallId) || null;
 }
 
 export function findSubflowBySubTaskId(context: TimelineLayoutManager, subTaskId: string | undefined): SubflowContext | null {
     if (!subTaskId) return null;
     const phase = getCurrentPhase(context);
     if (!phase) return null;
-
-    return phase.subflows.find(sf => sf.id === subTaskId) || null;
+    return phase.subflows.findLast(sf => sf.id === subTaskId) || null;
 }
 
 // Enhanced context resolution with multiple fallback strategies
 export function resolveSubflowContext(manager: TimelineLayoutManager, step: VisualizerStep): SubflowContext | null {
-    // Strategy 1: Direct function call ID match (for parallel flows)
+    const currentSubflow = getCurrentSubflow(manager);
+
+    if (step.owningTaskId && step.isSubTaskStep) {
+        const taskMatch = findSubflowBySubTaskId(manager, step.owningTaskId);
+        const subflows = getCurrentPhase(manager)?.subflows || [];
+        const subflowIdHasDuplicate = new Set(subflows.map(sf => sf.id)).size !== subflows.length;
+        if (taskMatch && !subflowIdHasDuplicate) {
+            return taskMatch;
+        }
+    }
+
+    if (currentSubflow && step.source) {
+        // Check if the current subflow's peer agent name matches the step source
+        const normalizedStepSource = step.source.replace(/[^a-zA-Z0-9_]/g, "_");
+        const normalizedStepTarget = step.target?.replace(/[^a-zA-Z0-9_]/g, "_");
+        const peerAgentId = currentSubflow.peerAgent.id;
+        if (peerAgentId.includes(normalizedStepSource) || (normalizedStepTarget && peerAgentId.includes(normalizedStepTarget))) {
+            return currentSubflow;
+        }
+    }
+
     if (step.functionCallId) {
         const directMatch = findSubflowByFunctionCallId(manager, step.functionCallId);
         if (directMatch) {
@@ -206,49 +221,10 @@ export function resolveSubflowContext(manager: TimelineLayoutManager, step: Visu
         }
     }
 
-    // Strategy 2: Match by owning task ID (for nested delegations)
-    if (step.owningTaskId && step.isSubTaskStep) {
-        const taskMatch = findSubflowBySubTaskId(manager, step.owningTaskId);
-        if (taskMatch) {
-            return taskMatch;
-        }
-    }
-
-    // Strategy 3: Use current subflow context (for sequential flows)
-    const currentSubflow = getCurrentSubflow(manager);
     if (currentSubflow) {
-        // Verify this is the right context by checking nesting level
-        if (step.nestingLevel > 0 && step.isSubTaskStep) {
-            return currentSubflow;
-        }
-    }
-
-    // Strategy 4: Find by agent name and nesting level
-    if (step.source && step.nestingLevel > 0) {
-        const agentMatch = findSubflowByAgentAndLevel(manager, step.source, step.nestingLevel);
-        if (agentMatch) {
-            return agentMatch;
-        }
+        return currentSubflow;
     }
     return null;
-}
-
-// Find subflow by agent name and nesting level
-export function findSubflowByAgentAndLevel(manager: TimelineLayoutManager, agentName: string, nestingLevel: number): SubflowContext | null {
-    const currentPhase = getCurrentPhase(manager);
-    if (!currentPhase) return null;
-
-    // Normalize agent name
-    const normalizedAgentName = agentName.replace(/[^a-zA-Z0-9_]/g, "_");
-
-    // For nesting level 1, look in current phase subflows
-    if (nestingLevel === 1) {
-        const subflow = currentPhase.subflows.find(sf => sf.peerAgent.id.includes(normalizedAgentName));
-        if (subflow) return subflow;
-    }
-
-    // For higher nesting levels, use current subflow as fallback
-    return getCurrentSubflow(manager);
 }
 
 // Enhanced subflow finder by sub-task ID with better matching
@@ -306,6 +282,60 @@ export function findToolInstanceByNameEnhanced(toolInstances: NodeInstance[], to
     return findToolInstanceByName(toolInstances, toolName, nodes);
 }
 
+// Helper function to find parent parallel subflow context (recursive)
+export function findParentParallelSubflow(manager: TimelineLayoutManager, sourceAgentName: string, targetAgentName: string): SubflowContext | null {
+    const currentPhase = getCurrentPhase(manager);
+    if (!currentPhase) return null;
+
+    const normalizedSourceAgentName = sourceAgentName.replace(/[^a-zA-Z0-9_]/g, "_");
+    const normalizedTargeAgentName = targetAgentName?.replace(/[^a-zA-Z0-9_]/g, "_");
+
+    let matchedSubflow: SubflowContext | null = null;
+    for (const subflow of currentPhase.subflows) {
+        if (subflow.peerAgent.id.includes(normalizedSourceAgentName) || (normalizedTargeAgentName && subflow.peerAgent.id.includes(normalizedTargeAgentName))) {
+            matchedSubflow = subflow;
+            break;
+        }
+    }
+
+    if (!matchedSubflow) return null;
+
+    // If the source subflow is parallel, return it
+    if (matchedSubflow.isParallel) {
+        return matchedSubflow;
+    }
+
+    // If the source subflow is not parallel but has a parent, recursively look up
+    if (matchedSubflow.parentSubflowId) {
+        const parentSubflow = currentPhase.subflows.find(sf => sf.id === matchedSubflow.parentSubflowId);
+        if (parentSubflow && parentSubflow.isParallel) {
+            return parentSubflow;
+        }
+        // Recursively check parent's parent (for deeper nesting)
+        if (parentSubflow) {
+            return findParentParallelSubflowRecursive(currentPhase, parentSubflow);
+        }
+    }
+
+    return null;
+}
+
+// Helper function for recursive parent lookup
+function findParentParallelSubflowRecursive(currentPhase: PhaseContext, subflow: SubflowContext): SubflowContext | null {
+    if (subflow.isParallel) {
+        return subflow;
+    }
+
+    if (subflow.parentSubflowId) {
+        const parentSubflow = currentPhase.subflows.find(sf => sf.id === subflow.parentSubflowId);
+        if (parentSubflow) {
+            return findParentParallelSubflowRecursive(currentPhase, parentSubflow);
+        }
+    }
+
+    return null;
+}
+
 export function createNewMainPhase(manager: TimelineLayoutManager, orchestratorName: string, step: VisualizerStep, nodes: Node[]): PhaseContext {
     const phaseId = `phase_${manager.phases.length}`;
     const orchestratorNodeId = generateNodeId(manager, `${orchestratorName}_${phaseId}`);
@@ -357,13 +387,14 @@ export function startNewSubflow(manager: TimelineLayoutManager, peerAgentName: s
     const isPeerReturn = step.type === "AGENT_TOOL_EXECUTION_RESULT" && step.data.toolResult?.isPeerResponse === true;
 
     const sourceAgentName = step.source || "";
+    const targetAgentName = step.target || "";
     const isFromOrchestrator = isOrchestratorAgent(sourceAgentName);
 
     if (!isPeerReturn && !isFromOrchestrator && !isParallel) {
         manager.indentationLevel++;
     }
 
-    const subflowId = step.delegationInfo?.[0]?.subTaskId || `subflow_${currentPhase.subflows.length}`;
+    const subflowId = step.delegationInfo?.[0]?.subTaskId || step.owningTaskId;
     const peerAgentNodeId = generateNodeId(manager, `${peerAgentName}_${subflowId}`);
     const groupNodeId = generateNodeId(manager, `group_${peerAgentName}_${subflowId}`);
 
@@ -375,12 +406,26 @@ export function startNewSubflow(manager: TimelineLayoutManager, peerAgentName: s
 
     const parallelFlow = Array.from(manager.parallelFlows.values()).find(p => p.subflowFunctionCallIds.includes(invocationFunctionCallId));
 
+    // Find the current subflow context (the immediate parent of this new subflow)
+    const currentSubflow = getCurrentSubflow(manager);
+
+    // Check for parent parallel context
+    const parentParallelSubflow = findParentParallelSubflow(manager, sourceAgentName, targetAgentName);
+
     if (isParallel && parallelFlow) {
+        // Standard parallel flow positioning
         groupNodeX = parallelFlow.startX + parallelFlow.currentXOffset;
         groupNodeY = parallelFlow.startY;
         peerAgentY = groupNodeY + GROUP_PADDING_Y;
         parallelFlow.currentXOffset += (NODE_WIDTH + GROUP_PADDING_X) * 2.2;
+    } else if (parentParallelSubflow) {
+        // Nested flow within parallel context - inherit parent's X offset
+        peerAgentY = manager.nextAvailableGlobalY;
+        const baseX = parentParallelSubflow.groupNode.xPosition || LANE_X_POSITIONS.MAIN_FLOW - 50;
+        groupNodeX = baseX + manager.indentationLevel * manager.indentationStep;
+        groupNodeY = peerAgentY - GROUP_PADDING_Y;
     } else {
+        // Standard sequential flow positioning
         peerAgentY = manager.nextAvailableGlobalY;
         const baseX = LANE_X_POSITIONS.MAIN_FLOW - 50;
         groupNodeX = baseX + manager.indentationLevel * manager.indentationStep;
@@ -439,8 +484,14 @@ export function startNewSubflow(manager: TimelineLayoutManager, peerAgentName: s
         maxY: peerAgentY + NODE_HEIGHT,
         maxContentXRelative: peerAgentNode.position.x + NODE_WIDTH,
         callingPhaseId: currentPhase.id,
+        // Add parent context tracking
+        parentSubflowId: currentSubflow?.id,
+        inheritedXOffset: parentParallelSubflow?.groupNode.xPosition,
     };
     currentPhase.subflows.push(newSubflow);
+    if (parentParallelSubflow) {
+        parentParallelSubflow.lastSubflow = newSubflow; // Track last subflow for nested flows
+    }
     manager.currentSubflowIndex = currentPhase.subflows.length - 1;
 
     if (isParallel && parallelFlow) {
@@ -449,7 +500,6 @@ export function startNewSubflow(manager: TimelineLayoutManager, peerAgentName: s
     } else {
         manager.nextAvailableGlobalY = newSubflow.groupNode.yPosition + newSubflow.groupNode.height + VERTICAL_SPACING;
     }
-
     return newSubflow;
 }
 
@@ -570,10 +620,10 @@ export function createNewToolNodeInContext(
             };
         }
 
-        manager.nextAvailableGlobalY = subflow.groupNode.yPosition + subflow.groupNode.height + VERTICAL_SPACING;
+        manager.nextAvailableGlobalY = Math.max(manager.nextAvailableGlobalY, subflow.groupNode.yPosition + subflow.groupNode.height + VERTICAL_SPACING);
     } else {
         currentPhase.maxY = Math.max(currentPhase.maxY, newMaxYInContext);
-        manager.nextAvailableGlobalY = currentPhase.maxY + VERTICAL_SPACING;
+        manager.nextAvailableGlobalY = Math.max(manager.nextAvailableGlobalY, currentPhase.maxY + VERTICAL_SPACING);
     }
 
     return toolInstance;
@@ -610,7 +660,6 @@ export function createNewUserNodeAtBottom(manager: TimelineLayoutManager, curren
     // Update layout tracking
     const newMaxY = userNodeY + NODE_HEIGHT;
     currentPhase.maxY = Math.max(currentPhase.maxY, newMaxY);
-    manager.nextAvailableGlobalY = newMaxY + VERTICAL_SPACING;
 
     return userNodeInstance;
 }
