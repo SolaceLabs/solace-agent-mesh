@@ -448,11 +448,26 @@ def convert_data(
         elif current_format == DataFormat.JSON_OBJECT:
             if target_format == DataFormat.STRING:
                 try:
-                    return (
-                        json.dumps(current_data, separators=(",", ":")),
-                        DataFormat.STRING,
-                        None,
-                    )
+                    # Special handling for arrays of strings - convert to newline-separated format
+                    # This fixes the issue where jsonpath results need to be processed line-by-line by grep
+                    if isinstance(current_data, list) and all(
+                        isinstance(item, str) for item in current_data
+                    ):
+                        result = "\n".join(current_data)
+                        log.error(
+                            "%s [DEBUG] Converted array of strings to newline-separated format: %s",
+                            log_id,
+                            result[:100] + ("..." if len(result) > 100 else ""),
+                        )
+                        return result, DataFormat.STRING, None
+                    else:
+                        result = json.dumps(current_data, separators=(",", ":"))
+                        log.error(
+                            "%s [DEBUG] Converted JSON object to JSON string: %s",
+                            log_id,
+                            result[:100] + ("..." if len(result) > 100 else ""),
+                        )
+                        return result, DataFormat.STRING, None
                 except TypeError as e:
                     return (
                         current_data,

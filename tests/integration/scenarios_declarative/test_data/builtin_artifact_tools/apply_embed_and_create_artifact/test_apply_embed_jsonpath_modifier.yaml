@@ -72,9 +72,9 @@ expected_gateway_output:
         user_id: "declarative_apply_embed_jsonpath_tester@example.com"
         session_id: "session_apply_embed_jsonpath_001"
         version: 0
-        expected_content_text: "[\"Extracted Name\"]" # The string value of the 'name' field
+        expected_content_text: "\"Extracted Name\"" # The string value of the 'name' field
         expected_metadata_contains:
           mime_type: "text/plain"
           # size_bytes should be length of "Extracted Name" (18) plus brackets and quotes
-          size_bytes: 18
+          size_bytes: 16
           source_directive: "«artifact_content:source_for_jsonpath.json>>>jsonpath:$.name»"

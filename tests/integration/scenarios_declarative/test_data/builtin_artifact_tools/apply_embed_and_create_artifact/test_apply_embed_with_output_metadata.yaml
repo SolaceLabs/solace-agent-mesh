@@ -38,7 +38,7 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "apply_embed_and_create_artifact"
-                  arguments: '{"output_filename": "output_with_meta.txt", "embed_directive": "«artifact_content:source_for_meta.txt»", "output_metadata": {"custom_key": "custom_value", "description": "Output with custom metadata"}}'
+                  arguments: '{"output_filename": "output_with_meta.txt", "embed_directive": "«artifact_content:source_for_meta.txt»", "output_metadata_json": "{\"custom_key\": \"custom_value\", \"description\": \"Output with custom metadata\"}"}'
           finish_reason: "tool_calls"
 
   # Step 2: LLM receives tool result and formulates final response
