@@ -9,6 +9,7 @@ __pycache__
 docker-compose-local.yaml
 Makefile
 Dockerfile
+node_modules
 venv
 .venv
 .venv*
@@ -24,3 +25,4 @@ trace_*
 dist
 build
 tmp
+var

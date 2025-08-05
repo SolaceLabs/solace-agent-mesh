@@ -30,7 +30,7 @@ AGENT_DEFAULTS = {
     "supports_streaming": True,
     "model_type": "general",
     "instruction": "You are a helpful AI assistant named __AGENT_NAME__.",
-    "artifact_handling_mode": "embed",
+    "artifact_handling_mode": "reference",
     "enable_embed_resolution": True,
     "enable_artifact_content_instruction": True,
     "tools": "[]",

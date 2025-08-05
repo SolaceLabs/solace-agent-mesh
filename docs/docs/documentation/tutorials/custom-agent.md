@@ -708,7 +708,7 @@ apps:
       session_service: *default_session_service
       artifact_service: *default_artifact_service
 
-      artifact_handling_mode: "embed"
+      artifact_handling_mode: "reference"
       enable_embed_resolution: true
       enable_artifact_content_instruction: true
       # Agent card

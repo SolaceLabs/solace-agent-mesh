@@ -1,0 +1,66 @@
+shared_config:
+  - broker_connection: &broker_connection
+      dev_mode: ${SOLACE_DEV_MODE, false}
+      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8080}
+      broker_username: ${SOLACE_BROKER_USERNAME, default}
+      broker_password: ${SOLACE_BROKER_PASSWORD, default}
+      broker_vpn: ${SOLACE_BROKER_VPN, default}
+      temporary_queue: ${USE_TEMPORARY_QUEUES, true}
+
+  - models:
+    planning: &planning_model
+      # This dictionary structure tells ADK to use the LiteLlm wrapper.
+      # 'model' uses the specific model identifier your endpoint expects.
+      model: ${LLM_SERVICE_PLANNING_MODEL_NAME} # Use env var for model name
+      # 'api_base' tells LiteLLM where to send the request.
+      api_base: ${LLM_SERVICE_ENDPOINT} # Use env var for endpoint URL
+      # 'api_key' provides authentication.
+      api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
+
+    general: &general_model
+      # This dictionary structure tells ADK to use the LiteLlm wrapper.
+      # 'model' uses the specific model identifier your endpoint expects.
+      model: ${LLM_SERVICE_GENERAL_MODEL_NAME} # Use env var for model name
+      # 'api_base' tells LiteLLM where to send the request.
+      api_base: ${LLM_SERVICE_ENDPOINT} # Use env var for endpoint URL
+      # 'api_key' provides authentication.
+      api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
+
+    image_gen: &image_generation_model
+      # This dictionary structure tells ADK to use the LiteLlm wrapper.
+      # 'model' uses the specific model identifier your endpoint expects.
+      model: ${IMAGE_MODEL_NAME} # Use env var for model name
+      # 'api_base' tells LiteLLM where to send the request.
+      api_base: ${IMAGE_SERVICE_ENDPOINT} # Use env var for endpoint URL
+      # 'api_key' provides authentication.
+      api_key: ${IMAGE_SERVICE_API_KEY} # Use env var for API key
+
+    report_gen: &report_generation_model
+      # This dictionary structure tells ADK to use the LiteLlm wrapper.
+      # 'model' uses the specific model identifier your endpoint expects.
+      model: ${LLM_REPORT_MODEL_NAME} # Use env var for model name
+      # 'api_base' tells LiteLLM where to send the request.
+      api_base: ${LLM_SERVICE_ENDPOINT} # Use env var for endpoint URL
+      # 'api_key' provides authentication.
+      api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
+
+    multimodal: &multimodal_model  "gemini-2.5-flash-preview-04-17"
+    gemini_pro: &gemini_pro_model "gemini-2.5-pro-exp-03-25"
+
+  - services:
+    # Default session service configuration
+    session_service: &default_session_service
+      type: "memory"
+      default_behavior: "PERSISTENT"
+    
+    # Default artifact service configuration
+    artifact_service: &default_artifact_service
+      type: "filesystem"
+      base_path: "/tmp/samv2"
+      artifact_scope: namespace
+    
+    # Default data tools configuration
+    data_tools_config: &default_data_tools_config
+      sqlite_memory_threshold_mb: 100
+      max_result_preview_rows: 50
+      max_result_preview_bytes: 4096

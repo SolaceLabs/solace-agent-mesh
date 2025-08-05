@@ -114,5 +114,5 @@ For more information, see [Creating Custom Agents](../user-guide/create-agents.m
 
 You can also use agents built by the community or Solace directly in your app with little to no configuration.
 
-For more information, see [Use a Plugin](./plugins.md#use-a-plugins).
+For more information, see [Use a Plugin](./plugins.md#use-a-plugin).
 

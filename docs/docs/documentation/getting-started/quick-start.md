@@ -9,6 +9,24 @@ sidebar_position: 30
 Looking to get started with plugins? For more information, see the [Plugins](../concepts/plugins.md).
 :::
 
+<details>
+  <summary>Running Sample Applications</summary>
+
+  You can run pre-made sample applications to quickly get started with Solace Agent Mesh without needing to set up a project from scratch. These samples are available in the [`samples` directory of the Solace Agent Mesh repository](https://github.com/SolaceLabs/solace-agent-mesh/tree/main/samples).
+
+  :::tip[Running Sample Applications in Docker]
+  The sample applications come pre-packaged in the Solace Agent Mesh Docker image, located at `/samples` inside the container. You can run them using the following command:
+
+  ```sh
+  docker run --rm -it -p 8000:8000 --env-file <your-env-file-path> solace/solace-agent-mesh:latest run /samples/<sample-name>
+  ```
+  - Replace `<sample-name>` with the name of the sample you want to run, such as `core` or `basic`.
+  - Provide the environment variables required as specified in the sample's `env-template` file.
+  - Optionally, Update `--env-file <your-env-file-path>` to match your approach of providng environment variables
+  :::
+</details>
+
+
 To get started with Solace Agent Mesh, you must first create a project.
 
 ## Prerequisites
@@ -87,13 +105,6 @@ For example: `openai/llama-3.3-7b`
 This is the case for all the model names, such as LLMs, image generators, embedding models, etc.
 :::
 
-:::info[Running the project using Official Docker image]
-
-For deployments that use the official Docker image, ensure the following:
-- Do not use Solace PubSub+ broker container.
-- Set `FastAPI Host` to `0.0.0.0`.
-:::
-
 </details>
 
 ## Running the Project
@@ -120,6 +131,12 @@ docker run --rm -it -v "$(pwd):/app" -p 8000:8000 solace/solace-agent-mesh:lates
 ```
 
 If your host system architecture is not `linux/amd64`, add the `--platform linux/amd64` flag when you run the container.
+
+:::info[Required Configurations]
+For deployments that use the official Docker image, ensure the following:
+- Do not use a local Solace PubSub+ broker container.
+- Set the environment variables `FASTAPI_HOST="0.0.0.0"` in your `.env` file or system environment variables. This is necessary to expose the FastAPI server to the host machine. 
+:::
 
 :::warning
 If you are using third-party Python packages or Solace Agent Mesh plugins, you need to build a custom Docker image off the official image and install the required packages there, and then run that custom image instead.
@@ -161,6 +178,6 @@ Try adding a new agent to the system by following the tutorial on adding an [SQL
 
 Solace Agent Mesh uses two main types of components, **agents** and **gateways**. The system comes with a built-in orchestrator agent and a web user interface gateway (which you enabled during the `init` step).
 
-You can learn more about [gateways](../concepts/gateways.md). Alternatively, you can learn about [using plugins](../concepts/plugins.md#use-a-plugins) or [creating your own new gateways](../user-guide/create-gateways.md).
+You can learn more about [gateways](../concepts/gateways.md). Alternatively, you can learn about [using plugins](../concepts/plugins.md#use-a-plugin) or [creating your own new gateways](../user-guide/create-gateways.md).
 
 Also, you can learn more about [agents](../concepts/agents.md) or about [creating your own agents](../user-guide/create-agents.md).
