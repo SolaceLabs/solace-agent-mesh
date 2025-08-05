@@ -26,7 +26,7 @@ This document outlines the files to be modified and created to implement the pas
 
 ## New Test Files to Create
 
-1. [ ] `tests/integration/scenarios_declarative/test_data/multi_agent/delegation/test_peer_request_with_artifact.yaml`
-2. [ ] `tests/integration/scenarios_declarative/test_data/multi_agent/delegation/test_peer_response_with_artifact.yaml`
-3. [ ] `tests/integration/scenarios_declarative/test_data/multi_agent/delegation/test_peer_e2e_artifact_passing.yaml`
-4. [ ] `tests/integration/scenarios_declarative/test_data/multi_agent/delegation/test_peer_request_with_nonexistent_artifact.yaml`
+1. [x] `tests/integration/scenarios_declarative/test_data/multi_agent/delegation/test_peer_request_with_artifact.yaml`
+2. [x] `tests/integration/scenarios_declarative/test_data/multi_agent/delegation/test_peer_response_with_artifact.yaml`
+3. [x] `tests/integration/scenarios_declarative/test_data/multi_agent/delegation/test_peer_e2e_artifact_passing.yaml`
+4. [x] `tests/integration/scenarios_declarative/test_data/multi_agent/delegation/test_peer_request_with_nonexistent_artifact.yaml`
