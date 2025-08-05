@@ -42,7 +42,6 @@ class DatabasePersistenceService(PersistenceService):
                 message=message.get("content"),
                 sender_type=message.get("sender_type"),
                 sender_name=message.get("sender_name"),
-                parent_message_id=message.get("parent_message_id"),
             )
             session.add(chat_message)
             session.commit()
@@ -67,17 +66,6 @@ class DatabasePersistenceService(PersistenceService):
         )
         session.close()
         return [msg.to_dict() for msg in messages]
-
-    def get_latest_chat_message(self, session_id: str) -> dict:
-        session = self.Session()
-        message = (
-            session.query(ChatMessage)
-            .filter_by(session_id=session_id)
-            .order_by(ChatMessage.created_at.desc())
-            .first()
-        )
-        session.close()
-        return message.to_dict() if message else None
 
     def store_user_info(self, user_id: str, info: dict):
         session = self.Session()

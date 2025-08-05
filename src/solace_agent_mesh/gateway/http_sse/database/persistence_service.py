@@ -19,7 +19,3 @@ class PersistenceService(ABC):
         self, session_id: str, message: dict, user_id: str = None, agent_id: str = None
     ):
         pass
-
-    @abstractmethod
-    def get_latest_chat_message(self, session_id: str) -> dict:
-        pass

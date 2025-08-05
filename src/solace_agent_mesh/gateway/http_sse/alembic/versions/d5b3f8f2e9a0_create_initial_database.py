@@ -51,15 +51,9 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=True),
         sa.Column("sender_type", sa.String(), nullable=True),
         sa.Column("sender_name", sa.String(), nullable=True),
-        sa.Column("parent_message_id", sa.String(), nullable=True),
         sa.ForeignKeyConstraint(
             ["session_id"],
             ["sessions.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["parent_message_id"],
-            ["chat_messages.id"],
-            name="fk_chat_messages_parent_message_id",
         ),
         sa.PrimaryKeyConstraint("id"),
     )

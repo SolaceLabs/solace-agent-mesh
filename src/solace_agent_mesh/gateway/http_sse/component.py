@@ -1346,7 +1346,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
         files: Optional[List[UploadFile]] = external_event_data.get("files")
         client_id: str = external_event_data.get("client_id")
         a2a_session_id: str = external_event_data.get("a2a_session_id")
-
         if not target_agent_name:
             raise ValueError("Target agent name is missing in external_event_data.")
         if not client_id or not a2a_session_id:
@@ -1551,9 +1550,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             "content": agent_message_content,
                             "sender_type": "agent",
                             "sender_name": task_data.metadata.get("agent_name"),
-                            "parent_message_id": external_request_context.get(
-                                "parent_message_id"
-                            ),
                         },
                         user_id=external_request_context.get("user_id_for_a2a"),
                         agent_id=task_data.metadata.get("agent_name"),

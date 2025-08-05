@@ -189,6 +189,12 @@ class JSONRPCResponse(JSONRPCMessage):
     result: Any | None = None
     error: JSONRPCError | None = None
 
+    @field_serializer("error")
+    def serialize_error(self, error: JSONRPCError, _info):
+        if error is None:
+            return None
+        return {"code": error.code, "message": error.message, "data": error.data}
+
 
 class SendTaskRequest(JSONRPCRequest):
     method: Literal["tasks/send"] = "tasks/send"
@@ -273,7 +279,7 @@ class JSONParseError(JSONRPCError):
 
 
 class InvalidRequestError(JSONRPCError):
-    def __init__(self, data=None):
+    def __init__(self, message="Request payload validation error", data=None):
         super().__init__("Request payload validation error", -32600, data)
 
 

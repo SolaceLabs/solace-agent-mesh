@@ -39,6 +39,8 @@ from ...common.types import (
     InvalidRequestError,
 )
 
+from alembic.config import Config
+from alembic import command
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -59,6 +61,17 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
     """
     log.info("Setting up FastAPI dependencies, middleware, and routers...")
     dependencies.set_component_instance(component)
+    log.info("Running database migrations...")
+    alembic_cfg = Config()
+    alembic_cfg.set_main_option(
+        "script_location",
+        os.path.join(os.path.dirname(__file__), "alembic"),
+    )
+    alembic_cfg.set_main_option(
+        "sqlalchemy.url", persistence_service.engine.url.__str__()
+    )
+    command.upgrade(alembic_cfg, "head")
+    log.info("Database migrations complete.")
     dependencies.set_persistence_service(persistence_service)
 
     webui_app = component.get_app()
