@@ -454,19 +454,9 @@ def convert_data(
                         isinstance(item, str) for item in current_data
                     ):
                         result = "\n".join(current_data)
-                        log.error(
-                            "%s [DEBUG] Converted array of strings to newline-separated format: %s",
-                            log_id,
-                            result[:100] + ("..." if len(result) > 100 else ""),
-                        )
                         return result, DataFormat.STRING, None
                     else:
                         result = json.dumps(current_data, separators=(",", ":"))
-                        log.error(
-                            "%s [DEBUG] Converted JSON object to JSON string: %s",
-                            log_id,
-                            result[:100] + ("..." if len(result) > 100 else ""),
-                        )
                         return result, DataFormat.STRING, None
                 except TypeError as e:
                     return (
