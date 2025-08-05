@@ -35,9 +35,7 @@ class ChatMessage(Base):
     created_at = Column(DateTime, default=func.now())
     sender_type = Column(String)  # 'user' or 'llm'
     sender_name = Column(String)
-    parent_message_id = Column(String, ForeignKey("chat_messages.id"), nullable=True)
     session = relationship("Session", back_populates="messages")
-    parent_message = relationship("ChatMessage", remote_side=[id], backref="responses")
 
     def to_dict(self):
         return {
@@ -47,7 +45,6 @@ class ChatMessage(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "sender_type": self.sender_type,
             "sender_name": self.sender_name,
-            "parent_message_id": self.parent_message_id,
         }
 
 

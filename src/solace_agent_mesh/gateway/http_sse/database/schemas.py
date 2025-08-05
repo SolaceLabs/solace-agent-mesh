@@ -7,7 +7,6 @@ class ChatMessageBase(BaseModel):
     message: str
     sender_type: str
     sender_name: str
-    parent_message_id: Optional[str] = None
 
 
 class ChatMessageCreate(ChatMessageBase):

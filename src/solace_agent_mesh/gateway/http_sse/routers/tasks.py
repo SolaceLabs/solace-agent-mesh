@@ -154,7 +154,7 @@ async def subscribe_task_from_agent(
             log.info("%sNo session_id provided, creating a new one.", log_prefix)
             session_id = session_manager.start_new_a2a_session(request)
 
-        parent_message_id = persistence_service.store_chat_message(
+        persistence_service.store_chat_message(
             session_id=session_id,
             message={
                 "content": message,
@@ -175,7 +175,6 @@ async def subscribe_task_from_agent(
             "files": files,
             "client_id": client_id,
             "a2a_session_id": session_id,
-            "parent_message_id": parent_message_id,
         }
         (
             target_agent,
