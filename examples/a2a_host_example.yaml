@@ -45,7 +45,7 @@ apps:
         type: "filesystem"
         base_path: "/tmp/samv2"
         artifact_scope: namespace # Default scope, shares artifacts within the NAMESPACE
-      artifact_handling_mode: "embed" # Embed artifacts created by *this* agent
+      artifact_handling_mode: "reference" # Embed artifacts created by *this* agent
       enable_embed_resolution: true # Enable embed feature and instruction injection
       enable_artifact_content_instruction: true # Enable instruction for late-stage embed
       tools:
@@ -107,7 +107,7 @@ apps:
   #       # base_path: "/mnt/shared_project_x"
   #       # artifact_scope: custom
   #       # artifact_scope_value: "project_x_shared_files"
-  #     artifact_handling_mode: "embed" # Embed artifact data in A2A messages
+  #     artifact_handling_mode: "reference" # Embed artifact data in A2A messages
   #     enable_embed_resolution: true # Enable embed feature and instruction injection
   #     enable_artifact_content_instruction: true # Enable instruction for late-stage embed
   #     # Agent Card Definition (Simplified)

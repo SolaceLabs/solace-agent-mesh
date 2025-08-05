@@ -224,7 +224,7 @@ apps:
       artifact_service: *default_artifact_service
 
       # Artifact handling
-      artifact_handling_mode: "embed"
+      artifact_handling_mode: "reference"
       enable_embed_resolution: true
       enable_artifact_content_instruction: true
 
