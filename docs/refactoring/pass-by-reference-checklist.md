@@ -8,7 +8,7 @@ This document outlines the files to be modified and created to implement the pas
     -   Change the `data_artifacts` parameter to `artifacts` to accept artifact identifiers (filename/version).
     -   Stop loading artifact content; instead, place the identifiers into the A2A message metadata.
 
-2. [ ] **`src/solace_agent_mesh/agent/protocol/event_handlers.py`**
+2. [x] **`src/solace_agent_mesh/agent/protocol/event_handlers.py`**
     -   In `handle_a2a_request`, check for artifact identifiers in message metadata and enrich the LLM prompt with a metadata summary.
     -   In `handle_a2a_response`, replace the old summary logic with the new `generate_artifact_metadata_summary` helper.
 

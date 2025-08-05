@@ -32,6 +32,7 @@ from ...common.types import (
     TaskStatus,
     TaskState,
     DataPart,
+    TextPart,
     A2ARequest,
 )
 from ...common.a2a_protocol import (
@@ -44,6 +45,7 @@ from ...common.a2a_protocol import (
     _extract_text_from_parts,
 )
 from ...agent.utils.artifact_helpers import (
+    generate_artifact_metadata_summary,
     load_artifact_content_or_metadata,
 )
 from ...agent.adk.runner import run_adk_async_task_thread_wrapper
@@ -57,114 +59,6 @@ from google.adk.events import Event as ADKEvent
 from google.genai import types as adk_types
 
 
-async def _format_artifact_summary_from_manifest(
-    component: "SamAgentComponent",
-    produced_artifacts: List[Dict[str, Any]],
-    peer_agent_name: str,
-    correlation_data: Dict[str, Any],
-) -> str:
-    """
-    Loads metadata for a list of produced artifacts and formats it into a
-    human-readable YAML summary string.
-    """
-    if not produced_artifacts:
-        return ""
-
-    artifact_summary_lines = [
-        f"Peer agent `{peer_agent_name}` created {len(produced_artifacts)} artifact(s):"
-    ]
-
-    original_task_context = correlation_data.get("original_task_context", {})
-    user_id = original_task_context.get("user_id")
-    session_id = original_task_context.get("session_id")
-
-    if not (component.artifact_service and user_id and session_id):
-        log.warning(
-            "%s Cannot load artifact metadata: missing artifact_service or context.",
-            component.log_identifier,
-        )
-        for artifact_ref in produced_artifacts:
-            artifact_summary_lines.append(
-                f"- `{artifact_ref.get('filename')}` (v{artifact_ref.get('version')})"
-            )
-        return "\n".join(artifact_summary_lines)
-
-    peer_agent_name_for_artifact = peer_agent_name
-    if (
-        not peer_agent_name_for_artifact
-        or peer_agent_name_for_artifact == "A peer agent"
-    ):
-        log.warning(
-            "%s Peer agent name not in task metadata, using self agent name for artifact loading.",
-            component.log_identifier,
-        )
-        peer_agent_name_for_artifact = component.agent_name
-
-    for artifact_ref in produced_artifacts:
-        filename = artifact_ref.get("filename")
-        version = artifact_ref.get("version")
-        if not filename or version is None:
-            continue
-
-        try:
-            metadata_result = await load_artifact_content_or_metadata(
-                artifact_service=component.artifact_service,
-                app_name=peer_agent_name_for_artifact,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename,
-                version=version,
-                load_metadata_only=True,
-            )
-            if metadata_result.get("status") == "success":
-                metadata = metadata_result.get("metadata", {})
-                TRUNCATION_LIMIT_BYTES = 1024
-                TRUNCATION_MESSAGE = "\n... [truncated] ..."
-
-                try:
-                    formatted_metadata_str = yaml.safe_dump(
-                        metadata,
-                        default_flow_style=False,
-                        sort_keys=False,
-                        allow_unicode=True,
-                    )
-
-                    if (
-                        len(formatted_metadata_str.encode("utf-8"))
-                        > TRUNCATION_LIMIT_BYTES
-                    ):
-                        cutoff = TRUNCATION_LIMIT_BYTES - len(
-                            TRUNCATION_MESSAGE.encode("utf-8")
-                        )
-                        formatted_metadata_str = (
-                            formatted_metadata_str[:cutoff] + TRUNCATION_MESSAGE
-                        )
-
-                    summary_line = f"- `{filename}` (v{version}):\n  ```yaml\n{formatted_metadata_str}\n  ```"
-                    artifact_summary_lines.append(summary_line)
-                except Exception as e_format:
-                    log.error(
-                        "Error formatting metadata for %s v%s: %s",
-                        filename,
-                        version,
-                        e_format,
-                    )
-                    artifact_summary_lines.append(
-                        f"- `{filename}` (v{version}): Error formatting metadata."
-                    )
-            else:
-                artifact_summary_lines.append(
-                    f"- `{filename}` (v{version}): Could not load metadata."
-                )
-        except Exception as e_meta:
-            log.error(
-                "Error loading metadata for %s v%s: %s", filename, version, e_meta
-            )
-            artifact_summary_lines.append(
-                f"- `{filename}` (v{version}): Error loading metadata."
-            )
-
-    return "\n".join(artifact_summary_lines)
 
 
 def _register_peer_artifacts_in_parent_context(
@@ -610,8 +504,51 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 logical_task_id,
             )
 
+            a2a_message_for_adk = a2a_request.params.message
+            invoked_artifacts = (
+                a2a_message_for_adk.metadata.get("invoked_with_artifacts", [])
+                if a2a_message_for_adk.metadata
+                else []
+            )
+
+            if invoked_artifacts:
+                log.info(
+                    "%s Task %s invoked with %d artifact(s). Preparing context from metadata.",
+                    component.log_identifier,
+                    task_id,
+                    len(invoked_artifacts),
+                )
+                header_text = (
+                    "The user has provided the following artifacts as context for your task. "
+                    "Use the information contained within their metadata to complete your objective."
+                )
+                artifact_summary = await generate_artifact_metadata_summary(
+                    component=component,
+                    artifact_identifiers=invoked_artifacts,
+                    user_id=user_id,
+                    session_id=effective_session_id,
+                    app_name=agent_name,
+                    header_text=header_text,
+                )
+
+                task_description = _extract_text_from_parts(
+                    a2a_message_for_adk.parts
+                )
+                final_prompt = f"{task_description}\n\n{artifact_summary}"
+
+                a2a_message_for_adk = A2AMessage(
+                    role="user",
+                    parts=[TextPart(text=final_prompt)],
+                    metadata=a2a_message_for_adk.metadata,
+                )
+                log.debug(
+                    "%s Generated new prompt for task %s with artifact context.",
+                    component.log_identifier,
+                    task_id,
+                )
+
             adk_content = translate_a2a_to_adk_content(
-                a2a_request.params.message, component.log_identifier
+                a2a_message_for_adk, component.log_identifier
             )
 
             adk_session = await component.session_service.get_session(
@@ -1284,14 +1221,31 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                 peer_agent_name = task_obj.metadata.get(
                                     "agent_name", "A peer agent"
                                 )
-                                artifact_summary = (
-                                    await _format_artifact_summary_from_manifest(
-                                        component,
-                                        produced_artifacts,
-                                        peer_agent_name,
-                                        correlation_data,
-                                    )
+                                original_task_context = correlation_data.get(
+                                    "original_task_context", {}
                                 )
+                                user_id = original_task_context.get("user_id")
+                                session_id = original_task_context.get("session_id")
+
+                                header_text = f"Peer agent `{peer_agent_name}` created {len(produced_artifacts)} artifact(s):"
+
+                                if user_id and session_id:
+                                    artifact_summary = (
+                                        await generate_artifact_metadata_summary(
+                                            component=component,
+                                            artifact_identifiers=produced_artifacts,
+                                            user_id=user_id,
+                                            session_id=session_id,
+                                            app_name=peer_agent_name,
+                                            header_text=header_text,
+                                        )
+                                    )
+                                else:
+                                    log.warning(
+                                        "%s Could not generate artifact summary: missing user_id or session_id in correlation data.",
+                                        log_retrigger,
+                                    )
+                                    artifact_summary = ""
                                 # Bubble up the peer's artifacts to the parent context
                                 _register_peer_artifacts_in_parent_context(
                                     task_context, task_obj, log_retrigger
