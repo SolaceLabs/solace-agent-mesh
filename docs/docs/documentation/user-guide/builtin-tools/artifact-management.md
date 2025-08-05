@@ -39,7 +39,7 @@ The `artifact_handling_mode` setting in your `app_config` dictates the behavior 
 
 ```yaml
 # In your agent's app_config:
-artifact_handling_mode: "embed"
+artifact_handling_mode: "reference"
 ```
 
 ## 3. Tool Reference
