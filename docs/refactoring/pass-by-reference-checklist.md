@@ -18,7 +18,7 @@ This document outlines the files to be modified and created to implement the pas
 4. [x] **`src/solace_agent_mesh/gateway/base/component.py`**
     -   Update `submit_a2a_task` to pass `invoked_with_artifacts` from the external context into the A2A message metadata.
 
-5. [ ] **`sam-test-infrastructure/src/sam_test_infrastructure/gateway_interface/component.py`**
+5. [x] **`sam-test-infrastructure/src/sam_test_infrastructure/gateway_interface/component.py`**
     -   Update `_translate_external_input` to pass `invoked_with_artifacts` from the test definition into the external context.
 
 6. [ ] **`tests/integration/scenarios_declarative/test_declarative_runner.py`**

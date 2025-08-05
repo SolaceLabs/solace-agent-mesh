@@ -163,6 +163,10 @@ class TestGatewayComponent(BaseGatewayComponent):
                 test_provided_external_context["a2a_session_id"]
             )
 
+        invoked_artifacts = external_event.get("invoked_with_artifacts")
+        if invoked_artifacts:
+            constructed_external_context["invoked_with_artifacts"] = invoked_artifacts
+
         log.debug(
             "%s Translation complete. Target: %s, Parts: %d, Context: %s",
             log_id,
