@@ -714,7 +714,7 @@ MODIFIER_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     "jsonpath": {
         "function": _apply_jsonpath,
         "accepts": [DataFormat.JSON_OBJECT],
-        "produces": DataFormat.JSON_OBJECT,  # Can now produce single values or arrays
+        "produces": DataFormat.JSON_OBJECT,
     },
     "select_cols": {
         "function": _apply_select_cols,
