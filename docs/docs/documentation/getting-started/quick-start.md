@@ -15,13 +15,10 @@ Looking to get started with plugins? For more information, see the [Plugins](../
   You can run pre-made sample applications to quickly get started with Solace Agent Mesh without needing to set up a project from scratch. These samples are available in the [`samples` directory of the Solace Agent Mesh repository](https://github.com/SolaceLabs/solace-agent-mesh/tree/main/samples).
 
   :::tip[Running Sample Applications in Docker]
-  The sample applications come pre-packaged in Solace Agent Mesh Docker image. You can run them using the following command:
+  The sample applications come pre-packaged in the Solace Agent Mesh Docker image, located at `/samples/<sample-name>` inside the container. You can run them using the following command:
 
   ```sh
-  docker run --rm -it -p 8000:8000 solace/solace-agent-mesh:latest run /samples/<sample-name>
-  ```
-  - Replace `<sample-name>` with the name of the sample you want to run, such as `core` or `basic`.
-  - Provide the environment variables required as specified in the sample's `env-template` file.
+  docker run --rm -it -p 8000:8000 solace/solace-agent-mesh:latest run /samples/core
   :::
 </details>
 
