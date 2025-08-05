@@ -258,6 +258,7 @@ async def test_a2a_client_set_task_callback_response(httpx_mock: HTTPXMock):
     assert response.result.pushNotificationConfig.url == "http://test.com/notify"
     assert response.result.pushNotificationConfig.token == "test-token"
 
+@pytest.mark.asyncio
 async def test_a2a_client_get_task_callback_response(httpx_mock: HTTPXMock):
     assert mock_client.url == "http://test.com/test_path/agent.json"
     assert isinstance(mock_client, A2AClient)
