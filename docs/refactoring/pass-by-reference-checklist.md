@@ -12,7 +12,7 @@ This document outlines the files to be modified and created to implement the pas
     -   In `handle_a2a_request`, check for artifact identifiers in message metadata and enrich the LLM prompt with a metadata summary.
     -   In `handle_a2a_response`, replace the old summary logic with the new `generate_artifact_metadata_summary` helper.
 
-3. [ ] **`src/solace_agent_mesh/agent/utils/artifact_helpers.py`**
+3. [x] **`src/solace_agent_mesh/agent/utils/artifact_helpers.py`**
     -   Add the new `generate_artifact_metadata_summary` helper function.
 
 4. [ ] **`src/solace_agent_mesh/gateway/base/component.py`**
