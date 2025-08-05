@@ -18,10 +18,11 @@ Looking to get started with plugins? For more information, see the [Plugins](../
   The sample applications come pre-packaged in the Solace Agent Mesh Docker image, located at `/samples` inside the container. You can run them using the following command:
 
   ```sh
-  docker run --rm -it -p 8000:8000 solace/solace-agent-mesh:latest run /samples/<sample-name>
+  docker run --rm -it -p 8000:8000 --env-file <your-env-file-path> solace/solace-agent-mesh:latest run /samples/<sample-name>
   ```
   - Replace `<sample-name>` with the name of the sample you want to run, such as `core` or `basic`.
   - Provide the environment variables required as specified in the sample's `env-template` file.
+  - Optionally, Update `--env-file <your-env-file-path>` to match your approach of providng environment variables
   :::
 </details>
 
