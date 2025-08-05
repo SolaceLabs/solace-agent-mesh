@@ -17,8 +17,8 @@ apps:
     app_config:
       namespace: ${NAMESPACE}
       supports_streaming: true
-      agent_name: "Markitdown Agent"
-      display_name: "Markdown"
+      agent_name: "MarkitdownAgent"
+      display_name: "Markdown Agent"
       model: *general_model
       instruction: |
         The Markitdown Agent has the following capability:
