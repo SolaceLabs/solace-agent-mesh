@@ -1,6 +1,7 @@
 import json
 import logging
 import uuid
+from typing import Optional
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 from .persistence_service import PersistenceService
@@ -18,13 +19,15 @@ class DatabasePersistenceService(PersistenceService):
     def store_chat_message(
         self, session_id: str, message: dict, user_id: str = None, agent_id: str = None
     ):
-        self.logger.info(f"Storing chat message for session {session_id}")
+        self.logger.info("Storing chat message for session %s", session_id)
         session = self.Session()
         try:
             db_session = session.query(DbSession).filter_by(id=session_id).first()
             if not db_session:
                 self.logger.warning(
-                    f"Session {session_id} not found. Creating new session for user {user_id}."
+                    "Session %s not found. Creating new session for user %s.",
+                    session_id,
+                    user_id,
                 )
                 db_session = DbSession(
                     id=session_id, user_id=user_id, agent_id=agent_id
@@ -32,7 +35,9 @@ class DatabasePersistenceService(PersistenceService):
                 session.add(db_session)
             elif not db_session.agent_id and agent_id:
                 self.logger.info(
-                    f"Hydrating agent_id for session {session_id} with agent {agent_id}"
+                    "Hydrating agent_id for session %s with agent %s",
+                    session_id,
+                    agent_id,
                 )
                 db_session.agent_id = agent_id
 
@@ -46,11 +51,13 @@ class DatabasePersistenceService(PersistenceService):
             session.add(chat_message)
             session.commit()
             self.logger.info(
-                f"Successfully stored message {chat_message.id} for session {session_id}"
+                "Successfully stored message %s for session %s",
+                chat_message.id,
+                session_id,
             )
             return chat_message.id
-        except Exception as e:
-            self.logger.error(f"Error storing chat message: {e}")
+        except Exception:
+            self.logger.exception("Error storing chat message")
             session.rollback()
             raise
         finally:
@@ -79,13 +86,13 @@ class DatabasePersistenceService(PersistenceService):
         session.close()
 
     def create_session(self, session_id: str, user_id: str, agent_id: str = None):
-        self.logger.info(f"Creating session {session_id} for user {user_id}")
+        self.logger.info("Creating session %s for user %s", session_id, user_id)
         session = self.Session()
         try:
             # Ensure the user exists
             user = session.query(User).filter_by(id=user_id).first()
             if not user:
-                self.logger.info(f"User {user_id} not found. Creating new user.")
+                self.logger.info("User %s not found. Creating new user.", user_id)
                 user = User(id=user_id, info="{}")  # Create user with empty info
                 session.add(user)
 
@@ -93,14 +100,14 @@ class DatabasePersistenceService(PersistenceService):
             session.add(new_session)
             session.commit()
             self.logger.info(
-                f"Successfully created session {session_id} for user {user_id}"
+                "Successfully created session %s for user %s", session_id, user_id
             )
             return {
                 "id": new_session.id,
                 "created_at": new_session.created_at.isoformat(),
             }
-        except Exception as e:
-            self.logger.error(f"Error creating session: {e}")
+        except Exception:
+            self.logger.exception("Error creating session")
             session.rollback()
             raise
         finally:
@@ -117,7 +124,7 @@ class DatabasePersistenceService(PersistenceService):
         finally:
             session.close()
 
-    def get_session(self, session_id: str) -> dict:
+    def get_session(self, session_id: str) -> Optional[dict]:
         session = self.Session()
         try:
             db_session = session.query(DbSession).filter_by(id=session_id).first()
@@ -127,7 +134,7 @@ class DatabasePersistenceService(PersistenceService):
         finally:
             session.close()
 
-    def update_session(self, session_id: str, name: str) -> dict:
+    def update_session(self, session_id: str, name: str) -> Optional[dict]:
         session = self.Session()
         try:
             db_session = session.query(DbSession).filter_by(id=session_id).first()
@@ -136,8 +143,8 @@ class DatabasePersistenceService(PersistenceService):
                 session.commit()
                 return db_session.to_dict()
             return None
-        except Exception as e:
-            self.logger.error(f"Error updating session: {e}")
+        except Exception:
+            self.logger.exception("Error updating session")
             session.rollback()
             raise
         finally:
@@ -155,8 +162,8 @@ class DatabasePersistenceService(PersistenceService):
                 session.delete(db_session)
 
             session.commit()
-        except Exception as e:
-            self.logger.error(f"Error deleting session: {e}")
+        except Exception:
+            self.logger.exception("Error deleting session")
             session.rollback()
             raise
         finally:
