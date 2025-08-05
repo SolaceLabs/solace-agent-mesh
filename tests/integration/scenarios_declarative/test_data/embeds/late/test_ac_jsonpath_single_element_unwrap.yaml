@@ -16,6 +16,6 @@ expected_gateway_output:
   - type: "final_response"
     content_parts:
       - type: "text"
-        text_contains: 'Text format: date,order_id,customer_id,customer_name,product_category,product_brand,product_model,quantity,unit_price,total_price,sales_rep,payment_method,store_location'
+        text_contains: 'Text format: ["date,order_id,customer_id,customer_name,product_category,product_brand,product_model,quantity,unit_price,total_price,sales_rep,payment_method,store_location'
       - type: "text"
-        text_contains: 'JSON format: "date,order_id,customer_id,customer_name,product_category,product_brand,product_model,quantity,unit_price,total_price,sales_rep,payment_method,store_location'
+        text_contains: 'JSON format: ["date,order_id,customer_id,customer_name,product_category,product_brand,product_model,quantity,unit_price,total_price,sales_rep,payment_method,store_location'

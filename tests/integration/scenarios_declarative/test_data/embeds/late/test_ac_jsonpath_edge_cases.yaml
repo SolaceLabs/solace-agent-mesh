@@ -20,6 +20,6 @@ expected_gateway_output:
       - type: "text"
         text_contains: 'Multiple: ["first","second","third"]'
       - type: "text"
-        text_contains: 'Single: "only"'
+        text_contains: 'Single: ["only"]'
       - type: "text"
         text_contains: 'No match: []'
