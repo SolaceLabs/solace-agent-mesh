@@ -728,9 +728,9 @@ async def apply_embed_and_create_artifact(
                     output_metadata_json,
                 )
 
-            metadata["metadata_parsing_error"] = (
-                f"Invalid metadata JSON provided: {output_metadata_json}"
-            )
+                metadata["metadata_parsing_error"] = (
+                    f"Invalid metadata JSON provided: {output_metadata_json}"
+                )
 
         if metadata.get("mime_type"):
             output_mime_type = metadata["mime_type"]
