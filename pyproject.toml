@@ -93,8 +93,8 @@ extra-dependencies = [
 ]
 
 [tool.hatch.envs.hatch-test.scripts]
-run = "pytest -m \"$(bash ./run_tests.sh)\" {args}"
-run-cov = "coverage run -m pytest -m \"$(bash ./run_tests.sh)\" {args}"
+run = "pytest -m \"$(bash ./tests/pytest_marker_runner.sh)\" {args}"
+run-cov = "coverage run -m pytest -m \"$(bash ./tests/pytest_marker_runner.sh)\" {args}"
 cov-combine = "coverage combine"
 cov-report = "coverage report"
 
