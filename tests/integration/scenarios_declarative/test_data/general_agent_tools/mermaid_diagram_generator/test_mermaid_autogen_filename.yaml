@@ -1,5 +1,6 @@
 test_case_id: test_mermaid_autogen_filename
 description: "Tests successful generation with an auto-generated filename when none is provided."
+tags: ["agent","tools","general_agent_tools"]
 skip_intermediate_events: true
 
 gateway_input:

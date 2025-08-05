@@ -2,6 +2,7 @@ test_case_id: "builtin_apply_embed_jsonpath_modifier_001"
 description: |
   Tests 'apply_embed_and_create_artifact' with a JSON source and a
   'jsonpath' modifier to extract a specific field.
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

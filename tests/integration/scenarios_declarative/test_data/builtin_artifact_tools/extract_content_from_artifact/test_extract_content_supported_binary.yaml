@@ -2,6 +2,7 @@ test_case_id: "builtin_extract_content_supported_binary_001"
 description: |
   Tests 'extract_content_from_artifact' with a supported binary artifact type (e.g., image/png).
   The internal LLM should receive the binary data directly for processing.
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 # Assumes agent config: extract_content_from_artifact_config.supported_binary_mime_types = ["image/png", "image/jpeg"]

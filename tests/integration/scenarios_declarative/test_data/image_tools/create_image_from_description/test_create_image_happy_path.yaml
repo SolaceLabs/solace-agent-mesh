@@ -1,6 +1,8 @@
 test_case_id: "create_image_happy_path_001"
 description: "Verifies the basic happy path of creating an image with a specified filename."
+tags: ["agent","tools","image_tools"]
 skip_intermediate_events: true
+
 gateway_input:
   target_agent_name: "TestAgent"
   user_identity: "happy_path_tester@example.com"

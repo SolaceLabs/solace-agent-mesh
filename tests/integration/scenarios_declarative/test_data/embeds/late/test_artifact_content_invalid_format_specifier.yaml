@@ -1,6 +1,8 @@
 test_case_id: "embed_ac_err_invalid_format_specifier_001"
 description: "Tests «artifact_content:some.txt>>>format:invalid_fmt» for an invalid format."
+tags: ["common","embeds"]
 skip_intermediate_events: true
+
 setup_artifacts:
   - filename: "some.txt"
     mime_type: "text/plain"

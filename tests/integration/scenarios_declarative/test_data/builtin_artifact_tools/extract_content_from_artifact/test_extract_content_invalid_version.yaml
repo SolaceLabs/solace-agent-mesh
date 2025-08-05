@@ -2,6 +2,7 @@ test_case_id: "builtin_extract_content_invalid_version_format_001"
 description: |
   Tests 'extract_content_from_artifact' when the 'version' parameter
   is an invalid string (not 'latest' and not an integer).
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

@@ -2,6 +2,7 @@ test_case_id: "builtin_list_artifacts_single_file_001"
 description: |
   Tests the 'list_artifacts' tool when a single artifact with one version exists.
   Verifies the correct filename, version list, and metadata summary are returned.
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

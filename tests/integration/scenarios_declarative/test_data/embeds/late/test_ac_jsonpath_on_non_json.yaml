@@ -1,6 +1,8 @@
 test_case_id: "embed_ac_jsonpath_on_non_json_001"
 description: "Tests «artifact_content:plain.txt>>>jsonpath:$.a>>>format:text» on a non-JSON artifact."
+tags: ["common","embeds"]
 skip_intermediate_events: true
+
 setup_artifacts:
   - filename: "plain.txt"
     mime_type: "text/plain"

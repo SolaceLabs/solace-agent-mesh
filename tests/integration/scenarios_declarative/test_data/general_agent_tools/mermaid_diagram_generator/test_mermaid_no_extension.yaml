@@ -1,5 +1,6 @@
 test_case_id: test_mermaid_no_extension
 description: "Tests that the tool correctly adds a .png extension to a filename that lacks one."
+tags: ["agent","tools","general_agent_tools"]
 skip_intermediate_events: true
 
 gateway_input:

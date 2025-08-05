@@ -1,6 +1,8 @@
 test_case_id: "embed_status_update_only_status_update_001"
 description: "Tests an LLM response that only contains a status update."
+tags: ["common","embeds"]
 skip_intermediate_events: true
+
 gateway_input:
   target_agent_name: "TestAgent"
   user_identity: "embed_tester@example.com"

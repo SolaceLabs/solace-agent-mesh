@@ -4,6 +4,7 @@ description: |
   contains embed-like syntax. Expects the embed syntax to be treated literally
   as part of the filename, likely resulting in an artifact not found error,
   as the 'load_artifact' tool itself is not decorated with @resolve_embeds.
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 # No specific setup_artifacts needed for the target filename "«state_var».txt",

@@ -2,6 +2,7 @@ test_case_id: "builtin_apply_embed_modifier_type_error_001"
 description: |
   Tests 'apply_embed_and_create_artifact' error handling when a modifier
   (e.g., jsonpath) is applied to an incompatible data type (e.g., plain text).
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

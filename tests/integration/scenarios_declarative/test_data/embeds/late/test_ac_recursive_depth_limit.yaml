@@ -1,6 +1,8 @@
 test_case_id: "embed_ac_recursive_depth_limit_001"
 description: "Tests recursive resolution depth limit."
+tags: ["common","embeds"]
 skip_intermediate_events: true
+
 # Gateway config for this test (via fixture override or specific test setup):
 # gateway_recursive_embed_depth: 1 (or a low value)
 # For declarative tests, this might need a special marker or be tested programmatically

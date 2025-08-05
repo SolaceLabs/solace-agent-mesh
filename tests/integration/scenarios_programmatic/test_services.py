@@ -2,6 +2,11 @@ import json
 import pytest
 import os
 
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.common,
+    pytest.mark.services
+]
 
 __current_dir__ = os.path.dirname(os.path.abspath(__file__))
 __test_support_dir__ = os.path.join(__current_dir__, "../test_support")

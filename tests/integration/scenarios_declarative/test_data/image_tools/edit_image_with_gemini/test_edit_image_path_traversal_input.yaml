@@ -1,5 +1,6 @@
 test_case_id: edit_image_path_traversal_input
 description: "Tests for path traversal vulnerability in the input filename."
+tags: ["agent","tools","image_tools"]
 skip_intermediate_events: true
 
 gateway_input:

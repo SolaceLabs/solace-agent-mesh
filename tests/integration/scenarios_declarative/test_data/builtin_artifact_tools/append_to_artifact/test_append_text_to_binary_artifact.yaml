@@ -3,6 +3,7 @@ description: |
   Tests appending a text chunk to a pre-existing binary artifact.
   Verifies that the original artifact's MIME type is preserved and
   the new content includes both original binary and appended text.
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

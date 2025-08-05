@@ -1,6 +1,6 @@
 test_case_id: convert_malformed_pdf_as_success
 description: "Tests that the tool successfully converts a malformed PDF file."
-
+tags: ["agent","tools","general_agent_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

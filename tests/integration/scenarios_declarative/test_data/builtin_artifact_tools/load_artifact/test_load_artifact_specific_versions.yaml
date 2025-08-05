@@ -2,6 +2,7 @@ test_case_id: "builtin_load_artifact_specific_versions_001"
 description: |
   Tests the 'load_artifact' tool by loading different, specific integer versions
   of the same artifact.
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

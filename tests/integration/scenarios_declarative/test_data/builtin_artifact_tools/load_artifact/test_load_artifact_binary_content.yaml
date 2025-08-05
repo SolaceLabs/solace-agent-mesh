@@ -2,6 +2,7 @@ test_case_id: "builtin_load_artifact_binary_content_001"
 description: |
   Tests the 'load_artifact' tool for loading a binary artifact.
   Expects a placeholder message for content as raw_bytes are not returned by default.
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

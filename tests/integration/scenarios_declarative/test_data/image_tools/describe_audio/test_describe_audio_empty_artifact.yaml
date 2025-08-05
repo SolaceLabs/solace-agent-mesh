@@ -1,5 +1,6 @@
 test_case_id: describe_audio_empty_artifact
 description: "Tests describe_audio tool with a zero-byte audio file."
+tags: ["agent","tools","image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
