@@ -92,6 +92,12 @@ extra-dependencies = [
     "sam-test-infrastructure @ {root:uri}/sam-test-infrastructure"
 ]
 
+[tool.hatch.envs.hatch-test.scripts]
+run = "pytest -m \"$(sh ./run_tests.sh)\" {args}"
+run-cov = "coverage run -m pytest -m \"$(sh ./run_tests.sh)\" {args}"
+cov-combine = "coverage combine"
+cov-report = "coverage report"
+
 [[tool.hatch.envs.hatch-test.matrix]]
 python = ["3.10", "3.13"]
 

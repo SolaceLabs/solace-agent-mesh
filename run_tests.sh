@@ -8,7 +8,11 @@ markers=("default")
 
 # --- Main Logic ---
 
-while read -r file; do
+# Get the list of changed files
+changed_files=$(git diff --name-only origin/main...HEAD)
+
+# Process each file
+for file in $changed_files; do
     # The case statement runs for EACH file in the loop. It checks the file
     # against a list of patterns and adds the correct marker.
     #
@@ -78,22 +82,23 @@ while read -r file; do
             markers+=("common")
             ;;
     esac
-done < <(git diff --name-only origin/main...HEAD)
+done
 
 # --- Test Execution ---
 
 # Create a list of unique markers to avoid redundancy (e.g., 'notification' added multiple times).
 unique_markers=($(printf "%s\n" "${markers[@]}" | sort -u))
 
-# If there are markers to test, run the tests.
+# If there are markers to test, output the marker string for hatch test.
 if [ ${#unique_markers[@]} -gt 0 ]; then
     # Join the markers with " or " for the pytest -m argument.
     # Using printf is more robust for this task.
     marker_string=$(printf " or %s" "${unique_markers[@]}")
     marker_string=${marker_string:4} # Remove leading " or "
 
-    echo "Running tests for markers: $marker_string"
-    hatch test -m "$marker_string"
+    # Output only the marker string for use with hatch test -m
+    echo "$marker_string"
 else
-    echo "No applicable tests found for the changes."
+    # If no markers found, output "default" as fallback
+    echo "default"
 fi
