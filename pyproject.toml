@@ -93,8 +93,8 @@ extra-dependencies = [
 ]
 
 [tool.hatch.envs.hatch-test.scripts]
-run = "pytest -m \"$(sh ./run_tests.sh)\" {args}"
-run-cov = "coverage run -m pytest -m \"$(sh ./run_tests.sh)\" {args}"
+run = "pytest -m \"$(bash ./run_tests.sh)\" {args}"
+run-cov = "coverage run -m pytest -m \"$(bash ./run_tests.sh)\" {args}"
 cov-combine = "coverage combine"
 cov-report = "coverage report"
 
@@ -126,6 +126,39 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 markers = [
     "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
+    "default: marks tests that are basic or foundational",
+    "stress: marks tests as stress tests (long-running, resource-intensive)",
+    "long_soak: marks tests as very long-running soak tests for memory leak detection",
+
+    # Core Components
+    # Markers for the main components of the Solace Agent Mesh.
+    "agent: marks tests related to the agent component",
+    "common: marks tests related to the common component",
+    "core_a2a: marks tests related to the core_a2a component",
+    "gateway: marks tests related to the gateway component",
+
+    # Common Components
+    # Markers for sub-components within the 'common' directory.
+    "middleware: marks tests related to the middleware component",
+    "services: marks tests related to the services",
+
+    # Features
+    # Markers for specific features.
+    "delegation: marks tests related to agent delegation",
+    "embeds: marks tests related to the embeds",
+    "notification: marks tests related to notifications",
+    "task_cancellation: marks tests related to task cancellation",
+
+    # Agent Tools
+    # Markers for the built-in agent tools.
+    "tools: marks tests related to the agent tools",
+    "audio_tools: marks tests related to the audio_tools",
+    "builtin_artifact_tools: marks tests related to the builtin_artifact_tools",
+    "builtin_data_analysis_tools: marks tests related to the builtin_data_analysis_tools",
+    "general_agent_tools: marks tests related to the general_agent_tools",
+    "image_tools: marks tests related to the image_tools",
+    "peer_agent_tool: marks tests related to the peer_agent_tool",
+    "web_tools: marks tests related to the web_tools"
 ]
 
 [tool.hatch.metadata]
