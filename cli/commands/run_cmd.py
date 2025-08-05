@@ -55,6 +55,9 @@ def _execute_with_solace_ai_connector(config_file_paths: list[str]):
 def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
     """
     Run the Solace application with specified or discovered YAML configuration files.
+
+    This command accepts paths to individual YAML files (`.yaml`, `.yml`) or directories.
+    When a directory is provided, it is recursively searched for YAML files.
     """
     click.echo(click.style("Starting Solace Application Run...", bold=True, fg="blue"))
 

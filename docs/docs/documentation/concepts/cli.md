@@ -173,12 +173,18 @@ If you want to use your system's environment variables instead, you can add the 
 
 While running the `run` command, you can also skip specific files by providing the `-s` or `--skip` option.
 
-Or, you can only run the provided files by providing them as arguments. You might want to separate your project into multiple processes to meet your scaling needs. For more information, see [Deployment](../deployment/deploy.md).
+You can provide paths to specific YAML configuration files or directories. When you provide a directory, `run` will recursively search for and load all `.yaml` and `.yml` files within that directory. This allows you to organize your configurations and run them together easily.
 
-For example:
+For example, to run specific files:
 
 ```sh
-solace-agent-mesh run configs/config1.yaml configs/config2.yaml
+solace-agent-mesh run configs/agent1.yaml configs/gateway.yaml
+```
+
+To run all YAML files within the `configs` directory:
+
+```sh
+solace-agent-mesh run configs/
 ```
 
 ##### Options:
