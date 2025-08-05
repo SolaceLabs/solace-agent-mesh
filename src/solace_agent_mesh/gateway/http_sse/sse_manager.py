@@ -6,6 +6,7 @@ import asyncio
 import threading
 from typing import Dict, List, Any
 import json
+import datetime
 import math
 
 from solace_ai_connector.common.log import log
@@ -55,11 +56,13 @@ class SSEManager:
         elif isinstance(obj, (float, int)):
             if math.isnan(obj) or math.isinf(obj):
                 return None
-            else:
-                return obj
-        elif isinstance(obj, object):
+            return obj
+        elif isinstance(obj, (str, bool, type(None))):
+            return obj
+        elif isinstance(obj, (datetime.datetime, datetime.date)):
+            return obj.isoformat()
+        else:
             return str(obj)
-        return obj
 
 
     async def create_sse_connection(self, task_id: str) -> asyncio.Queue:
