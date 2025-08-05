@@ -161,6 +161,6 @@ Try adding a new agent to the system by following the tutorial on adding an [SQL
 
 Solace Agent Mesh uses two main types of components, **agents** and **gateways**. The system comes with a built-in orchestrator agent and a web user interface gateway (which you enabled during the `init` step).
 
-You can learn more about [gateways](../concepts/gateways.md). Alternatively, you can learn about [using plugins](../concepts/plugins.md#use-a-plugins) or [creating your own new gateways](../user-guide/create-gateways.md).
+You can learn more about [gateways](../concepts/gateways.md). Alternatively, you can learn about [using plugins](../concepts/plugins.md#use-a-plugin) or [creating your own new gateways](../user-guide/create-gateways.md).
 
 Also, you can learn more about [agents](../concepts/agents.md) or about [creating your own agents](../user-guide/create-agents.md).
