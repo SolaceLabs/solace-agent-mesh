@@ -83,9 +83,9 @@ mock_sse_task_response = {
 
 mock_task_callback_response = {
     "id": "task-123",
-    "pushNotificationConfig": PushNotificationConfig(
+    "pushNotificationConfig":     PushNotificationConfig(
         url="http://test.com/notify",
-        token= "test-token"
+        token="test-token"
     ).model_dump()
 }
 
