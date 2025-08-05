@@ -1952,3 +1952,4 @@ delete_artifact_tool_def = BuiltinTool(
 )
 
 tool_registry.register(delete_artifact_tool_def)
+# This is a test
