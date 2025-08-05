@@ -15,7 +15,7 @@ This document outlines the files to be modified and created to implement the pas
 3. [x] **`src/solace_agent_mesh/agent/utils/artifact_helpers.py`**
     -   Add the new `generate_artifact_metadata_summary` helper function.
 
-4. [ ] **`src/solace_agent_mesh/gateway/base/component.py`**
+4. [x] **`src/solace_agent_mesh/gateway/base/component.py`**
     -   Update `submit_a2a_task` to pass `invoked_with_artifacts` from the external context into the A2A message metadata.
 
 5. [ ] **`sam-test-infrastructure/src/sam_test_infrastructure/gateway_interface/component.py`**
