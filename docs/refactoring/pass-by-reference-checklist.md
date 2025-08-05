@@ -21,7 +21,7 @@ This document outlines the files to be modified and created to implement the pas
 5. [x] **`sam-test-infrastructure/src/sam_test_infrastructure/gateway_interface/component.py`**
     -   Update `_translate_external_input` to pass `invoked_with_artifacts` from the test definition into the external context.
 
-6. [ ] **`tests/integration/scenarios_declarative/test_declarative_runner.py`**
+6. [x] **`tests/integration/scenarios_declarative/test_declarative_runner.py`**
     -   Enhance `_assert_llm_interactions` to validate that artifact metadata summaries are present in LLM prompts and tool responses.
 
 ## New Test Files to Create
