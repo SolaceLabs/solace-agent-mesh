@@ -55,6 +55,8 @@ class SSEManager:
         elif isinstance(obj, (float, int)):
             if math.isnan(obj) or math.isinf(obj):
                 return None
+            else:
+                return obj
         elif isinstance(obj, object):
             return str(obj)
         return obj
