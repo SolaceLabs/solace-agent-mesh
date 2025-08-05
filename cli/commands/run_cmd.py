@@ -36,7 +36,7 @@ def _execute_with_solace_ai_connector(config_file_paths: list[str]):
 
 @click.command(name="run")
 @click.argument(
-    "files", nargs=-1, type=click.Path(exists=True, dir_okay=False, resolve_path=True)
+    "files", nargs=-1, type=click.Path(exists=True, dir_okay=True, resolve_path=True)
 )
 @click.option(
     "-s",
@@ -55,6 +55,9 @@ def _execute_with_solace_ai_connector(config_file_paths: list[str]):
 def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
     """
     Run the Solace application with specified or discovered YAML configuration files.
+
+    This command accepts paths to individual YAML files (`.yaml`, `.yml`) or directories.
+    When a directory is provided, it is recursively searched for YAML files.
     """
     click.echo(click.style("Starting Solace Application Run...", bold=True, fg="blue"))
 
@@ -113,8 +116,30 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
                 config_files_to_run.append(str(filepath.resolve()))
 
     else:
-        click.echo("Using provided configuration files:")
-        config_files_to_run = list(files)
+        click.echo("Processing provided configuration files and directories:")
+        processed_files = set()
+        for path_str in files:
+            path = Path(path_str)
+            if path.is_dir():
+                click.echo(f"  Discovering YAML files in directory: {path}")
+                for yaml_ext in ("*.yaml", "*.yml"):
+                    for filepath in path.rglob(yaml_ext):
+                        if filepath.name.startswith("_") or filepath.name.startswith(
+                            "shared_config"
+                        ):
+                            click.echo(
+                                f"  Skipping discovery: {filepath.relative_to(path)} (underscore prefix or shared_config)"
+                            )
+                            continue
+                        processed_files.add(str(filepath.resolve()))
+            elif path.is_file():
+                if path.suffix in [".yaml", ".yml"]:
+                    processed_files.add(str(path.resolve()))
+                else:
+                    click.echo(
+                        click.style(f"  Ignoring non-YAML file: {path}", fg="yellow")
+                    )
+        config_files_to_run = sorted(list(processed_files))
 
     if skip_files:
         click.echo(f"Applying --skip for: {skip_files}")
