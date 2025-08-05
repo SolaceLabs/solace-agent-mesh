@@ -34,6 +34,9 @@ RUN playwright install-deps chromium
 RUN groupadd -r solaceai && useradd --create-home -r -g solaceai solaceai
 RUN chown -R solaceai:solaceai /app /tmp
 
+# Copy sample SAM applications
+COPY samples /samples
+
 # Switch to the non-root user
 USER solaceai
 
