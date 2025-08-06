@@ -61,5 +61,5 @@ EXPOSE 5002 8000
 # CLI entry point
 ENTRYPOINT ["solace-agent-mesh"]
 
-# Default command to run the `basic` sample app
+# Default command to run the preset agents
 CMD ["run", "/preset/agents"]
