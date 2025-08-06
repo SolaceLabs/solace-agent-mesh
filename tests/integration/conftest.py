@@ -781,7 +781,7 @@ def mock_sse_task_response() -> dict[str, Any]:
 
 @pytest.fixture(scope="function")
 def mock_task_callback_response() -> dict[str, Any]:
-    return  {
+    return {
         "id": "task-123",
         "pushNotificationConfig": {
             "url": "http://test.com/notify",
