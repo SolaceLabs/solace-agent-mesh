@@ -95,7 +95,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.fastapi_host = self.get_config("fastapi_host", "127.0.0.1")
             self.fastapi_port = self.get_config("fastapi_port", 8000)
             self.fastapi_https_port = self.get_config("fastapi_https_port", 8443)
-            self.session_secret_key = self.get_config("session_secret_key")
+            self.session_secret_key = self.get_config("session_secret_key", "default")
             self.cors_allowed_origins = self.get_config("cors_allowed_origins", ["*"])
             self.resolve_artifact_uris_in_gateway = self.get_config(
                 "resolve_artifact_uris_in_gateway", True
