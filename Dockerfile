@@ -33,7 +33,7 @@ RUN groupadd -r solaceai && useradd --create-home -r -g solaceai solaceai
 RUN chown -R solaceai:solaceai /app /tmp
 
 # Copy sample SAM applications
-COPY samples /samples
+COPY preset /preset
 
 # Switch to the non-root user
 USER solaceai
@@ -62,4 +62,4 @@ EXPOSE 5002 8000
 ENTRYPOINT ["solace-agent-mesh"]
 
 # Default command to run the `basic` sample app
-CMD ["run", "/samples/basic"]
+CMD ["run", "/preset/agents"]
