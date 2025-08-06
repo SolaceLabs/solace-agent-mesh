@@ -28,10 +28,9 @@ class WebUIBackendApp(BaseGatewayApp):
     SPECIFIC_APP_SCHEMA_PARAMS: List[Dict[str, Any]] = [
         {
             "name": "session_secret_key",
-            "required": False,
+            "required": True,
             "type": "string",
             "description": "Secret key for signing web user sessions.",
-            "default": "default",
         },
         {
             "name": "fastapi_host",
