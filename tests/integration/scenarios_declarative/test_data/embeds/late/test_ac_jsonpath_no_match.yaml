@@ -16,5 +16,5 @@ expected_gateway_output:
   - type: "final_response"
     content_parts:
       - type: "text"
-        text_contains: "Result: []" # Expecting an empty list string after "Result: "
-        text_exact: "Result: []" # Ensure it's exactly this
+        text_contains: "Result: "
+        text_exact: "Result: "

@@ -16,4 +16,4 @@ expected_gateway_output:
   - type: "final_response"
     content_parts:
       - type: "text"
-        text_contains: 'Result: ["INFO: Start","WARN: Issue A","ERROR: Fail X","INFO: Mid","ERROR: Fail Y"]'
+        text_contains: 'Result: ERROR: Fail X'

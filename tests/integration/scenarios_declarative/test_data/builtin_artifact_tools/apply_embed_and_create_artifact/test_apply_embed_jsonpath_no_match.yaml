@@ -82,7 +82,7 @@ expected_gateway_output:
         # The _apply_jsonpath modifier returns (None, None, original_mime_type) if no match.
         # evaluate_embed then calls serialize_data with current_data=None.
         # serialize_data(data=None, data_format=None, ...) likely returns str(None) = "None".
-        expected_content_text: "[]"
+        expected_content_text: ""
         expected_metadata_contains:
           mime_type: "text/plain"
           source_directive: "«artifact_content:source_for_nomatch.json>>>jsonpath:$.address»"
