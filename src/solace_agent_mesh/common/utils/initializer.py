@@ -2,6 +2,7 @@ import os
 import json
 import yaml
 from solace_ai_connector.common.log import log
+from solace_ai_connector.main import load_config
 
 _has_initialized_system = False
 
@@ -24,7 +25,7 @@ def initialize():
         if enterprise_config.endswith('.yaml') or enterprise_config.endswith('.yml'):
             try:
                 with open(enterprise_config, 'r', encoding='utf-8') as file:
-                    enterprise_config = yaml.safe_load(file)
+                    enterprise_config = load_config(enterprise_config)
             except Exception as e:
                 log.error("Failed to load YAML config from SAM_ENTERPRISE_CONFIG: %s", e, exc_info=True)
                 raise
