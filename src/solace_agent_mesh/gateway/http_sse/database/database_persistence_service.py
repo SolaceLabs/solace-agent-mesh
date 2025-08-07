@@ -17,7 +17,11 @@ class DatabasePersistenceService(PersistenceService):
         self.logger = logging.getLogger(__name__)
 
     def store_chat_message(
-        self, session_id: str, message: dict, user_id: str = None, agent_id: str = None
+        self,
+        session_id: str,
+        message: dict,
+        user_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
     ):
         self.logger.info("Storing chat message for session %s", session_id)
         session = self.Session()
@@ -33,14 +37,13 @@ class DatabasePersistenceService(PersistenceService):
                     id=session_id, user_id=user_id, agent_id=agent_id
                 )
                 session.add(db_session)
-            elif not db_session.agent_id and agent_id:
+            elif not db_session.agent_id and agent_id:  # type: ignore
                 self.logger.info(
                     "Hydrating agent_id for session %s with agent %s",
                     session_id,
                     agent_id,
                 )
-                db_session.agent_id = agent_id
-
+                db_session.agent_id = agent_id  # type: ignore
             chat_message = ChatMessage(
                 id=str(uuid.uuid4()),
                 session_id=session_id,
@@ -81,11 +84,13 @@ class DatabasePersistenceService(PersistenceService):
             user = User(id=user_id, info=json.dumps(info))
             session.add(user)
         else:
-            user.info = json.dumps(info)
+            user.info = json.dumps(info)  # type: ignore
         session.commit()
         session.close()
 
-    def create_session(self, session_id: str, user_id: str, agent_id: str = None):
+    def create_session(
+        self, session_id: str, user_id: str, agent_id: Optional[str] = None
+    ):
         self.logger.info("Creating session %s for user %s", session_id, user_id)
         session = self.Session()
         try:
@@ -113,7 +118,7 @@ class DatabasePersistenceService(PersistenceService):
         finally:
             session.close()
 
-    def get_sessions(self, user_id: str = None) -> list:
+    def get_sessions(self, user_id: Optional[str] = None) -> list:
         session = self.Session()
         try:
             query = session.query(DbSession)
@@ -139,7 +144,7 @@ class DatabasePersistenceService(PersistenceService):
         try:
             db_session = session.query(DbSession).filter_by(id=session_id).first()
             if db_session:
-                db_session.name = name
+                db_session.name = name  # type: ignore
                 session.commit()
                 return db_session.to_dict()
             return None

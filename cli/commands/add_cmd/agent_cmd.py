@@ -1,21 +1,25 @@
-import click
-from pathlib import Path
-import yaml
 import json
+import sys
+from pathlib import Path
+
+import click
+import yaml
+from sqlalchemy import create_engine
+
 from config_portal.backend.common import (
     AGENT_DEFAULTS,
     USE_DEFAULT_SHARED_ARTIFACT,
     USE_DEFAULT_SHARED_SESSION,
 )
-from .web_add_agent_step import launch_add_agent_web_portal
+
 from ...utils import (
     ask_if_not_provided,
-    get_formatted_names,
-    load_template,
-    indent_multiline_string,
     ask_yes_no_question,
+    get_formatted_names,
+    indent_multiline_string,
+    load_template,
 )
-from sqlalchemy import create_engine
+from .web_add_agent_step import launch_add_agent_web_portal
 
 
 def _append_to_env_file(project_root: Path, key: str, value: str):
@@ -25,7 +29,7 @@ def _append_to_env_file(project_root: Path, key: str, value: str):
         with open(env_path, "a", encoding="utf-8") as f:
             f.write(f'\n{key}="{value}"\n')
         return True
-    except IOError as e:
+    except OSError as e:
         click.echo(
             click.style(f"Error appending to .env file: {e}", fg="red"), err=True
         )
@@ -110,7 +114,7 @@ def _write_agent_yaml_from_data(
                 if not isinstance(actual_tools_list, list):
                     click.echo(
                         click.style(
-                            f"Warning: Tools data was a string but not a valid JSON list. Defaulting to empty tools list.",
+                            "Warning: Tools data was a string but not a valid JSON list. Defaulting to empty tools list.",
                             fg="yellow",
                         ),
                         err=True,
@@ -201,7 +205,7 @@ def _write_agent_yaml_from_data(
                     "supports_streaming", AGENT_DEFAULTS["supports_streaming"]
                 )
             ).lower(),
-            "__MODEL_ALIAS__": f'*{config_options.get("model_type", AGENT_DEFAULTS["model_type"])}_model',
+            "__MODEL_ALIAS__": f"*{config_options.get('model_type', AGENT_DEFAULTS['model_type'])}_model",
             "__INSTRUCTION__": instructions,
             "__TOOLS_CONFIG__": tools_replacement_value,
             "__SESSION_SERVICE__": session_service_block,
@@ -288,14 +292,17 @@ def _write_agent_yaml_from_data(
 
         for placeholder, value in replacements.items():
             modified_content = modified_content.replace(placeholder, str(value))
+        if config_options.get("database_url"):
+            env_key = f"{formatted_names['SNAKE_UPPER_CASE_NAME']}_DATABASE_URL"
+            if not _append_to_env_file(
+                project_root, env_key, config_options["database_url"]
+            ):
+                return False, "Failed to write to .env file.", ""
 
         with open(agent_config_file_path, "w", encoding="utf-8") as f:
             f.write(modified_content)
 
         relative_file_path = str(agent_config_file_path.relative_to(project_root))
-        if config_options.get("database_url"):
-            env_key = f"{formatted_names['SNAKE_UPPER_CASE_NAME']}_DATABASE_URL"
-            _append_to_env_file(project_root, env_key, config_options["database_url"])
         return (
             True,
             f"Agent configuration created: {relative_file_path}",
@@ -382,43 +389,58 @@ def create_agent_config(
     )
 
     if collected_options.get("session_service_type") == "sql":
-        use_own_db = False
-        if not skip_interactive:
-            use_own_db = ask_yes_no_question(
-                f"Do you want to use your own database for the '{agent_name_camel_case}' agent?",
-                default=False,
-            )
+        if "database_url" not in collected_options:
+            use_own_db = False
+            if not skip_interactive:
+                use_own_db = ask_yes_no_question(
+                    f"Do you want to use your own database for the '{agent_name_camel_case}' agent?",
+                    default=False,
+                )
 
-        if use_own_db:
-            database_url = ask_if_not_provided(
-                collected_options,
-                "database_url",
-                f"Enter the full database URL for the {agent_name_camel_case} agent (e.g., postgresql://user:pass@host/db)",
-                none_interactive=skip_interactive,
-            )
-            collected_options["database_url"] = database_url
-        else:
-            data_dir = project_root / "data"
-            data_dir.mkdir(exist_ok=True)
-            db_file = data_dir / f"{formatted_names['SNAKE_CASE_NAME']}.db"
-            database_url = f"sqlite:///{db_file.resolve()}"
+            if use_own_db:
+                database_url = ask_if_not_provided(
+                    collected_options,
+                    "database_url",
+                    f"Enter the full database URL for the {agent_name_camel_case} agent (e.g., postgresql://user:pass@host/db)",
+                    none_interactive=skip_interactive,
+                )
+                collected_options["database_url"] = database_url
+            else:
+                data_dir = project_root / "data"
+                data_dir.mkdir(exist_ok=True)
+                db_file = data_dir / f"{formatted_names['SNAKE_CASE_NAME']}.db"
+                database_url = f"sqlite:///{db_file.resolve()}"
+                click.echo(
+                    f"  Using default SQLite database for {agent_name_camel_case} agent: {db_file}"
+                )
+                collected_options["database_url"] = database_url
+
+        try:
+            db_url = collected_options.get("database_url")
+            if not db_url:
+                # This case should ideally not be hit if logic above is correct
+                raise ValueError("Database URL was not provided or determined.")
+
+            if db_url.startswith("sqlite:///"):
+                db_file_path = Path(db_url.replace("sqlite:///", ""))
+                db_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Validate the connection. For SQLite, this also creates the file.
+            click.echo(f"  Validating database: {db_url}")
+            engine = create_engine(db_url)
+            with engine.connect() as connection:
+                pass  # Test connection
+            engine.dispose()
+            click.echo(click.style("  Database validation successful.", fg="green"))
+        except Exception as e:
             click.echo(
-                f"  Using default SQLite database for {agent_name_camel_case} agent: {db_file}"
+                click.style(
+                    f"Error validating database URL '{collected_options.get('database_url')}': {e}",
+                    fg="red",
+                ),
+                err=True,
             )
-            collected_options["database_url"] = database_url
-
-        if collected_options.get("database_url", "").startswith("sqlite://"):
-            db_file_path_str = collected_options["database_url"].replace(
-                "sqlite:///", ""
-            )
-            db_file_path = Path(db_file_path_str)
-            db_file_path.parent.mkdir(parents=True, exist_ok=True)
-            if not db_file_path.exists():
-                click.echo(f"  Creating database file: {db_file_path}")
-                engine = create_engine(collected_options["database_url"])
-                with engine.connect() as connection:
-                    pass  # This creates the file
-                engine.dispose()
+            return False
 
     if collected_options.get("session_service_type") != USE_DEFAULT_SHARED_SESSION:
         collected_options["session_service_behavior"] = ask_if_not_provided(
@@ -495,7 +517,9 @@ def create_agent_config(
         skip_interactive,
     )
     collected_options["agent_card_default_input_modes"] = [
-        mode.strip() for mode in default_input_modes_str.split(",") if mode.strip()
+        mode.strip()
+        for mode in (default_input_modes_str or "").split(",")
+        if mode.strip()
     ]
 
     default_output_modes_str = ask_if_not_provided(
@@ -506,7 +530,9 @@ def create_agent_config(
         skip_interactive,
     )
     collected_options["agent_card_default_output_modes"] = [
-        mode.strip() for mode in default_output_modes_str.split(",") if mode.strip()
+        mode.strip()
+        for mode in (default_output_modes_str or "").split(",")
+        if mode.strip()
     ]
 
     collected_options["agent_card_skills_str"] = ask_if_not_provided(
@@ -541,7 +567,7 @@ def create_agent_config(
         skip_interactive,
     )
     collected_options["inter_agent_communication_allow_list"] = [
-        item.strip() for item in allow_list_str.split(",") if item.strip()
+        item.strip() for item in (allow_list_str or "").split(",") if item.strip()
     ]
 
     deny_list_str = ask_if_not_provided(
@@ -552,7 +578,7 @@ def create_agent_config(
         skip_interactive,
     )
     collected_options["inter_agent_communication_deny_list"] = [
-        item.strip() for item in deny_list_str.split(",") if item.strip()
+        item.strip() for item in (deny_list_str or "").split(",") if item.strip()
     ]
 
     collected_options["inter_agent_communication_timeout"] = ask_if_not_provided(
@@ -572,7 +598,7 @@ def create_agent_config(
         skip_interactive,
     )
     try:
-        tools_list = json.loads(tools_json_str)
+        tools_list = json.loads(tools_json_str or "[]")
         if not isinstance(tools_list, list):
             tools_list = []
             if not skip_interactive:
@@ -628,6 +654,9 @@ def create_agent_config(
     "--session-service-behavior",
     type=click.Choice(["PERSISTENT", "RUN_BASED"]),
     help="Session service behavior.",
+)
+@click.option(
+    "--database-url", help="Database URL for session service (if type is 'sql')."
 )
 @click.option(
     "--artifact-service-type",
@@ -729,3 +758,4 @@ def add_agent(name: str, gui: bool = False, **kwargs):
                 ),
                 err=True,
             )
+            sys.exit(1)
