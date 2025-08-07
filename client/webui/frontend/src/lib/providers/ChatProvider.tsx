@@ -42,8 +42,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, []);
 
     const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
+    const [artifactsLoading, setArtifactsLoading] = useState<boolean>(true);
 
     const fetchArtifacts = useCallback(async () => {
+        setArtifactsLoading(true);
         try {
             const response = await authenticatedFetch(`${apiPrefix}/artifacts`, {
                 credentials: "include",
@@ -55,8 +57,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setArtifacts(data);
         } catch (error) {
             addNotification(`Error fetching artifacts: ${error instanceof Error ? error.message : "Unknown error"}`);
+        } finally {
+            setArtifactsLoading(false);
         }
     }, [apiPrefix, addNotification]);
+
 
     useEffect(() => {
         fetchArtifacts();
@@ -958,7 +963,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setSelectedAgentName,
         artifacts,
         artifactsLoading,
-        artifactsRefetch,
+        artifactsRefetch: fetchArtifacts,
         uploadArtifactFile,
         isSidePanelCollapsed,
         activeSidePanelTab,
