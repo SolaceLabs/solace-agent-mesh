@@ -174,5 +174,19 @@
             },
             "subProcess": true
         },
+        {
+            "name": "Python: Pytest (specific test)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/integration/scenarios_declarative/test_declarative_runner.py::test_declarative_scenario[embeds/late/test_ac_template_missing_template_file]"
+            ],
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
     ]
 }

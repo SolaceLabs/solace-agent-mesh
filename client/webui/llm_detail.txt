@@ -1418,11 +1418,11 @@ const sizeString = formatBytes(1024); // Returns "1 KB"
 # DEVELOPER GUIDE: FlowChart
 
 ## Quick Summary
-The FlowChart directory provides a comprehensive React Flow-based visualization system for AI agent workflows and task monitoring. It combines a main panel component with custom nodes and edges to create interactive flowcharts that can display agent interactions, tool executions, and data flow with real-time animation and replay capabilities. The architecture separates the main flow panel logic from reusable custom node/edge components.
+The FlowChart directory provides a comprehensive React Flow-based visualization system for AI agent workflows and task monitoring. It combines a main panel component with custom nodes and edges to create interactive flowcharts that can display agent interactions, tool executions, and data flow with real-time animation. The architecture separates the main flow panel logic from reusable custom node/edge components.
 
 ## Files and Subdirectories Overview
 - **Direct files:**
-  - `FlowChartPanel.tsx` - Main React Flow panel component with replay functionality and task monitoring integration
+  - `FlowChartPanel.tsx` - Main React Flow panel component with task monitoring integration
 - **Subdirectories:**
   - `customEdges/` - Custom edge components with animation support for data flow visualization
   - `customNodes/` - Collection of specialized node components for different entity types (agents, tools, users, LLM)
@@ -1432,7 +1432,7 @@ The FlowChart directory provides a comprehensive React Flow-based visualization 
 ### Direct Files
 
 #### FlowChartPanel.tsx
-**Purpose:** Main React Flow panel component that orchestrates the entire flowchart visualization with replay capabilities
+**Purpose:** Main React Flow panel component that orchestrates the entire flowchart visualization
 **Import:** `import FlowChartPanel from 'frontend/src/components/TaskMonitor/FlowChart/FlowChartPanel'`
 
 **Interfaces:**
@@ -1446,7 +1446,6 @@ The FlowChart directory provides a comprehensive React Flow-based visualization 
 - `FlowRenderer: React.FC<FlowChartPanelProps>` - Internal component containing React Flow logic
 
 **Key Features:**
-- Real-time step replay with pause/resume functionality
 - Integration with TaskMonitorContext for state management
 - Custom node and edge type registration
 - Automatic layout using timeline flow transformation
@@ -1583,17 +1582,16 @@ import { useTaskMonitor } from 'frontend/src/contexts/TaskMonitorContext';
 import FlowChartPanel from 'frontend/src/components/TaskMonitor/FlowChart/FlowChartPanel';
 
 const TaskFlowVisualization: React.FC = () => {
-  const { 
-    processedSteps, 
-    highlightedStepId, 
-    setHighlightedStepId,
-    replayState 
+  const {
+    processedSteps,
+    highlightedStepId,
+    setHighlightedStepId
   } = useTaskMonitor();
   
   const [isFullScreen, setIsFullScreen] = useState(false);
 
   // The FlowChartPanel automatically integrates with TaskMonitorContext
-  // for step highlighting and replay state management
+  // for step highlighting
   return (
     <FlowChartPanel
       processedSteps={processedSteps}
@@ -1666,7 +1664,7 @@ const updateNodeStatus = (nodeId: string, status: string) => {
 };
 ```
 
-This comprehensive guide shows how the FlowChart directory components work together to create rich, interactive workflow visualizations with real-time updates, animations, and replay capabilities. The modular design allows for easy customization and extension of both node types and edge behaviors.
+This comprehensive guide shows how the FlowChart directory components work together to create rich, interactive workflow visualizations with real-time updates and animations. The modular design allows for easy customization and extension of both node types and edge behaviors.
 
 ================================================================================
 
@@ -1965,7 +1963,7 @@ The TaskMonitor directory provides a comprehensive React-based system for monito
 - `EventDetailsPanel: React.FC<EventDetailsPanelProps>` - Panel component that renders event list
 
 #### LinearStepViewPanel.tsx
-**Purpose:** Displays workflow steps in a linear timeline format with replay support and step highlighting
+**Purpose:** Displays workflow steps in a linear timeline format with step highlighting
 **Import:** `import LinearStepViewPanel from 'frontend/src/components/TaskMonitor/LinearStepViewPanel'`
 
 **Interfaces:**
@@ -2894,14 +2892,11 @@ function ChatInterface() {
   - `monitoredTasks: Record<string, MonitoredTask>` - Active tasks by ID
   - `monitoredTaskOrder: string[]` - Task display order
   - `highlightedStepId: string | null` - Currently highlighted step
-  - `isReplaying: boolean` - Replay mode status
-  - `currentReplayStep: number` - Current replay position
 
 - `TaskMonitorActions` - Task monitor actions
   - `connectTaskMonitorStream: () => Promise<void>` - Establish SSE connection
   - `disconnectTaskMonitorStream: () => Promise<void>` - Close SSE connection
   - `setHighlightedStepId: (stepId: string | null) => void` - Highlight specific step
-  - `setReplayState: (isReplaying: boolean, currentStep: number) => void` - Control replay
 
 **Usage Examples:**
 ```tsx

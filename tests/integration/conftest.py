@@ -1,3 +1,4 @@
+from typing import Any
 import pytest
 import time
 
@@ -15,6 +16,9 @@ from sam_test_infrastructure.artifact_service.service import (
 )
 
 from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
+from solace_agent_mesh.common.client.card_resolver import A2ACardResolver
+from solace_agent_mesh.common.client.client import A2AClient
+from solace_agent_mesh.common.types import AgentCard, AgentSkill
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
 
 
@@ -411,7 +415,7 @@ def shared_solace_connector(
 
     # Allow time for agent card discovery messages to be exchanged before any test runs
     print("shared_solace_connector fixture: Waiting for agent discovery...")
-    time.sleep(2)
+    time.sleep(5)
     print("shared_solace_connector fixture: Agent discovery wait complete.")
 
     yield connector
@@ -605,12 +609,6 @@ def _clear_agent_component_state(agent_app: SamAgentApp):
         with component.active_tasks_lock:
             component.active_tasks.clear()
 
-        # The following state is still managed at the component level and needs
-        # to be cleared for test isolation.
-        if hasattr(component, "_agent_registry") and component._agent_registry:
-            component._agent_registry.clear()
-        if hasattr(component, "peer_agents") and component.peer_agents:
-            component.peer_agents.clear()
         if (
             hasattr(component, "invocation_monitor")
             and component.invocation_monitor
@@ -698,3 +696,95 @@ def a2a_message_validator(
     validator.activate(final_components_to_patch)
     yield validator
     validator.deactivate()
+
+@pytest.fixture(scope="function")
+def mock_agent_skills() -> AgentSkill:
+    return AgentSkill(
+        id="skill-1",
+        name="Skill 1",
+        description="Description for Skill 1",
+        tags=["tag1", "tag2"],
+        examples=["Example 1", "Example 2"],
+        inputModes=["text/plain"],
+        outputModes=["text/plain"]
+    )
+
+@pytest.fixture(scope="function")
+def mock_agent_card(mock_agent_skills: AgentSkill) -> AgentCard:
+    return AgentCard(
+        name="test_agent",
+        display_name="Test Agent_Display",
+        description="Test Agent Description",
+        url="http://test.com/test_path/agent.json",
+        version="1.0.0",
+        capabilities={
+            "streaming": True,
+            "pushNotifications": False,
+            "stateTransitionHistory": True
+        },
+        skills=[mock_agent_skills],
+        peer_agents={},
+    )
+
+@pytest.fixture(scope="function")
+def mock_a2a_client(mock_agent_card: AgentCard) -> A2AClient:
+    return A2AClient(agent_card=mock_agent_card)
+
+@pytest.fixture(scope="function")
+def mock_card_resolver() -> A2ACardResolver:
+    return A2ACardResolver("http://test.com", agent_card_path="/test_path/agent.json")
+
+@pytest.fixture(scope="function")
+def mock_task_response() -> dict[str, Any]:
+    return {
+        "id": "task-123",
+        "sessionId": "session-456",
+        "status": {
+            "state": "completed",
+            "message": {
+                "role": "agent",
+                "parts": [{"type": "text", "text": "Task completed successfully"}]
+            },
+            "timestamp": "2024-01-01T00:00:00Z"
+        }
+    }
+
+@pytest.fixture(scope="function")
+def mock_task_response_cancel() -> dict[str, Any]:
+    return {
+        "id": "task-123",
+        "sessionId": "session-456",
+        "status": {
+            "state": "canceled",
+            "message": {
+                "role": "agent",
+                "parts": [{"type": "text", "text": "Task canceled successfully"}]
+            },
+            "timestamp": "2023-01-01T00:00:00Z"
+        }
+    }
+
+@pytest.fixture(scope="function")
+def mock_sse_task_response() -> dict[str, Any]:
+    return {
+        "id": "task-123",
+        "sessionId": "session-456",
+        "status": {
+            "state": "working",
+            "message": {
+                "role": "agent",
+                "parts": [{"type": "text", "text": "Processing..."}]
+            },
+            "timestamp": "2024-01-01T00:00:00Z"
+        }
+    }
+
+@pytest.fixture(scope="function")
+def mock_task_callback_response() -> dict[str, Any]:
+    return {
+        "id": "task-123",
+        "pushNotificationConfig": {
+            "url": "http://test.com/notify",
+            "token": "test-token"
+        }
+    }

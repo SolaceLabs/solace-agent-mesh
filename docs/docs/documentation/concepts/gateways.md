@@ -105,7 +105,7 @@ Each gateway type has its own configuration options and specific features. See t
 
 ## Create a Gateway
 
-To create a gateway, you can either [use one of the pre-existing plugins](./plugins.md#use-a-plugins) or create yours from scratch.
+To create a gateway, you can either [use one of the pre-existing plugins](./plugins.md#use-a-plugin) or create yours from scratch.
 
 
 ### Gateway from Scratch

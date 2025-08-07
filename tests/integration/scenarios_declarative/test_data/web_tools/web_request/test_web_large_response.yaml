@@ -10,7 +10,7 @@ gateway_input:
     a2a_session_id: "session-460"
   prompt:
     parts:
-      - text: "Please fetch the content from http://ipv4.download.thinkbroadband.com/10MB.zip"
+      - text: "Please fetch the content from http://ipv4.download.thinkbroadband.com/1MB.zip"
 
 llm_interactions:
   - static_response:
@@ -22,11 +22,11 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "web_request"
-                  arguments: '{"url": "http://ipv4.download.thinkbroadband.com/10MB.zip"}'
+                  arguments: '{"url": "http://ipv4.download.thinkbroadband.com/1MB.zip"}'
     expected_request:
       messages:
         - role: "user"
-          content: "Please fetch the content from http://ipv4.download.thinkbroadband.com/10MB.zip"
+          content: "Please fetch the content from http://ipv4.download.thinkbroadband.com/1MB.zip"
       tools_present:
         - "web_request"
   - static_response:
@@ -37,9 +37,9 @@ llm_interactions:
     expected_request:
       messages:
         - role: "user"
-          content: "Please fetch the content from http://ipv4.download.thinkbroadband.com/10MB.zip"
+          content: "Please fetch the content from http://ipv4.download.thinkbroadband.com/1MB.zip"
         - role: "tool"
-          content_matches_regex: '.*"status": "success", "message": "Successfully fetched content from http://ipv4.download.thinkbroadband.com/10MB.zip \(status: 200\). Saved as artifact.*'
+          content_matches_regex: '.*"status": "success", "message": "Successfully fetched content from http://ipv4.download.thinkbroadband.com/1MB.zip \(status: 200\). Saved as artifact.*'
           tool_call_id: "call_127"
 
 expected_gateway_output:

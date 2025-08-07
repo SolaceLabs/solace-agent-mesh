@@ -92,7 +92,7 @@ export default function OrchestratorSetup({
   const [artifactServiceType, setArtifactServiceType] = useState(orchestratorData.artifact_service_type || 'filesystem');
   const [artifactBasePath, setArtifactBasePath] = useState(orchestratorData.artifact_service_base_path || '/tmp/samv2');
   const [artifactScope, setArtifactScope] = useState(orchestratorData.artifact_service_scope || 'namespace');
-  const [artifactHandlingMode, setArtifactHandlingMode] = useState(orchestratorData.artifact_handling_mode || 'embed');
+  const [artifactHandlingMode, setArtifactHandlingMode] = useState(orchestratorData.artifact_handling_mode || 'reference');
   const [enableEmbedResolution, setEnableEmbedResolution] = useState(orchestratorData.enable_embed_resolution !== false);
   const [enableArtifactContentInstruction, setEnableArtifactContentInstruction] = useState(orchestratorData.enable_artifact_content_instruction !== false);
   const [agentCardDescription, setAgentCardDescription] = useState(orchestratorData.agent_card_description || 'The Orchestrator component. It manages tasks, and coordinating multi-agent workflows.');

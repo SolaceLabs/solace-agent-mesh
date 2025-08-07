@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { Background, ControlButton, Controls, MarkerType, Panel, ReactFlow, ReactFlowProvider, useEdgesState, useNodesState, useReactFlow } from "@xyflow/react";
+import { Background, Controls, MarkerType, Panel, ReactFlow, ReactFlowProvider, useEdgesState, useNodesState, useReactFlow } from "@xyflow/react";
 import type { Edge, Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { FiPause, FiPlay } from "react-icons/fi";
 
 import { PopoverManual } from "@/lib/components/ui";
 import { useTaskContext } from "@/lib/hooks";
@@ -48,8 +47,8 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
     const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
     const { fitView } = useReactFlow();
-    const { highlightedStepId, setHighlightedStepId, setReplayState } = useTaskContext(); // Use context
-    const { taskIdInSidePanel } = useChatContext(); // Get taskIdInSidePanel from chat context
+    const { highlightedStepId, setHighlightedStepId } = useTaskContext();
+    const { taskIdInSidePanel } = useChatContext();
 
     const prevProcessedStepsRef = useRef<VisualizerStep[]>([]);
     const [hasUserInteracted, setHasUserInteracted] = useState(false);
@@ -62,40 +61,27 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
     // Track selected edge for highlighting
     const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
-    const [isReplaying, setIsReplaying] = useState(false);
-    const [isReplayPaused, setIsReplayPaused] = useState(false);
-    const [replayedSteps, setReplayedSteps] = useState<VisualizerStep[]>([]);
-    const [currentReplayStepIndex, setCurrentReplayStepIndex] = useState(0);
-    const [pausedElapsedTime, setPausedElapsedTime] = useState(0);
-    const replayIntervalRef = useRef<number | null>(null); // Will hold setTimeout ID
-    const replayStartTimeRef = useRef<number | null>(null);
-    const firstStepTimestampRef = useRef<number | null>(null);
     const edgeAnimationServiceRef = useRef<EdgeAnimationService>(new EdgeAnimationService());
 
     const memoizedFlowData = useMemo(() => {
-        const stepsToUse = isReplaying ? replayedSteps : processedSteps;
-
-        if (!stepsToUse || stepsToUse.length === 0) {
+        if (!processedSteps || processedSteps.length === 0) {
             return { nodes: [], edges: [] };
         }
-        // Always use timeline flow
-        return transformProcessedStepsToTimelineFlow(stepsToUse);
-    }, [processedSteps, replayedSteps, isReplaying]);
+        return transformProcessedStepsToTimelineFlow(processedSteps);
+    }, [processedSteps]);
 
-    // Consolidated edge computation - replaces multiple redundant edge update effects
+    // Consolidated edge computation
     const computedEdges = useMemo(() => {
         if (!memoizedFlowData.edges.length) return [];
 
         return memoizedFlowData.edges.map(edge => {
             const edgeData = edge.data as unknown as AnimatedEdgeData;
 
-            // Determine animation state based on replay status
+            // Determine animation state
             let animationState = { isAnimated: false, animationType: "none" };
             if (edgeData?.visualizerStepId) {
-                const stepsToCheck = isReplaying ? replayedSteps : processedSteps;
-                const stepIndex = isReplaying ? replayedSteps.length - 1 : processedSteps.length - 1;
-
-                animationState = edgeAnimationServiceRef.current.getEdgeAnimationState(edgeData.visualizerStepId, stepIndex, stepsToCheck);
+                const stepIndex = processedSteps.length - 1;
+                animationState = edgeAnimationServiceRef.current.getEdgeAnimationState(edgeData.visualizerStepId, stepIndex, processedSteps);
             }
 
             // Determine if this edge should be selected
@@ -117,7 +103,7 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
                 } as unknown as Record<string, unknown>,
             };
         });
-    }, [memoizedFlowData.edges, isReplaying, replayedSteps, processedSteps, selectedEdgeId, highlightedStepId]);
+    }, [memoizedFlowData.edges, processedSteps, selectedEdgeId, highlightedStepId]);
 
     const updateGroupNodeSizes = useCallback(() => {
         setNodes(currentNodes => {
@@ -188,78 +174,6 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
         updateGroupNodeSizes();
     }, [memoizedFlowData.nodes, computedEdges, setNodes, setEdges, updateGroupNodeSizes]);
 
-    useEffect(() => {
-        if (!isReplaying) {
-            setCurrentReplayStepIndex(0);
-            setReplayedSteps([]);
-            if (replayIntervalRef.current) {
-                clearTimeout(replayIntervalRef.current);
-                replayIntervalRef.current = null;
-            }
-            replayStartTimeRef.current = null;
-            firstStepTimestampRef.current = null;
-        }
-    }, [isReplaying]);
-
-    const startReplay = useCallback(() => {
-        if (processedSteps.length === 0 || isReplaying) return;
-
-        const firstTimestamp = Date.parse(processedSteps[0].timestamp);
-        if (isNaN(firstTimestamp)) {
-            console.error("Error: First step has an invalid timestamp. Cannot start replay.", processedSteps[0]);
-            return;
-        }
-
-        // 1. Clear the board by emptying main nodes and edges.
-        setNodes([]);
-        setEdges([]);
-        // 2. Reset replay step.
-        setCurrentReplayStepIndex(0);
-        setReplayedSteps([]);
-        // 3. Reset pause state
-        setIsReplayPaused(false);
-        setPausedElapsedTime(0);
-
-        // 4. Set up timing references for the replay.
-        firstStepTimestampRef.current = firstTimestamp;
-        replayStartTimeRef.current = Date.now();
-
-        // 5. Set isReplaying to true, which will trigger the replay loop useEffect.
-        setIsReplaying(true);
-
-        // 6. Notify context about replay start
-        setReplayState(true, 0);
-    }, [processedSteps, isReplaying, setNodes, setEdges, setCurrentReplayStepIndex, setIsReplaying, setReplayState]);
-
-    const pauseReplay = useCallback(() => {
-        if (!isReplaying || isReplayPaused) return;
-
-        // Calculate elapsed time up to this point
-        if (replayStartTimeRef.current) {
-            const currentElapsed = Date.now() - replayStartTimeRef.current;
-            setPausedElapsedTime(currentElapsed);
-        }
-
-        // Clear any pending timeouts
-        if (replayIntervalRef.current) {
-            clearTimeout(replayIntervalRef.current);
-            replayIntervalRef.current = null;
-        }
-
-        setIsReplayPaused(true);
-    }, [isReplaying, isReplayPaused]);
-
-    const resumeReplay = useCallback(() => {
-        if (!isReplaying || !isReplayPaused) return;
-
-        // Adjust the replay start time to account for the pause duration
-        if (replayStartTimeRef.current) {
-            replayStartTimeRef.current = Date.now() - pausedElapsedTime;
-        }
-
-        setIsReplayPaused(false);
-    }, [isReplaying, isReplayPaused, pausedElapsedTime]);
-
     const findEdgeBySourceAndHandle = useCallback(
         (sourceNodeId: string, sourceHandleId?: string): Edge | null => {
             return edges.find(edge => edge.source === sourceNodeId && (sourceHandleId ? edge.sourceHandle === sourceHandleId : true)) || null;
@@ -315,9 +229,22 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
         }
     }, []);
 
+    const handlePopoverClose = useCallback(() => {
+        setIsPopoverOpen(false);
+        setSelectedStep(null);
+    }, []);
+
     const handleNodeClick = useCallback(
         (_event: React.MouseEvent, node: Node) => {
             setHasUserInteracted(true);
+
+            // If clicking on a group container, treat it like clicking on empty space
+            if (node.type === "group") {
+                setHighlightedStepId(null);
+                setSelectedEdgeId(null);
+                handlePopoverClose();
+                return;
+            }
 
             const sourceHandles = getNodeSourceHandles(node);
 
@@ -340,96 +267,13 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
                 handleEdgeClick(_event, targetEdge);
             }
         },
-        [getNodeSourceHandles, findEdgeBySourceAndHandle, handleEdgeClick, edges]
+        [getNodeSourceHandles, setHighlightedStepId, handlePopoverClose, findEdgeBySourceAndHandle, edges, handleEdgeClick]
     );
 
     const handleUserMove = useCallback((event: MouseEvent | TouchEvent | null) => {
         if (!event?.isTrusted) return; // Ignore synthetic events
         setHasUserInteracted(true);
     }, []);
-
-    const handlePopoverClose = useCallback(() => {
-        setIsPopoverOpen(false);
-        setSelectedStep(null);
-    }, []);
-
-    useEffect(() => {
-        if (isReplaying && processedSteps.length > 0 && firstStepTimestampRef.current !== null && replayStartTimeRef.current !== null) {
-            const firstStepTime = firstStepTimestampRef.current;
-            const replayStartTime = replayStartTimeRef.current;
-            let animationFrameId: number | null = null;
-
-            const replayLoop = () => {
-                if (!isReplaying || currentReplayStepIndex >= processedSteps.length) {
-                    setIsReplaying(false);
-                    setReplayState(false, processedSteps.length);
-                    if (animationFrameId) cancelAnimationFrame(animationFrameId);
-                    if (replayIntervalRef.current) clearTimeout(replayIntervalRef.current);
-                    replayIntervalRef.current = null;
-                    return;
-                }
-
-                // If paused, don't process any steps, just wait
-                if (isReplayPaused) {
-                    if (replayIntervalRef.current) clearTimeout(replayIntervalRef.current);
-                    replayIntervalRef.current = window.setTimeout(() => {
-                        animationFrameId = requestAnimationFrame(replayLoop);
-                    }, 100); // Check pause state every 100ms
-                    return;
-                }
-
-                const elapsedRealTime = Date.now() - replayStartTime;
-                let nextStepIndex = currentReplayStepIndex;
-                let stepsProcessedInThisLoop = 0;
-
-                // Process steps based on their timestamps
-                while (nextStepIndex < processedSteps.length) {
-                    const step = processedSteps[nextStepIndex];
-                    const stepTimeOffset = Date.parse(step.timestamp) - firstStepTime;
-
-                    if (stepTimeOffset <= elapsedRealTime) {
-                        setReplayedSteps(prev => [...prev, step]);
-                        nextStepIndex++;
-                        stepsProcessedInThisLoop++;
-                    } else {
-                        break;
-                    }
-                }
-
-                if (stepsProcessedInThisLoop > 0) {
-                    setCurrentReplayStepIndex(nextStepIndex);
-                    updateGroupNodeSizes();
-                    setReplayState(true, nextStepIndex);
-                }
-
-                if (nextStepIndex >= processedSteps.length) {
-                    setIsReplaying(false);
-                    setReplayState(false, processedSteps.length);
-                    if (replayIntervalRef.current) clearTimeout(replayIntervalRef.current);
-                    replayIntervalRef.current = null;
-                } else {
-                    const nextStep = processedSteps[nextStepIndex];
-                    const nextStepTimeOffset = Date.parse(nextStep.timestamp) - firstStepTime;
-                    const delay = Math.max(0, nextStepTimeOffset - elapsedRealTime);
-
-                    if (replayIntervalRef.current) clearTimeout(replayIntervalRef.current);
-                    replayIntervalRef.current = window.setTimeout(() => {
-                        animationFrameId = requestAnimationFrame(replayLoop);
-                    }, delay);
-                }
-            };
-
-            animationFrameId = requestAnimationFrame(replayLoop);
-
-            return () => {
-                if (animationFrameId) cancelAnimationFrame(animationFrameId);
-                if (replayIntervalRef.current) {
-                    clearTimeout(replayIntervalRef.current);
-                    replayIntervalRef.current = null;
-                }
-            };
-        }
-    }, [isReplaying, isReplayPaused, processedSteps, currentReplayStepIndex, setIsReplaying, setCurrentReplayStepIndex, updateGroupNodeSizes, setReplayState, setReplayedSteps]);
 
     // Reset user interaction state when taskIdInSidePanel changes (new task loaded)
     useEffect(() => {
@@ -452,14 +296,16 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
         }
     }, [nodes.length, fitView, processedSteps, isSidePanelTransitioning, hasUserInteracted]);
 
+    // Combined effect for node highlighting and edge selection based on highlightedStepId
     useEffect(() => {
+        // Update node highlighting
         setNodes(currentFlowNodes =>
             currentFlowNodes.map(flowNode => {
                 const isHighlighted = flowNode.data?.visualizerStepId && flowNode.data.visualizerStepId === highlightedStepId;
 
                 // Find the original node from memoizedFlowData to get its base style
                 const originalNode = memoizedFlowData.nodes.find(n => n.id === flowNode.id);
-                const baseStyle = originalNode?.style || {}; // Get base style from original node
+                const baseStyle = originalNode?.style || {};
 
                 return {
                     ...flowNode,
@@ -471,10 +317,8 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
                 };
             })
         );
-    }, [highlightedStepId, setNodes, memoizedFlowData.nodes]);
 
-    // Simplified effect to update selectedEdgeId when highlightedStepId changes
-    useEffect(() => {
+        // Update selected edge
         if (highlightedStepId) {
             const relatedEdge = computedEdges.find(edge => {
                 const edgeData = edge.data as unknown as AnimatedEdgeData;
@@ -487,7 +331,7 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
         } else {
             setSelectedEdgeId(null);
         }
-    }, [highlightedStepId, computedEdges]);
+    }, [highlightedStepId, setNodes, memoizedFlowData.nodes, computedEdges]);
 
     if (!processedSteps || processedSteps.length === 0) {
         return <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">{Object.keys(processedSteps).length > 0 ? "Processing flow data..." : "No steps to display in flow chart."}</div>;
@@ -527,21 +371,6 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
             >
                 <Background />
                 <Controls className={getThemeButtonHtmlStyles()} />
-                <Panel position="bottom-right" className={`flex space-x-1 rounded bg-white p-1 dark:bg-gray-800 ${getThemeButtonHtmlStyles()}`}>
-                    {!isReplaying ? (
-                        <ControlButton onClick={startReplay} title="Replay Flow" disabled={processedSteps.length === 0}>
-                            <FiPlay />
-                        </ControlButton>
-                    ) : !isReplayPaused ? (
-                        <ControlButton onClick={pauseReplay} title="Pause Replay">
-                            <FiPause />
-                        </ControlButton>
-                    ) : (
-                        <ControlButton onClick={resumeReplay} title="Resume Replay">
-                            <FiPlay />
-                        </ControlButton>
-                    )}
-                </Panel>
                 <Panel position="top-right" className="flex items-center space-x-4">
                     <div ref={popoverAnchorRef} />
                 </Panel>

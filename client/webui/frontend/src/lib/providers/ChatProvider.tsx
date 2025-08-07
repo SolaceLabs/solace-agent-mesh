@@ -934,7 +934,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             console.log(`ChatProvider Effect: currentTaskId is null or apiPrefix missing. Ensuring EventSource is closed.`);
             closeCurrentEventSource();
         }
-    }, [currentTaskId, apiPrefix, handleSseOpen, handleSseError, handleSseMessage, closeCurrentEventSource]);
+    }, [currentTaskId, apiPrefix]);
 
     const contextValue: ChatContextValue = {
         sessionId,
@@ -957,6 +957,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         selectedAgentName,
         setSelectedAgentName,
         artifacts,
+        artifactsLoading,
+        artifactsRefetch,
         uploadArtifactFile,
         isSidePanelCollapsed,
         activeSidePanelTab,

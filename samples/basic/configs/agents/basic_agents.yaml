@@ -1,0 +1,140 @@
+# Basic Agents Configuration
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: basic_agents.log
+
+!include ../shared_config.yaml
+
+apps:
+# ---  Markitdown Agent ---
+  - name: markitdown_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "MarkitdownAgent"
+      display_name: "Markdown Agent"
+      model: *general_model
+      instruction: |
+        The Markitdown Agent has the following capability:
+        * convert various file types (like PDF, DOCX, XLSX, HTML, CSV, PPTX, ZIP) to Markdown.
+        Any files you get that might be useful should be saved using create_artifact.
+        There is no need to provide a preview of the content in the response.
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+        - tool_type: builtin
+          tool_name: "convert_file_to_markdown"
+      session_service: *default_session_service
+      artifact_service: *default_artifact_service
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      agent_card:
+        description: "An agent that converts various file types (like PDF, DOCX, XLSX, HTML, CSV, PPTX, ZIP) to Markdown format."
+        defaultInputModes: ["text", "file"]
+        defaultOutputModes: ["text", "file"]
+        skills:
+        - id: "convert_file_to_markdown"
+          name: "Markdown Converter"
+          description: "Converts various file types to Markdown format."
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+
+# --- Mermaid Agent (Python Tool based) ---
+  - name: mermaid_pytool_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "MermaidAgent"
+      display_name: "Mermaid Diagram Agent"
+      model: *general_model
+      instruction: |
+        The MermaidAgent can generate PNG images from Mermaid diagram syntax.
+        You will be provided with the Mermaid syntax as a string.
+
+        You require detailed data to fulfill requests, and if a request doesn't have all the 
+        data required to fulfill a task, you must request it from the caller.
+
+        Don't use fake data unless you are explicitly told to do so.
+
+        Use the 'mermaid_diagram_generator' tool to create the PNG image.
+        The tool accepts 'mermaid_syntax' (the diagram code) and an optional 'output_filename'.
+        The generated image will be saved as a PNG artifact.
+        Confirm completion by stating the name and version of the created artifact.
+      tools:
+        - tool_type: builtin
+          tool_name: "mermaid_diagram_generator"
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+      session_service: *default_session_service
+      artifact_service: *default_artifact_service
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      agent_card:
+        description: |
+          An agent that generates PNG images from Mermaid diagram syntax using a Python tool.
+          Requires detailed Mermaid syntax input. Include all necessary data for the task.
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills:
+        - id: "mermaid_diagram_generator"
+          name: "Mermaid Diagram Generator"
+          description: "Generates a PNG image from Mermaid diagram syntax. Requires detailed data. Input: mermaid_syntax (string), output_filename (string, optional)."
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+
+# --- Web Agent ---
+  - name: web_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "WebAgent"
+      display_name: "Web Content Agent"
+      model: *general_model
+      instruction: |
+        You are an agent that can fetch content from web URLs using the 'web_request' tool.
+        You can make various types of HTTP requests (GET, POST, etc.) and include custom headers or a body.
+        The tool will return the fetched content (HTML converted to Markdown, other text types as is, or raw binary data).
+        You will then need to process this content based on the user's request.
+        Always save useful fetched content as an artifact.
+      tools:
+        - tool_type: builtin
+          tool_name: "web_request"
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+      session_service: *default_session_service
+      artifact_service: *default_artifact_service
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      agent_card:
+        description: "An agent that fetches content from web URLs."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills:
+          - id: "web_request"
+            name: "Web Request"
+            description: "Fetches content from a URL."
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []

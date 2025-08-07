@@ -19,9 +19,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     const [taskMonitorSseError, setTaskMonitorSseError] = useState<string | null>(null);
     const [monitoredTasks, setMonitoredTasks] = useState<Record<string, TaskFE>>({});
     const [monitoredTaskOrder, setMonitoredTaskOrder] = useState<string[]>([]);
-    const [highlightedStepId, setHighlightedStepIdState] = useState<string | null>(null); 
-    const [isReplaying, setIsReplaying] = useState<boolean>(false);
-    const [currentReplayStep, setCurrentReplayStep] = useState<number>(0);
+    const [highlightedStepId, setHighlightedStepIdState] = useState<string | null>(null);
 
     // Reconnection state management
     const [reconnectionAttempts, setReconnectionAttempts] = useState<number>(0);
@@ -234,8 +232,6 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         setMonitoredTasks({});
         setMonitoredTaskOrder([]);
         setHighlightedStepIdState(null);
-        setIsReplaying(false);
-        setCurrentReplayStep(0);
         setReconnectionAttempts(0);
         setIsReconnecting(false);
     }, [apiPrefix]);
@@ -304,11 +300,6 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         setHighlightedStepIdState(stepId);
     }, []);
 
-    const setReplayState = useCallback((isReplayingState: boolean, currentStep: number) => {
-        setIsReplaying(isReplayingState);
-        setCurrentReplayStep(currentStep);
-    }, []);
-
     const contextValue: TaskContextValue = {
         isTaskMonitorConnecting,
         isTaskMonitorConnected,
@@ -316,14 +307,11 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         monitoredTasks,
         monitoredTaskOrder,
         highlightedStepId,
-        isReplaying,
-        currentReplayStep,
         isReconnecting,
         reconnectionAttempts,
         connectTaskMonitorStream,
         disconnectTaskMonitorStream,
         setHighlightedStepId,
-        setReplayState,
     };
 
     return <TaskContext.Provider value={contextValue}>{children}</TaskContext.Provider>;

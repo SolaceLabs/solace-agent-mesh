@@ -9,7 +9,7 @@ from config_portal.backend.common import DEFAULT_COMMUNICATION_TIMEOUT
 ORCHESTRATOR_DEFAULTS = {
     "agent_name": "OrchestratorAgent",
     "supports_streaming": True,
-    "artifact_handling_mode": "embed",
+    "artifact_handling_mode": "reference",
     "enable_embed_resolution": True,
     "enable_artifact_content_instruction": True,
     "enable_builtin_artifact_tools": {"enabled": True},

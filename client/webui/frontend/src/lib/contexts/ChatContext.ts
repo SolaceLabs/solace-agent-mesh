@@ -13,6 +13,8 @@ export interface ChatState {
     isCancelling: boolean;
     // Chat Side Panel State
     artifacts: ArtifactInfo[];
+    artifactsLoading: boolean;
+    artifactsRefetch: () => Promise<void>;
     taskIdInSidePanel: string | null;
     // Side Panel Control State
     isSidePanelCollapsed: boolean;

@@ -6,6 +6,8 @@ import asyncio
 import threading
 from typing import Dict, List, Any
 import json
+import datetime
+import math
 
 from solace_ai_connector.common.log import log
 
@@ -45,6 +47,23 @@ class SSEManager:
                     id(current_loop),
                 )
             return self._locks[current_loop]
+
+    def _sanitize_json(self, obj):
+        if isinstance(obj, dict):
+            return {k: self._sanitize_json(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._sanitize_json(v) for v in obj]
+        elif isinstance(obj, (float, int)):
+            if math.isnan(obj) or math.isinf(obj):
+                return None
+            return obj
+        elif isinstance(obj, (str, bool, type(None))):
+            return obj
+        elif isinstance(obj, (datetime.datetime, datetime.date)):
+            return obj.isoformat()
+        else:
+            return str(obj)
+
 
     async def create_sse_connection(self, task_id: str) -> asyncio.Queue:
         """
@@ -136,7 +155,10 @@ class SSEManager:
 
             queues_to_remove = []
             try:
-                serialized_data = json.dumps(event_data)
+                serialized_data = json.dumps(
+                    self._sanitize_json(event_data),
+                    allow_nan=False
+                )
             except Exception as json_err:
                 log.error(
                     "%s Failed to JSON serialize event data for Task ID %s: %s",
