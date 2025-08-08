@@ -24,8 +24,7 @@ def initialize():
     if enterprise_config and isinstance(enterprise_config, str):
         if enterprise_config.endswith('.yaml') or enterprise_config.endswith('.yml'):
             try:
-                with open(enterprise_config, 'r', encoding='utf-8') as file:
-                    enterprise_config = load_config(enterprise_config)
+                enterprise_config = load_config(enterprise_config)
             except Exception as e:
                 log.error("Failed to load YAML config from SAM_ENTERPRISE_CONFIG: %s", e, exc_info=True)
                 raise
