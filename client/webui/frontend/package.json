@@ -1,6 +1,27 @@
 {
   "name": "solace-agent-mesh-ui",
   "version": "0.0.1",
+  "description": "Solace Agent Mesh UI components - React library for building agent communication interfaces",
+  "author": "SolaceLabs <solacelabs@solace.com>",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SolaceLabs/solace-agent-mesh",
+    "directory": "client/webui/frontend"
+  },
+  "homepage": "https://github.com/SolaceLabs/solace-agent-mesh/tree/main/client/webui/frontend",
+  "bugs": {
+    "url": "https://github.com/SolaceLabs/solace-agent-mesh/issues"
+  },
+  "keywords": [
+    "solace",
+    "agent-mesh",
+    "ai",
+    "react",
+    "ui-components",
+    "chat",
+    "agents"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -13,8 +34,12 @@
     "./dist/solace-agent-mesh-ui.css": "./dist/solace-agent-mesh-ui.css"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
+  "engines": {
+    "node": ">=20.8.10"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
