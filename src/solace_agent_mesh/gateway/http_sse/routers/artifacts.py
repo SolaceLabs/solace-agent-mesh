@@ -134,7 +134,7 @@ async def list_artifact_versions(
 
 
 @router.get(
-    "/",
+    "",
     response_model=List[ArtifactInfo],
     summary="List Artifact Information",
     description="Retrieves detailed information for artifacts available for the current user session.",
@@ -403,7 +403,6 @@ async def get_specific_artifact_version(
         mime_type = load_result.get("mime_type", "application/octet-stream")
         resolved_version_from_helper = load_result.get("version")
         if data_bytes is None:
-
             log.error(
                 "%s Helper (with return_raw_bytes=True) returned success but no raw_bytes for '%s' v%s (resolved to %s).",
                 log_prefix,
@@ -763,7 +762,6 @@ async def upload_artifact(
             detail=f"Failed to save artifact: {str(e)}",
         )
     finally:
-
         await upload_file.close()
         log.debug("%s Upload file closed.", log_prefix)
 
@@ -819,7 +817,6 @@ async def delete_artifact(
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     except Exception as e:
-
         log.exception("%s Error deleting artifact: %s", log_prefix, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

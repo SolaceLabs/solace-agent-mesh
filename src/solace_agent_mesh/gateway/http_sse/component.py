@@ -20,6 +20,7 @@ from solace_ai_connector.flow.app import App as SACApp
 from solace_ai_connector.components.inputs_outputs.broker_input import (
     BrokerInput,
 )
+from .database.database_persistence_service import DatabasePersistenceService
 
 from ...gateway.http_sse.sse_manager import SSEManager
 
@@ -118,12 +119,17 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         self.sse_manager = SSEManager(max_queue_size=sse_max_queue_size)
 
+        self.persistence_service = DatabasePersistenceService(
+            db_url=self.get_config("session_service", {}).get("database_url")
+        )
+
         component_config = self.get_config("component_config", {})
         app_config = component_config.get("app_config", {})
 
         self.session_manager = SessionManager(
             secret_key=self.session_secret_key,
             app_config=app_config,
+            persistence_service=self.persistence_service,
         )
 
         self.fastapi_app: Optional[FastAPI] = None
@@ -836,9 +842,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
             self.fastapi_app = fastapi_app_instance
 
-            setup_dependencies(self)
+            setup_dependencies(self, self.persistence_service)
 
-            port = self.fastapi_https_port if self.ssl_keyfile and self.ssl_certfile else self.fastapi_port
+            port = (
+                self.fastapi_https_port
+                if self.ssl_keyfile and self.ssl_certfile
+                else self.fastapi_port
+            )
 
             config = uvicorn.Config(
                 app=self.fastapi_app,
@@ -1336,7 +1346,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
         files: Optional[List[UploadFile]] = external_event_data.get("files")
         client_id: str = external_event_data.get("client_id")
         a2a_session_id: str = external_event_data.get("a2a_session_id")
-
         if not target_agent_name:
             raise ValueError("Target agent name is missing in external_event_data.")
         if not client_id or not a2a_session_id:
@@ -1520,6 +1529,37 @@ class WebUIBackendComponent(BaseGatewayComponent):
             a2a_task_id,
             sse_task_id,
         )
+
+        if self.persistence_service:
+            try:
+                agent_message_content = None
+                if (
+                    task_data.status
+                    and task_data.status.message
+                    and task_data.status.message.parts
+                ):
+                    for part in task_data.status.message.parts:
+                        if part.type == "text":
+                            agent_message_content = part.text
+                            break
+
+                if agent_message_content:
+                    self.persistence_service.store_chat_message(
+                        session_id=task_data.sessionId,
+                        message={
+                            "content": agent_message_content,
+                            "sender_type": "agent",
+                            "sender_name": task_data.metadata.get("agent_name"),
+                        },
+                        user_id=external_request_context.get("user_id_for_a2a"),
+                        agent_id=task_data.metadata.get("agent_name"),
+                    )
+            except Exception as e:
+                log.error(
+                    "%s Failed to store final agent response: %s",
+                    log_id_prefix,
+                    e,
+                )
 
         sse_payload = JSONRPCResponse(id=a2a_task_id, result=task_data).model_dump(
             exclude_none=True
