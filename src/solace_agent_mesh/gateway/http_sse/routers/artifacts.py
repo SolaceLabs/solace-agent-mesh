@@ -588,7 +588,7 @@ async def get_artifact_by_uri(
             user_id=owner_user_id,
             session_id=session_id,
             filename=filename,
-            version=version,
+            version=int(version),
             return_raw_bytes=True,
             log_identifier_prefix=log_id_prefix,
             component=component,
