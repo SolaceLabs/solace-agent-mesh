@@ -543,24 +543,12 @@ async def get_artifact_by_uri(
         )
 
     try:
-        parsed_uri = urlparse(uri)
-        if parsed_uri.scheme != "artifact":
-            raise ValueError("Invalid URI scheme, must be 'artifact'.")
-
-        app_name = parsed_uri.netloc
-        path_parts = parsed_uri.path.strip("/").split("/")
-        if not app_name or len(path_parts) != 3:
-            raise ValueError(
-                "Invalid URI path structure. Expected artifact://app_name/user_id/session_id/filename"
-            )
-
-        owner_user_id, session_id, filename = path_parts
-
-        query_params = parse_qs(parsed_uri.query)
-        version_list = query_params.get("version")
-        if not version_list or not version_list[0]:
-            raise ValueError("Version query parameter is required.")
-        version = version_list[0]
+        parsed = component._parse_artifact_uri(uri)
+        app_name = parsed["app_name"]
+        owner_user_id = parsed["user_id"]
+        session_id = parsed["session_id"]
+        filename = parsed["filename"]
+        version = parsed["version"]
 
         log.info(
             "%s Parsed URI: app=%s, owner=%s, session=%s, file=%s, version=%s",
@@ -600,7 +588,7 @@ async def get_artifact_by_uri(
             user_id=owner_user_id,
             session_id=session_id,
             filename=filename,
-            version=int(version),
+            version=version,
             return_raw_bytes=True,
             log_identifier_prefix=log_id_prefix,
             component=component,
