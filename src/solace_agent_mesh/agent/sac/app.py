@@ -558,6 +558,7 @@ class SamAgentApp(App):
         app_config = app_info.get("app_config", {})
         namespace = app_config.get("namespace")
         agent_name = app_config.get("agent_name")
+        broker_request_response = app_info.get("broker_request_response")
 
         if not namespace or not isinstance(namespace, str):
             raise ValueError(
@@ -626,6 +627,8 @@ class SamAgentApp(App):
             "component_config": {},
             "subscriptions": generated_subs,
         }
+        if broker_request_response:
+            component_definition["broker_request_response"] = broker_request_response
 
         app_info["components"] = [component_definition]
         log.debug("Replaced 'components' in app_info with programmatic definition.")
