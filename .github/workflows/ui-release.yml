@@ -115,34 +115,3 @@ jobs:
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.validate-tag.outputs.tag }}
-          name: "UI Release ${{ needs.validate-tag.outputs.version }}"
-          body: |
-            🎉 **Solace Agent Mesh UI v${{ needs.validate-tag.outputs.version }}**
-
-            ## Installation
-
-            ```bash
-            npm install @SolaceDev/solace-agent-mesh-ui@${{ needs.validate-tag.outputs.version }}
-            ```
-
-            ## Changes
-
-            This release includes the UI components built from the `client/webui/frontend` directory.
-
-            ## Package Information
-
-            - **Package**: `@SolaceDev/solace-agent-mesh-ui`
-            - **Version**: `${{ needs.validate-tag.outputs.version }}`
-            - **Registry**: GitHub Packages
-
-            For more information, see the [README](https://github.com/${{ github.repository }}/tree/${{ needs.validate-tag.outputs.tag }}/client/webui/frontend/README.md).
-          draft: false
-          prerelease: ${{ contains(needs.validate-tag.outputs.version, '-') }}
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

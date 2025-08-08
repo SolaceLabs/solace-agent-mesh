@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - "main"
+      - "test-ui-base"
     paths:
       - "client/webui/frontend/**"
   pull_request:
     types: [opened, synchronize]
     branches:
-      - "main"
+      - "test-ui-base"
     paths:
       - "client/webui/frontend/**"
 
@@ -201,7 +201,7 @@ jobs:
     needs: ui-build-and-test
     name: "Bump UI Version"
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/test-ui-base'
     defaults:
       run:
         working-directory: client/webui/frontend
@@ -249,5 +249,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote set-url origin git@github.com:${{ github.repository }}.git
-          git push origin main
+          git push origin test-ui-base
           git push origin ${{ steps.bump.outputs.newTag }}
