@@ -13,7 +13,7 @@ def initialize():
         return
     
     try:
-        from solace_a2a_agent_enterprise.init_enterprise import initialize_enterprise_features
+        from solace_agent_mesh_enterprise.init_enterprise import initialize_enterprise_features
     except ImportError:
         # Community edition
         # Contact Solace support for enterprise features
