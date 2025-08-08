@@ -178,6 +178,49 @@ class BaseGatewayComponent(ComponentBase):
             "%s Base Gateway Component initialized successfully.", self.log_identifier
         )
 
+    def _parse_artifact_uri(self, uri: str) -> Dict[str, Any]:
+        """
+        Parses an artifact:// URI into its components.
+        
+        Args:
+            uri: The artifact URI to parse (e.g., artifact://app/user/session/file?version=1)
+            
+        Returns:
+            Dict containing: app_name, user_id, session_id, filename, version
+            
+        Raises:
+            ValueError: If URI format is invalid
+        """
+        try:
+            parsed_uri = urlparse(uri)
+            if parsed_uri.scheme != "artifact":
+                raise ValueError("Invalid URI scheme, must be 'artifact'.")
+            
+            app_name = parsed_uri.netloc
+            path_parts = parsed_uri.path.strip("/").split("/")
+            
+            if not app_name or len(path_parts) != 3:
+                raise ValueError(
+                    "Invalid URI path structure. Expected: artifact://app_name/user_id/session_id/filename"
+                )
+            
+            user_id, session_id, filename = path_parts
+            
+            query_params = parse_qs(parsed_uri.query)
+            version_list = query_params.get("version")
+            if not version_list or not version_list[0]:
+                raise ValueError("Version query parameter is required.")
+            
+            return {
+                "app_name": app_name,
+                "user_id": user_id, 
+                "session_id": session_id,
+                "filename": filename,
+                "version": int(version_list[0])
+            }
+        except (ValueError, IndexError) as e:
+            raise ValueError(f"Invalid artifact URI format: {e}")
+
     def publish_a2a_message(
         self, topic: str, payload: Dict, user_properties: Optional[Dict] = None
     ) -> None:
