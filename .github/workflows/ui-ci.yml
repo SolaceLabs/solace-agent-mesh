@@ -106,7 +106,7 @@ jobs:
         with:
           whitesource_api_key: ${{ secrets.WHITESOURCE_API_KEY }}
           whitesource_product_name: "solaceai"
-          whitesource_project_name: "solace-agent-mesh-ui"
+          whitesource_project_name: "solace-agent-mesh-ui${{ github.event_name == 'push' || format('-pr-{0}', github.event.pull_request.number) }}"
           whitesource_config_file: "client/webui/frontend/wss-unified-agent.config"
           target_directory: "client/webui/frontend"
 
@@ -142,7 +142,7 @@ jobs:
 
       - name: Run WhiteSource Policy Gate
         id: whitesource-policy-gate
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/test-ui-base'
         uses: docker://ghcr.io/solacedev/maas-build-actions:latest
         continue-on-error: true
         env:
@@ -171,7 +171,7 @@ jobs:
 
       - name: Run WhiteSource Vulnerability Checker
         id: whitesource-vulnerability-checker
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/test-ui-base'
         uses: docker://ghcr.io/solacedev/maas-build-actions:latest
         continue-on-error: true
         env:
