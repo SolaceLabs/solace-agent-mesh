@@ -1,4 +1,4 @@
-name: "Release UI Package to GitHub Packages"
+name: "Release UI"
 
 on:
   workflow_dispatch:
@@ -7,9 +7,6 @@ on:
         description: "UI tag to release (e.g., ui-v1.0.0)"
         required: true
         type: string
-  push:
-    tags:
-      - "ui-v*"
 
 permissions:
   contents: write
