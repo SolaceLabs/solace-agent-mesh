@@ -621,11 +621,11 @@ function handleTaskFailed(step: VisualizerStep, manager: TimelineLayoutManager, 
 }
 
 function handlePeerTaskTimeout(
-    step: VisualizerStep, 
-    manager: TimelineLayoutManager, 
-    nodes: Node[], 
-    edges: Edge[], 
-    edgeAnimationService: EdgeAnimationService, 
+    step: VisualizerStep,
+    manager: TimelineLayoutManager,
+    nodes: Node[],
+    edges: Edge[],
+    edgeAnimationService: EdgeAnimationService,
     processedSteps: VisualizerStep[]
 ): void {
     const currentPhase = getCurrentPhase(manager);
@@ -643,48 +643,55 @@ function handlePeerTaskTimeout(
         manager.timedOutSubTaskIds.add(subTaskId);
     }
 
-    // Find the source agent (the one that was waiting)
-    const sourceAgent = manager.agentRegistry.findAgentByName(parentAgentName);
-    if (!sourceAgent) {
-        console.error(`[Timeline] Source agent not found for timeout: ${parentAgentName}`);
+    // The agent that timed out. The edge should originate from here.
+    const timedOutAgent = manager.agentRegistry.findAgentByName(peerAgentName);
+
+    // The parent agent that was waiting. Execution continues from here.
+    const parentAgent = manager.agentRegistry.findAgentByName(parentAgentName);
+    if (!parentAgent) {
+        console.error(`[Timeline] Parent agent for timeout not found: ${parentAgentName}`);
         return;
     }
 
+    // If the timed-out agent node doesn't exist for some reason (e.g., race condition),
+    // fall back to using the parent agent as the source of the timeout edge to avoid breaking the flow.
+    const edgeSourceAgent = timedOutAgent || parentAgent;
+
     // Check if we need to continue the flow after timeout
     if (isOrchestratorAgent(parentAgentName)) {
-        // Timeout happened in main flow, continue with orchestrator
+        // Timeout happened in a task called by the orchestrator, so continue with orchestrator.
         manager.indentationLevel = 0;
         const newOrchestratorPhase = createNewMainPhase(manager, parentAgentName, step, nodes);
-        
+
         // Create an error edge to show the timeout
         createTimeoutEdge(
-            sourceAgent.nodeInstance.id, 
-            newOrchestratorPhase.orchestratorAgent.id, 
-            step, 
-            edges, 
-            manager, 
-            getAgentHandle(sourceAgent.type, "output", "bottom"),
-            "orch-top-input"
-        );
-        
-        manager.currentSubflowIndex = -1;
-    } else {
-        // Timeout in peer flow, continue with next peer or return to orchestrator
-        manager.indentationLevel = Math.max(0, manager.indentationLevel - 1);
-        
-        // Return to orchestrator after timeout
-        const newOrchestratorPhase = createNewMainPhase(manager, "OrchestratorAgent", step, nodes);
-        
-        createTimeoutEdge(
-            sourceAgent.nodeInstance.id,
+            edgeSourceAgent.nodeInstance.id,
             newOrchestratorPhase.orchestratorAgent.id,
             step,
             edges,
             manager,
-            getAgentHandle(sourceAgent.type, "output", "bottom"),
+            getAgentHandle(edgeSourceAgent.type, "output", "bottom"),
             "orch-top-input"
         );
-        
+
+        manager.currentSubflowIndex = -1;
+    } else {
+        // Timeout in peer flow, continue with next peer or return to orchestrator
+        manager.indentationLevel = Math.max(0, manager.indentationLevel - 1);
+
+        // Return to orchestrator after timeout
+        const newOrchestratorPhase = createNewMainPhase(manager, "OrchestratorAgent", step, nodes);
+
+        createTimeoutEdge(
+            edgeSourceAgent.nodeInstance.id,
+            newOrchestratorPhase.orchestratorAgent.id,
+            step,
+            edges,
+            manager,
+            getAgentHandle(edgeSourceAgent.type, "output", "bottom"),
+            "orch-top-input"
+        );
+
         manager.currentSubflowIndex = -1;
     }
 }
