@@ -784,6 +784,8 @@ class SamAgentComponent(ComponentBase):
             invocation_id,
         )
 
+        await self._publish_peer_timeout_status(sub_task_id, correlation_data)
+
         # Proactively send a cancellation request to the peer agent.
         peer_agent_name = correlation_data.get("peer_agent_name")
         if peer_agent_name:
@@ -1447,6 +1449,59 @@ class SamAgentComponent(ComponentBase):
                 log_identifier_helper,
                 e,
             )
+
+    async def _publish_peer_timeout_status(
+        self, sub_task_id: str, correlation_data: Dict[str, Any]
+    ):
+        """
+        Publishes an intermediate status update indicating a peer tool call has timed out.
+        """
+        logical_task_id = correlation_data.get("logical_task_id")
+        peer_agent_name = correlation_data.get("peer_agent_name")
+        adk_function_call_id = correlation_data.get("adk_function_call_id")
+        a2a_context = correlation_data.get("original_task_context")
+
+        if not all([logical_task_id, peer_agent_name, a2a_context]):
+            return
+
+        timeout_value = self.inter_agent_communication_config.get(
+            "request_timeout_seconds", DEFAULT_COMMUNICATION_TIMEOUT
+        )
+        error_message = f"Request to peer agent '{peer_agent_name}' timed out after {timeout_value} seconds."
+
+        try:
+            timeout_data_part = DataPart(
+                data={
+                    "a2a_signal_type": "peer_task_timeout",
+                    "error_message": error_message,
+                    "peer_agent_name": peer_agent_name,
+                    "sub_task_id": sub_task_id,
+                    "function_call_id": adk_function_call_id,
+                    "parent_agent_name": self.get_config("agent_name"),
+                }
+            )
+
+            status_message = A2AMessage(role="agent", parts=[timeout_data_part])
+            intermediate_status = TaskStatus(
+                state=TaskState.WORKING,
+                message=status_message,
+                timestamp=datetime.now(timezone.utc),
+            )
+
+            status_update_event = TaskStatusUpdateEvent(
+                id=logical_task_id,
+                status=intermediate_status,
+                final=False,
+                metadata={"agent_name": self.get_config("agent_name")},
+            )
+
+            await self._publish_status_update_with_buffer_flush(
+                status_update_event,
+                a2a_context,
+                skip_buffer_flush=False,
+            )
+        except Exception as e:
+            log.error("Failed to publish peer timeout status: %s", e)
 
     async def _flush_buffer_if_needed(
         self, a2a_context: Dict, reason: str = "status_update"
