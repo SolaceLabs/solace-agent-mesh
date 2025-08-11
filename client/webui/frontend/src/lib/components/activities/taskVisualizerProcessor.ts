@@ -307,6 +307,38 @@ export const processTaskForVisualization = (
         if (event.direction === "status_update" && payload?.result) {
             const result = payload.result as any;
             const statusMessage = result.status?.message;
+
+            // PEER TASK TIMEOUT SIGNAL
+            const timeoutSignalPart = (statusMessage?.parts as DataPart[] | undefined)?.find(p => p.type === "data" && p.data?.a2a_signal_type === "peer_task_timeout");
+            if (timeoutSignalPart) {
+                flushAggregatedTextStep(currentEventOwningTaskId);
+                const timeoutData = timeoutSignalPart.data;
+                const toolName = `peer_${timeoutData.peer_agent_name}`;
+                const toolResultData: ToolResultData = {
+                    toolName: toolName,
+                    functionCallId: timeoutData.function_call_id,
+                    resultData: { error: timeoutData.error_message },
+                    isPeerResponse: true,
+                    isTimeout: true,
+                };
+
+                visualizerSteps.push({
+                    id: `vstep-toolresult-timeout-${visualizerSteps.length}-${eventId}`,
+                    type: "AGENT_TOOL_EXECUTION_RESULT",
+                    timestamp: eventTimestamp,
+                    title: `${timeoutData.parent_agent_name}: Tool Result - ${toolName}`,
+                    source: toolName, // The peer tool that timed out
+                    target: timeoutData.parent_agent_name, // The agent that was waiting
+                    data: { toolResult: toolResultData },
+                    rawEventIds: [eventId],
+                    isSubTaskStep: currentEventNestingLevel > 0,
+                    nestingLevel: currentEventNestingLevel,
+                    owningTaskId: currentEventOwningTaskId,
+                    functionCallId: timeoutData.function_call_id,
+                });
+                return;
+            }
+
             const messageMetadata = statusMessage?.metadata as any;
 
             let statusUpdateAgentName: string;
