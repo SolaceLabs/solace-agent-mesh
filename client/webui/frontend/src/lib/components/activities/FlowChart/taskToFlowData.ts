@@ -32,7 +32,7 @@ import {
 import { EdgeAnimationService } from "./edgeAnimationService";
 
 // Relevant step types that should be processed in the flow chart
-const RELEVANT_STEP_TYPES = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED"];
+const RELEVANT_STEP_TYPES = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED", "PEER_TASK_TIMEOUT"];
 
 interface FlowData {
     nodes: Node[];
@@ -304,6 +304,13 @@ function handleToolInvocationStart(step: VisualizerStep, manager: TimelineLayout
 function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
     const currentPhase = getCurrentPhase(manager);
     if (!currentPhase) return;
+
+    // Check if this tool execution result is for a timed out function call
+    const functionCallId = step.data.toolResult?.functionCallId;
+    if (functionCallId && manager.timedOutFunctionCallIds.has(functionCallId)) {
+        console.log(`[Timeline] Skipping tool execution result for timed out function call: ${functionCallId}`);
+        return; // Skip processing this result
+    }
 
     const stepSource = step.source || "UnknownSource";
     const targetAgentName = step.target || "OrchestratorAgent";
@@ -585,6 +592,125 @@ function handleTaskFailed(step: VisualizerStep, manager: TimelineLayoutManager, 
     createErrorEdge(sourceAgentNode.id, targetNodeId, step, edges, manager, sourceHandle, targetHandleId);
 }
 
+function handlePeerTaskTimeout(
+    step: VisualizerStep, 
+    manager: TimelineLayoutManager, 
+    nodes: Node[], 
+    edges: Edge[], 
+    edgeAnimationService: EdgeAnimationService, 
+    processedSteps: VisualizerStep[]
+): void {
+    const currentPhase = getCurrentPhase(manager);
+    if (!currentPhase) return;
+
+    const timeoutData = step.data;
+    const functionCallId = timeoutData.functionCallId;
+    const parentAgentName = timeoutData.parentAgentName;
+    const peerAgentName = timeoutData.peerAgentName;
+
+    // Mark this function call as timed out
+    manager.timedOutFunctionCallIds.add(functionCallId);
+
+    // Find the source agent (the one that was waiting)
+    const sourceAgent = manager.agentRegistry.findAgentByName(parentAgentName);
+    if (!sourceAgent) {
+        console.error(`[Timeline] Source agent not found for timeout: ${parentAgentName}`);
+        return;
+    }
+
+    // Check if we need to continue the flow after timeout
+    if (isOrchestratorAgent(parentAgentName)) {
+        // Timeout happened in main flow, continue with orchestrator
+        manager.indentationLevel = 0;
+        const newOrchestratorPhase = createNewMainPhase(manager, parentAgentName, step, nodes);
+        
+        // Create an error edge to show the timeout
+        createTimeoutEdge(
+            sourceAgent.nodeInstance.id, 
+            newOrchestratorPhase.orchestratorAgent.id, 
+            step, 
+            edges, 
+            manager, 
+            getAgentHandle(sourceAgent.type, "output", "bottom"),
+            "orch-top-input"
+        );
+        
+        manager.currentSubflowIndex = -1;
+    } else {
+        // Timeout in peer flow, continue with next peer or return to orchestrator
+        manager.indentationLevel = Math.max(0, manager.indentationLevel - 1);
+        
+        // Return to orchestrator after timeout
+        const newOrchestratorPhase = createNewMainPhase(manager, "OrchestratorAgent", step, nodes);
+        
+        createTimeoutEdge(
+            sourceAgent.nodeInstance.id,
+            newOrchestratorPhase.orchestratorAgent.id,
+            step,
+            edges,
+            manager,
+            getAgentHandle(sourceAgent.type, "output", "bottom"),
+            "orch-top-input"
+        );
+        
+        manager.currentSubflowIndex = -1;
+    }
+}
+
+function createTimeoutEdge(
+    sourceNodeId: string, 
+    targetNodeId: string, 
+    step: VisualizerStep, 
+    edges: Edge[], 
+    manager: TimelineLayoutManager,
+    sourceHandleId?: string, 
+    targetHandleId?: string
+): void {
+    if (!sourceNodeId || !targetNodeId || sourceNodeId === targetNodeId) {
+        return;
+    }
+
+    const sourceExists = manager.allCreatedNodeIds.has(sourceNodeId);
+    const targetExists = manager.allCreatedNodeIds.has(targetNodeId);
+
+    if (!sourceExists || !targetExists) {
+        return;
+    }
+
+    const edgeId = `timeout-edge-${sourceNodeId}${sourceHandleId || ""}-to-${targetNodeId}${targetHandleId || ""}-${step.id}`;
+
+    const edgeExists = edges.some(e => e.id === edgeId);
+
+    if (!edgeExists) {
+        const timeoutData = step.data;
+        const errorMessage = timeoutData.errorMessage || `Timeout waiting for ${timeoutData.peerAgentName}`;
+        
+        const newEdge: Edge = {
+            id: edgeId,
+            source: sourceNodeId,
+            target: targetNodeId,
+            label: "Timeout",
+            type: "defaultFlowEdge",
+            data: {
+                visualizerStepId: step.id,
+                isAnimated: false,
+                animationType: "static",
+                isError: true,
+                errorMessage: errorMessage,
+            } as unknown as Record<string, unknown>,
+        };
+
+        if (sourceHandleId) {
+            newEdge.sourceHandle = sourceHandleId;
+        }
+        if (targetHandleId) {
+            newEdge.targetHandle = targetHandleId;
+        }
+
+        edges.push(newEdge);
+    }
+}
+
 // Helper function to create error edges with error state data
 function createErrorEdge(sourceNodeId: string, targetNodeId: string, step: VisualizerStep, edges: Edge[], manager: TimelineLayoutManager, sourceHandleId?: string, targetHandleId?: string): void {
     if (!sourceNodeId || !targetNodeId || sourceNodeId === targetNodeId) {
@@ -660,6 +786,7 @@ export const transformProcessedStepsToTimelineFlow = (processedSteps: Visualizer
         agentRegistry: createAgentRegistry(),
         indentationLevel: 0,
         indentationStep: 50, // Pixels to indent per level
+        timedOutFunctionCallIds: new Set(),
     };
 
     const filteredSteps = processedSteps.filter(step => RELEVANT_STEP_TYPES.includes(step.type));
@@ -705,6 +832,9 @@ export const transformProcessedStepsToTimelineFlow = (processedSteps: Visualizer
                 break;
             case "TASK_FAILED":
                 handleTaskFailed(step, manager, newNodes, newEdges);
+                break;
+            case "PEER_TASK_TIMEOUT":
+                handlePeerTaskTimeout(step, manager, newNodes, newEdges, edgeAnimationService, processedSteps);
                 break;
         }
     }

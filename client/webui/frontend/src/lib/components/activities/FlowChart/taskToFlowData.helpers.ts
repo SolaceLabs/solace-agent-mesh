@@ -111,6 +111,9 @@ export interface TimelineLayoutManager {
     // Indentation tracking for agent delegation visualization
     indentationLevel: number; // Current indentation level
     indentationStep: number; // Pixels to indent per level
+
+    // Timeout tracking
+    timedOutFunctionCallIds: Set<string>; // Track timed out function calls
 }
 
 // Layout Constants
