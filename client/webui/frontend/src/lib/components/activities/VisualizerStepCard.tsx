@@ -177,6 +177,15 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
         </div>
     );
 
+    const renderPeerTaskTimeoutData = (data: Record<string, unknown>) => (
+        <div className="mt-1.5 rounded-md bg-red-50 p-2 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-400">
+            <p className="font-semibold">Timeout Details:</p>
+            <div className="mt-1 max-h-40 overflow-y-auto rounded bg-red-100/50 p-1.5 dark:bg-red-800/50">
+                <JSONViewer data={data} />
+            </div>
+        </div>
+    );
+
     // Calculate indentation based on nesting level - only apply in list variant
     const indentationStyle =
         variant === "list" && step.nestingLevel && step.nestingLevel > 0
@@ -266,6 +275,7 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
             {step.data.toolInvocationStart && renderToolInvocationStartData(step.data.toolInvocationStart)}
             {step.data.toolResult && renderToolResultData(step.data.toolResult)}
             {step.data.artifactNotification && renderArtifactNotificationData(step.data.artifactNotification)}
+            {step.type === "PEER_TASK_TIMEOUT" && renderPeerTaskTimeoutData(step.data)}
         </div>
     );
 };
