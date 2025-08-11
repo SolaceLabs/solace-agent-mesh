@@ -28,6 +28,8 @@ import {
     createAgentRegistry,
     getAgentHandle,
     isOrchestratorAgent,
+    handleParallelJoin,
+    createTimeoutEdge,
 } from "./taskToFlowData.helpers";
 import { EdgeAnimationService } from "./edgeAnimationService";
 
@@ -331,66 +333,10 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
     if (step.data.toolResult?.isPeerResponse) {
         const returningFunctionCallId = step.data.toolResult?.functionCallId;
 
-        // 1. FIRST, check if this return belongs to any active parallel flow.
-        const parallelFlowEntry = Array.from(manager.parallelFlows.entries()).find(
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            ([_id, pf]) => pf.subflowFunctionCallIds.includes(returningFunctionCallId || "")
-        );
-
-        if (parallelFlowEntry) {
-            // It's a parallel return. Handle the special join logic.
-            const [parallelFlowId, parallelFlow] = parallelFlowEntry;
-
-            parallelFlow.completedSubflows.add(returningFunctionCallId || "");
-
-            if (parallelFlow.completedSubflows.size < parallelFlow.subflowFunctionCallIds.length) {
-                // Not all parallel tasks are done yet. Just record completion and wait.
-                return;
-            }
-
-            // 2. ALL parallel tasks are done. Create a SINGLE "join" node.
-            const sourceSubflows = currentPhase.subflows.filter(sf => parallelFlow.subflowFunctionCallIds.includes(sf.functionCallId));
-
-            const joinTargetAgentName = step.target || "OrchestratorAgent";
-            let joinNode: NodeInstance;
-            let joinNodeHandle: string;
-
-            if (isOrchestratorAgent(joinTargetAgentName)) {
-                // The parallel tasks are returning to the main orchestrator.
-                manager.indentationLevel = 0;
-                const newOrchestratorPhase = createNewMainPhase(manager, joinTargetAgentName, step, nodes);
-                joinNode = newOrchestratorPhase.orchestratorAgent;
-                joinNodeHandle = "orch-top-input";
-                manager.currentSubflowIndex = -1; // Return to main flow context
-            } else {
-                // The parallel tasks are returning to a PEER agent (nested parallel).
-                // Create ONE new instance of that peer agent for them to join to.
-                manager.indentationLevel = Math.max(0, manager.indentationLevel - 1);
-                const newSubflowForJoin = startNewSubflow(manager, joinTargetAgentName, step, nodes, false);
-                if (!newSubflowForJoin) return;
-                joinNode = newSubflowForJoin.peerAgent;
-                joinNodeHandle = "peer-top-input";
-            }
-
-            // 3. Connect ALL completed parallel agents to this single join node.
-            sourceSubflows.forEach(subflow => {
-                createTimelineEdge(
-                    subflow.lastSubflow?.peerAgent.id ?? subflow.peerAgent.id,
-                    joinNode.id,
-                    step, // Use the final step as the representative event for the join
-                    edges,
-                    manager,
-                    edgeAnimationService,
-                    processedSteps,
-                    "peer-bottom-output",
-                    joinNodeHandle
-                );
-            });
-
-            // 4. Clean up the completed parallel flow to prevent reuse.
-            manager.parallelFlows.delete(parallelFlowId);
-
-            return; // Exit after handling the parallel join.
+        // Use the shared helper to handle parallel join logic.
+        const wasHandledAsParallel = handleParallelJoin(returningFunctionCallId, step, manager, nodes, edges, edgeAnimationService, processedSteps);
+        if (wasHandledAsParallel) {
+            return; // The helper took care of it.
         }
 
         // If we reach here, it's a NON-PARALLEL (sequential) peer return.
@@ -643,64 +589,10 @@ function handlePeerTaskTimeout(
         manager.timedOutSubTaskIds.add(subTaskId);
     }
 
-    // --- PARALLEL FLOW HANDLING ---
-    const parallelFlowEntry = Array.from(manager.parallelFlows.entries()).find(
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        ([_id, pf]) => pf.subflowFunctionCallIds.includes(functionCallId || "")
-    );
-
-    if (parallelFlowEntry) {
-        // This timeout is part of a parallel flow.
-        const [parallelFlowId, parallelFlow] = parallelFlowEntry;
-        parallelFlow.completedSubflows.add(functionCallId || "");
-
-        if (parallelFlow.completedSubflows.size < parallelFlow.subflowFunctionCallIds.length) {
-            // Not all parallel tasks are done. Wait for the others to complete or time out.
-            return;
-        }
-
-        // All parallel tasks are now finished. Create a single "join" node.
-        const sourceSubflows = currentPhase.subflows.filter(sf => parallelFlow.subflowFunctionCallIds.includes(sf.functionCallId));
-
-        const joinTargetAgentName = parentAgentName || "OrchestratorAgent";
-        let joinNode: NodeInstance;
-        let joinNodeHandle: string;
-
-        if (isOrchestratorAgent(joinTargetAgentName)) {
-            // Join back to the main orchestrator.
-            manager.indentationLevel = 0;
-            const newOrchestratorPhase = createNewMainPhase(manager, joinTargetAgentName, step, nodes);
-            joinNode = newOrchestratorPhase.orchestratorAgent;
-            joinNodeHandle = "orch-top-input";
-            manager.currentSubflowIndex = -1;
-        } else {
-            // Join back to a peer agent (nested parallel flow).
-            manager.indentationLevel = Math.max(0, manager.indentationLevel - 1);
-            const newSubflowForJoin = startNewSubflow(manager, joinTargetAgentName, step, nodes, false);
-            if (!newSubflowForJoin) return;
-            joinNode = newSubflowForJoin.peerAgent;
-            joinNodeHandle = "peer-top-input";
-        }
-
-        // Connect all parallel branches to the single join node.
-        sourceSubflows.forEach(subflow => {
-            const sourceNodeInstance = subflow.lastSubflow?.peerAgent ?? subflow.peerAgent;
-            const subflowAgentInfo = manager.agentRegistry.findAgentById(sourceNodeInstance.id);
-            const sourceHandle = getAgentHandle(subflowAgentInfo?.type || "peer", "output", "bottom");
-
-            if (manager.timedOutFunctionCallIds.has(subflow.functionCallId)) {
-                // This branch timed out, so create a red "Timeout" edge.
-                createTimeoutEdge(sourceNodeInstance.id, joinNode.id, step, edges, manager, sourceHandle, joinNodeHandle);
-            } else {
-                // This branch completed successfully, create a standard edge.
-                // We use the current (timeout) step as the representative event for all join edges.
-                createTimelineEdge(sourceNodeInstance.id, joinNode.id, step, edges, manager, edgeAnimationService, processedSteps, sourceHandle, joinNodeHandle);
-            }
-        });
-
-        // Clean up the completed parallel flow.
-        manager.parallelFlows.delete(parallelFlowId);
-        return; // Exit after handling the parallel join.
+    // Use the shared helper to handle parallel join logic.
+    const wasHandledAsParallel = handleParallelJoin(functionCallId, step, manager, nodes, edges, edgeAnimationService, processedSteps);
+    if (wasHandledAsParallel) {
+        return; // The helper took care of it.
     }
 
     // --- SEQUENTIAL FLOW HANDLING ---
@@ -751,61 +643,6 @@ function handlePeerTaskTimeout(
             "orch-top-input"
         );
         manager.currentSubflowIndex = -1;
-    }
-}
-
-function createTimeoutEdge(
-    sourceNodeId: string, 
-    targetNodeId: string, 
-    step: VisualizerStep, 
-    edges: Edge[], 
-    manager: TimelineLayoutManager,
-    sourceHandleId?: string, 
-    targetHandleId?: string
-): void {
-    if (!sourceNodeId || !targetNodeId || sourceNodeId === targetNodeId) {
-        return;
-    }
-
-    const sourceExists = manager.allCreatedNodeIds.has(sourceNodeId);
-    const targetExists = manager.allCreatedNodeIds.has(targetNodeId);
-
-    if (!sourceExists || !targetExists) {
-        return;
-    }
-
-    const edgeId = `timeout-edge-${sourceNodeId}${sourceHandleId || ""}-to-${targetNodeId}${targetHandleId || ""}-${step.id}`;
-
-    const edgeExists = edges.some(e => e.id === edgeId);
-
-    if (!edgeExists) {
-        const timeoutData = step.data;
-        const errorMessage = timeoutData.errorMessage || `Timeout waiting for ${timeoutData.peerAgentName}`;
-        
-        const newEdge: Edge = {
-            id: edgeId,
-            source: sourceNodeId,
-            target: targetNodeId,
-            label: "Timeout",
-            type: "defaultFlowEdge",
-            data: {
-                visualizerStepId: step.id,
-                isAnimated: false,
-                animationType: "static",
-                isError: true,
-                errorMessage: errorMessage,
-            } as unknown as Record<string, unknown>,
-            zIndex: 1000,
-        };
-
-        if (sourceHandleId) {
-            newEdge.sourceHandle = sourceHandleId;
-        }
-        if (targetHandleId) {
-            newEdge.targetHandle = targetHandleId;
-        }
-
-        edges.push(newEdge);
     }
 }
 

@@ -799,3 +799,135 @@ export function getAgentHandle(agentType: "orchestrator" | "peer", direction: "i
 export function isOrchestratorAgent(agentName: string): boolean {
     return agentName === "OrchestratorAgent" || agentName.toLowerCase().includes("orchestrator");
 }
+
+export function createTimeoutEdge(
+    sourceNodeId: string,
+    targetNodeId: string,
+    step: VisualizerStep,
+    edges: Edge[],
+    manager: TimelineLayoutManager,
+    sourceHandleId?: string,
+    targetHandleId?: string
+): void {
+    if (!sourceNodeId || !targetNodeId || sourceNodeId === targetNodeId) {
+        return;
+    }
+
+    const sourceExists = manager.allCreatedNodeIds.has(sourceNodeId);
+    const targetExists = manager.allCreatedNodeIds.has(targetNodeId);
+
+    if (!sourceExists || !targetExists) {
+        return;
+    }
+
+    const edgeId = `timeout-edge-${sourceNodeId}${sourceHandleId || ""}-to-${targetNodeId}${targetHandleId || ""}-${step.id}`;
+
+    const edgeExists = edges.some(e => e.id === edgeId);
+
+    if (!edgeExists) {
+        const timeoutData = step.data;
+        const errorMessage = timeoutData.errorMessage || `Timeout waiting for ${timeoutData.peerAgentName}`;
+
+        const newEdge: Edge = {
+            id: edgeId,
+            source: sourceNodeId,
+            target: targetNodeId,
+            label: "Timeout",
+            type: "defaultFlowEdge",
+            data: {
+                visualizerStepId: step.id,
+                isAnimated: false,
+                animationType: "static",
+                isError: true,
+                errorMessage: errorMessage,
+            } as unknown as Record<string, unknown>,
+            zIndex: 1000,
+        };
+
+        if (sourceHandleId) {
+            newEdge.sourceHandle = sourceHandleId;
+        }
+        if (targetHandleId) {
+            newEdge.targetHandle = targetHandleId;
+        }
+
+        edges.push(newEdge);
+    }
+}
+
+export function handleParallelJoin(
+    completingFunctionCallId: string | undefined,
+    step: VisualizerStep,
+    manager: TimelineLayoutManager,
+    nodes: Node[],
+    edges: Edge[],
+    edgeAnimationService: EdgeAnimationService,
+    processedSteps: VisualizerStep[]
+): boolean {
+    if (!completingFunctionCallId) {
+        return false;
+    }
+
+    const currentPhase = getCurrentPhase(manager);
+    if (!currentPhase) return false;
+
+    // Find if this completion belongs to any active parallel flow.
+    const parallelFlowEntry = Array.from(manager.parallelFlows.entries()).find(
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        ([_id, pf]) => pf.subflowFunctionCallIds.includes(completingFunctionCallId)
+    );
+
+    if (!parallelFlowEntry) {
+        // Not part of a parallel flow, so not handled here.
+        return false;
+    }
+
+    const [parallelFlowId, parallelFlow] = parallelFlowEntry;
+    parallelFlow.completedSubflows.add(completingFunctionCallId);
+
+    if (parallelFlow.completedSubflows.size < parallelFlow.subflowFunctionCallIds.length) {
+        // Not all parallel tasks are done yet. Just record completion and wait.
+        return true;
+    }
+
+    // ALL parallel tasks are done. Create a SINGLE "join" node.
+    const sourceSubflows = currentPhase.subflows.filter(sf => parallelFlow.subflowFunctionCallIds.includes(sf.functionCallId));
+
+    const joinTargetAgentName = step.data.parentAgentName || step.target || "OrchestratorAgent";
+    let joinNode: NodeInstance;
+    let joinNodeHandle: string;
+
+    if (isOrchestratorAgent(joinTargetAgentName)) {
+        // The parallel tasks are returning to the main orchestrator.
+        manager.indentationLevel = 0;
+        const newOrchestratorPhase = createNewMainPhase(manager, joinTargetAgentName, step, nodes);
+        joinNode = newOrchestratorPhase.orchestratorAgent;
+        joinNodeHandle = "orch-top-input";
+        manager.currentSubflowIndex = -1; // Return to main flow context
+    } else {
+        // The parallel tasks are returning to a PEER agent (nested parallel).
+        manager.indentationLevel = Math.max(0, manager.indentationLevel - 1);
+        const newSubflowForJoin = startNewSubflow(manager, joinTargetAgentName, step, nodes, false);
+        if (!newSubflowForJoin) return true;
+        joinNode = newSubflowForJoin.peerAgent;
+        joinNodeHandle = "peer-top-input";
+    }
+
+    // Connect ALL completed parallel agents to this single join node.
+    sourceSubflows.forEach(subflow => {
+        const sourceNodeInstance = subflow.lastSubflow?.peerAgent ?? subflow.peerAgent;
+        const subflowAgentInfo = manager.agentRegistry.findAgentById(sourceNodeInstance.id);
+        const sourceHandle = getAgentHandle(subflowAgentInfo?.type || "peer", "output", "bottom");
+
+        if (manager.timedOutFunctionCallIds.has(subflow.functionCallId)) {
+            createTimeoutEdge(sourceNodeInstance.id, joinNode.id, step, edges, manager, sourceHandle, joinNodeHandle);
+        } else {
+            createTimelineEdge(sourceNodeInstance.id, joinNode.id, step, edges, manager, edgeAnimationService, processedSteps, sourceHandle, joinNodeHandle);
+        }
+    });
+
+    // Clean up the completed parallel flow to prevent reuse.
+    manager.parallelFlows.delete(parallelFlowId);
+
+    return true;
+}
