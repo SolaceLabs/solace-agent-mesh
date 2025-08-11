@@ -629,20 +629,22 @@ function handlePeerTaskTimeout(
         );
         manager.currentSubflowIndex = -1;
     } else {
-        // Timeout in a peer-to-peer task.
+        // Timeout in a peer-to-peer task. Execution continues from the parent peer agent.
         manager.indentationLevel = Math.max(0, manager.indentationLevel - 1);
-        const newOrchestratorPhase = createNewMainPhase(manager, "OrchestratorAgent", step, nodes);
 
-        createTimeoutEdge(
-            edgeSourceAgent.nodeInstance.id,
-            newOrchestratorPhase.orchestratorAgent.id,
-            step,
-            edges,
-            manager,
-            getAgentHandle(edgeSourceAgent.type, "output", "bottom"),
-            "orch-top-input"
-        );
-        manager.currentSubflowIndex = -1;
+        // Create a new subflow for the parent agent to continue from.
+        const newSubflow = startNewSubflow(manager, parentAgentName, step, nodes, false);
+        if (newSubflow) {
+            createTimeoutEdge(
+                edgeSourceAgent.nodeInstance.id,
+                newSubflow.peerAgent.id, // Target the new peer agent instance
+                step,
+                edges,
+                manager,
+                getAgentHandle(edgeSourceAgent.type, "output", "bottom"),
+                "peer-top-input" // The handle for a peer agent
+            );
+        }
     }
 }
 
