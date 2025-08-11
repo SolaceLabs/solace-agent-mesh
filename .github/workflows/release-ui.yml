@@ -1,4 +1,4 @@
-name: "Release UI"
+name: "Release UI (GitHub Packages)"
 
 on:
   workflow_dispatch:
