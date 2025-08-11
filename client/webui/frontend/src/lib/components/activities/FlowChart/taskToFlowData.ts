@@ -155,6 +155,11 @@ function handleUserRequest(step: VisualizerStep, manager: TimelineLayoutManager,
 }
 
 function handleLLMCall(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
+    if (isEventFromTimedOutTask(step, manager)) {
+        console.log(`[Timeline] Skipping LLM call from timed out task: ${step.owningTaskId}`);
+        return;
+    }
+
     const currentPhase = getCurrentPhase(manager);
     if (!currentPhase) return;
 
@@ -180,6 +185,11 @@ function handleLLMCall(step: VisualizerStep, manager: TimelineLayoutManager, nod
 }
 
 function handleLLMResponseToAgent(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
+    if (isEventFromTimedOutTask(step, manager)) {
+        console.log(`[Timeline] Skipping LLM response from timed out task: ${step.owningTaskId}`);
+        return;
+    }
+
     // If this is a parallel tool decision, set up the parallel flow context
     if (step.type === "AGENT_LLM_RESPONSE_TOOL_DECISION" && step.data.toolDecision?.isParallel) {
         const parallelFlowId = `parallel-${step.id}`;
@@ -245,6 +255,11 @@ function handleLLMResponseToAgent(step: VisualizerStep, manager: TimelineLayoutM
 }
 
 function handleToolInvocationStart(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
+    if (isEventFromTimedOutTask(step, manager)) {
+        console.log(`[Timeline] Skipping tool invocation from timed out task: ${step.owningTaskId}`);
+        return;
+    }
+
     const currentPhase = getCurrentPhase(manager);
     if (!currentPhase) return;
 
@@ -302,15 +317,13 @@ function handleToolInvocationStart(step: VisualizerStep, manager: TimelineLayout
 }
 
 function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
+    if (isEventFromTimedOutTask(step, manager)) {
+        console.log(`[Timeline] Skipping tool execution result from timed out task: ${step.owningTaskId}`);
+        return;
+    }
+
     const currentPhase = getCurrentPhase(manager);
     if (!currentPhase) return;
-
-    // Check if this tool execution result is for a timed out function call
-    const functionCallId = step.data.toolResult?.functionCallId;
-    if (functionCallId && manager.timedOutFunctionCallIds.has(functionCallId)) {
-        console.log(`[Timeline] Skipping tool execution result for timed out function call: ${functionCallId}`);
-        return; // Skip processing this result
-    }
 
     const stepSource = step.source || "UnknownSource";
     const targetAgentName = step.target || "OrchestratorAgent";
@@ -441,6 +454,11 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
 }
 
 function handleAgentResponseText(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
+    if (isEventFromTimedOutTask(step, manager)) {
+        console.log(`[Timeline] Skipping agent response from timed out task: ${step.owningTaskId}`);
+        return;
+    }
+
     const currentPhase = getCurrentPhase(manager);
     // When step.isSubTaskStep is true, it indicates this is a response from Agent to Orchestrator (as a user)
     if (!currentPhase || step.isSubTaskStep) return;
@@ -464,6 +482,11 @@ function handleAgentResponseText(step: VisualizerStep, manager: TimelineLayoutMa
 }
 
 function handleTaskCompleted(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
+    if (isEventFromTimedOutTask(step, manager)) {
+        console.log(`[Timeline] Skipping task completion from timed out task: ${step.owningTaskId}`);
+        return;
+    }
+
     const currentPhase = getCurrentPhase(manager);
     if (!currentPhase) return;
 
@@ -531,6 +554,11 @@ function handleTaskCompleted(step: VisualizerStep, manager: TimelineLayoutManage
 }
 
 function handleTaskFailed(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[]): void {
+    if (isEventFromTimedOutTask(step, manager)) {
+        console.log(`[Timeline] Skipping task failure from timed out task: ${step.owningTaskId}`);
+        return;
+    }
+
     const currentPhase = getCurrentPhase(manager);
     if (!currentPhase) return;
 
@@ -605,11 +633,15 @@ function handlePeerTaskTimeout(
 
     const timeoutData = step.data;
     const functionCallId = timeoutData.functionCallId;
+    const subTaskId = timeoutData.subTaskId;
     const parentAgentName = timeoutData.parentAgentName;
     const peerAgentName = timeoutData.peerAgentName;
 
-    // Mark this function call as timed out
+    // Mark both the function call and subtask as timed out
     manager.timedOutFunctionCallIds.add(functionCallId);
+    if (subTaskId) {
+        manager.timedOutSubTaskIds.add(subTaskId);
+    }
 
     // Find the source agent (the one that was waiting)
     const sourceAgent = manager.agentRegistry.findAgentByName(parentAgentName);
@@ -711,6 +743,29 @@ function createTimeoutEdge(
     }
 }
 
+// Universal filter function to check if an event is from a timed-out task
+function isEventFromTimedOutTask(step: VisualizerStep, manager: TimelineLayoutManager): boolean {
+    // Check if this event is from a timed-out subtask
+    if (step.owningTaskId && manager.timedOutSubTaskIds.has(step.owningTaskId)) {
+        return true;
+    }
+
+    // Check if this event is from a timed-out function call
+    if (step.functionCallId && manager.timedOutFunctionCallIds.has(step.functionCallId)) {
+        return true;
+    }
+
+    // Check specific event types for timeout markers
+    const functionCallId = step.data.toolResult?.functionCallId || 
+                          step.data.toolInvocationStart?.functionCallId;
+    
+    if (functionCallId && manager.timedOutFunctionCallIds.has(functionCallId)) {
+        return true;
+    }
+
+    return false;
+}
+
 // Helper function to create error edges with error state data
 function createErrorEdge(sourceNodeId: string, targetNodeId: string, step: VisualizerStep, edges: Edge[], manager: TimelineLayoutManager, sourceHandleId?: string, targetHandleId?: string): void {
     if (!sourceNodeId || !targetNodeId || sourceNodeId === targetNodeId) {
@@ -787,6 +842,7 @@ export const transformProcessedStepsToTimelineFlow = (processedSteps: Visualizer
         indentationLevel: 0,
         indentationStep: 50, // Pixels to indent per level
         timedOutFunctionCallIds: new Set(),
+        timedOutSubTaskIds: new Set(),
     };
 
     const filteredSteps = processedSteps.filter(step => RELEVANT_STEP_TYPES.includes(step.type));

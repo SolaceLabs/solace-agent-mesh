@@ -114,6 +114,7 @@ export interface TimelineLayoutManager {
 
     // Timeout tracking
     timedOutFunctionCallIds: Set<string>; // Track timed out function calls
+    timedOutSubTaskIds: Set<string>; // Track timed out subtasks
 }
 
 // Layout Constants
