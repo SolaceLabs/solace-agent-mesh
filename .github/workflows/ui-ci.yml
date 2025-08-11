@@ -55,11 +55,11 @@ jobs:
           requireScope: false
           disallowScopes: |
             release
-          subjectPattern: ^(?![A-Z]).+$
+          subjectPattern: ^.+$
           subjectPatternError: |
             The subject "{subject}" found in the pull request title "{title}"
             didn't match the configured pattern. Please ensure that the subject
-            doesn't start with an uppercase character.
+            is not empty.
 
   ui-build-and-test:
     name: "Build and Test UI"
