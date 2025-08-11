@@ -8,27 +8,90 @@ This plan addresses the issue by treating a timeout as a specific type of "tool 
 
 ## 2. Implementation Steps
 
-### Phase 1: Backend - Enhance Timeout Signal
+### Phase 1: Backend - Send Status Event on Timeout
 
-The `peer_task_timeout` signal needs to contain all the information the frontend requires to process it like a regular tool result.
+Create and send a dedicated status event when a sub-agent (peer) call times out. This signal will contain all necessary details for the frontend to correctly visualize the timeout.
 
 **File:** `src/solace_agent_mesh/agent/sac/component.py`
 
-1.  **Modify `_publish_peer_timeout_status`:**
-    *   Add the `parent_agent_name` to the `DataPart` payload. This is crucial for the frontend to know which agent should be "woken up".
+1.  **Create `_publish_peer_timeout_status` method:**
+    *   This new asynchronous method will be responsible for constructing and publishing the `peer_task_timeout` status update.
+    *   It will construct a `DataPart` containing all the details the frontend needs: `a2a_signal_type`, `error_message`, `peer_agent_name`, `sub_task_id`, `function_call_id`, and `parent_agent_name`.
+    *   It will wrap this in a `TaskStatusUpdateEvent` and publish it using the `_publish_status_update_with_buffer_flush` helper, ensuring any buffered text is sent first.
 
     ```python
-    # Inside _publish_peer_timeout_status
-    timeout_data_part = DataPart(
-        data={
-            "a2a_signal_type": "peer_task_timeout",
-            "error_message": error_message,
-            "peer_agent_name": peer_agent_name,
-            "sub_task_id": sub_task_id,
-            "function_call_id": adk_function_call_id,
-            "parent_agent_name": self.get_config("agent_name"), // This line needs to be added
-        }
-    )
+    # Method to be added to SamAgentComponent
+    async def _publish_peer_timeout_status(
+        self, sub_task_id: str, correlation_data: Dict[str, Any]
+    ):
+        """
+        Publishes an intermediate status update indicating a peer tool call has timed out.
+        """
+        logical_task_id = correlation_data.get("logical_task_id")
+        peer_agent_name = correlation_data.get("peer_agent_name")
+        adk_function_call_id = correlation_data.get("adk_function_call_id")
+        a2a_context = correlation_data.get("original_task_context")
+
+        if not all([logical_task_id, peer_agent_name, a2a_context]):
+            return
+
+        timeout_value = self.inter_agent_communication_config.get(
+            "request_timeout_seconds", DEFAULT_COMMUNICATION_TIMEOUT
+        )
+        error_message = f"Request to peer agent '{peer_agent_name}' timed out after {timeout_value} seconds."
+
+        try:
+            timeout_data_part = DataPart(
+                data={
+                    "a2a_signal_type": "peer_task_timeout",
+                    "error_message": error_message,
+                    "peer_agent_name": peer_agent_name,
+                    "sub_task_id": sub_task_id,
+                    "function_call_id": adk_function_call_id,
+                    "parent_agent_name": self.get_config("agent_name"),
+                }
+            )
+
+            status_message = A2AMessage(role="agent", parts=[timeout_data_part])
+            intermediate_status = TaskStatus(
+                state=TaskState.WORKING,
+                message=status_message,
+                timestamp=datetime.now(timezone.utc),
+            )
+
+            status_update_event = TaskStatusUpdateEvent(
+                id=logical_task_id,
+                status=intermediate_status,
+                final=False,
+                metadata={"agent_name": self.get_config("agent_name")},
+            )
+
+            await self._publish_status_update_with_buffer_flush(
+                status_update_event,
+                a2a_context,
+                skip_buffer_flush=False,
+            )
+        except Exception as e:
+            log.error("Failed to publish peer timeout status: %s", e)
+    ```
+
+2.  **Call the new method from `_handle_peer_timeout`:**
+    *   In the existing `_handle_peer_timeout` method, add a call to `await self._publish_peer_timeout_status(...)` at the beginning. This ensures the status event is sent immediately upon timeout detection, before any other recovery logic is executed.
+
+    ```python
+    # Inside _handle_peer_timeout
+    async def _handle_peer_timeout(
+        self,
+        sub_task_id: str,
+        correlation_data: Dict[str, Any],
+    ):
+        ...
+        log.warning(...)
+
+        await self._publish_peer_timeout_status(sub_task_id, correlation_data) # This line needs to be added
+
+        # Proactively send a cancellation request to the peer agent.
+        ...
     ```
 
 ### Phase 2: Frontend - Process Timeout Signal
