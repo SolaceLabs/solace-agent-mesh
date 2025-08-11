@@ -304,42 +304,40 @@ export const processTaskForVisualization = (
         }
 
         // Any status_update with a result
-        if (event.direction === "status_update" && payload?.result) {
-            const result = payload.result as any;
-            const statusMessage = result.status?.message;
-
-            // PEER TASK TIMEOUT SIGNAL
-            const timeoutSignalPart = (statusMessage?.parts as DataPart[] | undefined)?.find(p => p.type === "data" && p.data?.a2a_signal_type === "peer_task_timeout");
-            if (timeoutSignalPart) {
-                flushAggregatedTextStep(currentEventOwningTaskId);
-                const timeoutData = timeoutSignalPart.data;
-                const toolName = `peer_${timeoutData.peer_agent_name}`;
-                const toolResultData: ToolResultData = {
-                    toolName: toolName,
-                    functionCallId: timeoutData.function_call_id,
-                    resultData: { error: timeoutData.error_message },
-                    isPeerResponse: true,
-                    isTimeout: true,
-                };
-
-                visualizerSteps.push({
-                    id: `vstep-toolresult-timeout-${visualizerSteps.length}-${eventId}`,
-                    type: "AGENT_TOOL_EXECUTION_RESULT",
-                    timestamp: eventTimestamp,
-                    title: `${timeoutData.parent_agent_name}: Tool Result - ${toolName}`,
-                    source: toolName, // The peer tool that timed out
-                    target: timeoutData.parent_agent_name, // The agent that was waiting
-                    data: { toolResult: toolResultData },
-                    rawEventIds: [eventId],
-                    isSubTaskStep: currentEventNestingLevel > 0,
-                    nestingLevel: currentEventNestingLevel,
-                    owningTaskId: currentEventOwningTaskId,
-                    functionCallId: timeoutData.function_call_id,
-                });
-                return;
-            }
-
-            const messageMetadata = statusMessage?.metadata as any;
+        if (event.direction === "status_update" && payload?.result) {                                                                                                                                                                                                                                                                                 
+            const result = payload.result as any;                                                                                                                                                                                                                                                                                                     
+            const statusMessage = result.status?.message;                                                                                                                                                                                                                                                                                             
+                                                                                                                                                                                                                                                                                                                                                      
+            // PEER TASK TIMEOUT SIGNAL                                                                                                                                                                                                                                                                                                               
+            const timeoutSignalPart = (statusMessage?.parts as DataPart[] | undefined)?.find(p => p.type === "data" && p.data?.a2a_signal_type === "peer_task_timeout");                                                                                                                                                                              
+            if (timeoutSignalPart) {                                                                                                                                                                                                                                                                                                                  
+                flushAggregatedTextStep(currentEventOwningTaskId);                                                                                                                                                                                                                                                                                    
+                const timeoutData = timeoutSignalPart.data;                                                                                                                                                                                                                                                                                           
+                                                                                                                                                                                                                                                                                                                                                      
+                visualizerSteps.push({                                                                                                                                                                                                                                                                                                                
+                    id: `vstep-peertimeout-${visualizerSteps.length}-${eventId}`,                                                                                                                                                                                                                                                                     
+                    type: "PEER_TASK_TIMEOUT", // New specific type                                                                                                                                                                                                                                                                                   
+                    timestamp: eventTimestamp,                                                                                                                                                                                                                                                                                                        
+                    title: `Peer Timeout: ${timeoutData.peer_agent_name}`,                                                                                                                                                                                                                                                                            
+                    source: timeoutData.parent_agent_name, // The agent that was waiting                                                                                                                                                                                                                                                              
+                    target: timeoutData.peer_agent_name, // The agent that timed out                                                                                                                                                                                                                                                                  
+                    data: {                                                                                                                                                                                                                                                                                                                           
+                        peerAgentName: timeoutData.peer_agent_name,                                                                                                                                                                                                                                                                                   
+                        parentAgentName: timeoutData.parent_agent_name,                                                                                                                                                                                                                                                                               
+                        errorMessage: timeoutData.error_message,                                                                                                                                                                                                                                                                                      
+                        functionCallId: timeoutData.function_call_id,                                                                                                                                                                                                                                                                                 
+                        subTaskId: timeoutData.sub_task_id,                                                                                                                                                                                                                                                                                           
+                    },                                                                                                                                                                                                                                                                                                                                
+                    rawEventIds: [eventId],                                                                                                                                                                                                                                                                                                           
+                    isSubTaskStep: currentEventNestingLevel > 0,                                                                                                                                                                                                                                                                                      
+                    nestingLevel: currentEventNestingLevel,                                                                                                                                                                                                                                                                                           
+                    owningTaskId: currentEventOwningTaskId,                                                                                                                                                                                                                                                                                           
+                    functionCallId: timeoutData.function_call_id,                                                                                                                                                                                                                                                                                     
+                });                                                                                                                                                                                                                                                                                                                                   
+                return;                                                                                                                                                                                                                                                                                                                               
+            }                                                                                                                                                                                                                                                                                                                                         
+                                                                                                                                                                                                                                                                                                                                                      
+            const messageMetadata = statusMessage?.metadata as any; 
 
             let statusUpdateAgentName: string;
             let isForwardedMessage = false;
@@ -1036,6 +1034,6 @@ export const processTaskForVisualization = (
     // --- End of Phase 2 ---
 
     visualizedTask.performanceReport = report;
-
+    console.log(visualizedTask);
     return visualizedTask;
 };
