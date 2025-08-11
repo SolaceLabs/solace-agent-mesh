@@ -30,12 +30,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const sseEventSequenceRef = useRef<number>(0);
 
     // Chat Side Panel State
-    const {
-        artifacts,
-        isLoading: artifactsLoading,
-        refetch: artifactsRefetch,
-        error: artifactsError,
-    } = useArtifacts();
+    const { artifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, error: artifactsError } = useArtifacts();
 
     const artifactsRefetchIfNeeded = useCallback(
         async (files: FileAttachment[]) => {
@@ -443,9 +438,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 // Helper to add a new main content bubble and set the flag
                 const addNewMainBubble = (newMessageData: Partial<MessageFE>, sequence: number) => {
-                    const newMessage = { taskId: currentTaskId ?? undefined, isUser: false, isComplete: false, metadata: { sessionId, messageId: currentMessageId, lastProcessedEventSequence: sequence }, ...newMessageData }
+                    const newMessage = { taskId: currentTaskId ?? undefined, isUser: false, isComplete: false, metadata: { sessionId, messageId: currentMessageId, lastProcessedEventSequence: sequence }, ...newMessageData };
                     newMessages.push(newMessage);
-                    
+
                     // Ensure error messages are marked complete if they are added as new bubbles
                     if (newMessageData.text && errorContent) {
                         newMessages[newMessages.length - 1].isComplete = true;
@@ -566,7 +561,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
                 setCurrentTaskId(null);
                 isFinalizing.current = true;
-                artifactsRefetch(); 
+                artifactsRefetch();
                 setTimeout(() => {
                     isFinalizing.current = false;
                 }, 100);
@@ -840,7 +835,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setCurrentTaskId(taskId);
                 // Auto-display the new task in the side panel
                 setTaskIdInSidePanel(taskId);
-
             } catch (error) {
                 console.error("ChatProvider handleSubmit: Catch block error", error);
                 addNotification(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -883,7 +877,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             console.log(`ChatProvider Effect: currentTaskId is null or apiPrefix missing. Ensuring EventSource is closed.`);
             closeCurrentEventSource();
         }
-    }, [currentTaskId, apiPrefix]);
+    }, [currentTaskId, apiPrefix, handleSseOpen, handleSseError, handleSseMessage, closeCurrentEventSource]);
 
     const contextValue: ChatContextValue = {
         sessionId,

@@ -113,7 +113,7 @@ jobs:
       - name: Run WhiteSource PR Checker (Policy Violations)
         id: whitesource-pr-policy-violation-checker
         if: github.event_name == 'pull_request'
-        uses: docker://ghcr.io/SolaceLabs/maas-build-actions:latest
+        uses: docker://ghcr.io/solacedev/maas-build-actions:latest
         continue-on-error: true
         env:
           WS_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
@@ -143,7 +143,7 @@ jobs:
       - name: Run WhiteSource Policy Gate
         id: whitesource-policy-gate
         if: fromJson(env.is_push) && fromJson(env.has_whitesource_config)
-        uses: docker://ghcr.io/SolaceLabs/maas-build-actions:latest
+        uses: docker://ghcr.io/solacedev/maas-build-actions:latest
         continue-on-error: true
         env:
           WS_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
@@ -172,7 +172,7 @@ jobs:
       - name: Run WhiteSource Vulnerability Checker
         id: whitesource-vulnerability-checker
         if: github.event_name != 'pull_request'
-        uses: docker://ghcr.io/SolaceLabs/maas-build-actions:latest
+        uses: docker://ghcr.io/solacedev/maas-build-actions:latest
         continue-on-error: true
         env:
           WS_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
