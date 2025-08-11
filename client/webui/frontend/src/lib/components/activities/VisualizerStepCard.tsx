@@ -178,9 +178,11 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
     );
 
     const renderPeerTaskTimeoutData = (data: Record<string, unknown>) => (
-        <div className="mt-1.5 rounded-md bg-red-50 p-2 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-400">
-            <p className="font-semibold">Timeout Details:</p>
-            <div className="mt-1 max-h-40 overflow-y-auto rounded bg-red-100/50 p-1.5 dark:bg-red-800/50">
+        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+            <p>
+                <strong>Timeout Details:</strong>
+            </p>
+            <div className="mt-1 max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">
                 <JSONViewer data={data} />
             </div>
         </div>
