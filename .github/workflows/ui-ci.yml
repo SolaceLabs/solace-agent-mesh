@@ -120,9 +120,9 @@ jobs:
           WS_PRODUCT_NAME: "solaceai"
           WS_PROJECT_NAME: "solace-agent-mesh-ui-pr-${{ github.event.pull_request.number }}"
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AWS_REGION: ${{ secrets.MANIFEST_AWS_REGION }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
           WS_BLOCKING_POLICY_VIOLATION_LEVELS: "Major,Minor"
           FAIL_IF_POLICY_VIOLATIONS_FOUND: "True"
           GH_ORG: ${{ github.repository_owner }}
@@ -142,7 +142,7 @@ jobs:
 
       - name: Run WhiteSource Policy Gate
         id: whitesource-policy-gate
-        if: fromJson(env.is_push) && fromJson(env.has_whitesource_config)
+        if: github.event_name == 'push'
         uses: docker://ghcr.io/solacedev/maas-build-actions:latest
         continue-on-error: true
         env:
@@ -150,9 +150,9 @@ jobs:
           WS_PRODUCT_NAME: "solaceai"
           WS_PROJECT_NAME: "solace-agent-mesh-ui"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.DEFAULT_AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
           WS_BLOCKING_POLICY_VIOLATION_LEVELS: "Major,Minor"
           FAIL_IF_POLICY_VIOLATIONS_FOUND: "True"
           STATUS_CHECK: "True"
@@ -171,16 +171,16 @@ jobs:
 
       - name: Run WhiteSource Vulnerability Checker
         id: whitesource-vulnerability-checker
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push'
         uses: docker://ghcr.io/solacedev/maas-build-actions:latest
         continue-on-error: true
         env:
           WS_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
           WS_PRODUCT_NAME: "solaceai"
           WS_PROJECT_NAME: "solace-agent-mesh-ui"
-          AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.DEFAULT_AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
           WS_JIRA_CHECK: "True"
           JIRA_ONLY: "True"
           STATUS_CHECK: "True"
