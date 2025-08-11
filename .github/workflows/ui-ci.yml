@@ -1,4 +1,4 @@
-name: "UI CI"
+name: "CI (UI)"
 
 on:
   workflow_dispatch:
