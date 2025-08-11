@@ -653,10 +653,6 @@ function handlePeerTaskTimeout(
         return;
     }
 
-    // If the timed-out agent node doesn't exist for some reason (e.g., race condition),
-    // fall back to using the parent agent as the source of the timeout edge to avoid breaking the flow.
-    const edgeSourceAgent = timedOutAgent || parentAgent;
-
     // Check if we need to continue the flow after timeout
     if (isOrchestratorAgent(parentAgentName)) {
         // Timeout happened in a task called by the orchestrator, so continue with orchestrator.
@@ -665,12 +661,12 @@ function handlePeerTaskTimeout(
 
         // Create an error edge to show the timeout
         createTimeoutEdge(
-            edgeSourceAgent.nodeInstance.id,
+            timedOutAgent.nodeInstance.id,
             newOrchestratorPhase.orchestratorAgent.id,
             step,
             edges,
             manager,
-            getAgentHandle(edgeSourceAgent.type, "output", "bottom"),
+            getAgentHandle(timedOutAgent.type, "output", "bottom"),
             "orch-top-input"
         );
 
@@ -683,12 +679,12 @@ function handlePeerTaskTimeout(
         const newOrchestratorPhase = createNewMainPhase(manager, "OrchestratorAgent", step, nodes);
 
         createTimeoutEdge(
-            edgeSourceAgent.nodeInstance.id,
+            timedOutAgent.nodeInstance.id,
             newOrchestratorPhase.orchestratorAgent.id,
             step,
             edges,
             manager,
-            getAgentHandle(edgeSourceAgent.type, "output", "bottom"),
+            getAgentHandle(timedOutAgent.type, "output", "bottom"),
             "orch-top-input"
         );
 
