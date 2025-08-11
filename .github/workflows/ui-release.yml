@@ -1,15 +1,12 @@
-name: "Release UI Package to GitHub Packages"
+name: "Release UI"
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       tag:
         description: "UI tag to release (e.g., ui-v1.0.0)"
         required: true
         type: string
-  push:
-    tags:
-      - "ui-v*"
 
 permissions:
   contents: write
@@ -27,11 +24,7 @@ jobs:
       - name: Get tag from input or ref
         id: get-tag
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.tag }}"
-          else
-            TAG="${{ github.ref_name }}"
-          fi
+          TAG="${{ inputs.tag }}"
 
           # Validate tag format (ui-v*)
           if [[ ! "$TAG" =~ ^ui-v[0-9]+\.[0-9]+\.[0-9]+.*$ ]]; then
@@ -71,12 +64,12 @@ jobs:
           cache: "npm"
           cache-dependency-path: client/webui/frontend/package-lock.json
           registry-url: https://npm.pkg.github.com/
-          scope: "@SolaceDev"
+          scope: "@SolaceLabs"
 
       - name: Configure npm for install and publish
         run: |
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > .npmrc
-          echo "@SolaceDev:registry=https://npm.pkg.github.com/" >> .npmrc
+          echo "@SolaceLabs:registry=https://npm.pkg.github.com/" >> .npmrc
           echo "legacy-peer-deps=true" >> .npmrc
 
       - name: Install dependencies
@@ -104,9 +97,9 @@ jobs:
           # Update the package name to include the SolaceDev scope for publishing
           node -e "
           const pkg = require('./package.json');
-          pkg.name = '@SolaceDev/solace-agent-mesh-ui';
+          pkg.name = '@SolaceLabs/solace-agent-mesh-ui';
           pkg.publishConfig = {
-            registry: 'https://npm.pkg.github.com/SolaceDev'
+            registry: 'https://npm.pkg.github.com/SolaceLabs'
           };
           require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2));
           "
