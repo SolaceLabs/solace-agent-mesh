@@ -1229,18 +1229,10 @@ async def test_declarative_scenario(
         )
     print(f"\nRunning declarative scenario: {scenario_id} - {scenario_description}")
 
-    # Re-configure the global artifact scope for this specific test run to prevent
-    # state leakage from previous tests when using session-scoped fixtures.
     agent_config_overrides = declarative_scenario.get(
         "test_runner_config_overrides", {}
     ).get("agent_config", {})
     artifact_scope = agent_config_overrides.get("artifact_scope", "app")
-    configure_artifact_scoping(
-        scope_type=artifact_scope,
-        namespace_value="test_namespace",
-        component_name=scenario_id,
-    )
-
     print(f"Scenario {scenario_id}: Using artifact_scope: '{artifact_scope}'")
 
     agent_components = {
