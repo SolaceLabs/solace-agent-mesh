@@ -24,15 +24,15 @@ This checklist provides a terse summary of the tasks required to implement the c
     -   [X] Remove `scope_identifier` from `__init__`.
     -   [X] Rewrite `_get_artifact_dir` to use the `app_name` parameter for path construction.
 
--   [ ] **4. Update `initialize_artifact_service` Factory**
-    -   [ ] Remove `scope_identifier` calculation logic.
-    -   [ ] Update `FilesystemArtifactService` instantiation to only pass `base_path`.
+-   [X] **4. Update `initialize_artifact_service` Factory**
+    -   [X] Remove `scope_identifier` calculation logic.
+    -   [X] Update `FilesystemArtifactService` instantiation to only pass `base_path`.
 
--   [ ] **5. Update `SamAgentComponent` to Configure Scoping**
-    -   [ ] Add a call to `artifact_helpers.configure_artifact_scoping` in the `__init__` method.
+-   [X] **5. Update `SamAgentComponent` to Configure Scoping**
+    -   [X] Add a call to `artifact_helpers.configure_artifact_scoping` in the `__init__` method.
 
--   [ ] **6. Update `BaseGatewayComponent` to Configure Scoping**
-    -   [ ] Add a call to `artifact_helpers.configure_artifact_scoping` in the `__init__` method.
+-   [X] **6. Update `BaseGatewayComponent` to Configure Scoping**
+    -   [X] Add a call to `artifact_helpers.configure_artifact_scoping` in the `__init__` method.
 
 ### Phase 3: Update Test Infrastructure
 

@@ -65,7 +65,10 @@ from solace_ai_connector.common.event import Event, EventType
 from abc import abstractmethod
 
 from ...common.middleware.registry import MiddlewareRegistry
-from ...agent.utils.artifact_helpers import load_artifact_content_or_metadata
+from ...agent.utils.artifact_helpers import (
+    load_artifact_content_or_metadata,
+    configure_artifact_scoping,
+)
 
 info = {
     "class_name": "BaseGatewayComponent",
@@ -157,6 +160,16 @@ class BaseGatewayComponent(ComponentBase):
         self.shared_artifact_service: Optional[BaseArtifactService] = (
             initialize_artifact_service(self)
         )
+
+        # Configure the global artifact scope
+        artifact_service_config = self.get_config("artifact_service", {})
+        scope_type = artifact_service_config.get("artifact_scope", "namespace")
+        configure_artifact_scoping(
+            scope_type=scope_type,
+            namespace_value=self.namespace,
+            component_name=self.gateway_id,
+        )
+
         self.task_context_manager: TaskContextManager = TaskContextManager()
         self.internal_event_queue: queue.Queue = queue.Queue()
         self.message_processor_thread: Optional[threading.Thread] = None

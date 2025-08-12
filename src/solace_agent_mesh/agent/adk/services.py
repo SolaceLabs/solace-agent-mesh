@@ -123,60 +123,8 @@ def initialize_artifact_service(component) -> BaseArtifactService:
                 f"{component.log_identifier} 'base_path' is required for filesystem artifact service."
             )
 
-        artifact_scope = config.get("artifact_scope", "namespace").lower()
-        scope_identifier_raw = None
-
-        if artifact_scope == "app":
-            app_instance = component.get_app()
-            if not app_instance or not app_instance.name:
-                raise ValueError(
-                    f"{component.log_identifier} Cannot determine app name for 'app' scope."
-                )
-            scope_identifier_raw = app_instance.name
-            log.info(
-                "%s Using 'app' scope for filesystem artifacts: %s",
-                component.log_identifier,
-                scope_identifier_raw,
-            )
-        elif artifact_scope == "namespace":
-            scope_identifier_raw = component.get_config("namespace")
-            log.info(
-                "%s Using 'namespace' scope for filesystem artifacts: %s",
-                component.log_identifier,
-                scope_identifier_raw,
-            )
-        elif artifact_scope == "custom":
-            scope_identifier_raw = config.get("artifact_scope_value")
-            if not scope_identifier_raw:
-                raise ValueError(
-                    f"{component.log_identifier} 'artifact_scope_value' is required when artifact_scope is 'custom'."
-                )
-            log.info(
-                "%s Using 'custom' scope for filesystem artifacts: %s",
-                component.log_identifier,
-                scope_identifier_raw,
-            )
-        else:
-            raise ValueError(
-                f"{component.log_identifier} Invalid 'artifact_scope' value: {artifact_scope}"
-            )
-
-        if not scope_identifier_raw:
-            raise ValueError(
-                f"{component.log_identifier} Failed to determine scope identifier for filesystem artifacts."
-            )
-
-        scope_identifier_sanitized = _sanitize_for_path(scope_identifier_raw)
-        log.info(
-            "%s Sanitized scope identifier: %s",
-            component.log_identifier,
-            scope_identifier_sanitized,
-        )
-
         try:
-            return FilesystemArtifactService(
-                base_path=base_path, scope_identifier=scope_identifier_sanitized
-            )
+            return FilesystemArtifactService(base_path=base_path)
         except Exception as e:
             log.error(
                 "%s Failed to initialize FilesystemArtifactService: %s",
