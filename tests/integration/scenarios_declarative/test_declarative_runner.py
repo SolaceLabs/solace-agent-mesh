@@ -47,6 +47,8 @@ from solace_agent_mesh.agent.utils.artifact_helpers import (
 )
 from solace_agent_mesh.agent.testing.debug_utils import pretty_print_event_history
 
+MODEL_SUFFIX_REGEX = r"test-model-([^-]+)-"
+
 TEST_RUNNER_MATH_SYMBOLS = {
     "abs": abs,
     "round": round,
@@ -291,7 +293,7 @@ async def _assert_llm_interactions(
         model_config = component.get_config("model", {})
         if isinstance(model_config, dict):
             model_name_str = model_config.get("model", "")
-            match = re.search(r"test-model-([^-]+)-", model_name_str)
+            match = re.search(MODEL_SUFFIX_REGEX, model_name_str)
             if match:
                 suffix = match.group(1)
                 model_suffix_to_component[suffix] = component
@@ -308,7 +310,7 @@ async def _assert_llm_interactions(
             # Determine which agent is making the call
             calling_agent_component = None
             model_name_str = actual_request_raw.model
-            match = re.search(r"test-model-([^-]+)-", model_name_str)
+            match = re.search(MODEL_SUFFIX_REGEX, model_name_str)
             if match:
                 suffix = match.group(1)
                 calling_agent_component = model_suffix_to_component.get(suffix)
@@ -534,7 +536,9 @@ async def _assert_llm_interactions(
                             ).get("name")
                         )
                         if expected_tool_name:
-                            assert originating_tool_name_from_yaml == expected_tool_name, (
+                            assert (
+                                originating_tool_name_from_yaml == expected_tool_name
+                            ), (
                                 f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Tool name mismatch. "
                                 f"Expected '{expected_tool_name}' (from current tool_response assertion spec), "
                                 f"Got '{originating_tool_name_from_yaml}' from originating tool call in YAML interaction {originating_llm_interaction_yaml_idx + 1}."
@@ -551,14 +555,14 @@ async def _assert_llm_interactions(
                             "response_contains_artifact_summary_for"
                         ]
                         user_id = gateway_input_data.get("user_identity")
-                        session_id = gateway_input_data.get(
-                            "external_context", {}
-                        ).get("a2a_session_id")
+                        session_id = gateway_input_data.get("external_context", {}).get(
+                            "a2a_session_id"
+                        )
 
                         # Determine the peer agent that was called
                         peer_tool_name = expected_tool_name
-                        assert (
-                            peer_tool_name and peer_tool_name.startswith("peer_")
+                        assert peer_tool_name and peer_tool_name.startswith(
+                            "peer_"
                         ), f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - 'response_contains_artifact_summary_for' can only be used with peer tool calls."
                         peer_agent_name = peer_tool_name.replace("peer_", "", 1)
 
@@ -577,9 +581,7 @@ async def _assert_llm_interactions(
                             actual_response_json = json.loads(
                                 actual_tool_resp_msg.content
                             )
-                            actual_result_text = actual_response_json.get(
-                                "result", ""
-                            )
+                            actual_result_text = actual_response_json.get("result", "")
                         except json.JSONDecodeError:
                             pytest.fail(
                                 f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Expected JSON content for peer tool response, but got non-JSON string: '{actual_tool_resp_msg.content}'"
@@ -1167,7 +1169,11 @@ def load_declarative_test_cases():
                     )
                     tags = data.get("tags", [])
                     test_cases.append(
-                        pytest.param(data, id=test_id, marks=[getattr(pytest.mark, tag) for tag in tags])
+                        pytest.param(
+                            data,
+                            id=test_id,
+                            marks=[getattr(pytest.mark, tag) for tag in tags],
+                        )
                     )
                 else:
                     print(f"Warning: Skipping file with non-dict content: {filepath}")
@@ -1184,12 +1190,13 @@ def pytest_generate_tests(metafunc):
         test_cases = load_declarative_test_cases()
         metafunc.parametrize("declarative_scenario", test_cases)
 
+
 SKIPPED_MERMAID_DIAGRAM_GENERATOR_SCENARIOS = [
     "test_mermaid_autogen_filename",
     "test_mermaid_basic_success",
     "test_mermaid_empty_syntax",
     "test_mermaid_invalid_syntax",
-    "test_mermaid_no_extension"
+    "test_mermaid_no_extension",
 ]
 
 SKIPPED_FAILING_EMBED_TESTS = [
@@ -1197,6 +1204,7 @@ SKIPPED_FAILING_EMBED_TESTS = [
     "embed_general_malformed_no_close_delimiter_001",
     "embed_ac_template_missing_template_file_001",
 ]
+
 
 @pytest.mark.asyncio
 async def test_declarative_scenario(
