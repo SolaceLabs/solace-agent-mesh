@@ -28,7 +28,7 @@ export const SessionList: React.FC = () => {
             const response = await authenticatedFetch(url);
             if (response.ok) {
                 const data = await response.json();
-                setSessions(data);
+                setSessions(data.sessions || []);
             } else {
                 console.error(`Failed to fetch sessions: ${response.status} ${response.statusText}`);
             }
