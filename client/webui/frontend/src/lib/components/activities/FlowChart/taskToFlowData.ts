@@ -607,10 +607,6 @@ function handlePeerTaskTimeout(
         console.error(`[Timeline] Parent agent for timeout not found: ${parentAgentName}`);
         return;
     }
-    
-    // If the timed-out agent node doesn't exist for some reason,
-    // fall back to using the parent agent as the source of the timeout edge to avoid breaking the flow.
-    const edgeSourceAgent = timedOutAgent || parentAgent;
 
     // Continue the flow from the parent agent.
     if (isOrchestratorAgent(parentAgentName)) {
@@ -619,12 +615,12 @@ function handlePeerTaskTimeout(
         const newOrchestratorPhase = createNewMainPhase(manager, parentAgentName, step, nodes);
 
         createTimeoutEdge(
-            edgeSourceAgent.nodeInstance.id,
+            timedOutAgent.nodeInstance.id,
             newOrchestratorPhase.orchestratorAgent.id,
             step,
             edges,
             manager,
-            getAgentHandle(edgeSourceAgent.type, "output", "bottom"),
+            getAgentHandle(timedOutAgent.type, "output", "bottom"),
             "orch-top-input"
         );
         manager.currentSubflowIndex = -1;
@@ -636,12 +632,12 @@ function handlePeerTaskTimeout(
         const newSubflow = startNewSubflow(manager, parentAgentName, step, nodes, false);
         if (newSubflow) {
             createTimeoutEdge(
-                edgeSourceAgent.nodeInstance.id,
+                timedOutAgent.nodeInstance.id,
                 newSubflow.peerAgent.id, // Target the new peer agent instance
                 step,
                 edges,
                 manager,
-                getAgentHandle(edgeSourceAgent.type, "output", "bottom"),
+                getAgentHandle(timedOutAgent.type, "output", "bottom"),
                 "peer-top-input" // The handle for a peer agent
             );
         }
