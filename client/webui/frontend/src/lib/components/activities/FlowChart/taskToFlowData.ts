@@ -29,7 +29,6 @@ import {
     getAgentHandle,
     isOrchestratorAgent,
     handleParallelJoin,
-    createTimeoutEdge,
 } from "./taskToFlowData.helpers";
 import { EdgeAnimationService } from "./edgeAnimationService";
 
@@ -633,7 +632,7 @@ function handlePeerTaskTimeout(
         manager.indentationLevel = 0;
         const newOrchestratorPhase = createNewMainPhase(manager, parentAgentName, step, nodes);
 
-        createTimeoutEdge(
+        createErrorEdge(
             timedOutAgent.nodeInstance.id,
             newOrchestratorPhase.orchestratorAgent.id,
             step,
@@ -650,7 +649,7 @@ function handlePeerTaskTimeout(
         // Create a new subflow for the parent agent to continue from.
         const newSubflow = startNewSubflow(manager, parentAgentName, step, nodes, false);
         if (newSubflow) {
-            createTimeoutEdge(
+            createErrorEdge(
                 timedOutAgent.nodeInstance.id,
                 newSubflow.peerAgent.id, // Target the new peer agent instance
                 step,
@@ -686,54 +685,6 @@ function isEventFromTimedOutTask(step: VisualizerStep, manager: TimelineLayoutMa
     return false;
 }
 
-// Helper function to create error edges with error state data
-function createErrorEdge(sourceNodeId: string, targetNodeId: string, step: VisualizerStep, edges: Edge[], manager: TimelineLayoutManager, sourceHandleId?: string, targetHandleId?: string): void {
-    if (!sourceNodeId || !targetNodeId || sourceNodeId === targetNodeId) {
-        return;
-    }
-
-    // Validate that source and target nodes exist
-    const sourceExists = manager.allCreatedNodeIds.has(sourceNodeId);
-    const targetExists = manager.allCreatedNodeIds.has(targetNodeId);
-
-    if (!sourceExists || !targetExists) {
-        return;
-    }
-
-    const edgeId = `error-edge-${sourceNodeId}${sourceHandleId || ""}-to-${targetNodeId}${targetHandleId || ""}-${step.id}`;
-
-    const edgeExists = edges.some(e => e.id === edgeId);
-
-    if (!edgeExists) {
-        const errorMessage = step.data.errorDetails?.message || "Task failed";
-        const label = errorMessage.length > 30 ? "Error" : errorMessage;
-
-        const newEdge: Edge = {
-            id: edgeId,
-            source: sourceNodeId,
-            target: targetNodeId,
-            label: label,
-            type: "defaultFlowEdge",
-            data: {
-                visualizerStepId: step.id,
-                isAnimated: false,
-                animationType: "static",
-                isError: true,
-                errorMessage: errorMessage,
-            } as unknown as Record<string, unknown>,
-        };
-
-        // Only add handles if they are provided and valid
-        if (sourceHandleId) {
-            newEdge.sourceHandle = sourceHandleId;
-        }
-        if (targetHandleId) {
-            newEdge.targetHandle = targetHandleId;
-        }
-
-        edges.push(newEdge);
-    }
-}
 
 // Main transformation function
 export const transformProcessedStepsToTimelineFlow = (processedSteps: VisualizerStep[]): FlowData => {

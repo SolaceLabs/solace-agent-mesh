@@ -800,19 +800,14 @@ export function isOrchestratorAgent(agentName: string): boolean {
     return agentName === "OrchestratorAgent" || agentName.toLowerCase().includes("orchestrator");
 }
 
-export function createTimeoutEdge(
-    sourceNodeId: string,
-    targetNodeId: string,
-    step: VisualizerStep,
-    edges: Edge[],
-    manager: TimelineLayoutManager,
-    sourceHandleId?: string,
-    targetHandleId?: string
-): void {
+
+// Helper function to create error edges with error state data
+export function createErrorEdge(sourceNodeId: string, targetNodeId: string, step: VisualizerStep, edges: Edge[], manager: TimelineLayoutManager, sourceHandleId?: string, targetHandleId?: string): void {
     if (!sourceNodeId || !targetNodeId || sourceNodeId === targetNodeId) {
         return;
     }
 
+    // Validate that source and target nodes exist
     const sourceExists = manager.allCreatedNodeIds.has(sourceNodeId);
     const targetExists = manager.allCreatedNodeIds.has(targetNodeId);
 
@@ -820,19 +815,19 @@ export function createTimeoutEdge(
         return;
     }
 
-    const edgeId = `timeout-edge-${sourceNodeId}${sourceHandleId || ""}-to-${targetNodeId}${targetHandleId || ""}-${step.id}`;
+    const edgeId = `error-edge-${sourceNodeId}${sourceHandleId || ""}-to-${targetNodeId}${targetHandleId || ""}-${step.id}`;
 
     const edgeExists = edges.some(e => e.id === edgeId);
 
     if (!edgeExists) {
-        const timeoutData = step.data;
-        const errorMessage = timeoutData.errorMessage || `Timeout waiting for ${timeoutData.peerAgentName || 'unknown agent'}`;
+        const errorMessage = step.data.errorDetails?.message || step.data.errorMessage || "Task failed";
+        const label = errorMessage.length > 30 ? "Error" : errorMessage;
 
         const newEdge: Edge = {
             id: edgeId,
             source: sourceNodeId,
             target: targetNodeId,
-            label: "Timeout",
+            label: label,
             type: "defaultFlowEdge",
             data: {
                 visualizerStepId: step.id,
@@ -843,6 +838,7 @@ export function createTimeoutEdge(
             } as unknown as Record<string, unknown>,
         };
 
+        // Only add handles if they are provided and valid
         if (sourceHandleId) {
             newEdge.sourceHandle = sourceHandleId;
         }
@@ -919,7 +915,7 @@ export function handleParallelJoin(
         const sourceHandle = getAgentHandle(subflowAgentInfo?.type || "peer", "output", "bottom");
 
         if (manager.timedOutFunctionCallIds.has(subflow.functionCallId)) {
-            createTimeoutEdge(sourceNodeInstance.id, joinNode.id, step, edges, manager, sourceHandle, joinNodeHandle);
+            createErrorEdge(sourceNodeInstance.id, joinNode.id, step, edges, manager, sourceHandle, joinNodeHandle);
         } else {
             createTimelineEdge(sourceNodeInstance.id, joinNode.id, step, edges, manager, edgeAnimationService, processedSteps, sourceHandle, joinNodeHandle);
         }
