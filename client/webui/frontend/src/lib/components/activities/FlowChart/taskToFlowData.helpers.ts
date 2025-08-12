@@ -801,6 +801,97 @@ export function isOrchestratorAgent(agentName: string): boolean {
 }
 
 
+// Helper function to handle sequential peer returns (both normal and timeout cases)
+export function handleSequentialPeerReturn(
+    sourceAgentName: string,
+    targetAgentName: string,
+    step: VisualizerStep,
+    manager: TimelineLayoutManager,
+    nodes: Node[],
+    edges: Edge[],
+    edgeAnimationService: EdgeAnimationService,
+    processedSteps: VisualizerStep[],
+    isTimeout: boolean = false
+): void {
+    const sourceAgent = manager.agentRegistry.findAgentByName(sourceAgentName);
+    if (!sourceAgent) {
+        console.error(`[Timeline] Source agent not found for sequential return: ${sourceAgentName}`);
+        return;
+    }
+
+    const sourceHandle = getAgentHandle(sourceAgent.type, "output", "bottom");
+
+    if (isOrchestratorAgent(targetAgentName)) {
+        // Return to orchestrator
+        manager.indentationLevel = 0;
+        const newOrchestratorPhase = createNewMainPhase(manager, targetAgentName, step, nodes);
+        
+        if (isTimeout) {
+            createErrorEdge(
+                sourceAgent.nodeInstance.id,
+                newOrchestratorPhase.orchestratorAgent.id,
+                step,
+                edges,
+                manager,
+                sourceHandle,
+                "orch-top-input"
+            );
+        } else {
+            createTimelineEdge(
+                sourceAgent.nodeInstance.id,
+                newOrchestratorPhase.orchestratorAgent.id,
+                step,
+                edges,
+                manager,
+                edgeAnimationService,
+                processedSteps,
+                sourceHandle,
+                "orch-top-input"
+            );
+        }
+        manager.currentSubflowIndex = -1;
+    } else {
+        // Peer-to-peer return
+        manager.indentationLevel = Math.max(0, manager.indentationLevel - 1);
+        
+        // Check if we need to consider parallel flow context for this return
+        const currentPhase = getCurrentPhase(manager);
+        const isWithinParallelContext = isParallelFlow(step, manager) || 
+            Array.from(manager.parallelFlows.values()).some(pf => 
+                pf.subflowFunctionCallIds.some(id => 
+                    currentPhase?.subflows.some(sf => sf.functionCallId === id)
+                )
+            );
+
+        const newSubflow = startNewSubflow(manager, targetAgentName, step, nodes, isWithinParallelContext);
+        if (newSubflow) {
+            if (isTimeout) {
+                createErrorEdge(
+                    sourceAgent.nodeInstance.id,
+                    newSubflow.peerAgent.id,
+                    step,
+                    edges,
+                    manager,
+                    sourceHandle,
+                    "peer-top-input"
+                );
+            } else {
+                createTimelineEdge(
+                    sourceAgent.nodeInstance.id,
+                    newSubflow.peerAgent.id,
+                    step,
+                    edges,
+                    manager,
+                    edgeAnimationService,
+                    processedSteps,
+                    sourceHandle,
+                    "peer-top-input"
+                );
+            }
+        }
+    }
+}
+
 // Helper function to create error edges with error state data
 export function createErrorEdge(sourceNodeId: string, targetNodeId: string, step: VisualizerStep, edges: Edge[], manager: TimelineLayoutManager, sourceHandleId?: string, targetHandleId?: string): void {
     if (!sourceNodeId || !targetNodeId || sourceNodeId === targetNodeId) {

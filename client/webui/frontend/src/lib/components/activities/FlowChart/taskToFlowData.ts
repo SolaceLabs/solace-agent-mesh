@@ -29,6 +29,7 @@ import {
     getAgentHandle,
     isOrchestratorAgent,
     handleParallelJoin,
+    handleSequentialPeerReturn,
 } from "./taskToFlowData.helpers";
 import { EdgeAnimationService } from "./edgeAnimationService";
 
@@ -339,29 +340,8 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
         }
 
         // If we reach here, it's a NON-PARALLEL (sequential) peer return.
-        const sourceAgent = manager.agentRegistry.findAgentByName(stepSource.startsWith("peer_") ? stepSource.substring(5) : stepSource);
-        if (!sourceAgent) {
-            console.error(`[Timeline] Source peer agent not found for peer response: ${stepSource}.`);
-            return;
-        }
-
-        if (isOrchestratorAgent(targetAgentName)) {
-            manager.indentationLevel = 0;
-            const newOrchestratorPhase = createNewMainPhase(manager, targetAgentName, step, nodes);
-            createTimelineEdge(sourceAgent.id, newOrchestratorPhase.orchestratorAgent.id, step, edges, manager, edgeAnimationService, processedSteps, "peer-bottom-output", "orch-top-input");
-            manager.currentSubflowIndex = -1;
-        } else {
-            // Peer-to-peer sequential return.
-            manager.indentationLevel = Math.max(0, manager.indentationLevel - 1);
-
-            // Check if we need to consider parallel flow context for this return
-            const isWithinParallelContext = isParallelFlow(step, manager) || Array.from(manager.parallelFlows.values()).some(pf => pf.subflowFunctionCallIds.some(id => currentPhase.subflows.some(sf => sf.functionCallId === id)));
-
-            const newSubflow = startNewSubflow(manager, targetAgentName, step, nodes, isWithinParallelContext);
-            if (newSubflow) {
-                createTimelineEdge(sourceAgent.id, newSubflow.peerAgent.id, step, edges, manager, edgeAnimationService, processedSteps, "peer-bottom-output", "peer-top-input");
-            }
-        }
+        const sourceAgentName = stepSource.startsWith("peer_") ? stepSource.substring(5) : stepSource;
+        handleSequentialPeerReturn(sourceAgentName, targetAgentName, step, manager, nodes, edges, edgeAnimationService, processedSteps, false);
     } else {
         // Regular tool (non-peer) returning result
         let toolNodeId: string | undefined;
@@ -626,40 +606,8 @@ function handlePeerTaskTimeout(
         return;
     }
 
-    // Continue the flow from the parent agent.
-    if (isOrchestratorAgent(parentAgentName)) {
-        // Timeout in a task called by the orchestrator.
-        manager.indentationLevel = 0;
-        const newOrchestratorPhase = createNewMainPhase(manager, parentAgentName, step, nodes);
-
-        createErrorEdge(
-            timedOutAgent.nodeInstance.id,
-            newOrchestratorPhase.orchestratorAgent.id,
-            step,
-            edges,
-            manager,
-            getAgentHandle(timedOutAgent.type, "output", "bottom"),
-            "orch-top-input"
-        );
-        manager.currentSubflowIndex = -1;
-    } else {
-        // Timeout in a peer-to-peer task. Execution continues from the parent peer agent.
-        manager.indentationLevel = Math.max(0, manager.indentationLevel - 1);
-
-        // Create a new subflow for the parent agent to continue from.
-        const newSubflow = startNewSubflow(manager, parentAgentName, step, nodes, false);
-        if (newSubflow) {
-            createErrorEdge(
-                timedOutAgent.nodeInstance.id,
-                newSubflow.peerAgent.id, // Target the new peer agent instance
-                step,
-                edges,
-                manager,
-                getAgentHandle(timedOutAgent.type, "output", "bottom"),
-                "peer-top-input" // The handle for a peer agent
-            );
-        }
-    }
+    // Continue the flow from the parent agent using the consolidated helper
+    handleSequentialPeerReturn(peerAgentName, parentAgentName, step, manager, nodes, edges, edgeAnimationService, processedSteps, true);
 }
 
 // Universal filter function to check if an event is from a timed-out task
