@@ -6,6 +6,9 @@ import time
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.agent.tools.registry import tool_registry
+from solace_agent_mesh.agent.utils.artifact_helpers import (
+    reset_artifact_scoping_for_testing,
+)
 from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
 from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
@@ -183,6 +186,16 @@ async def clear_test_artifact_service_between_tests(
     """
     yield
     await test_artifact_service_instance.clear_all_artifacts()
+
+
+@pytest.fixture(autouse=True, scope="function")
+def reset_artifact_scoping_fixture():
+    """
+    Ensures that the global artifact scoping configuration is reset after each test,
+    preventing state leakage between tests.
+    """
+    yield
+    reset_artifact_scoping_for_testing()
 
 
 @pytest.fixture(scope="session")

@@ -36,14 +36,14 @@ This checklist provides a terse summary of the tasks required to implement the c
 
 ### Phase 3: Update Test Infrastructure
 
--   [ ] **7. Implement Test Isolation Fixture**
-    -   [ ] Add an `autouse` pytest fixture in `tests/integration/conftest.py` to call `reset_artifact_scoping_for_testing` after each test.
+-   [X] **7. Implement Test Isolation Fixture**
+    -   [X] Add an `autouse` pytest fixture in `tests/integration/conftest.py` to call `reset_artifact_scoping_for_testing` after each test.
 
--   [ ] **8. Update Declarative Test Runner**
-    -   [ ] Modify `_setup_scenario_environment` to use `artifact_scope` for setting up artifacts.
-    -   [ ] Modify `_assert_generated_artifacts` to use `artifact_scope` for lookups.
-    -   [ ] Modify `_assert_summary_in_text` to use `artifact_scope` for lookups.
-    -   [ ] Modify `_assert_llm_interactions` to use `artifact_scope` for lookups.
+-   [X] **8. Update Declarative Test Runner**
+    -   [X] Modify `_setup_scenario_environment` to use `artifact_scope` for setting up artifacts.
+    -   [X] Modify `_assert_generated_artifacts` to use `artifact_scope` for lookups.
+    -   [X] Modify `_assert_summary_in_text` to use `artifact_scope` for lookups.
+    -   [X] Modify `_assert_llm_interactions` to use `artifact_scope` for lookups.
 
 ### Phase 4: Documentation and Cleanup
 

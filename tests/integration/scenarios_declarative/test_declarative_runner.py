@@ -1233,6 +1233,8 @@ async def test_declarative_scenario(
     ).get("agent_config", {})
     artifact_scope = agent_config_overrides.get("artifact_scope", "app")
     print(f"Scenario {scenario_id}: Using artifact_scope: '{artifact_scope}'")
+    artifact_scope = agent_config_overrides.get("artifact_scope", "app")
+    print(f"Scenario {scenario_id}: Using artifact_scope: '{artifact_scope}'")
 
     agent_components = {
         main_agent_component.agent_name: main_agent_component,
