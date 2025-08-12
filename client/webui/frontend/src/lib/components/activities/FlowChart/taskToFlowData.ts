@@ -706,7 +706,6 @@ function createErrorEdge(sourceNodeId: string, targetNodeId: string, step: Visua
                 isError: true,
                 errorMessage: errorMessage,
             } as unknown as Record<string, unknown>,
-            zIndex: 1000,
         };
 
         // Only add handles if they are provided and valid
