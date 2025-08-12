@@ -2,13 +2,12 @@
 An ADK ArtifactService implementation using the local filesystem for storage.
 """
 
-import os
-import json
-import shutil
-import logging
 import asyncio
+import json
+import logging
+import os
+import shutil
 import unicodedata
-from typing import Optional, List
 
 from google.adk.artifacts import BaseArtifactService
 from google.genai import types as adk_types
@@ -128,7 +127,7 @@ class FilesystemArtifactService(BaseArtifactService):
                 artifact_dir,
                 e,
             )
-            raise IOError(f"Could not create artifact directory: {e}") from e
+            raise OSError(f"Could not create artifact directory: {e}") from e
 
         versions = await self.list_versions(
             app_name=app_name,
@@ -168,7 +167,7 @@ class FilesystemArtifactService(BaseArtifactService):
                 version,
             )
             return version
-        except (IOError, OSError, ValueError, TypeError) as e:
+        except (OSError, ValueError, TypeError) as e:
             logger.error(
                 "%sFailed to save artifact '%s' version %d: %s",
                 log_prefix,
@@ -180,7 +179,7 @@ class FilesystemArtifactService(BaseArtifactService):
                 await asyncio.to_thread(os.remove, version_path)
             if await asyncio.to_thread(os.path.exists, metadata_path):
                 await asyncio.to_thread(os.remove, metadata_path)
-            raise IOError(f"Failed to save artifact version {version}: {e}") from e
+            raise OSError(f"Failed to save artifact version {version}: {e}") from e
 
     @override
     async def load_artifact(
@@ -190,8 +189,8 @@ class FilesystemArtifactService(BaseArtifactService):
         user_id: str,
         session_id: str,
         filename: str,
-        version: Optional[int] = None,
-    ) -> Optional[adk_types.Part]:
+        version: int | None = None,
+    ) -> adk_types.Part | None:
         log_prefix = f"[FSArtifact:Load:{filename}] "
         filename = self._normalize_filename_unicode(filename)
         artifact_dir = self._get_artifact_dir(app_name, user_id, session_id, filename)
@@ -232,7 +231,7 @@ class FilesystemArtifactService(BaseArtifactService):
         try:
 
             def _read_metadata_file():
-                with open(metadata_path, "r", encoding="utf-8") as f:
+                with open(metadata_path, encoding="utf-8") as f:
                     return json.load(f)
 
             metadata = await asyncio.to_thread(_read_metadata_file)
@@ -257,7 +256,7 @@ class FilesystemArtifactService(BaseArtifactService):
             )
             return artifact_part
 
-        except (IOError, OSError, json.JSONDecodeError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.error(
                 "%sFailed to load artifact '%s' version %d: %s",
                 log_prefix,
@@ -270,8 +269,8 @@ class FilesystemArtifactService(BaseArtifactService):
     @override
     async def list_artifact_keys(
         self, *, app_name: str, user_id: str, session_id: str
-    ) -> List[str]:
-        log_prefix = f"[FSArtifact:ListKeys] "
+    ) -> list[str]:
+        log_prefix = "[FSArtifact:ListKeys] "
         filenames = set()
         user_id_sanitized = os.path.basename(user_id)
         session_id_sanitized = os.path.basename(session_id)
@@ -341,7 +340,7 @@ class FilesystemArtifactService(BaseArtifactService):
     @override
     async def list_versions(
         self, *, app_name: str, user_id: str, session_id: str, filename: str
-    ) -> List[int]:
+    ) -> list[int]:
         log_prefix = f"[FSArtifact:ListVersions:{filename}] "
         artifact_dir = self._get_artifact_dir(app_name, user_id, session_id, filename)
         versions = []

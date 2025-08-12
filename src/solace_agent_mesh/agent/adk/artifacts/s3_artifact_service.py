@@ -2,14 +2,13 @@
 An ADK ArtifactService implementation using Amazon S3 compatible storage.
 """
 
-import logging
 import asyncio
+import logging
 import unicodedata
-from typing import Optional, List
 
 import boto3
-from botocore.exceptions import ClientError, NoCredentialsError, BotoCoreError
 from botocore.client import BaseClient
+from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
 from google.adk.artifacts import BaseArtifactService
 from google.genai import types as adk_types
 from typing_extensions import override
@@ -20,10 +19,10 @@ logger = logging.getLogger(__name__)
 class S3ArtifactService(BaseArtifactService):
     """
     An artifact service implementation using Amazon S3 compatible storage.
-    
+
     Stores artifacts in an S3-compatible bucket with a structured key format:
     {scope_identifier}/{user_id}/{session_id_or_user}/{filename}/{version}
-    
+
     Supports AWS S3 and S3-compatible APIs like MinIO.
     """
 
@@ -31,8 +30,8 @@ class S3ArtifactService(BaseArtifactService):
         self,
         bucket_name: str,
         scope_identifier: str,
-        s3_client: Optional[BaseClient] = None,
-        **kwargs
+        s3_client: BaseClient | None = None,
+        **kwargs,
     ):
         """
         Initializes the S3ArtifactService.
@@ -43,7 +42,7 @@ class S3ArtifactService(BaseArtifactService):
                               (e.g., sanitized namespace, app name, or custom value).
             s3_client: Optional pre-configured S3 client. If None, creates a new client.
             **kwargs: Optional parameters for boto3 client configuration.
-                     Includes endpoint_url, region_name, aws_access_key_id, 
+                     Includes endpoint_url, region_name, aws_access_key_id,
                      aws_secret_access_key, etc.
 
         Raises:
@@ -81,13 +80,19 @@ class S3ArtifactService(BaseArtifactService):
             error_code = e.response.get("Error", {}).get("Code", "Unknown")
             if error_code == "404":
                 logger.error("S3 bucket '%s' does not exist", self.bucket_name)
-                raise ValueError(f"S3 bucket '{self.bucket_name}' does not exist") from e
+                raise ValueError(
+                    f"S3 bucket '{self.bucket_name}' does not exist"
+                ) from e
             elif error_code == "403":
                 logger.error("Access denied to S3 bucket '%s'", self.bucket_name)
-                raise ValueError(f"Access denied to S3 bucket '{self.bucket_name}'") from e
+                raise ValueError(
+                    f"Access denied to S3 bucket '{self.bucket_name}'"
+                ) from e
             else:
                 logger.error("Failed to access S3 bucket '%s': %s", self.bucket_name, e)
-                raise ValueError(f"Failed to access S3 bucket '{self.bucket_name}': {e}") from e
+                raise ValueError(
+                    f"Failed to access S3 bucket '{self.bucket_name}': {e}"
+                ) from e
 
     def _file_has_user_namespace(self, filename: str) -> bool:
         """Checks if the filename has a user namespace."""
@@ -106,7 +111,7 @@ class S3ArtifactService(BaseArtifactService):
         The app_name parameter is ignored for key construction but kept for signature compatibility.
         """
         filename = self._normalize_filename_unicode(filename)
-        
+
         if self._file_has_user_namespace(filename):
             filename_clean = filename.split(":", 1)[1]
             return f"{self.scope_identifier}/{user_id}/user/{filename_clean}/{version}"
@@ -131,12 +136,12 @@ class S3ArtifactService(BaseArtifactService):
         artifact: adk_types.Part,
     ) -> int:
         log_prefix = f"[S3Artifact:Save:{filename}] "
-        
+
         if not artifact.inline_data or artifact.inline_data.data is None:
             raise ValueError("Artifact Part has no inline_data to save.")
 
         filename = self._normalize_filename_unicode(filename)
-        
+
         # Get existing versions to determine next version number
         versions = await self.list_versions(
             app_name=app_name,
@@ -146,9 +151,12 @@ class S3ArtifactService(BaseArtifactService):
         )
         version = 0 if not versions else max(versions) + 1
 
-        object_key = self._get_object_key(app_name, user_id, session_id, filename, version)
+        object_key = self._get_object_key(
+            app_name, user_id, session_id, filename, version
+        )
 
         try:
+
             def _put_object():
                 return self.s3.put_object(
                     Bucket=self.bucket_name,
@@ -160,11 +168,11 @@ class S3ArtifactService(BaseArtifactService):
                         "user_id": user_id,
                         "session_id": session_id,
                         "version": str(version),
-                    }
+                    },
                 )
 
             await asyncio.to_thread(_put_object)
-            
+
             logger.info(
                 "%sSaved artifact '%s' version %d successfully to S3 key: %s",
                 log_prefix,
@@ -182,7 +190,9 @@ class S3ArtifactService(BaseArtifactService):
                 version,
                 e,
             )
-            raise IOError(f"Failed to save artifact version {version} to S3: {e}") from e
+            raise OSError(
+                f"Failed to save artifact version {version} to S3: {e}"
+            ) from e
         except BotoCoreError as e:
             logger.error(
                 "%sBotoCore error saving artifact '%s' version %d: %s",
@@ -191,7 +201,9 @@ class S3ArtifactService(BaseArtifactService):
                 version,
                 e,
             )
-            raise IOError(f"BotoCore error saving artifact version {version}: {e}") from e
+            raise OSError(
+                f"BotoCore error saving artifact version {version}: {e}"
+            ) from e
 
     @override
     async def load_artifact(
@@ -201,8 +213,8 @@ class S3ArtifactService(BaseArtifactService):
         user_id: str,
         session_id: str,
         filename: str,
-        version: Optional[int] = None,
-    ) -> Optional[adk_types.Part]:
+        version: int | None = None,
+    ) -> adk_types.Part | None:
         log_prefix = f"[S3Artifact:Load:{filename}] "
         filename = self._normalize_filename_unicode(filename)
 
@@ -222,18 +234,21 @@ class S3ArtifactService(BaseArtifactService):
         else:
             logger.debug("%sLoading specified version: %d", log_prefix, load_version)
 
-        object_key = self._get_object_key(app_name, user_id, session_id, filename, load_version)
+        object_key = self._get_object_key(
+            app_name, user_id, session_id, filename, load_version
+        )
 
         try:
+
             def _get_object():
                 return self.s3.get_object(Bucket=self.bucket_name, Key=object_key)
 
             response = await asyncio.to_thread(_get_object)
             data = response["Body"].read()
             mime_type = response.get("ContentType", "application/octet-stream")
-            
+
             artifact_part = adk_types.Part.from_bytes(data=data, mime_type=mime_type)
-            
+
             logger.info(
                 "%sLoaded artifact '%s' version %d successfully (%d bytes, %s)",
                 log_prefix,
@@ -271,16 +286,19 @@ class S3ArtifactService(BaseArtifactService):
     @override
     async def list_artifact_keys(
         self, *, app_name: str, user_id: str, session_id: str
-    ) -> List[str]:
-        log_prefix = f"[S3Artifact:ListKeys] "
+    ) -> list[str]:
+        log_prefix = "[S3Artifact:ListKeys] "
         filenames = set()
 
         # List session-scoped artifacts
         session_prefix = f"{self.scope_identifier}/{user_id}/{session_id}/"
         try:
+
             def _list_session_objects():
                 paginator = self.s3.get_paginator("list_objects_v2")
-                return paginator.paginate(Bucket=self.bucket_name, Prefix=session_prefix)
+                return paginator.paginate(
+                    Bucket=self.bucket_name, Prefix=session_prefix
+                )
 
             session_pages = await asyncio.to_thread(_list_session_objects)
             for page in session_pages:
@@ -300,6 +318,7 @@ class S3ArtifactService(BaseArtifactService):
         # List user-scoped artifacts
         user_prefix = f"{self.scope_identifier}/{user_id}/user/"
         try:
+
             def _list_user_objects():
                 paginator = self.s3.get_paginator("list_objects_v2")
                 return paginator.paginate(Bucket=self.bucket_name, Prefix=user_prefix)
@@ -329,7 +348,7 @@ class S3ArtifactService(BaseArtifactService):
     ) -> None:
         log_prefix = f"[S3Artifact:Delete:{filename}] "
         filename = self._normalize_filename_unicode(filename)
-        
+
         # Get all versions to delete
         versions = await self.list_versions(
             app_name=app_name,
@@ -337,20 +356,27 @@ class S3ArtifactService(BaseArtifactService):
             session_id=session_id,
             filename=filename,
         )
-        
+
         if not versions:
             logger.debug("%sNo versions found to delete for artifact.", log_prefix)
             return
 
         # Delete all versions
         for version in versions:
-            object_key = self._get_object_key(app_name, user_id, session_id, filename, version)
+            object_key = self._get_object_key(
+                app_name, user_id, session_id, filename, version
+            )
             try:
+
                 def _delete_object():
-                    return self.s3.delete_object(Bucket=self.bucket_name, Key=object_key)
+                    return self.s3.delete_object(
+                        Bucket=self.bucket_name, Key=object_key
+                    )
 
                 await asyncio.to_thread(_delete_object)
-                logger.debug("%sDeleted version %d: %s", log_prefix, version, object_key)
+                logger.debug(
+                    "%sDeleted version %d: %s", log_prefix, version, object_key
+                )
             except ClientError as e:
                 logger.warning(
                     "%sFailed to delete version %d (%s): %s",
@@ -370,15 +396,16 @@ class S3ArtifactService(BaseArtifactService):
     @override
     async def list_versions(
         self, *, app_name: str, user_id: str, session_id: str, filename: str
-    ) -> List[int]:
+    ) -> list[int]:
         log_prefix = f"[S3Artifact:ListVersions:{filename}] "
         filename = self._normalize_filename_unicode(filename)
-        
+
         # Get the prefix for this specific artifact (without version)
         prefix = self._get_object_key(app_name, user_id, session_id, filename, "")
         versions = []
 
         try:
+
             def _list_objects():
                 paginator = self.s3.get_paginator("list_objects_v2")
                 return paginator.paginate(Bucket=self.bucket_name, Prefix=prefix)
