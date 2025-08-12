@@ -9,8 +9,22 @@ import base64
 import re
 from datetime import datetime, timezone
 from solace_ai_connector.common.log import log
-from google.genai import types as adk_types
-from google.adk.events import Event as ADKEvent
+try:
+    from google.genai import types as adk_types
+    from google.adk.events import Event as ADKEvent
+except ImportError:
+    # Mock Google ADK types for environments without Google ADK
+    class MockADKTypes:
+        class Part:
+            pass
+        class Content:
+            parts = []
+    
+    class MockADKEvent:
+        pass
+    
+    adk_types = MockADKTypes()
+    ADKEvent = MockADKEvent
 
 from .types import (
     Message as A2AMessage,

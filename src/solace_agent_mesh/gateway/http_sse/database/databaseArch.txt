@@ -4,27 +4,45 @@ This document outlines the database architecture for projects created with the S
 
 ## Core Concepts
 
-The key architectural goal is to separate the framework's logic from the user's project data. The `solace-agent-mesh` package is installed via pip and provides the core application logic, including database migration scripts. The user's project, created with `sam init`, contains its own unique data, including a project-specific database.
+The key architectural goal is to provide flexible and isolated persistence for different components of the system. The `solace-agent-mesh` package, installed via pip, provides the core application logic, including database migration scripts managed by Alembic.
+
+A SAM project can have multiple databases:
+-   **WebUI Gateway Database**: A dedicated database for the WebUI gateway, primarily for managing user sessions and chat history.
+-   **Orchestrator Database**: An optional, dedicated database for the Orchestrator agent if it requires SQL-based session persistence.
+-   **Agent Databases**: Each agent can have its own separate database if configured for SQL-based session persistence.
+
+This architecture ensures that each component's data is isolated, and the framework can be updated independently of the project's data.
 
 ## `sam init` - Project Initialization
 
 When a user runs `sam init`, the following database-related actions occur:
 
-1.  **No Database Creation**: `sam init` does *not* create the database file itself.
-2.  **.env File Configuration**: It creates a `.env` file in the root of the user's new project directory.
-3.  **Database URL**: A `DATABASE_URL` variable is added to this `.env` file. By default, it points to a local SQLite database within the project directory (e.g., `sqlite:///gatewayDatabase.db`). This ensures that each project has its own isolated database for storing chat history, sessions, and other persistence data.
-4.  **No Migrations Run**: The `init` command does not run any database migrations.
+1.  **Database Setup Step**: The initialization flow includes a dedicated step for database configuration.
+2.  **User Choice**: For the WebUI Gateway and Orchestrator, the user is prompted to either provide a connection string for their own database (e.g., PostgreSQL) or use the default SQLite setup.
+3.  **Database File Creation**: If the user chooses the default, `sam init` creates the empty SQLite database files (e.g., `data/webui_gateway.db`, `data/orchestrator.db`).
+4.  **.env File Configuration**: It creates a `.env` file in the project root and adds the corresponding `WEB_UI_GATEWAY_DATABASE_URL` and `ORCHESTRATOR_DATABASE_URL` variables.
+5.  **No Migrations Run**: The `init` command does not run any database migrations. It only sets up the configuration and creates empty database files if needed.
+
+## `sam add agent` - Agent-Specific Databases
+
+When a user runs `sam add agent` with the SQL session service, a similar process occurs for the new agent:
+
+1.  **User Choice**: The user can provide a `--database-url` for the agent or opt for the default SQLite database.
+2.  **Database File Creation**: If the default is chosen, an agent-specific SQLite database is created (e.g., `data/my_new_agent.db`).
+3.  **.env File Configuration**: A unique environment variable for the agent's database URL (e.g., `MY_NEW_AGENT_DATABASE_URL`) is appended to the `.env` file.
+4.  **No Migrations Run**: This command also does not run migrations.
 
 ## `sam run` - Application Execution and Migrations
 
-The `sam run` command is responsible for both running the application and ensuring the database is up-to-date.
+The `sam run` command is responsible for both running the application and ensuring all databases are up-to-date.
 
-1.  **Load Environment**: It first loads the environment variables from the project's `.env` file, including the `DATABASE_URL`.
-2.  **Locate Migrations**: It locates the `alembic.ini` configuration and the `alembic/` migration scripts *from within the installed `solace-agent-mesh` package*. This is crucial, as it means the migration logic is shipped with the framework.
-3.  **Run Migrations**: Using the `DATABASE_URL` from the `.env` file, it runs `alembic upgrade head`. This command connects to the user's project-specific database and applies any migrations that have not yet been run. If the database file doesn't exist, Alembic creates it and runs all migrations to bring it to the latest version.
-4.  **Start Application**: After the database is confirmed to be up-to-date, the main Solace Agent Mesh application starts.
+1.  **Load Environment**: It loads the environment variables from the project's `.env` file.
+2.  **Component Startup**: When any component (Gateway, Orchestrator, or an Agent) starts, it checks its own configuration for a `database_url`.
+3.  **Locate Migrations**: If a `database_url` is found, the component locates the `alembic.ini` configuration and the `alembic/` migration scripts from within the installed `solace-agent-mesh` package.
+4.  **Run Migrations**: Using its specific `database_url`, the component runs `alembic upgrade head`. This command connects to its dedicated database and applies any necessary migrations. If the database file was just created, this will build the full schema.
+5.  **Start Application Logic**: After the database is confirmed to be up-to-date, the component proceeds with its normal startup sequence.
 
 This architecture ensures that:
 - The framework can be updated (`pip install --upgrade solace-agent-mesh`), bringing in new database migrations.
-- When the user runs their project with `sam run`, these new migrations are automatically applied to their existing database without any manual intervention.
-- Each user project remains self-contained with its own database.
+- When the user runs their project with `sam run`, these new migrations are automatically applied to each component's respective database without manual intervention.
+- Each component's data persistence is self-contained and isolated.

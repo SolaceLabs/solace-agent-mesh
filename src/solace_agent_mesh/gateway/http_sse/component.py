@@ -29,7 +29,12 @@ from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.base.component import BaseGatewayComponent
 from ...common.agent_registry import AgentRegistry
 from ...core_a2a.service import CoreA2AService
-from google.adk.artifacts import BaseArtifactService
+try:
+    from google.adk.artifacts import BaseArtifactService
+except ImportError:
+    # Mock BaseArtifactService for environments without Google ADK
+    class BaseArtifactService:
+        pass
 
 from ...common.types import (
     AgentCard,
@@ -1547,7 +1552,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     self.persistence_service.store_chat_message(
                         session_id=task_data.sessionId,
                         message={
-                            "content": agent_message_content,
+                            "message": agent_message_content,
                             "sender_type": "agent",
                             "sender_name": task_data.metadata.get("agent_name"),
                         },

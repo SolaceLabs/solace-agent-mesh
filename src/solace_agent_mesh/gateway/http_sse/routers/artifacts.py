@@ -22,7 +22,12 @@ from fastapi import (
     Form,
 )
 from fastapi.responses import StreamingResponse, Response
-from google.adk.artifacts import BaseArtifactService
+try:
+    from google.adk.artifacts import BaseArtifactService
+except ImportError:
+    # Mock BaseArtifactService for environments without Google ADK
+    class BaseArtifactService:
+        pass
 import io
 import json
 from datetime import datetime, timezone

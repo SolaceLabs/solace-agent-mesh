@@ -1,8 +1,12 @@
+"""
+Session domain models moved from the original models.py file.
+"""
+
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
-from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-Base = declarative_base()
+from .base_models import Base
 
 
 class Session(Base):
@@ -45,21 +49,4 @@ class ChatMessage(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "sender_type": self.sender_type,
             "sender_name": self.sender_name,
-        }
-
-
-class User(Base):
-    __tablename__ = "users"
-    id = Column(String, primary_key=True)
-    info = Column(Text)  # Storing user info as a JSON string
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "info": self.info,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

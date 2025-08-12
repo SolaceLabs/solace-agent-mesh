@@ -28,7 +28,12 @@ from ...common.services.identity_service import BaseIdentityService
 from ...common.middleware.config_resolver import ConfigResolver
 from .database.persistence_service import PersistenceService
 
-from google.adk.artifacts import BaseArtifactService
+try:
+    from google.adk.artifacts import BaseArtifactService
+except ImportError:
+    # Mock BaseArtifactService for environments without Google ADK
+    class BaseArtifactService:
+        pass
 
 
 if TYPE_CHECKING:
