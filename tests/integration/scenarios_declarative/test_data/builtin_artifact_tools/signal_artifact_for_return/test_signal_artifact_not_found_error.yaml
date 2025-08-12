@@ -2,7 +2,8 @@ test_case_id: "builtin_signal_artifact_not_found_error_001"
 description: |
   Tests the 'signal_artifact_for_return' tool's error handling when the
   specified artifact filename does not exist.
-skip_intermediate_events: true # We only care about the tool's direct response to LLM
+tags: ["agent","tools","builtin_artifact_tools"]
+skip_intermediate_events: true
 
 # No setup_artifacts for the target file.
 

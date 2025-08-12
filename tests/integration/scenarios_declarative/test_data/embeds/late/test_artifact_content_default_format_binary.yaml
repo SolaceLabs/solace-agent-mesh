@@ -1,6 +1,8 @@
 test_case_id: "embed_ac_default_format_binary_001"
 description: "Tests «artifact_content:tiny.png>>>format:datauri» for binary data."
+tags: ["common","embeds"]
 skip_intermediate_events: true
+
 setup_artifacts:
   - filename: "tiny.png"
     mime_type: "image/png"

@@ -1,6 +1,8 @@
 test_case_id: "embed_math_basic_addition_001"
 description: "Tests «math:5+3» embed for basic addition."
+tags: ["common","embeds"]
 skip_intermediate_events: true
+
 gateway_input:
   target_agent_name: "TestAgent"
   user_identity: "embed_tester@example.com"

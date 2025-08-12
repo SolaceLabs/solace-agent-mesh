@@ -1,6 +1,8 @@
 test_case_id: "embed_ac_default_format_text_001"
 description: "Tests «artifact_content:default.txt» (no format) for text/plain."
+tags: ["common","embeds"]
 skip_intermediate_events: true
+
 setup_artifacts:
   - filename: "default.txt"
     mime_type: "text/plain"

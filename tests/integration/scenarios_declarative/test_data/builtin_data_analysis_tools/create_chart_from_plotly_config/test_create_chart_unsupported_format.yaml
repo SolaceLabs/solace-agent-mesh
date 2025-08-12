@@ -1,5 +1,6 @@
 test_case_id: create_chart_unsupported_format
 description: "Tests failed chart creation due to an unsupported output format."
+tags: ["agent","tools","builtin_data_analysis_tools"]
 skip_intermediate_events: true
 
 gateway_input:

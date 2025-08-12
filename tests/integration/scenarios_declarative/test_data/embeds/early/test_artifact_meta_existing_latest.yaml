@@ -1,6 +1,8 @@
 test_case_id: "embed_artifact_meta_existing_latest_001"
 description: "Tests «artifact_meta:file1.txt» resolves to the latest version's metadata."
+tags: ["common","embeds"]
 skip_intermediate_events: true
+
 setup_artifacts:
   - filename: "file1.txt"
     mime_type: "text/plain"

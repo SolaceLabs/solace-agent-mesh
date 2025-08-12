@@ -1,6 +1,6 @@
 test_case_id: convert_pdf_success
 description: "Tests successful conversion of a PDF file to Markdown."
-
+tags: ["agent","tools","general_agent_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

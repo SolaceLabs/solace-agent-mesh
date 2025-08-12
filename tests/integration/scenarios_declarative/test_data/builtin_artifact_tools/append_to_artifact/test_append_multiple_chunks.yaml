@@ -3,6 +3,7 @@ description: |
   Tests appending multiple chunks sequentially to the same artifact.
   Verifies content accumulation, correct versioning, and metadata updates
   across multiple append operations.
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

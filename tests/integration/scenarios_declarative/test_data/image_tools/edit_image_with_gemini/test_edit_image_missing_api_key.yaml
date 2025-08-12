@@ -1,5 +1,6 @@
 test_case_id: edit_image_missing_api_key
 description: "Tests the tool's behavior when the gemini_api_key is missing."
+tags: ["agent","tools","image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

@@ -1,5 +1,6 @@
 test_case_id: web_request_large_response
 description: "Test that web_request tool handles a large response body."
+tags: ["agent","tools","web_tools"]
 skip_intermediate_events: true
 
 gateway_input:

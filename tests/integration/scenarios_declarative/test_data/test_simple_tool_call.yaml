@@ -1,7 +1,9 @@
 test_case_id: "simple_tool_call_001"
 description: "Agent receives a query, decides to use a tool, Test LLM provides tool output, agent responds."
+tags: ["default"]
 expected_completion_timeout_seconds: 15 # Increased timeout for this multi-step scenario
 skip_intermediate_events: true # ADDED: To skip llm_invocation before tool_invocation_start if not listed
+
 gateway_input:
   target_agent_name: "TestAgent"
   user_identity: "declarative_user_tool@example.com"

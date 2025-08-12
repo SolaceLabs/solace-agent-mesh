@@ -1,4 +1,5 @@
 import asyncio
+import pytest
 from collections.abc import AsyncIterable
 
 
@@ -12,6 +13,12 @@ from solace_agent_mesh.common.types import (
     TaskStatus,
     TaskStatusUpdateEvent,
 )
+
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.common,
+    pytest.mark.server
+]
 
 
 def test_A2A_server():

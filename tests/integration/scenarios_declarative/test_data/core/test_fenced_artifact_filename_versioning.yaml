@@ -1,5 +1,6 @@
 test_case_id: "fenced_artifact_filename_versioning_001"
 description: "Tests that saving an artifact with a duplicate filename creates a new version."
+tags: ["core_a2a"]
 skip_intermediate_events: true
 
 gateway_input:

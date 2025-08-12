@@ -34,7 +34,12 @@ import uuid
 import json
 import base64
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.agent,
+    pytest.mark.common,
+    pytest.mark.task_cancellation
+]
 
 
 async def test_programmatic_task_cancellation(

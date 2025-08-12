@@ -7,7 +7,11 @@ from solace_agent_mesh.agent.tools.registry import tool_registry
 from solace_agent_mesh.agent.tools.tool_definition import BuiltinTool
 from google.genai import types as adk_types
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.agent,
+    pytest.mark.tools
+]
 
 
 async def test_initial_tool_registry_state():

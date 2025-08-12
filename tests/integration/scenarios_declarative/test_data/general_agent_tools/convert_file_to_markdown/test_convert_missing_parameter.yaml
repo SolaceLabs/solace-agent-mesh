@@ -1,6 +1,6 @@
 test_case_id: convert_missing_parameter
 description: "Tests that the tool returns an error when the 'input_filename' parameter is missing."
-
+tags: ["agent","tools","general_agent_tools"]
 skip_intermediate_events: true
 
 gateway_input:

@@ -2,6 +2,7 @@ import os
 import json
 import yaml
 from solace_ai_connector.common.log import log
+from solace_ai_connector.main import load_config
 
 _has_initialized_system = False
 
@@ -13,7 +14,7 @@ def initialize():
         return
     
     try:
-        from solace_a2a_agent_enterprise.init_enterprise import initialize_enterprise_features
+        from solace_agent_mesh_enterprise.init_enterprise import initialize_enterprise_features
     except ImportError:
         # Community edition
         # Contact Solace support for enterprise features
@@ -23,8 +24,7 @@ def initialize():
     if enterprise_config and isinstance(enterprise_config, str):
         if enterprise_config.endswith('.yaml') or enterprise_config.endswith('.yml'):
             try:
-                with open(enterprise_config, 'r', encoding='utf-8') as file:
-                    enterprise_config = yaml.safe_load(file)
+                enterprise_config = load_config(enterprise_config)
             except Exception as e:
                 log.error("Failed to load YAML config from SAM_ENTERPRISE_CONFIG: %s", e, exc_info=True)
                 raise

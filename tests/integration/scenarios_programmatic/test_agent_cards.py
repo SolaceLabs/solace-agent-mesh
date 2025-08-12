@@ -17,7 +17,11 @@ from .test_helpers import (
     get_all_task_events,
 )
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.agent,
+    pytest.mark.delegation
+]
 
 
 async def test_agent_discovery_and_peer_tools_for_main_agent(

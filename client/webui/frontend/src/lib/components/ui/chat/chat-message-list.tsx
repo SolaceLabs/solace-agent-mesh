@@ -18,6 +18,7 @@ const ChatMessageList = React.forwardRef<ChatMessageListRef, ChatMessageListProp
         isAtBottom,
         disableAutoScroll,
         scrollToBottom,
+        userHasScrolled,
     } = useAutoScroll({
         smooth: true,
         content: children,
@@ -36,7 +37,7 @@ const ChatMessageList = React.forwardRef<ChatMessageListRef, ChatMessageListProp
                 <div className="flex flex-col gap-6" style={CHAT_STYLES}>{children}</div>
             </div>
 
-            {!isAtBottom && (
+            {!isAtBottom && userHasScrolled && (
                 <Button
                     onClick={() => {
                         scrollToBottom();

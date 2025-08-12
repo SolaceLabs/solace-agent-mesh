@@ -3,6 +3,7 @@ description: |
   Tests 'apply_embed_and_create_artifact' behavior when 'output_filename'
   contains embed-like syntax. Expects the syntax to be treated literally,
   creating an artifact with the embed syntax in its actual name.
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

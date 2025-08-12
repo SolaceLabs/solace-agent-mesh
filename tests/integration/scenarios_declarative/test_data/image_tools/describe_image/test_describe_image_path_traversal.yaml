@@ -1,6 +1,7 @@
 # tests/integration/scenarios_declarative/test_data/image_tools/describe_image/test_describe_image_path_traversal.yaml
 test_case_id: "describe_image_path_traversal"
 description: "Security test to ensure the tool handles filenames that look like path traversal attempts."
+tags: ["agent","tools","image_tools"]
 skip_intermediate_events: true
 
 # No artifacts are set up. The tool should fail to find the file.

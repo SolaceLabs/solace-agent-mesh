@@ -2,6 +2,7 @@ test_case_id: "builtin_extract_content_internal_llm_fail_001"
 description: |
   Tests 'extract_content_from_artifact' when the internal LLM call
   made by the tool itself fails.
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

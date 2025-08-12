@@ -1,6 +1,6 @@
 test_case_id: convert_unsupported_type
 description: "Tests that the tool returns an error when the input file type is not supported."
-
+tags: ["agent","tools","general_agent_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

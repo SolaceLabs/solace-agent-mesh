@@ -1,5 +1,6 @@
 test_case_id: "fenced_artifact_description_reordered_params_001"
 description: "Tests that parameters can be in any order."
+tags: ["core_a2a"]
 skip_intermediate_events: true
 
 gateway_input:

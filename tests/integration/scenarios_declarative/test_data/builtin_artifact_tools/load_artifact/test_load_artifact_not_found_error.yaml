@@ -2,6 +2,7 @@ test_case_id: "builtin_load_artifact_not_found_error_001"
 description: |
   Tests the 'load_artifact' tool's error handling when the specified
   artifact filename does not exist.
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 # No setup_artifacts for the target file, as it's intended to be non-existent.
