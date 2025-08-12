@@ -32,23 +32,23 @@ llm_interactions:
     expected_request:
       tools_present: ["peer_TestPeerAgentB"]
 
-  # 2. TestPeerAgentB receives the task and uses a tool to create the artifact.
+  # 2. TestPeerAgentB receives the task and uses a fenced block to create the artifact.
   - static_response:
       choices:
         - message:
             role: "assistant"
-            content: "I will create the financial summary now."
-            tool_calls:
-              - id: "create_the_summary_file"
-                type: "function"
-                function:
-                  name: "create_artifact"
-                  arguments: '{"filename": "financial_summary.csv", "content": "Category,Value\\nRevenue,1000", "mime_type": "text/csv", "metadata": {"description": "Q1 Financial Summary"}}'
+            content: |
+              «««save_artifact: filename="financial_summary.csv" mime_type="text/csv" description="Q1 Financial Summary"
+              Category,Value
+              Revenue,1000
+              »»»
     expected_request:
-      tools_present: ["create_artifact"]
+      messages_contain:
+        - role: "user"
+          content_contains: "Create a financial summary as a CSV file."
 
-  # 3. TestPeerAgentB receives the tool response (which does NOT contain a summary)
-  #    and then formulates its final response to the calling agent.
+  # 3. The system processes the fenced block and injects a `_notify_artifact_save` tool call.
+  #    TestPeerAgentB confirms the save.
   - static_response:
       choices:
         - message:
@@ -56,11 +56,10 @@ llm_interactions:
             content: "The financial summary has been created."
     expected_request:
       expected_tool_responses_in_llm_messages:
-        - tool_name: "create_artifact"
+        - tool_name: "_notify_artifact_save"
           response_json_matches:
+            filename: "financial_summary.csv"
             status: "success"
-            data_filename: "financial_summary.csv"
-            # Note: No artifact summary is expected here.
 
   # 4. TestAgent receives the response from TestPeerAgentB. This response IS enriched
   #    with the artifact summary by the framework.
