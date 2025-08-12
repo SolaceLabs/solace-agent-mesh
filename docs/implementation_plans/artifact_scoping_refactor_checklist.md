@@ -11,12 +11,12 @@ This checklist provides a terse summary of the tasks required to implement the c
     -   [X] Implement `reset_artifact_scoping_for_testing()`.
     -   [X] Implement `_get_scoped_app_name()` helper.
 
--   [ ] **2. Integrate Scoping Logic into `artifact_helpers.py` Functions**
-    -   [ ] Modify `save_artifact_with_metadata` to use `_get_scoped_app_name`.
-    -   [ ] Modify `load_artifact_content_or_metadata` to use `_get_scoped_app_name`.
-    -   [ ] Modify `get_latest_artifact_version` to use `_get_scoped_app_name`.
-    -   [ ] Modify `get_artifact_info_list` to use `_get_scoped_app_name`.
-    -   [ ] Modify `generate_artifact_metadata_summary` to use `_get_scoped_app_name`.
+-   [X] **2. Integrate Scoping Logic into `artifact_helpers.py` Functions**
+    -   [X] Modify `save_artifact_with_metadata` to use `_get_scoped_app_name`.
+    -   [X] Modify `load_artifact_content_or_metadata` to use `_get_scoped_app_name`.
+    -   [X] Modify `get_latest_artifact_version` to use `_get_scoped_app_name`.
+    -   [X] Modify `get_artifact_info_list` to use `_get_scoped_app_name`.
+    -   [X] Modify `generate_artifact_metadata_summary` to use `_get_scoped_app_name`.
 
 ### Phase 2: Refactor Existing Services and Components
 
