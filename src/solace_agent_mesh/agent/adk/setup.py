@@ -9,6 +9,7 @@ from solace_ai_connector.common.log import log
 from solace_ai_connector.common.utils import import_module
 
 from .app_llm_agent import AppLlmAgent
+from ..tools import dynamic_tools
 from .tool_wrapper import ADKToolWrapper
 from google.adk.runners import Runner
 from google.adk.models import BaseLlm
@@ -322,6 +323,40 @@ async def load_adk_tools(
                         connection_params,
                     )
 
+                elif tool_type == "dynamic_tool":
+                    group_name = tool_config.get("group_name")
+                    if not group_name:
+                        raise ValueError("'group_name' required for dynamic_tool.")
+                    
+                    if group_name == "rest_api":
+                        # Initialize REST API tools
+                        log.info("%s Initializing REST API tools from dynamic tool group: %s",)
+                        dynamic_tools_list = dynamic_tools.initialize_rest_api_tools(component, tool_config)
+                        for tool_def in dynamic_tools_list:
+                            if tool_def.name not in loaded_tool_names:
+                                specific_tool_config = tool_config.get("tool_configs", {}).get(tool_def.name)
+                                tool_callable = ADKToolWrapper(
+                                    tool_def.implementation,
+                                    specific_tool_config,
+                                    tool_def.name,
+                                    raw_string_args=tool_def.raw_string_args,
+                                )
+                                tool_callable.__name__ = tool_def.name
+                                loaded_tools.append(tool_callable)
+                                enabled_builtin_tools.append(tool_def)
+                                loaded_tool_names.add(tool_def.name)
+                        
+                        log.info(
+                            "Loaded %d tools from dynamic tool group: %s",
+                            len(dynamic_tools_list),
+                            group_name,
+                        )
+                    else:
+                        log.warning(
+                            "%s Unknown dynamic tool group '%s' in config.",
+                            component.log_identifier,
+                            group_name,
+                        )
                 else:
                     log.warning(
                         "%s Unknown tool type '%s' in config: %s",

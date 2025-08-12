@@ -1,0 +1,81 @@
+# Example configuration for dynamic tools (REST API)
+namespace: test/dynamic-tools
+agent_name: rest-api-agent
+model: gemini-1.5-pro-latest
+instruction: |
+  You are an API assistant that can interact with various REST APIs.
+  Use the provided tools to make API requests and process the responses.
+
+tools:
+  # Define a dynamic tool group for REST APIs
+  - tool_type: dynamic_tool
+    group_name: rest_api
+    tools:
+      # Example 1: Simple GET request to a public API
+      - tool_name: get_weather
+        url: https://api.weatherapi.com/v1/current.json
+        method: GET
+        parameters:
+          q: string
+          key: string
+        headers:
+          Accept: application/json
+        description: Get current weather information for a location
+        
+      # Example 2: POST request with path parameter
+      - tool_name: create_user
+        url: https://api.example.com/users
+        method: POST
+        parameters:
+          name: string
+          email: string
+          role: string
+        headers:
+          Content-Type: application/json
+          Authorization: Bearer {api_key}
+        description: Create a new user
+        
+      # Example 3: GET request with path parameter
+      - tool_name: get_user
+        url: https://api.example.com/users/{user_id}
+        method: GET
+        parameters:
+          user_id: string
+        headers:
+          Accept: application/json
+          Authorization: Bearer {api_key}
+        description: Get user details by ID
+        response_mapping:
+          success_path: data.user
+
+# Standard ADK services configuration
+session_service:
+  type: memory
+  default_behavior: PERSISTENT
+
+artifact_service:
+  type: memory
+
+memory_service:
+  type: memory
+
+# Agent card for discovery
+agent_card:
+  description: REST API Assistant
+  defaultInputModes: [text]
+  defaultOutputModes: [text]
+  skills:
+    - name: api_interaction
+      description: Can interact with configured REST APIs
+
+# Discovery and communication settings
+agent_card_publishing:
+  interval_seconds: 60
+
+agent_discovery:
+  enabled: true
+
+inter_agent_communication:
+  allow_list: ["*"]
+  deny_list: []
+  request_timeout_seconds: 30

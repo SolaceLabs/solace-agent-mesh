@@ -95,7 +95,7 @@ class SamAgentApp(App):
                         "tool_type": {
                             "type": "string",
                             "required": True,
-                            "enum": ["python", "mcp", "builtin", "builtin-group"],
+                            "enum": ["python", "mcp", "builtin", "builtin-group", "dynamic_tool"],
                             "description": "Type of the tool.",
                         },
                         "tool_name": {
@@ -132,6 +132,17 @@ class SamAgentApp(App):
                             "type": "object",
                             "required": False,
                             "description": "Environment variables for 'mcp' tool type with stdio connection.",
+                        },
+                        "group_name": {  # For dynamic_tool
+                            "type": "string",
+                            "required": False,
+                            "description": "Group name for 'dynamic_tool' type (e.g., 'rest_api').",
+                        },
+                        "tools": {  # For dynamic_tool (REST API)
+                            "type": "list",
+                            "required": False,
+                            "description": "List of tool configurations for dynamic tools (e.g., REST API endpoints).",
+                            "items": {"type": "object"},
                         },
                         "required_scopes": {
                             "type": "list",
