@@ -30,6 +30,7 @@ import {
     isOrchestratorAgent,
     handleParallelJoin,
     handleSequentialPeerReturn,
+    createErrorEdge,
 } from "./taskToFlowData.helpers";
 import { EdgeAnimationService } from "./edgeAnimationService";
 
