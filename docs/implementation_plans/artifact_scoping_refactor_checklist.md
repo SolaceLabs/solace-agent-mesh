@@ -20,9 +20,9 @@ This checklist provides a terse summary of the tasks required to implement the c
 
 ### Phase 2: Refactor Existing Services and Components
 
--   [ ] **3. Refactor `FilesystemArtifactService`**
-    -   [ ] Remove `scope_identifier` from `__init__`.
-    -   [ ] Rewrite `_get_artifact_dir` to use the `app_name` parameter for path construction.
+-   [X] **3. Refactor `FilesystemArtifactService`**
+    -   [X] Remove `scope_identifier` from `__init__`.
+    -   [X] Rewrite `_get_artifact_dir` to use the `app_name` parameter for path construction.
 
 -   [ ] **4. Update `initialize_artifact_service` Factory**
     -   [ ] Remove `scope_identifier` calculation logic.
