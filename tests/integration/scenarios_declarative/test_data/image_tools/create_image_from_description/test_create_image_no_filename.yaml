@@ -1,6 +1,8 @@
 test_case_id: "create_image_happy_path_002"
 description: "Verifies creating an image without a specified filename, relying on auto-generation."
+tags: ["agent","tools","image_tools"]
 skip_intermediate_events: true
+
 gateway_input:
   target_agent_name: "TestAgent"
   user_identity: "happy_path_tester@example.com"

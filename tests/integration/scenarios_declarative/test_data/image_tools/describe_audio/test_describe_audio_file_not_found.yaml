@@ -1,5 +1,6 @@
 test_case_id: describe_audio_file_not_found
 description: "Tests describe_audio tool when the audio file does not exist."
+tags: ["agent","tools","image_tools"]
 skip_intermediate_events: true
 
 gateway_input:

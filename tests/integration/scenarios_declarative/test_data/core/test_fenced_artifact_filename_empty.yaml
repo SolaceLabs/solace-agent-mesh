@@ -1,5 +1,6 @@
 test_case_id: "fenced_artifact_filename_empty_001"
 description: "Tests that a fenced block with an empty filename parameter fails gracefully."
+tags: ["core_a2a"]
 skip_intermediate_events: true
 
 gateway_input:

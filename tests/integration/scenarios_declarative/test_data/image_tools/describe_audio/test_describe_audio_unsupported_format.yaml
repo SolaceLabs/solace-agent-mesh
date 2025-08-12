@@ -1,5 +1,6 @@
 test_case_id: describe_audio_unsupported_format
 description: "Tests describe_audio tool with an unsupported audio format."
+tags: ["agent","tools","image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

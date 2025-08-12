@@ -3,6 +3,7 @@ description: |
   Tests 'extract_content_from_artifact' with an unsupported binary artifact type.
   The internal LLM should be informed that direct content processing is not supported.
   The tool's success then depends on the LLM's ability to respond based on metadata/filename.
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 # Assumes agent config: extract_content_from_artifact_config.supported_binary_mime_types = [] (or does not include image/png)

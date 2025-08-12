@@ -2,6 +2,7 @@ test_case_id: "builtin_load_artifact_invalid_version_error_001"
 description: |
   Tests the 'load_artifact' tool's error handling when an invalid
   (e.g., negative) version number is specified.
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

@@ -1,6 +1,8 @@
 test_case_id: "embed_ac_recursive_template_with_embed_001"
 description: "Tests recursive resolution: template contains an artifact_content embed."
+tags: ["common","embeds"]
 skip_intermediate_events: true
+
 setup_artifacts:
   - filename: "data_for_template.json"
     mime_type: "application/json"

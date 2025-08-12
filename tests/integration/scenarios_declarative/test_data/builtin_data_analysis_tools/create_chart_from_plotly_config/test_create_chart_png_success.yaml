@@ -1,5 +1,6 @@
 test_case_id: create_chart_png_success
 description: "Tests successful creation of a PNG chart from a JSON config."
+tags: ["agent","tools","builtin_data_analysis_tools"]
 skip_intermediate_events: true
 
 gateway_input:

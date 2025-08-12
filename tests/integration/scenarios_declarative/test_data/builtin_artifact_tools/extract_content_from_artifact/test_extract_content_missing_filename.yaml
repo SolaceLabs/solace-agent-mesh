@@ -2,6 +2,7 @@ test_case_id: "builtin_extract_content_missing_filename_001"
 description: |
   Tests 'extract_content_from_artifact' when the 'filename' parameter is missing.
   The tool should return an error directly.
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 # No setup_artifacts needed as the tool call will fail before trying to load anything.

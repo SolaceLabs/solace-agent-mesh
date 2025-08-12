@@ -1,5 +1,6 @@
 test_case_id: describe_audio_malformed_filename
 description: "Tests the tool's behavior with a malformed audio filename."
+tags: ["agent","tools","image_tools"]
 skip_intermediate_events: true
 
 gateway_input:

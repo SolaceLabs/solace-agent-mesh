@@ -126,5 +126,6 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
         autoScrollEnabled: scrollState.autoScrollEnabled,
         scrollToBottom: () => scrollToBottom(),
         disableAutoScroll,
+        userHasScrolled: userHasScrolled.current,
     };
 }

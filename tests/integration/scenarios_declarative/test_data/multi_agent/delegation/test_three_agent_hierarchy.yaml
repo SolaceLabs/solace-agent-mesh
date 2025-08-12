@@ -1,5 +1,6 @@
 test_case_id: "multi_agent_three_deep_delegation_001"
 description: "Tests a three-agent delegation chain: Top -> A -> D. Top asks A to ask D to say hi."
+tags: ["agent","tools","delegation"]
 skip_intermediate_events: true
 
 gateway_input:

@@ -3,6 +3,7 @@ description: |
   Tests 'apply_embed_and_create_artifact' with a CSV source artifact and
   the 'format:csv' directive. Expects the output artifact to be a CSV file
   with content identical to the source (as no modifiers are applied).
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

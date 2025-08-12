@@ -6,7 +6,7 @@ log:
   log_file: orchestrator-agent.log
 
 # Shared SAM config
-!include ../shared_config.yaml
+!include ../../shared_config.yaml
 
 apps:
   - name: orchestrator-agent_app

@@ -1,6 +1,8 @@
 test_case_id: "embed_ac_recursive_size_limit_in_parent_001"
 description: "Tests recursive resolution total size limit in parent artifact."
+tags: ["common","embeds"]
 skip_intermediate_events: true
+
 # Gateway config for this test (via fixture override or specific test setup):
 # gateway_max_artifact_resolve_size_bytes: 50 (or a low value)
 # This test is hard to make fully declarative without per-test gateway config.

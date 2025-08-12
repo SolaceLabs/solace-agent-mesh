@@ -1,6 +1,8 @@
 test_case_id: "embed_ac_text_plain_001"
 description: "Tests «artifact_content:doc.txt>>>format:text» for plain text."
+tags: ["common","embeds"]
 skip_intermediate_events: true
+
 setup_artifacts:
   - filename: "doc.txt"
     mime_type: "text/plain"

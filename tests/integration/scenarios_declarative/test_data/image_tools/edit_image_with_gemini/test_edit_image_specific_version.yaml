@@ -1,5 +1,6 @@
 test_case_id: edit_image_specific_version
 description: "Tests editing a specific version of an image."
+tags: ["agent","tools","image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

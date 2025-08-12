@@ -1,6 +1,8 @@
 test_case_id: "embed_ac_head_more_than_lines_001"
 description: "Tests «artifact_content:lines.txt>>>head:5>>>format:text» when file has fewer lines."
+tags: ["common","embeds"]
 skip_intermediate_events: true
+
 setup_artifacts:
   - filename: "lines.txt"
     mime_type: "text/plain"

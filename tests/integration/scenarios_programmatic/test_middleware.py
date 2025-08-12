@@ -1,3 +1,11 @@
+import pytest
+
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.common,
+    pytest.mark.middleware
+]
+
 async def test_resolve_user_config():
     """
     Tests the resolve_user_config function with various configurations.

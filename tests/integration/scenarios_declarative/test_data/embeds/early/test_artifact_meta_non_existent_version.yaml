@@ -1,6 +1,8 @@
 test_case_id: "embed_artifact_meta_non_existent_version_001"
 description: "Tests «artifact_meta:file1.txt:1» for a non-existent version."
+tags: ["common","embeds"]
 skip_intermediate_events: true
+
 setup_artifacts:
   - filename: "file1.txt"
     mime_type: "text/plain"

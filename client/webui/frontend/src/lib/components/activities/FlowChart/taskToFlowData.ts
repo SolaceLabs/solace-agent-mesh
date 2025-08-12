@@ -664,7 +664,17 @@ export const transformProcessedStepsToTimelineFlow = (processedSteps: Visualizer
 
     const filteredSteps = processedSteps.filter(step => RELEVANT_STEP_TYPES.includes(step.type));
 
-    for (const step of filteredSteps) {
+    // Ensure the first USER_REQUEST step is processed first
+    const firstUserRequestIndex = filteredSteps.findIndex(step => step.type === "USER_REQUEST");
+    let reorderedSteps = filteredSteps;
+
+    if (firstUserRequestIndex > 0) {
+        // Move the first USER_REQUEST to the beginning
+        const firstUserRequest = filteredSteps[firstUserRequestIndex];
+        reorderedSteps = [firstUserRequest, ...filteredSteps.slice(0, firstUserRequestIndex), ...filteredSteps.slice(firstUserRequestIndex + 1)];
+    }
+
+    for (const step of reorderedSteps) {
         // Special handling for AGENT_LLM_RESPONSE_TOOL_DECISION if it's a peer delegation trigger
         // This step often precedes AGENT_TOOL_INVOCATION_START for peers.
         // The plan implies AGENT_TOOL_INVOCATION_START is the primary trigger for peer delegation.

@@ -1,6 +1,8 @@
 test_case_id: "embed_artifact_meta_non_existent_artifact_001"
 description: "Tests «artifact_meta:does_not_exist.txt» for a non-existent artifact."
+tags: ["common","embeds"]
 skip_intermediate_events: true
+
 gateway_input:
   target_agent_name: "TestAgent"
   user_identity: "embed_tester@example.com"

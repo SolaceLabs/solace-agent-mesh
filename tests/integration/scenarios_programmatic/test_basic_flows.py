@@ -30,7 +30,10 @@ from .test_helpers import (
     assert_final_response_text_contains,
 )
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.default
+]
 
 
 async def test_programmatic_basic_text_response(

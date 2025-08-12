@@ -3,6 +3,7 @@ description: |
   Tests 'apply_embed_and_create_artifact' when a JSONPath modifier
   in the embed_directive does not find a match. Expects the tool to succeed
   and save a representation of 'None' or 'null' as the content.
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

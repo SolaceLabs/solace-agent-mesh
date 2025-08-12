@@ -1,6 +1,8 @@
 test_case_id: "create_image_exploit_002"
 description: "Verifies that the create_image_from_description tool handles oversized prompts gracefully."
+tags: ["agent","tools","image_tools"]
 skip_intermediate_events: true
+
 gateway_input:
   target_agent_name: "TestAgent"
   user_identity: "exploit_tester@example.com"

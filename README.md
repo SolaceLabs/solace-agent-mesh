@@ -29,30 +29,33 @@
 
 ---
 
-The Solace Agent Mesh transforms how AI agents work together, creating a dynamic ecosystem where specialized agents communicate seamlessly, share information, and collaborate on complex tasks.
+**Solace Agent Mesh** is a framework that supports building AI applications where multiple specialized AI agents work together to solve complex problems. It uses the event messaging of [Solace Platform](https://solace.com) for true scalability and reliability.
 
-Built on Solace PubSub+ Event Broker, this framework provides a robust foundation for enterprise-grade AI solutions that scale effortlessly. The mesh creates a standardized communication layer where AI agents can:
+With Solace Agent Mesh (SAM), you can create teams of AI agents, each having distinct skills and access to specific tools. For example, you could have a Database Agent that can make SQL queries to fetch data or a MultiModal Agent that can help create images, audio files and reports.
 
-* Delegate specialized tasks to peer agents
-* Share artifacts and data across the network
+The framework handles the communication between agents automatically, so you can focus on building great AI experiences.
+
+SAM creates a standardized communication layer where AI agents can:
+* Delegate tasks to peer agents
+* Share data and artifacts
 * Connect with diverse user interfaces and external systems
-* Execute complex, multi-step workflows with minimal coupling
+* Execute multi-step workflows with minimal coupling
 
-Under the hood, the framework combines the Solace AI Connector (SAC) for runtime orchestration with Google's Agent Development Kit (ADK) for agent logic, LLM interaction, and tool execution—all communicating via the A2A protocol over Solace's event mesh. The result? A fully asynchronous, event-driven, and decoupled AI agent architecture ready for enterprise deployment.
+SAM is built on top of the Solace AI Connector (SAC) which allows Solace Platform Event Brokers to connect to AI models and services and Google's Agent Development Kit (ADK) for AI logic and tool integrations.
+
+The result? A fully asynchronous, event-driven and decoupled AI agent architecture ready for production deployment. It is robust, reliable and easy to maintain.
 
 ---
 
-## ✨ Key Features 
-- ⚙️ **[Modular, Event-Driven Architecture](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/component-overview)** – All components communicate via events through a central event mesh, enabling loose coupling and high scalability.
-- 🤖 **[Composable Agents](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/agents)** – Combine specialized AI agents to solve complex, multi-step workflows.
-- 🌐 **[Flexible Interfaces](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/gateways)** – Interact with SAM via the REST API, browser UI, [Slack](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/slack-integration), etc.
-- 🧠 **[Orchestration Agent](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/orchestrator)** – Tasks are automatically broken down and delegated across agents by the orchestrator agent.
-- 🧩 **[Plugin-Extensible](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/plugins)** – Add your own agents, gateways, or services with minimal boilerplate.
-- 🏢 **[Production-Ready](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/deployment/deploy)** – Backed by [Solace's enterprise-grade event broker](https://solace.com/products/event-broker/) for reliability and performance.
-- 📁 **[File Management](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/user-guide/builtin-tools/artifact-management)** – Built-in tools for managing file artifacts with automatic metadata injection and artifact handling.
-- 📊 **[Data Analysis Tools](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/user-guide/builtin-tools/data-analysis-tools)** – Built-in tools for SQL queries, JQ transformations, and Plotly chart generation.
-- 🔗 **[Dynamic Embeds](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/user-guide/builtin-tools/embeds)** – Include dynamic placeholders in responses that are resolved by the framework with support for modifier chains.
-- 🤝 **[Agent-to-Agent Communication](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/architecture)** – Agents can discover and delegate tasks to peer agents using the A2A protocol over Solace.
+## 🔑 Key Features 
+- **[Multi-Agent Event-Driven Architecture](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/component-overview)** – Agents communicate via the Solace Event Mesh for true scalability
+- **[Agent Orchestration](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/agents)** – Complex tasks are automatically broken down and delegated by the [Orchestrator](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/orchestrator) agent
+- **[Flexible Interfaces](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/gateways)** – Integrate with REST API, web UI, [Slack](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/slack-integration), or build your own integration
+- **[Extensible](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/plugins)** – Add your own agents, gateways, or services with minimal code
+- **[Agent-to-Agent Communication](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/architecture)** – Agents can discover and delegate tasks to each other seamlessly using the Agent2Agent (A2A) Protocol
+- **[Dynamic Embeds](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/user-guide/builtin-tools/embeds)** – Embed dynamic content like real-time data, calculations and file contents in responses
+
+📚 **Want to know more?** Check out the full Solace Agent Mesh [documentation](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/).
 
 ---
 
@@ -71,38 +74,41 @@ To run Solace Agent Mesh locally, you'll need:
 
 ### 💻 Setup Steps
 
+#### 1. Create a directory for a new project
 ```bash
-# 1. (Optional) Create and activate a Python virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-
-# 2. Install the Solace Agent Mesh
-pip install solace-agent-mesh
-
-# 3. Initialize a new project with web-based setup
 mkdir my-agent-mesh && cd my-agent-mesh
+```
+#### 2. Create and activate a Python virtual environment
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+```
+#### 3. Install Solace Agent Mesh (SAM)
+```bash
+pip3 install solace-agent-mesh
+```
+#### 4. Initialize the new project via a GUI interface
+```bash
 sam init --gui
-
-# 4. Run the project
+```
+Note: This initialization UI runs on port 5002
+#### 5. Run the project
+```bash
 sam run
 ```
+#### 5. Verify SAM is running
+Open the Web UI at [http://localhost:8000](http://localhost:8000) for the chat inteface
 
-### 🔧 Adding Agents
+### 🔧 Customize SAM
 
+#### New agents can be added via a GUI interface
 ```bash
-# Add a new agent with GUI interface
 sam add agent --gui
 ```
 
-Or install an existing plugin:
-
+#### Existing plugins can be installed
 ```bash
 sam plugin add <your-component-name> --plugin <plugin-name>
 ```
-
-#### Once running:
-
-Open the Web UI at [http://localhost:8000](http://localhost:8000) to talk with a chat interface.
 
 ---
 
@@ -114,7 +120,7 @@ The system allows you to:
 
 - Host AI agents developed with Google ADK within the SAC framework
 - Define agent capabilities (LLM model, instructions, tools) primarily through SAC YAML configuration
-- Utilize Solace PubSub+ as the transport for standard Agent-to-Agent (A2A) protocol communication
+- Use Solace Platform as the transport for standard Agent-to-Agent (A2A) protocol communication
 - Enable dynamic discovery of peer agents running within the same ecosystem
 - Allow agents to delegate tasks to discovered peers via the A2A protocol over Solace
 - Manage file artifacts using built-in tools with automatic metadata injection
@@ -142,20 +148,24 @@ Want to go further? Here are some hands-on tutorials to help you get started:
 | 🧠 **MCP Integration**<br>Integrating a Model Context Protocol (MCP) Servers into Solace Agent Mesh. | **~10–15 min** | [MCP Integration Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/mcp-integration) |
 | 💬 **Slack Integration**<br>Chat with Solace Agent Mesh directly from Slack. | **~20–30 min** | [Slack Integration Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/slack-integration) |
 
-📚 Want to explore more? Check out the full [Solace Agent Mesh documentation](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/).
-
 ---
 
 ## 👥 Contributors
 
-Solace Agent Mesh is built with the help of our amazing community.  
-Thanks to everyone who has contributed ideas, code, and time to make this project better.  
-👀 View the full list of contributors → [GitHub Contributors](https://github.com/SolaceLabs/solace-agent-mesh/graphs/contributors)
-🤝 **Looking to contribute?** Check out [CONTRIBUTING.md](CONTRIBUTING.md) to get started and see how you can help.
+Solace Agent Mesh is built with the help of our amazing community. Thanks to everyone who has contributed ideas, code and time to make this project better!
+
+View the full list of contributors here: [GitHub Contributors](https://github.com/SolaceLabs/solace-agent-mesh/graphs/contributors) 💚
+
+**Looking to contribute?** Check out [CONTRIBUTING.md](CONTRIBUTING.md) to get started and see how you can help!
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **Apache 2.0 License**.  
-See the full license text in the [LICENSE](LICENSE) file.
+This project is licensed under the **Apache 2.0 License**. See the full license text in the [LICENSE](LICENSE) file.
+
+---
+
+<h3 align="center">
+  <img src="./docs/static/img/solace-logo-text.svg" alt="Solace Agent Mesh Logo" width="100"/>
+</h3>

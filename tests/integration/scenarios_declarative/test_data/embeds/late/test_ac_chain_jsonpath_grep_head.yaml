@@ -1,6 +1,8 @@
 test_case_id: "embed_ac_chain_jsonpath_grep_head_001"
 description: "Tests «artifact_content:complex.json>>>jsonpath:$.logs[*]>>>grep:ERROR>>>head:1>>>format:text»."
+tags: ["common","embeds"]
 skip_intermediate_events: true
+
 setup_artifacts:
   - filename: "complex.json"
     mime_type: "application/json"

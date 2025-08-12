@@ -3,6 +3,7 @@ description: |
   Tests 'apply_embed_and_create_artifact' with a JSON source artifact and
   the 'format:json_pretty' directive. Expects the output artifact to be
   pretty-printed JSON with an application/json MIME type.
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

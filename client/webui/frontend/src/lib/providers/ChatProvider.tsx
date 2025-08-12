@@ -902,6 +902,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         selectedAgentName,
         setSelectedAgentName,
         artifacts,
+        artifactsLoading,
+        artifactsRefetch,
         uploadArtifactFile,
         isSidePanelCollapsed,
         activeSidePanelTab,

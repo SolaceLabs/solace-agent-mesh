@@ -1,6 +1,8 @@
 test_case_id: "notification_llm_response_001"
 description: "Tests that an llm_response notification is sent."
+tags: ["agent","common","notification"]
 skip_intermediate_events: true
+
 gateway_input:
   target_agent_name: "TestAgent"
   user_identity: "notification_tester@example.com"

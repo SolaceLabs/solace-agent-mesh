@@ -14,7 +14,7 @@ from cli.commands.eval_cmd import eval_cmd
 from cli.commands.docs_cmd import docs
 
 
-@click.group()
+@click.group(context_settings=dict(help_option_names=['-h', '--help']))
 @click.version_option(
     __version__, "-v", "--version", help="Show the CLI version and exit."
 )
@@ -24,9 +24,7 @@ def cli():
 
 
 cli.add_command(init)
-
 cli.add_command(run)
-
 cli.add_command(add)
 cli.add_command(plugin)
 cli.add_command(eval_cmd)

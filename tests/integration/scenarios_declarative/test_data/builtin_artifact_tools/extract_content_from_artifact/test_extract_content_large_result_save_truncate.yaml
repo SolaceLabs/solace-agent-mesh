@@ -8,6 +8,7 @@ description: |
   'tool_output_llm_return_max_bytes' (e.g., < 100 bytes) set to values that
   will be exceeded by the 150-char mocked internal LLM response.
   If defaults (2KB/4KB) are used, the internal LLM response would need to be much larger.
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

@@ -3,6 +3,7 @@ description: |
   Tests appending a binary chunk (base64 encoded) to a pre-existing binary artifact.
   Verifies that the original artifact's binary MIME type is preserved,
   and the new content correctly concatenates the binary data.
+tags: ["agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

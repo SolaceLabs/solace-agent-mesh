@@ -1,6 +1,8 @@
 test_case_id: "embed_math_e_constant_001"
 description: "Tests «math:e» constant using dynamic evaluation."
+tags: ["common","embeds"]
 skip_intermediate_events: true
+
 gateway_input:
   target_agent_name: "TestAgent"
   user_identity: "embed_tester@example.com"
