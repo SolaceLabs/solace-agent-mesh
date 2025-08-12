@@ -8,15 +8,16 @@ import json
 import csv
 import io
 import inspect
-import datetime
 import os
 import yaml
 import threading
+import traceback
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple, List, Union, TYPE_CHECKING
-from datetime import timezone
 from google.adk.artifacts import BaseArtifactService
 from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
+from ...common.types import ArtifactInfo
 from ...common.utils.mime_helpers import is_text_based_mime_type, is_text_based_file
 from ...agent.utils.context_helpers import get_original_session_id
 
@@ -62,10 +63,7 @@ def configure_artifact_scoping(
         else:
             existing_scope = _scope_config["scope_type"]
             existing_namespace = _scope_config["namespace_value"]
-            if (
-                scope_type != existing_scope
-                or namespace_value != existing_namespace
-            ):
+            if scope_type != existing_scope or namespace_value != existing_namespace:
                 raise ArtifactScopingError(
                     f"Conflicting artifact scope configuration detected. "
                     f"Component '{component_name}' tried to set scope to '{scope_type}' with namespace '{namespace_value}', "
@@ -221,13 +219,9 @@ def _infer_schema(
             "text/x-yaml",
         ]:
             try:
-                import yaml
-
                 data = yaml.safe_load(content_bytes)
                 schema_info["structure"] = _inspect_structure(data, depth, max_keys)
                 schema_info["inferred"] = True
-            except ImportError:
-                schema_info["error"] = "YAML inference skipped: PyYAML not installed."
             except (yaml.YAMLError, UnicodeDecodeError) as e:
                 schema_info["error"] = f"YAML structure inference failed: {e}"
     except Exception as e:
@@ -254,7 +248,7 @@ async def save_artifact_with_metadata(
     content_bytes: bytes,
     mime_type: str,
     metadata_dict: Dict[str, Any],
-    timestamp: datetime.datetime,
+    timestamp: datetime,
     explicit_schema: Optional[Dict] = None,
     schema_inference_depth: int = 2,
     schema_max_keys: int = DEFAULT_SCHEMA_MAX_KEYS,
@@ -644,12 +638,6 @@ def decode_and_get_bytes(
             file_bytes = content_str.encode("utf-8")
             final_mime_type = "text/plain"
     return file_bytes, final_mime_type
-
-
-from google.adk.artifacts import BaseArtifactService
-from datetime import datetime, timezone
-import traceback
-from ...common.types import ArtifactInfo
 
 
 async def get_latest_artifact_version(
