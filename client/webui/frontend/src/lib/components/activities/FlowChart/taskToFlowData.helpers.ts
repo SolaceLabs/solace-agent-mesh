@@ -841,7 +841,6 @@ export function createTimeoutEdge(
                 isError: true,
                 errorMessage: errorMessage,
             } as unknown as Record<string, unknown>,
-            zIndex: 1000,
         };
 
         if (sourceHandleId) {
