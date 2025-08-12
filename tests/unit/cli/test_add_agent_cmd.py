@@ -1,12 +1,10 @@
 import os
 import shutil
-import sys
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from cli.main import cli
 
 
@@ -40,12 +38,19 @@ def test_add_agent_default_db_generation(project_dir):
     result = runner.invoke(
         cli,
         [
-            "add", "agent", "newAgent",
-            "--session-service-type", "sql",
-            "--namespace", "test",
-            "--supports-streaming", "y",
-            "--model-type", "general",
-            "--instruction", "Test instruction"
+            "add",
+            "agent",
+            "newAgent",
+            "--session-service-type",
+            "sql",
+            "--namespace",
+            "test",
+            "--supports-streaming",
+            "y",
+            "--model-type",
+            "general",
+            "--instruction",
+            "Test instruction",
         ],
         catch_exceptions=False,
     )
@@ -56,14 +61,16 @@ def test_add_agent_default_db_generation(project_dir):
     )
     agent_config_path = project_dir / "configs" / "agents" / "new_agent_agent.yaml"
     assert agent_config_path.exists(), "Agent config file was not created."
-    with open(agent_config_path, "r") as f:
+    with open(agent_config_path) as f:
         content = f.read()
         env_file = project_dir / ".env"
         assert env_file.exists(), ".env file was not created."
-        with open(env_file, "r") as f:
+        with open(env_file) as f:
             env_content = f.read()
             db_file = project_dir / "data" / "new_agent.db"
-            assert f'NEW_AGENT_DATABASE_URL="sqlite:///{db_file.resolve()}"' in env_content
+            assert (
+                f'NEW_AGENT_DATABASE_URL="sqlite:///{db_file.resolve()}"' in env_content
+            )
         assert 'database_url: "${NEW_AGENT_DATABASE_URL}"' in content
 
 
@@ -78,13 +85,21 @@ def test_add_agent_custom_db_url(project_dir, mocker):
     result = runner.invoke(
         cli,
         [
-            "add", "agent", "dbAgent",
-            "--session-service-type", "sql",
-            "--database-url", custom_db_url,
-            "--namespace", "test",
-            "--supports-streaming", "y",
-            "--model-type", "general",
-            "--instruction", "Test instruction"
+            "add",
+            "agent",
+            "dbAgent",
+            "--session-service-type",
+            "sql",
+            "--database-url",
+            custom_db_url,
+            "--namespace",
+            "test",
+            "--supports-streaming",
+            "y",
+            "--model-type",
+            "general",
+            "--instruction",
+            "Test instruction",
         ],
         catch_exceptions=False,
     )
@@ -95,11 +110,11 @@ def test_add_agent_custom_db_url(project_dir, mocker):
     )
     agent_config_path = project_dir / "configs" / "agents" / "db_agent_agent.yaml"
     assert agent_config_path.exists(), "Agent config file was not created."
-    with open(agent_config_path, "r") as f:
+    with open(agent_config_path) as f:
         content = f.read()
         env_file = project_dir / ".env"
         assert env_file.exists(), ".env file was not created."
-        with open(env_file, "r") as f:
+        with open(env_file) as f:
             env_content = f.read()
             assert f'DB_AGENT_DATABASE_URL="{custom_db_url}"' in env_content
         assert 'database_url: "${DB_AGENT_DATABASE_URL}"' in content
@@ -117,13 +132,21 @@ def test_add_agent_db_validation_failure(project_dir, mocker):
     result = runner.invoke(
         cli,
         [
-            "add", "agent", "failAgent",
-            "--session-service-type", "sql",
-            "--database-url", "bad-protocol://foo",
-            "--namespace", "test",
-            "--supports-streaming", "y",
-            "--model-type", "general",
-            "--instruction", "Test instruction"
+            "add",
+            "agent",
+            "failAgent",
+            "--session-service-type",
+            "sql",
+            "--database-url",
+            "bad-protocol://foo",
+            "--namespace",
+            "test",
+            "--supports-streaming",
+            "y",
+            "--model-type",
+            "general",
+            "--instruction",
+            "Test instruction",
         ],
         catch_exceptions=False,
     )
@@ -131,6 +154,6 @@ def test_add_agent_db_validation_failure(project_dir, mocker):
     assert result.exit_code == 1, "CLI command should have failed."
     assert "Error validating database URL" in result.output
     assert "Test DB connection error" in result.output
-    assert not (project_dir / "configs" / "agents" / "fail_agent_agent.yaml").exists(), (
-        "Agent config file should not have been created on failure."
-    )
+    assert not (
+        project_dir / "configs" / "agents" / "fail_agent_agent.yaml"
+    ).exists(), "Agent config file should not have been created on failure."

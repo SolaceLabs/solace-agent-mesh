@@ -1,25 +1,20 @@
-from typing import Any
-import pytest
 import time
+from typing import Any
 
+import pytest
+from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
+from sam_test_infrastructure.artifact_service.service import TestInMemoryArtifactService
+from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
+from sam_test_infrastructure.gateway_interface.component import TestGatewayComponent
+from sam_test_infrastructure.llm_server.server import TestLLMServer
+from solace_ai_connector.solace_ai_connector import SolaceAiConnector
 
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.agent.tools.registry import tool_registry
-from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
-from sam_test_infrastructure.gateway_interface.component import (
-    TestGatewayComponent,
-)
-from sam_test_infrastructure.llm_server.server import TestLLMServer
-from sam_test_infrastructure.artifact_service.service import (
-    TestInMemoryArtifactService,
-)
-
-from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
 from solace_agent_mesh.common.client.card_resolver import A2ACardResolver
 from solace_agent_mesh.common.client.client import A2AClient
 from solace_agent_mesh.common.types import AgentCard, AgentSkill
-from solace_ai_connector.solace_ai_connector import SolaceAiConnector
 
 
 @pytest.fixture
@@ -116,13 +111,13 @@ def test_llm_server():
         time.sleep(retry_delay)
         try:
             if server.started:
-                print(f"TestLLMServer confirmed started after {i+1} attempts.")
+                print(f"TestLLMServer confirmed started after {i + 1} attempts.")
                 ready = True
                 break
-            print(f"TestLLMServer not ready yet (attempt {i+1}/{max_retries})...")
+            print(f"TestLLMServer not ready yet (attempt {i + 1}/{max_retries})...")
         except Exception as e:
             print(
-                f"TestLLMServer readiness check (attempt {i+1}/{max_retries}) encountered an error: {e}"
+                f"TestLLMServer readiness check (attempt {i + 1}/{max_retries}) encountered an error: {e}"
             )
 
     if not ready:
@@ -420,10 +415,10 @@ def shared_solace_connector(
 
     yield connector
 
-    print(f"shared_solace_connector fixture: Cleaning up SolaceAiConnector...")
+    print("shared_solace_connector fixture: Cleaning up SolaceAiConnector...")
     connector.stop()
     connector.cleanup()
-    print(f"shared_solace_connector fixture: SolaceAiConnector cleaned up.")
+    print("shared_solace_connector fixture: SolaceAiConnector cleaned up.")
 
 
 @pytest.fixture(scope="session")
@@ -432,9 +427,9 @@ def sam_app_under_test(shared_solace_connector: SolaceAiConnector) -> SamAgentAp
     Retrieves the main SamAgentApp instance from the session-scoped SolaceAiConnector.
     """
     app_instance = shared_solace_connector.get_app("TestSamAgentApp")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve SamAgentApp from shared connector."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve SamAgentApp from shared connector."
+    )
     print(
         f"sam_app_under_test fixture: Retrieved app {app_instance.name} from shared SolaceAiConnector."
     )
@@ -447,9 +442,9 @@ def peer_agent_a_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the TestPeerAgentA_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentA_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve TestPeerAgentA_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve TestPeerAgentA_App."
+    )
     yield app_instance
 
 
@@ -459,9 +454,9 @@ def peer_agent_b_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the TestPeerAgentB_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentB_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve TestPeerAgentB_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve TestPeerAgentB_App."
+    )
     yield app_instance
 
 
@@ -471,9 +466,9 @@ def peer_agent_c_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the TestPeerAgentC_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentC_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve TestPeerAgentC_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve TestPeerAgentC_App."
+    )
     yield app_instance
 
 
@@ -483,9 +478,9 @@ def peer_agent_d_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the TestPeerAgentD_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentD_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve TestPeerAgentD_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve TestPeerAgentD_App."
+    )
     yield app_instance
 
 
@@ -543,9 +538,9 @@ def test_gateway_app_instance(
     and yields its TestGatewayComponent.
     """
     app_instance = shared_solace_connector.get_app("TestHarnessGatewayApp")
-    assert isinstance(
-        app_instance, TestGatewayApp
-    ), "Failed to retrieve TestGatewayApp from shared connector."
+    assert isinstance(app_instance, TestGatewayApp), (
+        "Failed to retrieve TestGatewayApp from shared connector."
+    )
     print(
         f"test_gateway_app_instance fixture: Retrieved app {app_instance.name} from shared SolaceAiConnector."
     )
@@ -697,6 +692,7 @@ def a2a_message_validator(
     yield validator
     validator.deactivate()
 
+
 @pytest.fixture(scope="function")
 def mock_agent_skills() -> AgentSkill:
     return AgentSkill(
@@ -706,8 +702,9 @@ def mock_agent_skills() -> AgentSkill:
         tags=["tag1", "tag2"],
         examples=["Example 1", "Example 2"],
         inputModes=["text/plain"],
-        outputModes=["text/plain"]
+        outputModes=["text/plain"],
     )
+
 
 @pytest.fixture(scope="function")
 def mock_agent_card(mock_agent_skills: AgentSkill) -> AgentCard:
@@ -720,19 +717,22 @@ def mock_agent_card(mock_agent_skills: AgentSkill) -> AgentCard:
         capabilities={
             "streaming": True,
             "pushNotifications": False,
-            "stateTransitionHistory": True
+            "stateTransitionHistory": True,
         },
         skills=[mock_agent_skills],
         peer_agents={},
     )
 
+
 @pytest.fixture(scope="function")
 def mock_a2a_client(mock_agent_card: AgentCard) -> A2AClient:
     return A2AClient(agent_card=mock_agent_card)
 
+
 @pytest.fixture(scope="function")
 def mock_card_resolver() -> A2ACardResolver:
     return A2ACardResolver("http://test.com", agent_card_path="/test_path/agent.json")
+
 
 @pytest.fixture(scope="function")
 def mock_task_response() -> dict[str, Any]:
@@ -743,11 +743,12 @@ def mock_task_response() -> dict[str, Any]:
             "state": "completed",
             "message": {
                 "role": "agent",
-                "parts": [{"type": "text", "text": "Task completed successfully"}]
+                "parts": [{"type": "text", "text": "Task completed successfully"}],
             },
-            "timestamp": "2024-01-01T00:00:00Z"
-        }
+            "timestamp": "2024-01-01T00:00:00Z",
+        },
     }
+
 
 @pytest.fixture(scope="function")
 def mock_task_response_cancel() -> dict[str, Any]:
@@ -758,11 +759,12 @@ def mock_task_response_cancel() -> dict[str, Any]:
             "state": "canceled",
             "message": {
                 "role": "agent",
-                "parts": [{"type": "text", "text": "Task canceled successfully"}]
+                "parts": [{"type": "text", "text": "Task canceled successfully"}],
             },
-            "timestamp": "2023-01-01T00:00:00Z"
-        }
+            "timestamp": "2023-01-01T00:00:00Z",
+        },
     }
+
 
 @pytest.fixture(scope="function")
 def mock_sse_task_response() -> dict[str, Any]:
@@ -773,11 +775,12 @@ def mock_sse_task_response() -> dict[str, Any]:
             "state": "working",
             "message": {
                 "role": "agent",
-                "parts": [{"type": "text", "text": "Processing..."}]
+                "parts": [{"type": "text", "text": "Processing..."}],
             },
-            "timestamp": "2024-01-01T00:00:00Z"
-        }
+            "timestamp": "2024-01-01T00:00:00Z",
+        },
     }
+
 
 @pytest.fixture(scope="function")
 def mock_task_callback_response() -> dict[str, Any]:
@@ -785,6 +788,6 @@ def mock_task_callback_response() -> dict[str, Any]:
         "id": "task-123",
         "pushNotificationConfig": {
             "url": "http://test.com/notify",
-            "token": "test-token"
-        }
+            "token": "test-token",
+        },
     }
