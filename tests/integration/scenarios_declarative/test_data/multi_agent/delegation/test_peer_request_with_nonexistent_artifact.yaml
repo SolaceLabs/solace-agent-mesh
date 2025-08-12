@@ -3,6 +3,10 @@ test_case_id: "peer_request_with_nonexistent_artifact_001"
 description: "Verify graceful handling of non-existent artifact references in peer calls."
 skip_intermediate_events: true
 
+test_runner_config_overrides:
+  agent_config:
+    artifact_scope: "namespace"
+
 gateway_input:
   target_agent_name: "TestAgent"
   user_identity: "artifact_tester@example.com"

@@ -3,6 +3,10 @@ test_case_id: "peer_request_with_artifact_001"
 description: "Verify peer agent's LLM prompt is enriched with artifact metadata."
 skip_intermediate_events: true
 
+test_runner_config_overrides:
+  agent_config:
+    artifact_scope: "namespace"
+
 setup_artifacts:
   - filename: "sales_data.csv"
     content: "Date,Product,Amount\n2024-01-15,Widget A,100"

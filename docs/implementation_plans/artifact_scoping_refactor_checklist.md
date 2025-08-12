@@ -47,8 +47,8 @@ This checklist provides a terse summary of the tasks required to implement the c
 
 ### Phase 4: Documentation and Cleanup
 
--   [ ] **9. Update Configuration Schema Documentation**
-    -   [ ] In `SamAgentApp`, update the description for `artifact_scope` to reflect its new global behavior.
+-   [X] **9. Update Configuration Schema Documentation**
+    -   [X] In `SamAgentApp`, update the description for `artifact_scope` to reflect its new global behavior.
 
--   [ ] **10. Update Existing Test Scenarios**
-    -   [ ] Review declarative test YAML files and add `test_runner_config_overrides` for `artifact_scope` where necessary to test both `app` and `namespace` scopes.
+-   [X] **10. Update Existing Test Scenarios**
+    -   [X] Review declarative test YAML files and add `test_runner_config_overrides` for `artifact_scope` where necessary to test both `app` and `namespace` scopes.

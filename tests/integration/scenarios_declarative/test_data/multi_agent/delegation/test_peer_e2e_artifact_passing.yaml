@@ -3,6 +3,10 @@ test_case_id: "peer_e2e_artifact_passing_001"
 description: "End-to-end test combining request and response artifact passing."
 skip_intermediate_events: true
 
+test_runner_config_overrides:
+  agent_config:
+    artifact_scope: "namespace"
+
 setup_artifacts:
   - filename: "source_document.txt"
     content: "This is the source document for summarization."
