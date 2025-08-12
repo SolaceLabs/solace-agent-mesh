@@ -1034,6 +1034,5 @@ export const processTaskForVisualization = (
     // --- End of Phase 2 ---
 
     visualizedTask.performanceReport = report;
-    console.log(visualizedTask);
     return visualizedTask;
 };
