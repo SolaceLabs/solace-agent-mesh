@@ -4,12 +4,12 @@ This checklist provides a terse summary of the tasks required to implement the c
 
 ### Phase 1: Core Logic Implementation
 
--   [ ] **1. Implement Centralized Scoping in `artifact_helpers.py`**
-    -   [ ] Add module-level state: `_scope_config`, `_scope_config_lock`.
-    -   [ ] Define `ArtifactScopingError` exception.
-    -   [ ] Implement `configure_artifact_scoping()` with conflict detection.
-    -   [ ] Implement `reset_artifact_scoping_for_testing()`.
-    -   [ ] Implement `_get_scoped_app_name()` helper.
+-   [X] **1. Implement Centralized Scoping in `artifact_helpers.py`**
+    -   [X] Add module-level state: `_scope_config`, `_scope_config_lock`.
+    -   [X] Define `ArtifactScopingError` exception.
+    -   [X] Implement `configure_artifact_scoping()` with conflict detection.
+    -   [X] Implement `reset_artifact_scoping_for_testing()`.
+    -   [X] Implement `_get_scoped_app_name()` helper.
 
 -   [ ] **2. Integrate Scoping Logic into `artifact_helpers.py` Functions**
     -   [ ] Modify `save_artifact_with_metadata` to use `_get_scoped_app_name`.

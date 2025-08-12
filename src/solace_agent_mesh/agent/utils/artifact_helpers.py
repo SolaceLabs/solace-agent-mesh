@@ -11,6 +11,7 @@ import inspect
 import datetime
 import os
 import yaml
+import threading
 from typing import Any, Dict, Optional, Tuple, List, Union, TYPE_CHECKING
 from datetime import timezone
 from google.adk.artifacts import BaseArtifactService
@@ -25,6 +26,68 @@ if TYPE_CHECKING:
 
 METADATA_SUFFIX = ".metadata.json"
 DEFAULT_SCHEMA_MAX_KEYS = 20
+
+
+# --- Artifact Scoping State ---
+_scope_config: Optional[Dict[str, Any]] = None
+_scope_config_lock = threading.Lock()
+
+
+class ArtifactScopingError(Exception):
+    """Custom exception for artifact scoping configuration errors."""
+
+    pass
+
+
+def configure_artifact_scoping(
+    scope_type: str, namespace_value: str, component_name: str
+):
+    """
+    Configures the process-wide artifact scope. Must be called by components at startup.
+    Raises ArtifactScopingError if a conflicting configuration is detected.
+    """
+    global _scope_config
+    with _scope_config_lock:
+        if _scope_config is None:
+            _scope_config = {
+                "scope_type": scope_type,
+                "namespace_value": namespace_value,
+            }
+            log.info(
+                "[ArtifactScoping] Set process-wide artifact scope to '%s' (namespace: '%s') from component '%s'.",
+                scope_type,
+                namespace_value,
+                component_name,
+            )
+        else:
+            existing_scope = _scope_config["scope_type"]
+            existing_namespace = _scope_config["namespace_value"]
+            if (
+                scope_type != existing_scope
+                or namespace_value != existing_namespace
+            ):
+                raise ArtifactScopingError(
+                    f"Conflicting artifact scope configuration detected. "
+                    f"Component '{component_name}' tried to set scope to '{scope_type}' with namespace '{namespace_value}', "
+                    f"but it was already set to '{existing_scope}' with namespace '{existing_namespace}'. "
+                    f"All components in a process must share the same artifact scope configuration."
+                )
+
+
+def reset_artifact_scoping_for_testing():
+    """Resets the global artifact scope configuration. For use in tests only."""
+    global _scope_config
+    with _scope_config_lock:
+        _scope_config = None
+
+
+def _get_scoped_app_name(app_name: str) -> str:
+    """
+    Resolves the effective app_name for an artifact operation based on the global scope.
+    """
+    if _scope_config and _scope_config.get("scope_type") == "namespace":
+        return _scope_config["namespace_value"]
+    return app_name
 
 
 def is_filename_safe(filename: str) -> bool:
