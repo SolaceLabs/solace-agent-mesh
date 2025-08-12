@@ -583,6 +583,20 @@ function handlePeerTaskTimeout(
     const parentAgentName = timeoutData.parentAgentName;
     const peerAgentName = timeoutData.peerAgentName;
 
+    // Validate required timeout data
+    if (!functionCallId) {
+        console.error(`[Timeline] Missing functionCallId in timeout data for step: ${step.id}`);
+        return;
+    }
+    if (!parentAgentName) {
+        console.error(`[Timeline] Missing parentAgentName in timeout data for step: ${step.id}`);
+        return;
+    }
+    if (!peerAgentName) {
+        console.error(`[Timeline] Missing peerAgentName in timeout data for step: ${step.id}`);
+        return;
+    }
+
     // Mark both the function call and subtask as timed out
     manager.timedOutFunctionCallIds.add(functionCallId);
     if (subTaskId) {
@@ -605,6 +619,11 @@ function handlePeerTaskTimeout(
     const parentAgent = manager.agentRegistry.findAgentByName(parentAgentName);
     if (!parentAgent) {
         console.error(`[Timeline] Parent agent for timeout not found: ${parentAgentName}`);
+        return;
+    }
+
+    if (!timedOutAgent) {
+        console.error(`[Timeline] Timed out agent not found: ${peerAgentName}`);
         return;
     }
 

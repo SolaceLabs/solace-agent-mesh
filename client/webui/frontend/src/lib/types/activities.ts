@@ -61,7 +61,8 @@ export type VisualizerStepType =
 	| "AGENT_RESPONSE_TEXT" // Agent provides textual output (intermediate or final for a turn)
 	| "AGENT_STATUS_UPDATE" // A simple status update from the agent (e.g., "Thinking...")
 	| "TASK_COMPLETED" // Task has successfully completed
-	| "TASK_FAILED"; // Task has failed
+	| "TASK_FAILED" // Task has failed
+	| "PEER_TASK_TIMEOUT"; // Peer task has timed out
 
 /**
  * Represents specific data associated with an 'AGENT_LLM_CALL' step.
@@ -142,6 +143,17 @@ export interface ErrorDetailsData {
 }
 
 /**
+ * Represents specific data associated with a 'PEER_TASK_TIMEOUT' step.
+ */
+export interface PeerTaskTimeoutData {
+	peerAgentName: string;
+	parentAgentName: string;
+	errorMessage: string;
+	functionCallId: string;
+	subTaskId: string;
+}
+
+/**
  * Information about a peer delegation, linking a function call to a sub-task.
  */
 export interface DelegationInfo {
@@ -172,6 +184,13 @@ export interface VisualizerStep {
 		errorDetails?: ErrorDetailsData; // For TASK_FAILED
 		statusText?: string; // For AGENT_STATUS_UPDATE
 		finalMessage?: string; // For TASK_COMPLETED (if there's a final summary message)
+		peerTaskTimeout?: PeerTaskTimeoutData; // For PEER_TASK_TIMEOUT
+		// Legacy timeout properties for backward compatibility
+		peerAgentName?: string;
+		parentAgentName?: string;
+		errorMessage?: string;
+		functionCallId?: string;
+		subTaskId?: string;
 	};
 	rawEventIds: string[]; // Array of IDs/indices referencing the raw A2AEventSSEPayload(s) that constitute this logical step
 	functionCallId?: string; // The function call ID this step is related to, especially for sub-task steps.

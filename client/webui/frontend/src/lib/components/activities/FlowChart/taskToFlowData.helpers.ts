@@ -826,7 +826,7 @@ export function createTimeoutEdge(
 
     if (!edgeExists) {
         const timeoutData = step.data;
-        const errorMessage = timeoutData.errorMessage || `Timeout waiting for ${timeoutData.peerAgentName}`;
+        const errorMessage = timeoutData.errorMessage || `Timeout waiting for ${timeoutData.peerAgentName || 'unknown agent'}`;
 
         const newEdge: Edge = {
             id: edgeId,
