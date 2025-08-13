@@ -196,7 +196,11 @@ def initialize_session_service(component) -> BaseSessionService:
 
 
 def initialize_artifact_service(component) -> BaseArtifactService:
-    """Initializes the ADK Artifact Service based on configuration."""
+    """
+    Initializes the ADK Artifact Service based on configuration.
+    This factory creates the concrete service instance and then wraps it with
+    the ScopedArtifactServiceWrapper to enforce artifact scoping rules.
+    """
     config: Dict = component.get_config("artifact_service", {"type": "memory"})
     service_type = config.get("type", "memory").lower()
     log.info(
@@ -205,8 +209,9 @@ def initialize_artifact_service(component) -> BaseArtifactService:
         service_type,
     )
 
+    concrete_service: BaseArtifactService
     if service_type == "memory":
-        return InMemoryArtifactService()
+        concrete_service = InMemoryArtifactService()
     elif service_type == "gcs":
         bucket_name = config.get("bucket_name")
         if not bucket_name:
@@ -215,9 +220,11 @@ def initialize_artifact_service(component) -> BaseArtifactService:
             )
         try:
             gcs_args = {
-                k: v for k, v in config.items() if k not in ["type", "bucket_name"]
+                k: v
+                for k, v in config.items()
+                if k not in ["type", "bucket_name", "artifact_scope"]
             }
-            return GcsArtifactService(bucket_name=bucket_name, **gcs_args)
+            concrete_service = GcsArtifactService(bucket_name=bucket_name, **gcs_args)
         except ImportError:
             log.error(
                 "%s google-cloud-storage not installed. Please install 'google-adk[gcs]' or 'google-cloud-storage'.",
@@ -232,7 +239,7 @@ def initialize_artifact_service(component) -> BaseArtifactService:
             )
 
         try:
-            return FilesystemArtifactService(base_path=base_path)
+            concrete_service = FilesystemArtifactService(base_path=base_path)
         except Exception as e:
             log.error(
                 "%s Failed to initialize FilesystemArtifactService: %s",
@@ -252,11 +259,26 @@ def initialize_artifact_service(component) -> BaseArtifactService:
             "%s Using TestInMemoryArtifactService for testing.",
             component.log_identifier,
         )
-        return TestInMemoryArtifactService()
+        concrete_service = TestInMemoryArtifactService()
     else:
         raise ValueError(
             f"{component.log_identifier} Unsupported artifact service type: {service_type}"
         )
+
+    # Wrap the concrete service to enforce scoping
+    scope_type = config.get("artifact_scope", "namespace")
+    scope_value = component.namespace
+    log.info(
+        "%s Wrapping artifact service with scope_type='%s' and scope_value='%s'",
+        component.log_identifier,
+        scope_type,
+        scope_value,
+    )
+    return ScopedArtifactServiceWrapper(
+        wrapped_service=concrete_service,
+        scope_type=scope_type,
+        scope_value=scope_value,
+    )
 
 
 def initialize_memory_service(component) -> BaseMemoryService:

@@ -12,10 +12,10 @@ This checklist outlines the steps to implement the `ScopedArtifactServiceWrapper
     -   [x] Implement all abstract methods (`save_artifact`, `load_artifact`, `list_versions`, `list_artifact_keys`, `delete_artifact`) to call the corresponding method on the wrapped service with the scoped `app_name`.
 
 2.  **Update `initialize_artifact_service` Factory**
-    -   [ ] In `src/solace_agent_mesh/agent/adk/services.py`, modify the factory function.
-    -   [ ] After creating the concrete service instance (e.g., `InMemoryArtifactService`), determine the `scope_type` and `scope_value` from the component's configuration.
-    -   [ ] Instantiate `ScopedArtifactServiceWrapper`, passing it the concrete service and scope configuration.
-    -   [ ] Return the wrapper instance instead of the concrete service.
+    -   [x] In `src/solace_agent_mesh/agent/adk/services.py`, modify the factory function.
+    -   [x] After creating the concrete service instance (e.g., `InMemoryArtifactService`), determine the `scope_type` and `scope_value` from the component's configuration.
+    -   [x] Instantiate `ScopedArtifactServiceWrapper`, passing it the concrete service and scope configuration.
+    -   [x] Return the wrapper instance instead of the concrete service.
 
 ### Phase 2: Refactor and Clean Up
 
