@@ -266,7 +266,10 @@ def initialize_artifact_service(component) -> BaseArtifactService:
         )
 
     # Wrap the concrete service to enforce scoping
-    scope_type = config.get("artifact_scope", "namespace")
+    # Check for a test-injected override at the top level first.
+    scope_type = component.get_config(
+        "artifact_scope", config.get("artifact_scope", "namespace")
+    )
     scope_value = component.namespace
     log.info(
         "%s Wrapping artifact service with scope_type='%s' and scope_value='%s'",
