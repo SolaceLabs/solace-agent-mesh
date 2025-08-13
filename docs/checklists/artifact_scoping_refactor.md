@@ -25,8 +25,8 @@ This checklist outlines the steps to implement the `ScopedArtifactServiceWrapper
     -   [x] Update any helper functions that used `_get_scoped_app_name` to simply pass the `app_name` through to the service methods.
 
 4.  **Remove Scoping Configuration Calls from Components**
-    -   [ ] In `src/solace_agent_mesh/agent/sac/component.py`, remove the call to `configure_artifact_scoping()` from the `__init__` method.
-    -   [ ] In `src/solace_agent_mesh/gateway/base/component.py`, remove the call to `configure_artifact_scoping()` from the `__init__` method.
+    -   [x] In `src/solace_agent_mesh/agent/sac/component.py`, remove the call to `configure_artifact_scoping()` from the `__init__` method.
+    -   [x] In `src/solace_agent_mesh/gateway/base/component.py`, remove the call to `configure_artifact_scoping()` from the `__init__` method.
 
 5.  **Update Test Infrastructure**
     -   [ ] In `tests/integration/conftest.py`, delete the `reset_artifact_scoping_fixture` fixture entirely.

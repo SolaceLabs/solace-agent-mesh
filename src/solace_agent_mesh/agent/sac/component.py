@@ -69,7 +69,6 @@ from ...common.a2a_protocol import (
 from ...agent.utils.config_parser import resolve_instruction_provider
 from ...agent.utils.artifact_helpers import (
     get_latest_artifact_version,
-    configure_artifact_scoping,
 )
 from ...agent.adk.services import (
     initialize_session_service,
@@ -404,16 +403,6 @@ class SamAgentComponent(ComponentBase):
                 self.session_service = initialize_session_service(self)
                 self.artifact_service = initialize_artifact_service(self)
                 self.memory_service = initialize_memory_service(self)
-
-                # Configure the global artifact scope
-                scope_type = self.artifact_service_config.get(
-                    "artifact_scope", "namespace"
-                )
-                configure_artifact_scoping(
-                    scope_type=scope_type,
-                    namespace_value=self.namespace,
-                    component_name=self.agent_name,
-                )
 
                 log.info(
                     "%s Synchronous ADK services initialized.", self.log_identifier
