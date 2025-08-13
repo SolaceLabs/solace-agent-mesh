@@ -152,7 +152,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCard[], scrollToBottom?: () 
                 value={inputValue}
                 onChange={event => setInputValue(event.target.value)}
                 placeholder="How can I help you today?"
-                className={"text-base/normal min-h-0 max-h-50 resize-none border-none p-3 shadow-none rounded-2xl focus-visible:outline-none field-sizing-content transition-[height] duration-500 ease-in-out"}
+                className="text-base/normal min-h-0 max-h-50 resize-none border-none p-3 shadow-none rounded-2xl focus-visible:outline-none field-sizing-content transition-[height] duration-500 ease-in-out"
                 rows={1}
                 onPaste={handlePaste}
                 onKeyDown={event => {

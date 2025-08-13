@@ -4,8 +4,10 @@ Initializes ADK Services based on configuration.
 
 import os
 import re
-from typing import Dict
+from typing import Dict, Optional, List, Any
+from typing_extensions import override
 
+from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
 
 from google.adk.sessions import (
@@ -33,6 +35,119 @@ try:
     )
 except ImportError:
     TestInMemoryArtifactService = None
+
+
+class ScopedArtifactServiceWrapper(BaseArtifactService):
+    """
+    A wrapper for an artifact service that transparently applies a configured scope.
+    This ensures all artifact operations respect either 'namespace' or 'app' scoping
+    without requiring changes at the call site. It dynamically checks the component's
+    configuration on each call to support test-specific overrides.
+    """
+
+    def __init__(
+        self,
+        wrapped_service: BaseArtifactService,
+        component: Any,
+    ):
+        """
+        Initializes the ScopedArtifactServiceWrapper.
+
+        Args:
+            wrapped_service: The concrete artifact service instance (e.g., InMemory, GCS).
+            component: The component instance (agent or gateway) that owns this service.
+        """
+        self.wrapped_service = wrapped_service
+        self.component = component
+
+    def _get_scoped_app_name(self, app_name: str) -> str:
+        """
+        Determines the effective app_name for an artifact operation by dynamically
+        checking the component's configuration.
+        """
+        # The component's get_config will handle test-injected overrides.
+        # The default scope is 'namespace' as defined in the app schema.
+        scope_type = self.component.get_config("artifact_scope", "namespace")
+
+        if scope_type == "namespace":
+            # For namespace scope, the value is always the component's namespace.
+            return self.component.namespace
+
+        # For 'app' scope, use the app_name that was passed into the method, which is
+        # typically the agent_name or gateway_id.
+        return app_name
+
+    @override
+    async def save_artifact(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        session_id: str,
+        filename: str,
+        artifact: adk_types.Part,
+    ) -> int:
+        scoped_app_name = self._get_scoped_app_name(app_name)
+        return await self.wrapped_service.save_artifact(
+            app_name=scoped_app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
+            artifact=artifact,
+        )
+
+    @override
+    async def load_artifact(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        session_id: str,
+        filename: str,
+        version: Optional[int] = None,
+    ) -> Optional[adk_types.Part]:
+        scoped_app_name = self._get_scoped_app_name(app_name)
+        return await self.wrapped_service.load_artifact(
+            app_name=scoped_app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
+            version=version,
+        )
+
+    @override
+    async def list_artifact_keys(
+        self, *, app_name: str, user_id: str, session_id: str
+    ) -> List[str]:
+        scoped_app_name = self._get_scoped_app_name(app_name)
+        return await self.wrapped_service.list_artifact_keys(
+            app_name=scoped_app_name, user_id=user_id, session_id=session_id
+        )
+
+    @override
+    async def delete_artifact(
+        self, *, app_name: str, user_id: str, session_id: str, filename: str
+    ) -> None:
+        scoped_app_name = self._get_scoped_app_name(app_name)
+        await self.wrapped_service.delete_artifact(
+            app_name=scoped_app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
+        )
+        return
+
+    @override
+    async def list_versions(
+        self, *, app_name: str, user_id: str, session_id: str, filename: str
+    ) -> List[int]:
+        scoped_app_name = self._get_scoped_app_name(app_name)
+        return await self.wrapped_service.list_versions(
+            app_name=scoped_app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
+        )
 
 
 def _sanitize_for_path(identifier: str) -> str:
@@ -88,7 +203,11 @@ def initialize_session_service(component) -> BaseSessionService:
 
 
 def initialize_artifact_service(component) -> BaseArtifactService:
-    """Initializes the ADK Artifact Service based on configuration."""
+    """
+    Initializes the ADK Artifact Service based on configuration.
+    This factory creates the concrete service instance and then wraps it with
+    the ScopedArtifactServiceWrapper to enforce artifact scoping rules dynamically.
+    """
     config: Dict = component.get_config("artifact_service", {"type": "memory"})
     service_type = config.get("type", "memory").lower()
     log.info(
@@ -97,8 +216,9 @@ def initialize_artifact_service(component) -> BaseArtifactService:
         service_type,
     )
 
+    concrete_service: BaseArtifactService
     if service_type == "memory":
-        return InMemoryArtifactService()
+        concrete_service = InMemoryArtifactService()
     elif service_type == "gcs":
         bucket_name = config.get("bucket_name")
         if not bucket_name:
@@ -107,9 +227,11 @@ def initialize_artifact_service(component) -> BaseArtifactService:
             )
         try:
             gcs_args = {
-                k: v for k, v in config.items() if k not in ["type", "bucket_name"]
+                k: v
+                for k, v in config.items()
+                if k not in ["type", "bucket_name", "artifact_scope"]
             }
-            return GcsArtifactService(bucket_name=bucket_name, **gcs_args)
+            concrete_service = GcsArtifactService(bucket_name=bucket_name, **gcs_args)
         except ImportError:
             log.error(
                 "%s google-cloud-storage not installed. Please install 'google-adk[gcs]' or 'google-cloud-storage'.",
@@ -123,60 +245,8 @@ def initialize_artifact_service(component) -> BaseArtifactService:
                 f"{component.log_identifier} 'base_path' is required for filesystem artifact service."
             )
 
-        artifact_scope = config.get("artifact_scope", "namespace").lower()
-        scope_identifier_raw = None
-
-        if artifact_scope == "app":
-            app_instance = component.get_app()
-            if not app_instance or not app_instance.name:
-                raise ValueError(
-                    f"{component.log_identifier} Cannot determine app name for 'app' scope."
-                )
-            scope_identifier_raw = app_instance.name
-            log.info(
-                "%s Using 'app' scope for filesystem artifacts: %s",
-                component.log_identifier,
-                scope_identifier_raw,
-            )
-        elif artifact_scope == "namespace":
-            scope_identifier_raw = component.get_config("namespace")
-            log.info(
-                "%s Using 'namespace' scope for filesystem artifacts: %s",
-                component.log_identifier,
-                scope_identifier_raw,
-            )
-        elif artifact_scope == "custom":
-            scope_identifier_raw = config.get("artifact_scope_value")
-            if not scope_identifier_raw:
-                raise ValueError(
-                    f"{component.log_identifier} 'artifact_scope_value' is required when artifact_scope is 'custom'."
-                )
-            log.info(
-                "%s Using 'custom' scope for filesystem artifacts: %s",
-                component.log_identifier,
-                scope_identifier_raw,
-            )
-        else:
-            raise ValueError(
-                f"{component.log_identifier} Invalid 'artifact_scope' value: {artifact_scope}"
-            )
-
-        if not scope_identifier_raw:
-            raise ValueError(
-                f"{component.log_identifier} Failed to determine scope identifier for filesystem artifacts."
-            )
-
-        scope_identifier_sanitized = _sanitize_for_path(scope_identifier_raw)
-        log.info(
-            "%s Sanitized scope identifier: %s",
-            component.log_identifier,
-            scope_identifier_sanitized,
-        )
-
         try:
-            return FilesystemArtifactService(
-                base_path=base_path, scope_identifier=scope_identifier_sanitized
-            )
+            concrete_service = FilesystemArtifactService(base_path=base_path)
         except Exception as e:
             log.error(
                 "%s Failed to initialize FilesystemArtifactService: %s",
@@ -196,11 +266,22 @@ def initialize_artifact_service(component) -> BaseArtifactService:
             "%s Using TestInMemoryArtifactService for testing.",
             component.log_identifier,
         )
-        return TestInMemoryArtifactService()
+        concrete_service = TestInMemoryArtifactService()
     else:
         raise ValueError(
             f"{component.log_identifier} Unsupported artifact service type: {service_type}"
         )
+
+    # Wrap the concrete service to enforce scoping dynamically.
+    # The wrapper will query the component's config at runtime.
+    log.info(
+        "%s Wrapping artifact service with dynamic ScopedArtifactServiceWrapper.",
+        component.log_identifier,
+    )
+    return ScopedArtifactServiceWrapper(
+        wrapped_service=concrete_service,
+        component=component,
+    )
 
 
 def initialize_memory_service(component) -> BaseMemoryService:

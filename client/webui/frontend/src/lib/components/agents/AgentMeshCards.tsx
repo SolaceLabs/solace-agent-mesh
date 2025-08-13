@@ -27,7 +27,8 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
                 <div className="mx-auto mt-[50px] ml-[50px]">
                     <div className="my-4">
                         <input 
-                            type="text" 
+                            type="text"
+                            data-testid="agent-search-input"
                             placeholder="Search..." 
                             value={searchQuery} 
                             onChange={e => setSearchQuery(e.target.value)} 
@@ -37,7 +38,7 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
                     {filteredAgents.length === 0 && searchQuery ? (
                         <div className="flex h-[calc(100vh-250px)] flex-col items-center justify-center gap-6">
                             No agents match your search.
-                            <Button variant="outline" onClick={() => setSearchQuery("")}>
+                            <Button variant="outline" title="Clear Search" onClick={() => setSearchQuery("")}>
                                 Clear Search
                             </Button>
                         </div>

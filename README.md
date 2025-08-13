@@ -95,8 +95,8 @@ Note: This initialization UI runs on port 5002
 ```bash
 sam run
 ```
-#### 5. Verify SAM is running
-Open the Web UI at [http://localhost:8000](http://localhost:8000) for the chat inteface
+#### 6. Verify SAM is running
+Open the Web UI at [http://localhost:8000](http://localhost:8000) for the chat inteface and ask a question
 
 ### 🔧 Customize SAM
 

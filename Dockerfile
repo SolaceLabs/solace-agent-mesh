@@ -3,9 +3,34 @@ FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
 
-# Install dependencies
+# Install all dependencies including Node.js and Playwright browser dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends git curl ffmpeg && \
+    apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    ffmpeg \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libatspi2.0-0 \
+    libcairo2 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libglib2.0-0 \
+    libnspr4 \
+    libnss3 \
+    libpango-1.0-0 \
+    libx11-6 \
+    libxcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxkbcommon0 \
+    libxrandr2 \
+    fonts-liberation && \
     curl -sL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     apt-get purge -y --auto-remove && \
@@ -24,9 +49,6 @@ RUN python3.11 -m pip install --no-cache-dir dist/solace_agent_mesh-*.whl
 # Clean up temporary files
 WORKDIR /app
 RUN rm -rf /sam-temp
-
-# Install chromium through playwright cli (installed already as project python dependency)
-RUN playwright install-deps chromium
 
 # Create a non-root user and group
 RUN groupadd -r solaceai && useradd --create-home -r -g solaceai solaceai

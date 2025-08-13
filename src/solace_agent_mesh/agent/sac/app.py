@@ -246,8 +246,8 @@ class SamAgentApp(App):
                         "type": "string",
                         "required": False,
                         "default": "namespace",
-                        "enum": ["namespace", "app", "custom"],
-                        "description": "Scope for filesystem artifacts: 'namespace' (default, shared by namespace), 'app' (isolated by app name), 'custom' (use artifact_scope_value).",
+                        "enum": ["namespace", "app"],
+                        "description": "Process-wide scope for all artifact services. 'namespace' (default): shared by all components in the namespace. 'app': isolated by agent/gateway name. This setting must be consistent for all components in the same process.",
                     },
                     "artifact_scope_value": {
                         "type": "string",

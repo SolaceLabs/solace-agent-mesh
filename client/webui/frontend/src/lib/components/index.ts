@@ -7,7 +7,6 @@ export * from "./navigation";
 export * from "./chat";
 export * from "./common";
 export * from "./header";
-export * from "./settings";
 export * from "./pages";
 export * from "./agents";
 export * from "./jsonViewer";

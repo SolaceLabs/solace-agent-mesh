@@ -67,7 +67,9 @@ from ...common.a2a_protocol import (
     get_gateway_status_topic,
 )
 from ...agent.utils.config_parser import resolve_instruction_provider
-from ...agent.utils.artifact_helpers import get_latest_artifact_version
+from ...agent.utils.artifact_helpers import (
+    get_latest_artifact_version,
+)
 from ...agent.adk.services import (
     initialize_session_service,
     initialize_artifact_service,
@@ -401,6 +403,7 @@ class SamAgentComponent(ComponentBase):
                 self.session_service = initialize_session_service(self)
                 self.artifact_service = initialize_artifact_service(self)
                 self.memory_service = initialize_memory_service(self)
+
                 log.info(
                     "%s Synchronous ADK services initialized.", self.log_identifier
                 )

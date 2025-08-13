@@ -281,7 +281,7 @@ def shared_solace_connector(
             "tool_type": "builtin",
             "tool_name": "describe_image",
             "tool_config": {
-                "model": "gpt-4-vision-preview",
+                "model": f"openai/test-model-sam-vision-{time.time_ns()}",
                 "api_key": "fake-api-key",
                 "api_base": f"{test_llm_server.url}",
             },

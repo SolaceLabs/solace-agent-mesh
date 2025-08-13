@@ -41,14 +41,17 @@ function Button({
     size,
     asChild = false,
     tooltip = "",
+    testid = "",
     ...props
 }: React.ComponentProps<"button"> &
     VariantProps<typeof buttonVariants> & {
         asChild?: boolean;
         tooltip?: string;
+        testid?: string;
     }) {
     const Comp = asChild ? Slot : "button";
-    const ButtonComponent = <Comp data-slot="button" className={cn(buttonVariants({ variant, size, className }))} {...props} />;
+    const buttonProps = tooltip ? { ...props, "aria-label": tooltip } : props;
+    const ButtonComponent = <Comp data-slot="button" data-testid={testid || tooltip || props.title} className={cn(buttonVariants({ variant, size, className }))} {...buttonProps} />;
 
     if (tooltip) {
         return (

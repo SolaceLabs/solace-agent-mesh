@@ -40,7 +40,13 @@ from ..scenarios_programmatic.test_helpers import (
     get_all_task_events,
     extract_outputs_from_event_list,
 )
+from solace_agent_mesh.agent.utils.artifact_helpers import (
+    generate_artifact_metadata_summary,
+    load_artifact_content_or_metadata,
+)
 from solace_agent_mesh.agent.testing.debug_utils import pretty_print_event_history
+
+MODEL_SUFFIX_REGEX = r"test-model-([^-]+)-"
 
 TEST_RUNNER_MATH_SYMBOLS = {
     "abs": abs,
@@ -72,6 +78,7 @@ async def _setup_scenario_environment(
     test_llm_server: TestLLMServer,
     test_artifact_service_instance: TestInMemoryArtifactService,
     scenario_id: str,
+    artifact_scope: str,
 ) -> None:
     """
     Primes the LLM server and sets up initial artifacts based on the scenario definition.
@@ -104,8 +111,12 @@ async def _setup_scenario_environment(
         user_identity_for_artifacts = gateway_input_data_for_artifact_setup.get(
             "user_identity", "default_artifact_user@example.com"
         )
-        app_name_for_setup = gateway_input_data_for_artifact_setup.get(
-            "target_agent_name", "TestAgent_Setup"
+        app_name_for_setup = (
+            "test_namespace"
+            if artifact_scope == "namespace"
+            else gateway_input_data_for_artifact_setup.get(
+                "target_agent_name", "TestAgent_Setup"
+            )
         )
         session_id_for_setup = gateway_input_data_for_artifact_setup.get(
             "external_context", {}
@@ -201,14 +212,91 @@ async def _execute_gateway_and_collect_events(
     )
 
 
-def _assert_llm_interactions(
+async def _assert_summary_in_text(
+    text_to_search: str,
+    artifact_identifiers: List[Dict[str, Any]],
+    component: "SamAgentComponent",
+    user_id: str,
+    session_id: str,
+    app_name: str,
+    header_text: str,
+    scenario_id: str,
+    context_str: str,
+):
+    """Asserts that key details of an artifact's metadata summary are present in text."""
+    assert header_text in text_to_search, (
+        f"Scenario {scenario_id}: {context_str} - Expected header '{header_text}' not found in text:\n"
+        f"---\n{text_to_search}\n---"
+    )
+
+    for artifact_ref in artifact_identifiers:
+        filename = artifact_ref.get("filename")
+        version = artifact_ref.get("version", "latest")
+
+        metadata_result = await load_artifact_content_or_metadata(
+            artifact_service=component.artifact_service,
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
+            version=version,
+            load_metadata_only=True,
+        )
+
+        assert metadata_result.get("status") == "success", (
+            f"Scenario {scenario_id}: {context_str} - Failed to load metadata for '{filename}' v{version} for assertion: "
+            f"{metadata_result.get('message')}"
+        )
+
+        metadata = metadata_result.get("metadata", {})
+        resolved_version = metadata_result.get("version")
+
+        # Spot-check key fields
+        expected_header = f"Artifact: '{filename}' (version: {resolved_version})"
+        assert expected_header in text_to_search, (
+            f"Scenario {scenario_id}: {context_str} - Expected artifact header '{expected_header}' not found in text:\n"
+            f"---\n{text_to_search}\n---"
+        )
+
+        if "description" in metadata:
+            # Use PyYAML's simple string representation for comparison
+            expected_desc_str = f"description: {metadata['description']}"
+            assert expected_desc_str in text_to_search, (
+                f"Scenario {scenario_id}: {context_str} - Expected description '{expected_desc_str}' not found for artifact '{filename}' in text:\n"
+                f"---\n{text_to_search}\n---"
+            )
+
+        if "mime_type" in metadata:
+            expected_mime = f"mime_type: {metadata['mime_type']}"
+            assert expected_mime in text_to_search, (
+                f"Scenario {scenario_id}: {context_str} - Expected mime_type '{expected_mime}' not found for artifact '{filename}' in text:\n"
+                f"---\n{text_to_search}\n---"
+            )
+
+
+async def _assert_llm_interactions(
     expected_llm_interactions: List[Dict[str, Any]],
     captured_llm_requests: List[ChatCompletionRequest],
     scenario_id: str,
+    test_artifact_service_instance: TestInMemoryArtifactService,
+    gateway_input_data: Dict[str, Any],
+    agent_components: Dict[str, SamAgentComponent],
+    artifact_scope: str,
 ) -> None:
     """
     Asserts the captured LLM requests against the expected interactions.
     """
+    # Build a map from model suffix to component instance ONCE.
+    model_suffix_to_component = {}
+    for agent_name, component in agent_components.items():
+        model_config = component.get_config("model", {})
+        if isinstance(model_config, dict):
+            model_name_str = model_config.get("model", "")
+            match = re.search(MODEL_SUFFIX_REGEX, model_name_str)
+            if match:
+                suffix = match.group(1)
+                model_suffix_to_component[suffix] = component
+
     assert len(captured_llm_requests) == len(
         expected_llm_interactions
     ), f"Scenario {scenario_id}: Mismatch in number of LLM calls. Expected {len(expected_llm_interactions)}, Got {len(captured_llm_requests)}"
@@ -217,6 +305,73 @@ def _assert_llm_interactions(
         if "expected_request" in expected_interaction:
             actual_request_raw = captured_llm_requests[i]
             expected_req_details = expected_interaction["expected_request"]
+
+            # Determine which agent is making the call
+            calling_agent_component = None
+            model_name_str = actual_request_raw.model
+            match = re.search(MODEL_SUFFIX_REGEX, model_name_str)
+            if match:
+                suffix = match.group(1)
+                calling_agent_component = model_suffix_to_component.get(suffix)
+
+            assert (
+                calling_agent_component is not None
+            ), f"Could not determine calling agent component from model name '{model_name_str}'"
+
+            if "prompt_contains_artifact_summary_for" in expected_req_details:
+                artifact_identifiers = expected_req_details[
+                    "prompt_contains_artifact_summary_for"
+                ]
+                user_id = gateway_input_data.get("user_identity")
+                session_id = gateway_input_data.get("external_context", {}).get(
+                    "a2a_session_id"
+                )
+
+                app_name_for_artifacts = (
+                    "test_namespace"
+                    if artifact_scope == "namespace"
+                    else calling_agent_component.agent_name
+                )
+
+                assert (
+                    user_id
+                ), "gateway_input.user_identity is required for artifact summary assertion."
+                assert (
+                    session_id
+                ), "gateway_input.external_context.a2a_session_id is required for artifact summary assertion."
+                assert (
+                    app_name_for_artifacts
+                ), "Could not determine app_name for artifact summary assertion."
+
+                sam_agent_component = calling_agent_component
+
+                # The agent code uses a standard header. We replicate it here.
+                header_text = (
+                    "The user has provided the following artifacts as context for your task. "
+                    "Use the information contained within their metadata to complete your objective."
+                )
+
+                # The enriched prompt is the last message in the history.
+                last_message = actual_request_raw.messages[-1]
+                assert (
+                    last_message.role == "user"
+                ), f"Expected last message to be from user, but was {last_message.role}"
+                actual_prompt_text = last_message.content
+                assert isinstance(
+                    actual_prompt_text, str
+                ), f"Expected last message content to be a string, but was {type(actual_prompt_text)}"
+
+                await _assert_summary_in_text(
+                    text_to_search=actual_prompt_text,
+                    artifact_identifiers=artifact_identifiers,
+                    component=sam_agent_component,
+                    user_id=user_id,
+                    session_id=session_id,
+                    app_name=app_name_for_artifacts,
+                    header_text=header_text,
+                    scenario_id=scenario_id,
+                    context_str=f"LLM call {i+1} prompt",
+                )
 
             actual_tool_names = []
             if actual_request_raw.tools:
@@ -374,17 +529,79 @@ def _assert_llm_interactions(
                             f"Actual response tool_call_id '{actual_tool_call_id_from_response}' does not match "
                             f"expected originating tool_call_id '{expected_tool_call_id_from_yaml_origin}' from YAML interaction {originating_llm_interaction_yaml_idx + 1}, tool_call index {expected_tool_call_idx_within_origin}."
                         )
+                        originating_tool_name_from_yaml = (
+                            expected_originating_tool_call_obj_yaml.get(
+                                "function", {}
+                            ).get("name")
+                        )
                         if expected_tool_name:
-                            originating_tool_name_yaml = (
-                                expected_originating_tool_call_obj_yaml.get(
-                                    "function", {}
-                                ).get("name")
-                            )
-                            assert originating_tool_name_yaml == expected_tool_name, (
+                            assert (
+                                originating_tool_name_from_yaml == expected_tool_name
+                            ), (
                                 f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Tool name mismatch. "
                                 f"Expected '{expected_tool_name}' (from current tool_response assertion spec), "
-                                f"Got '{originating_tool_name_yaml}' from originating tool call in YAML interaction {originating_llm_interaction_yaml_idx + 1}."
+                                f"Got '{originating_tool_name_from_yaml}' from originating tool call in YAML interaction {originating_llm_interaction_yaml_idx + 1}."
                             )
+                        else:
+                            # If the spec doesn't provide a name, derive it from the originating call
+                            expected_tool_name = originating_tool_name_from_yaml
+
+                    if (
+                        "response_contains_artifact_summary_for"
+                        in expected_tool_resp_spec
+                    ):
+                        artifact_identifiers = expected_tool_resp_spec[
+                            "response_contains_artifact_summary_for"
+                        ]
+                        user_id = gateway_input_data.get("user_identity")
+                        session_id = gateway_input_data.get("external_context", {}).get(
+                            "a2a_session_id"
+                        )
+
+                        # Determine the peer agent that was called
+                        peer_tool_name = expected_tool_name
+                        assert peer_tool_name and peer_tool_name.startswith(
+                            "peer_"
+                        ), f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - 'response_contains_artifact_summary_for' can only be used with peer tool calls."
+                        peer_agent_name = peer_tool_name.replace("peer_", "", 1)
+
+                        peer_component = agent_components.get(peer_agent_name)
+                        assert (
+                            peer_component is not None
+                        ), f"Could not find SamAgentComponent for peer agent '{peer_agent_name}' to generate artifact summary."
+
+                        header_text = f"Peer agent `{peer_agent_name}` created {len(artifact_identifiers)} artifact(s):"
+
+                        assert isinstance(
+                            actual_tool_resp_msg.content, str
+                        ), f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Expected string content for tool response, got {type(actual_tool_resp_msg.content)}"
+
+                        try:
+                            actual_response_json = json.loads(
+                                actual_tool_resp_msg.content
+                            )
+                            actual_result_text = actual_response_json.get("result", "")
+                        except json.JSONDecodeError:
+                            pytest.fail(
+                                f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Expected JSON content for peer tool response, but got non-JSON string: '{actual_tool_resp_msg.content}'"
+                            )
+
+                        app_name_for_summary = (
+                            "test_namespace"
+                            if artifact_scope == "namespace"
+                            else peer_agent_name
+                        )
+                        await _assert_summary_in_text(
+                            text_to_search=actual_result_text,
+                            artifact_identifiers=artifact_identifiers,
+                            component=peer_component,
+                            user_id=user_id,
+                            session_id=session_id,
+                            app_name=app_name_for_summary,
+                            header_text=header_text,
+                            scenario_id=scenario_id,
+                            context_str=f"LLM call {i+1}, Tool Response {j+1}",
+                        )
 
                     if "response_contains" in expected_tool_resp_spec:
                         assert isinstance(
@@ -448,6 +665,8 @@ async def _assert_gateway_event_sequence(
     text_from_terminal_event_for_final_assert: Optional[str],
     test_artifact_service_instance: TestInMemoryArtifactService,
     gateway_input_data: Dict[str, Any],
+    agent_components: Dict[str, SamAgentComponent],
+    artifact_scope: str,
 ) -> None:
     """
     Asserts the sequence and content of captured gateway events against expected specifications.
@@ -530,6 +749,8 @@ async def _assert_gateway_event_sequence(
                 override_text_for_assertion=aggregated_text_content,
                 test_artifact_service_instance=test_artifact_service_instance,
                 gateway_input_data=gateway_input_data,
+                agent_components=agent_components,
+                artifact_scope=artifact_scope,
             )
             expected_event_idx += 1
         else:
@@ -551,6 +772,8 @@ async def _assert_gateway_event_sequence(
                     text_from_terminal_event_for_final_assert=text_from_terminal_event_for_final_assert,
                     test_artifact_service_instance=test_artifact_service_instance,
                     gateway_input_data=gateway_input_data,
+                    agent_components=agent_components,
+                    artifact_scope=artifact_scope,
                 )
                 expected_event_idx += 1
                 actual_event_cursor += 1
@@ -593,6 +816,7 @@ async def _assert_artifact_state(
     test_artifact_service_instance: TestInMemoryArtifactService,
     gateway_input_data: Dict[str, Any],
     scenario_id: str,
+    artifact_scope: str,
 ) -> None:
     """
     Asserts the state of specific artifacts in the TestInMemoryArtifactService.
@@ -600,10 +824,14 @@ async def _assert_artifact_state(
     """
     if not expected_artifact_state_specs:
         return
-    agent_name_for_artifacts = gateway_input_data.get("target_agent_name")
+    agent_name_for_artifacts = (
+        "test_namespace"
+        if artifact_scope == "namespace"
+        else gateway_input_data.get("target_agent_name")
+    )
     assert (
         agent_name_for_artifacts
-    ), f"Scenario {scenario_id}: target_agent_name missing in gateway_input for artifact state assertion"
+    ), f"Scenario {scenario_id}: could not determine app_name for artifact state assertion"
 
     for i, spec in enumerate(expected_artifact_state_specs):
         context_path = f"assert_artifact_state[{i}]"
@@ -740,6 +968,7 @@ async def _assert_generated_artifacts(
     gateway_input_data: Dict[str, Any],
     test_gateway_app_instance: TestGatewayComponent,
     scenario_id: str,
+    artifact_scope: str,
 ) -> None:
     """
     Asserts that artifacts generated during the test match the expected specifications.
@@ -751,15 +980,19 @@ async def _assert_generated_artifacts(
     if not expected_artifacts_spec_list:
         return
 
-    agent_name_for_artifacts = gateway_input_data.get("target_agent_name")
     user_id_for_artifacts = gateway_input_data.get("user_identity")
+    agent_name_for_artifacts = (
+        "test_namespace"
+        if artifact_scope == "namespace"
+        else gateway_input_data.get("target_agent_name")
+    )
 
     external_context_from_input = gateway_input_data.get("external_context", {})
     session_id_for_artifacts = external_context_from_input.get("a2a_session_id")
 
     assert (
         agent_name_for_artifacts
-    ), f"Scenario {scenario_id}: target_agent_name missing in gateway_input for _assert_generated_artifacts"
+    ), f"Scenario {scenario_id}: could not determine app_name for _assert_generated_artifacts"
     assert (
         user_id_for_artifacts
     ), f"Scenario {scenario_id}: user_identity missing in gateway_input for _assert_generated_artifacts"
@@ -935,7 +1168,11 @@ def load_declarative_test_cases():
                     )
                     tags = data.get("tags", [])
                     test_cases.append(
-                        pytest.param(data, id=test_id, marks=[getattr(pytest.mark, tag) for tag in tags])
+                        pytest.param(
+                            data,
+                            id=test_id,
+                            marks=[getattr(pytest.mark, tag) for tag in tags],
+                        )
                     )
                 else:
                     print(f"Warning: Skipping file with non-dict content: {filepath}")
@@ -952,12 +1189,13 @@ def pytest_generate_tests(metafunc):
         test_cases = load_declarative_test_cases()
         metafunc.parametrize("declarative_scenario", test_cases)
 
+
 SKIPPED_MERMAID_DIAGRAM_GENERATOR_SCENARIOS = [
     "test_mermaid_autogen_filename",
     "test_mermaid_basic_success",
     "test_mermaid_empty_syntax",
     "test_mermaid_invalid_syntax",
-    "test_mermaid_no_extension"
+    "test_mermaid_no_extension",
 ]
 
 SKIPPED_FAILING_EMBED_TESTS = [
@@ -965,6 +1203,7 @@ SKIPPED_FAILING_EMBED_TESTS = [
     "embed_general_malformed_no_close_delimiter_001",
     "embed_ac_template_missing_template_file_001",
 ]
+
 
 @pytest.mark.asyncio
 async def test_declarative_scenario(
@@ -974,8 +1213,13 @@ async def test_declarative_scenario(
     test_artifact_service_instance: TestInMemoryArtifactService,
     a2a_message_validator: A2AMessageValidator,
     mock_gemini_client: None,
-    sam_app_under_test: SamAgentApp,  # Added to get component for patching
-    monkeypatch: pytest.MonkeyPatch,  # Added monkeypatch fixture
+    sam_app_under_test: SamAgentApp,
+    main_agent_component: SamAgentComponent,
+    peer_a_component: SamAgentComponent,
+    peer_b_component: SamAgentComponent,
+    peer_c_component: SamAgentComponent,
+    peer_d_component: SamAgentComponent,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     """
     Executes a single declarative test scenario discovered by pytest_generate_tests.
@@ -992,11 +1236,24 @@ async def test_declarative_scenario(
         )
     print(f"\nRunning declarative scenario: {scenario_id} - {scenario_description}")
 
+    agent_config_overrides = declarative_scenario.get(
+        "test_runner_config_overrides", {}
+    ).get("agent_config", {})
+    # Default to 'namespace' to match the application's default schema.
+    # Tests that require 'app' scope must explicitly set it in their YAML.
+    artifact_scope = agent_config_overrides.get("artifact_scope", "namespace")
+    print(f"Scenario {scenario_id}: Using artifact_scope: '{artifact_scope}'")
+
+    agent_components = {
+        main_agent_component.agent_name: main_agent_component,
+        peer_a_component.agent_name: peer_a_component,
+        peer_b_component.agent_name: peer_b_component,
+        peer_c_component.agent_name: peer_c_component,
+        peer_d_component.agent_name: peer_d_component,
+    }
+
     # --- Phase 1: Setup Environment (including config overrides) ---
     if "test_runner_config_overrides" in declarative_scenario:
-        agent_config_overrides = declarative_scenario[
-            "test_runner_config_overrides"
-        ].get("agent_config", {})
         if agent_config_overrides:
             # Get the component instance to patch
             sam_agent_component = None
@@ -1039,6 +1296,7 @@ async def test_declarative_scenario(
         test_llm_server,
         test_artifact_service_instance,
         scenario_id,
+        artifact_scope,
     )
 
     skip_intermediate_events = declarative_scenario.get(
@@ -1069,8 +1327,14 @@ async def test_declarative_scenario(
         actual_events_list = all_captured_events
         captured_llm_requests = test_llm_server.get_captured_requests()
         expected_llm_interactions = declarative_scenario.get("llm_interactions", [])
-        _assert_llm_interactions(
-            expected_llm_interactions, captured_llm_requests, scenario_id
+        await _assert_llm_interactions(
+            expected_llm_interactions,
+            captured_llm_requests,
+            scenario_id,
+            test_artifact_service_instance,
+            gateway_input_data,
+            agent_components,
+            artifact_scope,
         )
         expected_gateway_outputs_spec_list = declarative_scenario.get(
             "expected_gateway_output", []
@@ -1086,6 +1350,8 @@ async def test_declarative_scenario(
             text_from_terminal_event_for_final_assert=text_from_terminal_event_for_final_assert,
             test_artifact_service_instance=test_artifact_service_instance,
             gateway_input_data=gateway_input_data,
+            agent_components=agent_components,
+            artifact_scope=artifact_scope,
         )
         expected_artifacts_spec_list = declarative_scenario.get(
             "expected_artifacts", []
@@ -1097,6 +1363,7 @@ async def test_declarative_scenario(
             gateway_input_data=gateway_input_data,
             test_gateway_app_instance=test_gateway_app_instance,
             scenario_id=scenario_id,
+            artifact_scope=artifact_scope,
         )
 
         print(f"Scenario {scenario_id}: Completed.")
@@ -1201,6 +1468,8 @@ async def _assert_event_details(
     override_text_for_assertion: Optional[str] = None,
     test_artifact_service_instance: TestInMemoryArtifactService = None,
     gateway_input_data: Dict[str, Any] = None,
+    agent_components: Dict[str, SamAgentComponent] = None,
+    artifact_scope: str = "namespace",
 ):
     """
     Performs detailed assertions on a matched event.
@@ -1371,6 +1640,16 @@ async def _assert_event_details(
                 and actual_event.status.state.value == expected_spec["task_state"]
             ), f"Scenario {scenario_id}: Event {event_index+1} - Task state mismatch. Expected '{expected_spec['task_state']}', Got '{actual_event.status.state.value if actual_event.status else 'None'}'"
 
+        if "expected_produced_artifacts" in expected_spec:
+            expected_artifacts = expected_spec["expected_produced_artifacts"]
+            actual_artifacts = actual_event.metadata.get("produced_artifacts", [])
+            # Convert to set of tuples to ignore order and allow comparison
+            expected_set = {tuple(sorted(d.items())) for d in expected_artifacts}
+            actual_set = {tuple(sorted(d.items())) for d in actual_artifacts}
+            assert (
+                expected_set == actual_set
+            ), f"Scenario {scenario_id}: Event {event_index+1} - 'produced_artifacts' mismatch. Expected {expected_set}, Got {actual_set}"
+
         text_for_final_assertion = ""
         if expected_spec.get("assert_content_against_stream", False):
             text_for_final_assertion = (
@@ -1422,6 +1701,7 @@ async def _assert_event_details(
             test_artifact_service_instance=test_artifact_service_instance,
             gateway_input_data=gateway_input_data,
             scenario_id=scenario_id,
+            artifact_scope=artifact_scope,
         )
 
 
