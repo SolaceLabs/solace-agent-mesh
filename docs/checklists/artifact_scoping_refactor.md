@@ -5,11 +5,11 @@ This checklist outlines the steps to implement the `ScopedArtifactServiceWrapper
 ### Phase 1: Implement the Wrapper and Factory
 
 1.  **Create `ScopedArtifactServiceWrapper` Class**
-    -   [ ] In `src/solace_agent_mesh/agent/adk/services.py`, define the new wrapper class.
-    -   [ ] Inherit from `google.adk.artifacts.BaseArtifactService`.
-    -   [ ] Implement `__init__` to accept and store the wrapped service instance, `scope_type`, and `scope_value`.
-    -   [ ] Implement a private `_get_scoped_app_name` method to resolve the `app_name` based on the scope.
-    -   [ ] Implement all abstract methods (`save_artifact`, `load_artifact`, `list_versions`, `list_artifact_keys`, `delete_artifact`) to call the corresponding method on the wrapped service with the scoped `app_name`.
+    -   [x] In `src/solace_agent_mesh/agent/adk/services.py`, define the new wrapper class.
+    -   [x] Inherit from `google.adk.artifacts.BaseArtifactService`.
+    -   [x] Implement `__init__` to accept and store the wrapped service instance, `scope_type`, and `scope_value`.
+    -   [x] Implement a private `_get_scoped_app_name` method to resolve the `app_name` based on the scope.
+    -   [x] Implement all abstract methods (`save_artifact`, `load_artifact`, `list_versions`, `list_artifact_keys`, `delete_artifact`) to call the corresponding method on the wrapped service with the scoped `app_name`.
 
 2.  **Update `initialize_artifact_service` Factory**
     -   [ ] In `src/solace_agent_mesh/agent/adk/services.py`, modify the factory function.

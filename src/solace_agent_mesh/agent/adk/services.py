@@ -4,8 +4,10 @@ Initializes ADK Services based on configuration.
 
 import os
 import re
-from typing import Dict
+from typing import Dict, Optional, List
+from typing_extensions import override
 
+from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
 
 from google.adk.sessions import (
@@ -33,6 +35,112 @@ try:
     )
 except ImportError:
     TestInMemoryArtifactService = None
+
+
+class ScopedArtifactServiceWrapper(BaseArtifactService):
+    """
+    A wrapper for an artifact service that transparently applies a configured scope.
+    This ensures all artifact operations respect either 'namespace' or 'app' scoping
+    without requiring changes at the call site.
+    """
+
+    def __init__(
+        self,
+        wrapped_service: BaseArtifactService,
+        scope_type: str,
+        scope_value: str,
+    ):
+        """
+        Initializes the ScopedArtifactServiceWrapper.
+
+        Args:
+            wrapped_service: The concrete artifact service instance (e.g., InMemory, GCS).
+            scope_type: The type of scoping to apply ('namespace' or 'app').
+            scope_value: The value for the scope (e.g., the namespace string).
+        """
+        self.wrapped_service = wrapped_service
+        self.scope_type = scope_type
+        self.scope_value = scope_value
+
+    def _get_scoped_app_name(self, app_name: str) -> str:
+        """
+        Determines the effective app_name for an artifact operation based on the scope.
+        """
+        if self.scope_type == "namespace":
+            return self.scope_value
+        return app_name
+
+    @override
+    async def save_artifact(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        session_id: str,
+        filename: str,
+        artifact: adk_types.Part,
+    ) -> int:
+        scoped_app_name = self._get_scoped_app_name(app_name)
+        return await self.wrapped_service.save_artifact(
+            app_name=scoped_app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
+            artifact=artifact,
+        )
+
+    @override
+    async def load_artifact(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        session_id: str,
+        filename: str,
+        version: Optional[int] = None,
+    ) -> Optional[adk_types.Part]:
+        scoped_app_name = self._get_scoped_app_name(app_name)
+        return await self.wrapped_service.load_artifact(
+            app_name=scoped_app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
+            version=version,
+        )
+
+    @override
+    async def list_artifact_keys(
+        self, *, app_name: str, user_id: str, session_id: str
+    ) -> List[str]:
+        scoped_app_name = self._get_scoped_app_name(app_name)
+        return await self.wrapped_service.list_artifact_keys(
+            app_name=scoped_app_name, user_id=user_id, session_id=session_id
+        )
+
+    @override
+    async def delete_artifact(
+        self, *, app_name: str, user_id: str, session_id: str, filename: str
+    ) -> None:
+        scoped_app_name = self._get_scoped_app_name(app_name)
+        await self.wrapped_service.delete_artifact(
+            app_name=scoped_app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
+        )
+        return
+
+    @override
+    async def list_versions(
+        self, *, app_name: str, user_id: str, session_id: str, filename: str
+    ) -> List[int]:
+        scoped_app_name = self._get_scoped_app_name(app_name)
+        return await self.wrapped_service.list_versions(
+            app_name=scoped_app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
+        )
 
 
 def _sanitize_for_path(identifier: str) -> str:
