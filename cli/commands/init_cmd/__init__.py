@@ -30,9 +30,9 @@ def _get_flat_orchestrator_defaults():
     flat_defaults["artifact_service_scope"] = O_DEFAULTS["artifact_service"][
         "artifact_scope"
     ]
-    flat_defaults["s3_bucket_name"] = O_DEFAULTS["artifact_service"].get("bucket_name", "")
-    flat_defaults["s3_endpoint_url"] = O_DEFAULTS["artifact_service"].get("endpoint_url", "")
-    flat_defaults["s3_region"] = O_DEFAULTS["artifact_service"].get("region", "us-east-1")
+    flat_defaults["artifact_service_bucket_name"] = O_DEFAULTS["artifact_service"].get("bucket_name", "")
+    flat_defaults["artifact_service_endpoint_url"] = O_DEFAULTS["artifact_service"].get("endpoint_url", "")
+    flat_defaults["artifact_service_region"] = O_DEFAULTS["artifact_service"].get("region", "us-east-1")
     flat_defaults["artifact_handling_mode"] = O_DEFAULTS["artifact_handling_mode"]
     flat_defaults["enable_embed_resolution"] = O_DEFAULTS["enable_embed_resolution"]
     flat_defaults["enable_artifact_content_instruction"] = O_DEFAULTS[
@@ -275,17 +275,17 @@ def run_init_flow(skip_interactive: bool, use_web_based_init_flag: bool, **cli_o
     help="Artifact service base path (for filesystem type).",
 )
 @click.option(
-    "--s3-bucket-name",
+    "--artifact-service-bucket-name",
     type=str,
     help="S3 bucket name (for s3 artifact service type).",
 )
 @click.option(
-    "--s3-endpoint-url",
+    "--artifact-service-endpoint-url",
     type=str,
     help="S3 endpoint URL (for s3 artifact service type, optional for AWS S3).",
 )
 @click.option(
-    "--s3-region",
+    "--artifact-service-region",
     type=str,
     help="S3 region (for s3 artifact service type).",
 )

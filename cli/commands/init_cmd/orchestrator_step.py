@@ -120,6 +120,14 @@ def create_orchestrator_config(
             skip_interactive,
         )
     elif artifact_type == "s3":
+        # Map CLI artifact-service-* parameters to s3_* keys
+        if options.get("artifact_service_bucket_name"):
+            options["s3_bucket_name"] = options["artifact_service_bucket_name"]
+        if options.get("artifact_service_endpoint_url"):
+            options["s3_endpoint_url"] = options["artifact_service_endpoint_url"]
+        if options.get("artifact_service_region"):
+            options["s3_region"] = options["artifact_service_region"]
+            
         s3_bucket_name = ask_if_not_provided(
             options,
             "s3_bucket_name",
