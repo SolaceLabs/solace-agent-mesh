@@ -1239,7 +1239,9 @@ async def test_declarative_scenario(
     agent_config_overrides = declarative_scenario.get(
         "test_runner_config_overrides", {}
     ).get("agent_config", {})
-    artifact_scope = agent_config_overrides.get("artifact_scope", "app")
+    # Default to 'namespace' to match the application's default schema.
+    # Tests that require 'app' scope must explicitly set it in their YAML.
+    artifact_scope = agent_config_overrides.get("artifact_scope", "namespace")
     print(f"Scenario {scenario_id}: Using artifact_scope: '{artifact_scope}'")
 
     agent_components = {
