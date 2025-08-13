@@ -315,7 +315,7 @@ class FilesystemArtifactService(BaseArtifactService):
     async def delete_artifact(
         self, *, app_name: str, user_id: str, session_id: str, filename: str
     ) -> None:
-        log_prefix = f"[FSArtifact:Delete:{filename}] "
+        log_prefix = f"[FSArtifact:Delete] "
         artifact_dir = self._get_artifact_dir(app_name, user_id, session_id, filename)
 
         if not await asyncio.to_thread(os.path.isdir, artifact_dir):
