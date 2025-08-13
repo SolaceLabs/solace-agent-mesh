@@ -329,12 +329,11 @@ class FilesystemArtifactService(BaseArtifactService):
                 log_prefix,
                 artifact_dir,
             )
-        except OSError as e:
+        except OSError:
             logger.error(
-                "%sError deleting artifact directory '%s': %s",
+                "%sError deleting artifact directory '%s'",
                 log_prefix,
                 artifact_dir,
-                e,
             )
 
     @override
@@ -358,12 +357,9 @@ class FilesystemArtifactService(BaseArtifactService):
                     and item.isdigit()
                 ):
                     versions.append(int(item))
-        except OSError as e:
+        except OSError:
             logger.error(
-                "%sError listing versions in directory '%s': %s",
-                log_prefix,
-                artifact_dir,
-                e,
+                "%sError listing versions in directory '%s'", log_prefix, artifact_dir
             )
             return []
 
