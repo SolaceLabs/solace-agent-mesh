@@ -10,7 +10,6 @@ import io
 import inspect
 import os
 import yaml
-import threading
 import traceback
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple, List, Union, TYPE_CHECKING
@@ -27,65 +26,6 @@ if TYPE_CHECKING:
 
 METADATA_SUFFIX = ".metadata.json"
 DEFAULT_SCHEMA_MAX_KEYS = 20
-
-
-# --- Artifact Scoping State ---
-_scope_config: Optional[Dict[str, Any]] = None
-_scope_config_lock = threading.Lock()
-
-
-class ArtifactScopingError(Exception):
-    """Custom exception for artifact scoping configuration errors."""
-
-    pass
-
-
-def configure_artifact_scoping(
-    scope_type: str, namespace_value: str, component_name: str
-):
-    """
-    Configures the process-wide artifact scope. Must be called by components at startup.
-    Raises ArtifactScopingError if a conflicting configuration is detected.
-    """
-    global _scope_config
-    with _scope_config_lock:
-        if _scope_config is None:
-            _scope_config = {
-                "scope_type": scope_type,
-                "namespace_value": namespace_value,
-            }
-            log.info(
-                "[ArtifactScoping] Set process-wide artifact scope to '%s' (namespace: '%s') from component '%s'.",
-                scope_type,
-                namespace_value,
-                component_name,
-            )
-        else:
-            existing_scope = _scope_config["scope_type"]
-            existing_namespace = _scope_config["namespace_value"]
-            if scope_type != existing_scope or namespace_value != existing_namespace:
-                raise ArtifactScopingError(
-                    f"Conflicting artifact scope configuration detected. "
-                    f"Component '{component_name}' tried to set scope to '{scope_type}' with namespace '{namespace_value}', "
-                    f"but it was already set to '{existing_scope}' with namespace '{existing_namespace}'. "
-                    f"All components in a process must share the same artifact scope configuration."
-                )
-
-
-def reset_artifact_scoping_for_testing():
-    """Resets the global artifact scope configuration. For use in tests only."""
-    global _scope_config
-    with _scope_config_lock:
-        _scope_config = None
-
-
-def _get_scoped_app_name(app_name: str) -> str:
-    """
-    Resolves the effective app_name for an artifact operation based on the global scope.
-    """
-    if _scope_config and _scope_config.get("scope_type") == "namespace":
-        return _scope_config["namespace_value"]
-    return app_name
 
 
 def is_filename_safe(filename: str) -> bool:
@@ -259,7 +199,6 @@ async def save_artifact_with_metadata(
     """
     log_identifier = f"[ArtifactHelper:save:{filename}]"
     log.debug("%s Saving artifact and metadata (async)...", log_identifier)
-    scoped_app_name = _get_scoped_app_name(app_name)
     data_version = None
     metadata_version = None
     metadata_filename = f"{filename}{METADATA_SUFFIX}"
@@ -296,7 +235,7 @@ async def save_artifact_with_metadata(
                     )
         save_data_method = getattr(artifact_service, "save_artifact")
         data_version = await save_data_method(
-            app_name=scoped_app_name,
+            app_name=app_name,
             user_id=user_id,
             session_id=session_id,
             filename=filename,
@@ -365,7 +304,7 @@ async def save_artifact_with_metadata(
             )
             save_metadata_method = getattr(artifact_service, "save_artifact")
             metadata_version = await save_metadata_method(
-                app_name=scoped_app_name,
+                app_name=app_name,
                 user_id=user_id,
                 session_id=session_id,
                 filename=metadata_filename,
@@ -476,7 +415,6 @@ async def generate_artifact_metadata_summary(
         return ""
 
     log_identifier = f"{component.log_identifier}[ArtifactSummary]"
-    scoped_app_name = _get_scoped_app_name(app_name)
     summary_parts = []
     if header_text:
         summary_parts.append(header_text)
@@ -508,7 +446,7 @@ async def generate_artifact_metadata_summary(
         try:
             metadata_result = await load_artifact_content_or_metadata(
                 artifact_service=component.artifact_service,
-                app_name=scoped_app_name,
+                app_name=app_name,
                 user_id=user_id,
                 session_id=get_original_session_id(session_id),
                 filename=filename,
@@ -661,7 +599,6 @@ async def get_latest_artifact_version(
         The latest version number as an integer, or None if no versions exist.
     """
     log_identifier = f"[ArtifactHelper:get_latest_version:{filename}]"
-    scoped_app_name = _get_scoped_app_name(app_name)
     try:
         if not hasattr(artifact_service, "list_versions"):
             log.warning(
@@ -670,7 +607,7 @@ async def get_latest_artifact_version(
             return None
 
         versions = await artifact_service.list_versions(
-            app_name=scoped_app_name,
+            app_name=app_name,
             user_id=user_id,
             session_id=session_id,
             filename=filename,
@@ -706,13 +643,12 @@ async def get_artifact_info_list(
         A list of ArtifactInfo objects.
     """
     log_prefix = f"[ArtifactHelper:get_info_list] App={app_name}, User={user_id}, Session={session_id} -"
-    scoped_app_name = _get_scoped_app_name(app_name)
     artifact_info_list: List[ArtifactInfo] = []
 
     try:
         list_keys_method = getattr(artifact_service, "list_artifact_keys")
         keys = await list_keys_method(
-            app_name=scoped_app_name, user_id=user_id, session_id=session_id
+            app_name=app_name, user_id=user_id, session_id=session_id
         )
         log.info(
             "%s Found %d artifact keys. Fetching details...", log_prefix, len(keys)
@@ -727,13 +663,13 @@ async def get_artifact_info_list(
 
                 version_count: int = 0
                 latest_version_num: Optional[int] = await get_latest_artifact_version(
-                    artifact_service, scoped_app_name, user_id, session_id, filename
+                    artifact_service, app_name, user_id, session_id, filename
                 )
 
                 if hasattr(artifact_service, "list_versions"):
                     try:
                         available_versions = await artifact_service.list_versions(
-                            app_name=scoped_app_name,
+                            app_name=app_name,
                             user_id=user_id,
                             session_id=session_id,
                             filename=filename,
@@ -748,7 +684,7 @@ async def get_artifact_info_list(
 
                 data = await load_artifact_content_or_metadata(
                     artifact_service=artifact_service,
-                    app_name=scoped_app_name,
+                    app_name=app_name,
                     user_id=user_id,
                     session_id=session_id,
                     filename=filename,
@@ -840,7 +776,6 @@ async def load_artifact_content_or_metadata(
     Loads the content or metadata of a specific artifact version using the artifact service.
     """
     log_identifier_req = f"{log_identifier_prefix}:{filename}:{version}"
-    scoped_app_name = _get_scoped_app_name(app_name)
     log.debug(
         "%s Processing request (load_metadata_only=%s, return_raw_bytes=%s) (async).",
         log_identifier_req,
@@ -885,7 +820,7 @@ async def load_artifact_content_or_metadata(
             try:
                 list_versions_method = getattr(artifact_service, "list_versions")
                 available_versions = await list_versions_method(
-                    app_name=scoped_app_name,
+                    app_name=app_name,
                     user_id=user_id,
                     session_id=session_id,
                     filename=filename,
@@ -945,7 +880,7 @@ async def load_artifact_content_or_metadata(
 
         load_artifact_method = getattr(artifact_service, "load_artifact")
         artifact_part = await load_artifact_method(
-            app_name=scoped_app_name,
+            app_name=app_name,
             user_id=user_id,
             session_id=session_id,
             filename=target_filename,
@@ -1076,7 +1011,7 @@ async def load_artifact_content_or_metadata(
                             )
                             metadata_data = await load_artifact_content_or_metadata(
                                 artifact_service=artifact_service,
-                                app_name=scoped_app_name,
+                                app_name=app_name,
                                 user_id=user_id,
                                 session_id=session_id,
                                 filename=f"{filename}{METADATA_SUFFIX}",

@@ -20,9 +20,9 @@ This checklist outlines the steps to implement the `ScopedArtifactServiceWrapper
 ### Phase 2: Refactor and Clean Up
 
 3.  **Remove Global Scoping from `artifact_helpers.py`**
-    -   [ ] In `src/solace_agent_mesh/agent/utils/artifact_helpers.py`, delete the `_scope_config` global variable and its associated lock (`_scope_config_lock`).
-    -   [ ] Delete the `configure_artifact_scoping`, `reset_artifact_scoping_for_testing`, and `_get_scoped_app_name` functions.
-    -   [ ] Update any helper functions that used `_get_scoped_app_name` to simply pass the `app_name` through to the service methods.
+    -   [x] In `src/solace_agent_mesh/agent/utils/artifact_helpers.py`, delete the `_scope_config` global variable and its associated lock (`_scope_config_lock`).
+    -   [x] Delete the `configure_artifact_scoping`, `reset_artifact_scoping_for_testing`, and `_get_scoped_app_name` functions.
+    -   [x] Update any helper functions that used `_get_scoped_app_name` to simply pass the `app_name` through to the service methods.
 
 4.  **Remove Scoping Configuration Calls from Components**
     -   [ ] In `src/solace_agent_mesh/agent/sac/component.py`, remove the call to `configure_artifact_scoping()` from the `__init__` method.
