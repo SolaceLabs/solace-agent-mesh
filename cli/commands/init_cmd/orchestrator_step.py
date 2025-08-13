@@ -16,6 +16,9 @@ ORCHESTRATOR_DEFAULTS = {
         "type": "filesystem",
         "base_path": "/tmp/samv2",
         "artifact_scope": "namespace",
+        "bucket_name": "",
+        "endpoint_url": "",
+        "region": "us-east-1",
     },
     "agent_card": {
         "description": "The Orchestrator component. It manages tasks and coordinates multi-agent workflows.",
@@ -100,16 +103,50 @@ def create_orchestrator_config(
         "Enter artifact service type",
         ORCHESTRATOR_DEFAULTS["artifact_service"]["type"],
         skip_interactive,
-        choices=["memory", "filesystem", "gcs"],
+        choices=["memory", "filesystem", "gcs", "s3"],
     )
 
     artifact_base_path = None
+    s3_bucket_name = None
+    s3_endpoint_url = None
+    s3_region = None
+    
     if artifact_type == "filesystem":
         artifact_base_path = ask_if_not_provided(
             options,
             "artifact_service_base_path",
             "Enter artifact service base path",
             ORCHESTRATOR_DEFAULTS["artifact_service"]["base_path"],
+            skip_interactive,
+        )
+    elif artifact_type == "s3":
+        # Map CLI artifact-service-* parameters to s3_* keys
+        if options.get("artifact_service_bucket_name"):
+            options["s3_bucket_name"] = options["artifact_service_bucket_name"]
+        if options.get("artifact_service_endpoint_url"):
+            options["s3_endpoint_url"] = options["artifact_service_endpoint_url"]
+        if options.get("artifact_service_region"):
+            options["s3_region"] = options["artifact_service_region"]
+            
+        s3_bucket_name = ask_if_not_provided(
+            options,
+            "s3_bucket_name",
+            "Enter S3 bucket name",
+            ORCHESTRATOR_DEFAULTS["artifact_service"]["bucket_name"],
+            skip_interactive,
+        )
+        s3_endpoint_url = ask_if_not_provided(
+            options,
+            "s3_endpoint_url",
+            "Enter S3 endpoint URL (leave empty for AWS S3)",
+            ORCHESTRATOR_DEFAULTS["artifact_service"]["endpoint_url"],
+            skip_interactive,
+        )
+        s3_region = ask_if_not_provided(
+            options,
+            "s3_region",
+            "Enter S3 region",
+            ORCHESTRATOR_DEFAULTS["artifact_service"]["region"],
             skip_interactive,
         )
 
@@ -266,6 +303,13 @@ def create_orchestrator_config(
         artifact_base_path_line = ""
         if artifact_type == "filesystem":
             artifact_base_path_line = f'base_path: "{artifact_base_path}"'
+        elif artifact_type == "s3":
+            s3_config_lines = [f'bucket_name: "{s3_bucket_name}"']
+            if s3_endpoint_url:
+                s3_config_lines.append(f'endpoint_url: "{s3_endpoint_url}"')
+            if s3_region:
+                s3_config_lines.append(f'region: "{s3_region}"')
+            artifact_base_path_line = "\n      ".join(s3_config_lines)
 
         shared_replacements = {
             "__DEFAULT_SESSION_SERVICE_TYPE__": session_type,

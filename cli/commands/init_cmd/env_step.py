@@ -21,7 +21,10 @@ ENV_DEFAULTS = {
     "SSL_KEYFILE": "",
     "SSL_CERTFILE": "",
     "SSL_KEYFILE_PASSWORD": "",
-    "LOGGING_CONFIG_PATH": "configs/logging_config.ini"
+    "LOGGING_CONFIG_PATH": "configs/logging_config.ini",
+    "S3_BUCKET_NAME": "",
+    "S3_ENDPOINT_URL": "",
+    "S3_REGION": "us-east-1"
 }
 
 
@@ -167,6 +170,27 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
             "Enter Logging Config Path",
             False,
             "LOGGING_CONFIG_PATH",
+        ),
+        (
+            "s3_bucket_name",
+            "S3_BUCKET_NAME",
+            "Enter S3 Bucket Name (for S3 artifact service)",
+            False,
+            "S3_BUCKET_NAME",
+        ),
+        (
+            "s3_endpoint_url",
+            "S3_ENDPOINT_URL",
+            "Enter S3 Endpoint URL (for S3-compatible services, leave empty for AWS S3)",
+            False,
+            "S3_ENDPOINT_URL",
+        ),
+        (
+            "s3_region",
+            "S3_REGION",
+            "Enter S3 Region (for S3 artifact service)",
+            False,
+            "S3_REGION",
         ),
     ]
 
