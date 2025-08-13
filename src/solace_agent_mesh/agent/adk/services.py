@@ -4,7 +4,7 @@ Initializes ADK Services based on configuration.
 
 import os
 import re
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 from typing_extensions import override
 
 from google.genai import types as adk_types
@@ -41,33 +41,40 @@ class ScopedArtifactServiceWrapper(BaseArtifactService):
     """
     A wrapper for an artifact service that transparently applies a configured scope.
     This ensures all artifact operations respect either 'namespace' or 'app' scoping
-    without requiring changes at the call site.
+    without requiring changes at the call site. It dynamically checks the component's
+    configuration on each call to support test-specific overrides.
     """
 
     def __init__(
         self,
         wrapped_service: BaseArtifactService,
-        scope_type: str,
-        scope_value: str,
+        component: Any,
     ):
         """
         Initializes the ScopedArtifactServiceWrapper.
 
         Args:
             wrapped_service: The concrete artifact service instance (e.g., InMemory, GCS).
-            scope_type: The type of scoping to apply ('namespace' or 'app').
-            scope_value: The value for the scope (e.g., the namespace string).
+            component: The component instance (agent or gateway) that owns this service.
         """
         self.wrapped_service = wrapped_service
-        self.scope_type = scope_type
-        self.scope_value = scope_value
+        self.component = component
 
     def _get_scoped_app_name(self, app_name: str) -> str:
         """
-        Determines the effective app_name for an artifact operation based on the scope.
+        Determines the effective app_name for an artifact operation by dynamically
+        checking the component's configuration.
         """
-        if self.scope_type == "namespace":
-            return self.scope_value
+        # The component's get_config will handle test-injected overrides.
+        # The default scope is 'namespace' as defined in the app schema.
+        scope_type = self.component.get_config("artifact_scope", "namespace")
+
+        if scope_type == "namespace":
+            # For namespace scope, the value is always the component's namespace.
+            return self.component.namespace
+
+        # For 'app' scope, use the app_name that was passed into the method, which is
+        # typically the agent_name or gateway_id.
         return app_name
 
     @override
@@ -199,7 +206,7 @@ def initialize_artifact_service(component) -> BaseArtifactService:
     """
     Initializes the ADK Artifact Service based on configuration.
     This factory creates the concrete service instance and then wraps it with
-    the ScopedArtifactServiceWrapper to enforce artifact scoping rules.
+    the ScopedArtifactServiceWrapper to enforce artifact scoping rules dynamically.
     """
     config: Dict = component.get_config("artifact_service", {"type": "memory"})
     service_type = config.get("type", "memory").lower()
@@ -265,22 +272,15 @@ def initialize_artifact_service(component) -> BaseArtifactService:
             f"{component.log_identifier} Unsupported artifact service type: {service_type}"
         )
 
-    # Wrap the concrete service to enforce scoping
-    # Check for a test-injected override at the top level first.
-    scope_type = component.get_config(
-        "artifact_scope", config.get("artifact_scope", "namespace")
-    )
-    scope_value = component.namespace
+    # Wrap the concrete service to enforce scoping dynamically.
+    # The wrapper will query the component's config at runtime.
     log.info(
-        "%s Wrapping artifact service with scope_type='%s' and scope_value='%s'",
+        "%s Wrapping artifact service with dynamic ScopedArtifactServiceWrapper.",
         component.log_identifier,
-        scope_type,
-        scope_value,
     )
     return ScopedArtifactServiceWrapper(
         wrapped_service=concrete_service,
-        scope_type=scope_type,
-        scope_value=scope_value,
+        component=component,
     )
 
 
