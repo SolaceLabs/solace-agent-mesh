@@ -6,9 +6,6 @@ import time
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.agent.tools.registry import tool_registry
-from solace_agent_mesh.agent.utils.artifact_helpers import (
-    reset_artifact_scoping_for_testing,
-)
 from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
 from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
@@ -186,40 +183,6 @@ async def clear_test_artifact_service_between_tests(
     """
     yield
     await test_artifact_service_instance.clear_all_artifacts()
-
-
-@pytest.fixture(autouse=True, scope="function")
-def reset_artifact_scoping_fixture(request):
-    """
-    Ensures that the global artifact scoping configuration is reset before each test
-    and then configured specifically for declarative scenarios to prevent state leakage.
-    """
-    # Import locally to avoid circular dependency issues at module level
-    from solace_agent_mesh.agent.utils.artifact_helpers import (
-        configure_artifact_scoping,
-    )
-
-    # Always reset state from any previous test run
-    reset_artifact_scoping_for_testing()
-
-    # If the test is a declarative scenario, configure the scope based on its YAML
-    if "declarative_scenario" in request.fixturenames:
-        scenario = request.getfixturevalue("declarative_scenario")
-        agent_config_overrides = scenario.get(
-            "test_runner_config_overrides", {}
-        ).get("agent_config", {})
-        artifact_scope = agent_config_overrides.get("artifact_scope", "app")
-        scenario_id = scenario.get("test_case_id", "N/A")
-        configure_artifact_scoping(
-            scope_type=artifact_scope,
-            namespace_value="test_namespace",
-            component_name=f"{scenario_id} [fixture setup]",
-        )
-
-    yield
-
-    # Always reset state after the test has run
-    reset_artifact_scoping_for_testing()
 
 
 @pytest.fixture(scope="session")

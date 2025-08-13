@@ -29,6 +29,6 @@ This checklist outlines the steps to implement the `ScopedArtifactServiceWrapper
     -   [x] In `src/solace_agent_mesh/gateway/base/component.py`, remove the call to `configure_artifact_scoping()` from the `__init__` method.
 
 5.  **Update Test Infrastructure**
-    -   [ ] In `tests/integration/conftest.py`, delete the `reset_artifact_scoping_fixture` fixture entirely.
-    -   [ ] In `tests/integration/scenarios_declarative/test_declarative_runner.py`, remove any remaining calls or dependencies on `configure_artifact_scoping`.
-    -   [ ] Verify that declarative tests that specify `artifact_scope` in their config overrides continue to function correctly.
+    -   [x] In `tests/integration/conftest.py`, delete the `reset_artifact_scoping_fixture` fixture entirely.
+    -   [x] In `tests/integration/scenarios_declarative/test_declarative_runner.py`, remove any remaining calls or dependencies on `configure_artifact_scoping`.
+    -   [x] Verify that declarative tests that specify `artifact_scope` in their config overrides continue to function correctly.

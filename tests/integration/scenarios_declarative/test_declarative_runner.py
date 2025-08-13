@@ -43,7 +43,6 @@ from ..scenarios_programmatic.test_helpers import (
 from solace_agent_mesh.agent.utils.artifact_helpers import (
     generate_artifact_metadata_summary,
     load_artifact_content_or_metadata,
-    configure_artifact_scoping,
 )
 from solace_agent_mesh.agent.testing.debug_utils import pretty_print_event_history
 
