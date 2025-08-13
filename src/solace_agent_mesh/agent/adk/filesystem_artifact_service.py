@@ -111,7 +111,7 @@ class FilesystemArtifactService(BaseArtifactService):
         filename: str,
         artifact: adk_types.Part,
     ) -> int:
-        log_prefix = f"[FSArtifact:Save:{filename}] "
+        log_prefix = "[FSArtifact:Save] "
 
         filename = self._normalize_filename_unicode(filename)
         artifact_dir = self._get_artifact_dir(app_name, user_id, session_id, filename)
@@ -188,7 +188,7 @@ class FilesystemArtifactService(BaseArtifactService):
         filename: str,
         version: Optional[int] = None,
     ) -> Optional[adk_types.Part]:
-        log_prefix = f"[FSArtifact:Load:{filename}] "
+        log_prefix = "[FSArtifact:Load] "
         filename = self._normalize_filename_unicode(filename)
         artifact_dir = self._get_artifact_dir(app_name, user_id, session_id, filename)
 
@@ -267,7 +267,7 @@ class FilesystemArtifactService(BaseArtifactService):
     async def list_artifact_keys(
         self, *, app_name: str, user_id: str, session_id: str
     ) -> List[str]:
-        log_prefix = f"[FSArtifact:ListKeys] "
+        log_prefix = "[FSArtifact:ListKeys] "
         filenames = set()
         app_name_sanitized = os.path.basename(app_name)
         user_id_sanitized = os.path.basename(user_id)
@@ -315,7 +315,7 @@ class FilesystemArtifactService(BaseArtifactService):
     async def delete_artifact(
         self, *, app_name: str, user_id: str, session_id: str, filename: str
     ) -> None:
-        log_prefix = f"[FSArtifact:Delete] "
+        log_prefix = "[FSArtifact:Delete] "
         artifact_dir = self._get_artifact_dir(app_name, user_id, session_id, filename)
 
         if not await asyncio.to_thread(os.path.isdir, artifact_dir):
@@ -340,7 +340,7 @@ class FilesystemArtifactService(BaseArtifactService):
     async def list_versions(
         self, *, app_name: str, user_id: str, session_id: str, filename: str
     ) -> List[int]:
-        log_prefix = f"[FSArtifact:ListVersions:{filename}] "
+        log_prefix = "[FSArtifact:ListVersions] "
         artifact_dir = self._get_artifact_dir(app_name, user_id, session_id, filename)
         versions = []
 
