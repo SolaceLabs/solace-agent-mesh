@@ -90,9 +90,7 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
             )
     else:
         click.echo("Skipping .env file loading due to --system-env flag.")
-    """
-    Solace Agent Mesh Initialization
-    """
+
     # Run enterprise initialization if present
     initialize()
 
