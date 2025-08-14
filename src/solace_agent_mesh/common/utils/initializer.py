@@ -43,6 +43,7 @@ def initialize():
                 raise
     else:
         enterprise_config = {}
+        return
     
     try:
         initialize_enterprise_features(enterprise_config)
