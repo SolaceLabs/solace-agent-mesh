@@ -46,6 +46,8 @@ from a2a.types import (
     Message as A2AMessage,
     TextPart,
     FilePart,
+    FileWithBytes,
+    FileWithUri,
     DataPart,
     Artifact as A2AArtifact,
     JSONRPCResponse,
@@ -1608,13 +1610,13 @@ class SamAgentComponent(ComponentBase):
 
         mime_type = adk_part.inline_data.mime_type
         data_bytes = adk_part.inline_data.data
-        file_content: Optional[FileContent] = None
+        file_content: Optional[Union[FileWithBytes, FileWithUri]] = None
 
         try:
             if self.artifact_handling_mode == "embed":
                 encoded_bytes = base64.b64encode(data_bytes).decode("utf-8")
-                file_content = FileContent(
-                    name=filename, mimeType=mime_type, bytes=encoded_bytes
+                file_content = FileWithBytes(
+                    name=filename, mime_type=mime_type, bytes=encoded_bytes
                 )
                 log.debug(
                     "%s Embedding artifact '%s' (size: %d bytes) for A2A message.",
@@ -1642,8 +1644,8 @@ class SamAgentComponent(ComponentBase):
                     self.log_identifier,
                     artifact_uri,
                 )
-                file_content = FileContent(
-                    name=filename, mimeType=mime_type, uri=artifact_uri
+                file_content = FileWithUri(
+                    name=filename, mime_type=mime_type, uri=artifact_uri
                 )
 
             if file_content:
