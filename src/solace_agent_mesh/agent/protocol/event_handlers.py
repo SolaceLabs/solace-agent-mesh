@@ -225,18 +225,14 @@ async def handle_a2a_request(component, message: SolaceMessage):
         if not isinstance(payload_dict, dict):
             raise ValueError("Payload is not a dictionary.")
         jsonrpc_request_id = payload_dict.get("id")
-        a2a_request: Union[
-            SendTaskRequest,
-            SendTaskStreamingRequest,
-            CancelTaskRequest,
-            GetTaskRequest,
-            SetTaskPushNotificationRequest,
-            GetTaskPushNotificationRequest,
-            TaskResubscriptionRequest,
-        ] = A2ARequest.validate_python(payload_dict)
-        jsonrpc_request_id = a2a_request.id
-        logical_task_id = a2a_request.params.id
-        if isinstance(a2a_request, CancelTaskRequest):
+        a2a_request: A2ARequest = A2ARequest.model_validate(payload_dict)
+        jsonrpc_request_id = a2a_request.root.id
+
+        # The concept of logical_task_id changes. For Cancel, it's in params.id.
+        # For Send, we will generate it.
+        logical_task_id = None
+        if isinstance(a2a_request.root, CancelTaskRequest):
+            logical_task_id = a2a_request.root.params.id
             log.info(
                 "%s Received CancelTaskRequest for Task ID: %s.",
                 component.log_identifier,
@@ -270,7 +266,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                             try:
                                 peer_cancel_params = TaskIdParams(id=sub_task_id)
                                 peer_cancel_request = CancelTaskRequest(
-                                    params=peer_cancel_params
+                                    id=uuid.uuid4().hex, params=peer_cancel_params
                                 )
                                 peer_cancel_user_props = {
                                     "clientId": component.agent_name
@@ -326,10 +322,15 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     ack_e,
                 )
             return None
-        elif isinstance(a2a_request, (SendTaskRequest, SendTaskStreamingRequest)):
-            original_session_id = a2a_request.params.sessionId
-            task_id = a2a_request.params.id
-            task_metadata = a2a_request.params.metadata or {}
+        elif isinstance(
+            a2a_request.root, (SendMessageRequest, SendStreamingMessageRequest)
+        ):
+            # New A2A spec: server generates the task ID.
+            logical_task_id = uuid.uuid4().hex
+            # The session id is now contextId on the message
+            original_session_id = a2a_request.root.params.message.contextId
+            message_id = a2a_request.root.params.message.messageId
+            task_metadata = a2a_request.root.params.message.metadata or {}
             system_purpose = task_metadata.get("system_purpose")
             response_format = task_metadata.get("response_format")
             session_behavior_from_meta = task_metadata.get("sessionBehavior")
@@ -358,7 +359,9 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 )
             user_id = message.get_user_properties().get("userId", "default_user")
             agent_name = component.get_config("agent_name")
-            is_streaming_request = isinstance(a2a_request, SendTaskStreamingRequest)
+            is_streaming_request = isinstance(
+                a2a_request.root, SendStreamingMessageRequest
+            )
             host_supports_streaming = component.get_config("supports_streaming", False)
             if is_streaming_request and not host_supports_streaming:
                 raise ValueError(
@@ -369,14 +372,14 @@ async def handle_a2a_request(component, message: SolaceMessage):
             temporary_run_session_id_for_cleanup = None
             if session_behavior == "RUN_BASED":
                 is_run_based_session = True
-                effective_session_id = f"{original_session_id}:{task_id}:run"
+                effective_session_id = f"{original_session_id}:{logical_task_id}:run"
                 temporary_run_session_id_for_cleanup = effective_session_id
                 log.info(
                     "%s Session behavior is RUN_BASED. OriginalID='%s', EffectiveID for this run='%s', TaskID='%s'.",
                     component.log_identifier,
                     original_session_id,
                     effective_session_id,
-                    task_id,
+                    logical_task_id,
                 )
             else:
                 is_run_based_session = False
@@ -386,7 +389,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     "%s Session behavior is PERSISTENT. EffectiveID='%s' for TaskID='%s'.",
                     component.log_identifier,
                     effective_session_id,
-                    task_id,
+                    logical_task_id,
                 )
             adk_session_for_run = await component.session_service.get_session(
                 app_name=agent_name, user_id=user_id, session_id=effective_session_id
@@ -401,14 +404,14 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     "%s Created new ADK session '%s' for task '%s'.",
                     component.log_identifier,
                     effective_session_id,
-                    task_id,
+                    logical_task_id,
                 )
             else:
                 log.info(
                     "%s Reusing existing ADK session '%s' for task '%s'.",
                     component.log_identifier,
                     effective_session_id,
-                    task_id,
+                    logical_task_id,
                 )
             if is_run_based_session:
                 try:
@@ -448,27 +451,29 @@ async def handle_a2a_request(component, message: SolaceMessage):
                                 "%s No history to copy from original session '%s' for run-based task '%s'.",
                                 component.log_identifier,
                                 original_session_id,
-                                task_id,
+                                logical_task_id,
                             )
                     else:
                         log.debug(
                             "%s Original session '%s' not found or has no history, cannot copy for run-based task '%s'.",
                             component.log_identifier,
                             original_session_id,
-                            task_id,
+                            logical_task_id,
                         )
                 except Exception as e_copy:
                     log.error(
                         "%s Error copying history for run-based session '%s' (task '%s'): %s. Proceeding with empty session.",
                         component.log_identifier,
                         effective_session_id,
-                        task_id,
+                        logical_task_id,
                         e_copy,
                     )
             a2a_context = {
                 "jsonrpc_request_id": jsonrpc_request_id,
                 "logical_task_id": logical_task_id,
-                "session_id": original_session_id,
+                "contextId": original_session_id,
+                "messageId": message_id,
+                "session_id": original_session_id,  # Keep for now for compatibility
                 "user_id": user_id,
                 "client_id": client_id,
                 "is_streaming": is_streaming_request,
@@ -505,7 +510,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 logical_task_id,
             )
 
-            a2a_message_for_adk = a2a_request.params.message
+            a2a_message_for_adk = a2a_request.root.params.message
             invoked_artifacts = (
                 a2a_message_for_adk.metadata.get("invoked_with_artifacts", [])
                 if a2a_message_for_adk.metadata
@@ -516,7 +521,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 log.info(
                     "%s Task %s invoked with %d artifact(s). Preparing context from metadata.",
                     component.log_identifier,
-                    task_id,
+                    logical_task_id,
                     len(invoked_artifacts),
                 )
                 header_text = (
@@ -545,7 +550,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 log.debug(
                     "%s Generated new prompt for task %s with artifact context.",
                     component.log_identifier,
-                    task_id,
+                    logical_task_id,
                 )
 
             adk_content = translate_a2a_to_adk_content(

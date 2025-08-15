@@ -15,12 +15,12 @@ This checklist tracks the development tasks for Phase 1.
 ### Section B: Refactor Agent Request Handling (`event_handlers.py`)
 
 - [x] 8. Replace legacy `...common.types` imports with `a2a.types`.
-- [ ] 9. In `handle_a2a_request`, replace `A2ARequest.validate_python` with `A2ARequest.model_validate`.
-- [ ] 10. In `handle_a2a_request`, update `isinstance` checks to use `a2a_request.root`.
-- [ ] 11. In `handle_a2a_request`, implement server-side `taskId` generation for new tasks.
-- [ ] 12. In `handle_a2a_request`, extract `contextId` and `messageId` from the incoming message.
-- [ ] 13. In `handle_a2a_request`, update the `a2a_context` dictionary with the new IDs.
-- [ ] 14. In `handle_a2a_request`, update `CancelTaskRequest` handling to get the `taskId` from `request.root.params.id`.
+- [x] 9. In `handle_a2a_request`, replace `A2ARequest.validate_python` with `A2ARequest.model_validate`.
+- [x] 10. In `handle_a2a_request`, update `isinstance` checks to use `a2a_request.root`.
+- [x] 11. In `handle_a2a_request`, implement server-side `taskId` generation for new tasks.
+- [x] 12. In `handle_a2a_request`, extract `contextId` and `messageId` from the incoming message.
+- [x] 13. In `handle_a2a_request`, update the `a2a_context` dictionary with the new IDs.
+- [x] 14. In `handle_a2a_request`, update `CancelTaskRequest` handling to get the `taskId` from `request.root.params.id`.
 
 ### Section C: Refactor Status Update Generation (`callbacks.py`)
 
