@@ -32,9 +32,9 @@ This document tracks the completion of tasks for Phase 0: Preparation & Tooling.
 
 ## Task 4: Create Type Migration Mapping Document
 
-- [ ] **Create Document:** Create a new Markdown file at `docs/refactoring/A2A-Type-Migration-Map.md`.
-- [ ] **Populate Document:**
-    - [ ] Create tables mapping legacy types (`common/types.py`) to new SDK types (`a2a.types`).
-    - [ ] Document key structural changes (e.g., `Task.sessionId` to `Message.contextId`).
-    - [ ] Document field name changes (e.g., `pushNotifications` to `push_notifications`).
-    - [ ] Provide a clear "before and after" JSON example for migrating a status update from a `metadata` field to a `DataPart`.
+- [x] **Create Document:** Create a new Markdown file at `docs/refactoring/A2A-Type-Migration-Map.md`.
+- [x] **Populate Document:**
+    - [x] Create tables mapping legacy types (`common/types.py`) to new SDK types (`a2a.types`).
+    - [x] Document key structural changes (e.g., `Task.sessionId` to `Message.contextId`).
+    - [x] Document field name changes (e.g., `pushNotifications` to `push_notifications`).
+    - [x] Provide a clear "before and after" JSON example for migrating a status update from a `metadata` field to a `DataPart`.
