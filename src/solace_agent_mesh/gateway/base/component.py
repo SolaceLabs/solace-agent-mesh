@@ -688,8 +688,14 @@ class BaseGatewayComponent(ComponentBase):
             )
             return None
 
-        actual_task_id = rpc_result.get("id")
-        if expected_task_id and actual_task_id != expected_task_id:
+        kind = rpc_result.get("kind")
+        actual_task_id = None
+        if kind == "task":
+            actual_task_id = rpc_result.get("id")
+        elif kind in ["status-update", "artifact-update"]:
+            actual_task_id = rpc_result.get("taskId")
+
+        if expected_task_id and actual_task_id and actual_task_id != expected_task_id:
             log.error(
                 "%s Task ID mismatch! Expected: %s, Got from payload: %s.",
                 self.log_identifier,
@@ -699,8 +705,6 @@ class BaseGatewayComponent(ComponentBase):
             return None
 
         try:
-            # The `kind` field is the new discriminator for A2A event types
-            kind = rpc_result.get("kind")
             if kind == "status-update":
                 return TaskStatusUpdateEvent(**rpc_result)
             elif kind == "artifact-update":
@@ -1136,7 +1140,7 @@ class BaseGatewayComponent(ComponentBase):
         Parses the payload, retrieves context using task_id_from_topic, and dispatches for processing.
         """
         try:
-            rpc_response = JSONRPCResponse(**payload)
+            rpc_response = JSONRPCResponse.model_validate(payload)
         except Exception as e:
             log.error(
                 "%s Failed to parse payload as JSONRPCResponse for topic %s (Task ID from topic: %s): %s. Payload: %s",
@@ -1148,7 +1152,7 @@ class BaseGatewayComponent(ComponentBase):
             )
             return False
 
-        original_rpc_id = str(rpc_response.id)
+        original_rpc_id = str(rpc_response.root.id)
 
         external_request_context = self.task_context_manager.get_context(
             task_id_from_topic
@@ -1169,11 +1173,13 @@ class BaseGatewayComponent(ComponentBase):
         parsed_event_obj: Union[
             Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent, JSONRPCError, None
         ] = None
-        if rpc_response.error:
-            parsed_event_obj = rpc_response.error
-        elif rpc_response.result:
+        if rpc_response.root.error:
+            parsed_event_obj = rpc_response.root.error
+        elif rpc_response.root.result:
+            # The result is a Pydantic model, convert it back to a dict for parsing
             parsed_event_obj = self._parse_a2a_event_from_rpc_result(
-                rpc_response.result, task_id_from_topic
+                rpc_response.root.result.model_dump(by_alias=True, exclude_none=True),
+                task_id_from_topic,
             )
 
         if not parsed_event_obj:

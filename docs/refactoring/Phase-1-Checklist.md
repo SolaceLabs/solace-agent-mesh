@@ -39,7 +39,7 @@ This checklist tracks the development tasks for Phase 1.
 ### Section E: Update Test Infrastructure
 
 - [x] 23. In `TestGatewayComponent`, refactor `submit_a2a_task` to instantiate and serialize `a2a.types.SendMessageRequest`.
-- [ ] 24. In `TestGatewayComponent`, refactor response handling logic to parse incoming data into `a2a.types.JSONRPCResponse`.
+- [x] 24. In `TestGatewayComponent`, refactor response handling logic to parse incoming data into `a2a.types.JSONRPCResponse`.
 - [ ] 25. Update assertions in integration tests to check for the new `DataPart`-based status update structures.
 - [ ] 26. Update all mock A2A message fixtures in `tests/integration/conftest.py` to conform to the new `a2a.json` schema.
 
