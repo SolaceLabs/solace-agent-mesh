@@ -37,7 +37,7 @@ from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from google.genai import types as adk_types
 from google.adk.tools.mcp_tool import MCPToolset
-from ...common.types import (
+from a2a.types import (
     AgentCard,
     Task,
     TaskStatus,
@@ -46,13 +46,13 @@ from ...common.types import (
     TextPart,
     FilePart,
     DataPart,
-    FileContent,
     Artifact as A2AArtifact,
     JSONRPCResponse,
     InternalError,
     TaskStatusUpdateEvent,
     TaskArtifactUpdateEvent,
-    SendTaskRequest,
+    SendMessageRequest,
+    MessageSendParams,
     CancelTaskRequest,
     TaskIdParams,
 )
@@ -2973,12 +2973,9 @@ class SamAgentComponent(ComponentBase):
         self,
         target_agent_name: str,
         a2a_message: A2AMessage,
-        original_session_id: str,
-        main_logical_task_id: str,
         user_id: str,
         user_config: Dict[str, Any],
         sub_task_id: str,
-        function_call_id: Optional[str] = None,
     ) -> str:
         """
         Submits a task to a peer agent in a non-blocking way.
@@ -2987,25 +2984,18 @@ class SamAgentComponent(ComponentBase):
         log_identifier_helper = (
             f"{self.log_identifier}[SubmitA2ATask:{target_agent_name}]"
         )
+        main_task_id = a2a_message.metadata.get("parentTaskId", "unknown_parent")
         log.debug(
             "%s Submitting non-blocking task for main task %s",
             log_identifier_helper,
-            main_logical_task_id,
+            main_task_id,
         )
 
         peer_request_topic = self._get_agent_request_topic(target_agent_name)
 
-        a2a_request_params = {
-            "id": sub_task_id,
-            "sessionId": original_session_id,
-            "message": a2a_message.model_dump(exclude_none=True),
-            "metadata": {
-                "sessionBehavior": "RUN_BASED",
-                "parentTaskId": main_logical_task_id,
-                "function_call_id": function_call_id,
-            },
-        }
-        a2a_request = SendTaskRequest(params=a2a_request_params)
+        # Create a compliant SendMessageRequest
+        send_params = MessageSendParams(message=a2a_message)
+        a2a_request = SendMessageRequest(id=sub_task_id, params=send_params)
 
         delegating_agent_name = self.get_config("agent_name")
         reply_to_topic = self._get_agent_response_topic(
@@ -3026,7 +3016,7 @@ class SamAgentComponent(ComponentBase):
             user_properties["a2aUserConfig"] = user_config
 
         self._publish_a2a_message(
-            payload=a2a_request.model_dump(exclude_none=True),
+            payload=a2a_request.model_dump(by_alias=True, exclude_none=True),
             topic=peer_request_topic,
             user_properties=user_properties,
         )

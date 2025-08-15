@@ -230,6 +230,10 @@ class PeerAgentTool(BaseTool):
                         e,
                     )
 
+            a2a_metadata["sessionBehavior"] = "RUN_BASED"
+            a2a_metadata["parentTaskId"] = main_logical_task_id
+            a2a_metadata["function_call_id"] = tool_context.function_call_id
+
             a2a_message = A2AMessage(
                 role="user",
                 parts=a2a_message_parts,
@@ -263,12 +267,9 @@ class PeerAgentTool(BaseTool):
                 self.host_component.submit_a2a_task(
                     target_agent_name=self.target_agent_name,
                     a2a_message=a2a_message,
-                    original_session_id=original_session_id,
-                    main_logical_task_id=main_logical_task_id,
                     user_id=user_id,
                     user_config=user_config,
                     sub_task_id=sub_task_id,
-                    function_call_id=tool_context.function_call_id,
                 )
             except MessageSizeExceededError as e:
                 log.error(
