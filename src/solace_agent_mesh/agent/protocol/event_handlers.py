@@ -1430,7 +1430,6 @@ def publish_agent_card(component):
 
         agent_card = AgentCard(
             name=agent_name,
-            protocol_version=component.A2A_PROTOCOL_VERSION,
             version=component.HOST_COMPONENT_VERSION,
             url=dynamic_url,
             capabilities=capabilities,
