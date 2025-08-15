@@ -1,8 +1,8 @@
 # Phase 1 Implementation Checklist: Test Infrastructure
 
 ## Section A: Update Memory Monitor
-- [ ] 1. Update imports in `memory_monitor.py` to use `a2a.types`.
-- [ ] 2. Update `classes_to_track` in `memory_monitor.py` to reference new `a2a.types` models.
+- [x] 1. Update imports in `memory_monitor.py` to use `a2a.types`.
+- [x] 2. Update `classes_to_track` in `memory_monitor.py` to reference new `a2a.types` models.
 
 ## Section B: Refactor `TestGatewayComponent`
 - [ ] 3. Migrate all A2A type hints and imports in `gateway_interface/component.py` to `a2a.types`.
