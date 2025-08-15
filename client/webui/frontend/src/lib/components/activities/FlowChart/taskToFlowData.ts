@@ -28,11 +28,14 @@ import {
     createAgentRegistry,
     getAgentHandle,
     isOrchestratorAgent,
+    handleParallelJoin,
+    handleSequentialPeerReturn,
+    createErrorEdge,
 } from "./taskToFlowData.helpers";
 import { EdgeAnimationService } from "./edgeAnimationService";
 
 // Relevant step types that should be processed in the flow chart
-const RELEVANT_STEP_TYPES = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED"];
+const RELEVANT_STEP_TYPES = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED", "PEER_TASK_TIMEOUT"];
 
 interface FlowData {
     nodes: Node[];
@@ -155,6 +158,11 @@ function handleUserRequest(step: VisualizerStep, manager: TimelineLayoutManager,
 }
 
 function handleLLMCall(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
+    if (isEventFromTimedOutTask(step, manager)) {
+        console.log(`[Timeline] Skipping LLM call from timed out task: ${step.owningTaskId}`);
+        return;
+    }
+
     const currentPhase = getCurrentPhase(manager);
     if (!currentPhase) return;
 
@@ -180,6 +188,11 @@ function handleLLMCall(step: VisualizerStep, manager: TimelineLayoutManager, nod
 }
 
 function handleLLMResponseToAgent(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
+    if (isEventFromTimedOutTask(step, manager)) {
+        console.log(`[Timeline] Skipping LLM response from timed out task: ${step.owningTaskId}`);
+        return;
+    }
+
     // If this is a parallel tool decision, set up the parallel flow context
     if (step.type === "AGENT_LLM_RESPONSE_TOOL_DECISION" && step.data.toolDecision?.isParallel) {
         const parallelFlowId = `parallel-${step.id}`;
@@ -245,6 +258,11 @@ function handleLLMResponseToAgent(step: VisualizerStep, manager: TimelineLayoutM
 }
 
 function handleToolInvocationStart(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
+    if (isEventFromTimedOutTask(step, manager)) {
+        console.log(`[Timeline] Skipping tool invocation from timed out task: ${step.owningTaskId}`);
+        return;
+    }
+
     const currentPhase = getCurrentPhase(manager);
     if (!currentPhase) return;
 
@@ -302,6 +320,11 @@ function handleToolInvocationStart(step: VisualizerStep, manager: TimelineLayout
 }
 
 function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
+    if (isEventFromTimedOutTask(step, manager)) {
+        console.log(`[Timeline] Skipping tool execution result from timed out task: ${step.owningTaskId}`);
+        return;
+    }
+
     const currentPhase = getCurrentPhase(manager);
     if (!currentPhase) return;
 
@@ -311,92 +334,15 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
     if (step.data.toolResult?.isPeerResponse) {
         const returningFunctionCallId = step.data.toolResult?.functionCallId;
 
-        // 1. FIRST, check if this return belongs to any active parallel flow.
-        const parallelFlowEntry = Array.from(manager.parallelFlows.entries()).find(
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            ([_id, pf]) => pf.subflowFunctionCallIds.includes(returningFunctionCallId || "")
-        );
-
-        if (parallelFlowEntry) {
-            // It's a parallel return. Handle the special join logic.
-            const [parallelFlowId, parallelFlow] = parallelFlowEntry;
-
-            parallelFlow.completedSubflows.add(returningFunctionCallId || "");
-
-            if (parallelFlow.completedSubflows.size < parallelFlow.subflowFunctionCallIds.length) {
-                // Not all parallel tasks are done yet. Just record completion and wait.
-                return;
-            }
-
-            // 2. ALL parallel tasks are done. Create a SINGLE "join" node.
-            const sourceSubflows = currentPhase.subflows.filter(sf => parallelFlow.subflowFunctionCallIds.includes(sf.functionCallId));
-
-            const joinTargetAgentName = step.target || "OrchestratorAgent";
-            let joinNode: NodeInstance;
-            let joinNodeHandle: string;
-
-            if (isOrchestratorAgent(joinTargetAgentName)) {
-                // The parallel tasks are returning to the main orchestrator.
-                manager.indentationLevel = 0;
-                const newOrchestratorPhase = createNewMainPhase(manager, joinTargetAgentName, step, nodes);
-                joinNode = newOrchestratorPhase.orchestratorAgent;
-                joinNodeHandle = "orch-top-input";
-                manager.currentSubflowIndex = -1; // Return to main flow context
-            } else {
-                // The parallel tasks are returning to a PEER agent (nested parallel).
-                // Create ONE new instance of that peer agent for them to join to.
-                manager.indentationLevel = Math.max(0, manager.indentationLevel - 1);
-                const newSubflowForJoin = startNewSubflow(manager, joinTargetAgentName, step, nodes, false);
-                if (!newSubflowForJoin) return;
-                joinNode = newSubflowForJoin.peerAgent;
-                joinNodeHandle = "peer-top-input";
-            }
-
-            // 3. Connect ALL completed parallel agents to this single join node.
-            sourceSubflows.forEach(subflow => {
-                createTimelineEdge(
-                    subflow.lastSubflow?.peerAgent.id ?? subflow.peerAgent.id,
-                    joinNode.id,
-                    step, // Use the final step as the representative event for the join
-                    edges,
-                    manager,
-                    edgeAnimationService,
-                    processedSteps,
-                    "peer-bottom-output",
-                    joinNodeHandle
-                );
-            });
-
-            // 4. Clean up the completed parallel flow to prevent reuse.
-            manager.parallelFlows.delete(parallelFlowId);
-
-            return; // Exit after handling the parallel join.
+        // Use the shared helper to handle parallel join logic.
+        const wasHandledAsParallel = handleParallelJoin(returningFunctionCallId, step, manager, nodes, edges, edgeAnimationService, processedSteps);
+        if (wasHandledAsParallel) {
+            return; // The helper took care of it.
         }
 
         // If we reach here, it's a NON-PARALLEL (sequential) peer return.
-        const sourceAgent = manager.agentRegistry.findAgentByName(stepSource.startsWith("peer_") ? stepSource.substring(5) : stepSource);
-        if (!sourceAgent) {
-            console.error(`[Timeline] Source peer agent not found for peer response: ${stepSource}.`);
-            return;
-        }
-
-        if (isOrchestratorAgent(targetAgentName)) {
-            manager.indentationLevel = 0;
-            const newOrchestratorPhase = createNewMainPhase(manager, targetAgentName, step, nodes);
-            createTimelineEdge(sourceAgent.id, newOrchestratorPhase.orchestratorAgent.id, step, edges, manager, edgeAnimationService, processedSteps, "peer-bottom-output", "orch-top-input");
-            manager.currentSubflowIndex = -1;
-        } else {
-            // Peer-to-peer sequential return.
-            manager.indentationLevel = Math.max(0, manager.indentationLevel - 1);
-
-            // Check if we need to consider parallel flow context for this return
-            const isWithinParallelContext = isParallelFlow(step, manager) || Array.from(manager.parallelFlows.values()).some(pf => pf.subflowFunctionCallIds.some(id => currentPhase.subflows.some(sf => sf.functionCallId === id)));
-
-            const newSubflow = startNewSubflow(manager, targetAgentName, step, nodes, isWithinParallelContext);
-            if (newSubflow) {
-                createTimelineEdge(sourceAgent.id, newSubflow.peerAgent.id, step, edges, manager, edgeAnimationService, processedSteps, "peer-bottom-output", "peer-top-input");
-            }
-        }
+        const sourceAgentName = stepSource.startsWith("peer_") ? stepSource.substring(5) : stepSource;
+        handleSequentialPeerReturn(sourceAgentName, targetAgentName, step, manager, nodes, edges, edgeAnimationService, processedSteps, false);
     } else {
         // Regular tool (non-peer) returning result
         let toolNodeId: string | undefined;
@@ -434,6 +380,11 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
 }
 
 function handleAgentResponseText(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
+    if (isEventFromTimedOutTask(step, manager)) {
+        console.log(`[Timeline] Skipping agent response from timed out task: ${step.owningTaskId}`);
+        return;
+    }
+
     const currentPhase = getCurrentPhase(manager);
     // When step.isSubTaskStep is true, it indicates this is a response from Agent to Orchestrator (as a user)
     if (!currentPhase || step.isSubTaskStep) return;
@@ -457,6 +408,11 @@ function handleAgentResponseText(step: VisualizerStep, manager: TimelineLayoutMa
 }
 
 function handleTaskCompleted(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
+    if (isEventFromTimedOutTask(step, manager)) {
+        console.log(`[Timeline] Skipping task completion from timed out task: ${step.owningTaskId}`);
+        return;
+    }
+
     const currentPhase = getCurrentPhase(manager);
     if (!currentPhase) return;
 
@@ -524,6 +480,11 @@ function handleTaskCompleted(step: VisualizerStep, manager: TimelineLayoutManage
 }
 
 function handleTaskFailed(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[]): void {
+    if (isEventFromTimedOutTask(step, manager)) {
+        console.log(`[Timeline] Skipping task failure from timed out task: ${step.owningTaskId}`);
+        return;
+    }
+
     const currentPhase = getCurrentPhase(manager);
     if (!currentPhase) return;
 
@@ -585,54 +546,94 @@ function handleTaskFailed(step: VisualizerStep, manager: TimelineLayoutManager, 
     createErrorEdge(sourceAgentNode.id, targetNodeId, step, edges, manager, sourceHandle, targetHandleId);
 }
 
-// Helper function to create error edges with error state data
-function createErrorEdge(sourceNodeId: string, targetNodeId: string, step: VisualizerStep, edges: Edge[], manager: TimelineLayoutManager, sourceHandleId?: string, targetHandleId?: string): void {
-    if (!sourceNodeId || !targetNodeId || sourceNodeId === targetNodeId) {
+function handlePeerTaskTimeout(
+    step: VisualizerStep,
+    manager: TimelineLayoutManager,
+    nodes: Node[],
+    edges: Edge[],
+    edgeAnimationService: EdgeAnimationService,
+    processedSteps: VisualizerStep[]
+): void {
+    const currentPhase = getCurrentPhase(manager);
+    if (!currentPhase) return;
+
+    const timeoutData = step.data;
+    const functionCallId = timeoutData.functionCallId;
+    const subTaskId = timeoutData.subTaskId;
+    const parentAgentName = timeoutData.parentAgentName;
+    const peerAgentName = timeoutData.peerAgentName;
+
+    // Validate required timeout data
+    if (!functionCallId) {
+        console.error(`[Timeline] Missing functionCallId in timeout data for step: ${step.id}`);
+        return;
+    }
+    if (!parentAgentName) {
+        console.error(`[Timeline] Missing parentAgentName in timeout data for step: ${step.id}`);
+        return;
+    }
+    if (!peerAgentName) {
+        console.error(`[Timeline] Missing peerAgentName in timeout data for step: ${step.id}`);
         return;
     }
 
-    // Validate that source and target nodes exist
-    const sourceExists = manager.allCreatedNodeIds.has(sourceNodeId);
-    const targetExists = manager.allCreatedNodeIds.has(targetNodeId);
+    // Mark both the function call and subtask as timed out
+    manager.timedOutFunctionCallIds.add(functionCallId);
+    if (subTaskId) {
+        manager.timedOutSubTaskIds.add(subTaskId);
+    }
 
-    if (!sourceExists || !targetExists) {
+    // Use the shared helper to handle parallel join logic.
+    const wasHandledAsParallel = handleParallelJoin(functionCallId, step, manager, nodes, edges, edgeAnimationService, processedSteps);
+    if (wasHandledAsParallel) {
+        return; // The helper took care of it.
+    }
+
+    // --- SEQUENTIAL FLOW HANDLING ---
+    // If we reach here, it's a non-parallel (sequential) timeout.
+
+    // The agent that timed out. The edge should originate from here.
+    const timedOutAgent = manager.agentRegistry.findAgentByName(peerAgentName);
+
+    // The parent agent that was waiting. Execution continues from here.
+    const parentAgent = manager.agentRegistry.findAgentByName(parentAgentName);
+    if (!parentAgent) {
+        console.error(`[Timeline] Parent agent for timeout not found: ${parentAgentName}`);
         return;
     }
 
-    const edgeId = `error-edge-${sourceNodeId}${sourceHandleId || ""}-to-${targetNodeId}${targetHandleId || ""}-${step.id}`;
-
-    const edgeExists = edges.some(e => e.id === edgeId);
-
-    if (!edgeExists) {
-        const errorMessage = step.data.errorDetails?.message || "Task failed";
-        const label = errorMessage.length > 30 ? "Error" : errorMessage;
-
-        const newEdge: Edge = {
-            id: edgeId,
-            source: sourceNodeId,
-            target: targetNodeId,
-            label: label,
-            type: "defaultFlowEdge",
-            data: {
-                visualizerStepId: step.id,
-                isAnimated: false,
-                animationType: "static",
-                isError: true,
-                errorMessage: errorMessage,
-            } as unknown as Record<string, unknown>,
-        };
-
-        // Only add handles if they are provided and valid
-        if (sourceHandleId) {
-            newEdge.sourceHandle = sourceHandleId;
-        }
-        if (targetHandleId) {
-            newEdge.targetHandle = targetHandleId;
-        }
-
-        edges.push(newEdge);
+    if (!timedOutAgent) {
+        console.error(`[Timeline] Timed out agent not found: ${peerAgentName}`);
+        return;
     }
+
+    // Continue the flow from the parent agent using the consolidated helper
+    handleSequentialPeerReturn(peerAgentName, parentAgentName, step, manager, nodes, edges, edgeAnimationService, processedSteps, true);
 }
+
+// Universal filter function to check if an event is from a timed-out task
+function isEventFromTimedOutTask(step: VisualizerStep, manager: TimelineLayoutManager): boolean {
+    // Check if this event is from a timed-out subtask
+    if (step.owningTaskId && manager.timedOutSubTaskIds.has(step.owningTaskId)) {
+        return true;
+    }
+
+    // Check if this event is from a timed-out function call
+    if (step.functionCallId && manager.timedOutFunctionCallIds.has(step.functionCallId)) {
+        return true;
+    }
+
+    // Check specific event types for timeout markers
+    const functionCallId = step.data.toolResult?.functionCallId || 
+                          step.data.toolInvocationStart?.functionCallId;
+    
+    if (functionCallId && manager.timedOutFunctionCallIds.has(functionCallId)) {
+        return true;
+    }
+
+    return false;
+}
+
 
 // Main transformation function
 export const transformProcessedStepsToTimelineFlow = (processedSteps: VisualizerStep[]): FlowData => {
@@ -660,6 +661,8 @@ export const transformProcessedStepsToTimelineFlow = (processedSteps: Visualizer
         agentRegistry: createAgentRegistry(),
         indentationLevel: 0,
         indentationStep: 50, // Pixels to indent per level
+        timedOutFunctionCallIds: new Set(),
+        timedOutSubTaskIds: new Set(),
     };
 
     const filteredSteps = processedSteps.filter(step => RELEVANT_STEP_TYPES.includes(step.type));
@@ -705,6 +708,9 @@ export const transformProcessedStepsToTimelineFlow = (processedSteps: Visualizer
                 break;
             case "TASK_FAILED":
                 handleTaskFailed(step, manager, newNodes, newEdges);
+                break;
+            case "PEER_TASK_TIMEOUT":
+                handlePeerTaskTimeout(step, manager, newNodes, newEdges, edgeAnimationService, processedSteps);
                 break;
         }
     }
