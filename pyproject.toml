@@ -71,11 +71,6 @@ cli = [
     "rich>=13.0",
 ]
 
-
-[tool.hatch.envs.hatch-test]
-parallel = false
-installer = "pip"
-dependencies = [
 [tool.hatch.envs.default]
 installer = "pip"
 dependencies = [
@@ -87,6 +82,11 @@ extra-dependencies = [
     "solace-agent-mesh[database,cli,gcs,vertex,employee_tools]",
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
 ]
+
+[tool.hatch.envs.hatch-test]
+parallel = false
+installer = "pip"
+dependencies = [
     "pytest_asyncio",
     "pytest>=8.0.0",
     "pytest-mock>=3.0.0",
@@ -98,12 +98,6 @@ extra-dependencies = [
     "solace-agent-mesh[database,cli,gcs,vertex,employee_tools]",
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
 ]
-
-[tool.hatch.envs.hatch-test.scripts]
-run = "pytest -m \"$(python3 ./tests/test_selector.py)\" {args}"
-run-cov = "coverage run -m pytest -m \"$(python3 ./tests/test_selector.py)\" {args}"
-cov-combine = "coverage combine"
-cov-report = "coverage report"
 
 [[tool.hatch.envs.hatch-test.matrix]]
 python = ["3.10", "3.13"]
