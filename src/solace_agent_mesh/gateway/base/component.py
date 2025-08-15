@@ -24,7 +24,7 @@ from ...common.services.identity_service import (
     create_identity_service,
 )
 from .task_context import TaskContextManager
-from ...common.types import (
+from a2a.types import (
     Part as A2APart,
     Message as A2AMessage,
     AgentCard,
@@ -39,6 +39,9 @@ from ...common.types import (
     FilePart,
     DataPart,
     Artifact as A2AArtifact,
+    SendMessageRequest,
+    SendStreamingMessageRequest,
+    MessageSendParams,
 )
 from ...common.a2a_protocol import (
     get_gateway_response_topic,
@@ -46,6 +49,7 @@ from ...common.a2a_protocol import (
     get_gateway_status_topic,
     get_gateway_status_subscription_topic,
     get_discovery_topic,
+    get_agent_request_topic,
     _topic_matches_subscription,
     _subscription_to_regex,
 )
@@ -353,61 +357,34 @@ class BaseGatewayComponent(ComponentBase):
                 len(invoked_artifacts),
             )
 
-        a2a_message = A2AMessage(role="user", parts=a2a_parts, metadata=a2a_metadata)
-        reply_topic_pattern = get_gateway_response_topic(
-            self.namespace, self.gateway_id, "{task_id}"
-        )
-        status_topic_pattern = get_gateway_status_topic(
-            self.namespace, self.gateway_id, "{task_id}"
+        # This correlation ID is used by the gateway to track the task
+        task_id = f"gdk-task-{uuid.uuid4().hex}"
+
+        a2a_message = A2AMessage(
+            role="user",
+            parts=a2a_parts,
+            metadata=a2a_metadata,
+            messageId=uuid.uuid4().hex,
+            contextId=a2a_session_id,
+            kind="message",
         )
 
-        task_metadata_override: Dict[str, Any] = {}
-        system_purpose = self.get_config("system_purpose", "")
-        response_format = self.get_config("response_format", "")
-
-        if system_purpose:
-            task_metadata_override["system_purpose"] = system_purpose
-            log.debug("%s Adding system_purpose to task metadata.", log_id_prefix)
-        if response_format:
-            task_metadata_override["response_format"] = response_format
-            log.debug("%s Adding response_format to task metadata.", log_id_prefix)
+        send_params = MessageSendParams(message=a2a_message)
 
         if is_streaming:
-            target_topic, payload, user_properties = (
-                self.core_a2a_service.submit_streaming_task(
-                    agent_name=target_agent_name,
-                    a2a_message=a2a_message,
-                    session_id=a2a_session_id,
-                    client_id=self.gateway_id,
-                    reply_to_topic=reply_topic_pattern,
-                    status_to_topic=status_topic_pattern,
-                    user_id=user_id_for_a2a,
-                    a2a_user_config=user_config,
-                    metadata_override=task_metadata_override,
-                )
-            )
+            a2a_request = SendStreamingMessageRequest(id=task_id, params=send_params)
         else:
-            target_topic, payload, user_properties = self.core_a2a_service.submit_task(
-                agent_name=target_agent_name,
-                a2a_message=a2a_message,
-                session_id=a2a_session_id,
-                client_id=self.gateway_id,
-                reply_to_topic=reply_topic_pattern,
-                user_id=user_id_for_a2a,
-                a2a_user_config=user_config,
-                metadata_override=task_metadata_override,
-            )
+            a2a_request = SendMessageRequest(id=task_id, params=send_params)
 
-        task_id = payload.get("params", {}).get("id")
-        if not task_id:
-            log.error(
-                "%s CoreA2AService did not return a task ID in the payload.",
-                log_id_prefix,
-            )
-            raise ValueError("CoreA2AService did not return a task ID in the payload.")
+        payload = a2a_request.model_dump(by_alias=True, exclude_none=True)
+        target_topic = get_agent_request_topic(self.namespace, target_agent_name)
 
-        if user_properties is None:
-            user_properties = {}
+        user_properties = {
+            "clientId": self.gateway_id,
+            "userId": user_id_for_a2a,
+        }
+        if user_config:
+            user_properties["a2aUserConfig"] = user_config
 
         user_properties["replyTo"] = get_gateway_response_topic(
             self.namespace, self.gateway_id, task_id
@@ -722,15 +699,17 @@ class BaseGatewayComponent(ComponentBase):
             return None
 
         try:
-            if "status" in rpc_result and "final" in rpc_result:
+            # The `kind` field is the new discriminator for A2A event types
+            kind = rpc_result.get("kind")
+            if kind == "status-update":
                 return TaskStatusUpdateEvent(**rpc_result)
-            elif "artifact" in rpc_result:
+            elif kind == "artifact-update":
                 return TaskArtifactUpdateEvent(**rpc_result)
-            elif "status" in rpc_result and "sessionId" in rpc_result:
+            elif kind == "task":
                 return Task(**rpc_result)
             else:
                 log.warning(
-                    "%s Unknown result structure in RPC response for task %s: %s",
+                    "%s Unknown or missing 'kind' in RPC result for task %s: %s",
                     self.log_identifier,
                     actual_task_id or "unknown",
                     rpc_result,
