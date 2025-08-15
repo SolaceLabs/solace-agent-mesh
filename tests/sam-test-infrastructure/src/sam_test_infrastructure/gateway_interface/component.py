@@ -202,7 +202,7 @@ class TestGatewayComponent(BaseGatewayComponent):
         event_data: Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent],
         is_final_chunk_of_update: bool,
     ):
-        task_id = event_data.id
+        task_id = event_data.task_id
         log.debug(
             "%s Capturing A2A update for task %s: %s",
             self.log_identifier,

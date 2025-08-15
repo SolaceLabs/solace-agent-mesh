@@ -11,8 +11,8 @@
 - [x] 6. Implement the new `_parse_a2a_event_from_rpc_result` helper method to parse the `result` field using the `kind` discriminator.
 - [x] 7. Update `_handle_agent_event` to use the new `_parse_a2a_event_from_rpc_result` helper.
 - [x] 8. Update `_process_parsed_a2a_event` method signature and `isinstance` checks to use new `a2a.types` models.
-- [ ] 9. Update type hints for `_captured_outputs` queue and its accessor methods.
-- [ ] 10. Refactor `_resolve_uri_in_payload` and `_resolve_embeds_and_handle_signals` to traverse the new `a2a.types` object structures.
+- [x] 9. Update type hints for `_captured_outputs` queue and its accessor methods.
+- [x] 10. Refactor `_resolve_uri_in_payload` and `_resolve_embeds_and_handle_signals` to traverse the new `a2a.types` object structures.
 
 ## Section C: Validation and Finalization
 - [ ] 11. Review and update the `method`-to-schema mapping in `A2AMessageValidator`.
