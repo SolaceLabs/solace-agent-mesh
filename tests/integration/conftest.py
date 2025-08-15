@@ -801,3 +801,13 @@ def mock_task_callback_response() -> dict[str, Any]:
             "token": "test-token",
         },
     }
+
+
+def test_a2a_sdk_import():
+    """Verifies that the a2a-sdk can be imported."""
+    try:
+        from a2a.types import Task
+
+        assert Task is not None
+    except ImportError as e:
+        pytest.fail(f"Failed to import from a2a-sdk: {e}")

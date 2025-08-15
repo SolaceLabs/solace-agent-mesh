@@ -4,9 +4,9 @@ This document tracks the completion of tasks for Phase 0: Preparation & Tooling.
 
 ## Task 1: Integrate `a2a-sdk` Dependency
 
-- [ ] **Add `a2a-sdk` to `pyproject.toml`:** Add `"a2a-sdk"` to the `[project.dependencies]` section.
-- [ ] **Update Environment:** Run the appropriate command (e.g., `hatch env create`) to install the new dependency.
-- [ ] **Verify Installation:** Temporarily add `from a2a.types import Task` to a test file and run the test suite to confirm no import or dependency conflicts arise.
+- [x] **Add `a2a-sdk` to `pyproject.toml`:** Add `"a2a-sdk"` to the `[project.dependencies]` section.
+- [x] **Update Environment:** Run the appropriate command (e.g., `hatch env create`) to install the new dependency.
+- [x] **Verify Installation:** Temporarily add `from a2a.types import Task` to a test file and run the test suite to confirm no import or dependency conflicts arise.
 
 ## Task 2: Implement Automated Schema Synchronization
 
