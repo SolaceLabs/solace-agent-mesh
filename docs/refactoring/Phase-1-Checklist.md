@@ -14,7 +14,7 @@ This checklist tracks the development tasks for Phase 1.
 
 ### Section B: Refactor Agent Request Handling (`event_handlers.py`)
 
-- [ ] 8. Replace legacy `...common.types` imports with `a2a.types`.
+- [x] 8. Replace legacy `...common.types` imports with `a2a.types`.
 - [ ] 9. In `handle_a2a_request`, replace `A2ARequest.validate_python` with `A2ARequest.model_validate`.
 - [ ] 10. In `handle_a2a_request`, update `isinstance` checks to use `a2a_request.root`.
 - [ ] 11. In `handle_a2a_request`, implement server-side `taskId` generation for new tasks.

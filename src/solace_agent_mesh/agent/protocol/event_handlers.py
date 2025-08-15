@@ -5,35 +5,36 @@ Contains event handling logic for the A2A_ADK_HostComponent.
 import json
 import yaml
 import asyncio
+import uuid
 from typing import Union, TYPE_CHECKING, List, Dict, Any
 import fnmatch
 from solace_ai_connector.common.log import log
 from solace_ai_connector.common.message import Message as SolaceMessage
 from solace_ai_connector.common.event import Event, EventType
-from ...common.types import (
-    Message as A2AMessage,
-    SendTaskRequest,
-    SendTaskStreamingRequest,
-    CancelTaskRequest,
-    GetTaskRequest,
-    SetTaskPushNotificationRequest,
-    GetTaskPushNotificationRequest,
-    TaskResubscriptionRequest,
-    TaskIdParams,
-    JSONParseError,
-    InvalidRequestError,
-    InternalError,
-    JSONRPCResponse,
+from a2a.types import (
+    A2ARequest,
     AgentCard,
     AgentCapabilities,
-    Task,
-    TaskStatusUpdateEvent,
-    TaskArtifactUpdateEvent,
-    TaskStatus,
-    TaskState,
+    CancelTaskRequest,
     DataPart,
+    GetTaskPushNotificationConfigRequest,
+    GetTaskRequest,
+    InternalError,
+    InvalidRequestError,
+    JSONParseError,
+    JSONRPCResponse,
+    Message as A2AMessage,
+    SendMessageRequest,
+    SendStreamingMessageRequest,
+    SetTaskPushNotificationConfigRequest,
+    Task,
+    TaskArtifactUpdateEvent,
+    TaskIdParams,
+    TaskResubscriptionRequest,
+    TaskState,
+    TaskStatus,
+    TaskStatusUpdateEvent,
     TextPart,
-    A2ARequest,
 )
 from ...common.a2a_protocol import (
     get_agent_request_topic,
