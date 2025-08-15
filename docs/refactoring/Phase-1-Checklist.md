@@ -31,8 +31,8 @@ This checklist tracks the development tasks for Phase 1.
 
 ### Section D: Refactor Peer Agent Delegation
 
-- [ ] 19. In `peer_agent_tool.py`, modify `run_async` to generate a unique `messageId` for each peer request.
-- [ ] 20. In `peer_agent_tool.py`, modify `run_async` to propagate the `contextId` from the parent task to the peer request.
+- [x] 19. In `peer_agent_tool.py`, modify `run_async` to generate a unique `messageId` for each peer request.
+- [x] 20. In `peer_agent_tool.py`, modify `run_async` to propagate the `contextId` from the parent task to the peer request.
 - [ ] 21. In `SamAgentComponent.submit_a2a_task`, modify the method signature and logic to accept and process a modern `a2a.types.SendMessageRequest`.
 - [ ] 22. In `event_handlers.handle_a2a_response`, update the correlation logic to handle the server-generated `taskId` from peer agents.
 

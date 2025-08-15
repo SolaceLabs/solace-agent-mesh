@@ -10,10 +10,9 @@ from google.genai import types as adk_types
 from pydantic import BaseModel, Field
 from solace_ai_connector.common.log import log
 
-from ...common.types import (
+from a2a.types import (
     Message as A2AMessage,
     TextPart,
-    FilePart,
     AgentCard,
 )
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
@@ -232,7 +231,12 @@ class PeerAgentTool(BaseTool):
                     )
 
             a2a_message = A2AMessage(
-                role="user", parts=a2a_message_parts, metadata=a2a_metadata
+                role="user",
+                parts=a2a_message_parts,
+                metadata=a2a_metadata,
+                messageId=uuid.uuid4().hex,
+                contextId=original_task_context.get("contextId"),
+                kind="message",
             )
 
             correlation_data = {
