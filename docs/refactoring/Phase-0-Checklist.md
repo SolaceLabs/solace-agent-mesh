@@ -21,14 +21,14 @@ This document tracks the completion of tasks for Phase 0: Preparation & Tooling.
 
 ## Task 3: Refactor `A2AMessageValidator`
 
-- [ ] **Add `jsonschema` Dependency:** Add `jsonschema` to the test dependencies in `pyproject.toml`.
-- [ ] **Update Validator Logic:**
-    - [ ] Modify `A2AMessageValidator.__init__` to load the schema from `src/solace_agent_mesh/common/a2a_spec/a2a.json`.
-    - [ ] Replace Pydantic validation with `jsonschema.validate()`.
-    - [ ] Implement logic to handle discriminated unions by inspecting the `method` field of requests to select the correct sub-schema for validation.
-- [ ] **Rewrite Validator Tests:**
-    - [ ] Create new valid and invalid mock payloads that conform to the official `a2a.json` specification.
-    - [ ] Update the unit tests for `A2AMessageValidator` to use these new payloads and assert correct behavior.
+- [x] **Add `jsonschema` Dependency:** Add `jsonschema` to the test dependencies in `pyproject.toml`.
+- [x] **Update Validator Logic:**
+    - [x] Modify `A2AMessageValidator.__init__` to load the schema from `src/solace_agent_mesh/common/a2a_spec/a2a.json`.
+    - [x] Replace Pydantic validation with `jsonschema.validate()`.
+    - [x] Implement logic to handle discriminated unions by inspecting the `method` field of requests to select the correct sub-schema for validation.
+- [x] **Rewrite Validator Tests:**
+    - [x] Create new valid and invalid mock payloads that conform to the official `a2a.json` specification.
+    - [x] Update the unit tests for `A2AMessageValidator` to use these new payloads and assert correct behavior.
 
 ## Task 4: Create Type Migration Mapping Document
 
