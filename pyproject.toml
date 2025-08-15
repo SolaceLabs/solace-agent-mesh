@@ -153,6 +153,8 @@ markers = [
 
     # Features
     # Markers for specific features.
+    "callbacks: marks tests related to agent callbacks",
+    "datapart: marks tests related to A2A DataPart objects",
     "delegation: marks tests related to agent delegation",
     "embeds: marks tests related to the embeds",
     "mcp: marks tests related to mcp",
