@@ -1403,29 +1403,43 @@ def publish_agent_card(component):
         agent_request_topic = get_agent_request_topic(namespace, agent_name)
         dynamic_url = f"solace:{agent_request_topic}"
 
+        # Define a unique URI for our custom peer topology extension.
+        PEER_TOPOLOGY_EXTENSION_URI = "https://solace.com/a2a/extensions/peer-agent-topology"
+
+        # Create the extension object with the list of peer agent names.
+        peer_topology_extension = None
+        if peer_agents:
+            peer_topology_extension = AgentExtension(
+                uri=PEER_TOPOLOGY_EXTENSION_URI,
+                description="A list of peer agents this agent is configured to communicate with.",
+                params={"peer_agent_names": list(peer_agents.keys())},
+            )
+
+        # Build the capabilities object, including our custom extension.
+        extensions_list = [peer_topology_extension] if peer_topology_extension else []
         capabilities = AgentCapabilities(
             streaming=supports_streaming,
-            pushNotifications=False,
-            stateTransitionHistory=False,
+            push_notifications=False,
+            state_transition_history=False,
+            extensions=extensions_list,
         )
 
         skills = card_config.get("skills", [])
-        dynamic_tools = getattr(component, "agent_card_tool_manifest", [])
+        # The 'tools' field is not part of the official AgentCard spec.
+        # dynamic_tools = getattr(component, "agent_card_tool_manifest", [])
 
         agent_card = AgentCard(
             name=agent_name,
-            display_name=display_name,
+            protocol_version=component.A2A_PROTOCOL_VERSION,
             version=component.HOST_COMPONENT_VERSION,
             url=dynamic_url,
             capabilities=capabilities,
             description=card_config.get("description", ""),
             skills=skills,
-            tools=dynamic_tools,
-            defaultInputModes=card_config.get("defaultInputModes", ["text"]),
-            defaultOutputModes=card_config.get("defaultOutputModes", ["text"]),
-            documentationUrl=card_config.get("documentationUrl"),
+            default_input_modes=card_config.get("defaultInputModes", ["text"]),
+            default_output_modes=card_config.get("defaultOutputModes", ["text"]),
+            documentation_url=card_config.get("documentationUrl"),
             provider=card_config.get("provider"),
-            peer_agents=peer_agents,
         )
 
         discovery_topic = get_discovery_topic(namespace)
