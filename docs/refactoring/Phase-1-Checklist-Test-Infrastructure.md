@@ -15,6 +15,6 @@
 - [x] 10. Refactor `_resolve_uri_in_payload` and `_resolve_embeds_and_handle_signals` to traverse the new `a2a.types` object structures.
 
 ## Section C: Validation and Finalization
-- [ ] 11. Review and update the `method`-to-schema mapping in `A2AMessageValidator`.
-- [ ] 12. Update mock payloads in `a2a_validator/test_validator.py` to be compliant with the `a2a.json` schema.
+- [x] 11. Review and update the `method`-to-schema mapping in `A2AMessageValidator`.
+- [x] 12. Update mock payloads in `a2a_validator/test_validator.py` to be compliant with the `a2a.json` schema.
 - [ ] 13. Run the full integration test suite and update any failing declarative or programmatic tests to align with the new A2A object structures.

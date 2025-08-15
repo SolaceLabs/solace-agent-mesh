@@ -19,6 +19,19 @@ SCHEMA_PATH = (
     Path.cwd() / "src" / "solace_agent_mesh" / "common" / "a2a_spec" / "a2a.json"
 )
 
+METHOD_TO_SCHEMA_MAP = {
+    "message/send": "SendMessageRequest",
+    "message/stream": "SendStreamingMessageRequest",
+    "tasks/get": "GetTaskRequest",
+    "tasks/cancel": "CancelTaskRequest",
+    "tasks/pushNotificationConfig/set": "SetTaskPushNotificationConfigRequest",
+    "tasks/pushNotificationConfig/get": "GetTaskPushNotificationConfigRequest",
+    "tasks/pushNotificationConfig/list": "ListTaskPushNotificationConfigRequest",
+    "tasks/pushNotificationConfig/delete": "DeleteTaskPushNotificationConfigRequest",
+    "tasks/resubscribe": "TaskResubscriptionRequest",
+    "agent/getAuthenticatedExtendedCard": "GetAuthenticatedExtendedCardRequest",
+}
+
 
 class A2AMessageValidator:
     """
@@ -197,14 +210,9 @@ class A2AMessageValidator:
 
         try:
             if is_request:
-                # For requests, we find the specific request definition
                 method = payload.get("method")
-                # Convert method name like 'tasks/get' to schema name 'GetTaskRequest'
-                schema_name = "".join(
-                    part.capitalize() for part in method.replace("/", " ").split(" ")
-                )
-                schema_name += "Request"
-                if schema_name in self.schema["definitions"]:
+                schema_name = METHOD_TO_SCHEMA_MAP.get(method)
+                if schema_name and schema_name in self.schema["definitions"]:
                     schema_to_use = self.schema["definitions"][schema_name]
                 else:
                     # Fallback to generic request if specific one not found
