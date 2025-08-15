@@ -12,7 +12,7 @@ from solace_ai_connector.common.log import log
 from google.genai import types as adk_types
 from google.adk.events import Event as ADKEvent
 
-from .types import (
+from a2a.types import (
     Message as A2AMessage,
     TextPart,
     FilePart,
@@ -193,7 +193,8 @@ def translate_a2a_to_adk_content(
 ) -> adk_types.Content:
     """Translates an A2A Message object to ADK Content."""
     adk_parts: List[adk_types.Part] = []
-    for part in a2a_message.parts:
+    for part_wrapper in a2a_message.parts:
+        part = part_wrapper.root
         try:
             if isinstance(part, TextPart):
                 adk_parts.append(adk_types.Part(text=part.text))
@@ -241,7 +242,8 @@ def _extract_text_from_parts(parts: List[A2APart]) -> str:
     Note: This function intentionally ignores DataPart types.
     """
     output_parts = []
-    for part in parts:
+    for part_wrapper in parts:
+        part = part_wrapper.root
         if isinstance(part, TextPart):
             output_parts.append(part.text)
         elif isinstance(part, DataPart):
@@ -436,11 +438,17 @@ def format_adk_event_as_a2a(
             "%s Prepared message metadata for tool_response_content.", log_identifier
         )
 
-    a2a_message = A2AMessage(role="agent", parts=a2a_parts, metadata=message_metadata)
+    a2a_message = A2AMessage(
+        role="agent",
+        parts=a2a_parts,
+        metadata=message_metadata,
+        messageId=uuid.uuid4().hex,
+        kind="message",
+    )
     task_status = TaskStatus(
-        state=TaskState.WORKING,
+        state=TaskState.working,
         message=a2a_message,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(timezone.utc).isoformat(),
     )
 
     is_final_update_for_this_event = is_final_adk_event

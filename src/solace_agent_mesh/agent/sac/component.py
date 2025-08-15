@@ -1298,7 +1298,7 @@ class SamAgentComponent(ComponentBase):
             task_status = TaskStatus(
                 state=TaskState.working,
                 message=a2a_message,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
             event_metadata = {"agent_name": self.agent_name}
             status_update_event = TaskStatusUpdateEvent(
@@ -1363,7 +1363,7 @@ class SamAgentComponent(ComponentBase):
             task_status = TaskStatus(
                 state=TaskState.working,
                 message=a2a_message,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
             event_metadata = {"agent_name": self.agent_name}
             status_update_event = TaskStatusUpdateEvent(
@@ -2252,10 +2252,11 @@ class SamAgentComponent(ComponentBase):
 
             final_task = Task(
                 id=logical_task_id,
-                sessionId=original_session_id,
+                contextId=original_session_id,
                 status=final_status,
                 artifacts=(final_a2a_artifacts if final_a2a_artifacts else None),
                 metadata=final_task_metadata,
+                kind="task",
             )
             final_response = JSONRPCResponse(id=jsonrpc_request_id, result=final_task)
             a2a_payload = final_response.model_dump(exclude_none=True)
@@ -2378,9 +2379,10 @@ class SamAgentComponent(ComponentBase):
             agent_name = self.get_config("agent_name")
             final_task = Task(
                 id=logical_task_id,
-                sessionId=a2a_context.get("session_id"),
+                contextId=a2a_context.get("contextId"),
                 status=canceled_status,
                 metadata={"agent_name": agent_name},
+                kind="task",
             )
             final_response = JSONRPCResponse(id=jsonrpc_request_id, result=final_task)
             a2a_payload = final_response.model_dump(exclude_none=True)
@@ -2461,7 +2463,7 @@ class SamAgentComponent(ComponentBase):
             intermediate_status = TaskStatus(
                 state=TaskState.working,
                 message=status_message,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
 
             status_update_event = TaskStatusUpdateEvent(
@@ -2680,9 +2682,10 @@ class SamAgentComponent(ComponentBase):
 
             final_task = Task(
                 id=logical_task_id,
-                sessionId=a2a_context.get("session_id"),
+                contextId=a2a_context.get("contextId"),
                 status=failed_status,
                 metadata={"agent_name": self.get_config("agent_name")},
+                kind="task",
             )
 
             final_response = JSONRPCResponse(id=jsonrpc_request_id, result=final_task)
