@@ -96,44 +96,84 @@ def modify_url_with_tag(url: str, tag: str) -> str:
     return modified_url
 
 
-def download_and_save_schema(url: str, path: Path):
-    """Downloads the schema from the URL and saves it to the specified path."""
-    print(f"Downloading schema from: {url}")
+def download_schema_with_fallback(base_url: str, version: str, save_path: Path):
+    """
+    Attempts to download the schema for the given version, falling back to
+    earlier patch versions if a tag is not found.
+    """
+    version_parts = version.split(".")
+    if len(version_parts) < 3:
+        print(
+            f"Error: Could not parse version string '{version}'. Expected at least 'X.Y.Z'.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     try:
-        with httpx.Client() as client:
-            response = client.get(url, follow_redirects=True)
-            if response.status_code == 404:
-                print(f"Error: Schema not found at {url} (HTTP 404).", file=sys.stderr)
-                print(
-                    "This likely means a Git tag for the installed SDK version does not exist in the A2A repository.",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-            response.raise_for_status()
-
-            path.parent.mkdir(parents=True, exist_ok=True)
-
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(response.text)
-            print(f"Successfully saved schema to: {path}")
-
-    except httpx.RequestError as e:
-        print(f"Error downloading schema: {e}", file=sys.stderr)
+        major, minor, patch = map(int, version_parts[:3])
+    except ValueError:
+        print(
+            f"Error: Could not parse major.minor.patch from version string '{version}'.",
+            file=sys.stderr,
+        )
         sys.exit(1)
-    except IOError as e:
-        print(f"Error saving schema file to {path}: {e}", file=sys.stderr)
-        sys.exit(1)
+
+    for p in range(patch, -1, -1):
+        current_version = f"{major}.{minor}.{p}"
+        current_tag = construct_git_tag(current_version)
+        print(f"Attempting to find schema for tag: {current_tag}")
+
+        versioned_url = modify_url_with_tag(base_url, current_tag)
+
+        try:
+            with httpx.Client() as client:
+                response = client.get(versioned_url, follow_redirects=True)
+                if response.status_code == 200:
+                    print(f"Success: Found schema at {versioned_url}")
+                    save_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(save_path, "w", encoding="utf-8") as f:
+                        f.write(response.text)
+                    print(f"Successfully saved schema to: {save_path}")
+                    return  # Success, exit the function
+                elif response.status_code == 404:
+                    if p > 0:
+                        print(
+                            f"Info: Schema not found for tag {current_tag} (HTTP 404). Trying next patch version..."
+                        )
+                    else:
+                        print(
+                            f"Info: Schema not found for tag {current_tag} (HTTP 404). This was the last attempt."
+                        )
+                    continue  # Try next patch version
+                else:
+                    # For other errors (500, 403, etc.), fail fast.
+                    print(
+                        f"Error: Received unexpected status code {response.status_code} from {versioned_url}",
+                        file=sys.stderr,
+                    )
+                    response.raise_for_status()
+        except httpx.RequestError as e:
+            print(f"Error downloading schema: {e}", file=sys.stderr)
+            sys.exit(1)
+        except IOError as e:
+            print(f"Error saving schema file to {save_path}: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    # If loop finishes without returning, no version was found
+    print(
+        f"Error: Could not find a valid schema for version {major}.{minor}.x (tried patches from {patch} down to 0).",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 
 def main():
     """Main script execution."""
     print("--- Starting A2A Schema Synchronization ---")
     sdk_version = get_sdk_version()
-    git_tag = construct_git_tag(sdk_version)
     types_py_path = find_sdk_types_file()
     base_url = parse_url_from_header(types_py_path)
-    versioned_url = modify_url_with_tag(base_url, git_tag)
-    download_and_save_schema(versioned_url, SCHEMA_PATH)
+    download_schema_with_fallback(base_url, sdk_version, SCHEMA_PATH)
     print("--- A2A Schema Synchronization Complete ---")
 
 
