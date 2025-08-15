@@ -7,6 +7,7 @@ import asyncio
 import functools
 import threading
 import concurrent.futures
+import uuid
 import fnmatch
 import base64
 from datetime import datetime, timezone
@@ -1286,9 +1287,14 @@ class SamAgentComponent(ComponentBase):
             return
 
         try:
-            a2a_message = A2AMessage(role="agent", parts=[TextPart(text=text_content)])
+            a2a_message = A2AMessage(
+                role="agent",
+                parts=[TextPart(text=text_content)],
+                messageId=uuid.uuid4().hex,
+                kind="message",
+            )
             task_status = TaskStatus(
-                state=TaskState.WORKING,
+                state=TaskState.working,
                 message=a2a_message,
                 timestamp=datetime.now(timezone.utc),
             )
@@ -1346,9 +1352,14 @@ class SamAgentComponent(ComponentBase):
                 },
                 metadata={"source_embed_type": "status_update"},
             )
-            a2a_message = A2AMessage(role="agent", parts=[signal_data_part])
+            a2a_message = A2AMessage(
+                role="agent",
+                parts=[signal_data_part],
+                messageId=uuid.uuid4().hex,
+                kind="message",
+            )
             task_status = TaskStatus(
-                state=TaskState.WORKING,
+                state=TaskState.working,
                 message=a2a_message,
                 timestamp=datetime.now(timezone.utc),
             )
@@ -2059,7 +2070,7 @@ class SamAgentComponent(ComponentBase):
             self.log_identifier,
             last_event.id,
         )
-        a2a_state = TaskState.COMPLETED
+        a2a_state = TaskState.completed
         a2a_parts = []
 
         if last_event.content and last_event.content.parts:
@@ -2091,13 +2102,18 @@ class SamAgentComponent(ComponentBase):
 
         elif last_event.actions:
             if last_event.actions.requested_auth_configs:
-                a2a_state = TaskState.INPUT_REQUIRED
+                a2a_state = TaskState.input_required
                 a2a_parts.append(TextPart(text="[Agent requires input/authentication]"))
 
         if not a2a_parts:
             a2a_parts.append(TextPart(text=""))
 
-        a2a_message = A2AMessage(role="agent", parts=a2a_parts)
+        a2a_message = A2AMessage(
+            role="agent",
+            parts=a2a_parts,
+            messageId=uuid.uuid4().hex,
+            kind="message",
+        )
         return TaskStatus(state=a2a_state, message=a2a_message)
 
     async def finalize_task_success(self, a2a_context: Dict):
@@ -2193,17 +2209,25 @@ class SamAgentComponent(ComponentBase):
                     final_a2a_parts.append(TextPart(text=""))
 
                 final_status = TaskStatus(
-                    state=TaskState.COMPLETED,
-                    message=A2AMessage(role="agent", parts=final_a2a_parts),
+                    state=TaskState.completed,
+                    message=A2AMessage(
+                        role="agent",
+                        parts=final_a2a_parts,
+                        messageId=uuid.uuid4().hex,
+                        kind="message",
+                    ),
                 )
             else:
                 if last_event:
                     final_status = self._format_final_task_status(last_event)
                 else:
                     final_status = TaskStatus(
-                        state=TaskState.COMPLETED,
+                        state=TaskState.completed,
                         message=A2AMessage(
-                            role="agent", parts=[TextPart(text="Task completed.")]
+                            role="agent",
+                            parts=[TextPart(text="Task completed.")],
+                            messageId=uuid.uuid4().hex,
+                            kind="message",
                         ),
                     )
 
@@ -2341,10 +2365,12 @@ class SamAgentComponent(ComponentBase):
             namespace = self.get_config("namespace")
 
             canceled_status = TaskStatus(
-                state=TaskState.CANCELED,
+                state=TaskState.canceled,
                 message=A2AMessage(
                     role="agent",
                     parts=[TextPart(text="Task cancelled by request.")],
+                    messageId=uuid.uuid4().hex,
+                    kind="message",
                 ),
             )
             agent_name = self.get_config("agent_name")
@@ -2424,9 +2450,14 @@ class SamAgentComponent(ComponentBase):
                 }
             )
 
-            status_message = A2AMessage(role="agent", parts=[tool_error_data_part])
+            status_message = A2AMessage(
+                role="agent",
+                parts=[tool_error_data_part],
+                messageId=uuid.uuid4().hex,
+                kind="message",
+            )
             intermediate_status = TaskStatus(
-                state=TaskState.WORKING,
+                state=TaskState.working,
                 message=status_message,
                 timestamp=datetime.now(timezone.utc),
             )
@@ -2632,7 +2663,7 @@ class SamAgentComponent(ComponentBase):
             namespace = self.get_config("namespace")
 
             failed_status = TaskStatus(
-                state=TaskState.FAILED,
+                state=TaskState.failed,
                 message=A2AMessage(
                     role="agent",
                     parts=[
@@ -2640,6 +2671,8 @@ class SamAgentComponent(ComponentBase):
                             text="An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
                         )
                     ],
+                    messageId=uuid.uuid4().hex,
+                    kind="message",
                 ),
             )
 
