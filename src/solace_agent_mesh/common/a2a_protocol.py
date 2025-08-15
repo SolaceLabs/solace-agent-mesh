@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import json
 import base64
 import re
+import uuid
 from datetime import datetime, timezone
 from solace_ai_connector.common.log import log
 from google.genai import types as adk_types
