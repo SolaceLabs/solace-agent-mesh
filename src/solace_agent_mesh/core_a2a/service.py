@@ -8,12 +8,12 @@ from typing import Dict, Optional, Any, List, Tuple
 
 from solace_ai_connector.common.log import log
 
-from ..common.types import (
-    SendTaskRequest,
-    SendTaskStreamingRequest,
+from a2a.types import (
+    SendMessageRequest,
+    SendStreamingMessageRequest,
     CancelTaskRequest,
     TaskIdParams,
-    TaskSendParams,
+    MessageSendParams,
     Message as A2AMessage,
     AgentCard,
 )
@@ -89,23 +89,16 @@ class CoreA2AService:
             raise ValueError("Missing required parameters for submit_task")
 
         try:
-            params = TaskSendParams(
-                id=task_id,
-                sessionId=session_id,
+            if not a2a_message.contextId:
+                a2a_message.contextId = session_id
+
+            send_params = MessageSendParams(
                 message=a2a_message,
-                acceptedOutputModes=["text", "data", "file"],
+                metadata=metadata_override,
             )
 
-            current_metadata = params.metadata or {}
-            if metadata_override:
-                current_metadata.update(metadata_override)
-                log.debug(
-                    "%s Merged metadata_override: %s", log_prefix, metadata_override
-                )
-            params.metadata = current_metadata if current_metadata else None
-
-            request = SendTaskRequest(params=params)
-            payload = request.model_dump(exclude_none=True)
+            request = SendMessageRequest(id=task_id, params=send_params)
+            payload = request.model_dump(by_alias=True, exclude_none=True)
 
             target_topic = get_agent_request_topic(self.namespace, agent_name)
 
@@ -189,24 +182,16 @@ class CoreA2AService:
             raise ValueError("Missing required parameters for submit_streaming_task")
 
         try:
+            if not a2a_message.contextId:
+                a2a_message.contextId = session_id
 
-            params = TaskSendParams(
-                id=task_id,
-                sessionId=session_id,
+            send_params = MessageSendParams(
                 message=a2a_message,
-                acceptedOutputModes=["text", "data", "file"],
+                metadata=metadata_override,
             )
 
-            current_metadata = params.metadata or {}
-            if metadata_override:
-                current_metadata.update(metadata_override)
-                log.debug(
-                    "%s Merged metadata_override: %s", log_prefix, metadata_override
-                )
-            params.metadata = current_metadata if current_metadata else None
-
-            request = SendTaskStreamingRequest(params=params)
-            payload = request.model_dump(exclude_none=True)
+            request = SendStreamingMessageRequest(id=task_id, params=send_params)
+            payload = request.model_dump(by_alias=True, exclude_none=True)
 
             target_topic = get_agent_request_topic(self.namespace, agent_name)
 
@@ -275,8 +260,8 @@ class CoreA2AService:
         try:
             params = TaskIdParams(id=task_id)
 
-            request = CancelTaskRequest(params=params)
-            payload = request.model_dump(exclude_none=True)
+            request = CancelTaskRequest(id=uuid.uuid4().hex, params=params)
+            payload = request.model_dump(by_alias=True, exclude_none=True)
 
             target_topic = get_agent_request_topic(self.namespace, agent_name)
 
