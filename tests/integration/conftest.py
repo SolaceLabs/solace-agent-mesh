@@ -14,7 +14,6 @@ from sam_test_infrastructure.llm_server.server import TestLLMServer
 from sam_test_infrastructure.artifact_service.service import (
     TestInMemoryArtifactService,
 )
-from sam_test_infrastructure.mcp_server.fixture import mcp_server_harness
 
 from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
 from solace_agent_mesh.common.client.card_resolver import A2ACardResolver
@@ -703,6 +702,7 @@ def a2a_message_validator(
     yield validator
     validator.deactivate()
 
+
 @pytest.fixture(scope="function")
 def mock_agent_skills() -> AgentSkill:
     return AgentSkill(
@@ -712,8 +712,9 @@ def mock_agent_skills() -> AgentSkill:
         tags=["tag1", "tag2"],
         examples=["Example 1", "Example 2"],
         inputModes=["text/plain"],
-        outputModes=["text/plain"]
+        outputModes=["text/plain"],
     )
+
 
 @pytest.fixture(scope="function")
 def mock_agent_card(mock_agent_skills: AgentSkill) -> AgentCard:
@@ -726,19 +727,22 @@ def mock_agent_card(mock_agent_skills: AgentSkill) -> AgentCard:
         capabilities={
             "streaming": True,
             "pushNotifications": False,
-            "stateTransitionHistory": True
+            "stateTransitionHistory": True,
         },
         skills=[mock_agent_skills],
         peer_agents={},
     )
 
+
 @pytest.fixture(scope="function")
 def mock_a2a_client(mock_agent_card: AgentCard) -> A2AClient:
     return A2AClient(agent_card=mock_agent_card)
 
+
 @pytest.fixture(scope="function")
 def mock_card_resolver() -> A2ACardResolver:
     return A2ACardResolver("http://test.com", agent_card_path="/test_path/agent.json")
+
 
 @pytest.fixture(scope="function")
 def mock_task_response() -> dict[str, Any]:
@@ -749,11 +753,12 @@ def mock_task_response() -> dict[str, Any]:
             "state": "completed",
             "message": {
                 "role": "agent",
-                "parts": [{"type": "text", "text": "Task completed successfully"}]
+                "parts": [{"type": "text", "text": "Task completed successfully"}],
             },
-            "timestamp": "2024-01-01T00:00:00Z"
-        }
+            "timestamp": "2024-01-01T00:00:00Z",
+        },
     }
+
 
 @pytest.fixture(scope="function")
 def mock_task_response_cancel() -> dict[str, Any]:
@@ -764,11 +769,12 @@ def mock_task_response_cancel() -> dict[str, Any]:
             "state": "canceled",
             "message": {
                 "role": "agent",
-                "parts": [{"type": "text", "text": "Task canceled successfully"}]
+                "parts": [{"type": "text", "text": "Task canceled successfully"}],
             },
-            "timestamp": "2023-01-01T00:00:00Z"
-        }
+            "timestamp": "2023-01-01T00:00:00Z",
+        },
     }
+
 
 @pytest.fixture(scope="function")
 def mock_sse_task_response() -> dict[str, Any]:
@@ -779,11 +785,12 @@ def mock_sse_task_response() -> dict[str, Any]:
             "state": "working",
             "message": {
                 "role": "agent",
-                "parts": [{"type": "text", "text": "Processing..."}]
+                "parts": [{"type": "text", "text": "Processing..."}],
             },
-            "timestamp": "2024-01-01T00:00:00Z"
-        }
+            "timestamp": "2024-01-01T00:00:00Z",
+        },
     }
+
 
 @pytest.fixture(scope="function")
 def mock_task_callback_response() -> dict[str, Any]:
@@ -791,6 +798,6 @@ def mock_task_callback_response() -> dict[str, Any]:
         "id": "task-123",
         "pushNotificationConfig": {
             "url": "http://test.com/notify",
-            "token": "test-token"
-        }
+            "token": "test-token",
+        },
     }
