@@ -1527,10 +1527,12 @@ def solace_llm_response_callback(
             timestamp=datetime.now(timezone.utc),
         )
         status_update_event = TaskStatusUpdateEvent(
-            id=logical_task_id,
+            task_id=logical_task_id,
+            context_id=a2a_context.get("contextId"),
             status=task_status,
             final=True,
             metadata={"agent_name": agent_name},
+            kind="status-update",
         )
         loop = host_component.get_async_loop()
         if loop and loop.is_running():

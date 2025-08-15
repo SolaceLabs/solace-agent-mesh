@@ -198,7 +198,7 @@ def translate_a2a_to_adk_content(
             if isinstance(part, TextPart):
                 adk_parts.append(adk_types.Part(text=part.text))
             elif isinstance(part, FilePart):
-                file_info = f"Received file: name='{part.file.name}', mimeType='{part.file.mimeType}'"
+                file_info = f"Received file: name='{part.file.name}', mimeType='{part.file.mime_type}'"
                 if part.file.uri:
                     file_info += f", uri='{part.file.uri}'"
                 elif part.file.bytes:
@@ -250,7 +250,7 @@ def _extract_text_from_parts(parts: List[A2APart]) -> str:
         elif isinstance(part, FilePart):
             file_info = "File: '%s' (%s)" % (
                 part.file.name or "unknown",
-                part.file.mimeType or "unknown",
+                part.file.mime_type or "unknown",
             )
             if part.file.uri:
                 file_info += " URI: %s" % part.file.uri
@@ -273,7 +273,7 @@ def _extract_text_from_parts(parts: List[A2APart]) -> str:
                     file_content = part.get("file", {})
                     file_info = "File: '%s' (%s)" % (
                         file_content.get("name", "unknown"),
-                        file_content.get("mimeType", "unknown"),
+                        file_content.get("mime_type", "unknown"),
                     )
                     if file_content.get("uri"):
                         file_info += " URI: %s" % file_content["uri"]
@@ -449,10 +449,12 @@ def format_adk_event_as_a2a(
     event_metadata = {"agent_name": host_agent_name}
 
     intermediate_result_obj = TaskStatusUpdateEvent(
-        id=logical_task_id,
+        task_id=logical_task_id,
+        context_id=a2a_context.get("contextId"),
         status=task_status,
         final=is_final_update_for_this_event,
         metadata=event_metadata,
+        kind="status-update",
     )
     log.debug(
         "%s Formatting intermediate A2A response (TaskStatusUpdateEvent, final=%s) for Task ID %s. Event type: %s",

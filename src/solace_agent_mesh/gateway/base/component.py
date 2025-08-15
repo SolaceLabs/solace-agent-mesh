@@ -364,8 +364,8 @@ class BaseGatewayComponent(ComponentBase):
             role="user",
             parts=a2a_parts,
             metadata=a2a_metadata,
-            messageId=uuid.uuid4().hex,
-            contextId=a2a_session_id,
+            message_id=uuid.uuid4().hex,
+            context_id=a2a_session_id,
             kind="message",
         )
 

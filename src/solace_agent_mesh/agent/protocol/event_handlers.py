@@ -342,8 +342,8 @@ async def handle_a2a_request(component, message: SolaceMessage):
             # New A2A spec: server generates the task ID.
             logical_task_id = uuid.uuid4().hex
             # The session id is now contextId on the message
-            original_session_id = a2a_request.root.params.message.contextId
-            message_id = a2a_request.root.params.message.messageId
+            original_session_id = a2a_request.root.params.message.context_id
+            message_id = a2a_request.root.params.message.message_id
             task_metadata = a2a_request.root.params.message.metadata or {}
             system_purpose = task_metadata.get("system_purpose")
             response_format = task_metadata.get("response_format")
@@ -839,7 +839,7 @@ async def handle_a2a_response(component, message: SolaceMessage):
                     payload_data = a2a_response.root.result
 
                     # Store the peer's task ID if we see it for the first time
-                    peer_task_id = getattr(payload_data, "taskId", None)
+                    peer_task_id = getattr(payload_data, "task_id", None)
                     if peer_task_id:
                         correlation_data = await component._get_correlation_data_for_sub_task(
                             sub_task_id
@@ -958,7 +958,7 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                             metadata={
                                                 "agent_name": component.agent_name,
                                                 "forwarded_from_peer": peer_agent_name,
-                                                "original_peer_event_taskId": status_event.taskId,
+                                                "original_peer_event_taskId": status_event.task_id,
                                                 "original_peer_event_timestamp": (
                                                     status_event.status.timestamp
                                                     if status_event.status
@@ -976,8 +976,8 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                             timestamp=status_event.status.timestamp,
                                         )
                                         forwarded_event = TaskStatusUpdateEvent(
-                                            taskId=main_logical_task_id,
-                                            contextId=main_context_id,
+                                            task_id=main_logical_task_id,
+                                            context_id=main_context_id,
                                             status=forwarded_status,
                                             final=False,
                                             kind="status-update",

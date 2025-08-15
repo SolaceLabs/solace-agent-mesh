@@ -238,8 +238,8 @@ class PeerAgentTool(BaseTool):
                 role="user",
                 parts=a2a_message_parts,
                 metadata=a2a_metadata,
-                messageId=uuid.uuid4().hex,
-                contextId=original_task_context.get("contextId"),
+                message_id=uuid.uuid4().hex,
+                context_id=original_task_context.get("contextId"),
                 kind="message",
             )
 
