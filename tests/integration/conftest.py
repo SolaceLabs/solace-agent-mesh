@@ -819,26 +819,29 @@ def mock_agent_skills() -> AgentSkill:
         description="Description for Skill 1",
         tags=["tag1", "tag2"],
         examples=["Example 1", "Example 2"],
-        inputModes=["text/plain"],
-        outputModes=["text/plain"],
+        input_modes=["text/plain"],
+        output_modes=["text/plain"],
     )
 
 
 @pytest.fixture(scope="function")
 def mock_agent_card(mock_agent_skills: AgentSkill) -> AgentCard:
+    from a2a.types import AgentCapabilities
+
     return AgentCard(
         name="test_agent",
-        display_name="Test Agent_Display",
         description="Test Agent Description",
         url="http://test.com/test_path/agent.json",
         version="1.0.0",
-        capabilities={
-            "streaming": True,
-            "pushNotifications": False,
-            "stateTransitionHistory": True,
-        },
+        protocol_version="0.3.0",
+        capabilities=AgentCapabilities(
+            streaming=True,
+            push_notifications=False,
+            state_transition_history=True,
+        ),
         skills=[mock_agent_skills],
-        peer_agents={},
+        default_input_modes=["text/plain"],
+        default_output_modes=["text/plain"],
     )
 
 
@@ -854,14 +857,21 @@ def mock_card_resolver() -> A2ACardResolver:
 
 @pytest.fixture(scope="function")
 def mock_task_response() -> dict[str, Any]:
+    """
+    Provides a mock A2A Task object payload, conforming to the a2a.json schema.
+    Represents a final, completed task.
+    """
     return {
+        "kind": "task",
         "id": "task-123",
-        "sessionId": "session-456",
+        "contextId": "session-456",
         "status": {
             "state": "completed",
             "message": {
+                "kind": "message",
+                "messageId": "msg-agent-complete-1",
                 "role": "agent",
-                "parts": [{"type": "text", "text": "Task completed successfully"}],
+                "parts": [{"kind": "text", "text": "Task completed successfully"}],
             },
             "timestamp": "2024-01-01T00:00:00Z",
         },
@@ -870,14 +880,21 @@ def mock_task_response() -> dict[str, Any]:
 
 @pytest.fixture(scope="function")
 def mock_task_response_cancel() -> dict[str, Any]:
+    """
+    Provides a mock A2A Task object payload, conforming to the a2a.json schema.
+    Represents a final, canceled task.
+    """
     return {
+        "kind": "task",
         "id": "task-123",
-        "sessionId": "session-456",
+        "contextId": "session-456",
         "status": {
             "state": "canceled",
             "message": {
+                "kind": "message",
+                "messageId": "msg-agent-cancel-1",
                 "role": "agent",
-                "parts": [{"type": "text", "text": "Task canceled successfully"}],
+                "parts": [{"kind": "text", "text": "Task canceled successfully"}],
             },
             "timestamp": "2023-01-01T00:00:00Z",
         },
@@ -886,14 +903,22 @@ def mock_task_response_cancel() -> dict[str, Any]:
 
 @pytest.fixture(scope="function")
 def mock_sse_task_response() -> dict[str, Any]:
+    """
+    Provides a mock A2A TaskStatusUpdateEvent payload, conforming to a2a.json.
+    Represents an intermediate status update during a streaming response.
+    """
     return {
-        "id": "task-123",
-        "sessionId": "session-456",
+        "kind": "status-update",
+        "taskId": "task-123",
+        "contextId": "session-456",
+        "final": False,
         "status": {
             "state": "working",
             "message": {
+                "kind": "message",
+                "messageId": "msg-agent-stream-1",
                 "role": "agent",
-                "parts": [{"type": "text", "text": "Processing..."}],
+                "parts": [{"kind": "text", "text": "Processing..."}],
             },
             "timestamp": "2024-01-01T00:00:00Z",
         },
@@ -902,9 +927,13 @@ def mock_sse_task_response() -> dict[str, Any]:
 
 @pytest.fixture(scope="function")
 def mock_task_callback_response() -> dict[str, Any]:
+    """
+    Provides a mock A2A TaskPushNotificationConfig payload, conforming to a2a.json.
+    """
     return {
-        "id": "task-123",
+        "taskId": "task-123",
         "pushNotificationConfig": {
+            "id": "config-1",
             "url": "http://test.com/notify",
             "token": "test-token",
         },

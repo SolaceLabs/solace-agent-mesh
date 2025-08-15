@@ -1,25 +1,27 @@
 import httpx
 from httpx_sse import connect_sse
 from typing import Any, AsyncIterable
-from ...common.types import (
+from a2a.types import (
     AgentCard,
-    GetTaskRequest,
-    SendTaskRequest,
-    SendTaskResponse,
-    JSONRPCRequest,
-    GetTaskResponse,
-    CancelTaskResponse,
     CancelTaskRequest,
-    SetTaskPushNotificationRequest,
-    SetTaskPushNotificationResponse,
-    GetTaskPushNotificationRequest,
-    GetTaskPushNotificationResponse,
-    A2AClientHTTPError,
-    A2AClientJSONError,
-    SendTaskStreamingRequest,
-    SendTaskStreamingResponse,
+    CancelTaskResponse,
+    GetTaskPushNotificationConfigRequest,
+    GetTaskPushNotificationConfigResponse,
+    GetTaskRequest,
+    GetTaskResponse,
+    JSONRPCRequest,
+    SendMessageRequest,
+    SendMessageResponse,
+    SendStreamingMessageRequest,
+    SendStreamingMessageResponse,
+    SetTaskPushNotificationConfigRequest,
+    SetTaskPushNotificationConfigResponse,
 )
+from ...common.types import A2AClientHTTPError, A2AClientJSONError
 import json
+from typing import Any, AsyncIterable
+import httpx
+from httpx_sse import connect_sse
 
 
 class A2AClient:
@@ -31,21 +33,26 @@ class A2AClient:
         else:
             raise ValueError("Must provide either agent_card or url")
 
-    async def send_task(self, payload: dict[str, Any]) -> SendTaskResponse:
-        request = SendTaskRequest(params=payload)
-        return SendTaskResponse(**await self._send_request(request))
+    async def send_task(self, payload: dict[str, Any]) -> SendMessageResponse:
+        request = SendMessageRequest(**payload)
+        return SendMessageResponse.model_validate(await self._send_request(request))
 
     async def send_task_streaming(
         self, payload: dict[str, Any]
-    ) -> AsyncIterable[SendTaskStreamingResponse]:
-        request = SendTaskStreamingRequest(params=payload)
+    ) -> AsyncIterable[SendStreamingMessageResponse]:
+        request = SendStreamingMessageRequest(**payload)
         with httpx.Client(timeout=None) as client:
             with connect_sse(
-                client, "POST", self.url, json=request.model_dump()
+                client,
+                "POST",
+                self.url,
+                json=request.model_dump(by_alias=True, exclude_none=True),
             ) as event_source:
                 try:
                     for sse in event_source.iter_sse():
-                        yield SendTaskStreamingResponse(**json.loads(sse.data))
+                        yield SendStreamingMessageResponse.model_validate(
+                            json.loads(sse.data)
+                        )
                 except json.JSONDecodeError as e:
                     raise A2AClientJSONError(str(e)) from e
                 except httpx.RequestError as e:
@@ -55,7 +62,9 @@ class A2AClient:
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
-                    self.url, json=request.model_dump(), timeout=30
+                    self.url,
+                    json=request.model_dump(by_alias=True, exclude_none=True),
+                    timeout=30,
                 )
                 response.raise_for_status()
                 return response.json()
@@ -66,20 +75,24 @@ class A2AClient:
 
     async def get_task(self, payload: dict[str, Any]) -> GetTaskResponse:
         request = GetTaskRequest(params=payload)
-        return GetTaskResponse(**await self._send_request(request))
+        return GetTaskResponse.model_validate(await self._send_request(request))
 
     async def cancel_task(self, payload: dict[str, Any]) -> CancelTaskResponse:
         request = CancelTaskRequest(params=payload)
-        return CancelTaskResponse(**await self._send_request(request))
+        return CancelTaskResponse.model_validate(await self._send_request(request))
 
     async def set_task_callback(
         self, payload: dict[str, Any]
-    ) -> SetTaskPushNotificationResponse:
-        request = SetTaskPushNotificationRequest(params=payload)
-        return SetTaskPushNotificationResponse(**await self._send_request(request))
+    ) -> SetTaskPushNotificationConfigResponse:
+        request = SetTaskPushNotificationConfigRequest(params=payload)
+        return SetTaskPushNotificationConfigResponse.model_validate(
+            await self._send_request(request)
+        )
 
     async def get_task_callback(
         self, payload: dict[str, Any]
-    ) -> GetTaskPushNotificationResponse:
-        request = GetTaskPushNotificationRequest(params=payload)
-        return GetTaskPushNotificationResponse(**await self._send_request(request))
+    ) -> GetTaskPushNotificationConfigResponse:
+        request = GetTaskPushNotificationConfigRequest(params=payload)
+        return GetTaskPushNotificationConfigResponse.model_validate(
+            await self._send_request(request)
+        )
