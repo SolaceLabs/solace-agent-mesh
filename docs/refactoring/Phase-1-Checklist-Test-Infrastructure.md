@@ -17,4 +17,4 @@
 ## Section C: Validation and Finalization
 - [x] 11. Review and update the `method`-to-schema mapping in `A2AMessageValidator`.
 - [x] 12. Update mock payloads in `a2a_validator/test_validator.py` to be compliant with the `a2a.json` schema.
-- [ ] 13. Run the full integration test suite and update any failing declarative or programmatic tests to align with the new A2A object structures.
+- [x] 13. Run the full integration test suite and update any failing declarative or programmatic tests to align with the new A2A object structures.

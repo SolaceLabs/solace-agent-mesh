@@ -30,13 +30,34 @@ llm_interactions:
 expected_gateway_output:
   - type: "intermediate_event"
     event_type: "status-update"
-    data_part:
-      type: "tool_invocation_start"
-      tool_name: "get_weather_tool"
-      tool_args:
-        location: "San Francisco"
-      function_call_id: "call_weather_123"
+    kind: "status-update"
+    taskId: "*"
+    contextId: "fixed_session_for_tool_invocation_test_001"
+    status:
+      state: "working"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "data"
+            data:
+              type: "tool_invocation_start"
+              tool_name: "get_weather_tool"
+              tool_args:
+                location: "San Francisco"
+              function_call_id: "call_weather_123"
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "The weather in San Francisco is sunny."
+    kind: "task"
+    id: "*"
+    contextId: "fixed_session_for_tool_invocation_test_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "The weather in San Francisco is sunny."
