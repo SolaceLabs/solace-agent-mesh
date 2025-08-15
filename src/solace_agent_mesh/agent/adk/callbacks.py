@@ -75,6 +75,7 @@ from ..tools.builtin_artifact_tools import _internal_create_artifact
 from ...agent.adk.tool_wrapper import ADKToolWrapper
 
 # Import the new parser and its events
+from pydantic import BaseModel
 from ...agent.adk.stream_parser import (
     FencedBlockStreamParser,
     BlockStartedEvent,
@@ -84,6 +85,52 @@ from ...agent.adk.stream_parser import (
     ARTIFACT_BLOCK_DELIMITER_OPEN,
     ARTIFACT_BLOCK_DELIMITER_CLOSE,
 )
+
+
+async def _publish_data_part_status_update(
+    host_component: "SamAgentComponent",
+    a2a_context: Dict[str, Any],
+    data_part_model: BaseModel,
+):
+    """Helper to construct and publish a TaskStatusUpdateEvent with a DataPart."""
+    logical_task_id = a2a_context.get("logical_task_id")
+    context_id = a2a_context.get("contextId")
+
+    data_part = DataPart(data=data_part_model.model_dump())
+    a2a_message = A2AMessage(
+        role="agent",
+        parts=[data_part],
+        messageId=uuid.uuid4().hex,
+        kind="message",
+    )
+    task_status = TaskStatus(
+        state=TaskState.WORKING,
+        message=a2a_message,
+        timestamp=datetime.now(timezone.utc).isoformat(),
+    )
+    status_update_event = TaskStatusUpdateEvent(
+        taskId=logical_task_id,
+        contextId=context_id,
+        status=task_status,
+        final=False,
+        kind="status-update",
+    )
+
+    loop = host_component.get_async_loop()
+    if loop and loop.is_running():
+        asyncio.run_coroutine_threadsafe(
+            host_component._publish_status_update_with_buffer_flush(
+                status_update_event,
+                a2a_context,
+                skip_buffer_flush=False,
+            ),
+            loop,
+        )
+    else:
+        log.error(
+            "%s Async loop not available. Cannot publish status update.",
+            host_component.log_identifier,
+        )
 
 
 async def process_artifact_blocks_callback(
@@ -139,8 +186,11 @@ async def process_artifact_blocks_callback(
                         )
                         filename = event.params.get("filename", "unknown_artifact")
                         if a2a_context:
-                            await host_component._publish_agent_status_signal_update(
-                                f"Receiving artifact `{filename}`...", a2a_context
+                            progress_data = AgentProgressUpdateData(
+                                status_text=f"Receiving artifact `{filename}`..."
+                            )
+                            await _publish_data_part_status_update(
+                                host_component, a2a_context, progress_data
                             )
                         params_str = " ".join(
                             [f'{k}="{v}"' for k, v in event.params.items()]
@@ -156,10 +206,12 @@ async def process_artifact_blocks_callback(
                         )
                         params = parser._block_params
                         filename = params.get("filename", "unknown_artifact")
-                        status_message = f"Creating artifact `{filename}` ({event.buffered_size}B saved)..."
                         if a2a_context:
-                            await host_component._publish_agent_status_signal_update(
-                                status_message, a2a_context
+                            progress_data = ArtifactCreationProgressData(
+                                filename=filename, bytes_saved=event.buffered_size
+                            )
+                            await _publish_data_part_status_update(
+                                host_component, a2a_context, progress_data
                             )
 
                     elif isinstance(event, BlockCompletedEvent):
@@ -1376,28 +1428,31 @@ def solace_llm_invocation_callback(
             )
             return None
 
-        agent_name = host_component.get_config("agent_name", "unknown_agent")
         logical_task_id = a2a_context.get("logical_task_id")
+        context_id = a2a_context.get("contextId")
 
-        llm_invocation_metadata = {
-            "type": "llm_invocation",
-            "data": llm_request.model_dump(exclude_none=True),
-        }
+        llm_data = LlmInvocationData(
+            request=llm_request.model_dump(exclude_none=True)
+        )
+        data_part = DataPart(data=llm_data.model_dump())
+
         a2a_message = A2AMessage(
             role="agent",
-            parts=[],
-            metadata=llm_invocation_metadata,
+            parts=[data_part],
+            messageId=uuid.uuid4().hex,
+            kind="message",
         )
         task_status = TaskStatus(
             state=TaskState.WORKING,
             message=a2a_message,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(timezone.utc).isoformat(),
         )
         status_update_event = TaskStatusUpdateEvent(
-            id=logical_task_id,
+            taskId=logical_task_id,
+            contextId=context_id,
             status=task_status,
             final=False,
-            metadata={"agent_name": agent_name},
+            kind="status-update",
         )
 
         loop = host_component.get_async_loop()
@@ -1536,8 +1591,6 @@ def notify_tool_invocation_start_callback(
         )
         return
 
-    logical_task_id = a2a_context.get("logical_task_id")
-
     try:
         serializable_args = {}
         for k, v in args.items():
@@ -1547,53 +1600,19 @@ def notify_tool_invocation_start_callback(
             except TypeError:
                 serializable_args[k] = str(v)
 
-        a2a_message_parts = []
-        message_metadata = {
-            "type": "tool_invocation_start",
-            "data": {
-                "tool_name": tool.name,
-                "tool_args": serializable_args,
-                "function_call_id": tool_context.function_call_id,
-            },
-        }
-
-        a2a_message = A2AMessage(
-            role="agent", parts=a2a_message_parts, metadata=message_metadata
+        tool_data = ToolInvocationStartData(
+            tool_name=tool.name,
+            tool_args=serializable_args,
+            function_call_id=tool_context.function_call_id,
         )
-
-        task_status = TaskStatus(
-            state=TaskState.WORKING,
-            message=a2a_message,
-            timestamp=datetime.now(timezone.utc),
+        asyncio.run_coroutine_threadsafe(
+            _publish_data_part_status_update(host_component, a2a_context, tool_data),
+            host_component.get_async_loop(),
         )
-
-        status_update_event = TaskStatusUpdateEvent(
-            id=logical_task_id,
-            status=task_status,
-            final=False,
-            metadata={"agent_name": host_component.get_config("agent_name")},
+        log.debug(
+            "%s Scheduled tool_invocation_start notification.",
+            log_identifier,
         )
-
-        loop = host_component.get_async_loop()
-        if loop and loop.is_running():
-
-            asyncio.run_coroutine_threadsafe(
-                host_component._publish_status_update_with_buffer_flush(
-                    status_update_event,
-                    a2a_context,
-                    skip_buffer_flush=False,
-                ),
-                loop,
-            )
-            log.debug(
-                "%s Scheduled tool_invocation_start notification with buffer flush.",
-                log_identifier,
-            )
-        else:
-            log.error(
-                "%s Async loop not available. Cannot publish tool_invocation_start notification.",
-                log_identifier,
-            )
 
     except Exception as e:
         log.exception(
