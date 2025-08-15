@@ -627,7 +627,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
             log.warning(
                 "%s Received unhandled A2A request type: %s. Acknowledging.",
                 component.log_identifier,
-                type(a2a_request).__name__,
+                type(a2a_request.root).__name__,
             )
             try:
                 message.call_acknowledgements()
@@ -635,7 +635,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 log.error(
                     "%s Failed to ACK unhandled request type %s: %s",
                     component.log_identifier,
-                    type(a2a_request).__name__,
+                    type(a2a_request.root).__name__,
                     ack_e,
                 )
             return None
