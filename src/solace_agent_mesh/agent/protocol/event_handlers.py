@@ -15,6 +15,7 @@ from a2a.types import (
     A2ARequest,
     AgentCard,
     AgentCapabilities,
+    AgentExtension,
     CancelTaskRequest,
     DataPart,
     GetTaskPushNotificationConfigRequest,
@@ -774,7 +775,7 @@ def handle_agent_card_message(component, message: SolaceMessage):
                     break
 
         if is_allowed:
-            agent_card.peer_agents = {}
+            # The received card is stored as-is. We don't need to modify it.
             component.peer_agents[agent_name] = agent_card
 
         message.call_acknowledgements()
