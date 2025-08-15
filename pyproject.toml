@@ -102,6 +102,12 @@ extra-dependencies = [
 [[tool.hatch.envs.hatch-test.matrix]]
 python = ["3.10", "3.13"]
 
+[tool.hatch.envs.hatch-test.scripts]
+run = "pytest -m \"$(python3 ./tests/test_selector.py)\" {args}"
+run-cov = "coverage run -m pytest -m \"$(python3 ./tests/test_selector.py)\" {args}"
+cov-combine = "coverage combine"
+cov-report = "coverage report"
+
 [project.urls]
 Homepage = "https://github.com/SolaceLabs/solace-agent-mesh"
 Repository = "https://github.com/SolaceLabs/solace-agent-mesh"
