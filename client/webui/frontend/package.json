@@ -1,5 +1,5 @@
 {
-  "name": "solace-agent-mesh-ui",
+  "name": "@SolaceLabs/solace-agent-mesh-ui",
   "version": "0.0.4",
   "description": "Solace Agent Mesh UI components - React library for building agent communication interfaces",
   "author": "SolaceLabs <solacelabs@solace.com>",
