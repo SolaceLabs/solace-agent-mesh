@@ -1187,7 +1187,7 @@ class BaseGatewayComponent(ComponentBase):
                 "%s Failed to parse or validate A2A event from RPC result for task %s. Result: %s",
                 self.log_identifier,
                 task_id_from_topic,
-                rpc_response.result,
+                rpc_response.root.result,
             )
             generic_error = JSONRPCError(
                 code=-32000, message="Invalid event structure received from agent."
