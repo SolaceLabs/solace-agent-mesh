@@ -51,9 +51,33 @@ This refactoring will be considered complete when the following requirements are
 We will adopt a phased, iterative approach to manage risk and complexity. The strategy is to first refactor and validate a complete end-to-end vertical slice of the system in a controlled test environment before rolling out the changes to production-facing components and the UI.
 
 *   **Phase 0: Preparation & Tooling**
-    *   Integrate the `a2a-sdk` library into the project's dependencies.
-    *   Update the `A2AMessageValidator` test utility to use the official `a2a.json` schema as its source of truth. This will be a critical tool for debugging throughout the refactoring.
-    *   Create a high-level mapping of legacy types to the new `a2a.types` to guide the migration.
+    *   **Task 0.1: Integrate `a2a-sdk` Dependency:**
+        *   Add `a2a-sdk` to the project's `pyproject.toml` dependencies.
+        *   Update the development environment to install the new dependency.
+        *   Verify the installation by ensuring the test suite can import from `a2a.types` without conflicts.
+
+    *   **Task 0.2: Implement Automated Schema Synchronization:**
+        *   **Objective:** Create a script that reliably fetches the version of `a2a.json` that corresponds exactly to the installed version of the `a2a-sdk`.
+        *   **Implementation:**
+            1.  Create a new script at `scripts/sync_a2a_schema.py`.
+            2.  The script will programmatically get the installed `a2a-sdk` version string (e.g., "0.5.1") using `importlib.metadata`.
+            3.  It will construct a corresponding Git tag (e.g., "v0.5.1").
+            4.  It will locate the installed `a2a/types.py` file and parse the header comment to get the base GitHub URL for the specification.
+            5.  It will modify this base URL, replacing the branch name (e.g., `refs/heads/main`) with the constructed Git tag, creating a version-locked URL.
+            6.  It will download the schema from the version-locked URL and save it to `src/solace_agent_mesh/common/a2a_spec/a2a.json`.
+            7.  The script will include error handling for 404 Not Found errors, which would indicate a missing tag in the source repository.
+        *   **Integration:** The script will be added to the development setup process and CI/CD pipeline to ensure the local schema is always synchronized with the installed SDK.
+
+    *   **Task 0.3: Refactor `A2AMessageValidator`:**
+        *   The validator will be updated to use the `jsonschema` library.
+        *   It will load its schema from the newly synchronized local file: `src/solace_agent_mesh/common/a2a_spec/a2a.json`.
+        *   The validation logic will be updated to handle the new schema structure, including discriminated unions based on the `method` field in requests.
+        *   Unit tests for the validator will be rewritten with new mock payloads that conform to the official `a2a.json` specification.
+
+    *   **Task 0.4: Create Type Migration Mapping Document:**
+        *   Create a new document at `docs/refactoring/A2A-Type-Migration-Map.md`.
+        *   This document will provide a clear "before and after" mapping of legacy `common/types.py` models to the new `a2a.types` models.
+        *   It will detail key structural changes, field name changes, and provide examples for complex migrations like moving status information from `metadata` to `DataPart`.
 
 *   **Phase 1: Backend Refactoring & Validation**
     *   Focus exclusively on the agent backend and the test infrastructure.
