@@ -19,6 +19,7 @@ export type ThemePalette = {
         w40: string;
         w20: string;
         w10: string;
+        w5?: string;
 
         text: {
             wMain: string;
@@ -36,6 +37,7 @@ export type ThemePalette = {
         w40: string;
         w20: string;
         w10: string;
+        w5?: string;
 
         text: {
             wMain: string;
@@ -48,6 +50,7 @@ export type ThemePalette = {
         wMain: string;
         w20: string;
         w10: string;
+        w5?: string;
     };
 
     info: {
@@ -57,6 +60,7 @@ export type ThemePalette = {
         w30: string;
         w20: string;
         w10: string;
+        w5?: string;
     };
 
     error: {
@@ -66,6 +70,7 @@ export type ThemePalette = {
         w30: string;
         w20: string;
         w10: string;
+        w5?: string;
     };
 
     warning: {
@@ -75,6 +80,7 @@ export type ThemePalette = {
         w30: string;
         w20: string;
         w10: string;
+        w5?: string;
     };
 
     success: {
@@ -84,6 +90,7 @@ export type ThemePalette = {
         w30: string;
         w20: string;
         w10: string;
+        w5?: string;
     };
 
     stateLayer: {
@@ -156,5 +163,6 @@ export type ThemePalette = {
         w90: string;
         w20: string;
         w10: string;
+        w5?: string;
     };
 };

@@ -212,19 +212,11 @@ def _resolve_user_identity_for_authorization(
         return user_identity
 
     if not user_identity:
-        default_user_identity = component.get_config("default_user_identity")
-        if default_user_identity:
-            user_identity = default_user_identity
-            log.info(
-                "%s No user_identity provided, using configured default_user_identity: '%s' for visualization",
-                log_id_prefix,
-                user_identity,
-            )
-        else:
-            log.warning(
-                "%s No user_identity and no default_user_identity configured for visualization",
-                log_id_prefix,
-            )
+        user_identity = "sam_dev_user"
+        log.info(
+            "%s No user_identity provided, using sam_dev_user for visualization",
+            log_id_prefix,
+        )
 
     return user_identity
 

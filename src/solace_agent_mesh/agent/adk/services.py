@@ -174,11 +174,11 @@ def initialize_session_service(component) -> BaseSessionService:
 
     if service_type == "memory":
         return InMemorySessionService()
-    elif service_type == "database":
-        db_url = config.get("db_url")
+    elif service_type == "sql":
+        db_url = config.get("database_url")
         if not db_url:
             raise ValueError(
-                f"{component.log_identifier} 'db_url' is required for database session service."
+                f"{component.log_identifier} 'database_url' is required for sql session service."
             )
         try:
             return DatabaseSessionService(db_url=db_url)

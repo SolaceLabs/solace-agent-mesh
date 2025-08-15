@@ -1,21 +1,18 @@
+import React from "react";
 import FormField from "../../ui/FormField";
 import Input from "../../ui/Input";
 import Button from "../../ui/Button";
 import { InfoBox } from "../../ui/InfoBoxes";
-
-type ProjectSetupProps = {
-  data: { namespace: string; [key: string]: any };
-  updateData: (data: Record<string, any>) => void;
-  onNext: () => void;
-  onPrevious: () => void;
-};
+import { StepComponentProps } from "../../InitializationFlow";
 
 export default function ProjectSetup({
   data,
   updateData,
   onNext,
   onPrevious,
-}: Readonly<ProjectSetupProps>) {
+}: StepComponentProps) {
+  const { namespace } = data as { namespace?: string };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     updateData({ [e.target.name]: e.target.value });
   };
@@ -43,7 +40,7 @@ export default function ProjectSetup({
           <Input
             id="namespace"
             name="namespace"
-            value={data.namespace}
+            value={namespace || ""}
             onChange={handleChange}
             placeholder="Enter a namespace (e.g., my-project)"
             required
@@ -52,10 +49,10 @@ export default function ProjectSetup({
       </div>
 
       <div className="mt-8 flex justify-end space-x-4">
-        <Button onClick={onPrevious} variant="outline" disabled={true}>
+        <Button onClick={onPrevious} variant="outline">
           Previous
         </Button>
-        <Button type="submit" disabled={!data.namespace?.trim()}>
+        <Button type="submit" disabled={!namespace?.trim()}>
           Next
         </Button>
       </div>
