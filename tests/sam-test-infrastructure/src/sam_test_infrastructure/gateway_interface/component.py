@@ -12,12 +12,13 @@ from typing import Any, Dict, List, Union, Optional, Tuple
 from solace_ai_connector.common.log import log
 
 from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
-from solace_agent_mesh.common.types import (
+from a2a.types import (
     Part as A2APart,
     TextPart,
     FilePart,
     DataPart,
-    FileContent,
+    FileWithBytes,
+    FileWithUri,
     TaskStatusUpdateEvent,
     TaskArtifactUpdateEvent,
     Task,
@@ -79,9 +80,9 @@ class TestGatewayComponent(BaseGatewayComponent):
 
     async def _translate_external_input(
         self,
-        external_event: Dict[str, Any],
-        authenticated_user_identity: Dict[str, Any],
-    ) -> Tuple[str, List[A2APart], Dict[str, Any]]:
+        external_event: dict[str, Any],
+        authenticated_user_identity: dict[str, Any],
+    ) -> Tuple[str, list[A2APart], dict[str, Any]]:
         """
         Translates a structured test input dictionary into A2A task components.
         The `external_event` is expected to have keys like:
@@ -97,21 +98,40 @@ class TestGatewayComponent(BaseGatewayComponent):
             raise ValueError("Test input must specify 'target_agent_name'.")
 
         a2a_parts_data = external_event.get("a2a_parts", [])
-        a2a_parts: List[A2APart] = []
+        a2a_parts: list[A2APart] = []
         for part_data in a2a_parts_data:
             part_type = part_data.get("type")
             if part_type == "text":
                 a2a_parts.append(TextPart(text=part_data.get("text", "")))
             elif part_type == "file":
-                file_content = FileContent(
-                    name=part_data.get("name", "testfile.dat"),
-                    mimeType=part_data.get("mime_type", "application/octet-stream"),
-                    bytes=part_data.get("bytes_base64"),
-                    uri=part_data.get("uri"),
-                )
-                a2a_parts.append(
-                    FilePart(file=file_content, metadata=part_data.get("metadata"))
-                )
+                file_content = None
+                if "bytes_base64" in part_data and part_data["bytes_base64"]:
+                    file_content = FileWithBytes(
+                        name=part_data.get("name", "testfile.dat"),
+                        mime_type=part_data.get(
+                            "mime_type", "application/octet-stream"
+                        ),
+                        bytes=part_data["bytes_base64"],
+                    )
+                elif "uri" in part_data and part_data["uri"]:
+                    file_content = FileWithUri(
+                        name=part_data.get("name", "testfile.dat"),
+                        mime_type=part_data.get(
+                            "mime_type", "application/octet-stream"
+                        ),
+                        uri=part_data["uri"],
+                    )
+
+                if file_content:
+                    a2a_parts.append(
+                        FilePart(file=file_content, metadata=part_data.get("metadata"))
+                    )
+                else:
+                    log.warning(
+                        "%s FilePart in test input is missing 'bytes_base64' or 'uri'. Skipping. Data: %s",
+                        log_id,
+                        part_data,
+                    )
             elif part_type == "data":
                 a2a_parts.append(
                     DataPart(
@@ -237,7 +257,7 @@ class TestGatewayComponent(BaseGatewayComponent):
         )
         pass
 
-    async def send_test_input(self, test_input_data: Dict[str, Any]) -> str:
+    async def send_test_input(self, test_input_data: dict[str, Any]) -> str:
         """
         Primary method for tests to send input to this Test Gateway.
         It authenticates, translates, and submits the A2A task.
@@ -368,14 +388,14 @@ class TestGatewayComponent(BaseGatewayComponent):
 
     async def get_all_captured_outputs(
         self, task_id: str, drain_timeout: float = 0.2
-    ) -> List[
+    ) -> list[
         Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent, Task, JSONRPCError]
     ]:
         """
         Retrieves all currently captured A2A outputs for a given task_id and empties the queue.
         Waits for `drain_timeout` for any final messages after the queue initially appears empty.
         """
-        outputs: List[
+        outputs: list[
             Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent, Task, JSONRPCError]
         ] = []
         queue = self._captured_outputs[task_id]

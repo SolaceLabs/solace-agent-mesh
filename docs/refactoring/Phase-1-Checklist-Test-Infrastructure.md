@@ -5,9 +5,9 @@
 - [x] 2. Update `classes_to_track` in `memory_monitor.py` to reference new `a2a.types` models.
 
 ## Section B: Refactor `TestGatewayComponent`
-- [ ] 3. Migrate all A2A type hints and imports in `gateway_interface/component.py` to `a2a.types`.
-- [ ] 4. Refactor `submit_a2a_task` to construct and serialize compliant `SendMessageRequest` / `SendStreamingMessageRequest` objects.
-- [ ] 5. Refactor `_handle_agent_event` to parse incoming payloads using `JSONRPCResponse.model_validate`.
+- [x] 3. Migrate all A2A type hints and imports in `gateway_interface/component.py` to `a2a.types`.
+- [x] 4. Refactor `submit_a2a_task` to construct and serialize compliant `SendMessageRequest` / `SendStreamingMessageRequest` objects.
+- [x] 5. Refactor `_handle_agent_event` to parse incoming payloads using `JSONRPCResponse.model_validate`.
 - [ ] 6. Implement the new `_parse_a2a_event_from_rpc_result` helper method to parse the `result` field using the `kind` discriminator.
 - [ ] 7. Update `_handle_agent_event` to use the new `_parse_a2a_event_from_rpc_result` helper.
 - [ ] 8. Update `_process_parsed_a2a_event` method signature and `isinstance` checks to use new `a2a.types` models.
