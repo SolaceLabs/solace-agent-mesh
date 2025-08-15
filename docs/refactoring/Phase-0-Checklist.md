@@ -10,14 +10,14 @@ This document tracks the completion of tasks for Phase 0: Preparation & Tooling.
 
 ## Task 2: Implement Automated Schema Synchronization
 
-- [ ] **Create Script:** Create a new Python script at `scripts/sync_a2a_schema.py`.
-- [ ] **Get SDK Version:** The script uses `importlib.metadata.version("a2a-sdk")` to get the installed SDK version.
-- [ ] **Construct Git Tag:** The script transforms the version string into a Git tag (e.g., "0.5.1" -> "v0.5.1").
-- [ ] **Parse Base URL:** The script locates the installed `a2a/types.py` file and parses the source URL from its header comment.
-- [ ] **Modify URL:** The script replaces the branch part of the URL (e.g., `refs/heads/main`) with the constructed Git tag to create a version-locked URL.
-- [ ] **Download and Save:** The script downloads the schema from the version-locked URL and saves it to `src/solace_agent_mesh/common/a2a_spec/a2a.json`.
-- [ ] **Add Error Handling:** The script includes error handling for HTTP 404 errors, failing with a clear message if the corresponding tag/schema is not found.
-- [ ] **Integrate into Workflows:** Add a command to run `scripts/sync_a2a_schema.py` to the development setup process (e.g., `hatch` environment setup) and the CI pipeline.
+- [x] **Create Script:** Create a new Python script at `scripts/sync_a2a_schema.py`.
+- [x] **Get SDK Version:** The script uses `importlib.metadata.version("a2a-sdk")` to get the installed SDK version.
+- [x] **Construct Git Tag:** The script transforms the version string into a Git tag (e.g., "0.5.1" -> "v0.5.1").
+- [x] **Parse Base URL:** The script locates the installed `a2a/types.py` file and parses the source URL from its header comment.
+- [x] **Modify URL:** The script replaces the branch part of the URL (e.g., `refs/heads/main`) with the constructed Git tag to create a version-locked URL.
+- [x] **Download and Save:** The script downloads the schema from the version-locked URL and saves it to `src/solace_agent_mesh/common/a2a_spec/a2a.json`.
+- [x] **Add Error Handling:** The script includes error handling for HTTP 404 errors, failing with a clear message if the corresponding tag/schema is not found.
+- [x] **Integrate into Workflows:** Add a command to run `scripts/sync_a2a_schema.py` to the development setup process (e.g., `hatch` environment setup) and the CI pipeline.
 
 ## Task 3: Refactor `A2AMessageValidator`
 
