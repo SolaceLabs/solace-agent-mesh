@@ -45,6 +45,7 @@ SAM is built on top of the Solace AI Connector (SAC) which allows Solace Platfor
 
 The result? A fully asynchronous, event-driven and decoupled AI agent architecture ready for production deployment. It is robust, reliable and easy to maintain.
 
+
 ---
 
 ## 🔑 Key Features 
