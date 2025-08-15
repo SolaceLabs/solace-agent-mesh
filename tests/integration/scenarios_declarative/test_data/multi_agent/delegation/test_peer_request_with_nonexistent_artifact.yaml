@@ -1,6 +1,7 @@
 # Test Case 4: Verify graceful handling when referencing a non-existent artifact.
 test_case_id: "peer_request_with_nonexistent_artifact_001"
 description: "Verify graceful handling of non-existent artifact references in peer calls."
+tags: ["all","agent","tools","delegation"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:

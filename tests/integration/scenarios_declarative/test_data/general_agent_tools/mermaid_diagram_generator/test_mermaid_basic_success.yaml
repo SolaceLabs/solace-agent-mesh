@@ -1,6 +1,6 @@
 test_case_id: test_mermaid_basic_success
 description: "Tests basic successful generation of a Mermaid diagram with a specified filename."
-tags: ["agent","tools","general_agent_tools"]
+tags: ["all","agent","tools","general_agent_tools"]
 skip_intermediate_events: true
 
 gateway_input:

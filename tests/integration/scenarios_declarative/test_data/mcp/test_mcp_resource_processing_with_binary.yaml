@@ -1,5 +1,6 @@
 test_case_id: "mcp_resource_processing_with_binary_001"
 description: "Tests that an MCP response with a resource containing a base64 blob creates a corresponding binary artifact."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:

@@ -1,5 +1,6 @@
 test_case_id: "mcp_trigger_above_all_thresholds_001"
 description: "Verifies that a large text response is saved as an artifact and a truncated response is returned to the LLM."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:

@@ -1,5 +1,6 @@
 test_case_id: "mcp_multi_text_content_001"
 description: "Tests that a single MCP response with multiple text items of different formats (JSON and CSV) creates two distinct artifacts."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:

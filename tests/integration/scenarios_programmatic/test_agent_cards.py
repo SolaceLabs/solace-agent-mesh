@@ -18,6 +18,7 @@ from .test_helpers import (
 )
 
 pytestmark = [
+    pytest.mark.all,
     pytest.mark.asyncio,
     pytest.mark.agent,
     pytest.mark.delegation

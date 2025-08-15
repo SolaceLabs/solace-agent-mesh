@@ -1,5 +1,6 @@
 test_case_id: "mcp_image_processing_jpeg_001"
 description: "Tests that a base64 JPEG image response is correctly saved as a .jpg artifact."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 gateway_input:

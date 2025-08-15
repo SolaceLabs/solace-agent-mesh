@@ -1,5 +1,6 @@
 test_case_id: "mcp_text_processing_001"
 description: "Tests that a simple text response from an MCP tool is saved as a .txt artifact."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:

@@ -1,6 +1,6 @@
 test_case_id: "embed_math_multiplication_001"
 description: "Tests «math:6*7» embed for basic multiplication."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

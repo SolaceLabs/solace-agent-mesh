@@ -2,7 +2,7 @@ test_case_id: "builtin_append_to_non_existent_artifact_001"
 description: |
   Tests the 'append_to_artifact' tool's error handling when attempting
   to append to an artifact that does not exist.
-tags: ["agent","tools","builtin_artifact_tools"]
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 # No setup_artifacts for the target file, as we are testing its absence.

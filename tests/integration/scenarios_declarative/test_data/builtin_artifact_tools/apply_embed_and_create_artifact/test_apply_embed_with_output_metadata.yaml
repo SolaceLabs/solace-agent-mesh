@@ -3,7 +3,7 @@ description: |
   Tests 'apply_embed_and_create_artifact' with the 'output_metadata' parameter.
   Verifies that the provided metadata is saved with the new artifact, along
   with the tool-added 'source_directive'.
-tags: ["agent","tools","builtin_artifact_tools"]
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

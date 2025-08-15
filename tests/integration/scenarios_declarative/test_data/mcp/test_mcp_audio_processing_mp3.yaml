@@ -1,5 +1,6 @@
 test_case_id: "mcp_audio_processing_mp3_001"
 description: "Tests that a base64-encoded MP3 audio stream is correctly decoded and saved as an .mp3 file with an audio/mpeg MIME type."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 gateway_input:

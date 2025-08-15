@@ -1,6 +1,6 @@
 test_case_id: "notification_llm_invocation_001"
 description: "Tests that an llm_invocation notification is sent."
-tags: ["agent","common","notification"]
+tags: ["all","agent","common","notification"]
 skip_intermediate_events: true
 
 gateway_input:

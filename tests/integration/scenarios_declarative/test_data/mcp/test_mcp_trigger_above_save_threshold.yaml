@@ -1,5 +1,6 @@
 test_case_id: "mcp_trigger_above_save_threshold_001"
 description: "Verifies that a text response larger than the save threshold but smaller than the LLM return limit is saved as an artifact, and the full response is returned to the LLM."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:

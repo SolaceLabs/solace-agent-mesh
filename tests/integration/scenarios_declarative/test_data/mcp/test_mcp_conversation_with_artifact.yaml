@@ -1,5 +1,6 @@
 test_case_id: "mcp_conversation_with_artifact_001"
 description: "Tests a two-turn conversation where an artifact is created and then used, verifying metadata injection."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:

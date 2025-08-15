@@ -1,6 +1,7 @@
 # Test Case 1: Verify that an artifact referenced in a peer call enriches the peer's LLM prompt.
 test_case_id: "peer_request_with_artifact_001"
 description: "Verify peer agent's LLM prompt is enriched with artifact metadata."
+tags: ["all","agent","tools","delegation"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:

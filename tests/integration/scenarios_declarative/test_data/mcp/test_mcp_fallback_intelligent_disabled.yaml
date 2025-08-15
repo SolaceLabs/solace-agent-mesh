@@ -1,5 +1,6 @@
 test_case_id: "mcp_fallback_intelligent_disabled_001"
 description: "Verifies fallback to raw JSON save when intelligent processing is disabled."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:

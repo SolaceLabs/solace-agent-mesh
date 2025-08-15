@@ -1,5 +1,6 @@
 test_case_id: "mcp_audio_processing_wav_001"
 description: "Tests that a base64-encoded WAV audio stream is correctly decoded and saved as a .wav file with an audio/wav MIME type."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 gateway_input:

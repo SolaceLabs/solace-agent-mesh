@@ -1,6 +1,6 @@
 test_case_id: "embed_math_no_expression_001"
 description: "Tests «math:» with no expression."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

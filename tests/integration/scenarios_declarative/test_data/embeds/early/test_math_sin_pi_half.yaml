@@ -1,6 +1,6 @@
 test_case_id: "embed_math_sin_pi_half_001"
 description: "Tests «math:sin(pi/2)» using dynamic evaluation."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

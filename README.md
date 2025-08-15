@@ -76,13 +76,24 @@ To run Solace Agent Mesh locally, you'll need:
 
 #### 1. Create a directory for a new project
 ```bash
-mkdir my-agent-mesh && cd my-agent-mesh
+mkdir my-sam && cd my-sam
 ```
 #### 2. Create and activate a Python virtual environment
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 ```
 #### 3. Install Solace Agent Mesh (SAM)
+Check if you have a version of SAM already installed.
+```bash
+sam -v
+```
+If you have an earlier version, uninstall it and **start from scratch**:
+```bash
+pip3 uninstall solace-agent-mesh
+```
+Note: Optionally, you can try to upgrade versions but this action is not officially supported at this time. (`pip3 install --upgrade solace-agent-mesh`)
+
+If no previous version exists, install the latest version with:
 ```bash
 pip3 install solace-agent-mesh
 ```

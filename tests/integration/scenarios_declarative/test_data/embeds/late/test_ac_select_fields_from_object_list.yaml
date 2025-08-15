@@ -1,6 +1,6 @@
 test_case_id: "embed_ac_select_fields_from_object_list_001"
 description: "Tests «artifact_content:users.json>>>select_fields:name,id>>>format:json_pretty»."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 setup_artifacts:

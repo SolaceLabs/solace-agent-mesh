@@ -1,7 +1,7 @@
 test_case_id: "notification_tool_invocation_001"
 description: "Tests that a tool_invocation_start notification is sent."
 expected_completion_timeout_seconds: 15
-tags: ["agent","common","notification"]
+tags: ["all","agent","common","notification"]
 skip_intermediate_events: true
 
 gateway_input:

@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
 from cli.utils import error_exit
+from solace_agent_mesh.common.utils.initializer import initialize
 
 
 def _execute_with_solace_ai_connector(config_file_paths: list[str]):
@@ -89,6 +90,9 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
             )
     else:
         click.echo("Skipping .env file loading due to --system-env flag.")
+
+    # Run enterprise initialization if present
+    initialize()
 
     config_files_to_run = []
     project_root = Path.cwd()

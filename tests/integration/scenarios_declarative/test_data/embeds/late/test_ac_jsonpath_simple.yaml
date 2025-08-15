@@ -1,6 +1,6 @@
 test_case_id: "embed_ac_jsonpath_simple_001"
 description: "Tests «artifact_content:obj.json>>>jsonpath:$.a.b>>>format:text»."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 setup_artifacts:

@@ -1,5 +1,6 @@
 test_case_id: "mcp_save_forced_by_truncation_001"
 description: "Verifies a response is saved as an artifact when it exceeds the LLM return limit, even if it's below the save threshold."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:

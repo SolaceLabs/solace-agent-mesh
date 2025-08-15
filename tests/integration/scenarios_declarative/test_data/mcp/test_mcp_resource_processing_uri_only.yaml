@@ -1,5 +1,6 @@
 test_case_id: "mcp_resource_processing_uri_only_001"
 description: "Tests that an MCP response with a resource URI (no content) creates a placeholder artifact."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:

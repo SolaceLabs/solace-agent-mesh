@@ -1,5 +1,6 @@
 test_case_id: "mcp_text_processing_csv_escaped_001"
 description: "Tests that a CSV string with escaped newlines (\\\\n) is correctly parsed and saved."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:

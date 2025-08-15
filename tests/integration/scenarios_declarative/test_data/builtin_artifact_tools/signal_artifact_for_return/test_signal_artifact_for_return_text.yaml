@@ -4,7 +4,7 @@ description: |
   Verifies the tool's success response and that a TaskArtifactUpdateEvent
   is subsequently published by the host component with the artifact's content.
 # We need to see intermediate events to catch TaskArtifactUpdateEvent
-tags: ["agent","tools","builtin_artifact_tools"]
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

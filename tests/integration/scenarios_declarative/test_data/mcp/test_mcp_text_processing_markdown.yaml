@@ -1,5 +1,6 @@
 test_case_id: "mcp_text_processing_markdown_001"
 description: "Tests that a string with Markdown syntax is saved as a .md artifact with a text/markdown MIME type."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:

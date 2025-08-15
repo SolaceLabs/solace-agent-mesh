@@ -1,5 +1,6 @@
 test_case_id: "mcp_text_processing_yaml_001"
 description: "Tests that a valid YAML string from an MCP tool is saved as a .yaml artifact with correct metadata."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:

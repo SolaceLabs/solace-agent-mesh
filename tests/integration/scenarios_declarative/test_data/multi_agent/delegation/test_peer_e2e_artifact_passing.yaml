@@ -1,6 +1,7 @@
 # Test Case 3: End-to-end flow of passing an artifact to a peer and receiving one back.
 test_case_id: "peer_e2e_artifact_passing_001"
 description: "End-to-end test combining request and response artifact passing."
+tags: ["all","agent","tools","delegation"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:

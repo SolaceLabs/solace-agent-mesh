@@ -1,6 +1,6 @@
 test_case_id: "auto_continue_on_truncation_001"
 description: "Tests that the agent automatically continues generation when the LLM response is truncated (finish_reason: 'length')."
-tags: ["core_a2a"]
+tags: ["all","core_a2a"]
 skip_intermediate_events: true
 
 gateway_input:

@@ -1,6 +1,6 @@
 test_case_id: convert_specific_version_success
 description: "Tests successful conversion of a specific version of a file to Markdown."
-tags: ["agent","tools","general_agent_tools"]
+tags: ["all","agent","tools","general_agent_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

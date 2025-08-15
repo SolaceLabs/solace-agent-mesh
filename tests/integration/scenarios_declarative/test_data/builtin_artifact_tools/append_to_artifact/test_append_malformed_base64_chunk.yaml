@@ -3,7 +3,7 @@ description: |
   Tests appending a chunk that is declared as a binary MIME type (e.g., image/png)
   but whose content is not valid base64. Expects decode_and_get_bytes to fall back
   to treating the chunk as text/plain.
-tags: ["agent","tools","builtin_artifact_tools"]
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

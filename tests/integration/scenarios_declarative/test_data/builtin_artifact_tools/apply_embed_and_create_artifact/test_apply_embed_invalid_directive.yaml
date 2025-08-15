@@ -2,7 +2,7 @@ test_case_id: "builtin_apply_embed_invalid_directive_001"
 description: |
   Tests 'apply_embed_and_create_artifact' with a malformed embed_directive
   (e.g., missing closing delimiter). Expects an error from the tool.
-tags: ["agent","tools","builtin_artifact_tools"]
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts: # An artifact is not strictly needed for this error, but good for consistency

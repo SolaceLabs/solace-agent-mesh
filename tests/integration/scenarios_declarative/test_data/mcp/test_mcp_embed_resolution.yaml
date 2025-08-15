@@ -1,5 +1,6 @@
 test_case_id: "mcp_embed_resolution_001"
 description: "Tests that MCP tools properly resolve both early and late embeds in their parameters"
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:

@@ -1,6 +1,6 @@
 test_case_id: edit_image_no_output_filename
 description: "Tests the edit_image_with_gemini tool when no output filename is provided."
-tags: ["agent","tools","image_tools"]
+tags: ["all","agent","tools","image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

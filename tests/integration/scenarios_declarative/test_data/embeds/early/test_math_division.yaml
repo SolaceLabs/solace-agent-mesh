@@ -1,6 +1,6 @@
 test_case_id: "embed_math_division_001"
 description: "Tests «math:20/4» embed for basic division."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

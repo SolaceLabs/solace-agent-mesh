@@ -1,5 +1,6 @@
 test_case_id: "mcp_image_processing_png_001"
 description: "Tests that a base64 PNG image response is correctly saved as a .png artifact."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 gateway_input:

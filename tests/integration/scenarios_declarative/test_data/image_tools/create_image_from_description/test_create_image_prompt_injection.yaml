@@ -1,6 +1,6 @@
 test_case_id: "create_image_exploit_003"
 description: "Verifies that the create_image_from_description tool passes prompts without modification."
-tags: ["agent","tools","image_tools"]
+tags: ["all","agent","tools","image_tools"]
 skip_intermediate_events: true
 
 gateway_input:

@@ -1,5 +1,6 @@
 test_case_id: "mcp_llm_response_save_failed_001"
 description: "Verifies that if artifact saving fails, the LLM receives a clear error message."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 monkeypatch_spec:

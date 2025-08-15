@@ -1,5 +1,6 @@
 test_case_id: "mcp_no_fallback_on_error_001"
 description: "Verifies that if fallback_to_raw_on_error is false, a processing error results in no artifact and a clear failure message."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:

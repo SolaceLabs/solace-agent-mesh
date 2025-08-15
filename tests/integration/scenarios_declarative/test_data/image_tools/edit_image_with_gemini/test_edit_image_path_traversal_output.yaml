@@ -1,6 +1,6 @@
 test_case_id: edit_image_path_traversal_output
 description: "Tests for path traversal vulnerability in the output filename."
-tags: ["agent","tools","image_tools"]
+tags: ["all","agent","tools","image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

@@ -1,6 +1,6 @@
 test_case_id: "embed_ac_template_missing_template_file_001"
 description: "Tests «artifact_content:data.csv>>>apply_to_template:no_template.mustache>>>format:text» when template is missing."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 setup_artifacts:

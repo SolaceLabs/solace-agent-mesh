@@ -1,6 +1,6 @@
 test_case_id: "embed_general_chain_malformed_001"
 description: "Tests a malformed artifact_content chain: «artifact_content:file.txt>>>format text» (missing colon)"
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 setup_artifacts:

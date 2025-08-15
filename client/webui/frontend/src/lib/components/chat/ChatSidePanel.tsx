@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-import { PanelRightIcon, FileText, Network } from "lucide-react";
+import { PanelRightIcon, FileText, Network, RefreshCw } from "lucide-react";
 
 import { Button, Tabs, TabsList, TabsTrigger, TabsContent } from "@/lib/components/ui";
 import { useTaskContext, useChatContext } from "@/lib/hooks";
@@ -19,7 +19,7 @@ interface ChatSidePanelProps {
 
 export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle, isSidePanelCollapsed, setIsSidePanelCollapsed, isSidePanelTransitioning }) => {
     const { activeSidePanelTab, setActiveSidePanelTab, setPreviewArtifact, taskIdInSidePanel } = useChatContext();
-    const { monitoredTasks } = useTaskContext();
+    const { isReconnecting, isTaskMonitorConnecting, isTaskMonitorConnected, monitoredTasks, connectTaskMonitorStream } = useTaskContext();
     const [visualizedTask, setVisualizedTask] = useState<VisualizedTask | null>(null);
 
     // Process task data for visualization when the selected workflow task ID changes
@@ -32,6 +32,42 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
             setVisualizedTask(null);
         }
     }, [taskIdInSidePanel, monitoredTasks]);
+
+    // Helper function to determine what to display in the workflow panel
+    const getWorkflowPanelContent = () => {
+        if (isReconnecting || isTaskMonitorConnecting) {
+            return {
+                message: "Connecting to task monitor ...",
+                showButton: false,
+            };
+        }
+        if (!isTaskMonitorConnected) {
+            return {
+                message: "No connection to task monitor",
+                showButton: true,
+                buttonText: "Reconnect",
+                buttonIcon: RefreshCw,
+                buttonAction: connectTaskMonitorStream,
+            };
+        }
+
+        // isTaskMonitorConnected is true
+        if (!taskIdInSidePanel) {
+            return {
+                message: "No task selected to display",
+                showButton: false,
+            };
+        }
+
+        if (!visualizedTask) {
+            return {
+                message: "No workflow data available for the selected task",
+                showButton: false,
+            };
+        }
+
+        return null;
+    };
 
     const toggleCollapsed = () => {
         const newCollapsed = !isSidePanelCollapsed;
@@ -114,20 +150,39 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
 
                         <TabsContent value="workflow" className="m-0 h-full">
                             <div className="h-full">
-                                {visualizedTask ? (
-                                    <div className="flex h-full flex-col">
-                                        <FlowChartDetails task={visualizedTask} />
-                                        <FlowChartPanel processedSteps={visualizedTask.steps || []} isRightPanelVisible={false} isSidePanelTransitioning={isSidePanelTransitioning} />
-                                    </div>
-                                ) : (
-                                    <div className="flex h-full items-center justify-center p-4">
-                                        <div className="text-muted-foreground text-center">
-                                            <Network className="mx-auto mb-4 h-12 w-12" />
-                                            <div className="text-lg font-medium">Workflow</div>
-                                            <div className="mt-2 text-sm">{taskIdInSidePanel ? "Loading workflow data..." : "No task selected to display"}</div>
+                                {(() => {
+                                    const emptyStateContent = getWorkflowPanelContent();
+
+                                    if (!emptyStateContent && visualizedTask) {
+                                        return (
+                                            <div className="flex h-full flex-col">
+                                                <FlowChartDetails task={visualizedTask} />
+                                                <FlowChartPanel processedSteps={visualizedTask.steps || []} isRightPanelVisible={false} isSidePanelTransitioning={isSidePanelTransitioning} />
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div className="flex h-full items-center justify-center p-4">
+                                            <div className="text-muted-foreground text-center">
+                                                <Network className="mx-auto mb-4 h-12 w-12" />
+                                                <div className="text-lg font-medium">Workflow</div>
+                                                <div className="mt-2 text-sm">{emptyStateContent?.message}</div>
+                                                {emptyStateContent?.showButton && (
+                                                    <div className="mt-4">
+                                                        <Button onClick={emptyStateContent.buttonAction}>
+                                                            {emptyStateContent.buttonIcon && (() => {
+                                                                const ButtonIcon = emptyStateContent.buttonIcon;
+                                                                return <ButtonIcon className="h-4 w-4" />;
+                                                            })()}
+                                                            {emptyStateContent.buttonText}
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    );
+                                })()}
                             </div>
                         </TabsContent>
                     </div>

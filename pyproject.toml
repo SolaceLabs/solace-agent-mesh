@@ -71,10 +71,15 @@ cli = [
     "prompt-toolkit>=3.0",
     "rich>=13.0",
 ]
-dev = [
+
+[tool.hatch.envs.default]
+installer = "pip"
+dependencies = [
     "pytest>=7.0",
     "pytest-asyncio>=0.20",
     "ruff",
+    "solace-agent-mesh[database,cli,gcs,vertex,employee_tools]",
+    "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
 ]
 
 [tool.hatch.envs.hatch-test]
@@ -94,14 +99,14 @@ extra-dependencies = [
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
 ]
 
-[tool.hatch.envs.hatch-test.scripts]
-run = "pytest -m \"$(bash ./tests/pytest_marker_runner.sh)\" {args}"
-run-cov = "coverage run -m pytest -m \"$(bash ./tests/pytest_marker_runner.sh)\" {args}"
-cov-combine = "coverage combine"
-cov-report = "coverage report"
-
 [[tool.hatch.envs.hatch-test.matrix]]
 python = ["3.10", "3.13"]
+
+[tool.hatch.envs.hatch-test.scripts]
+run = "pytest -m \"$(python3 ./tests/test_selector.py)\" {args}"
+run-cov = "coverage run -m pytest -m \"$(python3 ./tests/test_selector.py)\" {args}"
+cov-combine = "coverage combine"
+cov-report = "coverage report"
 
 [project.urls]
 Homepage = "https://github.com/SolaceLabs/solace-agent-mesh"
@@ -127,6 +132,7 @@ python_files = ["test_*.py", "*_test.py", "tests.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 markers = [
+    "all: marks all tests",
     "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
     "default: marks tests that are basic or foundational",
     "stress: marks tests as stress tests (long-running, resource-intensive)",
@@ -149,6 +155,7 @@ markers = [
     # Markers for specific features.
     "delegation: marks tests related to agent delegation",
     "embeds: marks tests related to the embeds",
+    "mcp: marks tests related to mcp",
     "notification: marks tests related to notifications",
     "task_cancellation: marks tests related to task cancellation",
 

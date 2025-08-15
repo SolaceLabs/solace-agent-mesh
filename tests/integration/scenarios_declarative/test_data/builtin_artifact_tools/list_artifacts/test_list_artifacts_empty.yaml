@@ -2,7 +2,7 @@ test_case_id: "builtin_list_artifacts_empty_001"
 description: |
   Tests the 'list_artifacts' tool when no artifacts exist in the session.
   Verifies that the tool returns an empty list of artifacts.
-tags: ["agent","tools","builtin_artifact_tools"]
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 # No setup_artifacts, ensuring the artifact service is empty for this session.

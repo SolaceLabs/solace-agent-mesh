@@ -1,7 +1,7 @@
 # tests/integration/scenarios_declarative/test_data/image_tools/describe_image/test_describe_image_malformed_api_response.yaml
 test_case_id: "describe_image_malformed_api_response"
 description: "Tests robustness when the vision API returns a 200 OK but with a malformed choice object."
-tags: ["agent","tools","image_tools"]
+tags: ["all","agent","tools","image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

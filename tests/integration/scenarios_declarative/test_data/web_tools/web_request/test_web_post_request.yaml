@@ -1,6 +1,6 @@
 test_case_id: web_request_post_request
 description: "Test that web_request tool can handle a POST request with a body."
-tags: ["agent","tools","web_tools"]
+tags: ["all","agent","tools","web_tools"]
 skip_intermediate_events: true
 
 gateway_input:

@@ -3,7 +3,7 @@ description: |
   Tests 'extract_content_from_artifact' when extracted content is small
   and 'output_filename_base' is provided but should be ignored (no save occurs).
   Assumes save_threshold_bytes=50.
-tags: ["agent","tools","builtin_artifact_tools"]
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 # tool_output_save_threshold_bytes: 50 (implicitly by agent config)

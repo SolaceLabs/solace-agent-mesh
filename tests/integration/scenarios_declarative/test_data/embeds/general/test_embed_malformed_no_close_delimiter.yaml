@@ -1,6 +1,6 @@
 test_case_id: "embed_general_malformed_no_close_delimiter_001"
 description: "Tests a malformed embed with no closing delimiter: «math:1+1"
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

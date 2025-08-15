@@ -1,5 +1,6 @@
 test_case_id: "mcp_multi_content_single_response_001"
 description: "Tests that a single MCP response with multiple items (text and image) creates two separate artifacts."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:

@@ -3,7 +3,7 @@ description: |
   Tests 'apply_embed_and_create_artifact' with a simple text artifact,
   no modifiers, and no explicit format. Expects the content to be copied
   and saved as a new artifact, likely with a text/plain MIME type.
-tags: ["agent","tools","builtin_artifact_tools"]
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

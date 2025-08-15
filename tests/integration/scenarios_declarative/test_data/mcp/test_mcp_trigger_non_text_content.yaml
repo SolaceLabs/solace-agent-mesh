@@ -1,5 +1,6 @@
 test_case_id: "mcp_trigger_non_text_content_001"
 description: "Verifies that a response with non-text content (image) is always saved as an artifact, even if it's small."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 # No config overrides, so default thresholds (2KB save, 4KB return) are used.

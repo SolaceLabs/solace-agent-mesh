@@ -1,5 +1,6 @@
 test_case_id: "mcp_trigger_below_thresholds_001"
 description: "Verifies that a small text response from an MCP tool, below all thresholds, is not saved as an artifact and is returned to the LLM in full."
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 # No config overrides, so default thresholds (2KB save, 4KB return) are used.

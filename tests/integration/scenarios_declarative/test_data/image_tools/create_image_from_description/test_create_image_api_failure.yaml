@@ -1,6 +1,6 @@
 test_case_id: "create_image_error_handling_001"
 description: "Verifies that the tool handles an API failure from the image generation service."
-tags: ["agent","tools","image_tools"]
+tags: ["all","agent","tools","image_tools"]
 skip_intermediate_events: true
 
 gateway_input:

@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sam-test-infrastructure"
+version = "0.1.0"
+description = "Test infrastructure for the Solace Agent Mesh project."
+readme = "README.md"
+authors = [
+    { name="SolaceLabs", email="solacelabs@solace.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "solace-ai-connector",
+    "google-adk",
+    "pytest",
+    "psutil",
+    "objgraph",
+    "pympler",
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "starlette",
+    "fastmcp",
+    "pytest-httpx",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sam_test_infrastructure"]

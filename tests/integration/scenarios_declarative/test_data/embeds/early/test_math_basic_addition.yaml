@@ -1,6 +1,6 @@
 test_case_id: "embed_math_basic_addition_001"
 description: "Tests «math:5+3» embed for basic addition."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

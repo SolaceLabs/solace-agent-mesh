@@ -1,5 +1,6 @@
 test_case_id: "mcp_late_embed_resolution_001"
 description: "Tests that MCP tools properly resolve late embeds (artifact_content) in their parameters"
+tags: ["all","agent","mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:
