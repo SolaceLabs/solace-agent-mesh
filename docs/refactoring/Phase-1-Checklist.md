@@ -4,11 +4,11 @@ This checklist tracks the development tasks for Phase 1.
 
 ### Section A: Schema and Data Model Setup
 
-- [ ] 1. Create directory: `src/solace_agent_mesh/common/a2a_spec/schemas/`.
-- [ ] 2. Create `tool_invocation_start.json` schema file.
-- [ ] 3. Create `llm_invocation.json` schema file.
-- [ ] 4. Create `agent_progress_update.json` schema file.
-- [ ] 5. Create `artifact_creation_progress.json` schema file.
+- [x] 1. Create directory: `src/solace_agent_mesh/common/a2a_spec/schemas/`.
+- [x] 2. Create `tool_invocation_start.json` schema file.
+- [x] 3. Create `llm_invocation.json` schema file.
+- [x] 4. Create `agent_progress_update.json` schema file.
+- [x] 5. Create `artifact_creation_progress.json` schema file.
 - [ ] 6. Create file: `src/solace_agent_mesh/common/data_parts.py`.
 - [ ] 7. Add Pydantic models to `data_parts.py` corresponding to the new JSON schemas.
 
