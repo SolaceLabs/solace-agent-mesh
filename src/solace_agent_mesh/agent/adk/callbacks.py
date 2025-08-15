@@ -51,11 +51,18 @@ from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
 
-from ...common.types import (
-    TaskStatusUpdateEvent,
-    TaskStatus,
-    TaskState,
+from a2a.types import (
+    DataPart,
     Message as A2AMessage,
+    TaskState,
+    TaskStatus,
+    TaskStatusUpdateEvent,
+)
+from ...common.data_parts import (
+    AgentProgressUpdateData,
+    ArtifactCreationProgressData,
+    LlmInvocationData,
+    ToolInvocationStartData,
 )
 
 from ...agent.utils.artifact_helpers import (

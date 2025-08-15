@@ -24,7 +24,7 @@ This checklist tracks the development tasks for Phase 1.
 
 ### Section C: Refactor Status Update Generation (`callbacks.py`)
 
-- [ ] 15. Replace legacy type imports with `a2a.types` and the new `data_parts` models.
+- [x] 15. Replace legacy type imports with `a2a.types` and the new `data_parts` models.
 - [ ] 16. Refactor `notify_tool_invocation_start_callback` to create and publish a `TaskStatusUpdateEvent` containing a `DataPart` with `ToolInvocationStartData`.
 - [ ] 17. Refactor `solace_llm_invocation_callback` to use a `DataPart` with `LlmInvocationData`.
 - [ ] 18. Refactor progress update logic in `process_artifact_blocks_callback` to use a `DataPart` with `ArtifactCreationProgressData`.
