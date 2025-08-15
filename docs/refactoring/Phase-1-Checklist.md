@@ -9,8 +9,8 @@ This checklist tracks the development tasks for Phase 1.
 - [x] 3. Create `llm_invocation.json` schema file.
 - [x] 4. Create `agent_progress_update.json` schema file.
 - [x] 5. Create `artifact_creation_progress.json` schema file.
-- [ ] 6. Create file: `src/solace_agent_mesh/common/data_parts.py`.
-- [ ] 7. Add Pydantic models to `data_parts.py` corresponding to the new JSON schemas.
+- [x] 6. Create file: `src/solace_agent_mesh/common/data_parts.py`.
+- [x] 7. Add Pydantic models to `data_parts.py` corresponding to the new JSON schemas.
 
 ### Section B: Refactor Agent Request Handling (`event_handlers.py`)
 
