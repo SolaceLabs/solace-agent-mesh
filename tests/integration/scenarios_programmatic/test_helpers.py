@@ -18,6 +18,7 @@ from a2a.types import (
     TaskArtifactUpdateEvent,
     JSONRPCError,
 )
+from a2a.utils.message import get_message_text
 import time
 import logging
 
@@ -100,11 +101,10 @@ def extract_outputs_from_event_list(
 
     for event in all_events:
         if isinstance(event, TaskStatusUpdateEvent):
-            if not event.final:
-                if event.status and event.status.message and event.status.message.parts:
-                    for part in event.status.message.parts:
-                        if isinstance(part.root, TextPart) and part.root.text:
-                            aggregated_intermediate_stream_text += part.root.text
+            if not event.final and event.status and event.status.message:
+                aggregated_intermediate_stream_text += get_message_text(
+                    event.status.message, delimiter=""
+                )
         elif isinstance(event, (Task, JSONRPCError)):
             terminal_event_obj = event
 
@@ -201,14 +201,9 @@ def _extract_text_from_event(event: Any) -> Optional[str]:
     """Helper to extract primary text content from various event types."""
     text_content = None
     if isinstance(event, (Task, TaskStatusUpdateEvent)):
-        if event.status and event.status.message and event.status.message.parts:
-            texts = [
-                part.root.text
-                for part in event.status.message.parts
-                if isinstance(part.root, TextPart) and part.root.text
-            ]
-            if texts:
-                text_content = "".join(texts)
+        if event.status and event.status.message:
+            # get_message_text returns an empty string if no text parts are found.
+            return get_message_text(event.status.message, delimiter="")
     elif isinstance(event, JSONRPCError):
         text_content = event.message
     return text_content

@@ -29,6 +29,7 @@ from a2a.types import (
     TaskArtifactUpdateEvent,
     JSONRPCError,
 )
+from a2a.utils.message import get_data_parts, get_message_text
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from google.genai import types as adk_types  # Add this import
@@ -1404,14 +1405,8 @@ async def test_declarative_scenario(
 
 
 def _extract_text_from_generic_update(event: TaskStatusUpdateEvent) -> str:
-    if event.status and event.status.message and event.status.message.parts:
-        return "".join(
-            [
-                p.root.text
-                for p in event.status.message.parts
-                if isinstance(p.root, TextPart) and p.root.text
-            ]
-        )
+    if event.status and event.status.message:
+        return get_message_text(event.status.message, delimiter="")
     return ""
 
 
@@ -1422,28 +1417,24 @@ def _get_actual_event_purpose(
 ) -> Optional[str]:
     """Determines the 'purpose' of a TaskStatusUpdateEvent for matching against expected_spec."""
     if isinstance(actual_event, TaskStatusUpdateEvent):
-        if (
-            actual_event.status
-            and actual_event.status.message
-            and actual_event.status.message.parts
-        ):
-            for part in actual_event.status.message.parts:
-                if isinstance(part, DataPart):
-                    # New, preferred way of signaling
-                    signal_type = part.data.get("type")
-                    if signal_type in [
-                        "tool_invocation_start",
-                        "llm_invocation",
-                        "agent_progress_update",
-                        "artifact_creation_progress",
-                    ]:
-                        return signal_type
-                    # Legacy check for older signals
-                    if (
-                        part.data.get("a2a_signal_type") == "agent_status_message"
-                        or part.data.get("type") == "agent_status"
-                    ):
-                        return "embedded_status_update"
+        if actual_event.status and actual_event.status.message:
+            data_payloads = get_data_parts(actual_event.status.message.parts)
+            for data in data_payloads:
+                # New, preferred way of signaling
+                signal_type = data.get("type")
+                if signal_type in [
+                    "tool_invocation_start",
+                    "llm_invocation",
+                    "agent_progress_update",
+                    "artifact_creation_progress",
+                ]:
+                    return signal_type
+                # Legacy check for older signals
+                if (
+                    data.get("a2a_signal_type") == "agent_status_message"
+                    or data.get("type") == "agent_status"
+                ):
+                    return "embedded_status_update"
 
         # Legacy check for metadata-based signals
         if (
