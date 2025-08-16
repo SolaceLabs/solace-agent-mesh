@@ -1173,9 +1173,9 @@ class BaseGatewayComponent(ComponentBase):
         parsed_event_obj: Union[
             Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent, JSONRPCError, None
         ] = None
-        if rpc_response.root.error:
+        if hasattr(rpc_response.root, "error") and rpc_response.root.error:
             parsed_event_obj = rpc_response.root.error
-        elif rpc_response.root.result:
+        elif hasattr(rpc_response.root, "result") and rpc_response.root.result:
             # The result is a Pydantic model, convert it back to a dict for parsing
             parsed_event_obj = self._parse_a2a_event_from_rpc_result(
                 rpc_response.root.result.model_dump(by_alias=True, exclude_none=True),
