@@ -11,7 +11,7 @@ from sam_test_infrastructure.llm_server.server import (
 from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )
-from solace_agent_mesh.common.types import (
+from a2a.types import (
     TextPart,
     Task,
     TaskStatusUpdateEvent,
@@ -170,16 +170,13 @@ async def get_all_task_events(
             print(
                 f"TestHelper: Scenario {scenario_id_for_log}: Captured event {type(event).__name__} for task {task_id}."
             )
-            if type(event).__name__ in ("Task", "JSONRPCError"):
+            if isinstance(event, (Task, JSONRPCError)):
                 print(
                     f"TestHelper: Scenario {scenario_id_for_log}: Terminal event ({type(event).__name__}) received for task {task_id}."
                 )
                 return captured_events
 
-    if not captured_events or type(captured_events[-1]).__name__ not in (
-        "Task",
-        "JSONRPCError",
-    ):
+    if not captured_events or not isinstance(captured_events[-1], (Task, JSONRPCError)):
         pytest.fail(
             f"Scenario {scenario_id_for_log}: Timeout ({overall_timeout}s). "
             f"No terminal event (Task or JSONRPCError) received for task {task_id}. "
@@ -272,7 +269,7 @@ def assert_final_response_text_contains(
         )
 
     if (
-        type(terminal_event).__name__ == "JSONRPCError"
+        isinstance(terminal_event, JSONRPCError)
         and verification_content == terminal_event.message
     ):
         assert (
