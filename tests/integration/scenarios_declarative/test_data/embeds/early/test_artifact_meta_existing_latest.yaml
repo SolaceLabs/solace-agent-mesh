@@ -1,56 +1,34 @@
-test_case_id: "tool_invocation_datapart_signal_001"
-description: "Tests that a tool invocation triggers a TaskStatusUpdateEvent with a DataPart containing ToolInvocationStartData."
-tags: ["all", "agent", "callbacks", "datapart"]
+test_case_id: "embed_artifact_meta_existing_latest_001"
+description: "Tests «artifact_meta:file1.txt» resolves to the latest version's metadata."
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "file1.txt"
+    mime_type: "text/plain"
+    content: "Version 0 content"
+    metadata: {"source": "initial_upload"}
+  - filename: "file1.txt"
+    mime_type: "text/markdown"
+    content: "## Version 1 Content"
+    metadata: {"source": "latest_upload"}
 
 gateway_input:
   target_agent_name: "TestAgent"
-  user_identity: "tool_tester@example.com"
-  parts: [{type: "text", text: "What is the weather in San Francisco?"}]
+  user_identity: "embed_tester@example.com"
+  parts: [{type: "text", text: "Get metadata for file1.txt"}]
   external_context:
-    a2a_session_id: "fixed_session_for_tool_invocation_test_001"
+    a2a_session_id: "fixed_session_for_artifact_meta_test_latest_001"
 
 llm_interactions:
   - static_response:
-      choices:
-        - message:
-            role: "assistant"
-            tool_calls:
-              - id: "call_weather_123"
-                type: "function"
-                function:
-                  name: "get_weather_tool"
-                  arguments: '{"location": "San Francisco"}'
-  - static_response:
-      choices:
-        - message:
-            role: "assistant"
-            content: "The weather in San Francisco is sunny."
+      choices: [{message: {role: "assistant", content: "Metadata: «artifact_meta:file1.txt»"}}]
 
 expected_gateway_output:
-  - type: "status_update"
-    event_purpose: "tool_invocation_start"
-    kind: "status-update"
-    taskId: "*"
-    contextId: "fixed_session_for_tool_invocation_test_001"
-    status:
-      state: "working"
-      message:
-        kind: "message"
-        messageId: "*"
-        role: "agent"
-        parts:
-          - kind: "data"
-            data:
-              type: "tool_invocation_start"
-              tool_name: "get_weather_tool"
-              tool_args:
-                location: "San Francisco"
-              function_call_id: "call_weather_123"
   - type: "final_response"
     kind: "task"
     id: "*"
-    contextId: "fixed_session_for_tool_invocation_test_001"
+    contextId: "fixed_session_for_artifact_meta_test_latest_001"
     status:
       state: "completed"
       message:
@@ -60,4 +38,9 @@ expected_gateway_output:
         parts:
           - kind: "text"
             text_contains:
-              - "The weather in San Francisco is sunny."
+              - "--- Metadata for artifact 'file1.txt' (v1) ---"
+              - "*   **Source:** latest_upload"
+              - "*   **Type:** text/markdown"
+              - "*   **Schema Type:** text/markdown"
+            text_matches_regex:
+              - "\\*   size: \\d+"
