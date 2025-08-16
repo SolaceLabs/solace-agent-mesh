@@ -109,8 +109,8 @@ async def _publish_data_part_status_update(
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
     status_update_event = TaskStatusUpdateEvent(
-        taskId=logical_task_id,
-        contextId=context_id,
+        task_id=logical_task_id,
+        context_id=context_id,
         status=task_status,
         final=False,
         kind="status-update",
@@ -1520,11 +1520,17 @@ def solace_llm_response_callback(
             "type": "llm_response",
             "data": llm_response.model_dump(exclude_none=True),
         }
-        a2a_message = A2AMessage(role="agent", parts=[], metadata=llm_response_metadata)
+        a2a_message = A2AMessage(
+            role="agent",
+            parts=[],
+            metadata=llm_response_metadata,
+            messageId=uuid.uuid4().hex,
+            kind="message",
+        )
         task_status = TaskStatus(
             state=TaskState.WORKING,
             message=a2a_message,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(timezone.utc).isoformat(),
         )
         status_update_event = TaskStatusUpdateEvent(
             task_id=logical_task_id,

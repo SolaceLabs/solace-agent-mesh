@@ -339,8 +339,9 @@ async def handle_a2a_request(component, message: SolaceMessage):
         elif isinstance(
             a2a_request.root, (SendMessageRequest, SendStreamingMessageRequest)
         ):
-            # New A2A spec: server generates the task ID.
-            logical_task_id = uuid.uuid4().hex
+            # The gateway/client is the source of truth for the task ID.
+            # The agent adopts the ID from the JSON-RPC request envelope.
+            logical_task_id = str(a2a_request.root.id)
             # The session id is now contextId on the message
             original_session_id = a2a_request.root.params.message.context_id
             message_id = a2a_request.root.params.message.message_id
