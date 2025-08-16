@@ -1425,6 +1425,7 @@ def _get_actual_event_purpose(
                 if signal_type in [
                     "tool_invocation_start",
                     "llm_invocation",
+                    "llm_response",
                     "agent_progress_update",
                     "artifact_creation_progress",
                 ]:
