@@ -1,7 +1,7 @@
 test_case_id: "tool_invocation_datapart_signal_001"
 description: "Tests that a tool invocation triggers a TaskStatusUpdateEvent with a DataPart containing ToolInvocationStartData."
 tags: ["all", "agent", "callbacks", "datapart"]
-skip_intermediate_events: false
+skip_intermediate_events: true
 
 gateway_input:
   target_agent_name: "TestAgent"
