@@ -49,6 +49,7 @@ from a2a.types import (
     FileWithBytes,
     FileWithUri,
     DataPart,
+    Part,
     Artifact as A2AArtifact,
     JSONRPCResponse,
     InternalError,
@@ -59,6 +60,7 @@ from a2a.types import (
     CancelTaskRequest,
     TaskIdParams,
 )
+from a2a.utils.message import new_agent_text_message, new_agent_parts_message
 from ...common.a2a_protocol import (
     get_a2a_base_topic,
     get_discovery_topic,
@@ -1289,11 +1291,10 @@ class SamAgentComponent(ComponentBase):
             return
 
         try:
-            a2a_message = A2AMessage(
-                role="agent",
-                parts=[TextPart(text=text_content)],
-                messageId=uuid.uuid4().hex,
-                kind="message",
+            a2a_message = new_agent_text_message(
+                text=text_content,
+                task_id=logical_task_id,
+                context_id=a2a_context.get("contextId"),
             )
             task_status = TaskStatus(
                 state=TaskState.working,
@@ -1302,10 +1303,12 @@ class SamAgentComponent(ComponentBase):
             )
             event_metadata = {"agent_name": self.agent_name}
             status_update_event = TaskStatusUpdateEvent(
-                id=logical_task_id,
+                task_id=logical_task_id,
+                context_id=a2a_context.get("contextId"),
                 status=task_status,
                 final=is_stream_terminating_content,
                 metadata=event_metadata,
+                kind="status-update",
             )
 
             await self._publish_status_update_with_buffer_flush(
@@ -1354,11 +1357,11 @@ class SamAgentComponent(ComponentBase):
                 },
                 metadata={"source_embed_type": "status_update"},
             )
-            a2a_message = A2AMessage(
-                role="agent",
-                parts=[signal_data_part],
-                messageId=uuid.uuid4().hex,
-                kind="message",
+            part_wrapper = Part(root=signal_data_part)
+            a2a_message = new_agent_parts_message(
+                parts=[part_wrapper],
+                task_id=logical_task_id,
+                context_id=a2a_context.get("contextId"),
             )
             task_status = TaskStatus(
                 state=TaskState.working,
@@ -1367,10 +1370,12 @@ class SamAgentComponent(ComponentBase):
             )
             event_metadata = {"agent_name": self.agent_name}
             status_update_event = TaskStatusUpdateEvent(
-                id=logical_task_id,
+                task_id=logical_task_id,
+                context_id=a2a_context.get("contextId"),
                 status=task_status,
                 final=False,
                 metadata=event_metadata,
+                kind="status-update",
             )
 
             await self._publish_status_update_with_buffer_flush(
@@ -2110,12 +2115,8 @@ class SamAgentComponent(ComponentBase):
         if not a2a_parts:
             a2a_parts.append(TextPart(text=""))
 
-        a2a_message = A2AMessage(
-            role="agent",
-            parts=a2a_parts,
-            messageId=uuid.uuid4().hex,
-            kind="message",
-        )
+        wrapped_parts = [Part(root=p) for p in a2a_parts]
+        a2a_message = new_agent_parts_message(parts=wrapped_parts)
         return TaskStatus(state=a2a_state, message=a2a_message)
 
     async def finalize_task_success(self, a2a_context: Dict):
@@ -2210,14 +2211,10 @@ class SamAgentComponent(ComponentBase):
                 if not final_a2a_parts:
                     final_a2a_parts.append(TextPart(text=""))
 
+                wrapped_final_parts = [Part(root=p) for p in final_a2a_parts]
                 final_status = TaskStatus(
                     state=TaskState.completed,
-                    message=A2AMessage(
-                        role="agent",
-                        parts=final_a2a_parts,
-                        messageId=uuid.uuid4().hex,
-                        kind="message",
-                    ),
+                    message=new_agent_parts_message(parts=wrapped_final_parts),
                 )
             else:
                 if last_event:
@@ -2369,12 +2366,7 @@ class SamAgentComponent(ComponentBase):
 
             canceled_status = TaskStatus(
                 state=TaskState.canceled,
-                message=A2AMessage(
-                    role="agent",
-                    parts=[TextPart(text="Task cancelled by request.")],
-                    messageId=uuid.uuid4().hex,
-                    kind="message",
-                ),
+                message=new_agent_text_message(text="Task cancelled by request."),
             )
             agent_name = self.get_config("agent_name")
             final_task = Task(
@@ -2454,11 +2446,11 @@ class SamAgentComponent(ComponentBase):
                 }
             )
 
-            status_message = A2AMessage(
-                role="agent",
-                parts=[tool_error_data_part],
-                messageId=uuid.uuid4().hex,
-                kind="message",
+            part_wrapper = Part(root=tool_error_data_part)
+            status_message = new_agent_parts_message(
+                parts=[part_wrapper],
+                task_id=logical_task_id,
+                context_id=a2a_context.get("contextId"),
             )
             intermediate_status = TaskStatus(
                 state=TaskState.working,
@@ -2467,10 +2459,12 @@ class SamAgentComponent(ComponentBase):
             )
 
             status_update_event = TaskStatusUpdateEvent(
-                id=logical_task_id,
+                task_id=logical_task_id,
+                context_id=a2a_context.get("contextId"),
                 status=intermediate_status,
                 final=False,
                 metadata={"agent_name": self.get_config("agent_name")},
+                kind="status-update",
             )
 
             await self._publish_status_update_with_buffer_flush(
@@ -2668,15 +2662,8 @@ class SamAgentComponent(ComponentBase):
 
             failed_status = TaskStatus(
                 state=TaskState.failed,
-                message=A2AMessage(
-                    role="agent",
-                    parts=[
-                        TextPart(
-                            text="An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
-                        )
-                    ],
-                    messageId=uuid.uuid4().hex,
-                    kind="message",
+                message=new_agent_text_message(
+                    text="An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
                 ),
             )
 

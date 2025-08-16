@@ -54,10 +54,12 @@ if TYPE_CHECKING:
 from a2a.types import (
     DataPart,
     Message as A2AMessage,
+    Part,
     TaskState,
     TaskStatus,
     TaskStatusUpdateEvent,
 )
+from a2a.utils.message import new_agent_parts_message
 from ...common.data_parts import (
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
@@ -97,11 +99,9 @@ async def _publish_data_part_status_update(
     context_id = a2a_context.get("contextId")
 
     data_part = DataPart(data=data_part_model.model_dump())
-    a2a_message = A2AMessage(
-        role="agent",
-        parts=[data_part],
-        messageId=uuid.uuid4().hex,
-        kind="message",
+    part_wrapper = Part(root=data_part)
+    a2a_message = new_agent_parts_message(
+        parts=[part_wrapper], task_id=logical_task_id, context_id=context_id
     )
     task_status = TaskStatus(
         state=TaskState.working,
@@ -1432,12 +1432,10 @@ def solace_llm_invocation_callback(
 
         llm_data = LlmInvocationData(request=llm_request.model_dump(exclude_none=True))
         data_part = DataPart(data=llm_data.model_dump())
+        part_wrapper = Part(root=data_part)
 
-        a2a_message = A2AMessage(
-            role="agent",
-            parts=[data_part],
-            messageId=uuid.uuid4().hex,
-            kind="message",
+        a2a_message = new_agent_parts_message(
+            parts=[part_wrapper], task_id=logical_task_id, context_id=context_id
         )
         task_status = TaskStatus(
             state=TaskState.working,
@@ -1445,8 +1443,8 @@ def solace_llm_invocation_callback(
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
         status_update_event = TaskStatusUpdateEvent(
-            taskId=logical_task_id,
-            contextId=context_id,
+            task_id=logical_task_id,
+            context_id=context_id,
             status=task_status,
             final=False,
             kind="status-update",
@@ -1513,16 +1511,16 @@ def solace_llm_response_callback(
         agent_name = host_component.get_config("agent_name", "unknown_agent")
         logical_task_id = a2a_context.get("logical_task_id")
 
-        llm_response_metadata = {
+        llm_response_data = {
             "type": "llm_response",
             "data": llm_response.model_dump(exclude_none=True),
         }
-        a2a_message = A2AMessage(
-            role="agent",
-            parts=[],
-            metadata=llm_response_metadata,
-            messageId=uuid.uuid4().hex,
-            kind="message",
+        data_part = DataPart(data=llm_response_data)
+        part_wrapper = Part(root=data_part)
+        a2a_message = new_agent_parts_message(
+            parts=[part_wrapper],
+            task_id=logical_task_id,
+            context_id=a2a_context.get("contextId"),
         )
         task_status = TaskStatus(
             state=TaskState.working,
