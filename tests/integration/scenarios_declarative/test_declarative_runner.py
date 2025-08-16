@@ -1407,9 +1407,9 @@ def _extract_text_from_generic_update(event: TaskStatusUpdateEvent) -> str:
     if event.status and event.status.message and event.status.message.parts:
         return "".join(
             [
-                p.text
+                p.root.text
                 for p in event.status.message.parts
-                if isinstance(p, TextPart) and p.text
+                if isinstance(p.root, TextPart) and p.root.text
             ]
         )
     return ""

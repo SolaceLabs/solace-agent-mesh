@@ -99,13 +99,13 @@ def extract_outputs_from_event_list(
     terminal_event_obj: Optional[Union[Task, JSONRPCError]] = None
 
     for event in all_events:
-        if type(event).__name__ == "TaskStatusUpdateEvent":
+        if isinstance(event, TaskStatusUpdateEvent):
             if not event.final:
                 if event.status and event.status.message and event.status.message.parts:
                     for part in event.status.message.parts:
-                        if type(part).__name__ == "TextPart" and part.text:
-                            aggregated_intermediate_stream_text += part.text
-        elif type(event).__name__ in ("Task", "JSONRPCError"):
+                        if isinstance(part.root, TextPart) and part.root.text:
+                            aggregated_intermediate_stream_text += part.root.text
+        elif isinstance(event, (Task, JSONRPCError)):
             terminal_event_obj = event
 
     if not terminal_event_obj:
@@ -113,7 +113,7 @@ def extract_outputs_from_event_list(
             f"Scenario {scenario_id}: Internal error - get_all_task_events did not provide a terminal event, but also did not fail the test."
         )
 
-    if type(terminal_event_obj).__name__ == "Task":
+    if isinstance(terminal_event_obj, Task):
         if (
             terminal_event_obj.status
             and terminal_event_obj.status.message
@@ -121,14 +121,14 @@ def extract_outputs_from_event_list(
         ):
             temp_task_text = ""
             for part in terminal_event_obj.status.message.parts:
-                if type(part).__name__ == "TextPart" and part.text:
-                    temp_task_text += part.text
+                if isinstance(part.root, TextPart) and part.root.text:
+                    temp_task_text += part.root.text
             if temp_task_text:
                 text_from_terminal_event = temp_task_text
         print(
             f"TestHelper: Scenario {scenario_id}: Extracted text from terminal Task object (length: {len(text_from_terminal_event) if text_from_terminal_event else 0})."
         )
-    elif type(terminal_event_obj).__name__ == "JSONRPCError":
+    elif isinstance(terminal_event_obj, JSONRPCError):
         text_from_terminal_event = terminal_event_obj.message
 
     if not aggregated_intermediate_stream_text:
@@ -206,9 +206,9 @@ def _extract_text_from_event(event: Any) -> Optional[str]:
     if isinstance(event, (Task, TaskStatusUpdateEvent)):
         if event.status and event.status.message and event.status.message.parts:
             texts = [
-                part.text
+                part.root.text
                 for part in event.status.message.parts
-                if isinstance(part, TextPart) and part.text
+                if isinstance(part.root, TextPart) and part.root.text
             ]
             if texts:
                 text_content = "".join(texts)
