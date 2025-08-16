@@ -21,7 +21,7 @@ from sam_test_infrastructure.artifact_service.service import (
     TestInMemoryArtifactService,
 )
 from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
-from solace_agent_mesh.common.types import (
+from a2a.types import (
     TextPart,
     DataPart,
     Task,
@@ -1425,22 +1425,36 @@ def _get_actual_event_purpose(
         if (
             actual_event.status
             and actual_event.status.message
+            and actual_event.status.message.parts
+        ):
+            for part in actual_event.status.message.parts:
+                if isinstance(part, DataPart):
+                    # New, preferred way of signaling
+                    signal_type = part.data.get("type")
+                    if signal_type in [
+                        "tool_invocation_start",
+                        "llm_invocation",
+                        "agent_progress_update",
+                        "artifact_creation_progress",
+                    ]:
+                        return signal_type
+                    # Legacy check for older signals
+                    if (
+                        part.data.get("a2a_signal_type") == "agent_status_message"
+                        or part.data.get("type") == "agent_status"
+                    ):
+                        return "embedded_status_update"
+
+        # Legacy check for metadata-based signals
+        if (
+            actual_event.status
+            and actual_event.status.message
             and actual_event.status.message.metadata
         ):
             meta_type = actual_event.status.message.metadata.get("type")
             if meta_type in ["tool_invocation_start", "llm_invocation", "llm_response"]:
                 return meta_type
-        if (
-            actual_event.status
-            and actual_event.status.message
-            and actual_event.status.message.parts
-        ):
-            for part in actual_event.status.message.parts:
-                if isinstance(part, DataPart) and (
-                    part.data.get("a2a_signal_type") == "agent_status_message"
-                    or part.data.get("type") == "agent_status"
-                ):
-                    return "embedded_status_update"
+
         return "generic_text_update"
     return None
 
@@ -1576,15 +1590,26 @@ async def _assert_event_details(
                         )
 
         if actual_event_purpose == "tool_invocation_start":
-            metadata_data = actual_event.status.message.metadata.get("data", {})
+            data_part = next(
+                (
+                    p
+                    for p in actual_event.status.message.parts
+                    if isinstance(p, DataPart)
+                ),
+                None,
+            )
+            assert (
+                data_part is not None
+            ), f"Scenario {scenario_id}: Event {event_index+1} - Expected a DataPart for tool_invocation_start event, but none was found."
+            tool_data = data_part.data
+
             if "expected_tool_name" in expected_spec:
                 assert (
-                    metadata_data.get("tool_name")
-                    == expected_spec["expected_tool_name"]
-                ), f"Scenario {scenario_id}: Event {event_index+1} - Tool name mismatch. Expected '{expected_spec['expected_tool_name']}', Got '{metadata_data.get('tool_name')}'"
+                    tool_data.get("tool_name") == expected_spec["expected_tool_name"]
+                ), f"Scenario {scenario_id}: Event {event_index+1} - Tool name mismatch. Expected '{expected_spec['expected_tool_name']}', Got '{tool_data.get('tool_name')}'"
             if "expected_tool_args_contain" in expected_spec:
                 expected_args_subset = expected_spec["expected_tool_args_contain"]
-                actual_args = metadata_data.get("tool_args", {})
+                actual_args = tool_data.get("tool_args", {})
                 if isinstance(actual_args, str):
                     try:
                         actual_args = json.loads(actual_args)
@@ -1605,46 +1630,58 @@ async def _assert_event_details(
                     ), f"Scenario {scenario_id}: Event {event_index+1} - Value for tool_arg '{k}' mismatch. Expected '{v_expected}', Got '{actual_args[k]}'"
 
         if actual_event_purpose in ["llm_invocation", "llm_response"]:
-            metadata_data = actual_event.status.message.metadata.get("data", {})
+            data_part = next(
+                (
+                    p
+                    for p in actual_event.status.message.parts
+                    if isinstance(p, DataPart)
+                ),
+                None,
+            )
+            assert (
+                data_part is not None
+            ), f"Scenario {scenario_id}: Event {event_index+1} - Expected a DataPart for {actual_event_purpose} event, but none was found."
+            llm_data = data_part.data
+
             if "expected_llm_data_contains" in expected_spec:
                 expected_subset = expected_spec["expected_llm_data_contains"]
                 for k, v_expected in expected_subset.items():
                     assert (
-                        k in metadata_data
-                    ), f"Scenario {scenario_id}: Event {event_index+1} - Expected key '{k}' not in LLM data {metadata_data}"
+                        k in llm_data
+                    ), f"Scenario {scenario_id}: Event {event_index+1} - Expected key '{k}' not in LLM data {llm_data}"
                     if (
                         k == "model"
                         and isinstance(v_expected, str)
                         and v_expected.endswith("...")
                     ):
-                        assert metadata_data[k].startswith(
+                        assert llm_data[k].startswith(
                             v_expected[:-3]
-                        ), f"Scenario {scenario_id}: Event {event_index+1} - Value for LLM data key '{k}' start mismatch. Expected to start with '{v_expected[:-3]}', Got '{metadata_data[k]}'"
+                        ), f"Scenario {scenario_id}: Event {event_index+1} - Value for LLM data key '{k}' start mismatch. Expected to start with '{v_expected[:-3]}', Got '{llm_data[k]}'"
                     else:
                         if isinstance(v_expected, dict) and isinstance(
-                            metadata_data.get(k), dict
+                            llm_data.get(k), dict
                         ):
                             _assert_dict_subset(
                                 expected_subset=v_expected,
-                                actual_superset=metadata_data.get(k, {}),
+                                actual_superset=llm_data.get(k, {}),
                                 scenario_id=scenario_id,
                                 event_index=event_index,
                                 context_path=f"LLM data key '{k}'",
                             )
                         elif isinstance(v_expected, list) and isinstance(
-                            metadata_data.get(k), list
+                            llm_data.get(k), list
                         ):
                             _assert_list_subset(
                                 expected_list_subset=v_expected,
-                                actual_list_superset=metadata_data.get(k, []),
+                                actual_list_superset=llm_data.get(k, []),
                                 scenario_id=scenario_id,
                                 event_index=event_index,
                                 context_path=f"LLM data key '{k}'",
                             )
                         else:
                             assert (
-                                metadata_data.get(k) == v_expected
-                            ), f"Scenario {scenario_id}: Event {event_index+1} - Value for LLM data key '{k}' mismatch. Expected '{v_expected}', Got '{metadata_data.get(k)}'"
+                                llm_data.get(k) == v_expected
+                            ), f"Scenario {scenario_id}: Event {event_index+1} - Value for LLM data key '{k}' mismatch. Expected '{v_expected}', Got '{llm_data.get(k)}'"
 
         if "final_flag" in expected_spec:
             assert (
