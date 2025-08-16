@@ -104,7 +104,7 @@ async def _publish_data_part_status_update(
         kind="message",
     )
     task_status = TaskStatus(
-        state=TaskState.WORKING,
+        state=TaskState.working,
         message=a2a_message,
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
@@ -753,8 +753,7 @@ async def manage_large_mcp_tool_responses_callback(
 
     if needs_saving_as_artifact and (
         save_result
-        and save_result.status
-        in [McpSaveStatus.SUCCESS, McpSaveStatus.PARTIAL_SUCCESS]
+        and save_result.status in [McpSaveStatus.SUCCESS, McpSaveStatus.PARTIAL_SUCCESS]
     ):
         if needs_truncation_for_llm:
             final_llm_response_dict["status"] = "processed_saved_and_truncated"
@@ -1431,9 +1430,7 @@ def solace_llm_invocation_callback(
         logical_task_id = a2a_context.get("logical_task_id")
         context_id = a2a_context.get("contextId")
 
-        llm_data = LlmInvocationData(
-            request=llm_request.model_dump(exclude_none=True)
-        )
+        llm_data = LlmInvocationData(request=llm_request.model_dump(exclude_none=True))
         data_part = DataPart(data=llm_data.model_dump())
 
         a2a_message = A2AMessage(
@@ -1443,7 +1440,7 @@ def solace_llm_invocation_callback(
             kind="message",
         )
         task_status = TaskStatus(
-            state=TaskState.WORKING,
+            state=TaskState.working,
             message=a2a_message,
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
@@ -1528,7 +1525,7 @@ def solace_llm_response_callback(
             kind="message",
         )
         task_status = TaskStatus(
-            state=TaskState.WORKING,
+            state=TaskState.working,
             message=a2a_message,
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
