@@ -1614,43 +1614,50 @@ async def _assert_event_details(
 
             if "expected_llm_data_contains" in expected_spec:
                 expected_subset = expected_spec["expected_llm_data_contains"]
+
+                data_to_check = llm_data
+                if actual_event_purpose == "llm_invocation":
+                    data_to_check = llm_data.get("request", {})
+                elif actual_event_purpose == "llm_response":
+                    data_to_check = llm_data.get("data", {})
+
                 for k, v_expected in expected_subset.items():
                     assert (
-                        k in llm_data
-                    ), f"Scenario {scenario_id}: Event {event_index+1} - Expected key '{k}' not in LLM data {llm_data}"
+                        k in data_to_check
+                    ), f"Scenario {scenario_id}: Event {event_index+1} - Expected key '{k}' not in LLM data {data_to_check}"
                     if (
                         k == "model"
                         and isinstance(v_expected, str)
                         and v_expected.endswith("...")
                     ):
-                        assert llm_data[k].startswith(
+                        assert data_to_check[k].startswith(
                             v_expected[:-3]
-                        ), f"Scenario {scenario_id}: Event {event_index+1} - Value for LLM data key '{k}' start mismatch. Expected to start with '{v_expected[:-3]}', Got '{llm_data[k]}'"
+                        ), f"Scenario {scenario_id}: Event {event_index+1} - Value for LLM data key '{k}' start mismatch. Expected to start with '{v_expected[:-3]}', Got '{data_to_check[k]}'"
                     else:
                         if isinstance(v_expected, dict) and isinstance(
-                            llm_data.get(k), dict
+                            data_to_check.get(k), dict
                         ):
                             _assert_dict_subset(
                                 expected_subset=v_expected,
-                                actual_superset=llm_data.get(k, {}),
+                                actual_superset=data_to_check.get(k, {}),
                                 scenario_id=scenario_id,
                                 event_index=event_index,
                                 context_path=f"LLM data key '{k}'",
                             )
                         elif isinstance(v_expected, list) and isinstance(
-                            llm_data.get(k), list
+                            data_to_check.get(k), list
                         ):
                             _assert_list_subset(
                                 expected_list_subset=v_expected,
-                                actual_list_superset=llm_data.get(k, []),
+                                actual_list_superset=data_to_check.get(k, []),
                                 scenario_id=scenario_id,
                                 event_index=event_index,
                                 context_path=f"LLM data key '{k}'",
                             )
                         else:
                             assert (
-                                llm_data.get(k) == v_expected
-                            ), f"Scenario {scenario_id}: Event {event_index+1} - Value for LLM data key '{k}' mismatch. Expected '{v_expected}', Got '{llm_data.get(k)}'"
+                                data_to_check.get(k) == v_expected
+                            ), f"Scenario {scenario_id}: Event {event_index+1} - Value for LLM data key '{k}' mismatch. Expected '{v_expected}', Got '{data_to_check.get(k)}'"
 
         if "final_flag" in expected_spec:
             assert (
