@@ -1533,17 +1533,14 @@ async def _assert_event_details(
                     f"Scenario {scenario_id}: Event {event_index+1} [SINGLE EVENT ASSERTION] Using event text: '{text_to_assert_against}'"
                 )
         elif actual_event_purpose == "embedded_status_update":
-            if (
-                actual_event.status
-                and actual_event.status.message
-                and actual_event.status.message.parts
-            ):
-                for part in actual_event.status.message.parts:
-                    if isinstance(part, DataPart) and (
-                        part.data.get("a2a_signal_type") == "agent_status_message"
-                        or part.data.get("type") == "agent_status"
+            if actual_event.status and actual_event.status.message:
+                data_parts = get_data_parts(actual_event.status.message.parts)
+                for data in data_parts:
+                    if (
+                        data.get("a2a_signal_type") == "agent_status_message"
+                        or data.get("type") == "agent_status"
                     ):
-                        text_to_assert_against = part.data.get("text", "")
+                        text_to_assert_against = data.get("text", "")
                         break
 
         if "content_parts" in expected_spec and (
@@ -1559,40 +1556,27 @@ async def _assert_event_details(
                         event_index=event_index,
                     )
                 elif part_spec["type"] == "data":
-                    actual_data_part = next(
-                        (
-                            p
-                            for p in actual_event.status.message.parts
-                            if isinstance(p, DataPart)
-                        ),
-                        None,
-                    )
+                    data_parts = get_data_parts(actual_event.status.message.parts)
                     assert (
-                        actual_data_part is not None
+                        data_parts
                     ), f"Scenario {scenario_id}: Event {event_index+1} - Expected a DataPart but none was found."
+                    actual_data_part_content = data_parts[0]
 
                     if "data_contains" in part_spec:
                         _assert_dict_subset(
                             expected_subset=part_spec["data_contains"],
-                            actual_superset=actual_data_part.data,
+                            actual_superset=actual_data_part_content,
                             scenario_id=scenario_id,
                             event_index=event_index,
                             context_path="DataPart content",
                         )
 
         if actual_event_purpose == "tool_invocation_start":
-            data_part = next(
-                (
-                    p
-                    for p in actual_event.status.message.parts
-                    if isinstance(p, DataPart)
-                ),
-                None,
-            )
+            data_parts = get_data_parts(actual_event.status.message.parts)
             assert (
-                data_part is not None
+                data_parts
             ), f"Scenario {scenario_id}: Event {event_index+1} - Expected a DataPart for tool_invocation_start event, but none was found."
-            tool_data = data_part.data
+            tool_data = data_parts[0]
 
             if "expected_tool_name" in expected_spec:
                 assert (
