@@ -25,6 +25,7 @@ from a2a.types import (
     SetTaskPushNotificationConfigSuccessResponse,
     GetTaskPushNotificationConfigSuccessResponse,
 )
+from a2a.utils.message import get_message_text
 
 pytestmark = [pytest.mark.all, pytest.mark.asyncio]
 
@@ -203,7 +204,8 @@ async def test_a2a_client_cancel_task_response(
     assert response.root.result.id == "task-123"
     assert response.root.result.context_id == "session-456"
     assert response.root.result.status.state == TaskState.canceled
-    assert response.root.result.status.message.parts[0].text == "Task canceled successfully"
+    message_text = get_message_text(response.root.result.status.message)
+    assert message_text == "Task canceled successfully"
     assert response.root.result.status.message.role == "agent"
 
 
