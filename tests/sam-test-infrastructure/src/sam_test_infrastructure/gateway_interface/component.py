@@ -87,7 +87,7 @@ class TestGatewayComponent(BaseGatewayComponent):
         Translates a structured test input dictionary into A2A task components.
         The `external_event` is expected to have keys like:
         - 'target_agent_name': str
-        - 'parts': List[Dict] (where each dict defines an A2APart)
+        - 'a2a_parts': List[Dict] (where each dict defines an A2APart)
         - 'external_context_override': Optional[Dict] (to be merged into the returned context)
         """
         log_id = f"{self.log_identifier}[TranslateTestInput]"
@@ -97,7 +97,7 @@ class TestGatewayComponent(BaseGatewayComponent):
         if not target_agent_name:
             raise ValueError("Test input must specify 'target_agent_name'.")
 
-        a2a_parts_data = external_event.get("parts", [])
+        a2a_parts_data = external_event.get("a2a_parts", [])
         a2a_parts: list[A2APart] = []
         for part_data in a2a_parts_data:
             part_type = part_data.get("type")
