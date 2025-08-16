@@ -95,7 +95,7 @@ async def _setup_scenario_environment(
                     f"Scenario {scenario_id}: Error parsing LLM static_response: {e}\nResponse data: {interaction['static_response']}"
                 )
         else:
-            pytest.fail(
+            raise AssertionError(
                 f"Scenario {scenario_id}: 'static_response' missing in llm_interaction: {interaction}"
             )
     test_llm_server.prime_responses(primed_llm_responses)
@@ -135,7 +135,7 @@ async def _setup_scenario_environment(
             elif content_base64 is not None:
                 content_bytes = base64.b64decode(content_base64)
             else:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: Artifact spec for '{filename}' must have 'content' or 'content_base64'."
                 )
 
@@ -440,7 +440,7 @@ async def _assert_llm_interactions(
                             actual_tool_resp_msg.tool_call_id
                         )
                         if not actual_tool_call_id_from_response:
-                            pytest.fail(
+                            raise AssertionError(
                                 f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Actual tool response message is missing a tool_call_id."
                             )
 
@@ -481,7 +481,7 @@ async def _assert_llm_interactions(
                                     break
 
                         if originating_llm_interaction_yaml_idx == -1:
-                            pytest.fail(
+                            raise AssertionError(
                                 f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Could not find an originating LLM interaction in the YAML's 'llm_interactions' (index 0 to {i-1}) that produced tool_call_id '{actual_tool_call_id_from_response}'."
                             )
 
@@ -508,7 +508,7 @@ async def _assert_llm_interactions(
                             <= expected_tool_call_idx_within_origin
                             < len(originating_tool_calls_array_in_yaml)
                         ):
-                            pytest.fail(
+                            raise AssertionError(
                                 f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - 'tool_call_id_matches_prior_request_index' ({expected_tool_call_idx_within_origin}) "
                                 f"is out of bounds for the tool_calls (count: {len(originating_tool_calls_array_in_yaml)}) of the identified originating LLM interaction (YAML index {originating_llm_interaction_yaml_idx})."
                             )
@@ -648,7 +648,7 @@ async def _assert_llm_interactions(
                                 context_path=f"LLM call {i+1} Tool Response {j+1} JSON content",
                             )
                         except json.JSONDecodeError:
-                            pytest.fail(
+                            raise AssertionError(
                                 f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Tool response content was not valid JSON: '{actual_tool_resp_msg.content}'"
                             )
 
@@ -677,7 +677,7 @@ async def _assert_gateway_event_sequence(
 
     while expected_event_idx < len(expected_event_specs_list):
         if actual_event_cursor >= len(actual_events_list):
-            pytest.fail(
+            raise AssertionError(
                 f"Scenario {scenario_id}: Ran out of actual events while looking for expected event "
                 f"{expected_event_idx + 1} (Type: '{expected_event_specs_list[expected_event_idx].get('type')}', "
                 f"Purpose: '{expected_event_specs_list[expected_event_idx].get('event_purpose', 'N/A')}'). "
@@ -727,7 +727,7 @@ async def _assert_gateway_event_sequence(
                     break
 
             if last_consumed_actual_event_for_aggregation is None:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: Expected an aggregated generic_text_update (event {expected_event_idx + 1}), "
                     f"but no generic_text_update events found at or after actual event index {initial_actual_cursor_for_aggregation}."
                 )
@@ -787,7 +787,7 @@ async def _assert_gateway_event_sequence(
                 )
                 actual_event_cursor += 1
             else:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: Event {expected_event_idx + 1} mismatch. "
                     f"Expected type '{current_expected_spec.get('type')}' (Purpose: '{current_expected_spec.get('event_purpose', 'N/A')}') "
                     f"but got actual type '{type(current_actual_event).__name__}' "
@@ -796,7 +796,7 @@ async def _assert_gateway_event_sequence(
                 )
 
     if not skip_intermediate_events and actual_event_cursor < len(actual_events_list):
-        pytest.fail(
+        raise AssertionError(
             f"Scenario {scenario_id}: Extra unexpected events found after matching all expected events. "
             f"Expected {len(expected_event_specs_list)} events, but got {len(actual_events_list)}. "
             f"Next unexpected event at index {actual_event_cursor}: {type(actual_events_list[actual_event_cursor]).__name__}"
@@ -804,7 +804,7 @@ async def _assert_gateway_event_sequence(
     elif skip_intermediate_events and expected_event_idx < len(
         expected_event_specs_list
     ):
-        pytest.fail(
+        raise AssertionError(
             f"Scenario {scenario_id}: Not all expected events were found, even with skipping enabled. "
             f"Found {expected_event_idx} out of {len(expected_event_specs_list)} expected events. "
             f"Next expected was Type: '{expected_event_specs_list[expected_event_idx].get('type')}', "
@@ -840,11 +840,11 @@ async def _assert_artifact_state(
         filename_regex = spec.get("filename_matches_regex")
 
         if filename and filename_regex:
-            pytest.fail(
+            raise AssertionError(
                 f"Scenario {scenario_id}: '{context_path}' - Cannot specify both 'filename' and 'filename_matches_regex'."
             )
         if not filename and not filename_regex:
-            pytest.fail(
+            raise AssertionError(
                 f"Scenario {scenario_id}: '{context_path}' - Must specify either 'filename' or 'filename_matches_regex'."
             )
         user_id = spec.get("user_id") or gateway_input_data.get("user_identity")
@@ -893,7 +893,7 @@ async def _assert_artifact_state(
         has_bytes_spec = "expected_content_bytes_base64" in spec
 
         if has_text_spec and has_bytes_spec:
-            pytest.fail(
+            raise AssertionError(
                 f"Scenario {scenario_id}: '{context_path}' - Cannot specify both 'expected_content_text' and 'expected_content_bytes_base64'."
             )
 
@@ -905,7 +905,7 @@ async def _assert_artifact_state(
                     actual_text == expected_text
                 ), f"Scenario {scenario_id}: '{context_path}' - Text content mismatch for '{filename_for_lookup}'. Expected '{expected_text}', Got '{actual_text}'"
             except UnicodeDecodeError:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: '{context_path}' - Artifact '{filename_for_lookup}' content could not be decoded as UTF-8 for text comparison."
                 )
 
@@ -957,7 +957,7 @@ async def _assert_artifact_state(
                     ), f"Scenario {scenario_id}: '{context_path}' - Metadata schema key count mismatch. Expected {expected_key_count}, Got {actual_key_count}"
 
             except (json.JSONDecodeError, UnicodeDecodeError) as e:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: '{context_path}' - Failed to decode metadata for '{filename_for_lookup}': {e}"
                 )
 
@@ -1007,11 +1007,11 @@ async def _assert_generated_artifacts(
         filename_regex_from_spec = expected_artifact_spec.get("filename_matches_regex")
 
         if filename_from_spec and filename_regex_from_spec:
-            pytest.fail(
+            raise AssertionError(
                 f"Scenario {scenario_id}: '{context_path}' - Cannot specify both 'filename' and 'filename_matches_regex'."
             )
         if not filename_from_spec and not filename_regex_from_spec:
-            pytest.fail(
+            raise AssertionError(
                 f"Scenario {scenario_id}: '{context_path}' - Must specify either 'filename' or 'filename_matches_regex'."
             )
 
@@ -1080,7 +1080,7 @@ async def _assert_generated_artifacts(
                     expected_artifact_spec["content_contains"] in content_str
                 ), f"Scenario {scenario_id}: Artifact '{filename_to_process}' content mismatch. Expected to contain '{expected_artifact_spec['content_contains']}', Got '{content_str[:200]}...'"
             except UnicodeDecodeError:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: Artifact '{filename_to_process}' content could not be decoded as UTF-8 for 'content_contains' check. Consider a bytes-based assertion if it's binary."
                 )
         if "text_exact" in expected_artifact_spec:
@@ -1090,7 +1090,7 @@ async def _assert_generated_artifacts(
                     expected_artifact_spec["text_exact"] == content_str
                 ), f"Scenario {scenario_id}: Artifact '{filename_to_process}' content exact match failed. Expected '{expected_artifact_spec['text_exact']}', Got '{content_str}'"
             except UnicodeDecodeError:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: Artifact '{filename_to_process}' content could not be decoded as UTF-8 for 'text_exact' check."
                 )
         if "content_base64_exact" in expected_artifact_spec:
@@ -1138,11 +1138,11 @@ async def _assert_generated_artifacts(
                     context_path=f"Artifact '{filename_to_process}' metadata",
                 )
             except json.JSONDecodeError:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: Metadata for artifact '{filename_to_process}' was not valid JSON."
                 )
             except UnicodeDecodeError:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: Metadata for artifact '{filename_to_process}' could not be decoded as UTF-8."
                 )
 
@@ -1921,7 +1921,7 @@ def _assert_text_content(
                 evaluated_value = aeval.eval(expression_to_eval)
                 final_resolved_substring += str(evaluated_value)
             except Exception as e:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: Event {event_index+1} - Failed to dynamically evaluate math expression '{expression_to_eval}' in test: {e}"
                 )
             last_end = eval_match.end()
@@ -1964,7 +1964,7 @@ def _assert_text_content(
                 evaluated_value_not = aeval_not.eval(expression_to_eval_not)
                 final_resolved_unexpected_substring += str(evaluated_value_not)
             except Exception as e_not:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: Event {event_index+1} - Failed to dynamically evaluate math expression '{expression_to_eval_not}' in text_not_contains: {e_not}"
                 )
             last_end_not = eval_match_not.end()

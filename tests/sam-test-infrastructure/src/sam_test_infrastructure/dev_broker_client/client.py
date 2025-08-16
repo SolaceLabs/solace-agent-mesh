@@ -116,7 +116,7 @@ def test_data_plane_client(shared_solace_connector: SolaceAiConnector):
                 None, lambda: capture_q.get(timeout=timeout)
             )
         except queue.Empty:
-            pytest.fail(
+            raise TimeoutError(
                 f"Did not receive a message on the capture queue within {timeout} seconds."
             )
 
