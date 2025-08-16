@@ -35,9 +35,19 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "The file with the very long name has been created successfully."
+    kind: "task"
+    id: "*"
+    contextId: "fixed_session_for_fenced_artifact_long_name_test_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "The file with the very long name has been created successfully."
     assert_artifact_state:
       - filename: "a_very_long_filename_that_pushes_the_limits_of_the_filesystem_and_our_internal_handling_and_should_still_work_perfectly_fine_because_modern_filesystems_are_robust_and_can_handle_this_sort_of_thing_without_any_issues_at_all.log"
         version: 0

@@ -28,8 +28,8 @@ llm_interactions:
             content: "The weather in San Francisco is sunny."
 
 expected_gateway_output:
-  - type: "intermediate_event"
-    event_type: "status-update"
+  - type: "status_update"
+    event_purpose: "tool_invocation_start"
     kind: "status-update"
     taskId: "*"
     contextId: "fixed_session_for_tool_invocation_test_001"
