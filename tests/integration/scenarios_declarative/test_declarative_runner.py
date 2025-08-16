@@ -1605,18 +1605,11 @@ async def _assert_event_details(
                     ), f"Scenario {scenario_id}: Event {event_index+1} - Value for tool_arg '{k}' mismatch. Expected '{v_expected}', Got '{actual_args[k]}'"
 
         if actual_event_purpose in ["llm_invocation", "llm_response"]:
-            data_part = next(
-                (
-                    p
-                    for p in actual_event.status.message.parts
-                    if isinstance(p, DataPart)
-                ),
-                None,
-            )
+            data_parts = get_data_parts(actual_event.status.message.parts)
             assert (
-                data_part is not None
+                data_parts
             ), f"Scenario {scenario_id}: Event {event_index+1} - Expected a DataPart for {actual_event_purpose} event, but none was found."
-            llm_data = data_part.data
+            llm_data = data_parts[0]
 
             if "expected_llm_data_contains" in expected_spec:
                 expected_subset = expected_spec["expected_llm_data_contains"]
