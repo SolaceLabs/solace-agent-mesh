@@ -346,12 +346,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             let isFinalEvent = false;
             let messageToProcess: Message | undefined;
             let artifactToProcess: TaskArtifactUpdateEvent["artifact"] | undefined;
+            let currentTaskIdFromResult: string | undefined;
 
             // Determine event type and extract relevant data
             switch (result.kind) {
                 case "task":
                     isFinalEvent = true;
                     messageToProcess = result.status?.message;
+                    currentTaskIdFromResult = result.id;
                     // For the final task object in a streaming context, we ignore the text part
                     // as it has already been streamed to the client.
                     if (messageToProcess?.parts) {
@@ -364,9 +366,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 case "status-update":
                     isFinalEvent = result.final;
                     messageToProcess = result.status?.message;
+                    currentTaskIdFromResult = result.taskId;
                     break;
                 case "artifact-update":
                     artifactToProcess = result.artifact;
+                    currentTaskIdFromResult = result.taskId;
                     break;
                 default:
                     console.warn("Received unknown result kind in SSE message:", result);
@@ -502,7 +506,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     latestStatusText.current = null;
                     // Explicitly mark the last message as complete on the final event
                     const finalMessage = newMessages[newMessages.length - 1];
-                    if (finalMessage && !finalMessage.isUser && !finalMessage.isComplete && finalMessage.taskId === (result as TaskStatusUpdateEvent).taskId) {
+                    if (finalMessage && !finalMessage.isUser && !finalMessage.isComplete && finalMessage.taskId === currentTaskIdFromResult) {
                         newMessages[newMessages.length - 1] = {
                             ...finalMessage,
                             isComplete: true,

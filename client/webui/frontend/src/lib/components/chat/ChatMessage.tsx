@@ -114,6 +114,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 
     const variant = message.isUser ? "sent" : "received";
     const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && isLastWithTaskId;
+    console.log(`[ChatMessage] Rendering bubble for task ${message.taskId}. Show button: ${showWorkflowButton}`, { isComplete: message.isComplete, isLastWithTaskId });
     const handleViewWorkflowClick = () => {
         if (message.taskId) {
             setTaskIdInSidePanel(message.taskId);

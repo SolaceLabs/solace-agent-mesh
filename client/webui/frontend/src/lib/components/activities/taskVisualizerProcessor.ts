@@ -116,6 +116,7 @@ export const processTaskForVisualization = (
     if (!parentTaskObject) {
         return null;
     }
+    console.log("[Visualizer] Processing task:", parentTaskObject.taskId, "with raw events:", parentTaskObject.events);
 
     // --- Performance Report Initialization ---
     const report: PerformanceReport = {
@@ -313,6 +314,7 @@ export const processTaskForVisualization = (
                         const dataPart = part as DataPart;
                         const signalData = dataPart.data as any;
                         const signalType = signalData?.type as string;
+                        console.log("[Visualizer] Found DataPart signal:", signalType, "with data:", signalData);
 
                         switch (signalType) {
                             case "llm_invocation": {
