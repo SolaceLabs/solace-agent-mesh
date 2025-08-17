@@ -18,7 +18,7 @@ This checklist provides a terse, actionable summary of the tasks required for th
 
 **Step 3: Update Gateway SSE Forwarding (`component.py`)**
 - [x] 3.1. In `WebUIBackendComponent`, update the type hints for `event_data`, `task_data`, and `error_data` parameters in the `_send_*_to_external` methods to use the official `a2a.types`.
-- [ ] 3.2. In `WebUIBackendComponent`, update the serialization logic in `_send_*_to_external` methods to use `.model_dump()` for creating the JSON payload sent to the UI.
+- [x] 3.2. In `WebUIBackendComponent`, update the serialization logic in `_send_*_to_external` methods to use `.model_dump()` for creating the JSON payload sent to the UI.
 
 ---
 
