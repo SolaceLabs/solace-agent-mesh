@@ -282,6 +282,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }
     }, []);
 
+    const closeCurrentEventSource = useCallback(() => {
+        if (cancelTimeoutRef.current) {
+            clearTimeout(cancelTimeoutRef.current);
+            cancelTimeoutRef.current = null;
+        }
+        setIsCancelling(false);
+
+        if (currentEventSource.current) {
+            // Listeners are now removed in the useEffect cleanup
+            currentEventSource.current.close();
+            currentEventSource.current = null;
+        }
+        isFinalizing.current = false;
+    }, []);
+
     const handleSseMessage = useCallback(
         (event: MessageEvent) => {
             sseEventSequenceRef.current += 1;
@@ -449,24 +464,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         },
         [addNotification, isCancelling, closeCurrentEventSource, artifactsRefetch]
     );
-
-    const closeCurrentEventSource = useCallback(() => {
-        if (cancelTimeoutRef.current) {
-            clearTimeout(cancelTimeoutRef.current);
-            cancelTimeoutRef.current = null;
-        }
-        setIsCancelling(false);
-
-        if (currentEventSource.current) {
-            currentEventSource.current.removeEventListener("status_update", handleSseMessage);
-            currentEventSource.current.removeEventListener("artifact_update", handleSseMessage);
-            currentEventSource.current.removeEventListener("final_response", handleSseMessage);
-            currentEventSource.current.removeEventListener("error", handleSseMessage);
-            currentEventSource.current.close();
-            currentEventSource.current = null;
-        }
-        isFinalizing.current = false;
-    }, [handleSseMessage]);
 
     const handleNewSession = useCallback(async () => {
         const log_prefix = "ChatProvider.handleNewSession:";
@@ -836,13 +833,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             return () => {
                 console.log(`ChatProvider Effect Cleanup: currentTaskId was ${currentTaskId}. Closing EventSource.`);
+                // Explicitly remove listeners before closing
+                eventSource.removeEventListener("status_update", handleSseMessage);
+                eventSource.removeEventListener("artifact_update", handleSseMessage);
+                eventSource.removeEventListener("final_response", handleSseMessage);
+                eventSource.removeEventListener("error", handleSseMessage);
                 closeCurrentEventSource();
             };
         } else {
             console.log(`ChatProvider Effect: currentTaskId is null or apiPrefix missing. Ensuring EventSource is closed.`);
             closeCurrentEventSource();
         }
-    }, [currentTaskId, apiPrefix]);
+    }, [currentTaskId, apiPrefix, handleSseMessage, handleSseOpen, handleSseError, closeCurrentEventSource]);
 
     const contextValue: ChatContextValue = {
         sessionId,
