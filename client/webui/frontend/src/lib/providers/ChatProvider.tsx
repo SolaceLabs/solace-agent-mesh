@@ -369,7 +369,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
 
             // Process the parts of the message
-            const newParts: Part[] = [];
+            const newContentParts: Part[] = [];
+            const newFileAttachments: FileAttachment[] = [];
             let agentStatusText: string | null = null;
 
             if (messageToProcess?.parts) {
@@ -381,15 +382,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 case "agent_progress_update":
                                     agentStatusText = (data as any).status_text || "Processing...";
                                     break;
-                                // Tool invocation signals are now handled by the Task Visualizer, not the chat stream.
                                 case "tool_invocation_start":
                                     break;
                                 default:
-                                    newParts.push(part); // Keep unhandled data parts
+                                    newContentParts.push(part);
                             }
                         }
+                    } else if (part.kind === "file") {
+                        const filePart = part as FilePart;
+                        const fileInfo = filePart.file;
+                        newFileAttachments.push({
+                            name: fileInfo.name || "untitled_file",
+                            content: (fileInfo as any).bytes,
+                            mime_type: fileInfo.mimeType,
+                            uri: (fileInfo as any).uri,
+                        });
                     } else {
-                        newParts.push(part);
+                        newContentParts.push(part);
                     }
                 }
             }
@@ -406,11 +415,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Remove old status bubble
                 if (lastMessage?.isStatusBubble) {
                     newMessages.pop();
-                    lastMessage = newMessages[newMessages.length - 1]; // Update lastMessage after pop
+                    lastMessage = newMessages[newMessages.length - 1];
                 }
 
-                const textPartFromStream = newParts.find(p => p.kind === "text") as TextPart | undefined;
-                const otherParts = newParts.filter(p => p.kind !== "text");
+                const textPartFromStream = newContentParts.find(p => p.kind === "text") as TextPart | undefined;
+                const otherContentParts = newContentParts.filter(p => p.kind !== "text");
 
                 // Check if we can append to the last message
                 if (
@@ -418,12 +427,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     !lastMessage.isUser &&
                     !lastMessage.isComplete &&
                     lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId &&
-                    textPartFromStream
+                    (textPartFromStream || newFileAttachments.length > 0)
                 ) {
-                    // IMMUTABLE UPDATE: Create a new message object with the appended text.
-                    const updatedMessage = {
+                    const updatedMessage: MessageFE = {
                         ...lastMessage,
-                        parts: [...lastMessage.parts], // Create a new array for parts
+                        parts: [...lastMessage.parts],
+                        files: lastMessage.files ? [...lastMessage.files] : [],
                         isComplete: isFinalEvent,
                         metadata: {
                             ...lastMessage.metadata,
@@ -431,29 +440,29 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         },
                     };
 
-                    const lastPart = updatedMessage.parts[updatedMessage.parts.length - 1];
-                    if (lastPart?.kind === "text") {
-                        // To update the text, we replace the last part with a new object
-                        updatedMessage.parts[updatedMessage.parts.length - 1] = {
-                            ...lastPart,
-                            text: lastPart.text + textPartFromStream.text,
-                        };
-                    } else {
-                        updatedMessage.parts.push(textPartFromStream);
+                    if (textPartFromStream) {
+                        const lastPart = updatedMessage.parts[updatedMessage.parts.length - 1];
+                        if (lastPart?.kind === "text") {
+                            updatedMessage.parts[updatedMessage.parts.length - 1] = { ...lastPart, text: lastPart.text + textPartFromStream.text };
+                        } else {
+                            updatedMessage.parts.push(textPartFromStream);
+                        }
                     }
 
-                    // Add any other non-text parts from the stream
-                    if (otherParts.length > 0) {
-                        updatedMessage.parts.push(...otherParts);
+                    if (otherContentParts.length > 0) {
+                        updatedMessage.parts.push(...otherContentParts);
                     }
 
-                    // Replace the old message with the new, updated one in the messages array
+                    if (newFileAttachments.length > 0) {
+                        updatedMessage.files!.push(...newFileAttachments);
+                    }
+
                     newMessages[newMessages.length - 1] = updatedMessage;
-                } else if (newParts.length > 0 || artifactToProcess) {
-                    // Create a new message bubble
+                } else if (newContentParts.length > 0 || newFileAttachments.length > 0 || artifactToProcess) {
                     const newBubble: MessageFE = {
                         role: "agent",
-                        parts: newParts,
+                        parts: newContentParts,
+                        files: newFileAttachments.length > 0 ? newFileAttachments : undefined,
                         messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
                         kind: "message",
                         contextId: (result as TaskStatusUpdateEvent).contextId,
