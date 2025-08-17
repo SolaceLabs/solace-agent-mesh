@@ -675,59 +675,6 @@ class BaseGatewayComponent(ComponentBase):
         )
         return None
 
-    def _parse_a2a_event_from_rpc_result(
-        self, rpc_result: Dict, expected_task_id: Optional[str]
-    ) -> Optional[Union[Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent]]:
-        """
-        Parses the result field of a JSONRPCResponse into a specific A2A Pydantic model.
-        Verifies task ID if expected_task_id is provided.
-        """
-        if not isinstance(rpc_result, dict):
-            log.error(
-                "%s RPC result is not a dictionary. Cannot parse.", self.log_identifier
-            )
-            return None
-
-        kind = rpc_result.get("kind")
-        actual_task_id = None
-        if kind == "task":
-            actual_task_id = rpc_result.get("id")
-        elif kind in ["status-update", "artifact-update"]:
-            actual_task_id = rpc_result.get("taskId")
-
-        if expected_task_id and actual_task_id and actual_task_id != expected_task_id:
-            log.error(
-                "%s Task ID mismatch! Expected: %s, Got from payload: %s.",
-                self.log_identifier,
-                expected_task_id,
-                actual_task_id,
-            )
-            return None
-
-        try:
-            if kind == "status-update":
-                return TaskStatusUpdateEvent(**rpc_result)
-            elif kind == "artifact-update":
-                return TaskArtifactUpdateEvent(**rpc_result)
-            elif kind == "task":
-                return Task(**rpc_result)
-            else:
-                log.warning(
-                    "%s Unknown or missing 'kind' in RPC result for task %s: %s",
-                    self.log_identifier,
-                    actual_task_id or "unknown",
-                    rpc_result,
-                )
-                return None
-        except Exception as e:
-            log.error(
-                "%s Failed to parse RPC result into A2A Pydantic model for task %s: %s. Result: %s",
-                self.log_identifier,
-                actual_task_id or "unknown",
-                e,
-                rpc_result,
-            )
-            return None
 
     async def _resolve_embeds_and_handle_signals(
         self,
@@ -1176,18 +1123,37 @@ class BaseGatewayComponent(ComponentBase):
         if hasattr(rpc_response.root, "error") and rpc_response.root.error:
             parsed_event_obj = rpc_response.root.error
         elif hasattr(rpc_response.root, "result") and rpc_response.root.result:
-            # The result is a Pydantic model, convert it back to a dict for parsing
-            parsed_event_obj = self._parse_a2a_event_from_rpc_result(
-                rpc_response.root.result.model_dump(by_alias=True, exclude_none=True),
-                task_id_from_topic,
-            )
+            # The result is already a parsed Pydantic model.
+            parsed_event_obj = rpc_response.root.result
+
+            # Validate task ID match
+            actual_task_id = None
+            if isinstance(parsed_event_obj, Task):
+                actual_task_id = parsed_event_obj.id
+            elif isinstance(
+                parsed_event_obj, (TaskStatusUpdateEvent, TaskArtifactUpdateEvent)
+            ):
+                actual_task_id = parsed_event_obj.task_id
+
+            if (
+                task_id_from_topic
+                and actual_task_id
+                and actual_task_id != task_id_from_topic
+            ):
+                log.error(
+                    "%s Task ID mismatch! Expected: %s, Got from payload: %s.",
+                    self.log_identifier,
+                    task_id_from_topic,
+                    actual_task_id,
+                )
+                parsed_event_obj = None
 
         if not parsed_event_obj:
             log.error(
                 "%s Failed to parse or validate A2A event from RPC result for task %s. Result: %s",
                 self.log_identifier,
                 task_id_from_topic,
-                rpc_response.root.result,
+                rpc_response.root.result if hasattr(rpc_response.root, "result") else "N/A",
             )
             generic_error = JSONRPCError(
                 code=-32000, message="Invalid event structure received from agent."

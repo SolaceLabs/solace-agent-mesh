@@ -13,7 +13,7 @@ This checklist provides a terse, actionable summary of the tasks required for th
 
 **Step 2: Update Gateway A2A Event Parsing (`component.py`)**
 - [x] 2.1. In `BaseGatewayComponent._handle_agent_event`, parse incoming agent messages into `a2a.types.JSONRPCResponse`.
-- [ ] 2.2. In `BaseGatewayComponent._parse_a2a_event_from_rpc_result`, use the `kind` field to discriminate and parse the result into specific `a2a.types` models (`Task`, `TaskStatusUpdateEvent`, etc.).
+- [x] 2.2. In `BaseGatewayComponent._parse_a2a_event_from_rpc_result`, use the `kind` field to discriminate and parse the result into specific `a2a.types` models (`Task`, `TaskStatusUpdateEvent`, etc.).
 - [ ] 2.3. Update task ID extraction in `_parse_a2a_event_from_rpc_result` to use the `taskId` field from the new event types.
 
 **Step 3: Update Gateway SSE Forwarding (`component.py`)**
