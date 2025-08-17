@@ -609,10 +609,17 @@ async def _assert_llm_interactions(
                         assert isinstance(
                             actual_tool_resp_msg.content, str
                         ), f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Expected string content for tool response, got {type(actual_tool_resp_msg.content)}"
-                        assert (
-                            expected_tool_resp_spec["response_contains"]
-                            in actual_tool_resp_msg.content
-                        ), f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Content mismatch. Expected to contain '{expected_tool_resp_spec['response_contains']}', Got '{actual_tool_resp_msg.content}'"
+
+                        expected_content = expected_tool_resp_spec["response_contains"]
+                        if isinstance(expected_content, list):
+                            for substring in expected_content:
+                                assert (
+                                    substring in actual_tool_resp_msg.content
+                                ), f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Content mismatch. Expected to contain '{substring}', Got '{actual_tool_resp_msg.content}'"
+                        else:
+                            assert (
+                                expected_content in actual_tool_resp_msg.content
+                            ), f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Content mismatch. Expected to contain '{expected_content}', Got '{actual_tool_resp_msg.content}'"
 
                     if "response_exact_match" in expected_tool_resp_spec:
                         expected_content = expected_tool_resp_spec[
