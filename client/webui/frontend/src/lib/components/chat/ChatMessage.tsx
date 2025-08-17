@@ -3,9 +3,9 @@ import type { ReactNode } from "react";
 
 import { AlertCircle } from "lucide-react";
 
-import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner, ViewWorkflowButton } from "@/lib/components";
+import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner, ToolCallCapsule, ViewWorkflowButton } from "@/lib/components";
 import { useChatContext } from "@/lib/hooks";
-import type { MessageFE } from "@/lib/types";
+import type { MessageFE, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
 
 import { FileAttachmentMessage, FileMessage } from "./file/FileMessage";
@@ -18,11 +18,18 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
     if (message.isStatusBubble) {
         return null;
     }
+
+    // Derive text content from the `parts` array for both user and agent messages.
+    const textParts = message.parts?.filter(p => p.kind === "text") as TextPart[] | undefined;
+    const combinedText = textParts?.map(p => p.text).join("\n\n") || "";
+
     if (message.isUser) {
-        return <span>{message.text || ""}</span>;
+        return <span>{combinedText}</span>;
     }
-    const trimmedText = message.text?.trim();
+
+    const trimmedText = combinedText.trim();
     if (!trimmedText) return null;
+
     if (message.isError) {
         return (
             <div className="flex items-center">
@@ -89,6 +96,19 @@ const getFileAttachments = (message: MessageFE) => {
     return null;
 };
 
+const getToolEvents = (message: MessageFE) => {
+    if (message.toolEvents && message.toolEvents.length > 0) {
+        return (
+            <MessageWrapper message={message}>
+                {message.toolEvents.map((event, eventIdx) => (
+                    <ToolCallCapsule key={`tool-${message.metadata?.messageId}-${eventIdx}`} toolName={event.toolName} data={event.data} />
+                ))}
+            </MessageWrapper>
+        );
+    }
+    return null;
+};
+
 const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean) => {
     const { openSidePanelTab, setTaskIdInSidePanel } = chatContext;
 
@@ -96,7 +116,9 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
         return null;
     }
 
-    if (message.text) {
+    const textContent = message.parts?.some(p => p.kind === "text" && p.text.trim());
+
+    if (textContent) {
         const variant = message.isUser ? "sent" : "received";
         const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && isLastWithTaskId;
         const handleViewWorkflowClick = () => {
@@ -131,6 +153,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
             {getChatBubble(message, chatContext, isLastWithTaskId)}
             {getUploadedFiles(message)}
             {getFileAttachments(message)}
+            {getToolEvents(message)}
         </>
     );
 };

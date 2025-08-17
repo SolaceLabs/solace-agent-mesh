@@ -40,7 +40,7 @@ This checklist provides a terse, actionable summary of the tasks required for th
 
 **Step 6: Update UI Component Rendering**
 - [x] 6.1. Refactor `VisualizerStepCard.tsx` to access data from the new structured `DataPart` objects instead of a flat `metadata` object.
-- [ ] 6.2. Refactor `MessageBubble.tsx` to correctly render `ToolEvent` data that is now populated from `DataPart` objects.
+- [x] 6.2. Refactor `MessageBubble.tsx` to correctly render `ToolEvent` data that is now populated from `DataPart` objects.
 
 ---
 
