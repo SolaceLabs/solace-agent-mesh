@@ -32,11 +32,11 @@ This checklist provides a terse, actionable summary of the tasks required for th
 **Step 5: Refactor API Calls and SSE Parsing (`ChatProvider.tsx`)**
 - [x] 5.1. Update `handleSubmit` to call the new `POST /api/v1/message:stream` endpoint with a JSON `SendMessageRequest` body.
 - [x] 5.2. Update `handleCancel` to call the new `POST /api/v1/tasks/{taskId}:cancel` endpoint.
-- [ ] 5.3. Rewrite the `handleSseMessage` function to parse incoming event data as a `JSONRPCResponse` from the SDK.
-- [ ] 5.4. In `handleSseMessage`, use `result.kind` to determine the event type (`status-update`, `artifact-update`, `task`).
-- [ ] 5.5. In `handleSseMessage`, iterate through the `message.parts` array and use a `switch` on `part.kind`.
-- [ ] 5.6. Implement the logic for `part.kind === 'data'` to parse status signals (e.g., `tool_invocation_start`) from `part.data`, replacing the old `metadata` parsing logic.
-- [ ] 5.7. Update the end-of-turn detection logic to use the `final` flag from `TaskStatusUpdateEvent`.
+- [x] 5.3. Rewrite the `handleSseMessage` function to parse incoming event data as a `JSONRPCResponse` from the SDK.
+- [x] 5.4. In `handleSseMessage`, use `result.kind` to determine the event type (`status-update`, `artifact-update`, `task`).
+- [x] 5.5. In `handleSseMessage`, iterate through the `message.parts` array and use a `switch` on `part.kind`.
+- [x] 5.6. Implement the logic for `part.kind === 'data'` to parse status signals (e.g., `tool_invocation_start`) from `part.data`, replacing the old `metadata` parsing logic.
+- [x] 5.7. Update the end-of-turn detection logic to use the `final` flag from `TaskStatusUpdateEvent`.
 
 **Step 6: Update UI Component Rendering**
 - [ ] 6.1. Refactor `VisualizerStepCard.tsx` to access data from the new structured `DataPart` objects instead of a flat `metadata` object.

@@ -286,296 +286,173 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         (event: MessageEvent) => {
             sseEventSequenceRef.current += 1;
             const currentEventSequence = sseEventSequenceRef.current;
-            let parsedData: { jsonrpc: string; result: unknown; error: unknown };
+            let rpcResponse: JSONRPCResponse;
+
             try {
                 console.log("TEST-SSE ChatProvider Raw Message:", event.data);
-                parsedData = JSON.parse(event.data);
+                rpcResponse = JSON.parse(event.data) as JSONRPCResponse;
             } catch (error: unknown) {
-                console.error(error);
+                console.error("Failed to parse SSE message:", error);
                 addNotification("Received unparseable agent update.", "error");
                 return;
             }
 
-            const rpcResponse = parsedData as JSONRPCResponse;
-            let messageContent = "";
-            let receivedFiles: FileAttachment[] = [];
-            let artifactNotificationData: MessageFE["artifactNotification"] = undefined;
-            let processedAgentStatusSignal = false; // Flag to indicate if a dedicated agent status signal was handled
-            let hasOtherContentParts = false; // Flag to check if there are parts other than the signal
-            let errorContent: JSONRPCError | null = null;
-            let currentMessageId = rpcResponse.id?.toString() || currentTaskId || `msg-${Date.now()}`;
-            const isFinalResponseEvent = event.type === "final_response";
-            let isFinalStatusUpdate = false;
-            let isEmptyLlmResponseSignal = false; // Initialize flag
-            const isErrorResponse = !!rpcResponse.error || event.type === "error";
-            let currentToolEvents: ToolEvent[] = [];
+            // Handle RPC Error
+            if ("error" in rpcResponse && rpcResponse.error) {
+                const errorContent = rpcResponse.error;
+                const messageContent = `Error: ${errorContent.message}`;
+
+                setMessages(prev => {
+                    const newMessages = prev.filter(msg => !msg.isStatusBubble);
+                    newMessages.push({
+                        role: "agent",
+                        parts: [{ kind: "text", text: messageContent }],
+                        messageId: `msg-${crypto.randomUUID()}`,
+                        kind: "message",
+                        isError: true,
+                        isComplete: true,
+                        metadata: { lastProcessedEventSequence: currentEventSequence },
+                    });
+                    return newMessages;
+                });
+
+                setIsResponding(false);
+                closeCurrentEventSource();
+                setCurrentTaskId(null);
+                return;
+            }
+
+            if (!("result" in rpcResponse) || !rpcResponse.result) {
+                console.warn("Received SSE message without a result or error field.", rpcResponse);
+                return;
+            }
+
+            const result = rpcResponse.result;
+            let isFinalEvent = false;
+            let messageToProcess: Message | undefined;
+            let artifactToProcess: TaskArtifactUpdateEvent["artifact"] | undefined;
+
+            // Determine event type and extract relevant data
+            switch (result.kind) {
+                case "task":
+                    isFinalEvent = true;
+                    messageToProcess = result.status?.message;
+                    if (result.artifacts && result.artifacts.length > 0) {
+                        console.log("Final task has artifacts to process:", result.artifacts);
+                    }
+                    break;
+                case "status-update":
+                    isFinalEvent = result.final;
+                    messageToProcess = result.status?.message;
+                    break;
+                case "artifact-update":
+                    artifactToProcess = result.artifact;
+                    break;
+                default:
+                    console.warn("Received unknown result kind in SSE message:", result);
+                    return;
+            }
+
+            // Process the parts of the message
+            const newParts: Part[] = [];
+            const currentToolEvents: ToolEvent[] = [];
             let agentStatusText: string | null = null;
 
-            if (rpcResponse.error) {
-                errorContent = rpcResponse.error;
-                messageContent = `Error: ${errorContent.message}`;
-            } else if (rpcResponse.result) {
-                const result = rpcResponse.result as { id: string; status: TaskStatusUpdateEvent["status"]; artifact: TaskArtifactUpdateEvent["artifact"]; final?: boolean };
-                if (result.id && (result.status || result.artifact)) {
-                    if (result.status) {
-                        const statusUpdate = result as TaskStatusUpdateEvent;
-                        isFinalStatusUpdate = statusUpdate.final ?? false;
-                        currentMessageId = statusUpdate.id;
-
-                        // Check if this is a failed task (has sessionId and state is 'failed')
-                        if ("sessionId" in result && statusUpdate.status.state === "failed") {
-                            console.log("DEBUG: Detected failed task in status_update", statusUpdate);
-                            if (statusUpdate.status.message?.parts) {
-                                for (const part of statusUpdate.status.message.parts) {
-                                    if (part.type === "text") {
-                                        messageContent += (part as TextPart).text || "";
-                                        hasOtherContentParts = true;
-                                    }
-                                }
-                            }
-
-                            if (!messageContent) {
-                                messageContent = "An unexpected error occurred during task execution.";
-                                hasOtherContentParts = true;
-                            }
-                            console.log("DEBUG: Failed task error message", { messageContent, hasOtherContentParts });
-                            // Mark this as an error response
-                            errorContent = {
-                                code: -32603, // Internal error code
-                                message: messageContent,
-                            } as JSONRPCError;
-                            console.log("DEBUG: Set errorContent for failed task", errorContent);
-                        } else if (statusUpdate.status.message && statusUpdate.status.message.parts) {
-                            for (const part of statusUpdate.status.message.parts) {
-                                // Iterate with for...of
-                                if (part.type === "data" && (part as DataPart).data?.a2a_signal_type === "agent_status_message") {
-                                    processedAgentStatusSignal = true;
-                                    processedAgentStatusSignal = true; // Mark that we've processed this type of signal
-                                    const signalData = (part as DataPart).data;
-                                    const statusText = signalData.text || "Status update received.";
-                                    latestStatusText.current = statusText;
-                                    continue;
-                                }
-
-                                // If not a special signal, process as other content
-                                hasOtherContentParts = true;
-                                if (part.type === "text") {
-                                    messageContent += (part as TextPart).text || "";
-                                } else if (part.type === "file") {
-                                    receivedFiles.push({ name: (part as FilePart).file.name || "unknown_file", content: (part as FilePart).file.bytes || "", mime_type: (part as FilePart).file.mimeType ?? "application/octet-stream" });
-                                } else if (part.type === "data") {
-                                    const dataPart = part as DataPart;
-
-                                    if (dataPart.data?.type === "agent_status" && typeof dataPart.data?.text === "string") {
-                                        agentStatusText = dataPart.data.text;
-                                    } else if (dataPart.metadata?.tool_name) {
-                                        currentToolEvents.push({ toolName: dataPart.metadata.tool_name, data: dataPart.data });
-                                    }
-                                }
+            if (messageToProcess?.parts) {
+                for (const part of messageToProcess.parts) {
+                    if (part.kind === "data") {
+                        const data = part.data;
+                        if (data && typeof data === "object" && "type" in data) {
+                            switch (data.type) {
+                                case "agent_progress_update":
+                                    agentStatusText = (data as any).status_text || "Processing...";
+                                    break;
+                                case "tool_invocation_start":
+                                    currentToolEvents.push({
+                                        toolName: (data as any).tool_name,
+                                        data: (data as any).tool_args,
+                                    });
+                                    break;
+                                default:
+                                    newParts.push(part); // Keep unhandled data parts
                             }
                         }
                     } else {
-                        const artifactUpdate = result as TaskArtifactUpdateEvent;
-                        currentMessageId = artifactUpdate.id;
-                        const artifact = artifactUpdate.artifact;
-                        artifact.parts.forEach(part => {
-                            if (part.type === "file")
-                                receivedFiles.push({
-                                    name: (part as FilePart).file.name || artifact.name || "unknown_artifact_file",
-                                    content: (part as FilePart).file.bytes || "",
-                                    mime_type: (part as FilePart).file.mimeType ?? "application/octet-stream",
-                                });
-                            else if (part.type === "data" && part.metadata?.tool_name) currentToolEvents.push({ toolName: (part as DataPart)?.metadata?.tool_name, data: (part as DataPart).data });
-                        });
-                        artifactNotificationData = { name: artifact.name || "untitled", version: artifact.metadata?.version };
-                        hasOtherContentParts = true;
+                        newParts.push(part);
                     }
-                } else if (result.id && result.status && !("final" in result) && event.type === "final_response") {
-                    // Final Task object
-                    const finalTask = result as unknown as Task;
-                    currentMessageId = finalTask.id;
-
-                    // Check if the task failed and extract error message
-                    if (finalTask.status?.state === "failed") {
-                        if (finalTask.status.message?.parts) {
-                            for (const part of finalTask.status.message.parts) {
-                                if (part.type === "text") {
-                                    messageContent += (part as TextPart).text || "";
-                                    hasOtherContentParts = true;
-                                }
-                            }
-                        }
-                        // If no message parts found, use a default error message
-                        if (!messageContent) {
-                            messageContent = "An unexpected error occurred during task execution.";
-                            hasOtherContentParts = true;
-                        }
-                        // Mark this as an error response
-                        errorContent = {
-                            code: -32603, // Internal error code
-                            message: messageContent,
-                        } as JSONRPCError;
-                    } else {
-                        // Reset content accumulators for successful final responses
-                        messageContent = "";
-                        receivedFiles = [];
-                        artifactNotificationData = undefined;
-                        currentToolEvents = [];
-                        agentStatusText = null;
-                        hasOtherContentParts = false;
-                    }
-                }
-                // Determine if this event was an empty llm_response signal
-                if (rpcResponse.result?.status && (rpcResponse.result as TaskStatusUpdateEvent).status.message?.metadata?.type === "llm_response" && !hasOtherContentParts) {
-                    isEmptyLlmResponseSignal = true;
                 }
             }
-            if (agentStatusText) latestStatusText.current = agentStatusText;
 
-            const isEndOfThisTurn = (isFinalStatusUpdate && !isEmptyLlmResponseSignal) || isFinalResponseEvent || isErrorResponse;
+            if (agentStatusText) {
+                latestStatusText.current = agentStatusText;
+            }
 
+            // Update UI state based on processed parts
             setMessages(prevMessages => {
                 let newMessages = [...prevMessages];
-                const lastMessageIsStatusBubble = newMessages[newMessages.length - 1]?.isStatusBubble;
-                if (lastMessageIsStatusBubble) {
-                    newMessages = newMessages.slice(0, -1);
+                const lastMessage = newMessages[newMessages.length - 1];
+
+                // Remove old status bubble
+                if (lastMessage?.isStatusBubble) {
+                    newMessages.pop();
                 }
 
-                let appendedToExistingBubble = false;
-                let newMainBubbleAddedByThisEvent = false;
-
-                // Helper to add a new main content bubble and set the flag
-                const addNewMainBubble = (newMessageData: Partial<MessageFE>, sequence: number) => {
-                    const newMessage = { taskId: currentTaskId ?? undefined, isUser: false, isComplete: false, metadata: { sessionId, messageId: currentMessageId, lastProcessedEventSequence: sequence }, ...newMessageData }
-                    newMessages.push(newMessage);
-                    
-                    // Ensure error messages are marked complete if they are added as new bubbles
-                    if (newMessageData.text && errorContent) {
-                        newMessages[newMessages.length - 1].isComplete = true;
+                // Create a new message bubble if there's content to display
+                if (newParts.length > 0 || currentToolEvents.length > 0 || artifactToProcess) {
+                    const newBubble: MessageFE = {
+                        role: "agent",
+                        parts: newParts,
+                        messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
+                        kind: "message",
+                        contextId: (result as TaskStatusUpdateEvent).contextId,
+                        taskId: (result as TaskStatusUpdateEvent).taskId,
+                        isUser: false,
+                        isComplete: isFinalEvent,
+                        toolEvents: currentToolEvents.length > 0 ? currentToolEvents : undefined,
+                        metadata: { lastProcessedEventSequence: currentEventSequence },
+                    };
+                    if (artifactToProcess) {
+                        newBubble.artifactNotification = { name: artifactToProcess.name || artifactToProcess.artifactId };
                     }
-                    newMainBubbleAddedByThisEvent = true;
-                };
-
-                const lastMsgOriginalIndex = newMessages.length - 1; // Index of last message *before* any new additions from this event
-
-                // Only add a chat bubble if the event wasn't solely for an agent status signal
-                const shouldCreateChatBubble = !processedAgentStatusSignal || hasOtherContentParts || isFinalResponseEvent || isErrorResponse;
-
-                if (shouldCreateChatBubble) {
-                    const lastMsg = newMessages.length > 0 ? newMessages[newMessages.length - 1] : null;
-                    if (messageContent && !isFinalResponseEvent && !isFinalStatusUpdate) {
-                        // Text content from current event
-                        if (
-                            lastMsg &&
-                            !lastMsg.isUser &&
-                            !lastMsg.isComplete &&
-                            lastMsg.metadata?.messageId === currentMessageId &&
-                            lastMsg.text !== undefined &&
-                            !lastMsg.toolEvents &&
-                            !lastMsg.files &&
-                            !lastMsg.artifactNotification &&
-                            (lastMsg.metadata?.lastProcessedEventSequence || 0) < currentEventSequence
-                        ) {
-                            // Append text to lastMsg
-                            newMessages[newMessages.length - 1] = { ...lastMsg, text: (lastMsg.text || "") + messageContent, metadata: { ...lastMsg.metadata, sessionId, lastProcessedEventSequence: currentEventSequence } };
-                            appendedToExistingBubble = true;
-                        } else {
-                            // Create new bubble for text
-                            addNewMainBubble({ text: messageContent }, currentEventSequence);
-                        }
-                    }
-                    // These always create new bubbles if content is present and not a final response event (errorContent handles its own finality)
-                    if (currentToolEvents.length > 0 && !isFinalResponseEvent) {
-                        addNewMainBubble({ toolEvents: currentToolEvents }, currentEventSequence);
-                    }
-                    if (receivedFiles.length > 0 && !isFinalResponseEvent) {
-                        addNewMainBubble({ files: receivedFiles }, currentEventSequence);
-                        artifactsRefetchIfNeeded(receivedFiles);
-                    }
-                    if (artifactNotificationData && !isFinalResponseEvent) {
-                        addNewMainBubble({ artifactNotification: artifactNotificationData }, currentEventSequence);
-                    }
-                    if (errorContent) {
-                        console.log("DEBUG: Creating error bubble", { messageContent, errorContent, currentEventSequence });
-                        addNewMainBubble({ text: messageContent, isComplete: true, isError: true }, currentEventSequence); // Error content also sets the flag and isComplete
-                    }
+                    newMessages.push(newBubble);
                 }
 
-                // Mark previous messages as complete
-                if (isEndOfThisTurn) {
-                    // Mark all relevant non-user, non-status messages of this turn as complete
-                    for (let i = 0; i < newMessages.length; i++) {
-                        if (newMessages[i] && !newMessages[i].isUser && newMessages[i].metadata?.messageId === currentMessageId && !newMessages[i].isStatusBubble) {
-                            // Ensure we don't try to re-complete an already completed message unless it's the error itself
-                            if (!newMessages[i].isComplete || (errorContent && newMessages[i].text === messageContent)) {
-                                newMessages[i] = { ...newMessages[i], isComplete: true, metadata: { ...newMessages[i].metadata, lastProcessedEventSequence: currentEventSequence } };
-                            }
-                        }
-                    }
-                } else if (newMainBubbleAddedByThisEvent && !appendedToExistingBubble) {
-                    // A new main content bubble was added (not appended). Mark the previous agent bubble of this turn (if any) as complete.
-                    if (lastMsgOriginalIndex >= 0 && lastMsgOriginalIndex < newMessages.length) {
-                        const messageToMarkComplete = newMessages[lastMsgOriginalIndex]; // This was the message at the end before new bubbles were added
-                        if (messageToMarkComplete && !messageToMarkComplete.isUser && messageToMarkComplete.metadata?.messageId === currentMessageId && !messageToMarkComplete.isStatusBubble && !messageToMarkComplete.isComplete) {
-                            newMessages[lastMsgOriginalIndex] = {
-                                ...messageToMarkComplete,
-                                isComplete: true,
-                                metadata: { ...messageToMarkComplete.metadata, lastProcessedEventSequence: currentEventSequence },
-                            };
-                        }
-                    }
-                }
-
-                const isTaskEnding = isFinalResponseEvent || isErrorResponse || (isFinalStatusUpdate && isCancelling);
-                if (!isTaskEnding) {
-                    // The status bubble logic
-                    const statusTextForBubble = agentStatusText ?? latestStatusText.current;
-                    if (statusTextForBubble) {
-                        newMessages.push({
-                            taskId: currentTaskId ?? undefined,
-                            text: statusTextForBubble,
-                            isUser: false,
-                            isStatusBubble: true,
-                            isComplete: false,
-                            metadata: { sessionId, messageId: currentMessageId, lastProcessedEventSequence: currentEventSequence },
-                        });
-                    }
-                } else {
+                // Add a new status bubble if the task is not over
+                if (!isFinalEvent && latestStatusText.current) {
+                    newMessages.push({
+                        role: "agent",
+                        parts: [{ kind: "text", text: latestStatusText.current }],
+                        messageId: `status-${crypto.randomUUID()}`,
+                        kind: "message",
+                        isStatusBubble: true,
+                        isComplete: false,
+                        metadata: { lastProcessedEventSequence: currentEventSequence },
+                    });
+                } else if (isFinalEvent) {
                     latestStatusText.current = null;
                 }
+
                 return newMessages;
             });
 
-            // If task is cancelled or failed while in cancelling state
-            if (isCancelling && (isFinalStatusUpdate || isErrorResponse)) {
-                addNotification(isErrorResponse ? "Task failed during cancellation." : "Task successfully cancelled.");
-                if (cancelTimeoutRef.current) {
-                    clearTimeout(cancelTimeoutRef.current);
-                    cancelTimeoutRef.current = null;
+            // Finalization logic
+            if (isFinalEvent) {
+                if (isCancelling) {
+                    addNotification("Task successfully cancelled.");
+                    if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
+                    setIsCancelling(false);
                 }
-                setIsCancelling(false);
-
-                // Remove status bubble messages when cancellation is successful
-                setMessages(prev => prev.filter(msg => !msg.isStatusBubble));
-            }
-
-            const isTaskReallyEnding = isFinalResponseEvent || isErrorResponse || (isFinalStatusUpdate && isCancelling);
-
-            if (isTaskReallyEnding) {
                 setIsResponding(false);
-                if (currentEventSource.current) {
-                    currentEventSource.current.close();
-                    currentEventSource.current = null;
-                }
+                closeCurrentEventSource();
                 setCurrentTaskId(null);
                 isFinalizing.current = true;
-                artifactsRefetch(); 
+                void artifactsRefetch();
                 setTimeout(() => {
                     isFinalizing.current = false;
                 }, 100);
             }
         },
-        [currentTaskId, isCancelling, addNotification, sessionId, artifactsRefetchIfNeeded, artifactsRefetch]
+        [addNotification, isCancelling, closeCurrentEventSource, artifactsRefetch]
     );
 
     const closeCurrentEventSource = useCallback(() => {
