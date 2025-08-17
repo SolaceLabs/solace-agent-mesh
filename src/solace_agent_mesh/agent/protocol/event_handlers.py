@@ -1401,27 +1401,40 @@ def publish_agent_card(component):
         agent_request_topic = get_agent_request_topic(namespace, agent_name)
         dynamic_url = f"solace:{agent_request_topic}"
 
-        # Define a unique URI for our custom peer topology extension.
+        # Define unique URIs for our custom extensions.
         PEER_TOPOLOGY_EXTENSION_URI = (
             "https://solace.com/a2a/extensions/peer-agent-topology"
         )
+        DISPLAY_NAME_EXTENSION_URI = (
+            "https://solace.com/a2a/extensions/display-name"
+        )
 
-        # Create the extension object with the list of peer agent names.
-        peer_topology_extension = None
+        extensions_list = []
+
+        # Create the extension object for peer agents.
         if peer_agents:
             peer_topology_extension = AgentExtension(
                 uri=PEER_TOPOLOGY_EXTENSION_URI,
                 description="A list of peer agents this agent is configured to communicate with.",
                 params={"peer_agent_names": list(peer_agents.keys())},
             )
+            extensions_list.append(peer_topology_extension)
 
-        # Build the capabilities object, including our custom extension.
-        extensions_list = [peer_topology_extension] if peer_topology_extension else []
+        # Create the extension object for the UI display name.
+        if display_name:
+            display_name_extension = AgentExtension(
+                uri=DISPLAY_NAME_EXTENSION_URI,
+                description="A UI-friendly display name for the agent.",
+                params={"display_name": display_name},
+            )
+            extensions_list.append(display_name_extension)
+
+        # Build the capabilities object, including our custom extensions.
         capabilities = AgentCapabilities(
             streaming=supports_streaming,
             push_notifications=False,
             state_transition_history=False,
-            extensions=extensions_list,
+            extensions=extensions_list if extensions_list else None,
         )
 
         skills_from_config = card_config.get("skills", [])
@@ -1442,6 +1455,7 @@ def publish_agent_card(component):
 
         agent_card = AgentCard(
             name=agent_name,
+            protocol_version=card_config.get("protocolVersion", "0.3.0"),
             version=component.HOST_COMPONENT_VERSION,
             url=dynamic_url,
             capabilities=capabilities,

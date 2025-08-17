@@ -50,6 +50,14 @@ export type {
     TextPart,
 };
 
+/**
+ * A UI-specific interface that extends the official A2A AgentCard with additional
+ * properties needed for rendering, like a display_name.
+ */
+export interface AgentInfo extends AgentCard {
+    display_name?: string;
+}
+
 // This is a UI-specific type for managing artifacts in the side panel.
 // It is distinct from the A2A `Artifact` type.
 export interface ArtifactInfo {
