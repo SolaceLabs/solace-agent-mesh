@@ -1352,8 +1352,8 @@ class SamAgentComponent(ComponentBase):
         try:
             signal_data_part = DataPart(
                 data={
-                    "a2a_signal_type": "agent_status_message",
-                    "text": status_text,
+                    "type": "agent_progress_update",
+                    "status_text": status_text,
                 },
                 metadata={"source_embed_type": "status_update"},
             )
