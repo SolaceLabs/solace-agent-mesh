@@ -735,7 +735,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, configWelcomeMessage, addNotification, artifactsRefetch, sessionId]);
 
     const handleCancel = useCallback(async () => {
-        if ((!isResponding && !isCancelling) || !currentTaskId || !selectedAgentName) {
+        if ((!isResponding && !isCancelling) || !currentTaskId) {
             addNotification("No active task to cancel.");
             return;
         }
@@ -748,10 +748,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setIsCancelling(true);
 
         try {
-            const response = await authenticatedFetch(`${apiPrefix}/tasks/cancel`, {
+            const cancelRequest: CancelTaskRequest = {
+                jsonrpc: "2.0",
+                id: `req-${crypto.randomUUID()}`,
+                method: "tasks/cancel",
+                params: {
+                    id: currentTaskId,
+                },
+            };
+
+            const response = await authenticatedFetch(`${apiPrefix}/tasks/${currentTaskId}:cancel`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ agent_name: selectedAgentName, task_id: currentTaskId }),
+                body: JSON.stringify(cancelRequest),
             });
 
             if (response.status === 202) {
@@ -775,7 +784,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             addNotification(`Error sending cancellation request: ${error instanceof Error ? error.message : "Network error"}`);
             setIsCancelling(false);
         }
-    }, [isResponding, isCancelling, currentTaskId, selectedAgentName, apiPrefix, addNotification, closeCurrentEventSource]);
+    }, [isResponding, isCancelling, currentTaskId, apiPrefix, addNotification, closeCurrentEventSource]);
 
     const handleSseOpen = useCallback(() => {
         /* console.log for SSE open */

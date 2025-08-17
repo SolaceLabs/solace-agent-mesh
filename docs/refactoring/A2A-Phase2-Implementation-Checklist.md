@@ -31,7 +31,7 @@ This checklist provides a terse, actionable summary of the tasks required for th
 
 **Step 5: Refactor API Calls and SSE Parsing (`ChatProvider.tsx`)**
 - [x] 5.1. Update `handleSubmit` to call the new `POST /api/v1/message:stream` endpoint with a JSON `SendMessageRequest` body.
-- [ ] 5.2. Update `handleCancel` to call the new `POST /api/v1/tasks/{taskId}:cancel` endpoint.
+- [x] 5.2. Update `handleCancel` to call the new `POST /api/v1/tasks/{taskId}:cancel` endpoint.
 - [ ] 5.3. Rewrite the `handleSseMessage` function to parse incoming event data as a `JSONRPCResponse` from the SDK.
 - [ ] 5.4. In `handleSseMessage`, use `result.kind` to determine the event type (`status-update`, `artifact-update`, `task`).
 - [ ] 5.5. In `handleSseMessage`, iterate through the `message.parts` array and use a `switch` on `part.kind`.
