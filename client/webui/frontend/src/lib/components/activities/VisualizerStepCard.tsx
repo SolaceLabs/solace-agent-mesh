@@ -29,12 +29,12 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
                 return <FiZap className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
             case "AGENT_LLM_RESPONSE_TOOL_DECISION": {
                 const firstDecision = step.data.toolDecision?.decisions?.[0];
-                const isPeer = firstDecision?.isPeerDelegation;
+                const isPeer = firstDecision?.is_peer_delegation;
 
                 return isPeer ? <FiShare2 className="mr-2 text-orange-500 dark:text-orange-400" size={18} /> : <FiTerminal className="mr-2 text-orange-500 dark:text-orange-400" size={18} />;
             }
             case "AGENT_TOOL_INVOCATION_START":
-                return step.data.toolInvocationStart?.isPeerInvocation ? <FiShare2 className="mr-2 text-cyan-500 dark:text-cyan-400" size={18} /> : <FiTerminal className="mr-2 text-cyan-500 dark:text-cyan-400" size={18} />;
+                return step.data.toolInvocationStart?.is_peer_invocation ? <FiShare2 className="mr-2 text-cyan-500 dark:text-cyan-400" size={18} /> : <FiTerminal className="mr-2 text-cyan-500 dark:text-cyan-400" size={18} />;
             case "AGENT_TOOL_EXECUTION_RESULT":
                 return <FiHardDrive className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
             case "AGENT_ARTIFACT_NOTIFICATION":
@@ -55,12 +55,12 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
     const renderLLMCallData = (data: LLMCallData) => (
         <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
             <p>
-                <strong>Model:</strong> {data.modelName}
+                <strong>Model:</strong> {data.model_name}
             </p>
             <p className="mt-1">
                 <strong>Prompt Preview:</strong>
             </p>
-            <pre className="max-h-28 overflow-y-auto rounded bg-gray-100 p-1.5 font-mono text-xs break-all whitespace-pre-wrap dark:bg-gray-700">{data.promptPreview}</pre>
+            <pre className="max-h-28 overflow-y-auto rounded bg-gray-100 p-1.5 font-mono text-xs break-all whitespace-pre-wrap dark:bg-gray-700">{data.prompt_preview}</pre>
         </div>
     );
 
@@ -93,20 +93,20 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
                         Hide details
                     </button>
                 </div>
-                {data.modelName && (
+                {data.model_name && (
                     <p>
-                        <strong>Model:</strong> {data.modelName}
+                        <strong>Model:</strong> {data.model_name}
                     </p>
                 )}
                 <div className="mt-1">
                     <p>
                         <strong>Response Preview:</strong>
                     </p>
-                    <pre className="max-h-28 overflow-y-auto rounded bg-gray-100 p-1.5 font-mono text-xs break-all whitespace-pre-wrap dark:bg-gray-700">{data.responsePreview}</pre>
+                    <pre className="max-h-28 overflow-y-auto rounded bg-gray-100 p-1.5 font-mono text-xs break-all whitespace-pre-wrap dark:bg-gray-700">{data.response_preview}</pre>
                 </div>
-                {data.isFinalResponse !== undefined && (
+                {data.is_final_response !== undefined && (
                     <p className="mt-1">
-                        <strong>Final Response:</strong> {data.isFinalResponse ? "Yes" : "No"}
+                        <strong>Final Response:</strong> {data.is_final_response ? "Yes" : "No"}
                     </p>
                 )}
             </div>
@@ -116,13 +116,13 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
     const renderToolDecisionData = (data: ToolDecisionData) => (
         <div className="mt-1.5 rounded-md bg-blue-50 p-2 font-mono text-xs text-blue-700 dark:bg-blue-900 dark:text-blue-300">
             <p className="mb-2">
-                <strong>🔧 {data.isParallel ? "Parallel Tool Calls:" : "Tool Call:"}</strong>
+                <strong>🔧 {data.is_parallel ? "Parallel Tool Calls:" : "Tool Call:"}</strong>
             </p>
             <ul className="space-y-1 pl-2">
                 {data.decisions.map(decision => (
-                    <li key={decision.functionCallId} className="flex items-center">
+                    <li key={decision.function_call_id} className="flex items-center">
                         <span className="mr-2">•</span>
-                        <code>{decision.toolName}</code>
+                        <code>{decision.tool_name}</code>
                     </li>
                 ))}
             </ul>
@@ -132,13 +132,13 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
     const renderToolInvocationStartData = (data: ToolInvocationStartData) => (
         <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
             <p>
-                <strong>Tool:</strong> {data.toolName}
+                <strong>Tool:</strong> {data.tool_name}
             </p>
             <p className="mt-1">
                 <strong>Arguments:</strong>
             </p>
             <div className="max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">
-                <JSONViewer data={data.toolArguments} />
+                <JSONViewer data={data.tool_args} />
             </div>
         </div>
     );
@@ -146,25 +146,25 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
     const renderToolResultData = (data: ToolResultData) => (
         <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
             <p>
-                <strong>Tool:</strong> {data.toolName}
+                <strong>Tool:</strong> {data.tool_name}
             </p>
             <p className="mt-1">
                 <strong>Result:</strong>
             </p>
             <div className="max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">
-                {typeof data.resultData === "object" ? <JSONViewer data={data.resultData} /> : <pre className="font-mono text-xs break-all whitespace-pre-wrap">{String(data.resultData)}</pre>}
+                {typeof data.result_data === "object" ? <JSONViewer data={data.result_data} /> : <pre className="font-mono text-xs break-all whitespace-pre-wrap">{String(data.result_data)}</pre>}
             </div>
         </div>
     );
     const renderArtifactNotificationData = (data: ArtifactNotificationData) => (
         <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
             <p>
-                <strong>Artifact:</strong> {data.artifactName}
+                <strong>Artifact:</strong> {data.artifact_name}
                 {data.version !== undefined && <span className="text-gray-500 dark:text-gray-400"> (v{data.version})</span>}
             </p>
-            {data.mimeType && (
+            {data.mime_type && (
                 <p>
-                    <strong>Type:</strong> {data.mimeType}
+                    <strong>Type:</strong> {data.mime_type}
                 </p>
             )}
             {data.description && (
@@ -219,19 +219,19 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
             {step.delegationInfo && step.delegationInfo.length > 0 && (
                 <div className="mt-2 mb-1.5 space-y-2 rounded-r-md border-l-4 border-blue-500 bg-blue-50 p-2 text-sm dark:border-blue-400 dark:bg-gray-700/60">
                     {step.delegationInfo.map(info => (
-                        <div key={info.functionCallId}>
+                        <div key={info.function_call_id}>
                             <div className="flex items-center font-semibold text-blue-700 dark:text-blue-300">
                                 <FiLink className="mr-2 h-4 w-4 flex-shrink-0" />
                                 <span>
                                     {getDelegationText()}
-                                    {info.peerAgentName}
+                                    {info.peer_agent_name}
                                 </span>
                             </div>
-                            {info.subTaskId && (
+                            {info.sub_task_id && (
                                 <div className="mt-0.5 ml-[24px] text-xs text-blue-600 dark:text-blue-400">
                                     Sub-Task:{" "}
-                                    <span className="font-mono" title={info.subTaskId}>
-                                        {info.subTaskId.substring(0, 15)}...
+                                    <span className="font-mono" title={info.sub_task_id}>
+                                        {info.sub_task_id.substring(0, 15)}...
                                     </span>
                                 </div>
                             )}
