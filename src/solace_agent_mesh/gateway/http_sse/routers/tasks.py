@@ -20,7 +20,7 @@ from solace_ai_connector.common.log import log
 from ....gateway.http_sse.session_manager import SessionManager
 from ....gateway.http_sse.services.task_service import TaskService
 
-from a2a.types import CancelTaskRequest
+from a2a.types import CancelTaskRequest, SendMessageRequest
 from ....common.types import (
     JSONRPCResponse,
     InternalError,
@@ -45,17 +45,26 @@ router = APIRouter()
 @router.post("/message:send", response_model=JSONRPCResponse)
 async def send_task_to_agent(
     request: FastAPIRequest,
-    agent_name: str = Form(...),
-    message: str = Form(...),
-    files: List[UploadFile] = File([]),
+    payload: SendMessageRequest,
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ):
     """
     Submits a non-streaming task request to the specified agent.
-    Accepts multipart/form-data.
+    Accepts application/json.
     """
-    log_prefix = "[POST /api/v1/tasks/send] "
+    log_prefix = "[POST /api/v1/message:send] "
+
+    agent_name = None
+    if payload.params and payload.params.message and payload.params.message.metadata:
+        agent_name = payload.params.message.metadata.get("agent_name")
+
+    if not agent_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing 'agent_name' in request payload message metadata.",
+        )
+
     log.info("%sReceived request for agent: %s", log_prefix, agent_name)
 
     try:
@@ -79,20 +88,18 @@ async def send_task_to_agent(
             "%sUsing ClientID: %s, SessionID: %s", log_prefix, client_id, session_id
         )
 
-        external_event_data = {
-            "agent_name": agent_name,
-            "message": message,
-            "files": files,
-            "client_id": client_id,
+        a2a_parts = payload.params.message.parts
+
+        external_req_ctx = {
+            "app_name_for_artifacts": component.gateway_id,
+            "user_id_for_artifacts": client_id,
             "a2a_session_id": session_id,
+            "user_id_for_a2a": client_id,
+            "target_agent_name": agent_name,
         }
 
-        target_agent, a2a_parts, external_req_ctx = (
-            await component._translate_external_input(external_event_data)
-        )
-
         task_id = await component.submit_a2a_task(
-            target_agent_name=target_agent,
+            target_agent_name=agent_name,
             a2a_parts=a2a_parts,
             external_request_context=external_req_ctx,
             user_identity=user_identity,
@@ -135,19 +142,28 @@ async def send_task_to_agent(
 @router.post("/message:stream", response_model=JSONRPCResponse)
 async def subscribe_task_from_agent(
     request: FastAPIRequest,
-    agent_name: str = Form(...),
-    message: str = Form(...),
-    files: List[UploadFile] = File([]),
+    payload: SendMessageRequest,
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     user: dict = Depends(get_current_user),
 ):
     """
     Submits a streaming task request (`tasks/sendSubscribe`) to the specified agent.
-    Accepts multipart/form-data.
+    Accepts application/json.
     The client should subsequently connect to the SSE endpoint using the returned taskId.
     """
-    log_prefix = "[POST /api/v1/tasks/subscribe] "
+    log_prefix = "[POST /api/v1/message:stream] "
+
+    agent_name = None
+    if payload.params and payload.params.message and payload.params.message.metadata:
+        agent_name = payload.params.message.metadata.get("agent_name")
+
+    if not agent_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing 'agent_name' in request payload message metadata.",
+        )
+
     log.info("%sReceived streaming request for agent: %s", log_prefix, agent_name)
 
     try:
@@ -171,20 +187,18 @@ async def subscribe_task_from_agent(
             "%sUsing ClientID: %s, SessionID: %s", log_prefix, client_id, session_id
         )
 
-        external_event_data = {
-            "agent_name": agent_name,
-            "message": message,
-            "files": files,
-            "client_id": client_id,
+        a2a_parts = payload.params.message.parts
+
+        external_req_ctx = {
+            "app_name_for_artifacts": component.gateway_id,
+            "user_id_for_artifacts": client_id,
             "a2a_session_id": session_id,
+            "user_id_for_a2a": client_id,
+            "target_agent_name": agent_name,
         }
 
-        target_agent, a2a_parts, external_req_ctx = (
-            await component._translate_external_input(external_event_data)
-        )
-
         task_id = await component.submit_a2a_task(
-            target_agent_name=target_agent,
+            target_agent_name=agent_name,
             a2a_parts=a2a_parts,
             external_request_context=external_req_ctx,
             user_identity=user_identity,

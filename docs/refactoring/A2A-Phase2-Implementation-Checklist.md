@@ -9,7 +9,7 @@ This checklist provides a terse, actionable summary of the tasks required for th
 **Step 1: Update Gateway API Endpoints (`tasks.py`)**
 - [x] 1.1. Update `@router.post` decorators to use new A2A REST URLs (`/message:send`, `/message:stream`, `/tasks/{taskId}:cancel`).
 - [x] 1.2. Update `cancel_agent_task` handler to get `taskId` from the URL path and expect an `a2a.types.CancelTaskRequest` body.
-- [ ] 1.3. Update `send_task_to_agent` and `subscribe_task_from_agent` handlers to expect an `application/json` body validating against `a2a.types.SendMessageRequest`.
+- [x] 1.3. Update `send_task_to_agent` and `subscribe_task_from_agent` handlers to expect an `application/json` body validating against `a2a.types.SendMessageRequest`.
 
 **Step 2: Update Gateway A2A Event Parsing (`component.py`)**
 - [ ] 2.1. In `BaseGatewayComponent._handle_agent_event`, parse incoming agent messages into `a2a.types.JSONRPCResponse`.
