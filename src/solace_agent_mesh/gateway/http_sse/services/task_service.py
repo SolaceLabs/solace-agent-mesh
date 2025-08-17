@@ -8,9 +8,7 @@ from typing import Callable, Dict, Optional
 
 from solace_ai_connector.common.log import log
 
-from ....common.types import (
-    InternalError,
-)
+from a2a.types import InternalError
 
 from ....gateway.http_sse.sse_manager import SSEManager
 from ....core_a2a.service import CoreA2AService
