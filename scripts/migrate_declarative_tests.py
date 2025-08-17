@@ -148,6 +148,8 @@ def main():
     yaml = YAML()
     yaml.preserve_quotes = True
     yaml.indent(mapping=2, sequence=4, offset=2)
+    # Set a very large width to prevent line wrapping, which can break long JSON strings.
+    yaml.width = 4096
 
     files_to_migrate = []
     files_skipped = []

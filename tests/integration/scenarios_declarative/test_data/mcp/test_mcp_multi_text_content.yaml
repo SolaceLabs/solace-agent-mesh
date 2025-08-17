@@ -28,12 +28,7 @@ llm_interactions:
                 function:
                   name: "get_data_stdio"
                   # The MCP test server will now correctly handle a list of content blocks
-                  arguments: >
-                    {"response_to_return": {"content": [
-                      {"type": "text", "text": "{\"user_id\": \"user123\", \"name\":
-                    \"Alice\"}"},
-                      {"type": "text", "text": "id,product\\n1,widget\\n2,gadget"}
-                    ]}}
+                  arguments: '{"response_to_return": {"content": [{"type": "text", "text": "{\"user_id\": \"user123\", \"name\": \"Alice\"}"}, {"type": "text", "text": "id,product\\n1,widget\\n2,gadget"}]}}'
 
   - expected_request:
       expected_tool_responses_in_llm_messages:
