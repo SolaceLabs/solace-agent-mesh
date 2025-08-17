@@ -7,16 +7,16 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from solace_ai_connector.common.log import log
 from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
-from solace_agent_mesh.common.types import (
+from a2a.types import (
     Part as A2APart,
     TextPart,
-    FilePart,  # If handling files
+    FilePart,
+    FileWithUri,  # If handling files
     DataPart,  # If handling structured data
     Task,
     TaskStatusUpdateEvent,
     TaskArtifactUpdateEvent,
     JSONRPCError,
-    FileContent,  # Added for FilePart example
 )
 
 # from solace_agent_mesh.core_a2a.service import CoreA2AService # If direct interaction needed
@@ -239,7 +239,7 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         #      #         authenticated_user_identity, external_request_context["a2a_session_id"]
         #      #     )
         #      #     if artifact_uri:
-        #      #         a2a_parts.append(FilePart(file=FileContent(name=file_name, mimeType=mime_type, uri=artifact_uri)))
+        #      #         a2a_parts.append(FilePart(file=FileWithUri(name=file_name, mime_type=mime_type, uri=artifact_uri)))
         #    - Handle structured data:
         #      # structured_data = external_event_data.get("data_payload")
         #      # if structured_data:
