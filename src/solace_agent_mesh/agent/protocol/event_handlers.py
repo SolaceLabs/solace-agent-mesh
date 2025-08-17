@@ -1424,9 +1424,21 @@ def publish_agent_card(component):
             extensions=extensions_list,
         )
 
-        skills = card_config.get("skills", [])
+        skills_from_config = card_config.get("skills", [])
         # The 'tools' field is not part of the official AgentCard spec.
         # dynamic_tools = getattr(component, "agent_card_tool_manifest", [])
+
+        # Ensure all skills have a 'tags' field to prevent validation errors.
+        processed_skills = []
+        for skill in skills_from_config:
+            if "tags" not in skill:
+                log.warning(
+                    "%s Skill '%s' in agent_card config is missing 'tags' field. Defaulting to empty list.",
+                    component.log_identifier,
+                    skill.get("id", "unknown"),
+                )
+                skill["tags"] = []
+            processed_skills.append(skill)
 
         agent_card = AgentCard(
             name=agent_name,
@@ -1434,7 +1446,7 @@ def publish_agent_card(component):
             url=dynamic_url,
             capabilities=capabilities,
             description=card_config.get("description", ""),
-            skills=skills,
+            skills=processed_skills,
             default_input_modes=card_config.get("defaultInputModes", ["text"]),
             default_output_modes=card_config.get("defaultOutputModes", ["text"]),
             documentation_url=card_config.get("documentationUrl"),
