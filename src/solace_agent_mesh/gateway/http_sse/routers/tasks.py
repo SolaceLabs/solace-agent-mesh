@@ -21,7 +21,15 @@ from ....gateway.http_sse.session_manager import SessionManager
 from ....gateway.http_sse.services.task_service import TaskService
 
 from a2a.types import CancelTaskRequest, SendMessageRequest, SendStreamingMessageRequest
-from ....common.types import (
+from a2a.types import (
+    CancelTaskRequest,
+    SendMessageRequest,
+    SendStreamingMessageRequest,
+    SendMessageSuccessResponse,
+    SendStreamingMessageSuccessResponse,
+    Task,
+    TaskStatus,
+    TaskState,
     JSONRPCResponse,
     InternalError,
     InvalidRequestError,
@@ -42,7 +50,7 @@ if TYPE_CHECKING:
 router = APIRouter()
 
 
-@router.post("/message:send", response_model=JSONRPCResponse)
+@router.post("/message:send", response_model=SendMessageSuccessResponse)
 async def send_task_to_agent(
     request: FastAPIRequest,
     payload: SendMessageRequest,
@@ -108,7 +116,16 @@ async def send_task_to_agent(
 
         log.info("%sTask submitted successfully. TaskID: %s", log_prefix, task_id)
 
-        return JSONRPCResponse(result={"taskId": task_id})
+        initial_task_status = TaskStatus(state=TaskState.submitted)
+        task_object = Task(
+            id=task_id,
+            contextId=session_id,
+            status=initial_task_status,
+            kind="task",
+            metadata={"agent_name": agent_name},
+        )
+
+        return SendMessageSuccessResponse(id=payload.id, result=task_object)
 
     except InvalidRequestError as e:
         log.warning("%sInvalid request: %s", log_prefix, e.message, exc_info=True)
@@ -139,7 +156,7 @@ async def send_task_to_agent(
         )
 
 
-@router.post("/message:stream", response_model=JSONRPCResponse)
+@router.post("/message:stream", response_model=SendStreamingMessageSuccessResponse)
 async def subscribe_task_from_agent(
     request: FastAPIRequest,
     payload: SendStreamingMessageRequest,
@@ -209,7 +226,17 @@ async def subscribe_task_from_agent(
             "%sStreaming task submitted successfully. TaskID: %s", log_prefix, task_id
         )
 
-        return JSONRPCResponse(result={"taskId": task_id})
+        # Create a compliant A2A Task object for the initial response
+        initial_task_status = TaskStatus(state=TaskState.submitted)
+        task_object = Task(
+            id=task_id,
+            contextId=session_id,
+            status=initial_task_status,
+            kind="task",
+            metadata={"agent_name": agent_name},
+        )
+
+        return SendStreamingMessageSuccessResponse(id=payload.id, result=task_object)
 
     except InvalidRequestError as e:
         log.warning("%sInvalid request: %s", log_prefix, e.message, exc_info=True)
