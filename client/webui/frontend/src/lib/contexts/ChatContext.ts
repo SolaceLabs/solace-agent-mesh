@@ -11,6 +11,7 @@ export interface ChatState {
     selectedAgentName: string;
     notifications: Notification[];
     isCancelling: boolean;
+    latestStatusText: React.RefObject<string | null>;
     // Chat Side Panel State
     artifacts: ArtifactInfo[];
     artifactsLoading: boolean;

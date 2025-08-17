@@ -741,19 +741,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
                 metadata: { lastProcessedEventSequence: 0 },
             };
-            const initialStatusText = "Thinking";
-            latestStatusText.current = initialStatusText;
-            const statusMsg: MessageFE = {
-                role: "agent",
-                parts: [{ kind: "text", text: initialStatusText }],
-                messageId: `msg-${crypto.randomUUID()}`,
-                kind: "message",
-                contextId: sessionId,
-                isStatusBubble: true,
-                isComplete: false,
-                metadata: { lastProcessedEventSequence: 0 },
-            };
-            setMessages(prev => [...prev, userMsg, statusMsg]);
+            latestStatusText.current = "Thinking";
+            setMessages(prev => [...prev, userMsg]);
             setUserInput("");
             try {
                 // 1. Upload files if they exist and create FileParts
@@ -896,6 +885,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         isResponding,
         currentTaskId,
         isCancelling,
+        latestStatusText,
         handleNewSession,
         handleSubmit,
         handleCancel,

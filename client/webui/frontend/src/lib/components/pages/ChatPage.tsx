@@ -35,7 +35,7 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
-    const { sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel } = useChatContext();
+    const { sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
 
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
@@ -155,7 +155,7 @@ export function ChatPage() {
         return messages.find(message => message.isStatusBubble);
     }, [messages]);
 
-    const loadingStatusText = useMemo(() => {
+    const backendStatusText = useMemo(() => {
         if (!loadingMessage || !loadingMessage.parts) return null;
         const textPart = loadingMessage.parts.find(p => p.kind === "text") as TextPart | undefined;
         return textPart?.text || null;
@@ -222,7 +222,7 @@ export function ChatPage() {
                                     })}
                                 </ChatMessageList>
                                 <div style={CHAT_STYLES}>
-                                    {loadingMessage && <LoadingMessageRow statusText={loadingStatusText} onViewWorkflow={handleViewProgressClick} />}
+                                    {isResponding && <LoadingMessageRow statusText={backendStatusText || latestStatusText.current} onViewWorkflow={handleViewProgressClick} />}
                                     <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                                 </div>
                             </div>
