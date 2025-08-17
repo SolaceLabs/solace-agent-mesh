@@ -1531,7 +1531,7 @@ def solace_llm_response_callback(
             task_id=logical_task_id,
             context_id=a2a_context.get("contextId"),
             status=task_status,
-            final=True,
+            final=False,
             metadata={"agent_name": agent_name},
             kind="status-update",
         )
