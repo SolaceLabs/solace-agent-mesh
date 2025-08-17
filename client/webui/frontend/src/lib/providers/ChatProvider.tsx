@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect, useRef, type FormEvent, type R
 import { useConfigContext, useArtifacts } from "@/lib/hooks";
 import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
-import type { ArtifactInfo, DataPart, FileAttachment, FilePart, JSONRPCError, JSONRPCResponse, MessageFE, Notification, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart, ToolEvent } from "@/lib/types";
+import type { ArtifactInfo, DataPart, FileAttachment, FilePart, JSONRPCError, JSONRPCResponse, Message, MessageFE, Notification, Part, SendMessageRequest, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart, ToolEvent } from "@/lib/types";
 
 interface ChatProviderProps {
     children: ReactNode;
@@ -88,7 +88,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     // Chat Side Panel Functions
     const uploadArtifactFile = useCallback(
-        async (file: File) => {
+        async (file: File): Promise<string | null> => {
             const formData = new FormData();
             formData.append("upload_file", file, file.name);
             try {
@@ -101,10 +101,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     const errorData = await response.json().catch(() => ({ detail: `Failed to upload ${file.name}` }));
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
+                const result = await response.json();
                 addNotification(`Artifact "${file.name}" uploaded successfully.`);
                 await artifactsRefetch();
+                return result.uri || null;
             } catch (error) {
                 addNotification(`Error uploading artifact "${file.name}": ${error instanceof Error ? error.message : "Unknown error"}`);
+                return null;
             }
         },
         [apiPrefix, addNotification, artifactsRefetch]
@@ -808,24 +811,100 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setCurrentTaskId(null);
             latestStatusText.current = null;
             sseEventSequenceRef.current = 0;
-            const userMsg: MessageFE = { text: currentInput, isUser: true, uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined, metadata: { sessionId, lastProcessedEventSequence: 0 } };
+
+            const userMsg: MessageFE = {
+                role: "user",
+                parts: [{ kind: "text", text: currentInput }],
+                messageId: `msg-${crypto.randomUUID()}`,
+                kind: "message",
+                contextId: sessionId,
+                isUser: true,
+                uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
+                metadata: { lastProcessedEventSequence: 0 },
+            };
             const initialStatusText = "Thinking";
             latestStatusText.current = initialStatusText;
-            const statusMsg: MessageFE = { text: initialStatusText, isUser: false, isStatusBubble: true, isComplete: false, metadata: { sessionId, lastProcessedEventSequence: 0 } };
+            const statusMsg: MessageFE = {
+                role: "agent",
+                parts: [{ kind: "text", text: initialStatusText }],
+                messageId: `msg-${crypto.randomUUID()}`,
+                kind: "message",
+                contextId: sessionId,
+                isStatusBubble: true,
+                isComplete: false,
+                metadata: { lastProcessedEventSequence: 0 },
+            };
             setMessages(prev => [...prev, userMsg, statusMsg]);
             setUserInput("");
             try {
-                const formData = new FormData();
-                formData.append("agent_name", selectedAgentName);
-                formData.append("message", currentInput);
-                currentFiles.forEach(file => formData.append("files", file, file.name));
+                // 1. Upload files if they exist and create FileParts
+                const uploadedFileParts: FilePart[] = [];
+                if (currentFiles.length > 0) {
+                    addNotification(`Uploading ${currentFiles.length} file(s)...`);
+                    const uploadPromises = currentFiles.map(file => uploadArtifactFile(file));
+                    const uris = await Promise.all(uploadPromises);
 
-                console.log("ChatProvider handleSubmit: Sending POST to /tasks/subscribe");
-                const response = await authenticatedFetch(`${apiPrefix}/tasks/subscribe`, { method: "POST", body: formData });
+                    uris.forEach((uri, index) => {
+                        if (uri) {
+                            uploadedFileParts.push({
+                                kind: "file",
+                                file: {
+                                    uri: uri,
+                                    name: currentFiles[index].name,
+                                    mimeType: currentFiles[index].type,
+                                },
+                            });
+                        } else {
+                            // Handle upload failure for a specific file
+                            addNotification(`Failed to upload ${currentFiles[index].name}. It will not be included in the message.`, "error");
+                        }
+                    });
+                }
+
+                // 2. Construct message parts
+                const messageParts: Part[] = [];
+                if (currentInput) {
+                    messageParts.push({ kind: "text", text: currentInput });
+                }
+                messageParts.push(...uploadedFileParts);
+
+                if (messageParts.length === 0) {
+                    throw new Error("Cannot send an empty message.");
+                }
+
+                // 3. Construct the A2A message
+                const a2aMessage: Message = {
+                    role: "user",
+                    parts: messageParts,
+                    messageId: `msg-${crypto.randomUUID()}`,
+                    kind: "message",
+                    contextId: sessionId,
+                    metadata: {
+                        agent_name: selectedAgentName, // For gateway routing
+                    },
+                };
+
+                // 4. Construct the SendMessageRequest
+                const sendMessageRequest: SendMessageRequest = {
+                    jsonrpc: "2.0",
+                    id: `req-${crypto.randomUUID()}`,
+                    method: "message/stream",
+                    params: {
+                        message: a2aMessage,
+                    },
+                };
+
+                // 5. Send the request
+                console.log("ChatProvider handleSubmit: Sending POST to /message:stream");
+                const response = await authenticatedFetch(`${apiPrefix}/message:stream`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(sendMessageRequest),
+                });
 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ detail: "Unknown error" }));
-                    console.error("ChatProvider handleSubmit: Error from /tasks/subscribe", response.status, errorData);
+                    console.error("ChatProvider handleSubmit: Error from /message:stream", response.status, errorData);
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
                 const result = await response.json();
@@ -840,7 +919,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setCurrentTaskId(taskId);
                 // Auto-display the new task in the side panel
                 setTaskIdInSidePanel(taskId);
-
             } catch (error) {
                 console.error("ChatProvider handleSubmit: Catch block error", error);
                 addNotification(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -851,7 +929,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [userInput, isResponding, isCancelling, sessionId, selectedAgentName, apiPrefix, addNotification, closeCurrentEventSource]
+        [userInput, isResponding, isCancelling, sessionId, selectedAgentName, apiPrefix, addNotification, closeCurrentEventSource, uploadArtifactFile]
     );
 
     useEffect(() => {

@@ -30,7 +30,7 @@ This checklist provides a terse, actionable summary of the tasks required for th
 - [x] 4.3. Create a new `MessageFE` interface that extends the official `Message` type from the SDK to include UI-specific state.
 
 **Step 5: Refactor API Calls and SSE Parsing (`ChatProvider.tsx`)**
-- [ ] 5.1. Update `handleSubmit` to call the new `POST /api/v1/message:stream` endpoint with a JSON `SendMessageRequest` body.
+- [x] 5.1. Update `handleSubmit` to call the new `POST /api/v1/message:stream` endpoint with a JSON `SendMessageRequest` body.
 - [ ] 5.2. Update `handleCancel` to call the new `POST /api/v1/tasks/{taskId}:cancel` endpoint.
 - [ ] 5.3. Rewrite the `handleSseMessage` function to parse incoming event data as a `JSONRPCResponse` from the SDK.
 - [ ] 5.4. In `handleSseMessage`, use `result.kind` to determine the event type (`status-update`, `artifact-update`, `task`).
