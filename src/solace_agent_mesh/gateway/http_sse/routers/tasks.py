@@ -20,6 +20,7 @@ from solace_ai_connector.common.log import log
 from ....gateway.http_sse.session_manager import SessionManager
 from ....gateway.http_sse.services.task_service import TaskService
 
+from a2a.types import CancelTaskRequest
 from ....common.types import (
     JSONRPCResponse,
     InternalError,
@@ -39,15 +40,6 @@ if TYPE_CHECKING:
     from ....gateway.http_sse.component import WebUIBackendComponent
 
 router = APIRouter()
-
-
-class CancelTaskApiPayload(BaseModel):
-    """Request body for the task cancellation endpoint."""
-
-    agent_name: str = Field(
-        ..., description="The name of the agent currently handling the task."
-    )
-    task_id: str = Field(..., description="The ID of the task to cancel.")
 
 
 @router.post("/message:send", response_model=JSONRPCResponse)
@@ -240,27 +232,52 @@ async def subscribe_task_from_agent(
 @router.post("/tasks/{taskId}:cancel", status_code=status.HTTP_202_ACCEPTED)
 async def cancel_agent_task(
     request: FastAPIRequest,
-    payload: CancelTaskApiPayload,
+    taskId: str,
+    payload: CancelTaskRequest,
     session_manager: SessionManager = Depends(get_session_manager),
     task_service: TaskService = Depends(get_task_service),
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
 ):
     """
     Sends a cancellation request for a specific task to the specified agent.
     Returns 202 Accepted, as cancellation is asynchronous.
     """
-    log_prefix = "[POST /api/v1/tasks/cancel][Task:%s] " % payload.task_id
-    log.info(
-        "%sReceived cancellation request for agent: %s", log_prefix, payload.agent_name
-    )
+    log_prefix = f"[POST /api/v1/tasks/{taskId}:cancel] "
+    log.info("%sReceived cancellation request.", log_prefix)
+
+    if taskId != payload.params.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Task ID in URL path does not match task ID in payload.",
+        )
+
+    context = component.task_context_manager.get_context(taskId)
+    if not context:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No active task context found for task ID: {taskId}",
+        )
+
+    agent_name = context.get("target_agent_name")
+    if not agent_name:
+        log.error(
+            "%sCould not determine target agent for task %s. Context is missing 'target_agent_name'.",
+            log_prefix,
+            taskId,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not determine target agent for the task.",
+        )
+
+    log.info("%sTarget agent for cancellation is '%s'", log_prefix, agent_name)
 
     try:
         client_id = session_manager.get_a2a_client_id(request)
 
         log.info("%sUsing ClientID: %s", log_prefix, client_id)
 
-        await task_service.cancel_task(
-            payload.agent_name, payload.task_id, client_id, client_id
-        )
+        await task_service.cancel_task(agent_name, taskId, client_id, client_id)
 
         log.info("%sCancellation request published successfully.", log_prefix)
 
