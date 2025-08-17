@@ -5,6 +5,7 @@ import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
 import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/chat";
+import type { TextPart } from "@/lib/types";
 import { Button, ChatMessageList, CHAT_STYLES } from "@/lib/components/ui";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 import { useAgents, useChatContext, useSessionPreview, useTaskContext } from "@/lib/hooks";
@@ -154,6 +155,12 @@ export function ChatPage() {
         return messages.find(message => message.isStatusBubble);
     }, [messages]);
 
+    const loadingStatusText = useMemo(() => {
+        if (!loadingMessage || !loadingMessage.parts) return null;
+        const textPart = loadingMessage.parts.find(p => p.kind === "text") as TextPart | undefined;
+        return textPart?.text || null;
+    }, [loadingMessage]);
+
     const handleViewProgressClick = useMemo(() => {
         if (!loadingMessage?.taskId) return undefined;
 
@@ -215,7 +222,7 @@ export function ChatPage() {
                                     })}
                                 </ChatMessageList>
                                 <div style={CHAT_STYLES}>
-                                    {loadingMessage && <LoadingMessageRow statusText={loadingMessage.text} onViewWorkflow={handleViewProgressClick} />}
+                                    {loadingMessage && <LoadingMessageRow statusText={loadingStatusText} onViewWorkflow={handleViewProgressClick} />}
                                     <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                                 </div>
                             </div>
