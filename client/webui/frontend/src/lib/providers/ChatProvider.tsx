@@ -500,6 +500,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     });
                 } else if (isFinalEvent) {
                     latestStatusText.current = null;
+                    // Explicitly mark the last message as complete on the final event
+                    const finalMessage = newMessages[newMessages.length - 1];
+                    if (finalMessage && !finalMessage.isUser && !finalMessage.isComplete && finalMessage.taskId === (result as TaskStatusUpdateEvent).taskId) {
+                        newMessages[newMessages.length - 1] = {
+                            ...finalMessage,
+                            isComplete: true,
+                            metadata: { ...finalMessage.metadata, lastProcessedEventSequence: currentEventSequence },
+                        };
+                    }
                 }
 
                 return newMessages;
