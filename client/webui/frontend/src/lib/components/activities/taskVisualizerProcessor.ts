@@ -280,11 +280,7 @@ export const processTaskForVisualization = (
             const params = payload.params as any;
             let userText = "User request";
             if (params?.message?.parts) {
-                // const textPart = params.message.parts.find((p: any) => p.type === "text") as TextPart | undefined;
-                // if (textPart?.text) userText = textPart.text;
-
-                // This is a temporary workaround before BE has a better way to inject timestamps without confusing user input
-                const textParts = params.message.parts.filter((p: any) => p.type === "text") as TextPart[];
+                const textParts = params.message.parts.filter((p: any) => p.kind === "text") as TextPart[];
                 userText = textParts[1]?.text ?? textParts[0]?.text;
             }
             visualizerSteps.push({
@@ -305,394 +301,177 @@ export const processTaskForVisualization = (
 
         // Any status_update with a result
         if (event.direction === "status_update" && payload?.result) {
-            const result = payload.result as any;
+            const result = payload.result as TaskStatusUpdateEvent;
             const statusMessage = result.status?.message;
-            const messageMetadata = statusMessage?.metadata as any;
-
-            let statusUpdateAgentName: string;
-            let isForwardedMessage = false;
-            if (messageMetadata?.forwarded_from_peer) {
-                statusUpdateAgentName = messageMetadata.forwarded_from_peer;
-                isForwardedMessage = true;
-            } else if (result.metadata?.agent_name) {
-                statusUpdateAgentName = result.metadata.agent_name;
-            } else if (messageMetadata?.agent_name) {
-                statusUpdateAgentName = messageMetadata.agent_name;
-            } else {
-                statusUpdateAgentName = event.source_entity || "Agent";
-            }
+            const statusUpdateAgentName = result.metadata?.agent_name || statusMessage?.metadata?.agent_name || event.source_entity || "Agent";
             const agentInstanceId = `${statusUpdateAgentName}:${currentEventOwningTaskId}`;
 
-            // LLM INVOCATION -> AGENT_LLM_CALL
-            if (messageMetadata?.type === "llm_invocation") {
-                flushAggregatedTextStep(currentEventOwningTaskId);
-                const llmData = messageMetadata.data as any;
-                let promptText = "System-initiated LLM call";
-                if (llmData?.contents && Array.isArray(llmData.contents)) {
-                    for (let i = llmData.contents.length - 1; i >= 0; i--) {
-                        const contentPart = llmData.contents[i];
-                        if (contentPart?.role === "user") {
-                            if (contentPart.parts?.some((p: any) => p.text)) {
-                                promptText = contentPart.parts.map((p: any) => p.text).join("\n");
-                                break;
-                            } else if (contentPart.parts?.some((p: any) => p.function_response)) {
-                                const funcResponsePart = contentPart.parts.find((p: any) => p.function_response);
-                                promptText = `Processing response from tool: ${funcResponsePart.function_response.name}`;
-                                break;
-                            }
-                        }
-                    }
-                }
-                const llmCallData: LLMCallData = {
-                    modelName: llmData?.model || "Unknown Model",
-                    promptPreview: promptText,
-                };
-
-                // --- Performance Data Collection ---
-                ensureAgentMetrics(agentInstanceId, statusUpdateAgentName);
-                inProgressLlmCalls.set(agentInstanceId, {
-                    timestamp: eventTimestamp,
-                    modelName: llmCallData.modelName,
-                });
-                // ---
-
-                const llmCallStep: VisualizerStep = {
-                    id: `vstep-llmcall-${visualizerSteps.length}-${eventId}`,
-                    type: "AGENT_LLM_CALL",
-                    timestamp: eventTimestamp,
-                    title: `${statusUpdateAgentName}: LLM Call`,
-                    source: statusUpdateAgentName,
-                    target: "LLM",
-                    data: { llmCall: llmCallData },
-                    rawEventIds: [eventId],
-                    isSubTaskStep: currentEventNestingLevel > 0,
-                    nestingLevel: currentEventNestingLevel,
-                    owningTaskId: currentEventOwningTaskId,
-                    functionCallId: functionCallIdForStep,
-                };
-                visualizerSteps.push(llmCallStep);
-                return;
-            }
-
-            // LLM RESPONSE -> TOOL DECISION or forward
-            if (messageMetadata?.type === "llm_response" && messageMetadata.data?.content?.parts) {
-                // --- Performance Data Collection ---
-                const openCallForPerf = inProgressLlmCalls.get(agentInstanceId);
-                if (openCallForPerf) {
-                    const duration = new Date(eventTimestamp).getTime() - new Date(openCallForPerf.timestamp).getTime();
-                    const agentMetrics = ensureAgentMetrics(agentInstanceId, statusUpdateAgentName);
-                    agentMetrics.llmCalls.push({
-                        modelName: openCallForPerf.modelName,
-                        durationMs: duration,
-                        timestamp: openCallForPerf.timestamp,
-                    });
-                    inProgressLlmCalls.delete(agentInstanceId);
-                }
-                // ---
-
-                const contentParts = messageMetadata.data.content.parts as any[];
-                const functionCallParts = contentParts.filter(p => p.function_call);
-                if (functionCallParts.length > 0) {
-                    if (aggregatedTextSourceAgent === statusUpdateAgentName && currentAggregatedText.trim()) {
+            if (statusMessage?.parts) {
+                for (const part of statusMessage.parts) {
+                    if (part.kind === "data") {
                         flushAggregatedTextStep(currentEventOwningTaskId);
-                        lastFlushedAgentResponseText = null;
-                    }
+                        const dataPart = part as DataPart;
+                        const signalData = dataPart.data as any;
+                        const signalType = signalData?.type as string;
 
-                    activeFunctionCallIdByTask.delete(currentEventOwningTaskId);
-
-                    const decisions: ToolDecision[] = functionCallParts.map(part => {
-                        const funcCall = part.function_call;
-                        return {
-                            functionCallId: funcCall.id,
-                            toolName: funcCall.name,
-                            toolArguments: funcCall.args || {},
-                            isPeerDelegation: funcCall.name?.startsWith("peer_"),
-                        };
-                    });
-
-                    const toolDecisionData: ToolDecisionData = {
-                        decisions: decisions,
-                        isParallel: decisions.length > 1,
-                    };
-
-                    const delegationInfos: DelegationInfo[] = [];
-                    const claimedSubTaskIds = new Set<string>();
-                    decisions.forEach(decision => {
-                        if (decision.isPeerDelegation) {
-                            const peerAgentActualName = decision.toolName.substring(5);
-                            for (const stId in allMonitoredTasks) {
-                                const candSubTask = allMonitoredTasks[stId];
-                                if (claimedSubTaskIds.has(candSubTask.taskId)) continue;
-
-                                const candSubTaskParentId = getParentTaskIdFromTaskObject(candSubTask);
-
-                                if (candSubTaskParentId === currentEventOwningTaskId && candSubTask.events && candSubTask.events.length > 0) {
-                                    const subTaskCreationRequest = candSubTask.events.find(e => e.direction === "request" && e.full_payload?.method?.startsWith("tasks/") && e.target_entity === peerAgentActualName);
-                                    if (subTaskCreationRequest && new Date(getEventTimestamp(subTaskCreationRequest)).getTime() >= new Date(eventTimestamp).getTime()) {
-                                        const delInfo: DelegationInfo = {
-                                            functionCallId: decision.functionCallId,
-                                            peerAgentName: peerAgentActualName,
-                                            subTaskId: candSubTask.taskId,
-                                        };
-                                        delegationInfos.push(delInfo);
-                                        functionCallIdToDelegationInfoMap.set(decision.functionCallId, delInfo);
-                                        if (candSubTask.taskId) {
-                                            subTaskToFunctionCallIdMap.set(candSubTask.taskId, decision.functionCallId);
-                                            claimedSubTaskIds.add(candSubTask.taskId);
+                        switch (signalType) {
+                            case "llm_invocation": {
+                                const llmData = signalData.request as any;
+                                let promptText = "System-initiated LLM call";
+                                if (llmData?.contents && Array.isArray(llmData.contents)) {
+                                    for (let i = llmData.contents.length - 1; i >= 0; i--) {
+                                        const contentPart = llmData.contents[i];
+                                        if (contentPart?.role === "user") {
+                                            if (contentPart.parts?.some((p: any) => p.text)) {
+                                                promptText = contentPart.parts.map((p: any) => p.text).join("\n");
+                                                break;
+                                            } else if (contentPart.parts?.some((p: any) => p.function_response)) {
+                                                const funcResponsePart = contentPart.parts.find((p: any) => p.function_response);
+                                                promptText = `Processing response from tool: ${funcResponsePart.function_response.name}`;
+                                                break;
+                                            }
                                         }
-                                        break;
                                     }
                                 }
-                            }
-                        }
-                    });
-
-                    const toolDecisionStep: VisualizerStep = {
-                        id: `vstep-tooldecision-${visualizerSteps.length}-${eventId}`,
-                        type: "AGENT_LLM_RESPONSE_TOOL_DECISION",
-                        timestamp: eventTimestamp,
-                        title: `LLM: Tool Decision${toolDecisionData.isParallel ? " (Parallel)" : ""}`,
-                        source: "LLM",
-                        target: statusUpdateAgentName,
-                        data: { toolDecision: toolDecisionData },
-                        rawEventIds: [eventId],
-                        delegationInfo: delegationInfos.length > 0 ? delegationInfos : undefined,
-                        isSubTaskStep: currentEventNestingLevel > 0,
-                        nestingLevel: currentEventNestingLevel,
-                        owningTaskId: currentEventOwningTaskId,
-                    };
-                    visualizerSteps.push(toolDecisionStep);
-
-                    const parallelBlockId = toolDecisionData.isParallel ? toolDecisionStep.id : undefined;
-
-                    // --- Performance Data Collection: Start timers for all decided tool calls ---
-                    const invokingAgentInstanceId = agentInstanceId;
-                    ensureAgentMetrics(invokingAgentInstanceId, statusUpdateAgentName);
-
-                    decisions.forEach(decision => {
-                        const subTaskId = decision.isPeerDelegation ? functionCallIdToDelegationInfoMap.get(decision.functionCallId)?.subTaskId : undefined;
-
-                        // Don't add if it's already being tracked (should not happen, but safe)
-                        if (!inProgressToolCalls.has(decision.functionCallId)) {
-                            inProgressToolCalls.set(decision.functionCallId, {
-                                timestamp: eventTimestamp, // Start timer at the moment of decision
-                                toolName: decision.toolName,
-                                isPeer: decision.isPeerDelegation,
-                                invokingAgentInstanceId: invokingAgentInstanceId,
-                                subTaskId: subTaskId,
-                                parallelBlockId: parallelBlockId,
-                            });
-                        }
-                    });
-                    // ---
-                    return;
-                } else {
-                    const llmResponseText = contentParts
-                        .filter(p => p.text)
-                        .map(p => p.text)
-                        .join("\\n");
-
-                    const llmResponseToAgentData: LLMResponseToAgentData = {
-                        responsePreview: llmResponseText.substring(0, 200) + (llmResponseText.length > 200 ? "..." : ""),
-                        isFinalResponse: messageMetadata.data?.partial === false,
-                    };
-
-                    visualizerSteps.push({
-                        id: `vstep-llmrespagent-${visualizerSteps.length}-${eventId}`,
-                        type: "AGENT_LLM_RESPONSE_TO_AGENT",
-                        timestamp: eventTimestamp,
-                        title: `${statusUpdateAgentName}: LLM Response`,
-                        source: "LLM",
-                        target: statusUpdateAgentName,
-                        data: { llmResponseToAgent: llmResponseToAgentData },
-                        rawEventIds: [eventId],
-                        isSubTaskStep: currentEventNestingLevel > 0,
-                        nestingLevel: currentEventNestingLevel,
-                        owningTaskId: currentEventOwningTaskId,
-                        functionCallId: functionCallIdForStep,
-                    });
-                    return;
-                }
-            }
-
-            // TOOL INVOCATION START
-            if (messageMetadata?.type === "tool_invocation_start") {
-                if (aggregatedTextSourceAgent === statusUpdateAgentName && currentAggregatedText.trim()) {
-                    flushAggregatedTextStep(currentEventOwningTaskId);
-                    lastFlushedAgentResponseText = null;
-                }
-                const toolInvocationData = messageMetadata.data;
-                const toolName = toolInvocationData?.tool_name;
-                const toolArgs = toolInvocationData?.tool_args || {};
-
-                // FIX: Directly use the function_call_id from the event payload.
-                // The previous logic was brittle and failed for nested/parallel tool calls.
-                const functionCallId = toolInvocationData?.function_call_id || `unknown-${toolName}-${visualizerSteps.length}`;
-                console.log(`Processing tool invocation start for ${toolName} with functionCallId: ${functionCallId}`);
-
-                const invocationData: ToolInvocationStartData = {
-                    functionCallId: functionCallId,
-                    toolName: toolName,
-                    toolArguments: toolArgs,
-                    isPeerInvocation: toolName?.startsWith("peer_"),
-                };
-
-                // --- Performance Data Collection (Timer started at TOOL_DECISION step) ---
-
-                const toolInvocationStep: VisualizerStep = {
-                    id: `vstep-toolinvokestart-${visualizerSteps.length}-${eventId}`,
-                    type: "AGENT_TOOL_INVOCATION_START",
-                    timestamp: eventTimestamp,
-                    title: `${statusUpdateAgentName}: Executing tool ${toolName}`,
-                    source: statusUpdateAgentName,
-                    target: toolName,
-                    data: { toolInvocationStart: invocationData },
-                    rawEventIds: [eventId],
-                    isSubTaskStep: currentEventNestingLevel > 0,
-                    nestingLevel: currentEventNestingLevel,
-                    owningTaskId: currentEventOwningTaskId,
-                    functionCallId: functionCallId,
-                };
-                if (invocationData.isPeerInvocation) {
-                    const delInfo = functionCallIdToDelegationInfoMap.get(functionCallId);
-                    if (delInfo) {
-                        toolInvocationStep.delegationInfo = [delInfo];
-                    }
-                }
-                visualizerSteps.push(toolInvocationStep);
-
-                return;
-            }
-
-            // TOOL RESPONSE CONTENT
-            if (statusMessage?.parts) {
-                if (messageMetadata?.type === "tool_response_content") {
-                    flushAggregatedTextStep(currentEventOwningTaskId);
-
-                    // A "tool_response_content" message can contain multiple DataParts, one for each parallel
-                    // tool call that has completed. Each DataPart has its own metadata with tool_name and function_call_id.
-                    const toolResultParts = (result.status?.message?.parts?.filter((p: any) => p.type === "data" && p.metadata?.tool_name) || []) as DataPart[];
-
-                    toolResultParts.forEach((part, partIndex) => {
-                        const partMetadata = part.metadata as any; // Cast for easier access
-                        const toolName = partMetadata.tool_name;
-                        const functionCallId = partMetadata.function_call_id;
-
-                        if (!toolName || !functionCallId) {
-                            console.warn("Skipping tool result part due to missing metadata", part);
-                            return;
-                        }
-
-                        // --- Performance Data Collection ---
-                        const openToolCallForPerf = inProgressToolCalls.get(functionCallId);
-                        if (openToolCallForPerf) {
-                            const duration = new Date(eventTimestamp).getTime() - new Date(openToolCallForPerf.timestamp).getTime();
-                            const invokingAgentMetrics = report.agents[openToolCallForPerf.invokingAgentInstanceId];
-                            if (invokingAgentMetrics) {
-                                const toolCallPerf: ToolCallPerformance = {
-                                    toolName: openToolCallForPerf.toolName,
-                                    durationMs: duration,
-                                    isPeer: openToolCallForPerf.isPeer,
-                                    timestamp: openToolCallForPerf.timestamp,
-                                    peerAgentName: openToolCallForPerf.isPeer ? openToolCallForPerf.toolName.substring(5) : undefined,
-                                    subTaskId: openToolCallForPerf.subTaskId,
-                                    parallelBlockId: openToolCallForPerf.parallelBlockId,
+                                const llmCallData: LLMCallData = {
+                                    modelName: llmData?.model || "Unknown Model",
+                                    promptPreview: promptText,
                                 };
-                                invokingAgentMetrics.toolCalls.push(toolCallPerf);
+                                ensureAgentMetrics(agentInstanceId, statusUpdateAgentName);
+                                inProgressLlmCalls.set(agentInstanceId, { timestamp: eventTimestamp, modelName: llmCallData.modelName });
+                                visualizerSteps.push({
+                                    id: `vstep-llmcall-${visualizerSteps.length}-${eventId}`,
+                                    type: "AGENT_LLM_CALL",
+                                    timestamp: eventTimestamp,
+                                    title: `${statusUpdateAgentName}: LLM Call`,
+                                    source: statusUpdateAgentName,
+                                    target: "LLM",
+                                    data: { llmCall: llmCallData },
+                                    rawEventIds: [eventId],
+                                    isSubTaskStep: currentEventNestingLevel > 0,
+                                    nestingLevel: currentEventNestingLevel,
+                                    owningTaskId: currentEventOwningTaskId,
+                                    functionCallId: functionCallIdForStep,
+                                });
+                                break;
                             }
-                            inProgressToolCalls.delete(functionCallId);
-                        }
-                        // ---
+                            case "llm_response": {
+                                const openCallForPerf = inProgressLlmCalls.get(agentInstanceId);
+                                if (openCallForPerf) {
+                                    const duration = new Date(eventTimestamp).getTime() - new Date(openCallForPerf.timestamp).getTime();
+                                    const agentMetrics = ensureAgentMetrics(agentInstanceId, statusUpdateAgentName);
+                                    agentMetrics.llmCalls.push({ modelName: openCallForPerf.modelName, durationMs: duration, timestamp: openCallForPerf.timestamp });
+                                    inProgressLlmCalls.delete(agentInstanceId);
+                                }
 
-                        const isPeerResp = toolName?.startsWith("peer_");
-                        const toolResultData: ToolResultData = {
-                            toolName: toolName,
-                            functionCallId: functionCallId,
-                            resultData: part.data,
-                            isPeerResponse: isPeerResp,
-                        };
+                                const llmResponseData = signalData.data as any;
+                                const contentParts = llmResponseData.content?.parts as any[];
+                                const functionCallParts = contentParts?.filter(p => p.function_call);
 
-                        visualizerSteps.push({
-                            id: `vstep-toolresult-${visualizerSteps.length}-${eventId}-${partIndex}`,
-                            type: "AGENT_TOOL_EXECUTION_RESULT",
-                            timestamp: eventTimestamp,
-                            title: `${statusUpdateAgentName}: Tool Result - ${toolName}`,
-                            source: toolName,
-                            target: statusUpdateAgentName,
-                            data: { toolResult: toolResultData },
-                            rawEventIds: [eventId],
-                            isSubTaskStep: currentEventNestingLevel > 0,
-                            nestingLevel: currentEventNestingLevel,
-                            owningTaskId: currentEventOwningTaskId,
-                            functionCallId: functionCallId,
-                        });
-                    });
-                    return;
-                }
-            }
-
-            // Final text part from a "final: true" status_update event for the root task
-            if (result.final === true && currentEventOwningTaskId === parentTaskObject.taskId) {
-                flushAggregatedTextStep(currentEventOwningTaskId);
-                const statusMsg = result.status?.message;
-                if (statusMsg?.parts) {
-                    const textPart = statusMsg.parts.find((p: any) => p.type === "text") as TextPart | undefined;
-                    if (textPart?.text && textPart.text.trim()) {
-                        const finalTextFromThisEvent = textPart.text.trim();
-                        if (finalTextFromThisEvent !== lastFlushedAgentResponseText) {
-                            visualizerSteps.push({
-                                id: `vstep-agenttext-finalevent-${visualizerSteps.length}-${eventId}`,
-                                type: "AGENT_RESPONSE_TEXT",
-                                timestamp: eventTimestamp,
-                                title: `${statusUpdateAgentName}: Response (Final Update)`,
-                                source: statusUpdateAgentName,
-                                target: "User",
-                                data: { text: finalTextFromThisEvent },
-                                rawEventIds: [eventId],
-                                isSubTaskStep: currentEventNestingLevel > 0,
-                                nestingLevel: currentEventNestingLevel,
-                                owningTaskId: currentEventOwningTaskId,
-                                functionCallId: functionCallIdForStep,
-                            });
-                            lastFlushedAgentResponseText = finalTextFromThisEvent;
-                        }
-                    }
-                }
-                return;
-            }
-
-            // Aggregating streaming text
-            if (statusMessage?.parts) {
-                const textPart = statusMessage.parts.find((part: any) => part.type === "text") as TextPart | undefined;
-                if (textPart?.text) {
-                    if (aggregatedTextSourceAgent && aggregatedTextSourceAgent !== statusUpdateAgentName) {
-                        flushAggregatedTextStep(currentEventOwningTaskId);
-                        lastFlushedAgentResponseText = null;
-                    }
-                    if (!aggregatedTextSourceAgent) {
-                        aggregatedTextSourceAgent = statusUpdateAgentName;
-                        aggregatedTextTimestamp = eventTimestamp;
-                        aggregatedTextIsForwardedContext = isForwardedMessage;
-                    }
-                    currentAggregatedText += textPart.text;
-                    aggregatedRawEventIds.push(eventId);
-                } else {
-                    const dataPartSignal = statusMessage.parts.find((part: any) => part.type === "data" && (part as DataPart).data?.a2a_signal_type === "agent_status_message") as DataPart | undefined;
-                    if (dataPartSignal && isForwardedMessage) {
-                        const signalText = dataPartSignal.data?.text;
-                        if (signalText) {
-                            if (aggregatedTextSourceAgent && aggregatedTextSourceAgent !== statusUpdateAgentName) {
-                                flushAggregatedTextStep(currentEventOwningTaskId);
-                                lastFlushedAgentResponseText = null;
+                                if (functionCallParts && functionCallParts.length > 0) {
+                                    // Handle Tool Decision
+                                    const decisions: ToolDecision[] = functionCallParts.map(p => ({
+                                        functionCallId: p.function_call.id,
+                                        toolName: p.function_call.name,
+                                        toolArguments: p.function_call.args || {},
+                                        isPeerDelegation: p.function_call.name?.startsWith("peer_"),
+                                    }));
+                                    const toolDecisionData: ToolDecisionData = { decisions, isParallel: decisions.length > 1 };
+                                    visualizerSteps.push({
+                                        id: `vstep-tooldecision-${visualizerSteps.length}-${eventId}`,
+                                        type: "AGENT_LLM_RESPONSE_TOOL_DECISION",
+                                        timestamp: eventTimestamp,
+                                        title: `LLM: Tool Decision${toolDecisionData.isParallel ? " (Parallel)" : ""}`,
+                                        source: "LLM",
+                                        target: statusUpdateAgentName,
+                                        data: { toolDecision: toolDecisionData },
+                                        rawEventIds: [eventId],
+                                        isSubTaskStep: currentEventNestingLevel > 0,
+                                        nestingLevel: currentEventNestingLevel,
+                                        owningTaskId: currentEventOwningTaskId,
+                                    });
+                                } else {
+                                    // Handle simple LLM text response to agent
+                                    const llmResponseText = contentParts?.filter(p => p.text).map(p => p.text).join("\n") || "";
+                                    const llmResponseToAgentData: LLMResponseToAgentData = {
+                                        responsePreview: llmResponseText.substring(0, 200) + (llmResponseText.length > 200 ? "..." : ""),
+                                        isFinalResponse: llmResponseData?.partial === false,
+                                    };
+                                    visualizerSteps.push({
+                                        id: `vstep-llmrespagent-${visualizerSteps.length}-${eventId}`,
+                                        type: "AGENT_LLM_RESPONSE_TO_AGENT",
+                                        timestamp: eventTimestamp,
+                                        title: `${statusUpdateAgentName}: LLM Response`,
+                                        source: "LLM",
+                                        target: statusUpdateAgentName,
+                                        data: { llmResponseToAgent: llmResponseToAgentData },
+                                        rawEventIds: [eventId],
+                                        isSubTaskStep: currentEventNestingLevel > 0,
+                                        nestingLevel: currentEventNestingLevel,
+                                        owningTaskId: currentEventOwningTaskId,
+                                        functionCallId: functionCallIdForStep,
+                                    });
+                                }
+                                break;
                             }
-                            if (!aggregatedTextSourceAgent) {
-                                aggregatedTextSourceAgent = statusUpdateAgentName;
-                                aggregatedTextTimestamp = eventTimestamp;
-                                aggregatedTextIsForwardedContext = true;
+                            case "tool_invocation_start": {
+                                const invocationData: ToolInvocationStartData = {
+                                    functionCallId: signalData.function_call_id,
+                                    toolName: signalData.tool_name,
+                                    toolArguments: signalData.tool_args,
+                                    isPeerInvocation: signalData.tool_name?.startsWith("peer_"),
+                                };
+                                visualizerSteps.push({
+                                    id: `vstep-toolinvokestart-${visualizerSteps.length}-${eventId}`,
+                                    type: "AGENT_TOOL_INVOCATION_START",
+                                    timestamp: eventTimestamp,
+                                    title: `${statusUpdateAgentName}: Executing tool ${invocationData.toolName}`,
+                                    source: statusUpdateAgentName,
+                                    target: invocationData.toolName,
+                                    data: { toolInvocationStart: invocationData },
+                                    rawEventIds: [eventId],
+                                    isSubTaskStep: currentEventNestingLevel > 0,
+                                    nestingLevel: currentEventNestingLevel,
+                                    owningTaskId: currentEventOwningTaskId,
+                                    functionCallId: invocationData.functionCallId,
+                                });
+                                break;
                             }
-                            currentAggregatedText += signalText;
-                            aggregatedRawEventIds.push(eventId);
+                            case "tool_result": {
+                                const toolResultData: ToolResultData = {
+                                    toolName: signalData.tool_name,
+                                    functionCallId: signalData.function_call_id,
+                                    resultData: signalData.result_data,
+                                    isPeerResponse: signalData.tool_name?.startsWith("peer_"),
+                                };
+                                visualizerSteps.push({
+                                    id: `vstep-toolresult-${visualizerSteps.length}-${eventId}`,
+                                    type: "AGENT_TOOL_EXECUTION_RESULT",
+                                    timestamp: eventTimestamp,
+                                    title: `${statusUpdateAgentName}: Tool Result - ${toolResultData.toolName}`,
+                                    source: toolResultData.toolName,
+                                    target: statusUpdateAgentName,
+                                    data: { toolResult: toolResultData },
+                                    rawEventIds: [eventId],
+                                    isSubTaskStep: currentEventNestingLevel > 0,
+                                    nestingLevel: currentEventNestingLevel,
+                                    owningTaskId: currentEventOwningTaskId,
+                                    functionCallId: toolResultData.functionCallId,
+                                });
+                                break;
+                            }
                         }
+                    } else if (part.kind === "text" && part.text) {
+                        if (aggregatedTextSourceAgent && aggregatedTextSourceAgent !== statusUpdateAgentName) {
+                            flushAggregatedTextStep(currentEventOwningTaskId);
+                            lastFlushedAgentResponseText = null;
+                        }
+                        if (!aggregatedTextSourceAgent) {
+                            aggregatedTextSourceAgent = statusUpdateAgentName;
+                            aggregatedTextTimestamp = eventTimestamp;
+                        }
+                        currentAggregatedText += part.text;
+                        aggregatedRawEventIds.push(eventId);
                     }
                 }
             }
