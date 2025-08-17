@@ -391,12 +391,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     } else if (part.kind === "file") {
                         const filePart = part as FilePart;
                         const fileInfo = filePart.file;
-                        newFileAttachments.push({
+                        const attachment: FileAttachment = {
                             name: fileInfo.name || "untitled_file",
-                            content: (fileInfo as any).bytes,
                             mime_type: fileInfo.mimeType,
-                            uri: (fileInfo as any).uri,
-                        });
+                        };
+                        if ("bytes" in fileInfo && fileInfo.bytes) {
+                            attachment.content = fileInfo.bytes;
+                        } else if ("uri" in fileInfo && fileInfo.uri) {
+                            attachment.uri = fileInfo.uri;
+                        }
+                        newFileAttachments.push(attachment);
                     } else {
                         newContentParts.push(part);
                     }
