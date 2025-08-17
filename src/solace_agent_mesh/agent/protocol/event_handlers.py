@@ -25,6 +25,7 @@ from a2a.types import (
     JSONParseError,
     JSONRPCResponse,
     Message as A2AMessage,
+    Part,
     SendMessageRequest,
     SendStreamingMessageRequest,
     SetTaskPushNotificationConfigRequest,
@@ -553,10 +554,8 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 task_description = _extract_text_from_parts(a2a_message_for_adk.parts)
                 final_prompt = f"{task_description}\n\n{artifact_summary}"
 
-                a2a_message_for_adk = A2AMessage(
-                    role="user",
-                    parts=[TextPart(text=final_prompt)],
-                    metadata=a2a_message_for_adk.metadata,
+                a2a_message_for_adk = a2a_message_for_adk.model_copy(
+                    update={"parts": [Part(root=TextPart(text=final_prompt))]}
                 )
                 log.debug(
                     "%s Generated new prompt for task %s with artifact context.",
