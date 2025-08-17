@@ -8,7 +8,7 @@ from typing import List, Optional
 from solace_ai_connector.common.log import log
 
 from ....common.agent_registry import AgentRegistry
-from ....common.types import AgentCard
+from a2a.types import AgentCard
 
 
 class AgentService:
