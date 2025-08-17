@@ -313,7 +313,7 @@ def setup_dependencies(component: "WebUIBackendComponent"):
     api_prefix = "/api/v1"
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
     app.include_router(agents.router, prefix=api_prefix, tags=["Agents"])
-    app.include_router(tasks.router, prefix=f"{api_prefix}/tasks", tags=["Tasks"])
+    app.include_router(tasks.router, prefix=api_prefix, tags=["Tasks"])
     app.include_router(sse.router, prefix=f"{api_prefix}/sse", tags=["SSE"])
     app.include_router(
         artifacts.router, prefix=f"{api_prefix}/artifacts", tags=["Artifacts"]
