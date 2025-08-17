@@ -31,69 +31,84 @@ def transform_data(data: dict) -> tuple[dict, bool]:
     if "expected_gateway_output" not in data:
         return data, False
 
-    original_events = data["expected_gateway_output"]
+    original_events = data.get("expected_gateway_output")
+    if not original_events:
+        return data, False
+
     transformed_events = []
     was_transformed = False
 
     for event in original_events:
-        if not isinstance(event, dict) or "task_state" not in event:
-            # If it doesn't look like the old format, keep it as is
-            transformed_events.append(event)
-            continue
+        # Transform if it's a dictionary and doesn't have the new format's 'kind' key.
+        if isinstance(event, dict) and event.get("kind") != "task":
+            was_transformed = True
 
-        was_transformed = True
+            # 1. Create the new root structure
+            new_event = {
+                "type": event.get("type"),
+                "kind": "task",
+                "id": "*",
+            }
 
-        # 1. Create the new root structure
-        new_event = {
-            "type": event.get("type"),
-            "kind": "task",
-            "id": "*",
-        }
-
-        # 2. Derive contextId
-        context_id = (
-            data.get("gateway_input", {})
-            .get("external_context", {})
-            .get("a2a_session_id")
-        )
-        if not context_id:
-            # Fallback for older tests that might not have this structure
-            test_case_id = data.get("test_case_id", "unknown_test")
-            context_id = f"session_{test_case_id}"  # Best guess
-            print(
-                f"    [WARNING] Could not find a2a_session_id. Falling back to generated contextId: {context_id}",
-                file=sys.stderr,
+            # 2. Derive contextId
+            context_id = (
+                data.get("gateway_input", {})
+                .get("external_context", {})
+                .get("a2a_session_id")
             )
-        new_event["contextId"] = context_id
+            if not context_id:
+                # Fallback for older tests that might not have this structure
+                test_case_id = data.get("test_case_id", "unknown_test")
+                context_id = f"session_{test_case_id}"  # Best guess
+                print(
+                    f"    [WARNING] Could not find a2a_session_id for '{test_case_id}'. Falling back to generated contextId: {context_id}",
+                    file=sys.stderr,
+                )
+            new_event["contextId"] = context_id
 
-        # 3. Build the status object
-        status = {"state": event.get("task_state")}
+            # 3. Build the status object, inferring task_state if missing.
+            task_state = event.get("task_state")
+            if task_state is None:
+                if event.get("type") == "final_response":
+                    task_state = "completed"
+                else:
+                    task_state = "unknown"
+                    print(
+                        f"    [WARNING] 'task_state' missing in non-final_response event. Defaulting to 'unknown'. Event: {event}",
+                        file=sys.stderr,
+                    )
+            status = {"state": task_state}
 
-        # 4. Build the status.message object
-        message = {
-            "kind": "message",
-            "messageId": "*",
-            "role": "agent",
-        }
+            # 4. Build the status.message object
+            message = {
+                "kind": "message",
+                "messageId": "*",
+                "role": "agent",
+            }
 
-        # 5. Relocate content_parts
-        content_parts = event.get("content_parts", [])
-        if content_parts:
-            # Handle text_contains string-to-list conversion
-            for part in content_parts:
-                if "text_contains" in part and isinstance(part["text_contains"], str):
-                    part["text_contains"] = [part["text_contains"]]
-            message["parts"] = content_parts
+            # 5. Relocate content_parts
+            content_parts = event.get("content_parts", [])
+            if content_parts:
+                # Handle text_contains string-to-list conversion
+                for part in content_parts:
+                    if "text_contains" in part and isinstance(
+                        part["text_contains"], str
+                    ):
+                        part["text_contains"] = [part["text_contains"]]
+                message["parts"] = content_parts
 
-        status["message"] = message
-        new_event["status"] = status
+            status["message"] = message
+            new_event["status"] = status
 
-        # 6. Handle other assertions
-        for key, value in event.items():
-            if key not in ["type", "task_state", "content_parts"]:
-                new_event[key] = value
+            # 6. Handle other assertions
+            for key, value in event.items():
+                if key not in ["type", "task_state", "content_parts"]:
+                    new_event[key] = value
 
-        transformed_events.append(new_event)
+            transformed_events.append(new_event)
+        else:
+            # If it's already migrated or not a dict, keep it as is
+            transformed_events.append(event)
 
     if was_transformed:
         data["expected_gateway_output"] = transformed_events
