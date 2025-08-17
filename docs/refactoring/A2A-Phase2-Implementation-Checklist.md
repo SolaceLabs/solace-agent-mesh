@@ -17,7 +17,7 @@ This checklist provides a terse, actionable summary of the tasks required for th
 - [x] 2.3. Update task ID extraction in `_parse_a2a_event_from_rpc_result` to use the `taskId` field from the new event types.
 
 **Step 3: Update Gateway SSE Forwarding (`component.py`)**
-- [ ] 3.1. In `WebUIBackendComponent`, update the type hints for `event_data`, `task_data`, and `error_data` parameters in the `_send_*_to_external` methods to use the official `a2a.types`.
+- [x] 3.1. In `WebUIBackendComponent`, update the type hints for `event_data`, `task_data`, and `error_data` parameters in the `_send_*_to_external` methods to use the official `a2a.types`.
 - [ ] 3.2. In `WebUIBackendComponent`, update the serialization logic in `_send_*_to_external` methods to use `.model_dump()` for creating the JSON payload sent to the UI.
 
 ---
