@@ -86,14 +86,6 @@ export interface FileAttachment {
 }
 
 /**
- * Represents a tool execution event for display in a message bubble.
- */
-export interface ToolEvent {
-    toolName: string;
-    data: any;
-}
-
-/**
  * Represents a UI notification (toast).
  */
 export interface Notification {
@@ -111,7 +103,6 @@ export interface MessageFE extends Message {
     isComplete?: boolean;
     isError?: boolean;
     uploadedFiles?: File[]; // For files being uploaded by the user
-    toolEvents?: ToolEvent[];
     artifactNotification?: {
         name: string;
         version?: string;

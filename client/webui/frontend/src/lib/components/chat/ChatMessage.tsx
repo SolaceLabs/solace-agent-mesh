@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 
 import { AlertCircle } from "lucide-react";
 
-import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner, ToolCallCapsule, ViewWorkflowButton } from "@/lib/components";
+import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner } from "@/lib/components";
+import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
 import type { MessageFE, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
@@ -96,19 +97,6 @@ const getFileAttachments = (message: MessageFE) => {
     return null;
 };
 
-const getToolEvents = (message: MessageFE) => {
-    if (message.toolEvents && message.toolEvents.length > 0) {
-        return (
-            <MessageWrapper message={message}>
-                {message.toolEvents.map((event, eventIdx) => (
-                    <ToolCallCapsule key={`tool-${message.metadata?.messageId}-${eventIdx}`} toolName={event.toolName} data={event.data} />
-                ))}
-            </MessageWrapper>
-        );
-    }
-    return null;
-};
-
 const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean) => {
     const { openSidePanelTab, setTaskIdInSidePanel } = chatContext;
 
@@ -153,7 +141,6 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
             {getChatBubble(message, chatContext, isLastWithTaskId)}
             {getUploadedFiles(message)}
             {getFileAttachments(message)}
-            {getToolEvents(message)}
         </>
     );
 };

@@ -355,7 +355,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Process the parts of the message
             const newParts: Part[] = [];
-            const currentToolEvents: ToolEvent[] = [];
             let agentStatusText: string | null = null;
 
             if (messageToProcess?.parts) {
@@ -367,11 +366,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 case "agent_progress_update":
                                     agentStatusText = (data as any).status_text || "Processing...";
                                     break;
+                                // Tool invocation signals are now handled by the Task Visualizer, not the chat stream.
                                 case "tool_invocation_start":
-                                    currentToolEvents.push({
-                                        toolName: (data as any).tool_name,
-                                        data: (data as any).tool_args,
-                                    });
                                     break;
                                 default:
                                     newParts.push(part); // Keep unhandled data parts
@@ -398,7 +394,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // Create a new message bubble if there's content to display
-                if (newParts.length > 0 || currentToolEvents.length > 0 || artifactToProcess) {
+                if (newParts.length > 0 || artifactToProcess) {
                     const newBubble: MessageFE = {
                         role: "agent",
                         parts: newParts,
@@ -408,7 +404,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         taskId: (result as TaskStatusUpdateEvent).taskId,
                         isUser: false,
                         isComplete: isFinalEvent,
-                        toolEvents: currentToolEvents.length > 0 ? currentToolEvents : undefined,
                         metadata: { lastProcessedEventSequence: currentEventSequence },
                     };
                     if (artifactToProcess) {
