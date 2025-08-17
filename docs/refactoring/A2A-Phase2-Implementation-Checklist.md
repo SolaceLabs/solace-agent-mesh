@@ -26,7 +26,7 @@ This checklist provides a terse, actionable summary of the tasks required for th
 
 **Step 4: Migrate Frontend Type System**
 - [x] 4.1. Add the `@a2a-js/sdk` package as a `devDependency` in `package.json`.
-- [ ] 4.2. In `be.ts`, delete all legacy A2A interfaces and replace them with type exports from `@a2a-js/sdk`.
+- [x] 4.2. In `be.ts`, delete all legacy A2A interfaces and replace them with type exports from `@a2a-js/sdk`.
 - [ ] 4.3. Create a new `MessageFE` interface that extends the official `Message` type from the SDK to include UI-specific state.
 
 **Step 5: Refactor API Calls and SSE Parsing (`ChatProvider.tsx`)**
