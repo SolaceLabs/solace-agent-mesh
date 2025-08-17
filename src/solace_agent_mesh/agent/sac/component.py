@@ -2035,17 +2035,27 @@ class SamAgentComponent(ComponentBase):
                 )
 
                 if a2a_file_part:
-                    a2a_artifact = A2AArtifact(
-                        artifact_id=filename, name=filename, parts=[a2a_file_part]
-                    )
-                    artifact_update_event = TaskArtifactUpdateEvent(
+                    part_wrapper = Part(root=a2a_file_part)
+                    a2a_message = new_agent_parts_message(
+                        parts=[part_wrapper],
                         task_id=logical_task_id,
                         context_id=original_session_id,
-                        artifact=a2a_artifact,
+                    )
+                    task_status = TaskStatus(
+                        state=TaskState.working,
+                        message=a2a_message,
+                        timestamp=datetime.now(timezone.utc).isoformat(),
+                    )
+                    status_update_event = TaskStatusUpdateEvent(
+                        task_id=logical_task_id,
+                        context_id=original_session_id,
+                        status=task_status,
+                        final=False,
+                        kind="status-update",
                     )
                     artifact_payload = JSONRPCResponse(
                         id=a2a_context.get("jsonrpc_request_id"),
-                        result=artifact_update_event,
+                        result=status_update_event,
                     ).model_dump(exclude_none=True)
 
                     self._publish_a2a_event(
@@ -2053,7 +2063,7 @@ class SamAgentComponent(ComponentBase):
                     )
 
                     log.info(
-                        "%s Published TaskArtifactUpdateEvent for '%s' to %s",
+                        "%s Published TaskStatusUpdateEvent with FilePart for '%s' to %s",
                         log_id,
                         filename,
                         artifact_topic,
