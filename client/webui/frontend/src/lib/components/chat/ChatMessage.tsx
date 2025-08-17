@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import type { ReactNode } from "react";
 
 import { AlertCircle } from "lucide-react";
+import { FiFileText } from "react-icons/fi";
 
 import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner } from "@/lib/components";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
@@ -105,31 +106,42 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
     }
 
     const textContent = message.parts?.some(p => p.kind === "text" && p.text.trim());
+    const hasArtifactNotification = !!message.artifactNotification;
 
-    if (textContent) {
-        const variant = message.isUser ? "sent" : "received";
-        const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && isLastWithTaskId;
-        const handleViewWorkflowClick = () => {
-            if (message.taskId) {
-                setTaskIdInSidePanel(message.taskId);
-                openSidePanelTab("workflow");
-            }
-        };
-
-        return (
-            <ChatBubble key={message.metadata?.messageId} variant={variant}>
-                <ChatBubbleMessage variant={variant}>
-                    <MessageContent message={message} />
-                    {showWorkflowButton && (
-                        <div className="mt-3">
-                            <ViewWorkflowButton onClick={handleViewWorkflowClick} />
-                        </div>
-                    )}
-                </ChatBubbleMessage>
-            </ChatBubble>
-        );
+    if (!textContent && !hasArtifactNotification) {
+        return null;
     }
-    return null;
+
+    const variant = message.isUser ? "sent" : "received";
+    const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && isLastWithTaskId;
+    const handleViewWorkflowClick = () => {
+        if (message.taskId) {
+            setTaskIdInSidePanel(message.taskId);
+            openSidePanelTab("workflow");
+        }
+    };
+
+    return (
+        <ChatBubble key={message.metadata?.messageId} variant={variant}>
+            <ChatBubbleMessage variant={variant}>
+                {textContent && <MessageContent message={message} />}
+                {hasArtifactNotification && (
+                    <div className="flex items-center p-2 my-1 bg-blue-100 dark:bg-blue-900/50 rounded-md">
+                        <FiFileText className="mr-2 text-blue-500 dark:text-blue-400" />
+                        <span className="text-sm">
+                            Artifact created: <strong>{message.artifactNotification.name}</strong>
+                            {message.artifactNotification.version && ` (v${message.artifactNotification.version})`}
+                        </span>
+                    </div>
+                )}
+                {showWorkflowButton && (
+                    <div className="mt-3">
+                        <ViewWorkflowButton onClick={handleViewWorkflowClick} />
+                    </div>
+                )}
+            </ChatBubbleMessage>
+        </ChatBubble>
+    );
 };
 export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean }> = ({ message, isLastWithTaskId }) => {
     const chatContext = useChatContext();

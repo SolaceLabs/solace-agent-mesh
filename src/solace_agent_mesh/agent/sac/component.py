@@ -2037,7 +2037,9 @@ class SamAgentComponent(ComponentBase):
                 if a2a_file_part:
                     a2a_artifact = A2AArtifact(name=filename, parts=[a2a_file_part])
                     artifact_update_event = TaskArtifactUpdateEvent(
-                        id=logical_task_id, artifact=a2a_artifact
+                        task_id=logical_task_id,
+                        context_id=original_session_id,
+                        artifact=a2a_artifact,
                     )
                     artifact_payload = JSONRPCResponse(
                         id=a2a_context.get("jsonrpc_request_id"),
