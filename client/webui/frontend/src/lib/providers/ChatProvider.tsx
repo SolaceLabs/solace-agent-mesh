@@ -401,15 +401,42 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Update UI state based on processed parts
             setMessages(prevMessages => {
                 let newMessages = [...prevMessages];
-                const lastMessage = newMessages[newMessages.length - 1];
+                let lastMessage = newMessages[newMessages.length - 1];
 
                 // Remove old status bubble
                 if (lastMessage?.isStatusBubble) {
                     newMessages.pop();
+                    lastMessage = newMessages[newMessages.length - 1]; // Update lastMessage after pop
                 }
 
-                // Create a new message bubble if there's content to display
-                if (newParts.length > 0 || artifactToProcess) {
+                const textPartFromStream = newParts.find(p => p.kind === "text") as TextPart | undefined;
+                const otherParts = newParts.filter(p => p.kind !== "text");
+
+                // Check if we can append to the last message
+                if (
+                    lastMessage &&
+                    !lastMessage.isUser &&
+                    !lastMessage.isComplete &&
+                    lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId &&
+                    textPartFromStream
+                ) {
+                    // Append to existing message
+                    const lastPart = lastMessage.parts[lastMessage.parts.length - 1];
+                    if (lastPart?.kind === "text") {
+                        lastPart.text += textPartFromStream.text;
+                    } else {
+                        lastMessage.parts.push(textPartFromStream);
+                    }
+                    // Add any non-text parts as well
+                    if (otherParts.length > 0) {
+                        lastMessage.parts.push(...otherParts);
+                    }
+                    lastMessage.isComplete = isFinalEvent;
+                    if (lastMessage.metadata) {
+                        lastMessage.metadata.lastProcessedEventSequence = currentEventSequence;
+                    }
+                } else if (newParts.length > 0 || artifactToProcess) {
+                    // Create a new message bubble
                     const newBubble: MessageFE = {
                         role: "agent",
                         parts: newParts,

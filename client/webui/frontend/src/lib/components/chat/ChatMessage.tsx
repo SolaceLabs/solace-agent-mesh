@@ -22,7 +22,7 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
 
     // Derive text content from the `parts` array for both user and agent messages.
     const textParts = message.parts?.filter(p => p.kind === "text") as TextPart[] | undefined;
-    const combinedText = textParts?.map(p => p.text).join("\n\n") || "";
+    const combinedText = textParts?.map(p => p.text).join("") || "";
 
     if (message.isUser) {
         return <span>{combinedText}</span>;
