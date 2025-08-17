@@ -16,7 +16,11 @@ def is_migrated(data: dict) -> bool:
     if "expected_gateway_output" not in data:
         return True  # No section to migrate, so it's "done"
 
-    for event in data.get("expected_gateway_output", []):
+    events = data.get("expected_gateway_output")
+    if not events:  # Handles empty list case: expected_gateway_output: []
+        return True  # Nothing to migrate, so consider it done.
+
+    for event in events:
         if isinstance(event, dict) and event.get("kind") == "task":
             return True
     return False

@@ -42,8 +42,9 @@ llm_interactions:
           response_json_matches:
             status: "error"
           # The message from the tool will be "Embed resolution failed: [Error: Artifact 'non_existent_source.txt' ... not found...]"
-          response_contains: "Embed resolution failed:"
-          response_contains: "Artifact 'non_existent_source.txt' not found (no versions available)" # More specific part of the underlying error
+          response_contains:
+            - "Embed resolution failed:"
+            - "Artifact 'non_existent_source.txt' not found (no versions available)"
     static_response:
       id: "chatcmpl-applyembed-sourcenotfound-2"
       object: "chat.completion"
