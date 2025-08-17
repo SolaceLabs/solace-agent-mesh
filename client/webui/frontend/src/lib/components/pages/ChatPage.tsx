@@ -131,7 +131,10 @@ export function ChatPage() {
                 return [
                     ...filteredMessages,
                     {
-                        text: displayedText,
+                        role: "agent",
+                        kind: "message",
+                        messageId: `welcome-${Date.now()}`,
+                        parts: [{ kind: "text", text: displayedText }],
                         isUser: false,
                         isComplete: true,
                         metadata: { sessionId, lastProcessedEventSequence: 0 },
