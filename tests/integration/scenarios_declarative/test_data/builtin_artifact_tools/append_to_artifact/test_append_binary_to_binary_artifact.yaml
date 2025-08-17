@@ -3,7 +3,7 @@ description: |
   Tests appending a binary chunk (base64 encoded) to a pre-existing binary artifact.
   Verifies that the original artifact's binary MIME type is preserved,
   and the new content correctly concatenates the binary data.
-tags: ["all","agent","tools","builtin_artifact_tools"]
+tags: ["all", "agent", "tools", "builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -64,10 +64,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "Okay, I have appended the binary data to 'binary_target_for_binary_append.dat'. It is now version 1 and has a total size of 31 bytes."
-    task_state: "completed"
+    kind: task
+    id: '*'
+    contextId: "session_append_b2b_test_001"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "Okay, I have appended the binary data to 'binary_target_for_binary_append.dat'. It is now version 1 and has a total size of 31 bytes."
     assert_artifact_state:
       # Check the initial artifact (version 0)
       - filename: "binary_target_for_binary_append.dat"

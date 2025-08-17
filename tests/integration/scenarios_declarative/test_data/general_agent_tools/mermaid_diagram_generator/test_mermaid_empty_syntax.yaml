@@ -1,6 +1,6 @@
 test_case_id: test_mermaid_empty_syntax
 description: "Tests graceful failure when provided with empty Mermaid syntax."
-tags: ["all","agent","tools","general_agent_tools"]
+tags: ["all", "agent", "tools", "general_agent_tools"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -38,12 +38,30 @@ llm_interactions:
 
 expected_gateway_output:
   - type: status_update
+    kind: task
+    id: '*'
+    contextId: "session_mermaid_empty_syntax"
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
     event_purpose: tool_invocation_start
     expected_tool_name: "mermaid_diagram_generator"
-
   - type: final_response
-    content_parts:
-      - type: text
-        text_contains: "I could not generate the diagram because the syntax was empty."
+    kind: task
+    id: '*'
+    contextId: "session_mermaid_empty_syntax"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: text
+            text_contains:
 
+              - "I could not generate the diagram because the syntax was empty."
 expected_artifacts: []

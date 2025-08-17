@@ -1,6 +1,6 @@
 test_case_id: web_request_timeout
 description: "Test that web_request tool handles a request timeout."
-tags: ["all","agent","tools","web_tools"]
+tags: ["all", "agent", "tools", "web_tools"]
 skip_intermediate_events: true
 expected_completion_timeout_seconds: 40
 
@@ -46,9 +46,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: final_response
-    task_state: "completed"
-    content_parts:
-      - type: text
-        text_contains: "I am sorry, but the request timed out."
+    kind: task
+    id: '*'
+    contextId: "session-461"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: text
+            text_contains:
 
+              - "I am sorry, but the request timed out."
 expected_artifacts: []

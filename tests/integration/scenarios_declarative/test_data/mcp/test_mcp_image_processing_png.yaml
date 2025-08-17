@@ -1,6 +1,7 @@
 test_case_id: "mcp_image_processing_png_001"
-description: "Tests that a base64 PNG image response is correctly saved as a .png artifact."
-tags: ["all","agent","mcp"]
+description: "Tests that a base64 PNG image response is correctly saved as a .png
+  artifact."
+tags: ["all", "agent", "mcp"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -22,13 +23,16 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "get_data_stdio"
-                  arguments: '{"response_to_return": {"content": [{"type": "image", "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "mimeType": "image/png"}]}}'
+                  arguments: '{"response_to_return": {"content": [{"type": "image",
+                    "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+                    "mimeType": "image/png"}]}}'
   - expected_request:
       expected_tool_responses_in_llm_messages:
         - tool_name: "get_data_stdio"
           response_json_matches:
             status: "processed_and_saved"
-            message_to_llm_matches_regex: "The full response has been saved as artifact 'get_data_stdio_image_0_.*\\.png' \\(version 0\\)\\."
+            message_to_llm_matches_regex: "The full response has been saved as artifact
+              'get_data_stdio_image_0_.*\\.png' \\(version 0\\)\\."
     static_response:
       choices:
         - message:
@@ -37,9 +41,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "I have retrieved the PNG image and saved it as an artifact."
+    kind: task
+    id: '*'
+    contextId: "session_mcp_image_processing_png_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I have retrieved the PNG image and saved it as an artifact."
     assert_artifact_state:
       - filename_matches_regex: "get_data_stdio_image_0_.*\\.png$"
         version: 0

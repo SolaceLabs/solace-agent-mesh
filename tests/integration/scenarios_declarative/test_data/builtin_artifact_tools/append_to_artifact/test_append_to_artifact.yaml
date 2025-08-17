@@ -3,7 +3,7 @@ description: |
   Tests the 'append_to_artifact' tool by appending a text chunk
   to a pre-existing text artifact. Verifies new version creation,
   content concatenation, and metadata updates.
-tags: ["all","agent","tools","builtin_artifact_tools"]
+tags: ["all", "agent", "tools", "builtin_artifact_tools"]
 skip_intermediate_events: true
 
 # Setup an initial artifact directly in the TestInMemoryArtifactService
@@ -65,10 +65,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "Okay, I have appended ' Line 2.' to 'append_target.txt'. It is now version 1."
-    task_state: "completed"
+    kind: task
+    id: '*'
+    contextId: "session_append_artifact_test_001"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "Okay, I have appended ' Line 2.' to 'append_target.txt'. It is now version 1."
     assert_artifact_state:
       # Check the initial artifact (version 0) - should be unchanged by append operation itself
       - filename: "append_target.txt"

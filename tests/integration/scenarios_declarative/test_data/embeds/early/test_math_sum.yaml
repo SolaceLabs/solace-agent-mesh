@@ -1,6 +1,6 @@
 test_case_id: "embed_math_sum_001"
 description: "Tests «math:sum((1, 2, 3, 4))»."
-tags: ["all","common","embeds"]
+tags: ["all", "common", "embeds"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -9,9 +9,19 @@ gateway_input:
   parts: [{type: "text", text: "Calculate sum((1,2,3,4))"}]
 llm_interactions:
   - static_response:
-      choices: [{message: {role: "assistant", content: "Sum is «math:sum((1,2,3,4))»."}}]
+      choices: [message: {role: "assistant", content: "Sum is «math:sum((1,2,3,4))»."}]
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "Sum is 10."
+    kind: task
+    id: '*'
+    contextId: session_embed_math_sum_001
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "Sum is 10."
