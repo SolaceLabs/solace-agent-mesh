@@ -493,6 +493,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         parts: [{ kind: "text", text: latestStatusText.current }],
                         messageId: `status-${crypto.randomUUID()}`,
                         kind: "message",
+                        taskId: (result as TaskStatusUpdateEvent).taskId,
                         isStatusBubble: true,
                         isComplete: false,
                         metadata: { lastProcessedEventSequence: currentEventSequence },
