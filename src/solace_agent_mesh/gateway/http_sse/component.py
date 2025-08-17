@@ -1463,7 +1463,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
         """
         log_id_prefix = f"{self.log_identifier}[SendUpdate]"
         sse_task_id = external_request_context.get("a2a_task_id_for_event")
-        a2a_task_id = event_data.id
+        a2a_task_id = event_data.task_id
 
         if not sse_task_id:
             log.error(
