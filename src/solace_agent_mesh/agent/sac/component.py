@@ -2035,7 +2035,9 @@ class SamAgentComponent(ComponentBase):
                 )
 
                 if a2a_file_part:
-                    a2a_artifact = A2AArtifact(name=filename, parts=[a2a_file_part])
+                    a2a_artifact = A2AArtifact(
+                        artifact_id=filename, name=filename, parts=[a2a_file_part]
+                    )
                     artifact_update_event = TaskArtifactUpdateEvent(
                         task_id=logical_task_id,
                         context_id=original_session_id,
