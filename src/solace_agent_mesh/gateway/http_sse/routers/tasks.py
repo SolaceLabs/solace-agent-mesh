@@ -50,7 +50,7 @@ class CancelTaskApiPayload(BaseModel):
     task_id: str = Field(..., description="The ID of the task to cancel.")
 
 
-@router.post("/send", response_model=JSONRPCResponse)
+@router.post("/message:send", response_model=JSONRPCResponse)
 async def send_task_to_agent(
     request: FastAPIRequest,
     agent_name: str = Form(...),
@@ -140,7 +140,7 @@ async def send_task_to_agent(
         )
 
 
-@router.post("/subscribe", response_model=JSONRPCResponse)
+@router.post("/message:stream", response_model=JSONRPCResponse)
 async def subscribe_task_from_agent(
     request: FastAPIRequest,
     agent_name: str = Form(...),
@@ -237,7 +237,7 @@ async def subscribe_task_from_agent(
         )
 
 
-@router.post("/cancel", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/tasks/{taskId}:cancel", status_code=status.HTTP_202_ACCEPTED)
 async def cancel_agent_task(
     request: FastAPIRequest,
     payload: CancelTaskApiPayload,
