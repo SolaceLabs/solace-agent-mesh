@@ -420,21 +420,35 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId &&
                     textPartFromStream
                 ) {
-                    // Append to existing message
-                    const lastPart = lastMessage.parts[lastMessage.parts.length - 1];
+                    // IMMUTABLE UPDATE: Create a new message object with the appended text.
+                    const updatedMessage = {
+                        ...lastMessage,
+                        parts: [...lastMessage.parts], // Create a new array for parts
+                        isComplete: isFinalEvent,
+                        metadata: {
+                            ...lastMessage.metadata,
+                            lastProcessedEventSequence: currentEventSequence,
+                        },
+                    };
+
+                    const lastPart = updatedMessage.parts[updatedMessage.parts.length - 1];
                     if (lastPart?.kind === "text") {
-                        lastPart.text += textPartFromStream.text;
+                        // To update the text, we replace the last part with a new object
+                        updatedMessage.parts[updatedMessage.parts.length - 1] = {
+                            ...lastPart,
+                            text: lastPart.text + textPartFromStream.text,
+                        };
                     } else {
-                        lastMessage.parts.push(textPartFromStream);
+                        updatedMessage.parts.push(textPartFromStream);
                     }
-                    // Add any non-text parts as well
+
+                    // Add any other non-text parts from the stream
                     if (otherParts.length > 0) {
-                        lastMessage.parts.push(...otherParts);
+                        updatedMessage.parts.push(...otherParts);
                     }
-                    lastMessage.isComplete = isFinalEvent;
-                    if (lastMessage.metadata) {
-                        lastMessage.metadata.lastProcessedEventSequence = currentEventSequence;
-                    }
+
+                    // Replace the old message with the new, updated one in the messages array
+                    newMessages[newMessages.length - 1] = updatedMessage;
                 } else if (newParts.length > 0 || artifactToProcess) {
                     // Create a new message bubble
                     const newBubble: MessageFE = {
