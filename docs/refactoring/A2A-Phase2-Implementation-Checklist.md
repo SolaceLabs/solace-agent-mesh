@@ -12,7 +12,7 @@ This checklist provides a terse, actionable summary of the tasks required for th
 - [x] 1.3. Update `send_task_to_agent` and `subscribe_task_from_agent` handlers to expect an `application/json` body validating against `a2a.types.SendMessageRequest`.
 
 **Step 2: Update Gateway A2A Event Parsing (`component.py`)**
-- [ ] 2.1. In `BaseGatewayComponent._handle_agent_event`, parse incoming agent messages into `a2a.types.JSONRPCResponse`.
+- [x] 2.1. In `BaseGatewayComponent._handle_agent_event`, parse incoming agent messages into `a2a.types.JSONRPCResponse`.
 - [ ] 2.2. In `BaseGatewayComponent._parse_a2a_event_from_rpc_result`, use the `kind` field to discriminate and parse the result into specific `a2a.types` models (`Task`, `TaskStatusUpdateEvent`, etc.).
 - [ ] 2.3. Update task ID extraction in `_parse_a2a_event_from_rpc_result` to use the `taskId` field from the new event types.
 

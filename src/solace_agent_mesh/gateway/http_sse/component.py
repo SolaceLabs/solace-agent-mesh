@@ -30,17 +30,24 @@ from ...common.agent_registry import AgentRegistry
 from ...core_a2a.service import CoreA2AService
 from google.adk.artifacts import BaseArtifactService
 
-from ...common.types import (
-    AgentCard,
+from a2a.types import (
     Part as A2APart,
+    Message as A2AMessage,
+    AgentCard,
+    JSONRPCResponse,
     Task,
     TaskStatusUpdateEvent,
     TaskArtifactUpdateEvent,
     JSONRPCError,
-    JSONRPCResponse,
     TextPart,
+    TaskStatus,
+    TaskState,
     FilePart,
-    FileContent,
+    DataPart,
+    Artifact as A2AArtifact,
+    SendMessageRequest,
+    SendStreamingMessageRequest,
+    MessageSendParams,
 )
 from ...common.a2a_protocol import (
     _topic_matches_subscription,
@@ -1383,9 +1390,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     if save_result["status"] in ["success", "partial_success"]:
                         data_version = save_result.get("data_version", 0)
                         artifact_uri = f"artifact://{self.gateway_id}/{client_id}/{a2a_session_id}/{upload_file.filename}?version={data_version}"
-                        file_content = FileContent(
+                        file_content = FileWithUri(
                             name=upload_file.filename,
-                            mimeType=upload_file.content_type,
+                            mime_type=upload_file.content_type,
                             uri=artifact_uri,
                         )
                         a2a_parts.append(FilePart(file=file_content))
@@ -1474,9 +1481,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
         if isinstance(event_data, TaskArtifactUpdateEvent):
             sse_event_type = "artifact_update"
 
-        sse_payload = JSONRPCResponse(id=a2a_task_id, result=event_data).model_dump(
-            exclude_none=True
+        sse_payload_model = SendStreamingMessageSuccessResponse(
+            id=a2a_task_id, result=event_data
         )
+        sse_payload = sse_payload_model.model_dump(by_alias=True, exclude_none=True)
 
         try:
             await self.sse_manager.send_event(
@@ -1521,9 +1529,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
             sse_task_id,
         )
 
-        sse_payload = JSONRPCResponse(id=a2a_task_id, result=task_data).model_dump(
-            exclude_none=True
+        sse_payload_model = SendStreamingMessageSuccessResponse(
+            id=a2a_task_id, result=task_data
         )
+        sse_payload = sse_payload_model.model_dump(by_alias=True, exclude_none=True)
 
         try:
             await self.sse_manager.send_event(
@@ -1572,10 +1581,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
             error_data,
         )
 
-        sse_payload = JSONRPCResponse(
+        sse_payload_model = A2AJSONRPCErrorResponse(
             id=external_request_context.get("original_rpc_id", sse_task_id),
             error=error_data,
-        ).model_dump(exclude_none=True)
+        )
+        sse_payload = sse_payload_model.model_dump(by_alias=True, exclude_none=True)
 
         try:
             await self.sse_manager.send_event(
