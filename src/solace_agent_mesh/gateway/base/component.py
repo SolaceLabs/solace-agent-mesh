@@ -489,8 +489,11 @@ class BaseGatewayComponent(ComponentBase):
                         continue
                     try:
                         signal_data_part = DataPart(
-                            data={"type": "agent_status", "text": status_text},
-                            metadata={"source": "agent_progress_update"},
+                            data={
+                                "type": "agent_progress_update",
+                                "status_text": status_text,
+                            },
+                            metadata={"source": "gateway_signal"},
                         )
                         signal_a2a_message = A2AMessage(
                             role="agent", parts=[signal_data_part]
