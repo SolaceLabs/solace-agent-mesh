@@ -20,7 +20,7 @@ from solace_ai_connector.common.log import log
 from ....gateway.http_sse.session_manager import SessionManager
 from ....gateway.http_sse.services.task_service import TaskService
 
-from a2a.types import CancelTaskRequest, SendMessageRequest
+from a2a.types import CancelTaskRequest, SendMessageRequest, SendStreamingMessageRequest
 from ....common.types import (
     JSONRPCResponse,
     InternalError,
@@ -142,7 +142,7 @@ async def send_task_to_agent(
 @router.post("/message:stream", response_model=JSONRPCResponse)
 async def subscribe_task_from_agent(
     request: FastAPIRequest,
-    payload: SendMessageRequest,
+    payload: SendStreamingMessageRequest,
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     user: dict = Depends(get_current_user),

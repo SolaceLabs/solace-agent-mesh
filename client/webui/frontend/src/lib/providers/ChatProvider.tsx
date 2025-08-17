@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect, useRef, type FormEvent, type R
 import { useConfigContext, useArtifacts } from "@/lib/hooks";
 import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
-import type { ArtifactInfo, DataPart, FileAttachment, FilePart, JSONRPCError, JSONRPCResponse, Message, MessageFE, Notification, Part, SendMessageRequest, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart, ToolEvent } from "@/lib/types";
+import type { ArtifactInfo, CancelTaskRequest, DataPart, FileAttachment, FilePart, JSONRPCError, JSONRPCResponse, Message, MessageFE, Notification, Part, SendMessageRequest, SendStreamingMessageRequest, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart, ToolEvent } from "@/lib/types";
 
 interface ChatProviderProps {
     children: ReactNode;
@@ -762,8 +762,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     },
                 };
 
-                // 4. Construct the SendMessageRequest
-                const sendMessageRequest: SendMessageRequest = {
+                // 4. Construct the SendStreamingMessageRequest
+                const sendMessageRequest: SendStreamingMessageRequest = {
                     jsonrpc: "2.0",
                     id: `req-${crypto.randomUUID()}`,
                     method: "message/stream",
