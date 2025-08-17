@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from solace_ai_connector.common.log import log
 from ....gateway.http_sse.session_manager import SessionManager
 from ....gateway.http_sse.dependencies import get_session_manager
-from ....common.types import JSONRPCResponse, InternalError
+from a2a.types import JSONRPCResponse, JSONRPCSuccessResponse, InternalError
 
 if TYPE_CHECKING:
     from ....gateway.http_sse.component import WebUIBackendComponent
@@ -33,7 +33,7 @@ async def create_new_session(
 
         log.info("%sCreated new A2A session: %s", log_prefix, new_session_id)
 
-        return JSONRPCResponse(
+        return JSONRPCSuccessResponse(
             result={
                 "sessionId": new_session_id,
                 "message": "New A2A session created successfully",
@@ -63,7 +63,7 @@ async def get_current_session(
         client_id = session_manager.get_a2a_client_id(request)
         session_id = session_manager.get_a2a_session_id(request)
 
-        return JSONRPCResponse(
+        return JSONRPCSuccessResponse(
             result={
                 "clientId": client_id,
                 "sessionId": session_id,
