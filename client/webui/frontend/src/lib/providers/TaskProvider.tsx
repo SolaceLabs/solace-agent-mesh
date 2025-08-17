@@ -93,6 +93,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
 
     const handleTaskMonitorSseMessage = useCallback(
         (event: MessageEvent) => {
+            console.log("[DEBUG] Received visualization event:", event.data);
             try {
                 const parsedData: A2AEventSSEPayload = JSON.parse(event.data);
                 addOrUpdateMonitoredTask(parsedData);
