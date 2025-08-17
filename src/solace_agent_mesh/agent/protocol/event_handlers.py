@@ -61,8 +61,6 @@ from google.adk.events import Event as ADKEvent
 from google.genai import types as adk_types
 
 
-
-
 def _register_peer_artifacts_in_parent_context(
     parent_task_context: "TaskExecutionContext",
     peer_task_object: Task,
@@ -552,9 +550,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     header_text=header_text,
                 )
 
-                task_description = _extract_text_from_parts(
-                    a2a_message_for_adk.parts
-                )
+                task_description = _extract_text_from_parts(a2a_message_for_adk.parts)
                 final_prompt = f"{task_description}\n\n{artifact_summary}"
 
                 a2a_message_for_adk = A2AMessage(
@@ -842,8 +838,10 @@ async def handle_a2a_response(component, message: SolaceMessage):
                     # Store the peer's task ID if we see it for the first time
                     peer_task_id = getattr(payload_data, "task_id", None)
                     if peer_task_id:
-                        correlation_data = await component._get_correlation_data_for_sub_task(
-                            sub_task_id
+                        correlation_data = (
+                            await component._get_correlation_data_for_sub_task(
+                                sub_task_id
+                            )
                         )
                         if correlation_data and "peer_task_id" not in correlation_data:
                             log.info(
@@ -972,7 +970,7 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                             },
                                         )
                                         forwarded_status = TaskStatus(
-                                            state=TaskState.WORKING,
+                                            state=TaskState.working,
                                             message=forwarded_message,
                                             timestamp=status_event.status.timestamp,
                                         )
@@ -1405,7 +1403,9 @@ def publish_agent_card(component):
         dynamic_url = f"solace:{agent_request_topic}"
 
         # Define a unique URI for our custom peer topology extension.
-        PEER_TOPOLOGY_EXTENSION_URI = "https://solace.com/a2a/extensions/peer-agent-topology"
+        PEER_TOPOLOGY_EXTENSION_URI = (
+            "https://solace.com/a2a/extensions/peer-agent-topology"
+        )
 
         # Create the extension object with the list of peer agent names.
         peer_topology_extension = None

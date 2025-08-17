@@ -1,0 +1,137 @@
+# DEVELOPER GUIDE: schemas
+
+## Quick Summary
+This directory contains JSON Schema definitions for various agent-to-agent (A2A) communication signals in the Solace Agent Mesh. These schemas define the structure and validation rules for different types of progress updates, tool invocations, and LLM interactions that agents can send to each other.
+
+## Files Overview
+- `agent_progress_update.json` - Schema for general agent progress status messages
+- `artifact_creation_progress.json` - Schema for tracking file/artifact creation progress
+- `llm_invocation.json` - Schema for LLM model invocation signals
+- `tool_invocation_start.json` - Schema for tool execution start notifications
+
+## Developer API Reference
+
+### agent_progress_update.json
+**Purpose:** Defines the schema for agent progress update signals that communicate human-readable status messages between agents.
+
+**Schema Structure:**
+```json
+{
+  "type": "agent_progress_update",
+  "status_text": "string"
+}
+```
+
+**Properties:**
+- `type: "agent_progress_update"` - Constant identifier for this signal type
+- `status_text: string` - Human-readable progress message (required)
+
+**Usage Examples:**
+```json
+{
+  "type": "agent_progress_update",
+  "status_text": "Analyzing the report..."
+}
+```
+
+### artifact_creation_progress.json
+**Purpose:** Defines the schema for tracking progress during file or artifact creation operations.
+
+**Schema Structure:**
+```json
+{
+  "type": "artifact_creation_progress",
+  "filename": "string",
+  "bytes_saved": "integer"
+}
+```
+
+**Properties:**
+- `type: "artifact_creation_progress"` - Constant identifier for this signal type
+- `filename: string` - Name of the artifact being created (required)
+- `bytes_saved: integer` - Number of bytes saved so far (required)
+
+**Usage Examples:**
+```json
+{
+  "type": "artifact_creation_progress",
+  "filename": "report.pdf",
+  "bytes_saved": 1024
+}
+```
+
+### llm_invocation.json
+**Purpose:** Defines the schema for LLM invocation signals that communicate when an agent is calling a language model.
+
+**Schema Structure:**
+```json
+{
+  "type": "llm_invocation",
+  "request": "object"
+}
+```
+
+**Properties:**
+- `type: "llm_invocation"` - Constant identifier for this signal type
+- `request: object` - Sanitized representation of the LlmRequest object (required)
+
+**Usage Examples:**
+```json
+{
+  "type": "llm_invocation",
+  "request": {
+    "model": "gpt-4",
+    "messages": [{"role": "user", "content": "Analyze this data"}],
+    "temperature": 0.7
+  }
+}
+```
+
+### tool_invocation_start.json
+**Purpose:** Defines the schema for tool invocation start signals that notify when an agent begins executing a tool.
+
+**Schema Structure:**
+```json
+{
+  "type": "tool_invocation_start",
+  "tool_name": "string",
+  "tool_args": "object",
+  "function_call_id": "string"
+}
+```
+
+**Properties:**
+- `type: "tool_invocation_start"` - Constant identifier for this signal type
+- `tool_name: string` - Name of the tool being called (required)
+- `tool_args: object` - Arguments passed to the tool (required)
+- `function_call_id: string` - ID from the LLM's function call (required)
+
+**Usage Examples:**
+```json
+{
+  "type": "tool_invocation_start",
+  "tool_name": "file_reader",
+  "tool_args": {
+    "filepath": "/path/to/file.txt",
+    "encoding": "utf-8"
+  },
+  "function_call_id": "call_abc123"
+}
+```
+
+**Note:** These are JSON Schema files used for validation. To use them in Python applications, you would typically load them with a JSON schema validation library like `jsonschema`:
+
+```python
+import json
+from jsonschema import validate
+
+# Load schema
+with open('schemas/agent_progress_update.json') as f:
+    schema = json.load(f)
+
+# Validate data
+data = {"type": "agent_progress_update", "status_text": "Processing..."}
+validate(instance=data, schema=schema)
+```
+
+# content_hash: 04e38ee5e7b8dac4570838ec05f2aa075a6b6843a00d983264afd7f63f66abc6

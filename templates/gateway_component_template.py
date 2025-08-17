@@ -285,7 +285,7 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
 
         # --- Implement Logic to Send Response to External System ---
         # 1. Extract relevant information from task_data:
-        #    - task_data.status.state (e.g., TaskState.COMPLETED, TaskState.FAILED)
+        #    - task_data.status.state (e.g., TaskState.completed, TaskState.failed)
         #    - task_data.status.message.parts (usually TextPart for final agent response)
         #    - task_data.artifacts (if agent produced artifacts)
 
@@ -296,7 +296,7 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         #            if isinstance(part, TextPart):
         #                response_text = part.text
         #                break
-        #    if task_data.status and task_data.status.state == TaskState.FAILED:
+        #    if task_data.status and task_data.status.state == TaskState.failed:
         #        response_text = f"Task failed: {response_text}"
 
         # 3. Use information from external_request_context to send the response

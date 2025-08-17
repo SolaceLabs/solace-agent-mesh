@@ -1,133 +1,103 @@
+# DEVELOPER GUIDE: client
+
 ## Quick Summary
-The `client` directory provides a Python-based client library for Agent-to-Agent (A2A) communication. It allows developers to discover remote agent capabilities via an "Agent Card" and then interact with that agent by sending tasks, receiving streaming responses, and managing the task lifecycle (getting status, cancelling, setting callbacks).
+The `client` directory provides a Python-based client library for Agent-to-Agent (A2A) communication. It enables developers to discover remote agent capabilities via an "Agent Card" and interact with agents by sending tasks, receiving streaming responses, and managing task lifecycle (status checking, cancellation, callbacks).
 
 ## Files Overview
-- `__init__.py`: Exposes the primary `A2AClient` and `A2ACardResolver` classes for easy importing.
-- `card_resolver.py`: Contains the `A2ACardResolver` class, used to discover and fetch an agent's capabilities from a well-known endpoint.
-- `client.py`: Contains the main `A2AClient` class for all communication with a remote agent, including sending tasks and managing them.
+- `__init__.py` - Exposes the primary `A2AClient` and `A2ACardResolver` classes for easy importing
+- `card_resolver.py` - Contains `A2ACardResolver` for discovering and fetching agent capabilities from well-known endpoints
+- `client.py` - Contains the main `A2AClient` class for all agent communication and task management
 
 ## Developer API Reference
 
 ### __init__.py
-**Purpose:** This file makes the main client classes available directly under the `client` package, simplifying imports for developers.
-**Import:** `from src.solace_agent_mesh.common.client import A2AClient, A2ACardResolver`
+**Purpose:** Makes the main client classes available directly under the client package
+**Import:** `from solace_agent_mesh.common.client import A2AClient, A2ACardResolver`
 
 **Constants/Variables:**
-- `__all__: list[str]` - A list of the public objects that are exported from this module: `["A2AClient", "A2ACardResolver"]`.
-
----
+- `__all__: list[str]` - Exported public objects: `["A2AClient", "A2ACardResolver"]`
 
 ### card_resolver.py
-**Purpose:** This file provides a utility to resolve and fetch an agent's "Agent Card". The Agent Card is a JSON file that describes the agent's capabilities, its endpoint URL, and other metadata.
-**Import:** `from src.solace_agent_mesh.common.client import A2ACardResolver`
+**Purpose:** Resolves and fetches an agent's capability card from a well-known endpoint
+**Import:** `from solace_agent_mesh.common.client import A2ACardResolver`
 
 **Classes:**
-- `A2ACardResolver(base_url: str, agent_card_path: str = "/.well-known/agent.json")` - A client to discover and fetch an agent's capability card.
-  - `get_agent_card() -> AgentCard` - Makes an HTTP GET request to the constructed agent card URL, parses the JSON response, and returns it as an `AgentCard` object. Raises `A2AClientHTTPError` on network/status errors and `A2AClientJSONError` on parsing errors.
+- `A2ACardResolver(base_url: str, agent_card_path: str = "/.well-known/agent.json")` - Client for discovering agent capabilities
+  - `get_agent_card() -> AgentCard` - Fetches and parses the agent card JSON from the configured endpoint
 
 **Usage Examples:**
 ```python
-from src.solace_agent_mesh.common.client import A2ACardResolver
-from src.solace_agent_mesh.common.types import AgentCard, A2AClientHTTPError
+from solace_agent_mesh.common.client import A2ACardResolver
 
-# --- Example 1: Standard usage ---
-# Create a resolver for an agent hosted at a specific domain
-resolver = A2ACardResolver(base_url="https://some-agent.ai")
+# Standard usage with default path
+resolver = A2ACardResolver(base_url="https://agent.example.com")
+agent_card = resolver.get_agent_card()
+print(f"Agent: {agent_card.name}, URL: {agent_card.url}")
 
-try:
-    # Fetch the agent's capability card from the default path
-    # (https://some-agent.ai/.well-known/agent.json)
-    agent_card: AgentCard = resolver.get_agent_card()
-    print(f"Successfully fetched card for agent: {agent_card.name}")
-    print(f"Agent API URL: {agent_card.url}")
-    print(f"Supported capabilities: {agent_card.capabilities}")
-
-except A2AClientHTTPError as e:
-    print(f"Error fetching agent card: {e.status_code} - {e.message}")
-
-
-# --- Example 2: Using a custom path for the agent card ---
-custom_path_resolver = A2ACardResolver(
-    base_url="https://another-agent.com",
+# Custom agent card path
+custom_resolver = A2ACardResolver(
+    base_url="https://agent.example.com",
     agent_card_path="/api/v1/agent-info.json"
 )
-# This will fetch from https://another-agent.com/api/v1/agent-info.json
-custom_agent_card = custom_path_resolver.get_agent_card()
-print(f"Agent name from custom path: {custom_agent_card.name}")
+card = custom_resolver.get_agent_card()
 ```
 
----
-
 ### client.py
-**Purpose:** This file contains the core `A2AClient`, which is used to communicate with a remote agent's API endpoint. It handles sending various types of JSON-RPC requests for task management. All methods are asynchronous.
-**Import:** `from src.solace_agent_mesh.common.client import A2AClient`
+**Purpose:** Main client for communicating with remote agents via JSON-RPC over HTTP
+**Import:** `from solace_agent_mesh.common.client import A2AClient`
 
 **Classes:**
-- `A2AClient(agent_card: AgentCard = None, url: str = None)` - The main client for interacting with a remote agent. You must provide either an `AgentCard` object (from `A2ACardResolver`) or a direct `url` string to its API endpoint.
-  - `async send_task(self, payload: dict[str, Any]) -> SendTaskResponse` - Sends a task to the agent for processing. The `payload` should contain the action and its parameters. Returns a response typically containing a `task_id`.
-  - `async send_task_streaming(self, payload: dict[str, Any]) -> AsyncIterable[SendTaskStreamingResponse]` - Sends a task that is expected to return a stream of events (Server-Sent Events). The `payload` is the same as `send_task`. Returns an async iterator that yields response chunks as they arrive.
-  - `async get_task(self, payload: dict[str, Any]) -> GetTaskResponse` - Retrieves the current status and/or result of a previously submitted task. The `payload` must contain the `task_id`.
-  - `async cancel_task(self, payload: dict[str, Any]) -> CancelTaskResponse` - Requests the cancellation of a running task. The `payload` must contain the `task_id`.
-  - `async set_task_callback(self, payload: dict[str, Any]) -> SetTaskPushNotificationResponse` - Sets a callback URL for a specific task. The agent will send a notification to this URL upon task completion. The `payload` must contain the `task_id` and `callback_url`.
-  - `async get_task_callback(self, payload: dict[str, Any]) -> GetTaskPushNotificationResponse` - Retrieves the currently configured callback URL for a task. The `payload` must contain the `task_id`.
+- `A2AClient(agent_card: AgentCard = None, url: str = None)` - Primary agent communication client
+  - `async send_task(payload: dict[str, Any]) -> SendMessageResponse` - Sends a task for processing
+  - `async send_task_streaming(payload: dict[str, Any]) -> AsyncIterable[SendStreamingMessageResponse]` - Sends task expecting streaming response
+  - `async get_task(payload: dict[str, Any]) -> GetTaskResponse` - Gets task status/result
+  - `async cancel_task(payload: dict[str, Any]) -> CancelTaskResponse` - Cancels a running task
+  - `async set_task_callback(payload: dict[str, Any]) -> SetTaskPushNotificationConfigResponse` - Sets task completion callback
+  - `async get_task_callback(payload: dict[str, Any]) -> GetTaskPushNotificationConfigResponse` - Gets current task callback config
 
 **Usage Examples:**
 ```python
 import asyncio
-from src.solace_agent_mesh.common.client import A2AClient, A2ACardResolver
-
-# Assume these types are available for type hinting
-# from src.solace_agent_mesh.common.types import SendTaskResponse, SendTaskStreamingResponse
+from solace_agent_mesh.common.client import A2AClient, A2ACardResolver
 
 async def main():
-    # First, discover the agent's capabilities and endpoint URL
-    resolver = A2ACardResolver(base_url="https://some-agent.ai")
+    # Initialize via agent card discovery
+    resolver = A2ACardResolver("https://agent.example.com")
     agent_card = resolver.get_agent_card()
-
-    # --- Initialization ---
-    # Method 1: Initialize client using the discovered AgentCard
     client = A2AClient(agent_card=agent_card)
-
-    # Method 2: Initialize client with a direct URL (if known)
-    # client = A2AClient(url="https://some-agent.ai/api/v1/a2a")
-
-    # --- Send a simple task ---
-    print("--- Sending a simple task ---")
-    task_payload = {"action": "summarize_text", "text": "A long article..."}
-    send_response = await client.send_task(payload=task_payload)
-    task_id = send_response.result.task_id
-    print(f"Task created with ID: {task_id}")
-
-    # --- Get task status ---
-    print("\n--- Checking task status ---")
-    status_response = await client.get_task(payload={"task_id": task_id})
-    print(f"Task status: {status_response.result.status}")
     
-    # --- Send a streaming task ---
-    print("\n--- Sending a streaming task ---")
-    stream_payload = {"action": "generate_story", "prompt": "A robot who discovers music"}
-    async for chunk in client.send_task_streaming(payload=stream_payload):
-        # Each chunk is a SendTaskStreamingResponse object
-        print(f"Received stream chunk: {chunk.result.content_chunk}")
+    # Or initialize with direct URL
+    # client = A2AClient(url="https://agent.example.com/api")
+    
+    # Send a task
+    response = await client.send_task({
+        "action": "summarize",
+        "text": "Long document content..."
+    })
+    task_id = response.result.task_id
+    
+    # Check task status
+    status = await client.get_task({"task_id": task_id})
+    print(f"Status: {status.result.status}")
+    
+    # Stream a task response
+    async for chunk in client.send_task_streaming({
+        "action": "generate_story",
+        "prompt": "A robot discovers music"
+    }):
+        print(f"Chunk: {chunk.result.content}")
+    
+    # Set callback for task completion
+    await client.set_task_callback({
+        "task_id": task_id,
+        "callback_url": "https://myapp.com/webhook"
+    })
+    
+    # Cancel task if needed
+    await client.cancel_task({"task_id": task_id})
 
-    # --- Set a callback URL for the task ---
-    print("\n--- Setting a callback URL ---")
-    await client.set_task_callback(
-        payload={"task_id": task_id, "callback_url": "https://my-app.com/webhook"}
-    )
-    print("Callback URL set.")
-
-    # --- Cancel a task ---
-    print("\n--- Cancelling a task ---")
-    cancel_response = await client.cancel_task(payload={"task_id": task_id})
-    print(f"Task cancellation requested. Success: {cancel_response.result.cancelled}")
-
-
-if __name__ == "__main__":
-    # Note: In a real application, you would use a running event loop.
-    # This example assumes the agent endpoint is available and working.
-    # To run this, you would need a live agent to connect to.
-    # asyncio.run(main())
-    print("Developer guide example executed.")
-
+# Run the example
+asyncio.run(main())
 ```
+
+# content_hash: e46a5b8e483fb0f13c56789bc0ad827fe86e2550805c9a8ed103a5fc96c91170

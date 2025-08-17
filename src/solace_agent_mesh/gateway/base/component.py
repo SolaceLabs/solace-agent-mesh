@@ -496,7 +496,7 @@ class BaseGatewayComponent(ComponentBase):
                             role="agent", parts=[signal_data_part]
                         )
                         signal_task_status = TaskStatus(
-                            state=TaskState.WORKING, message=signal_a2a_message
+                            state=TaskState.working, message=signal_a2a_message
                         )
                         a2a_task_id_for_signal = external_request_context.get(
                             "a2a_task_id_for_event", original_rpc_id
@@ -1090,7 +1090,7 @@ class BaseGatewayComponent(ComponentBase):
                     )
                     if resolved_remaining_text:
                         flush_status = TaskStatus(
-                            state=TaskState.WORKING,
+                            state=TaskState.working,
                             message=A2AMessage(
                                 role="agent",
                                 parts=[TextPart(text=resolved_remaining_text)],
