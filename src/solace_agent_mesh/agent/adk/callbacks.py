@@ -48,9 +48,6 @@ from ...common.utils.embeds import (
 
 from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 
-if TYPE_CHECKING:
-    from ..sac.component import SamAgentComponent
-
 from a2a.types import (
     DataPart,
     Message as A2AMessage,
@@ -87,6 +84,9 @@ from ...agent.adk.stream_parser import (
     ARTIFACT_BLOCK_DELIMITER_OPEN,
     ARTIFACT_BLOCK_DELIMITER_CLOSE,
 )
+
+if TYPE_CHECKING:
+    from ..sac.component import SamAgentComponent
 
 
 async def _publish_data_part_status_update(
