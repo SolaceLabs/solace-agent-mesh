@@ -347,7 +347,7 @@ class BaseGatewayComponent(ComponentBase):
             )
             external_request_context["a2a_session_id"] = a2a_session_id
 
-        a2a_metadata = {}
+        a2a_metadata = {"agent_name": target_agent_name}
         invoked_artifacts = external_request_context.get("invoked_with_artifacts")
         if invoked_artifacts:
             a2a_metadata["invoked_with_artifacts"] = invoked_artifacts
@@ -679,7 +679,6 @@ class BaseGatewayComponent(ComponentBase):
             subscription_pattern,
         )
         return None
-
 
     async def _resolve_embeds_and_handle_signals(
         self,
@@ -1158,7 +1157,11 @@ class BaseGatewayComponent(ComponentBase):
                 "%s Failed to parse or validate A2A event from RPC result for task %s. Result: %s",
                 self.log_identifier,
                 task_id_from_topic,
-                rpc_response.root.result if hasattr(rpc_response.root, "result") else "N/A",
+                (
+                    rpc_response.root.result
+                    if hasattr(rpc_response.root, "result")
+                    else "N/A"
+                ),
             )
             generic_error = JSONRPCError(
                 code=-32000, message="Invalid event structure received from agent."

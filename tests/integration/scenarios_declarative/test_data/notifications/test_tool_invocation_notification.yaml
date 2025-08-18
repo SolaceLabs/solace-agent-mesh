@@ -76,7 +76,7 @@ expected_gateway_output:
               name: "get_weather_tool"
               args:
                 location: "Paris"
-    final_flag: true
+    final_flag: false
   - type: "status_update"
     kind: task
     id: '*'

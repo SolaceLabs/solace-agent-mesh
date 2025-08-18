@@ -34,7 +34,7 @@ expected_gateway_output:
         messageId: '*'
         role: agent
     event_purpose: "llm_response"
-    final_flag: true
+    final_flag: false
   - type: "final_response"
     kind: task
     id: '*'

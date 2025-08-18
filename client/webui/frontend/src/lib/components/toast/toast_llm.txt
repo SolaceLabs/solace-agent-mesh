@@ -1,0 +1,64 @@
+# DEVELOPER GUIDE: toast
+
+## Quick Summary
+The toast directory provides a React component system for displaying temporary notification messages to users. It includes a customizable Toast component that supports different message types (info, success, warning, error) with visual indicators and styling.
+
+## Files Overview
+- `Toast.tsx` - Main toast notification component with type-based styling and icon support
+
+## Developer API Reference
+
+### Toast.tsx
+**Purpose:** Renders a toast notification message with optional type-based styling and icons
+**Import:** `import { Toast, ToastProps } from "path/to/toast/Toast"`
+
+**Interfaces:**
+- `ToastProps` - Configuration interface for toast notifications
+  - `id: string` - Unique identifier for the toast
+  - `message: string` - Text content to display in the toast
+  - `type?: "info" | "success" | "warning" | "error"` - Visual style variant (optional)
+  - `duration?: number` - How long to display the toast in milliseconds (optional)
+
+**Components:**
+- `Toast({ message, type }: ToastProps)` - React component that renders a toast notification
+  - Displays an alert with the provided message
+  - Shows an error icon for error type toasts
+  - Applies transition animations and responsive styling
+  - Truncates long messages to fit within max width
+
+**Usage Examples:**
+```tsx
+import { Toast } from "path/to/toast/Toast";
+
+// Basic toast with just a message
+<Toast id="toast-1" message="Operation completed successfully" />
+
+// Error toast with icon
+<Toast 
+  id="toast-2" 
+  message="Failed to save changes" 
+  type="error" 
+/>
+
+// Toast with custom duration
+<Toast 
+  id="toast-3" 
+  message="Settings updated" 
+  type="success" 
+  duration={3000} 
+/>
+
+// Warning toast
+<Toast 
+  id="toast-4" 
+  message="This action cannot be undone" 
+  type="warning" 
+/>
+```
+
+**Dependencies:**
+- Requires `lucide-react` for icons
+- Requires `Alert` and `AlertTitle` components from `../ui/alert`
+- Uses CSS custom properties for error color (`--color-error-wMain`)
+
+# content_hash: 4245b7468417b17dcdd9e8832d67d82ed101fe7f35b24acd5e7dc9d567f32d2e

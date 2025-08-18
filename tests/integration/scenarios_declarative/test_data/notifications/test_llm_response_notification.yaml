@@ -48,7 +48,7 @@ expected_gateway_output:
         role: "model"
         parts:
           - text: "This is the LLM's direct response."
-    final_flag: true
+    final_flag: false
   - type: "final_response"
     kind: task
     id: '*'

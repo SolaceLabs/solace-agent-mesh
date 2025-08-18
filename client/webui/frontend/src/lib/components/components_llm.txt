@@ -1,0 +1,414 @@
+# DEVELOPER GUIDE: components
+
+## Quick Summary
+The components directory provides a comprehensive React component library for building modern web applications. It combines specialized feature components (activities, agents, chat, pages) with a complete UI design system. The architecture follows a modular approach with direct files for core functionality and subdirectories for specialized domains. Components integrate through React context for state management and provide features like workflow visualization, agent management, real-time chat, and a complete design system built on Radix UI primitives.
+
+## Files and Subdirectories Overview
+- **Direct files:** None - all functionality is organized in subdirectories
+- **Subdirectories:**
+  - `activities/` - React-based workflow visualization with flow charts and step tracking
+  - `agents/` - Agent management components with card-based interfaces
+  - `chat/` - Complete chat interface with real-time messaging and file attachments
+  - `common/` - Reusable utilities like markdown converter and message banners
+  - `header/` - Navigation header components with tabs and actions
+  - `jsonViewer/` - JSON data visualization with theme support
+  - `navigation/` - Sidebar navigation system with theme toggle
+  - `pages/` - Top-level page components for major application sections
+  - `toast/` - Toast notification system
+  - `ui/` - Comprehensive design system and UI component library
+
+## Developer API Reference
+
+### Subdirectory APIs
+
+#### activities/
+**Purpose:** React-based visualization system for agent workflow activities with flow charts and step tracking
+**Key Exports:** FlowChartPanel, FlowChartDetails, VisualizerStepCard, custom React Flow nodes and edges
+**Import Examples:**
+```typescript
+import { FlowChartPanel } from '@/lib/components/activities/FlowChartPanel'
+import { VisualizerStepCard } from '@/lib/components/activities/VisualizerStepCard'
+import GenericAgentNode from '@/lib/components/activities/FlowChart/customNodes/GenericAgentNode'
+```
+
+#### agents/
+**Purpose:** Agent management components for displaying and managing agent information in card-based interfaces
+**Key Exports:** AgentDisplayCard, AgentMeshCards, LayoutSelector
+**Import Examples:**
+```tsx
+import { AgentDisplayCard } from "@/lib/components/agents/AgentDisplayCard"
+import { AgentMeshCards } from "@/lib/components/agents/AgentMeshCards"
+import { LayoutSelector } from "@/lib/components/agents/LayoutSelector"
+```
+
+#### chat/
+**Purpose:** Comprehensive chat interface system with real-time messaging, file attachments, and workflow visualization
+**Key Exports:** ChatInputArea, ChatMessage, ChatSidePanel, SessionSidePanel, artifact management, file handling, content preview
+**Import Examples:**
+```tsx
+import { ChatInputArea, ChatMessage, ChatSidePanel } from '@/lib/components/chat'
+import { ArtifactPanel } from "@/lib/components/chat/artifact/ArtifactPanel"
+import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer"
+```
+
+#### common/
+**Purpose:** Reusable utility components including markdown converter and message banners
+**Key Exports:** MarkdownHTMLConverter, MessageBanner
+**Import Examples:**
+```tsx
+import { MarkdownHTMLConverter } from "@/lib/components/common/MarkdownHTMLConverter"
+import { MessageBanner } from "@/lib/components/common/MessageBanner"
+```
+
+#### header/
+**Purpose:** Navigation header components with tab navigation and action buttons
+**Key Exports:** Header component with tab and action support
+**Import Examples:**
+```tsx
+import { Header, Tab } from "lib/components/header/Header"
+```
+
+#### jsonViewer/
+**Purpose:** JSON data visualization with theme-aware styling and collapsible tree structure
+**Key Exports:** JSONViewer component
+**Import Examples:**
+```tsx
+import { JSONViewer } from "@/lib/components/jsonViewer/JSONViewer"
+```
+
+#### navigation/
+**Purpose:** Complete sidebar navigation system with header, navigation buttons, and theme toggle
+**Key Exports:** NavigationSidebar, NavigationButton, NavigationHeader, ToggleThemeButton
+**Import Examples:**
+```tsx
+import { NavigationSidebar } from "@/lib/components/navigation"
+import { NavigationButton } from "@/lib/components/navigation"
+```
+
+#### pages/
+**Purpose:** Top-level page components that serve as main application views
+**Key Exports:** AgentMeshPage, ChatPage
+**Import Examples:**
+```tsx
+import { AgentMeshPage } from "@/lib/components/pages/AgentMeshPage"
+import { ChatPage } from "@/lib/components/pages/ChatPage"
+```
+
+#### toast/
+**Purpose:** Toast notification system for displaying temporary messages
+**Key Exports:** Toast component with type-based styling
+**Import Examples:**
+```tsx
+import { Toast } from "path/to/toast/Toast"
+```
+
+#### ui/
+**Purpose:** Comprehensive design system and UI component library built on Radix UI primitives
+**Key Exports:** Complete set of UI components including buttons, cards, dialogs, forms, navigation, and specialized chat components
+**Import Examples:**
+```tsx
+import { Button } from "@/lib/components/ui/button"
+import { Card, CardHeader, CardContent } from "@/lib/components/ui/card"
+import { Dialog, DialogContent, DialogHeader } from "@/lib/components/ui/dialog"
+import { ChatBubble } from "@/lib/components/ui/chat/chat-bubble"
+```
+
+## Complete Usage Guide
+
+### 1. Building a Complete Application Layout
+
+```tsx
+import React, { useState } from 'react';
+import { NavigationSidebar } from '@/lib/components/navigation';
+import { Header } from '@/lib/components/header/Header';
+import { ChatPage } from '@/lib/components/pages/ChatPage';
+import { AgentMeshPage } from '@/lib/components/pages/AgentMeshPage';
+import { Home, MessageSquare, Users, Settings } from 'lucide-react';
+
+function App() {
+  const [activeItem, setActiveItem] = useState('chat');
+
+  const navigationItems = [
+    { id: 'home', label: 'Home', icon: Home },
+    { id: 'chat', label: 'Chat', icon: MessageSquare },
+    { id: 'agents', label: 'Agents', icon: Users },
+    { id: 'settings', label: 'Settings', icon: Settings }
+  ];
+
+  const bottomItems = [
+    { id: 'theme-toggle', label: 'Toggle Theme', icon: Settings }
+  ];
+
+  const renderContent = () => {
+    switch (activeItem) {
+      case 'chat':
+        return <ChatPage />;
+      case 'agents':
+        return <AgentMeshPage />;
+      default:
+        return <div className="p-8">Page content for {activeItem}</div>;
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Navigation Sidebar */}
+      <NavigationSidebar
+        items={navigationItems}
+        bottomItems={bottomItems}
+        activeItem={activeItem}
+        onItemChange={setActiveItem}
+        onHeaderClick={() => setActiveItem('home')}
+      />
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <Header
+          title={navigationItems.find(item => item.id === activeItem)?.label || 'Application'}
+          buttons={[
+            <Button key="action" variant="outline">Action</Button>
+          ]}
+        />
+        
+        <main className="flex-1 overflow-hidden">
+          {renderContent()}
+        </main>
+      </div>
+    </div>
+  );
+}
+```
+
+### 2. Chat Interface with Workflow Visualization
+
+```tsx
+import React, { useState } from 'react';
+import { 
+  ChatInputArea, 
+  ChatMessage, 
+  ChatSidePanel 
+} from '@/lib/components/chat';
+import { FlowChartPanel } from '@/lib/components/activities/FlowChartPanel';
+import { MessageBanner } from '@/lib/components/common/MessageBanner';
+import { useChatContext, useTaskContext } from '@/lib/hooks';
+
+function ChatWithWorkflow() {
+  const { messages, agents, isResponding } = useChatContext();
+  const { processedSteps } = useTaskContext();
+  const [showWorkflow, setShowWorkflow] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div className="h-screen flex flex-col">
+      {/* Error Banner */}
+      {error && (
+        <MessageBanner
+          variant="error"
+          message={error}
+          dismissible
+          onDismiss={() => setError(null)}
+        />
+      )}
+
+      <div className="flex-1 flex overflow-hidden">
+        {/* Chat Area */}
+        <div className="flex-1 flex flex-col">
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {messages.map((message, index) => (
+              <ChatMessage
+                key={message.metadata?.messageId || index}
+                message={message}
+                isLastWithTaskId={false}
+              />
+            ))}
+          </div>
+
+          {/* Input */}
+          <div className="p-4 border-t">
+            <ChatInputArea agents={agents} />
+          </div>
+        </div>
+
+        {/* Workflow Panel */}
+        {showWorkflow && (
+          <div className="w-1/2 border-l">
+            <div className="h-full flex flex-col">
+              <div className="p-4 border-b">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Workflow</h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowWorkflow(false)}
+                  >
+                    ✕
+                  </Button>
+                </div>
+              </div>
+              <div className="flex-1">
+                <FlowChartPanel
+                  processedSteps={processedSteps}
+                  isRightPanelVisible={true}
+                  isSidePanelTransitioning={false}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Side Panel */}
+        <ChatSidePanel
+          isSidePanelCollapsed={false}
+          setIsSidePanelCollapsed={() => {}}
+          onCollapsedToggle={() => {}}
+          isSidePanelTransitioning={false}
+        />
+      </div>
+
+      {/* Workflow Toggle */}
+      {!showWorkflow && (
+        <Button
+          className="fixed bottom-4 right-4"
+          onClick={() => setShowWorkflow(true)}
+        >
+          View Workflow
+        </Button>
+      )}
+    </div>
+  );
+}
+```
+
+### 3. Agent Management Dashboard
+
+```tsx
+import React, { useState } from 'react';
+import { AgentMeshCards, LayoutSelector } from '@/lib/components/agents';
+import { Header } from '@/lib/components/header/Header';
+import { JSONViewer } from '@/lib/components/jsonViewer/JSONViewer';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle 
+} from '@/lib/components/ui/dialog';
+import type { AgentCard } from '@/lib/types';
+
+function AgentDashboard() {
+  const [selectedAgent, setSelectedAgent] = useState<AgentCard | null>(null);
+  const [layout, setLayout] = useState('mesh');
+  const [agents, setAgents] = useState<AgentCard[]>([]);
+
+  const tabs = [
+    { id: 'overview', label: 'Overview', isActive: true, onClick: () => {} },
+    { id: 'details', label: 'Details', isActive: false, onClick: () => {} }
+  ];
+
+  return (
+    <div className="h-screen flex flex-col">
+      <Header
+        title="Agent Management"
+        tabs={tabs}
+        buttons={[
+          <LayoutSelector
+            key="layout"
+            currentLayout={layout}
+            onLayoutChange={setLayout}
+          />,
+          <Button key="add" variant="default">
+            Add Agent
+          </Button>
+        ]}
+      />
+
+      <main className="flex-1 overflow-hidden p-6">
+        <AgentMeshCards agents={agents} />
+      </main>
+
+      {/* Agent Details Dialog */}
+      <Dialog open={!!selectedAgent} onOpenChange={() => setSelectedAgent(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{selectedAgent?.display_name || selectedAgent?.name}</DialogTitle>
+          </DialogHeader>
+          
+          {selectedAgent && (
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-medium mb-2">Configuration</h4>
+                <JSONViewer data={selectedAgent} maxDepth={2} />
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+```
+
+### 4. Data Visualization with Content Rendering
+
+```tsx
+import React, { useState } from 'react';
+import { ContentRenderer } from '@/lib/components/chat/preview/ContentRenderer';
+import { JSONViewer } from '@/lib/components/jsonViewer/JSONViewer';
+import { MarkdownHTMLConverter } from '@/lib/components/common/MarkdownHTMLConverter';
+import { 
+  Tabs, 
+  TabsList, 
+  TabsTrigger, 
+  TabsContent 
+} from '@/lib/components/ui/tabs';
+import { Card, CardContent } from '@/lib/components/ui/card';
+
+function DataVisualization() {
+  const [renderError, setRenderError] = useState<string | null>(null);
+
+  const sampleData = {
+    csv: "name,score,grade\nAlice,95,A\nBob,87,B\nCharlie,92,A-",
+    json: { users: [{ name: "Alice", score: 95 }, { name: "Bob", score: 87 }] },
+    markdown: "# Report\n\n## Summary\n\nAnalysis **complete** with high confidence.\n\n- ✅ Data validated\n- ✅ Results verified"
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      <h1 className="text-2xl font-bold">Data Visualization</h1>
+
+      <Tabs defaultValue="csv" className="w-full">
+        <TabsList>
+          <TabsTrigger value="csv">CSV Data</TabsTrigger>
+          <TabsTrigger value="json">JSON Data</TabsTrigger>
+          <TabsTrigger value="markdown">Markdown</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="csv">
+          <Card>
+            <CardContent className="p-6">
+              <h3 className="text-lg font-semibold mb-4">CSV Table</h3>
+              <ContentRenderer
+                content={sampleData.csv}
+                rendererType="csv"
+                setRenderError={setRenderError}
+              />
+              {renderError && (
+                <div className="mt-2 text-red-500 text-sm">{renderError}</div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="json">
+          <Card>
+            <CardContent className="p-6">
+              <h3 className="text-lg font-semibold mb-4">JSON Viewer</h3>
+              <JSONViewer data={sampleData.json} maxDepth={3} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="markdown">
+          <Card>
+
+# content_hash: fba4c1fe43f4fa9f9629043ae48e0c93e235f4979a27b71bb39e8280ef5ae604

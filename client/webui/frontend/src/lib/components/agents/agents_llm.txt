@@ -1,0 +1,125 @@
+# DEVELOPER GUIDE: agents
+
+## Quick Summary
+The `agents` directory contains React components for displaying and managing agent information in a card-based interface. It provides components for individual agent display cards, a mesh layout for multiple agents, and layout selection functionality.
+
+## Files Overview
+- `AgentDisplayCard.tsx` - Displays detailed information about a single agent in a flippable card format
+- `AgentMeshCards.tsx` - Renders a collection of agent cards with search functionality
+- `LayoutSelector.tsx` - Provides UI for switching between different layout options
+
+## Developer API Reference
+
+### AgentDisplayCard.tsx
+**Purpose:** Renders a single agent's information in an interactive card that flips to show detailed information
+**Import:** `import { AgentDisplayCard } from "@/lib/components/agents/AgentDisplayCard"`
+
+**Components:**
+- `AgentDisplayCard(agent: AgentCard, isExpanded: boolean, onToggleExpand: () => void)` - Main agent card component with flip animation
+  - Shows agent summary on front, detailed information on back
+  - Handles click interactions to toggle between views
+  - Displays capabilities, tools, authentication, and other agent metadata
+
+**Internal Components:**
+- `DetailItem(label: string, value?: string | null | ReactNode, icon?: ReactNode, fullWidthValue?: boolean)` - Renders individual detail rows with optional icons
+
+**Usage Examples:**
+```tsx
+import { AgentDisplayCard } from "@/lib/components/agents/AgentDisplayCard";
+import type { AgentCard } from "@/lib/types";
+
+const MyComponent = () => {
+  const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
+  
+  const agent: AgentCard = {
+    name: "my-agent",
+    display_name: "My Agent",
+    description: "A helpful AI agent",
+    version: "1.0.0",
+    // ... other agent properties
+  };
+
+  return (
+    <AgentDisplayCard
+      agent={agent}
+      isExpanded={expandedAgent === agent.name}
+      onToggleExpand={() => setExpandedAgent(
+        expandedAgent === agent.name ? null : agent.name
+      )}
+    />
+  );
+};
+```
+
+### AgentMeshCards.tsx
+**Purpose:** Displays a collection of agent cards in a grid layout with search functionality
+**Import:** `import { AgentMeshCards } from "@/lib/components/agents/AgentMeshCards"`
+
+**Components:**
+- `AgentMeshCards(agents: AgentCard[])` - Container component for multiple agent cards
+  - Provides search input to filter agents by name/display name
+  - Manages expanded state for individual cards
+  - Shows empty states when no agents or no search results
+
+**Usage Examples:**
+```tsx
+import { AgentMeshCards } from "@/lib/components/agents/AgentMeshCards";
+import type { AgentCard } from "@/lib/types";
+
+const AgentsPage = () => {
+  const agents: AgentCard[] = [
+    {
+      name: "agent-1",
+      display_name: "Agent One",
+      description: "First agent",
+      // ... other properties
+    },
+    // ... more agents
+  ];
+
+  return (
+    <div>
+      <h1>Available Agents</h1>
+      <AgentMeshCards agents={agents} />
+    </div>
+  );
+};
+```
+
+### LayoutSelector.tsx
+**Purpose:** Provides a UI component for selecting different layout options from the plugin registry
+**Import:** `import { LayoutSelector } from "@/lib/components/agents/LayoutSelector"`
+
+**Components:**
+- `LayoutSelector(currentLayout: string, onLayoutChange: (layout: string) => void, className?: string)` - Layout selection buttons
+  - Fetches available layouts from plugin registry
+  - Only renders if multiple layouts are available
+  - Highlights currently active layout
+
+**Usage Examples:**
+```tsx
+import { LayoutSelector } from "@/lib/components/agents/LayoutSelector";
+
+const LayoutControls = () => {
+  const [currentLayout, setCurrentLayout] = useState("mesh");
+
+  return (
+    <div className="toolbar">
+      <LayoutSelector
+        currentLayout={currentLayout}
+        onLayoutChange={setCurrentLayout}
+        className="ml-auto"
+      />
+    </div>
+  );
+};
+```
+
+**Dependencies:**
+- Requires `@/lib/types` for `AgentCard` and `AgentTool` types
+- Requires `@/lib/components/ui` for `Button` component
+- Requires `@/lib/plugins` for plugin registry access
+- Requires `@/lib/utils/format` for timestamp formatting
+- Uses Lucide React icons for UI elements
+
+# content_hash: 389c8b8aa05ca46d23d0ed55d89bb7b3f801d30f5c0844992ea7118d14c78953

@@ -64,7 +64,7 @@ expected_gateway_output:
         parts:
           - type: "text"
             text_exact: "Delegating the task to TestPeerAgentB..."
-    event_purpose: "embedded_status_update"
+    event_purpose: "agent_progress_update"
     final_flag: false
   - type: "status_update"
     kind: task

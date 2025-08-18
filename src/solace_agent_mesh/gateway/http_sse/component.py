@@ -848,7 +848,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
             setup_dependencies(self)
 
-            port = self.fastapi_https_port if self.ssl_keyfile and self.ssl_certfile else self.fastapi_port
+            port = (
+                self.fastapi_https_port
+                if self.ssl_keyfile and self.ssl_certfile
+                else self.fastapi_port
+            )
 
             config = uvicorn.Config(
                 app=self.fastapi_app,
@@ -1043,9 +1047,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         "agent_name"
                     )
                 elif kind == "artifact-update":
-                    details["source_entity"] = result.get("artifact", {}).get(
-                        "metadata", {}
-                    ).get("agent_name")
+                    details["source_entity"] = (
+                        result.get("artifact", {}).get("metadata", {}).get("agent_name")
+                    )
 
             # Handle Requests (SendMessageRequest, CancelTaskRequest, etc.)
             elif "method" in payload and isinstance(payload.get("params"), dict):
@@ -1056,7 +1060,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
                 if method in ["message/send", "message/stream"]:
                     msg = params.get("message", {})
-                    details["task_id"] = msg.get("taskId")
+                    details["task_id"] = payload.get("id")
                     details["target_entity"] = msg.get("metadata", {}).get("agent_name")
                 elif method == "tasks/cancel":
                     details["task_id"] = params.get("id")
@@ -1096,7 +1100,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 (summary_str[:100] + "...") if len(summary_str) > 100 else summary_str
             )
         except Exception:
-            details["payload_summary"]["params_preview"] = "[Could not serialize payload]"
+            details["payload_summary"][
+                "params_preview"
+            ] = "[Could not serialize payload]"
 
         return details
 

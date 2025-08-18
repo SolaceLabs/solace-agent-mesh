@@ -1440,9 +1440,10 @@ def _get_actual_event_purpose(
                 # Legacy check for older signals
                 if (
                     data.get("a2a_signal_type") == "agent_status_message"
+                    or data.get("type") == "agent_progress"
                     or data.get("type") == "agent_status"
                 ):
-                    return "embedded_status_update"
+                    return "agent_progress_update"
 
         # Legacy check for metadata-based signals
         if (
@@ -1540,7 +1541,7 @@ async def _assert_event_details(
                 print(
                     f"Scenario {scenario_id}: Event {event_index+1} [SINGLE EVENT ASSERTION] Using event text: '{text_to_assert_against}'"
                 )
-        elif actual_event_purpose == "embedded_status_update":
+        elif actual_event_purpose == "agent_progress_update":
             if actual_event.status and actual_event.status.message:
                 data_parts = get_data_parts(actual_event.status.message.parts)
                 for data in data_parts:
@@ -1552,7 +1553,7 @@ async def _assert_event_details(
                         break
 
         if "content_parts" in expected_spec and (
-            actual_event_purpose == "embedded_status_update"
+            actual_event_purpose == "agent_progress_update"
             or actual_event_purpose == "generic_text_update"
         ):
             for part_spec in expected_spec["content_parts"]:

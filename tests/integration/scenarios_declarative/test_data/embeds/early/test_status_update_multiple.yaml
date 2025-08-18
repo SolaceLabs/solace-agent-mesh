@@ -25,7 +25,7 @@ expected_gateway_output:
           - type: "text"
             text_contains:
               - "Step 1 complete."
-    event_purpose: "embedded_status_update"
+    event_purpose: "agent_progress_update"
     final_flag: false
   - type: "status_update"
     kind: task
@@ -41,7 +41,7 @@ expected_gateway_output:
           - type: "text"
             text_contains:
               - "Starting Step 2."
-    event_purpose: "embedded_status_update"
+    event_purpose: "agent_progress_update"
     final_flag: false
   - type: "final_response"
     kind: task

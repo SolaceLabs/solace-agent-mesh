@@ -25,7 +25,7 @@ expected_gateway_output:
           - type: "text" # This will assert against DataPart.data.text
             text_contains:
               - "Processing your request..."
-    event_purpose: "embedded_status_update"
+    event_purpose: "agent_progress_update"
     final_flag: false
   - type: "final_response"
     kind: task
