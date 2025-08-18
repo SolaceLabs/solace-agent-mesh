@@ -352,13 +352,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             switch (result.kind) {
                 case "task":
                     isFinalEvent = true;
-                    messageToProcess = result.status?.message;
+                    // For the final task object, we only use it as a signal to end the turn.
+                    // The content has already been streamed via status_updates.
+                    messageToProcess = undefined;
                     currentTaskIdFromResult = result.id;
-                    // For the final task object in a streaming context, we ignore the text part
-                    // as it has already been streamed to the client.
-                    if (messageToProcess?.parts) {
-                        messageToProcess.parts = messageToProcess.parts.filter(p => p.kind !== "text");
-                    }
                     if (result.artifacts && result.artifacts.length > 0) {
                         console.log("Final task has artifacts to process:", result.artifacts);
                     }
