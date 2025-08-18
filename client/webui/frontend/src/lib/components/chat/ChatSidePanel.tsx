@@ -26,7 +26,15 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
     useEffect(() => {
         if (taskIdInSidePanel && monitoredTasks[taskIdInSidePanel]) {
             const taskDetails = monitoredTasks[taskIdInSidePanel];
+            
+            // ADD THIS LOG
+            console.log("[DEBUG] Input to visualizer:", taskDetails.events);
+
             const vizTask = processTaskForVisualization(taskDetails.events || [], monitoredTasks, taskDetails);
+            
+            // ADD THIS LOG
+            console.log("[DEBUG] Output from visualizer:", vizTask);
+
             setVisualizedTask(vizTask);
         } else {
             setVisualizedTask(null);

@@ -230,6 +230,9 @@ export const processTaskForVisualization = (
 
     // 3. Process the sorted, combined event stream
     sortedEvents.forEach((event, index) => {
+        // ADD THIS LOG
+        console.log("[DEBUG] Processing event:", event);
+
         const eventTimestamp = getEventTimestamp(event);
         const eventId = `raw-${event.task_id || "global"}-${index}`;
         const payload = event.full_payload;
