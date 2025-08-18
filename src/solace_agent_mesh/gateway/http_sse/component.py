@@ -443,16 +443,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                     is_permitted = True
                                     break
 
-                        # ADD THIS TEMPORARY LOGGING BLOCK
-                        log.info(
-                            "VIZ_OWNERSHIP_CHECK: "
-                            f"Topic='{topic}', "
-                            f"MessageOwner='{message_owner_id}', "
-                            f"StreamOwner='{stream_config.get('user_id')}', "
-                            f"IsPermitted='{is_permitted}'"
-                        )
-                        # END OF TEMPORARY LOGGING BLOCK
-
                         if is_permitted:
                             event_details = self._infer_visualization_event_details(
                                 topic, payload_dict

@@ -1541,7 +1541,16 @@ class SamAgentComponent(ComponentBase):
                 self.namespace, self.get_gateway_id(), logical_task_id
             )
 
-            self._publish_a2a_event(payload_to_publish, target_topic, a2a_context)
+            # Construct user_properties to ensure ownership can be determined by gateways
+            user_properties = {
+                "a2aUserConfig": a2a_context.get("a2a_user_config"),
+                "clientId": a2a_context.get("client_id"),
+                "delegating_agent_name": self.get_config("agent_name"),
+            }
+
+            self._publish_a2a_event(
+                payload_to_publish, target_topic, a2a_context, user_properties
+            )
 
             log.info(
                 "%s Published %s status update to %s.",
@@ -2997,14 +3006,23 @@ class SamAgentComponent(ComponentBase):
             )
             raise
 
-    def _publish_a2a_event(self, payload: Dict, topic: str, a2a_context: Dict):
+    def _publish_a2a_event(
+        self,
+        payload: Dict,
+        topic: str,
+        a2a_context: Dict,
+        user_properties_override: Optional[Dict] = None,
+    ):
         """
         Centralized helper to publish an A2A event, ensuring user properties
-        are consistently attached from the a2a_context.
+        are consistently attached from the a2a_context or an override.
         """
-        user_properties = {}
-        if a2a_context.get("a2a_user_config"):
-            user_properties["a2aUserConfig"] = a2a_context["a2a_user_config"]
+        if user_properties_override is not None:
+            user_properties = user_properties_override
+        else:
+            user_properties = {}
+            if a2a_context.get("a2a_user_config"):
+                user_properties["a2aUserConfig"] = a2a_context["a2a_user_config"]
 
         self._publish_a2a_message(payload, topic, user_properties)
 
