@@ -208,7 +208,6 @@ function handleLLMResponseToAgent(step: VisualizerStep, manager: TimelineLayoutM
     const llmNodeCandidates = context.toolInstances.filter(instance => nodes.find(n => n.id === instance.id)?.type === "llmNode");
     const llmInstance = llmNodeCandidates.reverse().find(instance => !edges.some(edge => edge.source === instance.id));
 
-    let llmNodeId: string | undefined;
     if (llmInstance) {
         llmNodeId = llmInstance.id;
     } else {
