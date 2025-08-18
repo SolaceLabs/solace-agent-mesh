@@ -301,7 +301,7 @@ export const processTaskForVisualization = (
         }
 
         // Any status_update with a result
-        if (event.direction === "status_update" && payload?.result) {
+        if (event.direction === "status-update" && payload?.result) {
             const result = payload.result as TaskStatusUpdateEvent;
             const statusMessage = result.status?.message;
             const statusUpdateAgentName = result.metadata?.agent_name || statusMessage?.metadata?.agent_name || event.source_entity || "Agent";
@@ -642,7 +642,7 @@ export const processTaskForVisualization = (
         }
 
         // Fallback for flushing text if no other condition matched for the current event
-        const isStreamingTextEvent = event.direction === "status_update" && payload?.result?.status?.message?.parts?.some((p: any) => p.kind === "text");
+        const isStreamingTextEvent = event.direction === "status-update" && payload?.result?.status?.message?.parts?.some((p: any) => p.kind === "text");
         let currentEventSourceAgentName = event.source_entity;
         if (payload?.result?.status?.message?.metadata?.forwarded_from_peer) {
             currentEventSourceAgentName = payload.result.status.message.metadata.forwarded_from_peer;
