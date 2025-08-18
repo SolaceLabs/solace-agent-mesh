@@ -230,9 +230,6 @@ export const processTaskForVisualization = (
 
     // 3. Process the sorted, combined event stream
     sortedEvents.forEach((event, index) => {
-        // ADD THIS LOG
-        console.log("[DEBUG] Processing event:", event);
-
         const eventTimestamp = getEventTimestamp(event);
         const eventId = `raw-${event.task_id || "global"}-${index}`;
         const payload = event.full_payload;
@@ -317,9 +314,25 @@ export const processTaskForVisualization = (
                         const dataPart = part as DataPart;
                         const signalData = dataPart.data as any;
                         const signalType = signalData?.type as string;
-                        console.log("[Visualizer] Found DataPart signal:", signalType, "with data:", signalData);
 
                         switch (signalType) {
+                            case "agent_progress_update": {
+                                visualizerSteps.push({
+                                    id: `vstep-progress-${visualizerSteps.length}-${eventId}`,
+                                    type: "AGENT_RESPONSE_TEXT",
+                                    timestamp: eventTimestamp,
+                                    title: `${statusUpdateAgentName}: Progress Update`,
+                                    source: statusUpdateAgentName,
+                                    target: "User",
+                                    data: { text: signalData.status_text },
+                                    rawEventIds: [eventId],
+                                    isSubTaskStep: currentEventNestingLevel > 0,
+                                    nestingLevel: currentEventNestingLevel,
+                                    owningTaskId: currentEventOwningTaskId,
+                                    functionCallId: functionCallIdForStep,
+                                });
+                                break;
+                            }
                             case "llm_invocation": {
                                 const llmData = signalData.request as any;
                                 let promptText = "System-initiated LLM call";
@@ -374,7 +387,6 @@ export const processTaskForVisualization = (
                                 const functionCallParts = contentParts?.filter(p => p.function_call);
 
                                 if (functionCallParts && functionCallParts.length > 0) {
-                                    // Handle Tool Decision
                                     const decisions: ToolDecision[] = functionCallParts.map(p => ({
                                         functionCallId: p.function_call.id,
                                         toolName: p.function_call.name,
@@ -396,7 +408,6 @@ export const processTaskForVisualization = (
                                         owningTaskId: currentEventOwningTaskId,
                                     });
                                 } else {
-                                    // Handle simple LLM text response to agent
                                     const llmResponseText = contentParts?.filter(p => p.text).map(p => p.text).join("\n") || "";
                                     const llmResponseToAgentData: LLMResponseToAgentData = {
                                         responsePreview: llmResponseText.substring(0, 200) + (llmResponseText.length > 200 ? "..." : ""),
@@ -491,7 +502,7 @@ export const processTaskForVisualization = (
             let mimeType: string | undefined = undefined;
             if (artifactData.parts && artifactData.parts.length > 0) {
                 const firstPart = artifactData.parts[0];
-                if (firstPart.type === "file") {
+                if (firstPart.kind === "file") {
                     mimeType = (firstPart as FilePart).file.mimeType || undefined;
                 } else if (firstPart.metadata?.mime_type) {
                     mimeType = firstPart.metadata.mime_type;
@@ -520,8 +531,8 @@ export const processTaskForVisualization = (
             return;
         }
 
-        // FINAL RESPONSE / TASK COMPLETION (REPLACE THIS ENTIRE BLOCK)
-        if (event.direction === "response" && payload?.result?.status?.state) {
+        // FINAL RESPONSE / TASK COMPLETION
+        if (["response", "task"].includes(event.direction) && payload?.result?.status?.state) {
             if (currentAggregatedText.trim()) {
                 flushAggregatedTextStep(currentEventOwningTaskId);
             }
@@ -530,14 +541,12 @@ export const processTaskForVisualization = (
             const finalState = result.status.state as string;
             const responseAgentName = result.metadata?.agent_name || result.status?.message?.metadata?.agent_name || event.source_entity || "Agent";
 
-            // Check if this is a sub-task completing and returning to its parent
             if (currentEventNestingLevel > 0 && finalState === "completed") {
                 const parentTaskId = getParentTaskIdFromTaskObject(allMonitoredTasks[currentEventOwningTaskId]);
                 const parentAgentName = parentTaskId ? findAgentNameForTask(parentTaskId, allMonitoredTasks) : null;
                 const functionCallId = subTaskToFunctionCallIdMap.get(currentEventOwningTaskId);
 
                 if (parentAgentName && functionCallId) {
-                    // --- Performance Data Collection ---
                     const openToolCallForPerf = inProgressToolCalls.get(functionCallId);
                     if (openToolCallForPerf) {
                         const duration = new Date(eventTimestamp).getTime() - new Date(openToolCallForPerf.timestamp).getTime();
@@ -556,7 +565,6 @@ export const processTaskForVisualization = (
                         }
                         inProgressToolCalls.delete(functionCallId);
                     }
-                    // ---
 
                     const toolResultData: ToolResultData = {
                         toolName: `peer_${responseAgentName}`,
@@ -570,8 +578,8 @@ export const processTaskForVisualization = (
                         type: "AGENT_TOOL_EXECUTION_RESULT",
                         timestamp: eventTimestamp,
                         title: `${parentAgentName}: Tool Result - peer_${responseAgentName}`,
-                        source: `peer_${responseAgentName}`, // The sub-task agent is the source
-                        target: parentAgentName, // The parent agent is the target
+                        source: `peer_${responseAgentName}`,
+                        target: parentAgentName,
                         data: { toolResult: toolResultData },
                         rawEventIds: [eventId],
                         isSubTaskStep: currentEventNestingLevel > 0,
@@ -583,14 +591,13 @@ export const processTaskForVisualization = (
                 }
             }
 
-            // --- Original logic for root task completion or failures ---
             if (["completed", "failed", "canceled"].includes(finalState)) {
                 const stepType: VisualizerStepType = finalState === "completed" ? "TASK_COMPLETED" : "TASK_FAILED";
                 const title = `${responseAgentName}: Task ${finalState.charAt(0).toUpperCase() + finalState.slice(1)}`;
                 let dataPayload: any = {};
                 let finalMessageTextFromEvent = "";
                 if (result.status.message?.parts) {
-                    const textPart = result.status.message.parts.find((p: any) => p.type === "text") as TextPart | undefined;
+                    const textPart = result.status.message.parts.find((p: any) => p.kind === "text") as TextPart | undefined;
                     if (textPart?.text) finalMessageTextFromEvent = textPart.text.trim();
                 }
 
