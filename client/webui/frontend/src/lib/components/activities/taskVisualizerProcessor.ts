@@ -336,24 +336,19 @@ export const processTaskForVisualization = (
                             case "llm_invocation": {
                                 const llmData = signalData.request as any;
                                 let promptText = "System-initiated LLM call";
-                                if (llmData?.contents && Array.isArray(llmData.contents)) {
-                                    for (let i = llmData.contents.length - 1; i >= 0; i--) {
-                                        const contentPart = llmData.contents[i];
-                                        if (contentPart?.role === "user") {
-                                            if (contentPart.parts?.some((p: any) => p.text)) {
-                                                promptText = contentPart.parts.map((p: any) => p.text).join("\n");
-                                                break;
-                                            } else if (contentPart.parts?.some((p: any) => p.function_response)) {
-                                                const funcResponsePart = contentPart.parts.find((p: any) => p.function_response);
-                                                promptText = `Processing response from tool: ${funcResponsePart.function_response.name}`;
-                                                break;
-                                            }
-                                        }
+                                if (llmData?.contents && Array.isArray(llmData.contents) && llmData.contents.length > 0) {
+                                    // Find the last user message in the history to use as the prompt preview.
+                                    const lastUserContent = [...llmData.contents].reverse().find((c: any) => c.role === "user");
+                                    if (lastUserContent && lastUserContent.parts) {
+                                        promptText = lastUserContent.parts
+                                            .map((p: any) => p.text || "") // Handle cases where text might be null/undefined
+                                            .join("\n")
+                                            .trim();
                                     }
                                 }
                                 const llmCallData: LLMCallData = {
                                     modelName: llmData?.model || "Unknown Model",
-                                    promptPreview: promptText,
+                                    promptPreview: promptText || "No text in user prompt.", // Fallback for empty prompt
                                 };
                                 ensureAgentMetrics(agentInstanceId, statusUpdateAgentName);
                                 inProgressLlmCalls.set(agentInstanceId, { timestamp: eventTimestamp, modelName: llmCallData.modelName });
@@ -704,6 +699,28 @@ export const processTaskForVisualization = (
         durationMs: totalDurationMs,
         steps: visualizerSteps,
     };
+
+    // Post-process to aggregate final text for completed tasks
+    visualizedTask.steps.forEach((step, index) => {
+        if (step.type === "TASK_COMPLETED") {
+            let finalTurnText = "";
+            // Walk backwards from the completed step
+            for (let i = index - 1; i >= 0; i--) {
+                const prevStep = visualizedTask.steps[i];
+                // Stop if we hit a step that isn't a simple text response from the same agent
+                if (prevStep.type !== "AGENT_RESPONSE_TEXT" || prevStep.source !== step.source) {
+                    break;
+                }
+                // Prepend the text
+                finalTurnText = prevStep.data.text + finalTurnText;
+            }
+            // Also include the text from the final event itself, if any
+            if (step.data.finalMessage) {
+                finalTurnText += step.data.finalMessage;
+            }
+            step.data.finalMessage = finalTurnText.trim() || undefined;
+        }
+    });
 
     // --- Phase 2: Post-Processing and Final Aggregation ---
 
