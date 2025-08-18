@@ -1007,6 +1007,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
     ) -> Dict[str, Any]:
         """
         Infers details for the visualization SSE payload from the Solace topic and A2A message.
+        This version is updated to parse the official A2A SDK message formats.
         """
         details = {
             "direction": "unknown",
@@ -1020,125 +1021,82 @@ class WebUIBackendComponent(BaseGatewayComponent):
             },
         }
 
-        topic_parts = topic.split("/")
-
+        # --- Phase 1: Parse the payload to extract core info ---
         try:
-            a2a_base_index = topic_parts.index("a2a")
-            domain_index = a2a_base_index + 2
-            action_type_index = a2a_base_index + 3
-            entity_name_index = a2a_base_index + 4
-            task_id_from_topic_index = a2a_base_index + 5
+            # Handle Responses (Task, TaskStatusUpdateEvent, etc.)
+            if "result" in payload and isinstance(payload["result"], dict):
+                result = payload["result"]
+                kind = result.get("kind")
+                details["direction"] = kind or "response"
+                details["task_id"] = result.get("taskId") or result.get("id")
 
-            domain = (
-                topic_parts[domain_index] if len(topic_parts) > domain_index else None
-            )
-            action_type = (
-                topic_parts[action_type_index]
-                if len(topic_parts) > action_type_index
-                else None
-            )
-            entity_name = (
-                topic_parts[entity_name_index]
-                if len(topic_parts) > entity_name_index
-                else None
-            )
+                if kind == "status-update":
+                    details["source_entity"] = result.get("metadata", {}).get(
+                        "agent_name"
+                    ) or result.get("status", {}).get("message", {}).get(
+                        "metadata", {}
+                    ).get(
+                        "agent_name"
+                    )
+                elif kind == "task":
+                    details["source_entity"] = result.get("metadata", {}).get(
+                        "agent_name"
+                    )
+                elif kind == "artifact-update":
+                    details["source_entity"] = result.get("artifact", {}).get(
+                        "metadata", {}
+                    ).get("agent_name")
 
-            if domain == "agent":
-                if action_type == "request":
-                    details["direction"] = "request"
-                    details["target_entity"] = entity_name
-                    user_props = (
-                        payload.get("params", {})
-                        .get("metadata", {})
-                        .get("solaceUserProperties", {})
-                    )
-                    details["source_entity"] = (
-                        user_props.get("clientId")
-                        or user_props.get("delegating_agent_name")
-                        or self.gateway_id
-                    )
-                elif action_type == "response":
-                    details["direction"] = "response"
-                    details["source_entity"] = entity_name
-                    details["target_entity"] = (
-                        payload.get("result", {}).get("metadata", {}).get("clientId")
-                    )
-                elif action_type == "status":
-                    details["direction"] = "status_update"
-                    details["source_entity"] = entity_name
-                    details["target_entity"] = (
-                        payload.get("result", {}).get("metadata", {}).get("clientId")
-                    )
-            elif domain == "gateway":
-                if action_type == "response":
-                    details["direction"] = "response"
-                    details["source_entity"] = (
-                        payload.get("result", {})
-                        .get("status", {})
-                        .get("message", {})
-                        .get("metadata", {})
-                        .get("agent_name", "unknown_agent")
-                    )
-                    details["target_entity"] = entity_name
-                elif action_type == "status":
-                    details["direction"] = "status_update"
-                    details["source_entity"] = (
-                        payload.get("result", {})
-                        .get("status", {})
-                        .get("message", {})
-                        .get("metadata", {})
-                        .get("agent_name", "unknown_agent")
-                    )
-                    details["target_entity"] = entity_name
-            elif domain == "discovery" and action_type == "agentcards":
+            # Handle Requests (SendMessageRequest, CancelTaskRequest, etc.)
+            elif "method" in payload and isinstance(payload.get("params"), dict):
+                method = payload["method"]
+                params = payload["params"]
+                details["direction"] = "request"
+                details["payload_summary"]["method"] = method
+
+                if method in ["message/send", "message/stream"]:
+                    msg = params.get("message", {})
+                    details["task_id"] = msg.get("taskId")
+                    details["target_entity"] = msg.get("metadata", {}).get("agent_name")
+                elif method == "tasks/cancel":
+                    details["task_id"] = params.get("id")
+
+            # Handle Discovery messages
+            elif "/a2a/v1/discovery/" in topic:
                 details["direction"] = "discovery"
                 details["source_entity"] = payload.get("name", "unknown_agent")
                 details["target_entity"] = "broadcast"
 
-            if payload.get("method") in [
-                "tasks/send",
-                "tasks/sendSubscribe",
-                "tasks/cancel",
-            ]:
-                details["task_id"] = payload.get("params", {}).get("id")
-            elif "result" in payload and isinstance(payload["result"], dict):
-                details["task_id"] = payload["result"].get("id")
-            elif len(topic_parts) > task_id_from_topic_index and (
-                action_type == "status" or action_type == "response"
-            ):
-                details["task_id"] = topic_parts[task_id_from_topic_index]
-
-        except (ValueError, IndexError):
-            log.debug(
-                "%s Could not parse A2A structure from topic: %s",
+        except Exception as e:
+            log.warning(
+                "[%s] Failed to parse A2A payload for visualization details: %s",
                 self.log_identifier,
-                topic,
+                e,
             )
+
+        # --- Phase 2: Refine details using topic information as a fallback ---
+        if details["direction"] == "unknown":
             if "request" in topic:
                 details["direction"] = "request"
             elif "response" in topic:
                 details["direction"] = "response"
             elif "status" in topic:
                 details["direction"] = "status_update"
-            elif "discovery" in topic:
-                details["direction"] = "discovery"
 
-        if "params" in payload:
-            params_str = json.dumps(payload["params"])
-            details["payload_summary"]["params_preview"] = (
-                (params_str[:100] + "...") if len(params_str) > 100 else params_str
+        # --- Phase 3: Create a payload summary ---
+        try:
+            summary_source = (
+                payload.get("result")
+                or payload.get("params")
+                or payload.get("error")
+                or payload
             )
-        elif "result" in payload:
-            result_str = json.dumps(payload["result"])
+            summary_str = json.dumps(summary_source)
             details["payload_summary"]["params_preview"] = (
-                (result_str[:100] + "...") if len(result_str) > 100 else result_str
+                (summary_str[:100] + "...") if len(summary_str) > 100 else summary_str
             )
-        elif "error" in payload:
-            details["payload_summary"]["method"] = "JSONRPCError"
-            error_str = json.dumps(payload["error"])
-            details["payload_summary"]["params_preview"] = (
-                (error_str[:100] + "...") if len(error_str) > 100 else error_str
-            )
+        except Exception:
+            details["payload_summary"]["params_preview"] = "[Could not serialize payload]"
 
         return details
 

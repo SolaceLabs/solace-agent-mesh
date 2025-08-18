@@ -512,9 +512,11 @@ class BaseGatewayComponent(ComponentBase):
                             continue
 
                         signal_event = TaskStatusUpdateEvent(
-                            id=a2a_task_id_for_signal,
+                            task_id=a2a_task_id_for_signal,
+                            context_id=external_request_context.get("a2a_session_id"),
                             status=signal_task_status,
                             final=False,
+                            kind="status-update",
                         )
                         await self._send_update_to_external(
                             external_request_context=external_request_context,
