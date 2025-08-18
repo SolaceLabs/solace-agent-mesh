@@ -468,23 +468,27 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     }
 
                     newMessages[newMessages.length - 1] = updatedMessage;
-                } else if (newContentParts.length > 0 || newFileAttachments.length > 0 || artifactToProcess) {
-                    const newBubble: MessageFE = {
-                        role: "agent",
-                        parts: newContentParts,
-                        files: newFileAttachments.length > 0 ? newFileAttachments : undefined,
-                        messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
-                        kind: "message",
-                        contextId: (result as TaskStatusUpdateEvent).contextId,
-                        taskId: (result as TaskStatusUpdateEvent).taskId,
-                        isUser: false,
-                        isComplete: isFinalEvent,
-                        metadata: { lastProcessedEventSequence: currentEventSequence },
-                    };
-                    if (artifactToProcess) {
-                        newBubble.artifactNotification = { name: artifactToProcess.name || artifactToProcess.artifactId };
+                } else {
+                    // Only create a new bubble if there is visible content to render.
+                    const hasVisibleContent = newContentParts.some(p => p.kind === "text" && p.text.trim());
+                    if (hasVisibleContent || newFileAttachments.length > 0 || artifactToProcess) {
+                        const newBubble: MessageFE = {
+                            role: "agent",
+                            parts: newContentParts,
+                            files: newFileAttachments.length > 0 ? newFileAttachments : undefined,
+                            messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
+                            kind: "message",
+                            contextId: (result as TaskStatusUpdateEvent).contextId,
+                            taskId: (result as TaskStatusUpdateEvent).taskId,
+                            isUser: false,
+                            isComplete: isFinalEvent,
+                            metadata: { lastProcessedEventSequence: currentEventSequence },
+                        };
+                        if (artifactToProcess) {
+                            newBubble.artifactNotification = { name: artifactToProcess.name || artifactToProcess.artifactId };
+                        }
+                        newMessages.push(newBubble);
                     }
-                    newMessages.push(newBubble);
                 }
 
                 // Add a new status bubble if the task is not over
