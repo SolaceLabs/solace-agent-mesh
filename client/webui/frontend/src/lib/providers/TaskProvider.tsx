@@ -57,9 +57,9 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
             } else {
                 let initialRequestText = "Task started...";
                 if (event.direction === "request" && event.full_payload?.method?.startsWith("tasks/")) {
-                    const params = event.full_payload.params as { message: { parts: { type: string; text: string }[] } };
+                    const params = event.full_payload.params as { message: { parts: { kind: string; text: string }[] } };
                     if (params?.message?.parts) {
-                        const textParts = params.message.parts.filter(p => p.type === "text");
+                        const textParts = params.message.parts.filter(p => p.kind === "text");
                         initialRequestText = textParts[1]?.text ?? textParts[0]?.text;
                     }
                 }

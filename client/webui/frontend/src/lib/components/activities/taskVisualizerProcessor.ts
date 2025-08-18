@@ -642,7 +642,7 @@ export const processTaskForVisualization = (
         }
 
         // Fallback for flushing text if no other condition matched for the current event
-        const isStreamingTextEvent = event.direction === "status_update" && payload?.result?.status?.message?.parts?.some((p: any) => p.type === "text");
+        const isStreamingTextEvent = event.direction === "status_update" && payload?.result?.status?.message?.parts?.some((p: any) => p.kind === "text");
         let currentEventSourceAgentName = event.source_entity;
         if (payload?.result?.status?.message?.metadata?.forwarded_from_peer) {
             currentEventSourceAgentName = payload.result.status.message.metadata.forwarded_from_peer;
