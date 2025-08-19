@@ -327,6 +327,14 @@ def format_adk_event_as_a2a(
         )
         return JSONRPCResponse(id=jsonrpc_request_id, error=a2a_error), []
 
+    if adk_event.content and adk_event.content.parts:
+        if all(p.function_response is not None for p in adk_event.content.parts):
+            log.debug(
+                "%s Ignoring ADK event containing only function_response parts as it is redundant.",
+                log_identifier,
+            )
+            return None, []
+
     signals_to_forward: List[Tuple[int, Any]] = []
     is_final_adk_event = (
         # We have a different definition of final for ADK events:
