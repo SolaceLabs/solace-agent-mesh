@@ -24,6 +24,33 @@ class S3ArtifactService(BaseArtifactService):
     {scope_identifier}/{user_id}/{session_id_or_user}/{filename}/{version}
 
     Supports AWS S3 and S3-compatible APIs like MinIO.
+
+    Required S3 Permissions:
+    The IAM user or role must have the following minimum permissions for the specific bucket:
+    - s3:GetObject: Read artifacts from the bucket
+    - s3:PutObject: Store new artifacts to the bucket
+    - s3:DeleteObject: Delete artifacts from the bucket
+
+    Example IAM Policy (replace 'your-bucket-name' with actual bucket):
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "s3:GetObject",
+                    "s3:PutObject",
+                    "s3:DeleteObject"
+                ],
+                "Resource": "arn:aws:s3:::your-bucket-name/*"
+            },
+            {
+                "Effect": "Allow",
+                "Action": "s3:ListBucket",
+                "Resource": "arn:aws:s3:::your-bucket-name"
+            }
+        ]
+    }
     """
 
     def __init__(

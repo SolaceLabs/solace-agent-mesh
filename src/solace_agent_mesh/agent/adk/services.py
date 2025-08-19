@@ -257,9 +257,9 @@ def initialize_artifact_service(component) -> BaseArtifactService:
             raise
     elif service_type == "s3":
         bucket_name = config.get("bucket_name")
-        if not bucket_name:
+        if not bucket_name or not bucket_name.strip():
             raise ValueError(
-                f"{component.log_identifier} 'bucket_name' is required for S3 artifact service."
+                f"{component.log_identifier} 'bucket_name' is required and cannot be empty for S3 artifact service."
             )
 
         artifact_scope = config.get("artifact_scope", "namespace").lower()
@@ -320,10 +320,18 @@ def initialize_artifact_service(component) -> BaseArtifactService:
             endpoint_url = config.get("endpoint_url")
             if endpoint_url:
                 s3_config["endpoint_url"] = endpoint_url
+            else:
+                # Default to AWS S3 endpoint for clarity
+                s3_config["endpoint_url"] = "https://s3.amazonaws.com"
                 
             region = config.get("region")
             if region:
                 s3_config["region_name"] = region
+                
+            # TLS verification option for self-signed certificates
+            verify_ssl = config.get("verify_ssl", True)
+            if not verify_ssl:
+                s3_config["verify"] = False
                 
             # AWS credentials can be provided via environment variables or config
             aws_access_key_id = config.get("aws_access_key_id") or os.environ.get("AWS_ACCESS_KEY_ID")
