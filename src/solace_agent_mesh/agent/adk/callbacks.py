@@ -1450,6 +1450,7 @@ def solace_llm_invocation_callback(
             status=task_status,
             final=False,
             kind="status-update",
+            metadata={"agent_name": host_component.agent_name},
         )
 
         loop = host_component.get_async_loop()
