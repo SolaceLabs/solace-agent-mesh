@@ -91,7 +91,8 @@ dependencies = [
     "pytest-mock>=3.0.0",
     "pytest-cov>=4.0.0",
     "pytest-xdist>=3.5.0",
-    "pytest-httpx>=0.35.0"
+    "pytest-httpx>=0.35.0",
+    "fastmcp",
 ]
 extra-dependencies = [
     "solace-agent-mesh[database,cli,gcs,vertex,employee_tools]",
