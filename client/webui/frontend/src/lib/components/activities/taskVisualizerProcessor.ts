@@ -304,7 +304,19 @@ export const processTaskForVisualization = (
         if (event.direction === "status-update" && payload?.result) {
             const result = payload.result as TaskStatusUpdateEvent;
             const statusMessage = result.status?.message;
-            const statusUpdateAgentName = result.metadata?.agent_name || statusMessage?.metadata?.agent_name || event.source_entity || "Agent";
+            const messageMetadata = statusMessage?.metadata as any;
+
+            let statusUpdateAgentName: string;
+            const isForwardedMessage = !!messageMetadata?.forwarded_from_peer;
+            if (isForwardedMessage) {
+                statusUpdateAgentName = messageMetadata.forwarded_from_peer;
+            } else if (result.metadata?.agent_name) {
+                statusUpdateAgentName = result.metadata.agent_name;
+            } else if (messageMetadata?.agent_name) {
+                statusUpdateAgentName = messageMetadata.agent_name;
+            } else {
+                statusUpdateAgentName = event.source_entity || "Agent";
+            }
             const agentInstanceId = `${statusUpdateAgentName}:${currentEventOwningTaskId}`;
 
             if (statusMessage?.parts) {
@@ -564,6 +576,7 @@ export const processTaskForVisualization = (
                         if (!aggregatedTextSourceAgent) {
                             aggregatedTextSourceAgent = statusUpdateAgentName;
                             aggregatedTextTimestamp = eventTimestamp;
+                            aggregatedTextIsForwardedContext = isForwardedMessage;
                         }
                         currentAggregatedText += part.text;
                         aggregatedRawEventIds.push(eventId);
