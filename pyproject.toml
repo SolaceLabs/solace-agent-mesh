@@ -58,7 +58,7 @@ dependencies = [
     "solace-ai-connector~=1.1.8",
     "holidays>=0.24",
     "rouge~=1.0.1",
-    "openai<1.100.0"
+    "openai==1.99.9"
 ]
 
 [project.optional-dependencies]
