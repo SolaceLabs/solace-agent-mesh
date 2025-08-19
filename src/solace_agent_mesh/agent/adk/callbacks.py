@@ -62,6 +62,7 @@ from ...common.data_parts import (
     ArtifactCreationProgressData,
     LlmInvocationData,
     ToolInvocationStartData,
+    ToolResultData,
 )
 
 from ...agent.utils.artifact_helpers import (
@@ -1621,6 +1622,73 @@ def notify_tool_invocation_start_callback(
     except Exception as e:
         log.exception(
             "%s Error publishing tool_invocation_start status update: %s",
+            log_identifier,
+            e,
+        )
+
+    return None
+
+
+def notify_tool_execution_result_callback(
+    tool: BaseTool,
+    args: Dict[str, Any],
+    tool_context: ToolContext,
+    tool_response: Any,
+    host_component: "SamAgentComponent",
+) -> None:
+    """
+    ADK after_tool_callback to send an A2A status message with the result
+    of a tool's execution.
+    """
+    log_identifier = f"[Callback:NotifyToolResult:{tool.name}]"
+    log.debug("%s Triggered for tool '%s'", log_identifier, tool.name)
+
+    if not host_component:
+        log.error(
+            "%s Host component instance not provided. Cannot send notification.",
+            log_identifier,
+        )
+        return
+
+    a2a_context = tool_context.state.get("a2a_context")
+    if not a2a_context:
+        log.error(
+            "%s a2a_context not found in tool_context.state. Cannot send notification.",
+            log_identifier,
+        )
+        return
+
+    try:
+        # Attempt to make the response JSON serializable
+        serializable_response = tool_response
+        if hasattr(tool_response, "model_dump"):
+            serializable_response = tool_response.model_dump(exclude_none=True)
+        else:
+            try:
+                # A simple check to see if it can be dumped.
+                # This isn't perfect but catches many non-serializable types.
+                json.dumps(tool_response)
+            except (TypeError, OverflowError):
+                serializable_response = str(tool_response)
+
+        tool_data = ToolResultData(
+            tool_name=tool.name,
+            result_data=serializable_response,
+            function_call_id=tool_context.function_call_id,
+        )
+        asyncio.run_coroutine_threadsafe(
+            _publish_data_part_status_update(host_component, a2a_context, tool_data),
+            host_component.get_async_loop(),
+        )
+        log.debug(
+            "%s Scheduled tool_result notification for function call ID %s.",
+            log_identifier,
+            tool_context.function_call_id,
+        )
+
+    except Exception as e:
+        log.exception(
+            "%s Error publishing tool_result status update: %s",
             log_identifier,
             e,
         )

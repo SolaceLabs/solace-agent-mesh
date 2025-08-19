@@ -68,3 +68,19 @@ class ArtifactCreationProgressData(BaseModel):
     )
     filename: str = Field(..., description="The name of the artifact being created.")
     bytes_saved: int = Field(..., description="The number of bytes saved so far.")
+
+
+class ToolResultData(BaseModel):
+    """
+    Data model for a tool execution result signal.
+    Corresponds to tool_result.json schema.
+    """
+
+    type: Literal["tool_result"] = Field(
+        "tool_result", description="The constant type for this data part."
+    )
+    tool_name: str = Field(..., description="The name of the tool that was called.")
+    result_data: Any = Field(..., description="The data returned by the tool.")
+    function_call_id: str = Field(
+        ..., description="The ID from the LLM's function call."
+    )

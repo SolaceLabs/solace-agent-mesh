@@ -432,17 +432,20 @@ def format_adk_event_as_a2a(
         )
         return None, signals_to_forward
 
-    message_metadata = None
     if is_function_response_event:
-        message_metadata = {"type": "tool_response_content"}
+        # This is the legacy way of signaling a tool response.
+        # The new way is via a dedicated `tool_result` DataPart signal
+        # sent from an after_tool_callback. We leave the DataPart in the
+        # message but remove the metadata signal to avoid duplication.
         log.debug(
-            "%s Prepared message metadata for tool_response_content.", log_identifier
+            "%s Deprecated 'tool_response_content' metadata signal suppressed.",
+            log_identifier,
         )
 
     a2a_message = A2AMessage(
         role="agent",
         parts=a2a_parts,
-        metadata=message_metadata,
+        metadata=None,
         messageId=uuid.uuid4().hex,
         kind="message",
     )
