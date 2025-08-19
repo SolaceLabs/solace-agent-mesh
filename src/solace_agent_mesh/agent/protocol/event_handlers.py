@@ -881,12 +881,10 @@ async def handle_a2a_response(component, message: SolaceMessage):
                             ):
                                 for part_from_peer in status_event.status.message.parts:
                                     actual_part = part_from_peer.root
-                                    # Check if it's a DataPart or TextPart that should be forwarded
-                                    if isinstance(actual_part, (DataPart, TextPart)):
+                                    if isinstance(actual_part, DataPart):
                                         log.info(
-                                            "%s Received %s signal from peer for sub-task %s. Forwarding...",
+                                            "%s Received DataPart signal from peer for sub-task %s. Forwarding...",
                                             component.log_identifier,
-                                            type(actual_part).__name__,
                                             sub_task_id,
                                         )
                                         correlation_data = await component._get_correlation_data_for_sub_task(
@@ -999,9 +997,8 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                                 target_topic_for_forward,
                                             )
                                             log.info(
-                                                "%s Forwarded %s signal for main task %s (from peer %s) to %s.",
+                                                "%s Forwarded DataPart signal for main task %s (from peer %s) to %s.",
                                                 component.log_identifier,
-                                                type(actual_part).__name__,
                                                 main_logical_task_id,
                                                 peer_agent_name,
                                                 target_topic_for_forward,
