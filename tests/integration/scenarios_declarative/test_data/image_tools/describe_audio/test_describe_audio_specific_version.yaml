@@ -1,6 +1,6 @@
 test_case_id: describe_audio_specific_version
 description: "Tests describing a specific version of an audio artifact."
-tags: ["agent","tools","image_tools"]
+tags: ["all","agent","tools","image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

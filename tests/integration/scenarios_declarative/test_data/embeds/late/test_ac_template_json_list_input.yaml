@@ -1,6 +1,6 @@
 test_case_id: "embed_ac_template_json_list_input_001"
 description: "Tests «artifact_content:items.json>>>apply_to_template:list.mustache>>>format:text»."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 setup_artifacts:

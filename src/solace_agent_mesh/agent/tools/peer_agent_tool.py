@@ -7,6 +7,7 @@ import uuid
 
 from google.adk.tools import BaseTool, ToolContext
 from google.genai import types as adk_types
+from pydantic import BaseModel, Field
 from solace_ai_connector.common.log import log
 
 from ...common.types import (
@@ -18,6 +19,16 @@ from ...common.types import (
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...common.exceptions import MessageSizeExceededError
 
+class ArtifactIdentifier(BaseModel):
+    """Identifies a specific version of an artifact."""
+
+    filename: str = Field(..., description="The filename of the artifact.")
+    version: Union[str, int] = Field(
+        "latest",
+        description="The version of the artifact (e.g., 'latest' or a number).",
+    )
+
+
 PEER_TOOL_PREFIX = "peer_"
 CORRELATION_DATA_PREFIX = "a2a_subtask_"
 
@@ -25,8 +36,14 @@ CORRELATION_DATA_PREFIX = "a2a_subtask_"
 class PeerAgentTool(BaseTool):
     """
     An ADK Tool that represents a discovered peer agent and handles task delegation
-    via the A2A protocol over Solace. Uses an asyncio Queue to block and wait for
-    the asynchronous response. Handles artifact passthrough from peer responses.
+    via the A2A protocol over Solace.
+
+    This tool is long-running and operates in a "fire-and-forget" manner. It sends a
+    task to a peer agent, including a `task_description` and an optional list of
+    `artifacts` to provide context. The artifact identifiers are passed in the
+    A2A message metadata, and the peer agent is responsible for fetching them.
+
+    The response from the peer is handled asynchronously by the agent's event handlers.
     """
 
     is_long_running = True
@@ -86,10 +103,24 @@ class PeerAgentTool(BaseTool):
                     type=adk_types.Type.STRING,
                     description="The original user query or relevant context.",
                 ),
-                "data_artifacts": adk_types.Schema(
+                "artifacts": adk_types.Schema(
                     type=adk_types.Type.ARRAY,
-                    items=adk_types.Schema(type=adk_types.Type.STRING),
-                    description="A list of artifact filenames to be sent to the peer agent for context.",
+                    items=adk_types.Schema(
+                        type=adk_types.Type.OBJECT,
+                        properties={
+                            "filename": adk_types.Schema(
+                                type=adk_types.Type.STRING,
+                                description="The filename of the artifact.",
+                            ),
+                            "version": adk_types.Schema(
+                                type=adk_types.Type.STRING,
+                                description="The version of the artifact (e.g., 'latest' or a number). Defaults to 'latest'.",
+                                nullable=True,
+                            ),
+                        },
+                        required=["filename"],
+                    ),
+                    description="A list of artifacts to provide as context to the peer agent.",
                     nullable=True,
                 ),
             },
@@ -107,11 +138,11 @@ class PeerAgentTool(BaseTool):
             parameters=parameters_schema,
         )
 
-    async def _prepare_a2a_parts(
+    def _prepare_a2a_parts(
         self, args: Dict[str, Any], tool_context: ToolContext
-    ) -> List[Union[TextPart, FilePart]]:
+    ) -> List[TextPart]:
         """
-        Prepares the A2A message parts from tool arguments, including text and artifacts.
+        Prepares the A2A message parts from tool arguments.
         """
         task_description = args.get("task_description", "No description provided.")
         calling_agent_name = self.host_component.agent_name or "Unknown Agent"
@@ -119,73 +150,16 @@ class PeerAgentTool(BaseTool):
         # Create the multi-agent context message
         context_message = (
             f"You are part of a multi-agent AI platform. The task below is being sent to you by agent '{calling_agent_name}'. "
-            f"You must perform this task to the best of your abilities. All artifacts that you create will automatically be "
-            f"returned to the calling agent, but you must provide context and description for which artifacts are important "
-            f"and how they should be used. Note that the calling agent will not see any of your history - only the text "
-            f"that you respond with.\n\n"
+            "You must perform this task to the best of your abilities. All artifacts that you create will automatically be "
+            "returned to the calling agent, but you must provide context and description for which artifacts are important "
+            "and how they should be used. Note that the calling agent will not see any of your history - only the text "
+            "that you respond with.\n\n"
+            "Note that if the request has not provided the information you need to do your job, you must ask for it. "
+            "You must not 'make up' data unless specifically instructed to do so.\n\n"
             f"Now please execute this task that was given to you:\n\n{task_description}"
         )
 
-        a2a_message_parts = [TextPart(text=context_message)]
-
-        artifact_names = args.get("data_artifacts", [])
-        if not isinstance(artifact_names, list):
-            log.warning(
-                "%s 'data_artifacts' argument is not a list, ignoring. Value: %s",
-                self.log_identifier,
-                artifact_names,
-            )
-            artifact_names = []
-
-        if artifact_names:
-            log.debug(
-                "%s Preparing to include %d artifacts in peer request.",
-                self.log_identifier,
-                len(artifact_names),
-            )
-            a2a_context = tool_context.state.get("a2a_context", {})
-            for artifact_name in artifact_names:
-                try:
-                    loaded_part = (
-                        await self.host_component.artifact_service.load_artifact(
-                            app_name=tool_context._invocation_context.app_name,
-                            user_id=tool_context._invocation_context.user_id,
-                            session_id=tool_context._invocation_context.session.id,
-                            filename=artifact_name,
-                            version=None,
-                        )
-                    )
-                    if loaded_part:
-                        a2a_file_part = await self.host_component._translate_adk_part_to_a2a_filepart(
-                            loaded_part, artifact_name, a2a_context
-                        )
-                        if a2a_file_part:
-                            a2a_message_parts.append(a2a_file_part)
-                            log.info(
-                                "%s Included latest artifact '%s' in peer request.",
-                                self.log_identifier,
-                                artifact_name,
-                            )
-                        else:
-                            log.warning(
-                                "%s Failed to translate loaded artifact '%s' to A2A part. Skipping.",
-                                self.log_identifier,
-                                artifact_name,
-                            )
-                    else:
-                        log.warning(
-                            "%s Could not load artifact '%s' to include in peer request. Skipping.",
-                            self.log_identifier,
-                            artifact_name,
-                        )
-                except Exception as e:
-                    log.exception(
-                        "%s Error loading artifact '%s' for peer request: %s",
-                        self.log_identifier,
-                        artifact_name,
-                        e,
-                    )
-        return a2a_message_parts
+        return [TextPart(text=context_message)]
 
     async def run_async(
         self, *, args: Dict[str, Any], tool_context: ToolContext
@@ -237,8 +211,29 @@ class PeerAgentTool(BaseTool):
                 task_context_obj.parallel_tool_calls.get(invocation_id),
             )
 
-            a2a_message_parts = await self._prepare_a2a_parts(args, tool_context)
-            a2a_message = A2AMessage(role="user", parts=a2a_message_parts)
+            a2a_message_parts = self._prepare_a2a_parts(args, tool_context)
+            a2a_metadata = {}
+            raw_artifacts = args.get("artifacts", [])
+            if raw_artifacts and isinstance(raw_artifacts, list):
+                try:
+                    # The ADK gives us a list of dicts, not Pydantic models
+                    # so we can use them directly.
+                    a2a_metadata["invoked_with_artifacts"] = raw_artifacts
+                    log.debug(
+                        "%s Included %d artifact identifiers in A2A message metadata.",
+                        log_identifier,
+                        len(raw_artifacts),
+                    )
+                except Exception as e:
+                    log.warning(
+                        "%s Failed to serialize artifact identifiers: %s. Proceeding without them.",
+                        log_identifier,
+                        e,
+                    )
+
+            a2a_message = A2AMessage(
+                role="user", parts=a2a_message_parts, metadata=a2a_metadata
+            )
 
             correlation_data = {
                 "adk_function_call_id": tool_context.function_call_id,

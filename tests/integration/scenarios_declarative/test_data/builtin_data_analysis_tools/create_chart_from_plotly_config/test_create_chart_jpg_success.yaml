@@ -1,6 +1,6 @@
 test_case_id: create_chart_jpg_success
 description: "Tests successful creation of a JPG chart from a YAML config."
-tags: ["agent","tools","builtin_data_analysis_tools"]
+tags: ["all","agent","tools","builtin_data_analysis_tools"]
 skip_intermediate_events: true
 
 gateway_input:

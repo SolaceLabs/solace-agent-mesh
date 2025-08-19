@@ -1,6 +1,6 @@
 test_case_id: web_request_timeout
 description: "Test that web_request tool handles a request timeout."
-tags: ["agent","tools","web_tools"]
+tags: ["all","agent","tools","web_tools"]
 skip_intermediate_events: true
 expected_completion_timeout_seconds: 40
 

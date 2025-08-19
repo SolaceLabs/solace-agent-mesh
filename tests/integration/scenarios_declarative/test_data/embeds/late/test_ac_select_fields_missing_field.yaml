@@ -1,6 +1,6 @@
 test_case_id: "embed_ac_select_fields_missing_field_001"
 description: "Tests «artifact_content:users.json>>>select_fields:name,email>>>format:json»."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 setup_artifacts:

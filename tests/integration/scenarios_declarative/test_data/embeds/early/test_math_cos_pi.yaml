@@ -1,6 +1,6 @@
 test_case_id: "embed_math_cos_pi_001"
 description: "Tests «math:cos(pi)» using dynamic evaluation."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

@@ -2,7 +2,7 @@ test_case_id: "builtin_extract_content_simple_text_001"
 description: |
   Tests 'extract_content_from_artifact' for a simple text extraction
   where the extracted content is small and returned directly.
-tags: ["agent","tools","builtin_artifact_tools"]
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

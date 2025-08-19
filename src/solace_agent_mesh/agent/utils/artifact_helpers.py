@@ -8,17 +8,21 @@ import json
 import csv
 import io
 import inspect
-import datetime
 import os
+import yaml
+import traceback
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple, List, Union, TYPE_CHECKING
-from datetime import timezone
 from google.adk.artifacts import BaseArtifactService
 from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
+from ...common.types import ArtifactInfo
 from ...common.utils.mime_helpers import is_text_based_mime_type, is_text_based_file
+from ...agent.utils.context_helpers import get_original_session_id
 
 if TYPE_CHECKING:
     from google.adk.tools import ToolContext
+    from ...agent.sac.component import SamAgentComponent
 
 METADATA_SUFFIX = ".metadata.json"
 DEFAULT_SCHEMA_MAX_KEYS = 20
@@ -155,13 +159,9 @@ def _infer_schema(
             "text/x-yaml",
         ]:
             try:
-                import yaml
-
                 data = yaml.safe_load(content_bytes)
                 schema_info["structure"] = _inspect_structure(data, depth, max_keys)
                 schema_info["inferred"] = True
-            except ImportError:
-                schema_info["error"] = "YAML inference skipped: PyYAML not installed."
             except (yaml.YAMLError, UnicodeDecodeError) as e:
                 schema_info["error"] = f"YAML structure inference failed: {e}"
     except Exception as e:
@@ -188,7 +188,7 @@ async def save_artifact_with_metadata(
     content_bytes: bytes,
     mime_type: str,
     metadata_dict: Dict[str, Any],
-    timestamp: datetime.datetime,
+    timestamp: datetime,
     explicit_schema: Optional[Dict] = None,
     schema_inference_depth: int = 2,
     schema_max_keys: int = DEFAULT_SCHEMA_MAX_KEYS,
@@ -399,6 +399,143 @@ def format_metadata_for_llm(metadata: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+async def generate_artifact_metadata_summary(
+    component: "SamAgentComponent",
+    artifact_identifiers: List[Dict[str, Any]],
+    user_id: str,
+    session_id: str,
+    app_name: str,
+    header_text: Optional[str] = None,
+) -> str:
+    """
+    Loads metadata for a list of artifacts and formats it into a human-readable
+    YAML summary string, suitable for LLM context.
+    """
+    if not artifact_identifiers:
+        return ""
+
+    log_identifier = f"{component.log_identifier}[ArtifactSummary]"
+    summary_parts = []
+    if header_text:
+        summary_parts.append(header_text)
+
+    if not (component.artifact_service and user_id and session_id):
+        log.warning(
+            "%s Cannot load artifact metadata: missing artifact_service or context.",
+            log_identifier,
+        )
+        for artifact_ref in artifact_identifiers:
+            filename = artifact_ref.get("filename", "unknown")
+            version = artifact_ref.get("version", "latest")
+            summary_parts.append(
+                f"---\nArtifact: '{filename}' (version: {version})\nError: Could not load metadata. Host component context missing."
+            )
+        return "\n\n".join(summary_parts)
+
+    for artifact_ref in artifact_identifiers:
+        filename = artifact_ref.get("filename")
+        version = artifact_ref.get("version", "latest")
+        if not filename:
+            log.warning(
+                "%s Skipping artifact with no filename in identifier: %s",
+                log_identifier,
+                artifact_ref,
+            )
+            continue
+
+        try:
+            metadata_result = await load_artifact_content_or_metadata(
+                artifact_service=component.artifact_service,
+                app_name=app_name,
+                user_id=user_id,
+                session_id=get_original_session_id(session_id),
+                filename=filename,
+                version=version,
+                load_metadata_only=True,
+            )
+            if metadata_result.get("status") == "success":
+                metadata = metadata_result.get("metadata", {})
+                resolved_version = metadata_result.get("version", version)
+                artifact_header = (
+                    f"Artifact: '{filename}' (version: {resolved_version})"
+                )
+
+                # Remove redundant fields before dumping to YAML
+                metadata.pop("filename", None)
+                metadata.pop("version", None)
+
+                TRUNCATION_LIMIT_BYTES = 1024
+                TRUNCATION_MESSAGE = "\n... [truncated] ..."
+
+                try:
+                    formatted_metadata_str = yaml.safe_dump(
+                        metadata,
+                        default_flow_style=False,
+                        sort_keys=False,
+                        allow_unicode=True,
+                    )
+
+                    if (
+                        len(formatted_metadata_str.encode("utf-8"))
+                        > TRUNCATION_LIMIT_BYTES
+                    ):
+                        cutoff = TRUNCATION_LIMIT_BYTES - len(
+                            TRUNCATION_MESSAGE.encode("utf-8")
+                        )
+                        # Ensure we don't cut in the middle of a multi-byte character
+                        encoded_str = formatted_metadata_str.encode("utf-8")
+                        if cutoff > 0:
+                            truncated_encoded = encoded_str[:cutoff]
+                            formatted_metadata_str = (
+                                truncated_encoded.decode("utf-8", "ignore")
+                                + TRUNCATION_MESSAGE
+                            )
+                        else:
+                            formatted_metadata_str = TRUNCATION_MESSAGE
+
+                    summary_parts.append(
+                        f"---\n{artifact_header}\n{formatted_metadata_str}"
+                    )
+                except Exception as e_format:
+                    log.error(
+                        "%s Error formatting metadata for %s v%s: %s",
+                        log_identifier,
+                        filename,
+                        version,
+                        e_format,
+                    )
+                    summary_parts.append(
+                        f"---\n{artifact_header}\nError: Could not format metadata."
+                    )
+            else:
+                error_message = metadata_result.get(
+                    "message", "Could not load metadata."
+                )
+                log.warning(
+                    "%s Failed to load metadata for %s v%s: %s",
+                    log_identifier,
+                    filename,
+                    version,
+                    error_message,
+                )
+                artifact_header = f"Artifact: '{filename}' (version: {version})"
+                summary_parts.append(f"---\n{artifact_header}\nError: {error_message}")
+        except Exception as e_meta:
+            log.error(
+                "%s Unexpected error loading metadata for %s v%s: %s",
+                log_identifier,
+                filename,
+                version,
+                e_meta,
+            )
+            artifact_header = f"Artifact: '{filename}' (version: {version})"
+            summary_parts.append(
+                f"---\n{artifact_header}\nError: An unexpected error occurred while loading metadata."
+            )
+
+    return "\n\n".join(summary_parts)
+
+
 def decode_and_get_bytes(
     content_str: str, mime_type: str, log_identifier: str
 ) -> Tuple[bytes, str]:
@@ -441,12 +578,6 @@ def decode_and_get_bytes(
     return file_bytes, final_mime_type
 
 
-from google.adk.artifacts import BaseArtifactService
-from datetime import datetime, timezone
-import traceback
-from ...common.types import ArtifactInfo
-
-
 async def get_latest_artifact_version(
     artifact_service: BaseArtifactService,
     app_name: str,
@@ -476,7 +607,10 @@ async def get_latest_artifact_version(
             return None
 
         versions = await artifact_service.list_versions(
-            app_name=app_name, user_id=user_id, session_id=session_id, filename=filename
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
         )
         if not versions:
             log.debug("%s No versions found for artifact.", log_identifier)

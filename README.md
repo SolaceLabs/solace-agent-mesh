@@ -43,7 +43,7 @@ SAM creates a standardized communication layer where AI agents can:
 
 SAM is built on top of the Solace AI Connector (SAC) which allows Solace Platform Event Brokers to connect to AI models and services and Google's Agent Development Kit (ADK) for AI logic and tool integrations.
 
-The result? A fully asynchronous, event-driven and decoupled AI agent architecture ready for production deployment. It is robust, reliable and easy to maintain.
+The result? A fully asynchronous, event-driven and decoupled AI agent architecture ready for production deployment. It is robust, reliable and easy to maintain. 
 
 ---
 
@@ -76,13 +76,24 @@ To run Solace Agent Mesh locally, you'll need:
 
 #### 1. Create a directory for a new project
 ```bash
-mkdir my-agent-mesh && cd my-agent-mesh
+mkdir my-sam && cd my-sam
 ```
 #### 2. Create and activate a Python virtual environment
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 ```
 #### 3. Install Solace Agent Mesh (SAM)
+Check if you have a version of SAM already installed.
+```bash
+sam -v
+```
+If you have an earlier version, uninstall it and **start from scratch**:
+```bash
+pip3 uninstall solace-agent-mesh
+```
+Note: Optionally, you can try to upgrade versions but this action is not officially supported at this time. (`pip3 install --upgrade solace-agent-mesh`)
+
+If no previous version exists, install the latest version with:
 ```bash
 pip3 install solace-agent-mesh
 ```
@@ -95,8 +106,8 @@ Note: This initialization UI runs on port 5002
 ```bash
 sam run
 ```
-#### 5. Verify SAM is running
-Open the Web UI at [http://localhost:8000](http://localhost:8000) for the chat inteface
+#### 6. Verify SAM is running
+Open the Web UI at [http://localhost:8000](http://localhost:8000) for the chat inteface and ask a question
 
 ### 🔧 Customize SAM
 

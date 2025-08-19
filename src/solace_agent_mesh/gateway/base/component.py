@@ -65,7 +65,9 @@ from solace_ai_connector.common.event import Event, EventType
 from abc import abstractmethod
 
 from ...common.middleware.registry import MiddlewareRegistry
-from ...agent.utils.artifact_helpers import load_artifact_content_or_metadata
+from ...agent.utils.artifact_helpers import (
+    load_artifact_content_or_metadata,
+)
 
 info = {
     "class_name": "BaseGatewayComponent",
@@ -157,6 +159,7 @@ class BaseGatewayComponent(ComponentBase):
         self.shared_artifact_service: Optional[BaseArtifactService] = (
             initialize_artifact_service(self)
         )
+
         self.task_context_manager: TaskContextManager = TaskContextManager()
         self.internal_event_queue: queue.Queue = queue.Queue()
         self.message_processor_thread: Optional[threading.Thread] = None
@@ -340,7 +343,17 @@ class BaseGatewayComponent(ComponentBase):
             )
             external_request_context["a2a_session_id"] = a2a_session_id
 
-        a2a_message = A2AMessage(role="user", parts=a2a_parts)
+        a2a_metadata = {}
+        invoked_artifacts = external_request_context.get("invoked_with_artifacts")
+        if invoked_artifacts:
+            a2a_metadata["invoked_with_artifacts"] = invoked_artifacts
+            log.debug(
+                "%s Found %d artifact identifiers in external context to pass to agent.",
+                log_id_prefix,
+                len(invoked_artifacts),
+            )
+
+        a2a_message = A2AMessage(role="user", parts=a2a_parts, metadata=a2a_metadata)
         reply_topic_pattern = get_gateway_response_topic(
             self.namespace, self.gateway_id, "{task_id}"
         )

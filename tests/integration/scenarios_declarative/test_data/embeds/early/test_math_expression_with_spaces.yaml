@@ -1,6 +1,6 @@
 test_case_id: "embed_math_expression_with_spaces_001"
 description: "Tests «math: 5 + 3 » with spaces in expression."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

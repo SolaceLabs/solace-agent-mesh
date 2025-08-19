@@ -1,6 +1,6 @@
 test_case_id: "embed_math_uniform_001"
 description: "Tests «math:uniform(1.0, 5.0)» for type and general range."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

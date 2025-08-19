@@ -1,6 +1,6 @@
 test_case_id: "embed_math_random_001"
 description: "Tests «math:random()» for type and general range (specific value not asserted)."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

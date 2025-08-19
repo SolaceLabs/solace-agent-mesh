@@ -1,6 +1,6 @@
 test_case_id: "embed_ac_template_csv_input_001"
 description: "Tests «artifact_content:data.csv>>>apply_to_template:table.mustache>>>format:text»."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 setup_artifacts:

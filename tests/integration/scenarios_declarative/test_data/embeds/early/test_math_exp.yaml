@@ -1,6 +1,6 @@
 test_case_id: "embed_math_exp_001"
 description: "Tests «math:exp(1)» using dynamic evaluation."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

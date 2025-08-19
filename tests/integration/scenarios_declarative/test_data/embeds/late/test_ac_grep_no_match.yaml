@@ -1,6 +1,6 @@
 test_case_id: "embed_ac_grep_no_match_001"
 description: "Tests «artifact_content:log.txt>>>grep:WARNING>>>format:text» when no match."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 setup_artifacts:

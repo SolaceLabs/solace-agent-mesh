@@ -1,6 +1,6 @@
 test_case_id: "embed_math_cos_zero_001"
 description: "Tests «math:cos(0)»."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

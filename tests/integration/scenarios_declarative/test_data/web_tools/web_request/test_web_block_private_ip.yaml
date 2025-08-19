@@ -1,6 +1,6 @@
 test_case_id: web_request_block_private_ip
 description: "Test that web_request tool blocks requests to a private IP address (SSRF prevention)."
-tags: ["agent","tools","web_tools"]
+tags: ["all","agent","tools","web_tools"]
 skip_intermediate_events: true
 
 gateway_input:

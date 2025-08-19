@@ -247,8 +247,8 @@ class SamAgentApp(App):
                         "type": "string",
                         "required": False,
                         "default": "namespace",
-                        "enum": ["namespace", "app", "custom"],
-                        "description": "Scope for filesystem artifacts: 'namespace' (default, shared by namespace), 'app' (isolated by app name), 'custom' (use artifact_scope_value).",
+                        "enum": ["namespace", "app"],
+                        "description": "Process-wide scope for all artifact services. 'namespace' (default): shared by all components in the namespace. 'app': isolated by agent/gateway name. This setting must be consistent for all components in the same process.",
                     },
                     "artifact_scope_value": {
                         "type": "string",
@@ -309,6 +309,73 @@ class SamAgentApp(App):
                         "description": "Specifies the LLM for extraction. String (ADK LLMRegistry name) or dict (LiteLlm config). Defaults to agent's LLM.",
                     },
                 },
+            },
+            # --- MCP Intelligent Processing Config ---
+            {
+                "name": "mcp_intelligent_processing",
+                "required": False,
+                "type": "object",
+                "default": {},
+                "description": "Configuration for intelligent processing of MCP tool responses into typed artifacts.",
+                "properties": {
+                    "enable_intelligent_processing": {
+                        "type": "boolean",
+                        "required": False,
+                        "default": True,
+                        "description": "Enable intelligent content-aware processing of MCP responses. When disabled, falls back to raw JSON saving.",
+                    },
+                    "enable_text_format_detection": {
+                        "type": "boolean",
+                        "required": False,
+                        "default": True,
+                        "description": "Enable detection and parsing of structured text formats (CSV, JSON, YAML) within text content.",
+                    },
+                    "enable_content_parsing": {
+                        "type": "boolean",
+                        "required": False,
+                        "default": True,
+                        "description": "Enable parsing and validation of detected content formats for enhanced metadata.",
+                    },
+                    "fallback_to_raw_on_error": {
+                        "type": "boolean",
+                        "required": False,
+                        "default": True,
+                        "description": "Fall back to raw JSON saving if intelligent processing fails.",
+                    },
+                    "save_raw_alongside_intelligent": {
+                        "type": "boolean",
+                        "required": False,
+                        "default": False,
+                        "description": "Save both intelligent artifacts and raw JSON response for debugging/comparison.",
+                    },
+                    "max_content_items": {
+                        "type": "integer",
+                        "required": False,
+                        "default": 50,
+                        "description": "Maximum number of content items to process from a single MCP response.",
+                    },
+                    "max_single_item_size_mb": {
+                        "type": "integer",
+                        "required": False,
+                        "default": 100,
+                        "description": "Maximum size in MB for a single content item before skipping intelligent processing.",
+                    },
+                },
+            },
+            # --- MCP Tool Response Thresholds ---
+            {
+                "name": "mcp_tool_response_save_threshold_bytes",
+                "required": False,
+                "type": "integer",
+                "default": 2048,
+                "description": "Threshold in bytes above which MCP tool responses are saved as artifacts.",
+            },
+            {
+                "name": "mcp_tool_llm_return_max_bytes",
+                "required": False,
+                "type": "integer",
+                "default": 4096,
+                "description": "Maximum size in bytes of MCP tool response content returned directly to the LLM.",
             },
             # --- Artifact Handling ---
             {

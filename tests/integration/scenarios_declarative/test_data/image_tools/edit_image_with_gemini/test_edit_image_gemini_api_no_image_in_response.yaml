@@ -1,6 +1,6 @@
 test_case_id: edit_image_gemini_api_no_image_in_response
 description: "Tests the tool's behavior when the Gemini API returns no image data."
-tags: ["agent","tools","image_tools"]
+tags: ["all","agent","tools","image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

@@ -163,6 +163,10 @@ class TestGatewayComponent(BaseGatewayComponent):
                 test_provided_external_context["a2a_session_id"]
             )
 
+        invoked_artifacts = external_event.get("invoked_with_artifacts")
+        if invoked_artifacts:
+            constructed_external_context["invoked_with_artifacts"] = invoked_artifacts
+
         log.debug(
             "%s Translation complete. Target: %s, Parts: %d, Context: %s",
             log_id,
@@ -251,6 +255,7 @@ class TestGatewayComponent(BaseGatewayComponent):
             self.log_identifier,
             test_input_data,
         )
+
         user_identity = await self.authenticate_and_enrich_user(test_input_data)
         if user_identity is None:
             raise PermissionError("Test user authentication failed.")
@@ -281,7 +286,10 @@ class TestGatewayComponent(BaseGatewayComponent):
         Constructs and sends a task cancellation request.
         """
         log.info(
-            f"{self.log_identifier} TestGatewayComponent: Cancelling task {task_id} for agent {agent_name}."
+            "%s TestGatewayComponent: Cancelling task %s for agent %s.",
+            self.log_identifier,
+            task_id,
+            agent_name,
         )
         self.captured_cancel_calls.append(task_id)
 
@@ -296,7 +304,9 @@ class TestGatewayComponent(BaseGatewayComponent):
             topic=target_topic, payload=payload, user_properties=user_properties
         )
         log.info(
-            f"{self.log_identifier} TestGatewayComponent: Cancellation message for task {task_id} sent."
+            "%s TestGatewayComponent: Cancellation message for task %s sent.",
+            self.log_identifier,
+            task_id,
         )
 
     async def get_next_captured_output(

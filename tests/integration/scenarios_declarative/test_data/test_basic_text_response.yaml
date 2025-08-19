@@ -1,6 +1,6 @@
 test_case_id: "basic_text_response_001"
 description: "Agent receives a simple text query and responds with text directly."
-tags: ["default"]
+tags: ["all","default"]
 
 gateway_input:
   target_agent_name: "TestAgent" # Must match agent_name in sam_app_under_test fixture

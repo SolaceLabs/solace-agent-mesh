@@ -1,6 +1,6 @@
 test_case_id: describe_audio_malformed_api_response
 description: "Tests describe_audio tool when the API returns a malformed response."
-tags: ["agent","tools","image_tools"]
+tags: ["all","agent","tools","image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

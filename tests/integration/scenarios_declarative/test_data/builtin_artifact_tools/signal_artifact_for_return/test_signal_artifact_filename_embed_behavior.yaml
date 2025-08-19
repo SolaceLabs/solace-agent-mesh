@@ -3,7 +3,7 @@ description: |
   Tests the 'signal_artifact_for_return' tool's behavior when the 'filename'
   argument contains embed-like syntax. Expects the syntax to be treated literally,
   resulting in an artifact not found error.
-tags: ["agent","tools","builtin_artifact_tools"]
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

@@ -1,6 +1,6 @@
 test_case_id: describe_audio_happy_path_wav
 description: "Tests the happy path for the describe_audio tool with a WAV file."
-tags: ["agent","tools","image_tools"]
+tags: ["all","agent","tools","image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

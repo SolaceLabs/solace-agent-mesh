@@ -1,6 +1,6 @@
 test_case_id: "embed_math_round_with_digits_001"
 description: "Tests «math:round(3.14159, 2)»."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

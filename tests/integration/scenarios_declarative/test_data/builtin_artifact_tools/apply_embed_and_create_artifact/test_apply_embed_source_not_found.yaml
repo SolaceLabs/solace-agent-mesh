@@ -2,7 +2,7 @@ test_case_id: "builtin_apply_embed_source_not_found_001"
 description: |
   Tests 'apply_embed_and_create_artifact' when the source artifact specified
   in the 'embed_directive' does not exist. Expects an error from the tool.
-tags: ["agent","tools","builtin_artifact_tools"]
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 # No setup_artifacts for "non_existent_source.txt".

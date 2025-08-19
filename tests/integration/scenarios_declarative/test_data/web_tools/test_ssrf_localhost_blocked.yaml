@@ -11,7 +11,7 @@
 
 test_case_id: test_ssrf_localhost_blocked
 description: "Tests that the web_request tool blocks requests to localhost."
-tags: ["agent","tools","web_tools"]
+tags: ["all","agent","tools","web_tools"]
 skip_intermediate_events: true
 
 gateway_input:

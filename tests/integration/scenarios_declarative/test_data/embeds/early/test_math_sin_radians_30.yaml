@@ -1,6 +1,6 @@
 test_case_id: "embed_math_sin_radians_30_001"
 description: "Tests «math:sin(radians(30))» using dynamic evaluation."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

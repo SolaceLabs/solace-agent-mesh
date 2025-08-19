@@ -10,6 +10,7 @@ from solace_ai_connector.common.utils import import_module
 
 from .app_llm_agent import AppLlmAgent
 from .tool_wrapper import ADKToolWrapper
+from .embed_resolving_mcp_toolset import EmbedResolvingMCPToolset
 from google.adk.runners import Runner
 from google.adk.models import BaseLlm
 from google.adk.tools import BaseTool, ToolContext
@@ -18,7 +19,10 @@ from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.adk.tools.mcp_tool import MCPToolset
-from google.adk.tools.mcp_tool.mcp_session_manager import SseServerParams, StdioConnectionParams
+from google.adk.tools.mcp_tool.mcp_session_manager import (
+    SseServerParams,
+    StdioConnectionParams,
+)
 
 from mcp import StdioServerParameters
 
@@ -55,11 +59,27 @@ async def load_adk_tools(
     loaded_tool_names: Set[str] = set()
     tools_config = component.get_config("tools", [])
 
+    def _check_and_register_tool_name(name: str, source: str):
+        """Checks for duplicate tool names and raises ValueError if found."""
+        if name in loaded_tool_names:
+            raise ValueError(
+                f"Configuration Error: Duplicate tool name '{name}' found from source '{source}'. "
+                "This name is already in use. Please resolve the conflict by renaming or "
+                "disabling one of the tools in your agent's configuration."
+            )
+        loaded_tool_names.add(name)
+
     if not tools_config:
         log.info(
             "%s No explicit tools configured in 'tools' list.", component.log_identifier
         )
     else:
+        log.debug(
+            "%s Processing %d tool configurations: %s",
+            component.log_identifier,
+            len(tools_config),
+            [tc.get("tool_type") for tc in tools_config],
+        )
         log.info(
             "%s Loading tools from 'tools' list configuration...",
             component.log_identifier,
@@ -91,6 +111,7 @@ async def load_adk_tools(
                         func,
                         specific_tool_config,
                         function_name,
+                        origin="python",
                         raw_string_args=tool_config.get("raw_string_args", []),
                     )
 
@@ -101,34 +122,23 @@ async def load_adk_tools(
                     if tool_description:
                         tool_callable.__doc__ = tool_description
 
-                    if function_name not in loaded_tool_names:
-                        loaded_tools.append(tool_callable)
-                        loaded_tool_names.add(function_name)
-                        log.info(
-                            "%s Loaded Python tool: %s from %s.",
-                            component.log_identifier,
-                            function_name,
-                            module_name,
-                        )
-                    else:
-                        log.debug(
-                            "%s Python tool '%s' already loaded. Skipping duplicate.",
-                            component.log_identifier,
-                            function_name,
-                        )
+                    _check_and_register_tool_name(
+                        function_name, f"python:{module_name}"
+                    )
+                    loaded_tools.append(tool_callable)
+                    log.info(
+                        "%s Loaded Python tool: %s from %s.",
+                        component.log_identifier,
+                        function_name,
+                        module_name,
+                    )
 
                 elif tool_type == "builtin":
                     tool_name = tool_config.get("tool_name")
                     if not tool_name:
                         raise ValueError("'tool_name' required for builtin tool.")
 
-                    if tool_name in loaded_tool_names:
-                        log.debug(
-                            "%s Tool '%s' already loaded. Skipping duplicate.",
-                            component.log_identifier,
-                            tool_name,
-                        )
-                        continue
+                    _check_and_register_tool_name(tool_name, "builtin")
 
                     sam_tool_def = tool_registry.get_tool_by_name(tool_name)
                     if sam_tool_def:
@@ -137,11 +147,11 @@ async def load_adk_tools(
                             sam_tool_def.implementation,
                             specific_tool_config,
                             sam_tool_def.name,
+                            origin="builtin",
                             raw_string_args=sam_tool_def.raw_string_args,
                         )
                         loaded_tools.append(tool_callable)
                         enabled_builtin_tools.append(sam_tool_def)
-                        loaded_tool_names.add(sam_tool_def.name)
                         log.info(
                             "%s Loaded SAM built-in tool: %s",
                             component.log_identifier,
@@ -151,8 +161,8 @@ async def load_adk_tools(
 
                     adk_tool = getattr(adk_tools_module, tool_name, None)
                     if adk_tool and isinstance(adk_tool, (BaseTool, Callable)):
+                        adk_tool.origin = "adk_builtin"
                         loaded_tools.append(adk_tool)
-                        loaded_tool_names.add(tool_name)
                         log.info(
                             "%s Loaded ADK built-in tool: %s",
                             component.log_identifier,
@@ -211,20 +221,22 @@ async def load_adk_tools(
 
                     group_tool_count = 0
                     for tool_def in tools_in_group:
-                        if tool_def.name not in loaded_tool_names:
-                            specific_tool_config = tool_config.get(
-                                "tool_configs", {}
-                            ).get(tool_def.name)
-                            tool_callable = ADKToolWrapper(
-                                tool_def.implementation,
-                                specific_tool_config,
-                                tool_def.name,
-                                raw_string_args=tool_def.raw_string_args,
-                            )
-                            loaded_tools.append(tool_callable)
-                            enabled_builtin_tools.append(tool_def)
-                            loaded_tool_names.add(tool_def.name)
-                            group_tool_count += 1
+                        _check_and_register_tool_name(
+                            tool_def.name, f"builtin-group:{group_name}"
+                        )
+                        specific_tool_config = tool_config.get("tool_configs", {}).get(
+                            tool_def.name
+                        )
+                        tool_callable = ADKToolWrapper(
+                            tool_def.implementation,
+                            specific_tool_config,
+                            tool_def.name,
+                            origin="builtin",
+                            raw_string_args=tool_def.raw_string_args,
+                        )
+                        loaded_tools.append(tool_callable)
+                        enabled_builtin_tools.append(tool_def)
+                        group_tool_count += 1
                     log.info(
                         "Loaded %d tools from built-in group: %s",
                         group_tool_count,
@@ -248,7 +260,6 @@ async def load_adk_tools(
                         k: v for k, v in connection_params_config.items() if k != "type"
                     }
                     connection_args["timeout"] = connection_args.get("timeout", 30)
-
 
                     environment_variables = tool_config.get("environment_variables")
                     env_param = {}
@@ -292,9 +303,9 @@ async def load_adk_tools(
                                 **final_connection_args,
                                 env=env_param if env_param else None,
                             ),
-                            timeout=connection_args.get("timeout")
+                            timeout=connection_args.get("timeout"),
                         )
-                        
+
                     elif connection_type == "sse":
                         connection_params = SseServerParams(**connection_args)
                     else:
@@ -310,10 +321,37 @@ async def load_adk_tools(
                             tool_name,
                         )
 
-                    mcp_toolset_instance = MCPToolset(
+                    mcp_toolset_instance = EmbedResolvingMCPToolset(
                         connection_params=connection_params,
                         tool_filter=tool_filter_list,
+                        tool_config=tool_config,
                     )
+                    mcp_toolset_instance.origin = "mcp"
+
+                    # Check for duplicates from the MCP server
+                    try:
+                        mcp_tools = await mcp_toolset_instance.get_tools()
+                        log.debug(
+                            "%s Successfully discovered %d tools from MCP server: %s",
+                            component.log_identifier,
+                            len(mcp_tools),
+                            [tool.name for tool in mcp_tools],
+                        )
+                        for mcp_tool in mcp_tools:
+                            log.debug(
+                                "%s Registering MCP tool: %s",
+                                component.log_identifier,
+                                mcp_tool.name,
+                            )
+                            _check_and_register_tool_name(mcp_tool.name, "mcp")
+                    except Exception as e:
+                        log.error(
+                            "%s Failed to discover tools from MCP server: %s",
+                            component.log_identifier,
+                            str(e),
+                        )
+                        raise
+
                     loaded_tools.append(mcp_toolset_instance)
                     log.info(
                         "%s Initialized MCPToolset (filter: %s) for server: %s",
@@ -344,7 +382,9 @@ async def load_adk_tools(
         internal_tool_names.append("_continue_generation")
 
     for tool_name in internal_tool_names:
-        if tool_name in loaded_tool_names:
+        try:
+            _check_and_register_tool_name(tool_name, "internal")
+        except ValueError:
             log.debug(
                 "%s Internal tool '%s' was already loaded explicitly. Skipping implicit load.",
                 component.log_identifier,
@@ -359,13 +399,13 @@ async def load_adk_tools(
                 tool_def.implementation,
                 None,  # No specific config for internal tools
                 tool_def.name,
+                origin="internal",
             )
 
             tool_callable.__doc__ = tool_def.description
 
             loaded_tools.append(tool_callable)
             enabled_builtin_tools.append(tool_def)
-            loaded_tool_names.add(tool_def.name)
             log.info(
                 "%s Implicitly loaded internal framework tool: %s",
                 component.log_identifier,

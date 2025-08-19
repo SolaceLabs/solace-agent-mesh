@@ -67,7 +67,9 @@ from ...common.a2a_protocol import (
     get_gateway_status_topic,
 )
 from ...agent.utils.config_parser import resolve_instruction_provider
-from ...agent.utils.artifact_helpers import get_latest_artifact_version
+from ...agent.utils.artifact_helpers import (
+    get_latest_artifact_version,
+)
 from ...agent.adk.services import (
     initialize_session_service,
     initialize_artifact_service,
@@ -401,6 +403,7 @@ class SamAgentComponent(ComponentBase):
                 self.session_service = initialize_session_service(self)
                 self.artifact_service = initialize_artifact_service(self)
                 self.memory_service = initialize_memory_service(self)
+
                 log.info(
                     "%s Synchronous ADK services initialized.", self.log_identifier
                 )
@@ -1039,35 +1042,30 @@ class SamAgentComponent(ComponentBase):
 
             for func_decl in original_tool.function_declarations:
                 func_decl_name = func_decl.name
-                tool_source_for_log = "unknown"
-                tool_matched_for_capability_lookup = False
+                tool_object = llm_request.tools_dict.get(func_decl_name)
+                origin = getattr(tool_object, "origin", "unknown")
 
                 feature_descriptor = {
                     "feature_type": "tool_function",
                     "function_name": func_decl_name,
-                    "tool_source": self._determine_tool_source(func_decl_name),
-                    "tool_metadata": self._get_tool_metadata(func_decl_name),
+                    "tool_source": origin,
+                    "tool_metadata": {"function_name": func_decl_name},
                 }
 
-                if func_decl_name.startswith(PEER_TOOL_PREFIX):
+                if origin == "peer_agent":
                     peer_name = func_decl_name.replace(PEER_TOOL_PREFIX, "", 1)
                     feature_descriptor["tool_metadata"]["peer_agent_name"] = peer_name
-                    tool_source_for_log = f"PeerAgentTool ({peer_name})"
-                    tool_matched_for_capability_lookup = True
-
-                if not tool_matched_for_capability_lookup:
+                elif origin == "builtin":
                     tool_def = tool_registry.get_tool_by_name(func_decl_name)
                     if tool_def:
                         feature_descriptor["tool_metadata"][
                             "tool_category"
                         ] = tool_def.category
-                        feature_descriptor["tool_metadata"]["builtin_tool"] = True
-                        tool_source_for_log = (
-                            f"Built-in Tool ({tool_def.category}/{func_decl_name})"
-                        )
-                        tool_matched_for_capability_lookup = True
-
-                if not tool_matched_for_capability_lookup:
+                        feature_descriptor["tool_metadata"][
+                            "required_scopes"
+                        ] = tool_def.required_scopes
+                elif origin in ["python", "mcp", "adk_builtin"]:
+                    # Find the explicit config for this tool to pass to the resolver
                     for tool_cfg in explicit_tools_config:
                         cfg_tool_type = tool_cfg.get("tool_type")
                         cfg_tool_name = tool_cfg.get("tool_name")
@@ -1080,22 +1078,9 @@ class SamAgentComponent(ComponentBase):
                             and cfg_tool_name == func_decl_name
                         ):
                             feature_descriptor["tool_metadata"][
-                                "tool_type"
-                            ] = cfg_tool_type
-                            feature_descriptor["tool_metadata"][
                                 "tool_config"
                             ] = tool_cfg
-                            tool_source_for_log = f"Explicitly configured tool ({cfg_tool_type}: {cfg_tool_name or cfg_func_name})"
-                            tool_matched_for_capability_lookup = True
                             break
-
-                if not tool_matched_for_capability_lookup:
-                    log.debug(
-                        "%s FunctionDeclaration '%s' not found in any known configuration for capability checking. Assuming feature is available.",
-                        log_id_prefix,
-                        func_decl_name,
-                    )
-                    tool_source_for_log = "Unmatched/Implicit FunctionDeclaration"
 
                 context = {
                     "agent_context": self.get_agent_context(),
@@ -1113,14 +1098,14 @@ class SamAgentComponent(ComponentBase):
                         "%s FunctionDeclaration '%s' (Source: %s) permitted.",
                         log_id_prefix,
                         func_decl_name,
-                        tool_source_for_log,
+                        origin,
                     )
                 else:
                     log.info(
                         "%s FunctionDeclaration '%s' (Source: %s) FILTERED OUT due to configuration restrictions.",
                         log_id_prefix,
                         func_decl_name,
-                        tool_source_for_log,
+                        origin,
                     )
 
             if permitted_declarations_for_this_tool:
@@ -1129,7 +1114,7 @@ class SamAgentComponent(ComponentBase):
 
                 final_filtered_genai_tools.append(scoped_tool)
                 log.debug(
-                    "%s Keeping genai.Tool (original name/type preserved, declarations filtered) as it has %d permitted FunctionDeclaration(s).",
+                    "%s Keeping genai.Tool as it has %d permitted FunctionDeclaration(s).",
                     log_id_prefix,
                     len(permitted_declarations_for_this_tool),
                 )
@@ -1165,60 +1150,6 @@ class SamAgentComponent(ComponentBase):
             )
 
         return None
-
-    def _determine_tool_source(self, function_name: str) -> str:
-        """Determine the source/type of a tool function."""
-        if function_name.startswith("peer_"):
-            return "peer_agent"
-
-        tool_def = tool_registry.get_tool_by_name(function_name)
-        if tool_def:
-            category_map = {
-                "artifact_management": "builtin_artifact",
-                "data_analysis": "builtin_data",
-            }
-            return category_map.get(tool_def.category, "builtin_other")
-
-        return "explicit_tool"
-
-    def _get_tool_metadata(self, function_name: str) -> Dict[str, Any]:
-        """Get metadata for a tool function."""
-        metadata = {"function_name": function_name}
-
-        if function_name.startswith("peer_"):
-            peer_name = function_name.replace("peer_", "", 1)
-            metadata.update(
-                {"peer_agent_name": peer_name, "operation_type": "delegation"}
-            )
-            return metadata
-
-        tool_def = tool_registry.get_tool_by_name(function_name)
-        if tool_def:
-            metadata.update(
-                {
-                    "tool_category": tool_def.category,
-                    "required_scopes": tool_def.required_scopes,
-                    "builtin_tool": True,
-                }
-            )
-            return metadata
-
-        explicit_tools_config = self.get_config("tools", [])
-        for tool_cfg in explicit_tools_config:
-            cfg_tool_name = tool_cfg.get("tool_name")
-            cfg_func_name = tool_cfg.get("function_name")
-            if (
-                tool_cfg.get("tool_type") == "python" and cfg_func_name == function_name
-            ) or (
-                tool_cfg.get("tool_type") in ["builtin", "mcp"]
-                and cfg_tool_name == function_name
-            ):
-                metadata.update(
-                    {"tool_type": tool_cfg.get("tool_type"), "tool_config": tool_cfg}
-                )
-                break
-
-        return metadata
 
     def get_agent_context(self) -> Dict[str, Any]:
         """Get agent context for middleware calls."""

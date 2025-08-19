@@ -18,36 +18,43 @@ const getStatusBadge = (status: string, type: "info" | "error" | "success") => {
 };
 
 const getTaskStatus = (task: VisualizedTask, loadingMessage: MessageFE | undefined): string | JSX.Element => {
-	switch (task.status) {
-		case "submitted":
-		case "working":
-			return <div title={loadingMessage?.text || task.status}><LoadingMessageRow statusText={loadingMessage?.text || task.status} /></div>;
-		case "input-required":
-			return getStatusBadge("Input Required", "info");
-		case "completed":
-			return getStatusBadge("Completed", "success");
-		case "canceled":
-			return getStatusBadge("Canceled", "info");
-		case "failed":
-			return getStatusBadge("Failed", "error");
-		default:
-			return getStatusBadge("Unknown", "info");
-	}
+    switch (task.status) {
+        case "submitted":
+        case "working":
+            return (
+                <div title={loadingMessage?.text || task.status}>
+                    <LoadingMessageRow statusText={loadingMessage?.text || task.status} />
+                </div>
+            );
+        case "input-required":
+            return getStatusBadge("Input Required", "info");
+        case "completed":
+            return getStatusBadge("Completed", "success");
+        case "canceled":
+            return getStatusBadge("Canceled", "info");
+        case "failed":
+            return getStatusBadge("Failed", "error");
+        default:
+            return getStatusBadge("Unknown", "info");
+    }
 };
 
-export const FlowChartDetails: React.FC<{ task: VisualizedTask  }> = ({ task }) => {
-	console.count("FlowChartDetails rendered");
-	const { messages } = useChatContext();
-	const taskStatus = useMemo(() => {
-		const loadingMessage = messages.find(message => message.isStatusBubble);
+export const FlowChartDetails: React.FC<{ task: VisualizedTask }> = ({ task }) => {
+    const { messages } = useChatContext();
+    const taskStatus = useMemo(() => {
+        const loadingMessage = messages.find(message => message.isStatusBubble);
 
-		return task ? getTaskStatus(task, loadingMessage) : null;
-	}, [messages, task]);
+        return task ? getTaskStatus(task, loadingMessage) : null;
+    }, [messages, task]);
 
-    return (
-        task ? <div className="p-4 border-b grid grid-cols-[auto_1fr] grid-rows-[32px_32px] gap-x-8 leading-[32px]">
-			<div className="text-muted-foreground">User</div><div className="truncate" title={task.initialRequestText}>{task.initialRequestText}</div>
-			<div className="text-muted-foreground">Status</div><div className="truncate">{taskStatus}</div>
-        </div> : null
-    );
+    return task ? (
+        <div className="grid grid-cols-[auto_1fr] grid-rows-[32px_32px] gap-x-8 border-b p-4 leading-[32px]">
+            <div className="text-muted-foreground">User</div>
+            <div className="truncate" title={task.initialRequestText}>
+                {task.initialRequestText}
+            </div>
+            <div className="text-muted-foreground">Status</div>
+            <div className="truncate">{taskStatus}</div>
+        </div>
+    ) : null;
 };

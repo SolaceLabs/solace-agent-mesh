@@ -1,6 +1,6 @@
 test_case_id: "embed_ac_specific_version_001"
 description: "Tests «artifact_content:versioned.txt:0>>>format:text» for a specific version."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 setup_artifacts:

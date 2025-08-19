@@ -1,6 +1,6 @@
 test_case_id: "embed_status_update_empty_message_001"
 description: "Tests «status_update:» with an empty message. Expects the empty status update to be ignored."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

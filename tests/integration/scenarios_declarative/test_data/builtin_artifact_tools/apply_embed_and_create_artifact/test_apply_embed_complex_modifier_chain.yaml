@@ -2,7 +2,7 @@ test_case_id: "builtin_apply_embed_complex_modifier_chain_001"
 description: |
   Tests 'apply_embed_and_create_artifact' with a CSV source and a chain of
   modifiers: 'select_cols' followed by 'format:json_pretty'.
-tags: ["agent","tools","builtin_artifact_tools"]
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

@@ -3,7 +3,7 @@ description: |
   Tests 'extract_content_from_artifact' where extracted content is large enough
   to be saved, but small enough to be fully returned to the LLM without truncation.
   Assumes save_threshold_bytes=50, llm_return_max_bytes=200.
-tags: ["agent","tools","builtin_artifact_tools"]
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 # Agent config needs to be implicitly set for these thresholds by the test environment.

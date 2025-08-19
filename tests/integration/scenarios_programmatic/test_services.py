@@ -3,6 +3,7 @@ import pytest
 import os
 
 pytestmark = [
+    pytest.mark.all,
     pytest.mark.asyncio,
     pytest.mark.common,
     pytest.mark.services

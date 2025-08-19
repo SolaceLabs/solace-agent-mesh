@@ -1,6 +1,6 @@
 test_case_id: "embed_datetime_custom_format_full_001"
 description: "Tests «datetime:%A, %B %d, %Y %I:%M %p» custom format."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:
