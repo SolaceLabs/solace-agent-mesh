@@ -3,7 +3,7 @@ description: |
   Tests the 'append_to_artifact' tool by appending a text chunk
   to a pre-existing text artifact. Verifies new version creation,
   content concatenation, and metadata updates.
-tags: ["agent","tools","builtin_artifact_tools"]
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 # Setup an initial artifact directly in the TestInMemoryArtifactService

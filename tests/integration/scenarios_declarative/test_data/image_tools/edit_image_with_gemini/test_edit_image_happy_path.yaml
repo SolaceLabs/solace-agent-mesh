@@ -1,6 +1,6 @@
 test_case_id: edit_image_happy_path
 description: "Tests the happy path for the edit_image_with_gemini tool."
-tags: ["agent","tools","image_tools"]
+tags: ["all","agent","tools","image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

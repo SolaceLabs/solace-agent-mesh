@@ -15,6 +15,7 @@ from solace_agent_mesh.common.types import (
 )
 
 pytestmark = [
+    pytest.mark.all,
     pytest.mark.asyncio,
     pytest.mark.common,
     pytest.mark.server

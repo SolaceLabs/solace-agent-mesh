@@ -1,6 +1,6 @@
 test_case_id: "embed_datetime_no_format_001"
 description: "Tests «datetime:» with no format (defaults to 'now')."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

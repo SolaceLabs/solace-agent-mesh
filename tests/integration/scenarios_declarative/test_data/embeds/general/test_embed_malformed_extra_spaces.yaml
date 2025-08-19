@@ -1,6 +1,6 @@
 test_case_id: "embed_general_malformed_extra_spaces_001"
 description: "Tests an embed with extra spaces around type and expression: « math : 1+1 »"
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

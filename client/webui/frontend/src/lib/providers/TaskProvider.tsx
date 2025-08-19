@@ -24,8 +24,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     // Reconnection state management
     const [reconnectionAttempts, setReconnectionAttempts] = useState<number>(0);
     const [isReconnecting, setIsReconnecting] = useState<boolean>(false);
-    const [maxReconnectionAttempts] = useState<number>(10);
-    const [baseReconnectionDelay] = useState<number>(1000);
+    const maxReconnectionAttempts = 10;
 
     const taskMonitorEventSourceRef = useRef<EventSource | null>(null);
     const taskMonitorSseStreamIdRef = useRef<string | null>(null);
@@ -118,6 +117,11 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
             taskMonitorEventSourceRef.current.close();
             taskMonitorEventSourceRef.current = null;
         }
+
+        if (reconnectionTimeoutRef.current) {
+            clearTimeout(reconnectionTimeoutRef.current);
+            reconnectionTimeoutRef.current = null;
+        }
     }, []);
 
     const connectTaskMonitorStream = useCallback(async () => {
@@ -173,6 +177,11 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 taskMonitorEventSourceRef.current.close();
                 taskMonitorEventSourceRef.current = null;
             }
+
+            if (reconnectionTimeoutRef.current) {
+                clearTimeout(reconnectionTimeoutRef.current);
+                reconnectionTimeoutRef.current = null;
+            }
         }
     }, [apiPrefix, configServerUrl, isTaskMonitorConnected, isTaskMonitorConnecting, handleTaskMonitorSseOpen, handleTaskMonitorSseMessage, handleTaskMonitorSseError]);
 
@@ -190,7 +199,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
             return;
         }
 
-        const delay = baseReconnectionDelay * Math.pow(2, reconnectionAttempts); // Exponential backoff
+        const delay = 2000;
         console.log(`TaskMonitorContext: Attempting reconnection ${reconnectionAttempts + 1}/${maxReconnectionAttempts} in ${delay}ms...`);
 
         setIsReconnecting(true);
@@ -199,7 +208,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         reconnectionTimeoutRef.current = setTimeout(() => {
             connectTaskMonitorStream();
         }, delay);
-    }, [reconnectionAttempts, maxReconnectionAttempts, baseReconnectionDelay, connectTaskMonitorStream]);
+    }, [reconnectionAttempts, connectTaskMonitorStream]);
 
     const disconnectTaskMonitorStream = useCallback(async () => {
         console.log("TaskMonitorContext: Disconnecting stream...");
@@ -270,22 +279,11 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     }, []); // Empty dependency array for one-time initialization
 
     useEffect(() => {
-        // Only attempt reconnection if:
-        // 1. We're not currently connected
-        // 2. We're not currently connecting
-        // 3. We're not already in a reconnection process
-        // 4. There's an error (indicating a broken connection)
-        // 5. We haven't exceeded max attempts
-        if (!isTaskMonitorConnected && !isTaskMonitorConnecting && !isReconnecting && taskMonitorSseError && reconnectionAttempts < maxReconnectionAttempts) {
-            // Check if the error indicates a connection issue that should trigger reconnection
-            const shouldReconnect = taskMonitorSseError.includes("closed by server") || taskMonitorSseError.includes("network issue") || taskMonitorSseError.includes("connection error");
-
-            if (shouldReconnect) {
-                console.log("TaskMonitorContext: Connection lost, initiating auto-reconnection...");
-                attemptReconnection();
-            }
+        if (!isTaskMonitorConnected && !isTaskMonitorConnecting && taskMonitorSseError) {
+            console.log("TaskMonitorContext: Connection lost, initiating auto-reconnection...");
+            attemptReconnection();
         }
-    }, [isTaskMonitorConnected, isTaskMonitorConnecting, isReconnecting, taskMonitorSseError, reconnectionAttempts, maxReconnectionAttempts, attemptReconnection]);
+    }, [isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, attemptReconnection]);
 
     useEffect(() => {
         return () => {

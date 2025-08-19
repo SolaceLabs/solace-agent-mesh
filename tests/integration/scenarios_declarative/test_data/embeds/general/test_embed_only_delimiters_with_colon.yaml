@@ -1,6 +1,6 @@
 test_case_id: "embed_general_only_delimiters_with_colon_001"
 description: "Tests an embed with only delimiters and a colon: «:»"
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

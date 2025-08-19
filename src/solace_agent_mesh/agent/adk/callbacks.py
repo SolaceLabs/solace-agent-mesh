@@ -22,6 +22,10 @@ from ...common.a2a_protocol import (
 from google.genai import types as adk_types
 from google.adk.tools.mcp_tool import MCPTool
 from solace_ai_connector.common.log import log
+from .intelligent_mcp_callbacks import (
+    save_mcp_response_as_artifact_intelligent,
+    McpSaveStatus,
+)
 
 from ...agent.utils.artifact_helpers import (
     METADATA_SUFFIX,
@@ -212,6 +216,7 @@ async def process_artifact_blocks_callback(
                             original_func=_internal_create_artifact,
                             tool_config=None,  # No specific config for this internal tool
                             tool_name="_internal_create_artifact",
+                            origin="internal",
                         )
                         save_result = await wrapped_creator(**kwargs_for_call)
 
@@ -451,102 +456,40 @@ def repair_history_callback(
     return None
 
 
-async def _save_mcp_response_as_artifact(
-    tool: BaseTool,
-    tool_context: ToolContext,
-    host_component: "SamAgentComponent",
-    mcp_response_dict: Dict[str, Any],
-    original_tool_args: Dict[str, Any],
-) -> Dict[str, Any]:
+def _recursively_clean_pydantic_types(data: Any) -> Any:
     """
-    Saves the full MCP tool response as a JSON artifact with associated metadata.
-
-    Args:
-        tool: The MCPTool instance that generated the response.
-        tool_context: The ADK ToolContext.
-        host_component: The A2A_ADK_HostComponent instance for accessing config and services.
-        mcp_response_dict: The raw MCP tool response dictionary.
-        original_tool_args: The original arguments passed to the MCP tool.
-
-    Returns:
-        A dictionary containing details of the saved artifact (filename, version, etc.),
-        as returned by `save_artifact_with_metadata`.
+    Recursively traverses a data structure (dicts, lists) and converts
+    Pydantic-specific types like AnyUrl to their primitive string representation
+    to ensure JSON serializability.
     """
-    log_identifier = f"[CallbackHelper:{tool.name}]"
-    log.debug("%s Saving MCP response as artifact...", log_identifier)
-
-    try:
-        a2a_context = tool_context.state.get("a2a_context", {})
-        logical_task_id = a2a_context.get("logical_task_id", "unknownTask")
-        task_id_suffix = logical_task_id[-6:]
-        random_suffix = uuid.uuid4().hex[:6]
-        filename = f"{task_id_suffix}_{tool.name}_{random_suffix}.json"
-        log.debug("%s Generated artifact filename: %s", log_identifier, filename)
-
-        content_bytes = json.dumps(mcp_response_dict, indent=2).encode("utf-8")
-        mime_type = "application/json"
-        artifact_timestamp = datetime.now(timezone.utc)
-
-        metadata_for_saving = {
-            "description": f"Full JSON response from MCP tool {tool.name}.",
-            "source_tool_name": tool.name,
-            "source_tool_args": original_tool_args,
-        }
-        log.debug("%s Prepared content and metadata for saving.", log_identifier)
-
-        artifact_service = host_component.artifact_service
-        if not artifact_service:
-            raise ValueError("ArtifactService is not available on host_component.")
-
-        app_name = host_component.agent_name
-        user_id = tool_context._invocation_context.user_id
-        session_id = get_original_session_id(tool_context._invocation_context)
-        schema_max_keys = host_component.get_config(
-            "schema_max_keys", DEFAULT_SCHEMA_MAX_KEYS
-        )
-
-        log.debug(
-            "%s Calling save_artifact_with_metadata with: app_name=%s, user_id=%s, session_id=%s, filename=%s, schema_max_keys=%d",
-            log_identifier,
-            app_name,
-            user_id,
-            session_id,
-            filename,
-            schema_max_keys,
-        )
-
-        save_result = await save_artifact_with_metadata(
-            artifact_service=artifact_service,
-            app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
-            filename=filename,
-            content_bytes=content_bytes,
-            mime_type=mime_type,
-            metadata_dict=metadata_for_saving,
-            timestamp=artifact_timestamp,
-            schema_max_keys=schema_max_keys,
-            tool_context=tool_context,
-        )
-
-        log.info(
-            "%s MCP response saved as artifact '%s' (version %s). Result: %s",
-            log_identifier,
-            save_result.get("data_filename", filename),
-            save_result.get("data_version", "N/A"),
-            save_result.get("status"),
-        )
-        return save_result
-
-    except Exception as e:
-        log.exception(
-            "%s Error in _save_mcp_response_as_artifact: %s", log_identifier, e
-        )
+    if isinstance(data, dict):
         return {
-            "status": "error",
-            "data_filename": filename if "filename" in locals() else "unknown_filename",
-            "message": f"Failed to save MCP response as artifact: {e}",
+            key: _recursively_clean_pydantic_types(value) for key, value in data.items()
         }
+    elif isinstance(data, list):
+        return [_recursively_clean_pydantic_types(item) for item in data]
+    # Check for Pydantic's AnyUrl without a direct import to avoid dependency issues.
+    elif type(data).__name__ == "AnyUrl" and hasattr(data, "__str__"):
+        return str(data)
+    return data
+
+
+def _mcp_response_contains_non_text(mcp_response_dict: Dict[str, Any]) -> bool:
+    """
+    Checks if the 'content' list in an MCP response dictionary contains any
+    items that are not of type 'text'.
+    """
+    if not isinstance(mcp_response_dict, dict):
+        return False
+
+    content_list = mcp_response_dict.get("content")
+    if not isinstance(content_list, list):
+        return False
+
+    for item in content_list:
+        if isinstance(item, dict) and item.get("type") != "text":
+            return True
+    return False
 
 
 async def manage_large_mcp_tool_responses_callback(
@@ -557,9 +500,24 @@ async def manage_large_mcp_tool_responses_callback(
     host_component: "SamAgentComponent",
 ) -> Optional[Dict[str, Any]]:
     """
-    Manages large responses from MCP tools by conditionally saving them as artifacts
-    and/or truncating them before returning to the LLM.
-    The 'tool_response' is the direct output from the tool's run_async method.
+    Manages large or non-textual responses from MCP tools.
+
+    This callback intercepts the response from an MCPTool. Based on the response's
+    size and content type, it performs one or more of the following actions:
+    1.  **Saves as Artifact:** If the response size exceeds a configured threshold,
+        or if it contains non-textual content (like images), it calls the
+        `save_mcp_response_as_artifact_intelligent` function to save the
+        response as one or more typed artifacts.
+    2.  **Truncates for LLM:** If the response size exceeds a configured limit for
+        the LLM, it truncates the content to a preview string.
+    3.  **Constructs Final Response:** It builds a new dictionary to be returned
+        to the LLM, which includes:
+        - A `message_to_llm` summarizing what was done (e.g., saved, truncated).
+        - `saved_mcp_response_artifact_details` with the result of the save operation.
+        - `mcp_tool_output` containing either the original response or the truncated preview.
+        - A `status` field indicating the outcome (e.g., 'processed_and_saved').
+
+    The `tool_response` is the direct output from the tool's `run_async` method.
     """
     log_identifier = f"[Callback:ManageLargeMCPResponse:{tool.name}]"
     log.info(
@@ -601,6 +559,10 @@ async def manage_large_mcp_tool_responses_callback(
         )
         mcp_response_dict = tool_response
 
+    # Clean any Pydantic-specific types before serialization
+    mcp_response_dict = _recursively_clean_pydantic_types(mcp_response_dict)
+    cleaned_args = _recursively_clean_pydantic_types(args)
+
     try:
         save_threshold = host_component.get_config(
             "mcp_tool_response_save_threshold_bytes", 2048
@@ -619,53 +581,43 @@ async def manage_large_mcp_tool_responses_callback(
         save_threshold = 2048
         llm_max_bytes = 4096
 
-    try:
-        serialized_original_response_str = json.dumps(mcp_response_dict)
-        original_response_bytes = len(serialized_original_response_str.encode("utf-8"))
-        log.debug(
-            "%s Original response size: %d bytes.",
-            log_identifier,
-            original_response_bytes,
-        )
-    except TypeError as e:
-        log.error(
-            "%s Failed to serialize original MCP tool response dictionary: %s. Returning original response object.",
-            log_identifier,
-            e,
-        )
-        return tool_response
+    contains_non_text_content = _mcp_response_contains_non_text(mcp_response_dict)
+    if not contains_non_text_content:
+        try:
+            serialized_original_response_str = json.dumps(mcp_response_dict)
+            original_response_bytes = len(
+                serialized_original_response_str.encode("utf-8")
+            )
+            log.debug(
+                "%s Original response size: %d bytes.",
+                log_identifier,
+                original_response_bytes,
+            )
+        except TypeError as e:
+            log.error(
+                "%s Failed to serialize original MCP tool response dictionary: %s. Returning original response object.",
+                log_identifier,
+                e,
+            )
+            return tool_response
+        needs_truncation_for_llm = original_response_bytes > llm_max_bytes
+        needs_saving_as_artifact = (
+            original_response_bytes > save_threshold
+        ) or needs_truncation_for_llm
+    else:
+        needs_truncation_for_llm = False
+        needs_saving_as_artifact = True
 
-    needs_truncation_for_llm = original_response_bytes > llm_max_bytes
-    needs_saving_as_artifact = (
-        original_response_bytes > save_threshold
-    ) or needs_truncation_for_llm
-    log.debug(
-        "%s Conditions: needs_truncation_for_llm=%s, needs_saving_as_artifact=%s",
-        log_identifier,
-        needs_truncation_for_llm,
-        needs_saving_as_artifact,
-    )
-
-    saved_artifact_details = None
+    save_result = None
     if needs_saving_as_artifact:
-        log.info(
-            "%s Original response (%d bytes) requires saving (save_threshold=%d, llm_max_bytes=%d). Saving as artifact.",
-            log_identifier,
-            original_response_bytes,
-            save_threshold,
-            llm_max_bytes,
+        save_result = await save_mcp_response_as_artifact_intelligent(
+            tool, tool_context, host_component, mcp_response_dict, cleaned_args
         )
-        saved_artifact_details = await _save_mcp_response_as_artifact(
-            tool, tool_context, host_component, mcp_response_dict, args
-        )
-        if not (
-            saved_artifact_details.get("status") == "success"
-            or saved_artifact_details.get("status") == "partial_success"
-        ):
+        if save_result.status == McpSaveStatus.ERROR:
             log.warning(
                 "%s Failed to save artifact: %s. Proceeding without saved artifact details.",
                 log_identifier,
-                saved_artifact_details.get("message"),
+                save_result.message,
             )
 
     final_llm_response_dict: Dict[str, Any] = {}
@@ -692,27 +644,36 @@ async def manage_large_mcp_tool_responses_callback(
             f"The response from tool '{tool.name}' was too large ({original_response_bytes} bytes) for direct display and has been truncated."
         )
         log.debug("%s MCP tool output truncated for LLM.", log_identifier)
-    else:
-        final_llm_response_dict["mcp_tool_output"] = mcp_response_dict
-        log.debug(
-            "%s MCP tool output is the full original response for LLM.", log_identifier
-        )
 
     if needs_saving_as_artifact:
-        if saved_artifact_details and (
-            saved_artifact_details.get("status") == "success"
-            or saved_artifact_details.get("status") == "partial_success"
-        ):
+        if save_result and save_result.status in [
+            McpSaveStatus.SUCCESS,
+            McpSaveStatus.PARTIAL_SUCCESS,
+        ]:
             final_llm_response_dict["saved_mcp_response_artifact_details"] = (
-                saved_artifact_details
+                save_result.model_dump(exclude_none=True)
             )
-            filename = saved_artifact_details.get(
-                "data_filename", "unknown_artifact.json"
-            )
-            version = saved_artifact_details.get("data_version", "N/A")
-            message_parts_for_llm.append(
-                f"The full response has been saved as artifact '{filename}' (version {version})."
-            )
+
+            total_artifacts = len(save_result.artifacts_saved)
+            if total_artifacts > 0:
+                first_artifact = save_result.artifacts_saved[0]
+                filename = first_artifact.data_filename
+                version = first_artifact.data_version
+                if total_artifacts > 1:
+                    message_parts_for_llm.append(
+                        f"The full response has been saved as {total_artifacts} artifacts, starting with '{filename}' (version {version})."
+                    )
+                else:
+                    message_parts_for_llm.append(
+                        f"The full response has been saved as artifact '{filename}' (version {version})."
+                    )
+            elif save_result.fallback_artifact:
+                filename = save_result.fallback_artifact.data_filename
+                version = save_result.fallback_artifact.data_version
+                message_parts_for_llm.append(
+                    f"The full response has been saved as artifact '{filename}' (version {version})."
+                )
+
             log.debug(
                 "%s Added saved artifact details to LLM response.", log_identifier
             )
@@ -720,21 +681,21 @@ async def manage_large_mcp_tool_responses_callback(
             message_parts_for_llm.append(
                 "Saving the full response as an artifact failed."
             )
-            final_llm_response_dict["saved_mcp_response_artifact_details"] = {
-                "status": "error",
-                "message": saved_artifact_details.get(
-                    "message", "Artifact saving failed."
-                ),
-                "filename": saved_artifact_details.get("data_filename", "unknown"),
-            }
+            if save_result:
+                final_llm_response_dict["saved_mcp_response_artifact_details"] = (
+                    save_result.model_dump(exclude_none=True)
+                )
             log.warning(
                 "%s Artifact save failed, error details included in LLM response.",
                 log_identifier,
             )
+    else:
+        final_llm_response_dict["mcp_tool_output"] = mcp_response_dict
 
     if needs_saving_as_artifact and (
-        saved_artifact_details.get("status") == "success"
-        or saved_artifact_details.get("status") == "partial_success"
+        save_result
+        and save_result.status
+        in [McpSaveStatus.SUCCESS, McpSaveStatus.PARTIAL_SUCCESS]
     ):
         if needs_truncation_for_llm:
             final_llm_response_dict["status"] = "processed_saved_and_truncated"
@@ -785,6 +746,7 @@ It can span multiple lines.
 
 The system will automatically save the content and give you a confirmation in the next turn."""
 
+
 def _generate_artifact_creation_instruction() -> str:
     return """
     **Creating Text-Based Artifacts:**
@@ -805,6 +767,7 @@ def _generate_artifact_creation_instruction() -> str:
     - Temporary content only relevant to the immediate conversation
     - Basic explanations that don't require reference material
     """
+
 
 def _generate_embed_instruction(
     include_artifact_content: bool,
@@ -1201,6 +1164,7 @@ async def after_tool_callback_inject_metadata(
                         metadata_part.inline_data.data.decode("utf-8")
                     )
                     metadata_dict["version"] = version
+                    metadata_dict["filename"] = filename
                     formatted_text = format_metadata_for_llm(metadata_dict)
                     metadata_texts.append(formatted_text)
                     log.info(

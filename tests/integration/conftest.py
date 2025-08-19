@@ -1,6 +1,11 @@
-from typing import Any
+from typing import Any, Dict, Generator
 import pytest
 import time
+import subprocess
+import sys
+import socket
+import httpx
+import inspect
 
 
 from solace_agent_mesh.agent.sac.app import SamAgentApp
@@ -14,12 +19,115 @@ from sam_test_infrastructure.llm_server.server import TestLLMServer
 from sam_test_infrastructure.artifact_service.service import (
     TestInMemoryArtifactService,
 )
-
+from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
 from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
 from solace_agent_mesh.common.client.card_resolver import A2ACardResolver
 from solace_agent_mesh.common.client.client import A2AClient
 from solace_agent_mesh.common.types import AgentCard, AgentSkill
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
+
+
+def find_free_port() -> int:
+    """Finds and returns an available TCP port."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        return s.getsockname()[1]
+
+
+@pytest.fixture(scope="session")
+def mcp_server_harness() -> Generator[Dict[str, Any], None, None]:
+    """
+    Pytest fixture to manage the lifecycle of the TestMCPServer.
+
+    It starts the server in a separate process for HTTP and provides connection details
+    for both 'stdio' and 'http' transports.
+
+    Yields:
+        A dictionary containing the `connection_params` for both stdio and http.
+    """
+    process = None
+    port = 0
+    SERVER_PATH = inspect.getfile(server_module)
+
+    try:
+        # Prepare stdio config
+        stdio_params = {
+            "type": "stdio",
+            "command": sys.executable,
+            "args": [SERVER_PATH, "--transport", "stdio"],
+        }
+        print("\nConfigured TestMCPServer for stdio mode (ADK will start process).")
+
+        # Start HTTP server
+        port = find_free_port()
+        base_url = f"http://127.0.0.1:{port}"
+        health_url = f"{base_url}/health"
+        sse_url = f"{base_url}/sse"  # The default path for fastmcp sse transport
+        command = [
+            sys.executable,
+            SERVER_PATH,
+            "--transport",
+            "sse",
+            "--port",
+            str(port),
+        ]
+        process = subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        print(f"\nStarted TestMCPServer in http mode (PID: {process.pid})...")
+
+        # Readiness check by polling the /health endpoint
+        max_wait_seconds = 10
+        start_time = time.time()
+        is_ready = False
+        while time.time() - start_time < max_wait_seconds:
+            try:
+                response = httpx.get(health_url, timeout=1)
+                if response.status_code == 200:
+                    print(f"TestMCPServer is ready on {base_url}.")
+                    is_ready = True
+                    break
+            except httpx.RequestError:
+                time.sleep(0.1)
+
+        if not is_ready:
+            pytest.fail(
+                f"Test MCP Server (http) failed to start on port {port} within {max_wait_seconds} seconds."
+            )
+
+        http_params = {
+            "type": "sse",  # 'sse' is the type used by the ADK's MCPToolset for http
+            "url": sse_url,
+        }
+
+        connection_params = {"stdio": stdio_params, "http": http_params}
+
+        yield connection_params
+
+    finally:
+        if process:
+            print(f"\nTerminating TestMCPServer (PID: {process.pid})...")
+            process.terminate()
+            try:
+                stdout, stderr = process.communicate(timeout=5)
+                if stdout:
+                    print(
+                        f"\n--- TestMCPServer STDOUT ---\n{stdout.decode('utf-8', 'ignore')}"
+                    )
+                if stderr:
+                    print(
+                        f"\n--- TestMCPServer STDERR ---\n{stderr.decode('utf-8', 'ignore')}"
+                    )
+            except subprocess.TimeoutExpired:
+                process.kill()
+                print(
+                    "\nTestMCPServer process did not terminate gracefully, had to be killed."
+                )
+            print("TestMCPServer terminated.")
+
+        print(
+            "\nNo external TestMCPServer process to terminate for stdio mode (ADK manages process)."
+        )
 
 
 @pytest.fixture
@@ -201,6 +309,7 @@ def shared_solace_connector(
     test_artifact_service_instance: TestInMemoryArtifactService,
     session_monkeypatch,
     request,
+    mcp_server_harness,
 ) -> SolaceAiConnector:
     """
     Creates and manages a single SolaceAiConnector instance with multiple agents
@@ -252,12 +361,6 @@ def shared_solace_connector(
     test_agent_tools = [
         {
             "tool_type": "python",
-            "component_module": "solace_agent_mesh.agent.tools.test_tools",
-            "function_name": "time_delay",
-            "component_base_path": ".",
-        },
-        {
-            "tool_type": "python",
             "component_module": "tests.integration.test_support.tools",
             "function_name": "get_weather_tool",
             "component_base_path": ".",
@@ -281,7 +384,7 @@ def shared_solace_connector(
             "tool_type": "builtin",
             "tool_name": "describe_image",
             "tool_config": {
-                "model": "gpt-4-vision-preview",
+                "model": f"openai/test-model-sam-vision-{time.time_ns()}",
                 "api_key": "fake-api-key",
                 "api_base": f"{test_llm_server.url}",
             },
@@ -302,6 +405,16 @@ def shared_solace_connector(
                 "model": "gemini-2.0-flash-preview-image-generation",
                 "gemini_api_key": "fake-gemini-api-key",
             },
+        },
+        {
+            "tool_type": "mcp",
+            "tool_name": "get_data_stdio",
+            "connection_params": mcp_server_harness["stdio"],
+        },
+        {
+            "tool_type": "mcp",
+            "tool_name": "get_data_http",
+            "connection_params": mcp_server_harness["http"],
         },
     ]
     sam_agent_app_config = create_agent_config(

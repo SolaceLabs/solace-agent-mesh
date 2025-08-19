@@ -1,6 +1,6 @@
 test_case_id: "embed_status_update_multiple_001"
 description: "Tests multiple «status_update:...» embeds in sequence."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

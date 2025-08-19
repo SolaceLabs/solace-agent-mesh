@@ -1,6 +1,6 @@
 test_case_id: "embed_math_tan_radians_45_001"
 description: "Tests «math:tan(radians(45))» using dynamic evaluation."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

@@ -1,6 +1,6 @@
 test_case_id: "embed_math_tan_pi_quarter_001"
 description: "Tests «math:tan(pi/4)» using dynamic evaluation."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

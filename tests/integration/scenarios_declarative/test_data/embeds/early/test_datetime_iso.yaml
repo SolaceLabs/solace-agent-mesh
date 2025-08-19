@@ -1,6 +1,6 @@
 test_case_id: "embed_datetime_iso_001"
 description: "Tests «datetime:iso» embed."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

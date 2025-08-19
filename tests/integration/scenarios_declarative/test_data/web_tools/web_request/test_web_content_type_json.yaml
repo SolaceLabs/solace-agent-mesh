@@ -1,6 +1,6 @@
 test_case_id: web_request_content_type_json
 description: "Test that web_request tool correctly handles application/json content type."
-tags: ["agent","tools","web_tools"]
+tags: ["all","agent","tools","web_tools"]
 skip_intermediate_events: true
 
 gateway_input:

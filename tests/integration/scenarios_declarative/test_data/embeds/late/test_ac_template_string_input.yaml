@@ -1,6 +1,6 @@
 test_case_id: "embed_ac_template_string_input_001"
 description: "Tests «artifact_content:raw.txt>>>apply_to_template:str.mustache>>>format:text»."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 setup_artifacts:

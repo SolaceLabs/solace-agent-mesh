@@ -1888,12 +1888,19 @@ async def delete_artifact(
                 "ArtifactService does not support deleting artifacts."
             )
 
+        if version is not None:
+            log.warning(
+                "%s Deleting a specific version (%s) is not supported by the current artifact service interface. "
+                "All versions of the artifact will be deleted.",
+                log_identifier,
+                version,
+            )
+
         await artifact_service.delete_artifact(
             app_name=app_name,
             user_id=user_id,
             session_id=session_id,
             filename=filename,
-            version=version,
         )
 
         log.info(

@@ -2,7 +2,7 @@ test_case_id: "builtin_load_artifact_metadata_only_001"
 description: |
   Tests the 'load_artifact' tool with the 'load_metadata_only' flag set to true.
   Verifies that the full metadata dictionary is returned without the content.
-tags: ["agent","tools","builtin_artifact_tools"]
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

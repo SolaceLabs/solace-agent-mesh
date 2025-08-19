@@ -1,6 +1,6 @@
 test_case_id: "embed_ac_json_as_text_001"
 description: "Tests «artifact_content:data.json>>>format:text» for JSON as text."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 setup_artifacts:

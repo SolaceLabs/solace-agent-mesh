@@ -2,7 +2,7 @@ test_case_id: "builtin_signal_artifact_version_not_found_error_001"
 description: |
   Tests the 'signal_artifact_for_return' tool's error handling when the
   specified artifact version does not exist for a known filename.
-tags: ["agent","tools","builtin_artifact_tools"]
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

@@ -13,6 +13,7 @@ from ...common.utils.embeds import (
     resolve_embeds_in_string,
     evaluate_embed,
     EARLY_EMBED_TYPES,
+    LATE_EMBED_TYPES,
     EMBED_DELIMITER_OPEN,
 )
 
@@ -31,15 +32,30 @@ class ADKToolWrapper:
         original_func: Callable,
         tool_config: Optional[Dict],
         tool_name: str,
+        origin: str,
         raw_string_args: Optional[List[str]] = None,
     ):
         self._original_func = original_func
         self._tool_config = tool_config or {}
         self._tool_name = tool_name
+        self.origin = origin
         self._raw_string_args = set(raw_string_args) if raw_string_args else set()
         self._is_async = inspect.iscoroutinefunction(original_func)
 
-        functools.update_wrapper(self, original_func)
+        # Ensure __name__ attribute is always set before functools.update_wrapper
+        self.__name__ = tool_name
+
+        try:
+            functools.update_wrapper(self, original_func)
+        except AttributeError as e:
+            log.debug(
+                "Could not fully update wrapper for tool '%s': %s. Using fallback attributes.",
+                self._tool_name,
+                e,
+            )
+            # Ensure essential attributes are set even if update_wrapper fails
+            self.__name__ = tool_name
+            self.__doc__ = getattr(original_func, "__doc__", None)
 
         try:
             self.__code__ = original_func.__code__
@@ -78,7 +94,7 @@ class ADKToolWrapper:
                         text=arg,
                         context=context_for_embeds,
                         resolver_func=evaluate_embed,
-                        types_to_resolve=EARLY_EMBED_TYPES,
+                        types_to_resolve=EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES),
                         log_identifier=log_identifier,
                         config=self._tool_config,
                     )
@@ -99,7 +115,7 @@ class ADKToolWrapper:
                         text=value,
                         context=context_for_embeds,
                         resolver_func=evaluate_embed,
-                        types_to_resolve=EARLY_EMBED_TYPES,
+                        types_to_resolve=EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES),
                         log_identifier=log_identifier,
                         config=self._tool_config,
                     )

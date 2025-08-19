@@ -1,6 +1,6 @@
 test_case_id: "embed_math_invalid_format_specifier_001"
 description: "Tests «math:10/3 | .invalid» with an invalid format specifier. This will just ignore the format and return the raw result."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

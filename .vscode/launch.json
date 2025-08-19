@@ -158,21 +158,15 @@
             "justMyCode": false,
         },
         {
-            "name": "Python: Pytest",
+            "name": "Python: Debug Tests",
             "type": "debugpy",
             "request": "launch",
-            "module": "pytest",
-            "args": [
-                "tests/",
-                "-v",
-                "--tb=short"
+            "program": "${file}",
+            "purpose": [
+                "debug-test"
             ],
-            "justMyCode": false,
             "console": "integratedTerminal",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            },
-            "subProcess": true
+            "justMyCode": false
         },
         {
             "name": "Python: Pytest (specific test)",
@@ -188,5 +182,43 @@
                 "PYTHONPATH": "${workspaceFolder}"
             }
         },
+        {
+            "name": "Debug Declarative Test",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/integration/scenarios_declarative/test_declarative_runner.py::test_declarative_scenario[${input:declarativeTestPath}]",
+                "-vv"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Debug Programmatic Test",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/integration/scenarios_programmatic/${input:programmaticTestPath}",
+                "-vv"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
+    ],
+    "inputs": [
+        {
+            "id": "declarativeTestPath",
+            "description": "Enter the test case path (e.g., builtin_artifact_tools/list_artifacts/test_list_artifacts_empty)",
+            "default": "builtin_artifact_tools/list_artifacts/test_list_artifacts_empty",
+            "type": "promptString"
+        },
+        {
+            "id": "programmaticTestPath",
+            "description": "Enter the test path name (e.g., test_basic_flows.py)",
+            "default": "test_basic_flows.py",
+            "type": "promptString"
+        }
     ]
 }

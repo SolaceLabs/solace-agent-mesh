@@ -8,6 +8,7 @@ from solace_agent_mesh.agent.tools.tool_definition import BuiltinTool
 from google.genai import types as adk_types
 
 pytestmark = [
+    pytest.mark.all,
     pytest.mark.asyncio,
     pytest.mark.agent,
     pytest.mark.tools

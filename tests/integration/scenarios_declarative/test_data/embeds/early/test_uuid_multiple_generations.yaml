@@ -1,6 +1,6 @@
 test_case_id: "embed_uuid_multiple_generations_001"
 description: "Tests multiple «uuid:» embeds generate different UUIDs."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

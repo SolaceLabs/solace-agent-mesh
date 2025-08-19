@@ -1,6 +1,6 @@
 test_case_id: web_request_dns_failure
 description: "Test that web_request tool handles a URL with a hostname that cannot be resolved."
-tags: ["agent","tools","web_tools"]
+tags: ["all","agent","tools","web_tools"]
 skip_intermediate_events: true
 
 gateway_input:

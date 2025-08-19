@@ -17,6 +17,10 @@ from solace_agent_mesh.common.types import (
     TextPart,
 )
 
+pytestmark = [
+    pytest.mark.all,
+    pytest.mark.asyncio
+]
 
 def test_mock_agent_skills(mock_agent_skills: AgentSkill):
     assert isinstance(mock_agent_skills, AgentSkill)

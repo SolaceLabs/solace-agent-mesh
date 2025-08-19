@@ -1,6 +1,6 @@
 test_case_id: "create_image_happy_path_001"
 description: "Verifies the basic happy path of creating an image with a specified filename."
-tags: ["agent","tools","image_tools"]
+tags: ["all","agent","tools","image_tools"]
 skip_intermediate_events: true
 
 gateway_input:

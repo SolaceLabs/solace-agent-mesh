@@ -1,6 +1,6 @@
 test_case_id: "embed_ac_csv_as_csv_001"
 description: "Tests «artifact_content:table.csv>>>format:csv»."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 setup_artifacts:

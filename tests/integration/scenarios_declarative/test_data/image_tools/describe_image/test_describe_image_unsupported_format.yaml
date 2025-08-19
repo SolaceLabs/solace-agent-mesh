@@ -1,7 +1,7 @@
 # tests/integration/scenarios_declarative/test_data/image_tools/describe_image/test_describe_image_unsupported_format.yaml
 test_case_id: "describe_image_unsupported_format"
 description: "Tests the tool's rejection of unsupported image file extensions."
-tags: ["agent","tools","image_tools"]
+tags: ["all","agent","tools","image_tools"]
 skip_intermediate_events: true
 
 gateway_input:

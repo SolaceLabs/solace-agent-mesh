@@ -1,6 +1,6 @@
 test_case_id: "embed_math_sum_001"
 description: "Tests «math:sum((1, 2, 3, 4))»."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

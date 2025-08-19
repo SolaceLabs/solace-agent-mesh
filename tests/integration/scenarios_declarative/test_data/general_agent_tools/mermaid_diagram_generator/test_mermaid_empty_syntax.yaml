@@ -1,6 +1,6 @@
 test_case_id: test_mermaid_empty_syntax
 description: "Tests graceful failure when provided with empty Mermaid syntax."
-tags: ["agent","tools","general_agent_tools"]
+tags: ["all","agent","tools","general_agent_tools"]
 skip_intermediate_events: true
 
 gateway_input:

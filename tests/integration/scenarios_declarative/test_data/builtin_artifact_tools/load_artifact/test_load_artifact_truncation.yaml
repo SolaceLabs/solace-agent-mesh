@@ -2,7 +2,7 @@ test_case_id: "builtin_load_artifact_truncation_001"
 description: |
   Tests the 'load_artifact' tool's content truncation feature using the
   'max_content_length' parameter.
-tags: ["agent","tools","builtin_artifact_tools"]
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

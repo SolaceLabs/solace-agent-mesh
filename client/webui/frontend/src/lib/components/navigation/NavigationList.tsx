@@ -1,10 +1,8 @@
 import React from "react";
 
-import { SunMoon } from "lucide-react";
-
 import { NavigationButton } from "@/lib/components/navigation";
-import { useThemeContext } from "@/lib/hooks/useThemeContext";
 import type { NavigationItem } from "@/lib/types";
+import { ToggleThemeButton } from "./ToggleThemeButton";
 
 interface NavigationListProps {
     items: NavigationItem[];
@@ -14,8 +12,6 @@ interface NavigationListProps {
 }
 
 export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomItems, activeItem, onItemClick }) => {
-    const { currentTheme, toggleTheme } = useThemeContext();
-
     return (
         <nav className="flex flex-1 flex-col" role="navigation" aria-label="Main navigation">
             {/* Main navigation items */}
@@ -37,16 +33,7 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
                     {bottomItems.map(item => (
                         <li key={item.id} className="my-4">
                             {item.id === "theme-toggle" ? (
-                                <button
-                                    type="button"
-                                    disabled={item.disabled}
-                                    onClick={toggleTheme}
-                                    className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-[var(--color-primary-w100)] px-3 py-5 text-xs text-[var(--color-primary-text-w10)] transition-colors hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)] disabled:cursor-not-allowed disabled:opacity-50"
-                                    aria-label={`Toggle theme (currently ${currentTheme})`}
-                                    title={`Toggle theme (currently ${currentTheme})`}
-                                >
-                                    <SunMoon className="mb-1 h-6 w-6" />
-                                </button>
+                                <ToggleThemeButton />
                             ) : (
                                 <NavigationButton key={item.id} item={item} isActive={activeItem === item.id} onItemClick={onItemClick} />
                             )}

@@ -3,7 +3,7 @@ description: |
   Tests the 'list_artifacts' tool when multiple artifacts exist,
   with one artifact having multiple versions. Verifies correct listing
   and that metadata summary refers to the latest version.
-tags: ["agent","tools","builtin_artifact_tools"]
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:

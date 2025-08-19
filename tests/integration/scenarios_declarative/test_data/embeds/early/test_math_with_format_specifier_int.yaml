@@ -1,6 +1,6 @@
 test_case_id: "embed_math_format_specifier_int_001"
 description: "Tests «math:7.0 | .0f» embed with int-like format specifier."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

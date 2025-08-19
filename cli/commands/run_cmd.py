@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
 from cli.utils import error_exit
+from solace_agent_mesh.common.utils.initializer import initialize
 
 
 def _execute_with_solace_ai_connector(config_file_paths: list[str]):
@@ -66,6 +67,20 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
         if env_path:
             click.echo(f"Loading environment variables from: {env_path}")
             load_dotenv(dotenv_path=env_path, override=True)
+
+            # Resolve LOGGING_CONFIG_PATH to absolute path if it's relative
+            logging_config_path = os.getenv("LOGGING_CONFIG_PATH")
+            if logging_config_path and not os.path.isabs(logging_config_path):
+                absolute_logging_path = os.path.abspath(logging_config_path)
+                os.environ["LOGGING_CONFIG_PATH"] = absolute_logging_path
+
+            # Reconfigure logging now that environment variables are loaded
+            try:
+                from solace_ai_connector.common.log import reconfigure_logging
+                if reconfigure_logging():
+                    click.echo("Logging reconfigured from LOGGING_CONFIG_PATH")
+            except ImportError:
+                pass  # solace_ai_connector might not be available yet
         else:
             click.echo(
                 click.style(
@@ -75,6 +90,9 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
             )
     else:
         click.echo("Skipping .env file loading due to --system-env flag.")
+
+    # Run enterprise initialization if present
+    initialize()
 
     config_files_to_run = []
     project_root = Path.cwd()

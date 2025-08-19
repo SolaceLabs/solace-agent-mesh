@@ -22,49 +22,40 @@ class FilesystemArtifactService(BaseArtifactService):
     """
     An artifact service implementation using the local filesystem.
 
-    Stores artifacts in a structured directory based on a configured scope
-    (namespace, app name, or custom), user ID, session ID (or 'user' namespace),
+    Stores artifacts in a structured directory based on the effective app name
+    (which represents the scope), user ID, session ID (or 'user' namespace),
     filename, and version. Metadata (like mime_type) is stored in a companion file.
     """
 
-    def __init__(self, base_path: str, scope_identifier: str):
+    def __init__(self, base_path: str):
         """
         Initializes the FilesystemArtifactService.
 
         Args:
             base_path: The root directory where all artifacts will be stored.
-            scope_identifier: The sanitized identifier representing the storage scope
-                              (e.g., sanitized namespace, app name, or custom value).
 
         Raises:
-            ValueError: If base_path or scope_identifier is not provided or the
-                        scoped base path cannot be created.
+            ValueError: If base_path is not provided or cannot be created.
         """
         if not base_path:
             raise ValueError("base_path cannot be empty for FilesystemArtifactService")
-        if not scope_identifier:
-            raise ValueError(
-                "scope_identifier cannot be empty for FilesystemArtifactService"
-            )
 
         self.base_path = os.path.abspath(base_path)
-        self.scope_identifier = scope_identifier
-        self.scope_base_path = os.path.join(self.base_path, self.scope_identifier)
 
         try:
-            os.makedirs(self.scope_base_path, exist_ok=True)
+            os.makedirs(self.base_path, exist_ok=True)
             logger.info(
-                "FilesystemArtifactService initialized. Scoped base path: %s",
-                self.scope_base_path,
+                "FilesystemArtifactService initialized. Base path: %s",
+                self.base_path,
             )
         except OSError as e:
             logger.error(
-                "Failed to create scoped base directory '%s': %s",
-                self.scope_base_path,
+                "Failed to create base directory '%s': %s",
+                self.base_path,
                 e,
             )
             raise ValueError(
-                f"Could not create or access scoped base_path '{self.scope_base_path}': {e}"
+                f"Could not create or access base_path '{self.base_path}': {e}"
             ) from e
 
     def _file_has_user_namespace(self, filename: str) -> bool:
@@ -75,10 +66,10 @@ class FilesystemArtifactService(BaseArtifactService):
         self, app_name: str, user_id: str, session_id: str, filename: str
     ) -> str:
         """
-        Constructs the directory path for a specific artifact (all versions)
-        within the configured scope.
-        The app_name parameter is ignored for path construction but kept for signature compatibility.
+        Constructs the directory path for a specific artifact (all versions).
+        The `app_name` is now the effective scope identifier, resolved by the caller.
         """
+        app_name_sanitized = os.path.basename(app_name)
         user_id_sanitized = os.path.basename(user_id)
         session_id_sanitized = os.path.basename(session_id)
         filename_sanitized = os.path.basename(filename)
@@ -86,11 +77,16 @@ class FilesystemArtifactService(BaseArtifactService):
         if self._file_has_user_namespace(filename):
             filename_dir = os.path.basename(filename.split(":", 1)[1])
             return os.path.join(
-                self.scope_base_path, user_id_sanitized, "user", filename_dir
+                self.base_path,
+                app_name_sanitized,
+                user_id_sanitized,
+                "user",
+                filename_dir,
             )
         else:
             return os.path.join(
-                self.scope_base_path,
+                self.base_path,
+                app_name_sanitized,
                 user_id_sanitized,
                 session_id_sanitized,
                 filename_sanitized,
@@ -114,7 +110,7 @@ class FilesystemArtifactService(BaseArtifactService):
         filename: str,
         artifact: adk_types.Part,
     ) -> int:
-        log_prefix = f"[FSArtifact:Save:{filename}] "
+        log_prefix = "[FSArtifact:Save] "
 
         filename = self._normalize_filename_unicode(filename)
         artifact_dir = self._get_artifact_dir(app_name, user_id, session_id, filename)
@@ -272,11 +268,12 @@ class FilesystemArtifactService(BaseArtifactService):
     ) -> list[str]:
         log_prefix = "[FSArtifact:ListKeys] "
         filenames = set()
+        app_name_sanitized = os.path.basename(app_name)
         user_id_sanitized = os.path.basename(user_id)
         session_id_sanitized = os.path.basename(session_id)
 
         session_base_dir = os.path.join(
-            self.scope_base_path, user_id_sanitized, session_id_sanitized
+            self.base_path, app_name_sanitized, user_id_sanitized, session_id_sanitized
         )
         if await asyncio.to_thread(os.path.isdir, session_base_dir):
             try:
@@ -292,7 +289,9 @@ class FilesystemArtifactService(BaseArtifactService):
                     e,
                 )
 
-        user_base_dir = os.path.join(self.scope_base_path, user_id_sanitized, "user")
+        user_base_dir = os.path.join(
+            self.base_path, app_name_sanitized, user_id_sanitized, "user"
+        )
         if await asyncio.to_thread(os.path.isdir, user_base_dir):
             try:
                 for item in await asyncio.to_thread(os.listdir, user_base_dir):
@@ -315,7 +314,7 @@ class FilesystemArtifactService(BaseArtifactService):
     async def delete_artifact(
         self, *, app_name: str, user_id: str, session_id: str, filename: str
     ) -> None:
-        log_prefix = f"[FSArtifact:Delete:{filename}] "
+        log_prefix = "[FSArtifact:Delete] "
         artifact_dir = self._get_artifact_dir(app_name, user_id, session_id, filename)
 
         if not await asyncio.to_thread(os.path.isdir, artifact_dir):
@@ -331,9 +330,8 @@ class FilesystemArtifactService(BaseArtifactService):
             )
         except OSError as e:
             logger.error(
-                "%sError deleting artifact directory '%s': %s",
+                "%sError deleting artifact directory '%s'",
                 log_prefix,
-                artifact_dir,
                 e,
             )
 
@@ -359,12 +357,7 @@ class FilesystemArtifactService(BaseArtifactService):
                 ):
                     versions.append(int(item))
         except OSError as e:
-            logger.error(
-                "%sError listing versions in directory '%s': %s",
-                log_prefix,
-                artifact_dir,
-                e,
-            )
+            logger.error("%sError listing versions in directory '%s'", log_prefix, e)
             return []
 
         sorted_versions = sorted(versions)

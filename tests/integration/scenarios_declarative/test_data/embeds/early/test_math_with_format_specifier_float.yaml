@@ -1,6 +1,6 @@
 test_case_id: "embed_math_format_specifier_float_001"
 description: "Tests «math:10/3 | .2f» embed with float format specifier."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 gateway_input:

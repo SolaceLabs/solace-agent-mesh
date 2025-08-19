@@ -1,6 +1,6 @@
 test_case_id: web_request_invalid_url
 description: "Test that web_request tool gracefully handles a malformed URL."
-tags: ["agent","tools","web_tools"]
+tags: ["all","agent","tools","web_tools"]
 skip_intermediate_events: true
 
 gateway_input:

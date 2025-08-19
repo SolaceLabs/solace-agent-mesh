@@ -1,6 +1,6 @@
 test_case_id: "embed_ac_json_as_json_pretty_001"
 description: "Tests «artifact_content:data.json>>>format:json_pretty»."
-tags: ["common","embeds"]
+tags: ["all","common","embeds"]
 skip_intermediate_events: true
 
 setup_artifacts:
