@@ -382,6 +382,10 @@ export const processTaskForVisualization = (
                                 const functionCallParts = contentParts?.filter(p => p.function_call);
 
                                 if (functionCallParts && functionCallParts.length > 0) {
+                                    flushAggregatedTextStep(currentEventOwningTaskId);
+                                    lastFlushedAgentResponseText = null;
+                                    activeFunctionCallIdByTask.delete(currentEventOwningTaskId);
+
                                     const decisions: ToolDecision[] = functionCallParts.map(p => ({
                                         functionCallId: p.function_call.id,
                                         toolName: p.function_call.name,
@@ -389,7 +393,40 @@ export const processTaskForVisualization = (
                                         isPeerDelegation: p.function_call.name?.startsWith("peer_"),
                                     }));
                                     const toolDecisionData: ToolDecisionData = { decisions, isParallel: decisions.length > 1 };
-                                    visualizerSteps.push({
+
+                                    const delegationInfos: DelegationInfo[] = [];
+                                    const claimedSubTaskIds = new Set<string>();
+                                    decisions.forEach(decision => {
+                                        if (decision.isPeerDelegation) {
+                                            const peerAgentActualName = decision.toolName.substring(5);
+                                            for (const stId in allMonitoredTasks) {
+                                                const candSubTask = allMonitoredTasks[stId];
+                                                if (claimedSubTaskIds.has(candSubTask.taskId)) continue;
+
+                                                const candSubTaskParentId = getParentTaskIdFromTaskObject(candSubTask);
+
+                                                if (candSubTaskParentId === currentEventOwningTaskId && candSubTask.events && candSubTask.events.length > 0) {
+                                                    const subTaskCreationRequest = candSubTask.events.find(e => e.direction === "request" && e.full_payload?.method?.startsWith("tasks/") && e.target_entity === peerAgentActualName);
+                                                    if (subTaskCreationRequest && new Date(getEventTimestamp(subTaskCreationRequest)).getTime() >= new Date(eventTimestamp).getTime()) {
+                                                        const delInfo: DelegationInfo = {
+                                                            functionCallId: decision.functionCallId,
+                                                            peerAgentName: peerAgentActualName,
+                                                            subTaskId: candSubTask.taskId,
+                                                        };
+                                                        delegationInfos.push(delInfo);
+                                                        functionCallIdToDelegationInfoMap.set(decision.functionCallId, delInfo);
+                                                        if (candSubTask.taskId) {
+                                                            subTaskToFunctionCallIdMap.set(candSubTask.taskId, decision.functionCallId);
+                                                            claimedSubTaskIds.add(candSubTask.taskId);
+                                                        }
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    });
+
+                                    const toolDecisionStep: VisualizerStep = {
                                         id: `vstep-tooldecision-${visualizerSteps.length}-${eventId}`,
                                         type: "AGENT_LLM_RESPONSE_TOOL_DECISION",
                                         timestamp: eventTimestamp,
@@ -398,10 +435,35 @@ export const processTaskForVisualization = (
                                         target: statusUpdateAgentName,
                                         data: { toolDecision: toolDecisionData },
                                         rawEventIds: [eventId],
+                                        delegationInfo: delegationInfos.length > 0 ? delegationInfos : undefined,
                                         isSubTaskStep: currentEventNestingLevel > 0,
                                         nestingLevel: currentEventNestingLevel,
                                         owningTaskId: currentEventOwningTaskId,
+                                    };
+                                    visualizerSteps.push(toolDecisionStep);
+
+                                    const parallelBlockId = toolDecisionData.isParallel ? toolDecisionStep.id : undefined;
+
+                                    // --- Performance Data Collection: Start timers for all decided tool calls ---
+                                    const invokingAgentInstanceId = agentInstanceId;
+                                    ensureAgentMetrics(invokingAgentInstanceId, statusUpdateAgentName);
+
+                                    decisions.forEach(decision => {
+                                        const subTaskId = decision.isPeerDelegation ? functionCallIdToDelegationInfoMap.get(decision.functionCallId)?.subTaskId : undefined;
+
+                                        // Don't add if it's already being tracked (should not happen, but safe)
+                                        if (!inProgressToolCalls.has(decision.functionCallId)) {
+                                            inProgressToolCalls.set(decision.functionCallId, {
+                                                timestamp: eventTimestamp, // Start timer at the moment of decision
+                                                toolName: decision.toolName,
+                                                isPeer: decision.isPeerDelegation,
+                                                invokingAgentInstanceId: invokingAgentInstanceId,
+                                                subTaskId: subTaskId,
+                                                parallelBlockId: parallelBlockId,
+                                            });
+                                        }
                                     });
+                                    // ---
                                 } else {
                                     const llmResponseText = contentParts?.filter(p => p.text).map(p => p.text).join("\n") || "";
                                     const llmResponseToAgentData: LLMResponseToAgentData = {
@@ -449,9 +511,31 @@ export const processTaskForVisualization = (
                                 break;
                             }
                             case "tool_result": {
+                                const functionCallId = signalData.function_call_id;
+                                // --- Performance Data Collection ---
+                                const openToolCallForPerf = inProgressToolCalls.get(functionCallId);
+                                if (openToolCallForPerf) {
+                                    const duration = new Date(eventTimestamp).getTime() - new Date(openToolCallForPerf.timestamp).getTime();
+                                    const invokingAgentMetrics = report.agents[openToolCallForPerf.invokingAgentInstanceId];
+                                    if (invokingAgentMetrics) {
+                                        const toolCallPerf: ToolCallPerformance = {
+                                            toolName: openToolCallForPerf.toolName,
+                                            durationMs: duration,
+                                            isPeer: openToolCallForPerf.isPeer,
+                                            timestamp: openToolCallForPerf.timestamp,
+                                            peerAgentName: openToolCallForPerf.isPeer ? openToolCallForPerf.toolName.substring(5) : undefined,
+                                            subTaskId: openToolCallForPerf.subTaskId,
+                                            parallelBlockId: openToolCallForPerf.parallelBlockId,
+                                        };
+                                        invokingAgentMetrics.toolCalls.push(toolCallPerf);
+                                    }
+                                    inProgressToolCalls.delete(functionCallId);
+                                }
+                                // ---
+
                                 const toolResultData: ToolResultData = {
                                     toolName: signalData.tool_name,
-                                    functionCallId: signalData.function_call_id,
+                                    functionCallId: functionCallId,
                                     resultData: signalData.result_data,
                                     isPeerResponse: signalData.tool_name?.startsWith("peer_"),
                                 };
