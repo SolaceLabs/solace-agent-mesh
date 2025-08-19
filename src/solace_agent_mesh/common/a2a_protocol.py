@@ -468,12 +468,15 @@ def format_adk_event_as_a2a(
         metadata=event_metadata,
         kind="status-update",
     )
+    event_type_for_log = (
+        "tool_response_content" if is_function_response_event else "llm_stream_chunk"
+    )
     log.debug(
         "%s Formatting intermediate A2A response (TaskStatusUpdateEvent, final=%s) for Task ID %s. Event type: %s",
         log_identifier,
         is_final_update_for_this_event,
         logical_task_id,
-        message_metadata.get("type") if message_metadata else "llm_stream_chunk",
+        event_type_for_log,
     )
     json_rpc_response_obj = JSONRPCResponse(
         id=jsonrpc_request_id, result=intermediate_result_obj
