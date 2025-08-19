@@ -212,11 +212,19 @@ def _resolve_user_identity_for_authorization(
         return user_identity
 
     if not user_identity:
-        user_identity = "sam_dev_user"
-        log.info(
-            "%s No user_identity provided, using sam_dev_user for visualization",
-            log_id_prefix,
-        )
+        use_authorization = component.get_config("frontend_use_authorization", False)
+        if not use_authorization:
+            user_identity = "sam_dev_user"
+            log.info(
+                "%s No user_identity provided and auth is disabled, using sam_dev_user for visualization",
+                log_id_prefix,
+            )
+        else:
+            log.error(
+                "%s No user_identity provided but authorization is enabled. This should not happen.",
+                log_id_prefix,
+            )
+            raise ValueError("No user identity available when authorization is required")
 
     return user_identity
 

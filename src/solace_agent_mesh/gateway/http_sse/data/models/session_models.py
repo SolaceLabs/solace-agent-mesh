@@ -2,7 +2,7 @@
 Session domain models moved from the original models.py file.
 """
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy import Column, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -13,12 +13,13 @@ class Session(Base):
     __tablename__ = "sessions"
     id = Column(String, primary_key=True)
     name = Column(String, nullable=True)
-    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String, nullable=False)  # Simple string field, no foreign key
     agent_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
-    user = relationship("User", back_populates="sessions")
+    messages = relationship(
+        "ChatMessage", back_populates="session", cascade="all, delete-orphan"
+    )
 
     def to_dict(self):
         return {
@@ -34,7 +35,9 @@ class Session(Base):
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
     id = Column(String, primary_key=True)
-    session_id = Column(String, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False)
+    session_id = Column(
+        String, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
+    )
     message = Column(Text, nullable=False)
     created_at = Column(DateTime, default=func.now())
     sender_type = Column(String)  # 'user' or 'llm'

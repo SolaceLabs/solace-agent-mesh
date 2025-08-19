@@ -10,11 +10,6 @@ from .session_requests import (
     DeleteSessionRequest,
     CreateSessionRequest,
 )
-from .user_requests import (
-    GetCurrentUserRequest,
-    AuthenticateUserRequest,
-    UserProfileRequest,
-)
 from .task_requests import (
     SendTaskRequest,
     SubscribeTaskRequest,
@@ -32,10 +27,6 @@ __all__ = [
     "UpdateSessionRequest",
     "DeleteSessionRequest",
     "CreateSessionRequest",
-    # User requests
-    "GetCurrentUserRequest",
-    "AuthenticateUserRequest",
-    "UserProfileRequest",
     # Task requests
     "SendTaskRequest",
     "SubscribeTaskRequest",

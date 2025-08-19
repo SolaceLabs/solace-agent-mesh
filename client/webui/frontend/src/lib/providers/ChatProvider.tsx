@@ -69,7 +69,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const getHistory = useCallback(
         async (sessionId: string) => {
-            const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}/history`);
+            const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}/messages`);
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ detail: "Failed to fetch session history" }));
                 throw new Error(errorData.detail || `HTTP error ${response.status}`);

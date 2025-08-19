@@ -18,12 +18,10 @@ DEFAULT_PLUGIN_VERSION = "0.1.0"
 
 
 def ensure_directory_exists(path: pathlib.Path):
-    """Creates a directory if it doesn't exist."""
     path.mkdir(parents=True, exist_ok=True)
 
 
 def replace_placeholders(content: str, replacements: dict) -> str:
-    """Replaces placeholders in a string."""
     for placeholder, value in replacements.items():
         content = content.replace(placeholder, str(value))
     return content

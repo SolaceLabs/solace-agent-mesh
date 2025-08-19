@@ -11,13 +11,6 @@ from .session_responses import (
     SessionUpdatedResponse,
     SessionDeletedResponse,
 )
-from .user_responses import (
-    UserProfileResponse,
-    CurrentUserResponse,
-    UserSessionsResponse,
-    UserPreferencesResponse,
-    AuthenticationResponse,
-)
 from .task_responses import (
     TaskResponse,
     SendTaskResponse,
@@ -38,12 +31,6 @@ __all__ = [
     "SessionCreatedResponse",
     "SessionUpdatedResponse",
     "SessionDeletedResponse",
-    # User responses
-    "UserProfileResponse",
-    "CurrentUserResponse",
-    "UserSessionsResponse",
-    "UserPreferencesResponse",
-    "AuthenticationResponse",
     # Task responses
     "TaskResponse",
     "SendTaskResponse",

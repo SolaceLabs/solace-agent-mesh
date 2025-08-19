@@ -19,7 +19,6 @@ class IBaseRepository(ABC, Generic[T]):
     
     @abstractmethod
     def get_by_id(self, entity_id: str) -> Optional[T]:
-        """Retrieve an entity by its ID."""
         pass
     
     @abstractmethod
@@ -34,17 +33,14 @@ class IBaseRepository(ABC, Generic[T]):
     
     @abstractmethod
     def create(self, entity_data: Dict[str, Any]) -> T:
-        """Create a new entity."""
         pass
     
     @abstractmethod
     def update(self, entity_id: str, entity_data: Dict[str, Any]) -> Optional[T]:
-        """Update an existing entity."""
         pass
     
     @abstractmethod
     def delete(self, entity_id: str) -> bool:
-        """Delete an entity by its ID."""
         pass
     
     @abstractmethod
@@ -106,7 +102,6 @@ class ModernBaseRepository(IBaseRepository[EntityType], Generic[EntityType]):
             return query.all()
     
     def create(self, entity_data: Dict[str, Any]) -> EntityType:
-        """Create a new entity with automatic transaction management."""
         with self.db_service.session_scope() as session:
             entity = self.model_class(**entity_data)
             session.add(entity)
@@ -115,7 +110,6 @@ class ModernBaseRepository(IBaseRepository[EntityType], Generic[EntityType]):
             return entity
     
     def update(self, entity_id: str, entity_data: Dict[str, Any]) -> Optional[EntityType]:
-        """Update an existing entity with automatic transaction management."""
         with self.db_service.session_scope() as session:
             entity = session.query(self.model_class).filter(
                 self.model_class.id == entity_id
@@ -133,7 +127,6 @@ class ModernBaseRepository(IBaseRepository[EntityType], Generic[EntityType]):
             return entity
     
     def delete(self, entity_id: str) -> bool:
-        """Delete an entity by its ID with automatic transaction management."""
         with self.db_service.session_scope() as session:
             entity = session.query(self.model_class).filter(
                 self.model_class.id == entity_id
@@ -214,7 +207,6 @@ class BaseRepository(IBaseRepository[EntityType], Generic[EntityType]):
         self.model_class = model_class
     
     def get_by_id(self, entity_id: str) -> Optional[EntityType]:
-        """Retrieve an entity by its ID."""
         return self.db.query(self.model_class).filter(self.model_class.id == entity_id).first()
     
     def get_all(
@@ -241,7 +233,6 @@ class BaseRepository(IBaseRepository[EntityType], Generic[EntityType]):
         return query.all()
     
     def create(self, entity_data: Dict[str, Any]) -> EntityType:
-        """Create a new entity."""
         entity = self.model_class(**entity_data)
         self.db.add(entity)
         # Note: No commit here - transaction managed by caller
@@ -250,7 +241,6 @@ class BaseRepository(IBaseRepository[EntityType], Generic[EntityType]):
         return entity
     
     def update(self, entity_id: str, entity_data: Dict[str, Any]) -> Optional[EntityType]:
-        """Update an existing entity."""
         entity = self.get_by_id(entity_id)
         if not entity:
             return None
@@ -265,7 +255,6 @@ class BaseRepository(IBaseRepository[EntityType], Generic[EntityType]):
         return entity
     
     def delete(self, entity_id: str) -> bool:
-        """Delete an entity by its ID."""
         entity = self.get_by_id(entity_id)
         if not entity:
             return False

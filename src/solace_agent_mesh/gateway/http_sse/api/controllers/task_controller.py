@@ -74,7 +74,6 @@ async def send_task_to_agent(
     log.info("%sReceived request for agent: %s", log_prefix, agent_name)
 
     try:
-        # Create request DTO for validation
         task_files = []
         for file in files:
             if file.filename:
@@ -169,7 +168,6 @@ async def subscribe_task_from_agent(
     log.info("%sReceived streaming request for agent: %s", log_prefix, agent_name)
 
     try:
-        # Create request DTO for validation
         task_files = []
         for file in files:
             if file.filename:
@@ -298,7 +296,6 @@ async def cancel_agent_task(
     log.info("%sReceived cancellation request.", log_prefix)
 
     try:
-        # Create request DTO for validation
         request_dto = CancelTaskRequest(
             task_id=task_id,
             user_id=user_id

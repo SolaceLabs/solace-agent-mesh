@@ -54,7 +54,6 @@ class DatabaseService:
         )
     
     def create_tables(self):
-        """Create all database tables."""
         Base.metadata.create_all(bind=self.engine)
     
     @contextmanager
@@ -133,7 +132,6 @@ database_service: DatabaseService = None
 
 
 def get_database_service() -> DatabaseService:
-    """Get the global database service instance."""
     return database_service
 
 

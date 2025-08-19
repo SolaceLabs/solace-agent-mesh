@@ -36,14 +36,10 @@ async def get_all_sessions(
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_service),
 ):
-    """
-    Retrieves all chat sessions for the current user.
-    """
     user_id = user.get("id")
     log.info("Fetching sessions for user_id: %s", user_id)
     
     try:
-        # Create request DTO
         request_dto = GetSessionsRequest(user_id=user_id)
         
         # Get sessions from business service
@@ -88,10 +84,6 @@ async def get_session(
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_service),
 ):
-    """
-    Retrieves a specific chat session,
-    ensuring the user has permission to access it.
-    """
     user_id = user.get("id")
     log.info("User %s attempting to fetch session_id: %s", user_id, session_id)
 
@@ -103,7 +95,6 @@ async def get_session(
                 detail="Session not found."
             )
         
-        # Create request DTO
         request_dto = GetSessionRequest(session_id=session_id, user_id=user_id)
         
         # Get session from business service
@@ -142,18 +133,12 @@ async def get_session(
         )
 
 
-@router.get("/sessions/{session_id}/history")
+@router.get("/sessions/{session_id}/messages")
 async def get_session_history(
     session_id: str,
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_service),
 ):
-    """
-    Retrieves the message history for a specific chat session,
-    ensuring the user has permission to access it.
-    
-    Returns: Direct array of messages for backward compatibility with tests.
-    """
     user_id = user.get("id")
     log.info(
         "User %s attempting to fetch history for session_id: %s", user_id, session_id
@@ -167,7 +152,6 @@ async def get_session_history(
                 detail="Session not found."
             )
         
-        # Create request DTO
         request_dto = GetSessionHistoryRequest(session_id=session_id, user_id=user_id)
         
         # Get session history from business service
@@ -222,9 +206,6 @@ async def update_session_name(
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_service),
 ):
-    """
-    Updates the name of a specific chat session.
-    """
     user_id = user.get("id")
     log.info("User %s attempting to update session %s", user_id, session_id)
 
@@ -236,14 +217,12 @@ async def update_session_name(
                 detail="Session not found."
             )
         
-        # Create request DTO
         request_dto = UpdateSessionRequest(
             session_id=session_id,
             user_id=user_id,
             name=name
         )
         
-        # Update session using business service
         updated_domain = session_service.update_session_name(
             session_id=request_dto.session_id,
             user_id=request_dto.user_id,
@@ -292,10 +271,6 @@ async def delete_session(
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_service),
 ):
-    """
-    Deletes a specific chat session.
-    Note: Agent notification logic would need to be moved to a separate service.
-    """
     user_id = user.get("id")
     log.info("User %s attempting to delete session %s", user_id, session_id)
 
@@ -307,10 +282,8 @@ async def delete_session(
                 detail="Session not found."
             )
         
-        # Create request DTO
         request_dto = DeleteSessionRequest(session_id=session_id, user_id=user_id)
         
-        # Delete session using business service
         deleted = session_service.delete_session(
             session_id=request_dto.session_id,
             user_id=request_dto.user_id

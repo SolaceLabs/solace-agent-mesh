@@ -38,7 +38,7 @@ def test_session_deletion_cascades_to_messages(api_client: TestClient):
         assert followup_response.json()["result"]["sessionId"] == session_id
 
     # Verify session has multiple messages
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert history_response.status_code == 200
     history = history_response.json()
     assert len(history) >= 4  # Should have at least 4 user messages
@@ -58,7 +58,7 @@ def test_session_deletion_cascades_to_messages(api_client: TestClient):
     assert session_response.status_code == 404
 
     # Verify session history is also gone (should return 404, not empty list)
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert history_response.status_code == 404
 
     print(f"✓ Session {session_id} and all associated messages successfully deleted")
@@ -198,7 +198,7 @@ def test_cross_user_data_isolation_comprehensive(api_client: TestClient, test_ap
 
         # Test message content isolation
         user1_session_id, _ = user1_sessions[0]
-        user1_history = api_client.get(f"/api/v1/sessions/{user1_session_id}/history")
+        user1_history = api_client.get(f"/api/v1/sessions/{user1_session_id}/messages")
         assert user1_history.status_code == 200
         user1_messages = [
             msg["message"]
@@ -243,7 +243,7 @@ def test_orphaned_data_prevention(api_client: TestClient):
         assert followup_response.status_code == 200
 
     # Verify messages exist
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert history_response.status_code == 200
     messages_before = history_response.json()
     assert len(messages_before) >= 4
@@ -257,7 +257,7 @@ def test_orphaned_data_prevention(api_client: TestClient):
     assert session_response.status_code == 404
 
     # Verify messages are gone (not orphaned)
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert history_response.status_code == 404
 
     # Try to add message to deleted session (should fail)
@@ -312,7 +312,7 @@ def test_referential_integrity_with_multiple_deletions(api_client: TestClient):
 
     # Verify all sessions exist with expected message counts
     for session_id, expected_count in sessions_data:
-        history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+        history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
         assert history_response.status_code == 200
         messages = history_response.json()
         user_messages = [msg for msg in messages if msg["sender_type"] == "user"]
@@ -345,7 +345,7 @@ def test_referential_integrity_with_multiple_deletions(api_client: TestClient):
             assert remaining_response.status_code == 200
 
             remaining_history = api_client.get(
-                f"/api/v1/sessions/{remaining_id}/history"
+                f"/api/v1/sessions/{remaining_id}/messages"
             )
             assert remaining_history.status_code == 200
             remaining_messages = remaining_history.json()
@@ -414,7 +414,7 @@ def test_session_consistency_across_operations(api_client: TestClient):
     assert session_data["agent_id"] == "TestAgent"
 
     # 4. Verify message history consistency
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert history_response.status_code == 200
     history = history_response.json()
 
@@ -483,7 +483,7 @@ def test_data_integrity_under_concurrent_operations(api_client: TestClient):
     # Get session and history multiple times
     for i in range(5):
         get_response = api_client.get(f"/api/v1/sessions/{session_id}")
-        history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+        history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
         operations_results.append(("get", get_response.status_code == 200))
         operations_results.append(("history", history_response.status_code == 200))
 
@@ -501,7 +501,7 @@ def test_data_integrity_under_concurrent_operations(api_client: TestClient):
     assert session_data["id"] == session_id
     assert session_data["name"] == "Updated Name 3"  # Should have the last update
 
-    final_history = api_client.get(f"/api/v1/sessions/{session_id}/history")
+    final_history = api_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert final_history.status_code == 200
     history = final_history.json()
 
@@ -565,7 +565,7 @@ def test_user_data_cleanup_integrity(api_client: TestClient):
         assert verify_response.status_code == 404
 
         # Verify history is gone
-        history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+        history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
         assert history_response.status_code == 404
 
     # Verify user has no remaining sessions

@@ -23,7 +23,6 @@ from .converter import (
 from .types import DataFormat
 from ..mime_helpers import is_text_based_mime_type
 
-from ..yaml_loader import IncludeLoader
 
 try:
     import yaml
@@ -231,7 +230,7 @@ async def _evaluate_artifact_content_embed_with_chain(
         elif "yaml" in normalized_mime_type or "yml" in normalized_mime_type:
             if PYYAML_AVAILABLE:
                 try:
-                    current_data = yaml.load(current_data, Loader=IncludeLoader)
+                    current_data = yaml.safe_load(current_data)
                     current_format = DataFormat.JSON_OBJECT
                     log.info(
                         "%s [Depth:%d] Pre-parsed string as YAML (now JSON_OBJECT).",

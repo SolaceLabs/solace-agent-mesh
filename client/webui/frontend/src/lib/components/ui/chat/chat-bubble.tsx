@@ -55,7 +55,7 @@ const ChatBubbleAvatar: React.FC<ChatBubbleAvatarProps> = ({ src, fallback, clas
 const chatBubbleMessageVariants = cva("p-4", {
     variants: {
         variant: {
-            received: "rounded-r-lg rounded-tl-lg bg-[var(--accent-background)]",
+            received: "rounded-r-lg rounded-tl-lg",
             sent: "rounded-l-lg rounded-tr-lg justify-end bg-[var(--message-background)]",
         },
         layout: {

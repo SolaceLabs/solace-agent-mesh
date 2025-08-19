@@ -2,13 +2,10 @@
 Domain entities and business rules.
 """
 
-from .session_domain import SessionDomain, MessageDomain, SessionHistoryDomain
-from .user_domain import UserProfileDomain, UserSessionsDomain
+from .session_domain import MessageDomain, SessionDomain, SessionHistoryDomain
 
 __all__ = [
     "SessionDomain",
-    "MessageDomain", 
+    "MessageDomain",
     "SessionHistoryDomain",
-    "UserProfileDomain",
-    "UserSessionsDomain",
 ]

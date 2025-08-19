@@ -6,7 +6,7 @@ from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import IntegrityError, OperationalError, DataError
 from .persistence_service import PersistenceService
-from .models import Session as DbSession, ChatMessage, User
+from .models import Session as DbSession, ChatMessage
 from .transaction_manager import (
     TransactionManager, 
     atomic_operation, 
@@ -176,21 +176,6 @@ class DatabasePersistenceService(PersistenceService):
         )
         return [msg.to_dict() for msg in messages]
 
-    def store_user_info(self, user_id: str, info: dict):
-        session = self.Session()
-        try:
-            user = session.query(User).filter_by(id=user_id).first()
-            if not user:
-                user = User(id=user_id, info=json.dumps(info))
-                session.add(user)
-            else:
-                user.info = json.dumps(info)  # type: ignore
-            session.commit()
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
 
     def create_session(
         self, session_id: str, user_id: str, agent_id: Optional[str] = None
@@ -198,13 +183,6 @@ class DatabasePersistenceService(PersistenceService):
         self.logger.info("Creating session %s for user %s", session_id, user_id)
         session = self.Session()
         try:
-            # Ensure the user exists
-            user = session.query(User).filter_by(id=user_id).first()
-            if not user:
-                self.logger.info("User %s not found. Creating new user.", user_id)
-                user = User(id=user_id, info="{}")  # Create user with empty info
-                session.add(user)
-
             new_session = DbSession(id=session_id, user_id=user_id, agent_id=agent_id)
             session.add(new_session)
             session.commit()
@@ -342,13 +320,6 @@ class DatabasePersistenceService(PersistenceService):
         or neither is created (atomic operation).
         """
         self.logger.info("Creating session %s for user %s with initial message", session_id, user_id)
-        
-        # Ensure the user exists
-        user = session.query(User).filter_by(id=user_id).first()
-        if not user:
-            self.logger.info("User %s not found. Creating new user.", user_id)
-            user = User(id=user_id, info="{}")  # Create user with empty info
-            session.add(user)
         
         # Check if session already exists
         existing_session = session.query(DbSession).filter_by(id=session_id).first()

@@ -66,7 +66,7 @@ class TestSessionsAPIContract:
         print(f"✓ GET /sessions/{session_id} response schema valid")
 
     def test_get_session_history_response_schema(self, api_client: TestClient):
-        """Test GET /sessions/{id}/history returns proper message array"""
+        """Test GET /sessions/{id}/messages returns proper message array"""
 
         # Create session with message
         task_data = {"agent_name": "TestAgent", "message": "History schema test"}
@@ -74,7 +74,7 @@ class TestSessionsAPIContract:
         session_id = response.json()["result"]["sessionId"]
 
         # Test history endpoint
-        response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+        response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
 
         assert response.status_code == 200
         assert response.headers.get("content-type") == "application/json"
@@ -91,7 +91,7 @@ class TestSessionsAPIContract:
 
             assert message["sender_type"] in ["user", "assistant"]
 
-        print(f"✓ GET /sessions/{session_id}/history response schema valid")
+        print(f"✓ GET /sessions/{session_id}/messages response schema valid")
 
     def test_patch_session_request_response_schema(self, api_client: TestClient):
         """Test PATCH /sessions/{id} request and response schemas"""
@@ -268,7 +268,7 @@ class TestHTTPStatusCodes:
         """Test that unauthorized access returns 404 to prevent information leakage"""
 
         # Try to access session that doesn't belong to user
-        response = api_client.get("/api/v1/sessions/nonexistent/history")
+        response = api_client.get("/api/v1/sessions/nonexistent/messages")
         assert response.status_code == 404
 
         response = api_client.patch(
@@ -309,7 +309,7 @@ class TestContentTypeHeaders:
 
         json_endpoints_with_session = [
             ("GET", f"/api/v1/sessions/{session_id}"),
-            ("GET", f"/api/v1/sessions/{session_id}/history"),
+            ("GET", f"/api/v1/sessions/{session_id}/messages"),
         ]
 
         for method, endpoint in json_endpoints_with_session:

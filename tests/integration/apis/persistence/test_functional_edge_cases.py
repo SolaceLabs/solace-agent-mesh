@@ -96,7 +96,7 @@ def test_concurrent_message_additions_same_session(api_client: TestClient):
         assert returned_session_id == session_id
 
     # Verify all messages were added
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert history_response.status_code == 200
     history = history_response.json()
 
@@ -278,7 +278,7 @@ def test_message_ordering_consistency_under_load(api_client: TestClient):
         time.sleep(0.01)
 
     # Verify message history maintains order
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert history_response.status_code == 200
     history = history_response.json()
 
@@ -377,7 +377,7 @@ def test_empty_and_whitespace_message_handling(api_client: TestClient):
             assert session_response.status_code == 200
 
             # Verify message appears in history
-            history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+            history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
             assert history_response.status_code == 200
             history = history_response.json()
 

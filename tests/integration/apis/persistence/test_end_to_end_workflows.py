@@ -43,7 +43,7 @@ def test_complete_user_conversation_workflow(api_client: TestClient):
 
     # 3. Check conversation history
     print("3. Checking conversation history...")
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert history_response.status_code == 200
     history = history_response.json()
 
@@ -146,7 +146,7 @@ def test_multi_agent_consultation_workflow(api_client: TestClient):
         assert session["agent_id"] == agent_name
 
         # Verify conversation history
-        history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+        history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
         assert history_response.status_code == 200
         history = history_response.json()
 
@@ -216,7 +216,7 @@ def test_document_processing_workflow(api_client: TestClient):
 
     # 3. Verify conversation history includes file-related discussion
     print("3. Verifying conversation history...")
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert history_response.status_code == 200
     history = history_response.json()
 
@@ -353,7 +353,7 @@ def test_error_recovery_workflow(api_client: TestClient):
 
     # 4. Verify session history is intact
     print("4. Verifying session history is intact...")
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert history_response.status_code == 200
     history = history_response.json()
 
@@ -409,7 +409,7 @@ def test_high_volume_workflow(api_client: TestClient):
 
     # Verify each session has the expected number of messages
     for session_id in session_ids:
-        history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+        history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
         assert history_response.status_code == 200
         history = history_response.json()
 

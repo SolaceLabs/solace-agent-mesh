@@ -16,7 +16,6 @@ class ISessionRepository(IBaseRepository[SessionModel]):
     
     @abstractmethod
     def get_by_user_id(self, user_id: UserId) -> List[SessionModel]:
-        """Get all sessions for a specific user."""
         pass
     
     @abstractmethod
@@ -26,7 +25,6 @@ class ISessionRepository(IBaseRepository[SessionModel]):
     
     @abstractmethod
     def update_name(self, session_id: SessionId, name: str) -> Optional[SessionModel]:
-        """Update session name."""
         pass
     
     @abstractmethod
@@ -55,7 +53,6 @@ class IMessageRepository(IBaseRepository[ChatMessage]):
         sender_type: str,
         sender_name: str
     ) -> ChatMessage:
-        """Create a new message."""
         pass
 
 
@@ -66,7 +63,6 @@ class SessionRepository(BaseRepository[SessionModel], ISessionRepository):
         super().__init__(db, SessionModel)
     
     def get_by_user_id(self, user_id: UserId) -> List[SessionModel]:
-        """Get all sessions for a specific user."""
         return self.db.query(SessionModel).filter(SessionModel.user_id == user_id).all()
     
     def get_with_messages(self, session_id: SessionId) -> Optional[SessionModel]:
@@ -78,7 +74,6 @@ class SessionRepository(BaseRepository[SessionModel], ISessionRepository):
         )
     
     def update_name(self, session_id: SessionId, name: str) -> Optional[SessionModel]:
-        """Update session name."""
         return self.update(session_id, {"name": name})
     
     def get_user_session(self, session_id: SessionId, user_id: UserId) -> Optional[SessionModel]:
@@ -120,7 +115,6 @@ class MessageRepository(BaseRepository[ChatMessage], IMessageRepository):
         sender_type: str,
         sender_name: str
     ) -> ChatMessage:
-        """Create a new message."""
         import uuid
         message_data = {
             "id": str(uuid.uuid4()),

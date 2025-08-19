@@ -7,9 +7,6 @@ from ...utils import ask_if_not_provided, ask_yes_no_question
 def prompt_for_db_credentials(
     options: dict, db_type: str, skip_interactive: bool
 ) -> str:
-    """
-    Prompts user for database credentials and constructs a database URL.
-    """
     db_url = ask_if_not_provided(
         options,
         f"{db_type}_database_url",
@@ -22,9 +19,6 @@ def prompt_for_db_credentials(
 def database_setup_step(
     project_root: Path, options: dict, skip_interactive: bool
 ) -> bool:
-    """
-    Creates the database and runs migrations.
-    """
     click.echo("Setting up database(s)...")
 
     db_configs = []

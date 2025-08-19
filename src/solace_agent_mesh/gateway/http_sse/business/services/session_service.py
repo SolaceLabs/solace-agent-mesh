@@ -33,7 +33,6 @@ class SessionService:
         user_id: UserId,
         pagination: Optional[PaginationInfo] = None
     ) -> List[SessionDomain]:
-        """Get all sessions for a user (read-only operation)."""
         with self.db_service.read_only_session() as session:
             query = session.query(SessionModel).filter(SessionModel.user_id == user_id)
             
@@ -47,7 +46,6 @@ class SessionService:
             return [self._model_to_domain(model) for model in session_models]
     
     def get_session(self, session_id: SessionId, user_id: UserId) -> Optional[SessionDomain]:
-        """Get a specific session if it belongs to the user (read-only operation)."""
         with self.db_service.read_only_session() as session:
             session_model = session.query(SessionModel).filter(
                 SessionModel.id == session_id,
@@ -115,7 +113,6 @@ class SessionService:
         name: Optional[str] = None,
         agent_id: Optional[str] = None
     ) -> SessionDomain:
-        """Create a new session."""
         session_id = str(uuid.uuid4())
         
         with self.db_service.session_scope() as db_session:
@@ -137,7 +134,6 @@ class SessionService:
         user_id: UserId,
         name: str
     ) -> Optional[SessionDomain]:
-        """Update session name."""
         with self.db_service.session_scope() as db_session:
             # Get and verify ownership
             session_model = db_session.query(SessionModel).filter(
@@ -160,7 +156,6 @@ class SessionService:
             return self._model_to_domain(session_model)
     
     def delete_session(self, session_id: SessionId, user_id: UserId) -> bool:
-        """Delete a session."""
         with self.db_service.session_scope() as db_session:
             # Get and verify ownership
             session_model = db_session.query(SessionModel).filter(
@@ -263,7 +258,6 @@ class SessionService:
             )
     
     def _model_to_domain(self, model) -> SessionDomain:
-        """Convert database model to domain entity."""
         return SessionDomain(
             id=model.id,
             user_id=model.user_id,

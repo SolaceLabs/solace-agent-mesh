@@ -42,19 +42,3 @@ class Session(SessionBase):
         orm_mode = True
 
 
-class UserBase(BaseModel):
-    info: Optional[str] = None
-
-
-class UserCreate(UserBase):
-    id: str
-
-
-class User(UserBase):
-    id: str
-    created_at: datetime
-    updated_at: datetime
-    sessions: List[Session] = []
-
-    class Config:
-        orm_mode = True

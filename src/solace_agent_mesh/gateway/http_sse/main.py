@@ -9,53 +9,45 @@ This application implements clean separation of concerns with:
 All API endpoints maintain backward compatibility while using modern architecture patterns.
 """
 
-from fastapi import (
-    FastAPI,
-    Request as FastAPIRequest,
-    HTTPException,
-    status,
-)
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.sessions import SessionMiddleware
-from starlette.staticfiles import StaticFiles
 import os
 from pathlib import Path
+
 import httpx
 import sqlalchemy as sa
-
+from fastapi import FastAPI, HTTPException, status
+from fastapi import Request as FastAPIRequest
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from solace_ai_connector.common.log import log
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.staticfiles import StaticFiles
 
 # Import new 3-tiered architecture components
-from .api.controllers import session_router, user_router, task_router
+from .api.controllers import session_router, task_router, user_router
 from .data.persistence.database_service import DatabaseService
 
 # Global database service instance
 database_service: DatabaseService = None
 
 # Import remaining routers that haven't been migrated to new architecture yet
+from typing import TYPE_CHECKING
+
+from alembic import command
+from alembic.config import Config
+
+from ...common.types import InternalError, InvalidRequestError, JSONRPCError
+from ...common.types import JSONRPCResponse as A2AJSONRPCResponse
+from ...gateway.http_sse import dependencies
 from ...gateway.http_sse.routers import (
     agents,
-    sse,
-    config,
     artifacts,
-    visualization,
-    people,
     auth,
+    config,
+    people,
+    sse,
+    visualization,
 )
-
-from ...gateway.http_sse import dependencies
-from ...common.types import (
-    JSONRPCResponse as A2AJSONRPCResponse,
-    JSONRPCError,
-    InternalError,
-    InvalidRequestError,
-)
-
-from alembic.config import Config
-from alembic import command
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
@@ -70,29 +62,29 @@ app = FastAPI(
 def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
     """
     Setup function using 3-tiered architecture with dependency injection.
-    
+
     This function initializes the modern architecture while maintaining full
     backward compatibility with existing API contracts.
     """
     log.info("Setting up FastAPI dependencies with 3-tiered architecture...")
-    
+
     # Initialize database service for new architecture
     database_url = persistence_service.engine.url.__str__()
     global database_service
     database_service = DatabaseService(database_url)
     log.info("Database service initialized")
-    
+
     # Set up existing component dependencies for backward compatibility
     dependencies.set_component_instance(component)
-    
+
     # Run database migrations (only if needed)
     log.info("Checking database migrations...")
     try:
         # Check if tables already exist (common in test environments)
         inspector = sa.inspect(persistence_service.engine)
         existing_tables = inspector.get_table_names()
-        
-        if not existing_tables or "users" not in existing_tables:
+
+        if not existing_tables or "sessions" not in existing_tables:
             # Tables don't exist, run migrations
             log.info("Running database migrations...")
             alembic_cfg = Config()
@@ -118,7 +110,7 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
             log.info("Database migrations complete.")
         except Exception as migration_error:
             log.warning(f"Migration failed but continuing: {migration_error}")
-    
+
     # Set persistence service for backward compatibility with non-migrated routers
     dependencies.set_persistence_service(persistence_service)
 
@@ -386,7 +378,7 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
 
     # Mount API routers
     api_prefix = "/api/v1"
-    
+
     # Mount new 3-tiered architecture controllers
     app.include_router(session_router, prefix=api_prefix, tags=["Sessions"])
     app.include_router(user_router, prefix=f"{api_prefix}/users", tags=["Users"])
@@ -451,13 +443,12 @@ async def http_exception_handler(request: FastAPIRequest, exc: HTTPException):
         request.method,
         request.url,
     )
-    
+
     # Check if this is a JSON-RPC endpoint (tasks and SSE endpoints use JSON-RPC)
-    is_jsonrpc_endpoint = (
-        request.url.path.startswith("/api/v1/tasks") or
-        request.url.path.startswith("/api/v1/sse")
-    )
-    
+    is_jsonrpc_endpoint = request.url.path.startswith(
+        "/api/v1/tasks"
+    ) or request.url.path.startswith("/api/v1/sse")
+
     if is_jsonrpc_endpoint:
         # Use JSON-RPC format for tasks and SSE endpoints
         error_data = None
@@ -478,7 +469,9 @@ async def http_exception_handler(request: FastAPIRequest, exc: HTTPException):
                 error_code = -32601
                 error_message = "Resource not found"
 
-        error_obj = JSONRPCError(code=error_code, message=error_message, data=error_data)
+        error_obj = JSONRPCError(
+            code=error_code, message=error_message, data=error_data
+        )
         response = A2AJSONRPCResponse(error=error_obj)
         return JSONResponse(
             status_code=exc.status_code, content=response.model_dump(exclude_none=True)
@@ -491,11 +484,8 @@ async def http_exception_handler(request: FastAPIRequest, exc: HTTPException):
             error_response = {"detail": exc.detail}
         else:
             error_response = {"detail": str(exc.detail)}
-        
-        return JSONResponse(
-            status_code=exc.status_code, 
-            content=error_response
-        )
+
+        return JSONResponse(status_code=exc.status_code, content=error_response)
 
 
 @app.exception_handler(RequestValidationError)
@@ -511,13 +501,12 @@ async def validation_exception_handler(
         request.method,
         request.url,
     )
-    
+
     # Check if this is a JSON-RPC endpoint
-    is_jsonrpc_endpoint = (
-        request.url.path.startswith("/api/v1/tasks") or
-        request.url.path.startswith("/api/v1/sse")
-    )
-    
+    is_jsonrpc_endpoint = request.url.path.startswith(
+        "/api/v1/tasks"
+    ) or request.url.path.startswith("/api/v1/sse")
+
     if is_jsonrpc_endpoint:
         # Return JSON-RPC format for tasks/SSE endpoints with 422 for consistency
         error_obj = InvalidRequestError(
@@ -530,11 +519,8 @@ async def validation_exception_handler(
         )
     else:
         # Return standard REST validation error format
-        error_response = {
-            "detail": "Validation error",
-            "errors": exc.errors()
-        }
-        
+        error_response = {"detail": "Validation error", "errors": exc.errors()}
+
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             content=error_response,
@@ -549,13 +535,12 @@ async def generic_exception_handler(request: FastAPIRequest, exc: Exception):
     log.exception(
         "Unhandled Exception: %s, Request: %s %s", exc, request.method, request.url
     )
-    
+
     # Check if this is a JSON-RPC endpoint
-    is_jsonrpc_endpoint = (
-        request.url.path.startswith("/api/v1/tasks") or
-        request.url.path.startswith("/api/v1/sse")
-    )
-    
+    is_jsonrpc_endpoint = request.url.path.startswith(
+        "/api/v1/tasks"
+    ) or request.url.path.startswith("/api/v1/sse")
+
     if is_jsonrpc_endpoint:
         # Return JSON-RPC format for tasks/SSE endpoints
         error_obj = InternalError(
@@ -568,10 +553,8 @@ async def generic_exception_handler(request: FastAPIRequest, exc: Exception):
         )
     else:
         # Return standard REST error format
-        error_response = {
-            "detail": f"Internal server error: {type(exc).__name__}"
-        }
-        
+        error_response = {"detail": f"Internal server error: {type(exc).__name__}"}
+
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=error_response,
@@ -585,6 +568,4 @@ async def read_root():
     return {"status": "A2A Web UI Backend is running with 3-tiered architecture"}
 
 
-log.info(
-    "FastAPI application instance created with 3-tiered architecture."
-)
+log.info("FastAPI application instance created with 3-tiered architecture.")

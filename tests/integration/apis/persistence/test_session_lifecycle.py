@@ -104,7 +104,7 @@ def test_get_specific_session(api_client: TestClient):
 
 
 def test_get_session_history(api_client: TestClient):
-    """Test GET /sessions/{session_id}/history retrieves message history"""
+    """Test GET /sessions/{session_id}/messages retrieves message history"""
 
     # Create session with message
     task_data = {"agent_name": "TestAgent", "message": "Test message for history"}
@@ -113,7 +113,7 @@ def test_get_session_history(api_client: TestClient):
     session_id = response.json()["result"]["sessionId"]
 
     # Get session history
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert history_response.status_code == 200
 
     history = history_response.json()
@@ -183,7 +183,7 @@ def test_session_error_handling(api_client: TestClient):
     assert response.status_code == 404
 
     # Test getting history for non-existent session
-    response = api_client.get("/api/v1/sessions/nonexistent_session_id/history")
+    response = api_client.get("/api/v1/sessions/nonexistent_session_id/messages")
     assert response.status_code == 404  # Not found (don't reveal existence)
 
     # Test updating non-existent session
@@ -229,7 +229,7 @@ def test_end_to_end_session_workflow(api_client: TestClient):
     assert response_2.json()["result"]["sessionId"] == session_id
 
     # 4. Check session history
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert history_response.status_code == 200
     history = history_response.json()
     assert len(history) >= 2  # Should have both messages (direct array)

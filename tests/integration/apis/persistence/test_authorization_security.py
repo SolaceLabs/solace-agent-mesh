@@ -139,14 +139,14 @@ def test_cross_user_session_history_returns_404(multi_user_test_setup):
     session_id = response_a.json()["result"]["sessionId"]
 
     # Verify User A can access their own session history
-    history_response = first_user_client.get(f"/api/v1/sessions/{session_id}/history")
+    history_response = first_user_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert history_response.status_code == 200
     history = history_response.json()
     assert len(history) >= 1
 
     # User B tries to access User A's session history - should get 404
     unauthorized_history = second_user_client.get(
-        f"/api/v1/sessions/{session_id}/history"
+        f"/api/v1/sessions/{session_id}/messages"
     )
     assert unauthorized_history.status_code == 404
     response_data = unauthorized_history.json()
@@ -315,8 +315,8 @@ def test_consistent_404_for_nonexistent_and_unauthorized_sessions(
     endpoints_to_test = [
         ("GET", f"/api/v1/sessions/{real_session_id}"),
         ("GET", f"/api/v1/sessions/{fake_session_id}"),
-        ("GET", f"/api/v1/sessions/{real_session_id}/history"),
-        ("GET", f"/api/v1/sessions/{fake_session_id}/history"),
+        ("GET", f"/api/v1/sessions/{real_session_id}/messages"),
+        ("GET", f"/api/v1/sessions/{fake_session_id}/messages"),
     ]
 
     # User B should get 404 for both real (unauthorized) and fake (nonexistent) sessions
@@ -373,7 +373,7 @@ def test_authorization_with_empty_session_id(api_client):
         assert response.status_code == 404
 
         # Test GET history
-        response = api_client.get(f"/api/v1/sessions/{invalid_id}/history")
+        response = api_client.get(f"/api/v1/sessions/{invalid_id}/messages")
         assert response.status_code == 404
 
         # Test PATCH session
@@ -411,7 +411,7 @@ def test_session_ownership_after_multiple_operations(multi_user_test_setup):
     assert update_response.status_code == 200
 
     # 3. Get history
-    history_response = first_user_client.get(f"/api/v1/sessions/{session_id}/history")
+    history_response = first_user_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert history_response.status_code == 200
 
     # 4. Add another message to the session
@@ -429,7 +429,7 @@ def test_session_ownership_after_multiple_operations(multi_user_test_setup):
     # After all operations, User B should still get 404 for everything
     assert second_user_client.get(f"/api/v1/sessions/{session_id}").status_code == 404
     assert (
-        second_user_client.get(f"/api/v1/sessions/{session_id}/history").status_code
+        second_user_client.get(f"/api/v1/sessions/{session_id}/messages").status_code
         == 404
     )
     assert (

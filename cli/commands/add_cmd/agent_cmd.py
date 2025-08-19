@@ -23,7 +23,6 @@ from .web_add_agent_step import launch_add_agent_web_portal
 
 
 def _append_to_env_file(project_root: Path, key: str, value: str):
-    """Appends a key-value pair to the .env file."""
     env_path = project_root / ".env"
     try:
         with open(env_path, "a", encoding="utf-8") as f:

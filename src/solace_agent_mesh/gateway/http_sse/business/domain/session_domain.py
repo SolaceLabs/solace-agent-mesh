@@ -23,7 +23,6 @@ class SessionDomain(BaseModel):
     last_activity: Optional[datetime] = None
     
     def update_name(self, new_name: str) -> None:
-        """Update session name with validation."""
         if not new_name or len(new_name.strip()) == 0:
             raise ValueError("Session name cannot be empty")
         if len(new_name) > 255:
@@ -38,12 +37,10 @@ class SessionDomain(BaseModel):
         self.updated_at = datetime.now(timezone.utc)
     
     def archive(self) -> None:
-        """Archive the session."""
         self.status = SessionStatus.ARCHIVED
         self.updated_at = datetime.now(timezone.utc)
     
     def activate(self) -> None:
-        """Activate the session."""
         self.status = SessionStatus.ACTIVE
         self.updated_at = datetime.now(timezone.utc)
     
@@ -95,7 +92,6 @@ class SessionHistoryDomain(BaseModel):
     total_message_count: int = 0
     
     def add_message(self, message: MessageDomain) -> None:
-        """Add a message to the session history."""
         if message.session_id != self.session.id:
             raise ValueError("Message does not belong to this session")
         

@@ -1,10 +1,5 @@
 from logging.config import fileConfig
 import os
-import sys
-
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-)
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
@@ -22,7 +17,7 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-from gateway.http_sse.database.models import Base
+from solace_agent_mesh.gateway.http_sse.database.models import Base
 
 target_metadata = Base.metadata
 

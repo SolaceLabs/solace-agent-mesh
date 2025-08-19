@@ -275,7 +275,7 @@ def test_task_and_session_integration(api_client: TestClient):
     assert session_data["agent_id"] == "TestAgent"
 
     # Verify message appears in session history
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/history")
+    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert history_response.status_code == 200
     history = history_response.json()
 

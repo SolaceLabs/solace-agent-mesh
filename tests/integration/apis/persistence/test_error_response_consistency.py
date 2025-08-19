@@ -17,7 +17,7 @@ def test_404_error_response_consistency(api_client: TestClient):
     # List of endpoints that should return 404 for non-existent resources
     not_found_endpoints = [
         ("GET", "/api/v1/sessions/nonexistent_session_id"),
-        ("GET", "/api/v1/sessions/nonexistent_session_id/history"),
+        ("GET", "/api/v1/sessions/nonexistent_session_id/messages"),
         ("PATCH", "/api/v1/sessions/nonexistent_session_id", {"name": "Test"}),
         ("DELETE", "/api/v1/sessions/nonexistent_session_id"),
     ]
@@ -148,7 +148,7 @@ def test_error_message_security_no_leakage(api_client: TestClient):
     # Test accessing non-existent resources (should not reveal existence)
     security_test_cases = [
         ("GET", "/api/v1/sessions/completely_fake_session_id"),
-        ("GET", f"/api/v1/sessions/{valid_session_id}_fake/history"),
+        ("GET", f"/api/v1/sessions/{valid_session_id}_fake/messages"),
         ("PATCH", "/api/v1/sessions/fake_session_123", {"name": "Test"}),
         ("DELETE", "/api/v1/sessions/another_fake_session"),
     ]
