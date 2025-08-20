@@ -388,6 +388,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 case "agent_progress_update":
                                     agentStatusText = (data as any).status_text || "Processing...";
                                     break;
+                                case "artifact_creation_progress":
+                                    agentStatusText = `Saving artifact: ${(data as any).filename} (${(data as any).bytes_saved} bytes)`;
+                                    break;
                                 case "tool_invocation_start":
                                     break;
                                 default:
