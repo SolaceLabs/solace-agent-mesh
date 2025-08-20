@@ -36,18 +36,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         artifacts,
         isLoading: artifactsLoading,
         refetch: artifactsRefetch,
-        error: artifactsError,
     } = useArtifacts();
 
-    const artifactsRefetchIfNeeded = useCallback(
-        async (files: FileAttachment[]) => {
-            const needsRefetch = !artifactsLoading && files?.some(file => !artifacts.some(artifact => artifact.filename === file.name));
-            if (needsRefetch) {
-                await artifactsRefetch();
-            }
-        },
-        [artifacts, artifactsLoading, artifactsRefetch]
-    );
 
     // Side Panel Control State
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
@@ -121,7 +111,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 addNotification(`Error uploading file "${file.name}": ${error instanceof Error ? error.message : "Unknown error"}`);
             }
         },
-        [apiPrefix, addNotification, fetchArtifacts]
+        [apiPrefix, addNotification, artifactsRefetch]
     );
 
     // State Variables from useChat (excluding TaskMonitor parts)
@@ -140,25 +130,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const latestStatusText = useRef<string | null>(null);
     const sseEventSequenceRef = useRef<number>(0);
 
-    // Side Panel Control State
-    const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
-    const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow">("files");
-
-    // Delete Modal State
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [artifactToDelete, setArtifactToDelete] = useState<ArtifactInfo | null>(null);
+    // Session to delete state
     const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
-
-    // Chat Side Panel Edit Mode State
-    const [isArtifactEditMode, setIsArtifactEditMode] = useState<boolean>(false);
-    const [selectedArtifactFilenames, setSelectedArtifactFilenames] = useState<Set<string>>(new Set());
-    const [isBatchDeleteModalOpen, setIsBatchDeleteModalOpen] = useState<boolean>(false);
-
-    // Preview State
-    const [previewArtifact, setPreviewArtifact] = useState<ArtifactInfo | null>(null);
-    const [previewedArtifactAvailableVersions, setPreviewedArtifactAvailableVersions] = useState<number[] | null>(null);
-    const [currentPreviewedVersionNumber, setCurrentPreviewedVersionNumber] = useState<number | null>(null);
-    const [previewFileContent, setPreviewFileContent] = useState<FileAttachment | null>(null);
 
     const deleteArtifactInternal = useCallback(
         async (filename: string) => {
@@ -177,7 +150,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 addNotification(`Error deleting file "${filename}": ${error instanceof Error ? error.message : "Unknown error"}`);
             }
         },
-        [apiPrefix, addNotification, fetchArtifacts]
+        [apiPrefix, addNotification, artifactsRefetch]
     );
 
     const openDeleteModal = useCallback((artifact: ArtifactInfo) => {
