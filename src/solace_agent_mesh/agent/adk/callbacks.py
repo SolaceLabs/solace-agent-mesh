@@ -275,14 +275,14 @@ async def process_artifact_blocks_callback(
                                     params["schema_max_keys"],
                                 )
 
-                        # wrapped_creator = ADKToolWrapper(
-                        #     original_func=_internal_create_artifact,
-                        #     tool_config=None,  # No specific config for this internal tool
-                        #     tool_name="_internal_create_artifact",
-                        #     origin="internal",
-                        # )
-                        # save_result = await wrapped_creator(**kwargs_for_call)
-                        save_result = await _internal_create_artifact(**kwargs_for_call)
+                        wrapped_creator = ADKToolWrapper(
+                            original_func=_internal_create_artifact,
+                            tool_config=None,  # No specific config for this internal tool
+                            tool_name="_internal_create_artifact",
+                            origin="internal",
+                            resolution_type="early",
+                        )
+                        save_result = await wrapped_creator(**kwargs_for_call)
 
                         if save_result.get("status") in ["success", "partial_success"]:
                             status_for_tool = "success"
