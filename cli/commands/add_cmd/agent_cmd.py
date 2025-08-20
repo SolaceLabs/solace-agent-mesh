@@ -21,6 +21,8 @@ from ...utils import (
 )
 from .web_add_agent_step import launch_add_agent_web_portal
 
+DATABASE_URL_KEY = "database_url"
+
 
 def _append_to_env_file(project_root: Path, key: str, value: str):
     env_path = project_root / ".env"
@@ -291,10 +293,10 @@ def _write_agent_yaml_from_data(
 
         for placeholder, value in replacements.items():
             modified_content = modified_content.replace(placeholder, str(value))
-        if config_options.get("database_url"):
+        if config_options.get(DATABASE_URL_KEY):
             env_key = f"{formatted_names['SNAKE_UPPER_CASE_NAME']}_DATABASE_URL"
             if not _append_to_env_file(
-                project_root, env_key, config_options["database_url"]
+                project_root, env_key, config_options[DATABASE_URL_KEY]
             ):
                 return False, "Failed to write to .env file.", ""
 
@@ -388,22 +390,23 @@ def create_agent_config(
     )
 
     if collected_options.get("session_service_type") == "sql":
-        if "database_url" not in collected_options:
+        if DATABASE_URL_KEY not in collected_options:
             use_own_db = False
             if not skip_interactive:
                 use_own_db = ask_yes_no_question(
-                    f"Do you want to use your own database for the '{agent_name_camel_case}' agent?",
+                    f"Do you want to use your own database for the '{agent_name_camel_case}' agent?\n"
+                    f"  (If no, SQLite embedded database will be used)",
                     default=False,
                 )
 
             if use_own_db:
                 database_url = ask_if_not_provided(
                     collected_options,
-                    "database_url",
+                    DATABASE_URL_KEY,
                     f"Enter the full database URL for the {agent_name_camel_case} agent (e.g., postgresql://user:pass@host/db)",
                     none_interactive=skip_interactive,
                 )
-                collected_options["database_url"] = database_url
+                collected_options[DATABASE_URL_KEY] = database_url
             else:
                 data_dir = project_root / "data"
                 data_dir.mkdir(exist_ok=True)
@@ -412,13 +415,15 @@ def create_agent_config(
                 click.echo(
                     f"  Using default SQLite database for {agent_name_camel_case} agent: {db_file}"
                 )
-                collected_options["database_url"] = database_url
+                collected_options[DATABASE_URL_KEY] = database_url
 
         try:
-            db_url = collected_options.get("database_url")
+            db_url = collected_options.get(DATABASE_URL_KEY)
             if not db_url:
-                # This case should ideally not be hit if logic above is correct
-                raise ValueError("Database URL was not provided or determined.")
+                # This indicates a logic error in the configuration flow
+                error_msg = "Database URL was not provided or determined despite SQL session service being selected."
+                click.echo(click.style(f"Internal Error: {error_msg}", fg="red"), err=True)
+                raise ValueError(error_msg)
 
             if db_url.startswith("sqlite:///"):
                 db_file_path = Path(db_url.replace("sqlite:///", ""))
@@ -434,7 +439,7 @@ def create_agent_config(
         except Exception as e:
             click.echo(
                 click.style(
-                    f"Error validating database URL '{collected_options.get('database_url')}': {e}",
+                    f"Error validating database URL '{collected_options.get(DATABASE_URL_KEY)}': {e}",
                     fg="red",
                 ),
                 err=True,
@@ -565,8 +570,10 @@ def create_agent_config(
         ",".join(AGENT_DEFAULTS["inter_agent_communication_allow_list"]),
         skip_interactive,
     )
+    # Parse comma-separated allow list, filtering out empty entries
+    allow_list_items = (allow_list_str or "").split(",")
     collected_options["inter_agent_communication_allow_list"] = [
-        item.strip() for item in (allow_list_str or "").split(",") if item.strip()
+        item.strip() for item in allow_list_items if item.strip()
     ]
 
     deny_list_str = ask_if_not_provided(
@@ -576,8 +583,10 @@ def create_agent_config(
         ",".join(AGENT_DEFAULTS["inter_agent_communication_deny_list"]),
         skip_interactive,
     )
+    # Parse comma-separated deny list, filtering out empty entries
+    deny_list_items = (deny_list_str or "").split(",")
     collected_options["inter_agent_communication_deny_list"] = [
-        item.strip() for item in (deny_list_str or "").split(",") if item.strip()
+        item.strip() for item in deny_list_items if item.strip()
     ]
 
     collected_options["inter_agent_communication_timeout"] = ask_if_not_provided(

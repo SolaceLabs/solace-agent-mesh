@@ -1,5 +1,5 @@
 """
-API controllers following 3-tiered architecture.
+API controllers for handling HTTP requests.
 """
 
 from .session_controller import router as session_router
