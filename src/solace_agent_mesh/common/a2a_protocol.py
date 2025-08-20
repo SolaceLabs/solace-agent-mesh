@@ -344,7 +344,7 @@ def format_adk_event_as_a2a(
         for part in adk_event.content.parts:
             try:
                 if part.text:
-                    a2a_parts.append(TextPart(text=part.text))
+                    a2a_parts.append(A2APart(root=TextPart(text=part.text)))
                 elif part.inline_data:
                     log.debug(
                         "%s Skipping ADK inline_data part in status update translation.",
@@ -363,7 +363,9 @@ def format_adk_event_as_a2a(
                     )
             except Exception as e:
                 log.exception("%s Error translating ADK part: %s", log_identifier, e)
-                a2a_parts.append(TextPart(text="[Error processing agent output part]"))
+                a2a_parts.append(
+                    A2APart(root=TextPart(text="[Error processing agent output part]"))
+                )
 
     if is_final_adk_event and not is_streaming:
         if not a2a_parts:
