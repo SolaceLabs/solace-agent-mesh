@@ -1,6 +1,6 @@
 import React from "react";
 
-import { FiCheckCircle, FiFileText, FiHardDrive, FiLink, FiMessageSquare, FiShare2, FiTerminal, FiUser, FiXCircle, FiZap } from "react-icons/fi";
+import { FiCheckCircle, FiClock, FiFileText, FiHardDrive, FiLink, FiMessageSquare, FiShare2, FiTerminal, FiUser, FiXCircle, FiZap } from "react-icons/fi";
 
 import { JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
 import type { ArtifactNotificationData, LLMCallData, LLMResponseToAgentData, ToolDecisionData, ToolInvocationStartData, ToolResultData, VisualizerStep } from "@/lib/types";
@@ -39,6 +39,8 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
                 return <FiHardDrive className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
             case "AGENT_ARTIFACT_NOTIFICATION":
                 return <FiFileText className="mr-2 text-indigo-500 dark:text-indigo-400" size={18} />;
+            case "PEER_TASK_TIMEOUT":
+                return <FiClock className="mr-2 text-red-500 dark:text-red-400" size={18} />;
             default:
                 return <FiMessageSquare className="mr-2 text-gray-500 dark:text-gray-400" size={18} />;
         }
@@ -175,6 +177,14 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
         </div>
     );
 
+    const renderPeerTaskTimeoutData = (data: Record<string, unknown>) => (
+        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+            <p>
+                <strong>Timeout:</strong> {data.errorMessage as string}
+            </p>
+        </div>
+    );
+
     // Calculate indentation based on nesting level - only apply in list variant
     const indentationStyle =
         variant === "list" && step.nestingLevel && step.nestingLevel > 0
@@ -264,6 +274,7 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
             {step.data.toolInvocationStart && renderToolInvocationStartData(step.data.toolInvocationStart)}
             {step.data.toolResult && renderToolResultData(step.data.toolResult)}
             {step.data.artifactNotification && renderArtifactNotificationData(step.data.artifactNotification)}
+            {step.type === "PEER_TASK_TIMEOUT" && renderPeerTaskTimeoutData(step.data)}
         </div>
     );
 };

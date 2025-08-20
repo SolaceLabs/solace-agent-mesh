@@ -111,6 +111,10 @@ export interface TimelineLayoutManager {
     // Indentation tracking for agent delegation visualization
     indentationLevel: number; // Current indentation level
     indentationStep: number; // Pixels to indent per level
+
+    // Timeout tracking
+    timedOutFunctionCallIds: Set<string>; // Track timed out function calls
+    timedOutSubTaskIds: Set<string>; // Track timed out subtasks
 }
 
 // Layout Constants
@@ -794,4 +798,222 @@ export function getAgentHandle(agentType: "orchestrator" | "peer", direction: "i
 // Helper function to determine if an agent name represents an orchestrator
 export function isOrchestratorAgent(agentName: string): boolean {
     return agentName === "OrchestratorAgent" || agentName.toLowerCase().includes("orchestrator");
+}
+
+
+// Helper function to handle sequential peer returns (both normal and timeout cases)
+export function handleSequentialPeerReturn(
+    sourceAgentName: string,
+    targetAgentName: string,
+    step: VisualizerStep,
+    manager: TimelineLayoutManager,
+    nodes: Node[],
+    edges: Edge[],
+    edgeAnimationService: EdgeAnimationService,
+    processedSteps: VisualizerStep[],
+    isTimeout: boolean = false
+): void {
+    const sourceAgent = manager.agentRegistry.findAgentByName(sourceAgentName);
+    if (!sourceAgent) {
+        console.error(`[Timeline] Source agent not found for sequential return: ${sourceAgentName}`);
+        return;
+    }
+
+    const sourceHandle = getAgentHandle(sourceAgent.type, "output", "bottom");
+
+    if (isOrchestratorAgent(targetAgentName)) {
+        // Return to orchestrator
+        manager.indentationLevel = 0;
+        const newOrchestratorPhase = createNewMainPhase(manager, targetAgentName, step, nodes);
+        
+        if (isTimeout) {
+            createErrorEdge(
+                sourceAgent.nodeInstance.id,
+                newOrchestratorPhase.orchestratorAgent.id,
+                step,
+                edges,
+                manager,
+                sourceHandle,
+                "orch-top-input"
+            );
+        } else {
+            createTimelineEdge(
+                sourceAgent.nodeInstance.id,
+                newOrchestratorPhase.orchestratorAgent.id,
+                step,
+                edges,
+                manager,
+                edgeAnimationService,
+                processedSteps,
+                sourceHandle,
+                "orch-top-input"
+            );
+        }
+        manager.currentSubflowIndex = -1;
+    } else {
+        // Peer-to-peer return
+        manager.indentationLevel = Math.max(0, manager.indentationLevel - 1);
+        
+        // Check if we need to consider parallel flow context for this return
+        const currentPhase = getCurrentPhase(manager);
+        const isWithinParallelContext = isParallelFlow(step, manager) || 
+            Array.from(manager.parallelFlows.values()).some(pf => 
+                pf.subflowFunctionCallIds.some(id => 
+                    currentPhase?.subflows.some(sf => sf.functionCallId === id)
+                )
+            );
+
+        const newSubflow = startNewSubflow(manager, targetAgentName, step, nodes, isWithinParallelContext);
+        if (newSubflow) {
+            if (isTimeout) {
+                createErrorEdge(
+                    sourceAgent.nodeInstance.id,
+                    newSubflow.peerAgent.id,
+                    step,
+                    edges,
+                    manager,
+                    sourceHandle,
+                    "peer-top-input"
+                );
+            } else {
+                createTimelineEdge(
+                    sourceAgent.nodeInstance.id,
+                    newSubflow.peerAgent.id,
+                    step,
+                    edges,
+                    manager,
+                    edgeAnimationService,
+                    processedSteps,
+                    sourceHandle,
+                    "peer-top-input"
+                );
+            }
+        }
+    }
+}
+
+// Helper function to create error edges with error state data
+export function createErrorEdge(sourceNodeId: string, targetNodeId: string, step: VisualizerStep, edges: Edge[], manager: TimelineLayoutManager, sourceHandleId?: string, targetHandleId?: string): void {
+    if (!sourceNodeId || !targetNodeId || sourceNodeId === targetNodeId) {
+        return;
+    }
+
+    // Validate that source and target nodes exist
+    const sourceExists = manager.allCreatedNodeIds.has(sourceNodeId);
+    const targetExists = manager.allCreatedNodeIds.has(targetNodeId);
+
+    if (!sourceExists || !targetExists) {
+        return;
+    }
+
+    const edgeId = `error-edge-${sourceNodeId}${sourceHandleId || ""}-to-${targetNodeId}${targetHandleId || ""}-${step.id}`;
+
+    const edgeExists = edges.some(e => e.id === edgeId);
+
+    if (!edgeExists) {
+        const errorMessage = step.data.errorDetails?.message || step.data.errorMessage || "Task failed";
+        const label = errorMessage.length > 30 ? "Error" : errorMessage;
+
+        const newEdge: Edge = {
+            id: edgeId,
+            source: sourceNodeId,
+            target: targetNodeId,
+            label: label,
+            type: "defaultFlowEdge",
+            data: {
+                visualizerStepId: step.id,
+                isAnimated: false,
+                animationType: "static",
+                isError: true,
+                errorMessage: errorMessage,
+            } as unknown as Record<string, unknown>,
+        };
+
+        // Only add handles if they are provided and valid
+        if (sourceHandleId) {
+            newEdge.sourceHandle = sourceHandleId;
+        }
+        if (targetHandleId) {
+            newEdge.targetHandle = targetHandleId;
+        }
+
+        edges.push(newEdge);
+    }
+}
+
+export function handleParallelJoin(
+    completingFunctionCallId: string | undefined,
+    step: VisualizerStep,
+    manager: TimelineLayoutManager,
+    nodes: Node[],
+    edges: Edge[],
+    edgeAnimationService: EdgeAnimationService,
+    processedSteps: VisualizerStep[]
+): boolean {
+    if (!completingFunctionCallId) {
+        return false;
+    }
+
+    const currentPhase = getCurrentPhase(manager);
+    if (!currentPhase) return false;
+
+    // Find if this completion belongs to any active parallel flow.
+    const parallelFlowEntry = Array.from(manager.parallelFlows.entries()).find(
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        ([_id, pf]) => pf.subflowFunctionCallIds.includes(completingFunctionCallId)
+    );
+
+    if (!parallelFlowEntry) {
+        // Not part of a parallel flow, so not handled here.
+        return false;
+    }
+
+    const [parallelFlowId, parallelFlow] = parallelFlowEntry;
+    parallelFlow.completedSubflows.add(completingFunctionCallId);
+
+    if (parallelFlow.completedSubflows.size < parallelFlow.subflowFunctionCallIds.length) {
+        // Not all parallel tasks are done yet. Just record completion and wait.
+        return true;
+    }
+
+    // ALL parallel tasks are done. Create a SINGLE "join" node.
+    const sourceSubflows = currentPhase.subflows.filter(sf => parallelFlow.subflowFunctionCallIds.includes(sf.functionCallId));
+
+    const joinTargetAgentName = step.data.parentAgentName || step.target || "OrchestratorAgent";
+    let joinNode: NodeInstance;
+    let joinNodeHandle: string;
+
+    if (isOrchestratorAgent(joinTargetAgentName)) {
+        // The parallel tasks are returning to the main orchestrator.
+        manager.indentationLevel = 0;
+        const newOrchestratorPhase = createNewMainPhase(manager, joinTargetAgentName, step, nodes);
+        joinNode = newOrchestratorPhase.orchestratorAgent;
+        joinNodeHandle = "orch-top-input";
+        manager.currentSubflowIndex = -1; // Return to main flow context
+    } else {
+        // The parallel tasks are returning to a PEER agent (nested parallel).
+        manager.indentationLevel = Math.max(0, manager.indentationLevel - 1);
+        const newSubflowForJoin = startNewSubflow(manager, joinTargetAgentName, step, nodes, false);
+        if (!newSubflowForJoin) return true;
+        joinNode = newSubflowForJoin.peerAgent;
+        joinNodeHandle = "peer-top-input";
+    }
+
+    // Connect ALL completed parallel agents to this single join node.
+    sourceSubflows.forEach(subflow => {
+        const sourceNodeInstance = subflow.lastSubflow?.peerAgent ?? subflow.peerAgent;
+        const subflowAgentInfo = manager.agentRegistry.findAgentById(sourceNodeInstance.id);
+        const sourceHandle = getAgentHandle(subflowAgentInfo?.type || "peer", "output", "bottom");
+
+        if (manager.timedOutFunctionCallIds.has(subflow.functionCallId)) {
+            createErrorEdge(sourceNodeInstance.id, joinNode.id, step, edges, manager, sourceHandle, joinNodeHandle);
+        } else {
+            createTimelineEdge(sourceNodeInstance.id, joinNode.id, step, edges, manager, edgeAnimationService, processedSteps, sourceHandle, joinNodeHandle);
+        }
+    });
+
+    // Clean up the completed parallel flow to prevent reuse.
+    manager.parallelFlows.delete(parallelFlowId);
+
+    return true;
 }
