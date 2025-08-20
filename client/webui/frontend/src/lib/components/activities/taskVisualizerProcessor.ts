@@ -283,9 +283,9 @@ export const processTaskForVisualization = (
             const params = payload.params as any;
             let userText = "User request";
             if (params?.message?.parts) {
-                const textPart = params.message.parts.find((p: any) => p.kind === "text" && p.text);
-                if (textPart) {
-                    userText = textPart.text;
+                const textParts = params.message.parts.filter((p: any) => p.kind === "text" && p.text);
+                if (textParts.length > 0) {
+                    userText = textParts[textParts.length - 1].text;
                 }
             }
             visualizerSteps.push({
