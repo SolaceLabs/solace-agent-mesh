@@ -454,6 +454,7 @@ export const processTaskForVisualization = (
                                         isSubTaskStep: currentEventNestingLevel > 0,
                                         nestingLevel: currentEventNestingLevel,
                                         owningTaskId: currentEventOwningTaskId,
+                                        functionCallId: functionCallIdForStep,
                                     };
                                     visualizerSteps.push(toolDecisionStep);
 
