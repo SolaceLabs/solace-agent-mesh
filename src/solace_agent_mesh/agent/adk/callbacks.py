@@ -1659,6 +1659,12 @@ def notify_tool_execution_result_callback(
         )
         return
 
+    if tool.is_long_running and not tool_response:
+        log.debug(
+            "%s Tool is long-running. Don't notify its completion", log_identifier
+        )
+        return
+
     try:
         # Attempt to make the response JSON serializable
         serializable_response = tool_response
