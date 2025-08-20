@@ -134,7 +134,7 @@ solace-agent-mesh plugin catalog
 
 ## Agent or Plugin, Which to use?
 
-In simple terms, plugins of type agent are just packaged agents. However, there are distinct advantages to each approach, and choosing the right one depends on your use case. The `create-agent` documentation recommends creating agents as plugins as the preferred method.
+In simple terms, plugins of type agent are just packaged agents. However, there are distinct advantages to each approach, and choosing the right one depends on your use case.
 
 Here’s a detailed comparison to help you decide.
 
