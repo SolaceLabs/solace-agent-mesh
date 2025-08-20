@@ -607,16 +607,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // 5. Reset UI state with new session ID
             const welcomeMessages = configWelcomeMessage
                 ? [
-                      {
-                          text: configWelcomeMessage,
-                          isUser: false,
-                          isComplete: true,
-                          metadata: {
-                              sessionId: backendSessionId,
-                              lastProcessedEventSequence: 0,
-                          },
-                      },
-                  ]
+                    {
+                        text: configWelcomeMessage,
+                        isUser: false,
+                        isComplete: true,
+                        metadata: {
+                            sessionId: backendSessionId,
+                            lastProcessedEventSequence: 0,
+                        },
+                    },
+                ]
                 : [];
 
             setMessages(welcomeMessages);
@@ -647,16 +647,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             const fallbackMessages = configWelcomeMessage
                 ? [
-                      {
-                          text: configWelcomeMessage,
-                          isUser: false,
-                          isComplete: true,
-                          metadata: {
-                              sessionId: fallbackSessionId,
-                              lastProcessedEventSequence: 0,
-                          },
-                      },
-                  ]
+                    {
+                        text: configWelcomeMessage,
+                        isUser: false,
+                        isComplete: true,
+                        metadata: {
+                            sessionId: fallbackSessionId,
+                            lastProcessedEventSequence: 0,
+                        },
+                    },
+                ]
                 : [];
 
             setMessages(fallbackMessages);
@@ -853,11 +853,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
                 const result = await response.json();
-                console.log("[DEBUG] Raw response from /message:stream:", result);
 
                 const task = result?.result as Task | undefined;
                 const taskId = task?.id;
-                console.log("[DEBUG] Extracted taskId:", taskId);
 
                 if (!taskId) {
                     console.error("ChatProvider handleSubmit: Backend did not return a valid taskId. Result:", result);
@@ -888,7 +886,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [addNotification, artifactsError]);
 
     useEffect(() => {
-        console.log("[DEBUG] ChatProvider useEffect running with currentTaskId:", currentTaskId);
         if (currentTaskId && apiPrefix) {
             console.log(`ChatProvider Effect: currentTaskId is ${currentTaskId}. Setting up EventSource.`);
             const accessToken = getAccessToken();

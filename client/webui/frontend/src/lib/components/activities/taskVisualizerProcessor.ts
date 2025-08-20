@@ -116,7 +116,6 @@ export const processTaskForVisualization = (
     if (!parentTaskObject) {
         return null;
     }
-    console.log("[Visualizer] Processing task:", parentTaskObject.taskId, "with raw events:", parentTaskObject.events);
 
     // --- Performance Report Initialization ---
     const report: PerformanceReport = {
@@ -735,7 +734,6 @@ export const processTaskForVisualization = (
             }
         }
 
-        console.log("Visualization steps:", visualizerSteps);
     });
 
     // Final flush for any remaining aggregated text
