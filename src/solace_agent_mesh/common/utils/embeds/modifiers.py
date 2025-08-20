@@ -61,7 +61,12 @@ def _apply_jsonpath(
     try:
         jsonpath_expr = jsonpath_parse(expression)
         matches = [match.value for match in jsonpath_expr.find(current_data)]
-        return matches, mime_type, None
+
+        # Unwrap single-element arrays for more intuitive behavior
+        if len(matches) == 1:
+            return matches[0], mime_type, None
+        else:
+            return matches, mime_type, None
     except Exception as e:
         return (
             current_data,
