@@ -107,36 +107,28 @@ Lifecycle functions allow you to manage resources that should persist for the ag
 - **`agent_init_function`**: Runs when the agent starts (for example, database connections)
 - **`agent_cleanup_function`**: Runs when the agent shuts down (for example, closing connections)
 
+:::note
+Lifecycle functions are optional but recommended for managing resources effectively.
+:::
+
 ## Step-by-Step Guide
 
 Create a simple agent that can greet users and demonstrate the core concepts.
 
 You can create an agent either by using the `sam add agent` command or by creating a new plugin of type agent, `sam plugin create my-hello-agent --type agent`. 
 
-:::tip[Agent as plugin]
-
-Agent can be implemented as plugins. This allows you to easily package your agent logic and reuse it across different projects. 
-
-To create a plugin of type agent, use the `sam plugin create <your_agent_plugin_name> --type agent` command.
-
-For a complete list of options, run:
-```bash
-sam plugin create --help
-```
-
-To create an agent instance based on plugin, use the `sam plugin add <your_agent_name> --plugin <your_agent_plugin>` command.
-
-For a complete list of options, run:
-```bash
-sam plugin add --help
-```
-
-Although their directory structure is slightly different, both agents require a yaml configuration file, and a python module with the respective tools and lifecycle functions.
+:::tip
+Check the [`Agent or Plugin, Which to use?`](../concepts/plugins.md#agent-or-plugin-which-to-use) guide to decide which is the better choice for you.
 :::
+
 
 ### Step 1: Initialize your Agent
 
 In this tutorial, you create a new agent by creating a new plugin of type agent.
+For an example of custom agents, check the [Build Your Own Agent](../tutorials/custom-agent.md) guide.
+
+Although plugins directory structure is slightly different than agents, both require a yaml configuration file, and a python module with the respective tools and lifecycle functions.
+
 
 To create a new agent plugin, run the following command:
 
@@ -177,6 +169,9 @@ graph TD
 ### Step 2: The Tool Function
 
 Create your first tool function:
+The following arguments are provided by the framework:
+- tool_context: SAM framework context
+- tool_config: Tool-specific configuration (from config.yaml)
 
 ```python
 # src/my_hello_agent/tools.py
@@ -199,8 +194,6 @@ async def hello_tool(
     
     Args:
         name: The name of the person to greet
-        tool_context: SAM framework context (provided automatically)
-        tool_config: Tool-specific configuration (from config.yaml)
     
     Returns:
         A dictionary with the greeting message
@@ -235,8 +228,6 @@ async def farewell_tool(
     
     Args:
         name: The name of the person to say goodbye to
-        tool_context: SAM framework context (provided automatically)
-        tool_config: Tool-specific configuration (from config.yaml)
     
     Returns:
         A dictionary with the farewell message
@@ -544,7 +535,11 @@ This gives your agent multiple greeting styles to choose from based on the conte
 
 ## Running Your Agent
 
-To run a plugin agent, you first need to package and install it as a plugin. But for debugging or isolated development testing, you can run your agent from the `src` directory directly using the SAM CLI.
+To run a plugin agent, you first need to package and install it as a plugin. 
+
+:::tip[Quick Debug]
+
+For debugging or isolated development testing, you can run your agent from the `src` directory directly using the SAM CLI.
 
 ```bash
 cd src
@@ -552,11 +547,32 @@ sam run ../config.yaml
 ```
 
 By moving to the `src` directory, the module path is set correctly, allowing SAM to find your functions without having to install them in your python environment as a plugin package.
+:::
 
-**Interact with your agent:**
- - Through the SAM Web UI
- - Via REST API calls
- - Through other SAM agents
+To properly instantiate your plugin agent, first build the plugin.
+The following command will produce a python wheel file under `dist` directory:
+```bash
+sam plugin build
+```
+
+Check into [your SAM project directory](../getting-started/quick-start.md#create-a-project), and add the plugin wheel with a given name:
+
+```
+sam plugin add my-first-weather-agent --plugin PATH/TO/weather-agent/dist/weather-agent.whl
+```
+
+:::note
+Using the `sam plugin add` command will install your plugin as a python dependency into your python environment.
+This also means changing the source code without reinstalling the plugin will not reflect the changes.
+:::
+
+Now, you can run the complete SAM application along with your newly added agent:
+```
+sam run
+```
+
+Alternatively, only run the newly added agent using `sam run configs/agents/my-first-weather-agent.yaml`
+
 
 ## Architecture Overview
 

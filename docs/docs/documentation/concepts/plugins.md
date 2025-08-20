@@ -130,3 +130,6 @@ You can manage available plugins with the `plugin catalog` command, which launch
 ```bash
 solace-agent-mesh plugin catalog
 ``` 
+
+
+## Agent or Plugin, Which to use?
