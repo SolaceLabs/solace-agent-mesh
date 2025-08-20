@@ -210,7 +210,9 @@ async def process_artifact_blocks_callback(
                         filename = params.get("filename", "unknown_artifact")
                         if a2a_context:
                             progress_data = ArtifactCreationProgressData(
-                                filename=filename, bytes_saved=event.buffered_size
+                                filename=filename,
+                                bytes_saved=event.buffered_size,
+                                artifact_chunk=event.chunk,
                             )
                             await _publish_data_part_status_update(
                                 host_component, a2a_context, progress_data
@@ -273,13 +275,14 @@ async def process_artifact_blocks_callback(
                                     params["schema_max_keys"],
                                 )
 
-                        wrapped_creator = ADKToolWrapper(
-                            original_func=_internal_create_artifact,
-                            tool_config=None,  # No specific config for this internal tool
-                            tool_name="_internal_create_artifact",
-                            origin="internal",
-                        )
-                        save_result = await wrapped_creator(**kwargs_for_call)
+                        # wrapped_creator = ADKToolWrapper(
+                        #     original_func=_internal_create_artifact,
+                        #     tool_config=None,  # No specific config for this internal tool
+                        #     tool_name="_internal_create_artifact",
+                        #     origin="internal",
+                        # )
+                        # save_result = await wrapped_creator(**kwargs_for_call)
+                        save_result = await _internal_create_artifact(**kwargs_for_call)
 
                         if save_result.get("status") in ["success", "partial_success"]:
                             status_for_tool = "success"

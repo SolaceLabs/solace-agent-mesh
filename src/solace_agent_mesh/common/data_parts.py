@@ -68,6 +68,10 @@ class ArtifactCreationProgressData(BaseModel):
     )
     filename: str = Field(..., description="The name of the artifact being created.")
     bytes_saved: int = Field(..., description="The number of bytes saved so far.")
+    artifact_chunk: str = Field(
+        ...,
+        description="The chunk of artifact data that was saved in this progress update.",
+    )
 
 
 class ToolResultData(BaseModel):
