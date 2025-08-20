@@ -332,7 +332,7 @@ class BaseGatewayComponent(ComponentBase):
         )
         if not isinstance(a2a_parts, list):
             a2a_parts = list(a2a_parts)
-        a2a_parts.insert(0, timestamp_header_part)
+        a2a_parts.insert(0, A2APart(root=timestamp_header_part))
         log.debug("%s Prepended timestamp to a2a_parts.", log_id_prefix)
 
         a2a_session_id = external_request_context.get("a2a_session_id")
@@ -498,7 +498,7 @@ class BaseGatewayComponent(ComponentBase):
                             metadata={"source": "gateway_signal"},
                         )
                         signal_a2a_message = A2AMessage(
-                            role="agent", parts=[signal_data_part]
+                            role="agent", parts=[A2APart(root=signal_data_part)]
                         )
                         signal_task_status = TaskStatus(
                             state=TaskState.working, message=signal_a2a_message
@@ -952,11 +952,12 @@ class BaseGatewayComponent(ComponentBase):
                     )
                     combined_text = ""
                     non_text_parts = []
-                    for part in parsed_event.status.message.parts:
+                    for part_wrapper in parsed_event.status.message.parts:
+                        part = part_wrapper.root
                         if isinstance(part, TextPart) and part.text:
                             combined_text += part.text
                         else:
-                            non_text_parts.append(part)
+                            non_text_parts.append(part_wrapper)
 
                     if combined_text:
                         embed_eval_context = {
@@ -1000,7 +1001,9 @@ class BaseGatewayComponent(ComponentBase):
                             )
 
                         new_parts = (
-                            [TextPart(text=resolved_text)] if resolved_text else []
+                            [A2APart(root=TextPart(text=resolved_text))]
+                            if resolved_text
+                            else []
                         )
                         new_parts.extend(non_text_parts)
                         parsed_event.status.message.parts = new_parts
@@ -1058,7 +1061,7 @@ class BaseGatewayComponent(ComponentBase):
                             state=TaskState.working,
                             message=A2AMessage(
                                 role="agent",
-                                parts=[TextPart(text=resolved_remaining_text)],
+                                parts=[A2APart(root=TextPart(text=resolved_remaining_text))],
                             ),
                         )
                         flush_event = TaskStatusUpdateEvent(

@@ -1410,7 +1410,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 )
 
         if user_message:
-            a2a_parts.append(TextPart(text=user_message))
+            a2a_parts.append(A2APart(root=TextPart(text=user_message)))
 
         external_request_context = {
             "app_name_for_artifacts": self.gateway_id,

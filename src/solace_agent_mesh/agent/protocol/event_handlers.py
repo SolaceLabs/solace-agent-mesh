@@ -1075,7 +1075,8 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                     and status_event.status.message.parts
                                 ):
                                     response_parts_data = []
-                                    for part in status_event.status.message.parts:
+                                    for part_wrapper in status_event.status.message.parts:
+                                        part = part_wrapper.root
                                         if isinstance(part, TextPart):
                                             response_parts_data.append(str(part.text))
                                         elif isinstance(part, DataPart):
