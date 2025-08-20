@@ -262,78 +262,16 @@ def initialize_artifact_service(component) -> BaseArtifactService:
                 f"{component.log_identifier} 'bucket_name' is required and cannot be empty for S3 artifact service."
             )
 
-        artifact_scope = config.get("artifact_scope", "namespace").lower()
-        scope_identifier_raw = None
-
-        if artifact_scope == "app":
-            app_instance = component.get_app()
-            if not app_instance or not app_instance.name:
-                raise ValueError(
-                    f"{component.log_identifier} Cannot determine app name for 'app' scope."
-                )
-            scope_identifier_raw = app_instance.name
-            log.info(
-                "%s Using 'app' scope for S3 artifacts: %s",
-                component.log_identifier,
-                scope_identifier_raw,
-            )
-        elif artifact_scope == "namespace":
-            scope_identifier_raw = component.get_config("namespace")
-            log.info(
-                "%s Using 'namespace' scope for S3 artifacts: %s",
-                component.log_identifier,
-                scope_identifier_raw,
-            )
-        elif artifact_scope == "custom":
-            scope_identifier_raw = config.get("artifact_scope_value")
-            if not scope_identifier_raw:
-                raise ValueError(
-                    f"{component.log_identifier} 'artifact_scope_value' is required when artifact_scope is 'custom'."
-                )
-            log.info(
-                "%s Using 'custom' scope for S3 artifacts: %s",
-                component.log_identifier,
-                scope_identifier_raw,
-            )
-        else:
-            raise ValueError(
-                f"{component.log_identifier} Invalid 'artifact_scope' value: {artifact_scope}"
-            )
-
-        if not scope_identifier_raw:
-            raise ValueError(
-                f"{component.log_identifier} Failed to determine scope identifier for S3 artifacts."
-            )
-
-        scope_identifier_sanitized = _sanitize_for_path(scope_identifier_raw)
-        log.info(
-            "%s Sanitized scope identifier: %s",
-            component.log_identifier,
-            scope_identifier_sanitized,
-        )
-
         try:
-            # Prepare S3 client configuration
             s3_config = {}
             
-            # Add optional S3 configuration
-            endpoint_url = config.get("endpoint_url")
-            if endpoint_url:
-                s3_config["endpoint_url"] = endpoint_url
-            else:
-                # Default to AWS S3 endpoint for clarity
+            for key, value in config.items():
+                if key not in ["type", "bucket_name", "artifact_scope"]:
+                    s3_config[key] = value
+            
+            if "endpoint_url" not in s3_config:
                 s3_config["endpoint_url"] = "https://s3.amazonaws.com"
                 
-            region = config.get("region")
-            if region:
-                s3_config["region_name"] = region
-                
-            # TLS verification option for self-signed certificates
-            verify_ssl = config.get("verify_ssl", True)
-            if not verify_ssl:
-                s3_config["verify"] = False
-                
-            # AWS credentials can be provided via environment variables or config
             aws_access_key_id = config.get("aws_access_key_id") or os.environ.get("AWS_ACCESS_KEY_ID")
             aws_secret_access_key = config.get("aws_secret_access_key") or os.environ.get("AWS_SECRET_ACCESS_KEY")
             
@@ -342,11 +280,7 @@ def initialize_artifact_service(component) -> BaseArtifactService:
             if aws_secret_access_key:
                 s3_config["aws_secret_access_key"] = aws_secret_access_key
 
-            return S3ArtifactService(
-                bucket_name=bucket_name,
-                scope_identifier=scope_identifier_sanitized,
-                **s3_config
-            )
+            concrete_service = S3ArtifactService(bucket_name=bucket_name, **s3_config)
         except Exception as e:
             log.error(
                 "%s Failed to initialize S3ArtifactService: %s",

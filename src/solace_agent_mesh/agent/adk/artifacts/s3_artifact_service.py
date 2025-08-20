@@ -21,7 +21,7 @@ class S3ArtifactService(BaseArtifactService):
     An artifact service implementation using Amazon S3 compatible storage.
 
     Stores artifacts in an S3-compatible bucket with a structured key format:
-    {scope_identifier}/{user_id}/{session_id_or_user}/{filename}/{version}
+    {app_name}/{user_id}/{session_id_or_user}/{filename}/{version}
 
     Supports AWS S3 and S3-compatible APIs like MinIO.
 
@@ -56,33 +56,23 @@ class S3ArtifactService(BaseArtifactService):
     def __init__(
         self,
         bucket_name: str,
-        scope_identifier: str,
         s3_client: BaseClient | None = None,
         **kwargs,
     ):
         """
-        Initializes the S3ArtifactService.
-
         Args:
             bucket_name: The name of the S3 bucket to use.
-            scope_identifier: The sanitized identifier representing the storage scope
-                              (e.g., sanitized namespace, app name, or custom value).
             s3_client: Optional pre-configured S3 client. If None, creates a new client.
             **kwargs: Optional parameters for boto3 client configuration.
-                     Includes endpoint_url, region_name, aws_access_key_id,
-                     aws_secret_access_key, etc.
 
         Raises:
-            ValueError: If bucket_name or scope_identifier is not provided.
+            ValueError: If bucket_name is not provided.
             NoCredentialsError: If AWS credentials are not available.
         """
         if not bucket_name:
             raise ValueError("bucket_name cannot be empty for S3ArtifactService")
-        if not scope_identifier:
-            raise ValueError("scope_identifier cannot be empty for S3ArtifactService")
 
         self.bucket_name = bucket_name
-        self.scope_identifier = scope_identifier
 
         if s3_client is None:
             try:
@@ -95,13 +85,11 @@ class S3ArtifactService(BaseArtifactService):
         else:
             self.s3 = s3_client
 
-        # Verify bucket access
         try:
             self.s3.head_bucket(Bucket=self.bucket_name)
             logger.info(
-                "S3ArtifactService initialized successfully. Bucket: %s, Scope: %s",
+                "S3ArtifactService initialized successfully. Bucket: %s",
                 self.bucket_name,
-                self.scope_identifier,
             )
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "Unknown")
@@ -122,7 +110,6 @@ class S3ArtifactService(BaseArtifactService):
                 ) from e
 
     def _file_has_user_namespace(self, filename: str) -> bool:
-        """Checks if the filename has a user namespace."""
         return filename.startswith("user:")
 
     def _get_object_key(
@@ -133,23 +120,16 @@ class S3ArtifactService(BaseArtifactService):
         filename: str,
         version: int | str,
     ) -> str:
-        """
-        Constructs the S3 object key for an artifact.
-        The app_name parameter is ignored for key construction but kept for signature compatibility.
-        """
+        """Constructs the S3 object key for an artifact."""
         filename = self._normalize_filename_unicode(filename)
 
         if self._file_has_user_namespace(filename):
             filename_clean = filename.split(":", 1)[1]
-            return f"{self.scope_identifier}/{user_id}/user/{filename_clean}/{version}"
-        return f"{self.scope_identifier}/{user_id}/{session_id}/{filename}/{version}"
+            return f"{app_name}/{user_id}/user/{filename_clean}/{version}"
+        return f"{app_name}/{user_id}/{session_id}/{filename}/{version}"
 
     def _normalize_filename_unicode(self, filename: str) -> str:
-        """
-        Normalizes Unicode characters in a filename to their standard form.
-        Specifically targets compatibility characters like non-breaking spaces (\u202f)
-        and converts them to their regular ASCII equivalents (a standard space).
-        """
+        """Normalizes Unicode characters in a filename to their standard form."""
         return unicodedata.normalize("NFKC", filename)
 
     @override
@@ -317,8 +297,7 @@ class S3ArtifactService(BaseArtifactService):
         log_prefix = "[S3Artifact:ListKeys] "
         filenames = set()
 
-        # List session-scoped artifacts
-        session_prefix = f"{self.scope_identifier}/{user_id}/{session_id}/"
+        session_prefix = f"{app_name}/{user_id}/{session_id}/"
         try:
 
             def _list_session_objects():
@@ -342,8 +321,7 @@ class S3ArtifactService(BaseArtifactService):
                 e,
             )
 
-        # List user-scoped artifacts
-        user_prefix = f"{self.scope_identifier}/{user_id}/user/"
+        user_prefix = f"{app_name}/{user_id}/user/"
         try:
 
             def _list_user_objects():
