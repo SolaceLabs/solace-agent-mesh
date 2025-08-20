@@ -18,6 +18,16 @@ const getStatusBadge = (status: string, type: "info" | "error" | "success") => {
 };
 
 const getTaskStatus = (task: VisualizedTask, loadingMessage: MessageFE | undefined): string | JSX.Element => {
+    // Prioritize the specific status text from the visualizer if available
+    if (task.currentStatusText) {
+        return (
+            <div title={task.currentStatusText}>
+                <LoadingMessageRow statusText={task.currentStatusText} />
+            </div>
+        );
+    }
+
+    // Fallback to the overall task status
     switch (task.status) {
         case "submitted":
         case "working":

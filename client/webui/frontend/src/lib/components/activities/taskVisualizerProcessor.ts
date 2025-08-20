@@ -176,6 +176,7 @@ export const processTaskForVisualization = (
     const sortedEvents = combinedEvents.sort((a, b) => new Date(getEventTimestamp(a)).getTime() - new Date(getEventTimestamp(b)).getTime());
 
     const visualizerSteps: VisualizerStep[] = [];
+    let lastStatusText: string | null = null;
     let currentAggregatedText = "";
     let aggregatedTextSourceAgent: string | undefined = undefined;
     let aggregatedTextTimestamp: string | undefined = undefined;
@@ -326,6 +327,14 @@ export const processTaskForVisualization = (
             // Only process the parts if this is an original event, not a forwarded one.
             if (!isForwardedMessage && statusMessage?.parts) {
                 for (const part of statusMessage.parts) {
+                    if (part.kind === "data") {
+                        const data = part.data as any;
+                        if (data.type === "agent_progress_update") {
+                            lastStatusText = data.status_text;
+                        } else if (data.type === "artifact_creation_progress") {
+                            lastStatusText = `Saving artifact: ${data.filename} (${data.bytes_saved} bytes)`;
+                        }
+                    }
                     if (part.kind === "data") {
                         flushAggregatedTextStep(currentEventOwningTaskId);
                         const dataPart = part as DataPart;
@@ -766,6 +775,7 @@ export const processTaskForVisualization = (
         taskId: parentTaskObject.taskId,
         initialRequestText: parentTaskObject.initialRequestText,
         status: taskStatus,
+        currentStatusText: lastStatusText,
         startTime: startTime,
         endTime: endTime,
         durationMs: totalDurationMs,
