@@ -771,6 +771,11 @@ export const processTaskForVisualization = (
         totalDurationMs = new Date(endTime).getTime() - new Date(startTime).getTime();
     }
 
+    // If the task has reached a terminal state, we should not show a "current" status text.
+    if (["completed", "failed", "canceled", "rejected"].includes(taskStatus)) {
+        lastStatusText = null;
+    }
+
     const visualizedTask: VisualizedTask = {
         taskId: parentTaskObject.taskId,
         initialRequestText: parentTaskObject.initialRequestText,
