@@ -10,7 +10,7 @@ import { ArtifactCard } from "./ArtifactCard";
 import { ArtifactDeleteDialog } from "./ArtifactDeleteDialog";
 import { ArtifactPreviewContent } from "./ArtifactPreviewContent";
 import { SortOption, SortPopover, type SortOptionType } from "./ArtifactSortPopover";
-import { MorePopover } from "./ArtifactMorePopover";
+import { ArtifactMorePopover } from "./ArtifactMorePopover";
 import { ArtifactDeleteAllDialog } from "./ArtifactDeleteAllDialog";
 
 const sortFunctions: Record<SortOptionType, (a1: ArtifactInfo, a2: ArtifactInfo) => number> = {
@@ -51,11 +51,11 @@ export const ArtifactPanel: React.FC = () => {
                             <div>Sort By</div>
                         </Button>
                     </SortPopover>
-                    <MorePopover key="more-popover">
+                    <ArtifactMorePopover key="more-popover">
                         <Button variant="ghost" tooltip="More" >
                             <Ellipsis className="h-5 w-5" />
                         </Button>
-                    </MorePopover>
+                    </ArtifactMorePopover>
                 </div>
             )
         );

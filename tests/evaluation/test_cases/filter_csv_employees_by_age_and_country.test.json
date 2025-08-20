@@ -12,8 +12,8 @@
   ],
   "wait_time": 120,
   "evaluation": {
-    "expected_tools": ["query_data_with_sql", "signal_artifact_for_return"],
-    "expected_response": "The employees older or equal to 30 and living in the USA are: John Doe, Bob Johnson.",
-    "criterion": "Evaluate if the agent correctly filters the CSV data using SQL and signals the result as an artifact."
+    "expected_tools": ["extract_content_from_artifact"],
+    "expected_response": "The person who is 30 or older and lives in the USA is John Doe.",
+    "criterion": "Evaluate if the agent correctly filters the CSV data."
   }
 }

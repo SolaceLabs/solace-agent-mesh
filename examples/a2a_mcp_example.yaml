@@ -19,7 +19,7 @@ apps:
 # --- Example 1: Filesystem MCP Agent ---
   - name: filesystem_mcp_agent_app
     app_base_path: .
-    app_module: src.solace_agent_mesh.agent.sac.app
+    app_module: solace_agent_mesh.agent.sac.app
     broker:
       <<: *broker_connection
 
@@ -81,7 +81,7 @@ apps:
 # --- Example 2: Playwright MCP Agent ---
   - name: playwright_mcp_agent_app
     app_base_path: .
-    app_module: src.solace_agent_mesh.agent.sac.app
+    app_module: solace_agent_mesh.agent.sac.app
     broker:
       <<: *broker_connection
 

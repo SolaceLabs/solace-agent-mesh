@@ -1,8 +1,8 @@
 {
     "agents": [
-        "../examples/a2a_agents.yaml",
-        "../examples/a2a_orchestrator.yaml",
-        "../examples/a2a_mcp_example.yaml"
+        "../../examples/a2a_agents.yaml",
+        "../../examples/a2a_orchestrator.yaml",
+        "../../examples/a2a_mcp_example.yaml"
     ],
     "llm_models": [
         {
@@ -34,14 +34,14 @@
     "results_dir_name": "sam-eval-test",
     "runs": 3,
     "test_cases": [
-        "convert_pdf_to_md.test.json",
-        "generate_sales_report.test.json",
-        "filter_csv_employees_by_age_and_country.test.json",
-        "web_search_solace_summary.test.json",
-        "create_diagram.test.json",
-        "file_artifact.test.json",
-        "hello_world.test.json",
-        "convert_html_to_md.test.json"
+        "test_cases/convert_pdf_to_md.test.json",
+        "test_cases/generate_sales_report.test.json",
+        "test_cases/filter_csv_employees_by_age_and_country.test.json",
+        "test_cases/web_search_solace_summary.test.json",
+        "test_cases/create_diagram.test.json",
+        "test_cases/file_artifact.test.json",
+        "test_cases/hello_world.test.json",
+        "test_cases/convert_html_to_md.test.json"
     ],
     "evaluation_settings": {
         "tool_match": {

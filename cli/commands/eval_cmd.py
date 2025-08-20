@@ -44,7 +44,13 @@ def _ensure_eval_backend_config_exists():
     required=True,
     metavar="<PATH>",
 )
-def eval_cmd(test_suite_config_path):
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Enable verbose output.",
+)
+def eval_cmd(test_suite_config_path, verbose):
     """
     Run an evaluation suite using a specified configuration file. Such as path/to/file.yaml.
 
@@ -58,7 +64,7 @@ def eval_cmd(test_suite_config_path):
     )
     _ensure_eval_backend_config_exists()
     try:
-        run_evaluation_main(test_suite_config_path)
+        run_evaluation_main(test_suite_config_path, verbose=verbose)
         click.echo(click.style("Evaluation completed successfully.", fg="green"))
     except Exception as e:
         error_exit(f"An error occurred during evaluation: {e}")

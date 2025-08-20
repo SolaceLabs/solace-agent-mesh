@@ -7,7 +7,7 @@ import { Header } from "@/lib/components/header";
 import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES } from "@/lib/components/ui";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
-import { useAgents, useChatContext, useSessionPreview, useTaskContext } from "@/lib/hooks";
+import { useChatContext, useSessionPreview, useTaskContext } from "@/lib/hooks";
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
 import { ChatSessionDialog } from "../chat/ChatSessionDialog";
@@ -36,6 +36,7 @@ const PANEL_SIZES_OPEN = {
 
 export function ChatPage() {
     const {
+        agents,
         sessionId,
         messages,
         setMessages,
@@ -127,7 +128,6 @@ export function ChatPage() {
         };
     }, [isSidePanelCollapsed, setIsSidePanelCollapsed, sidePanelSizes.default]);
 
-    const { agents } = useAgents();
     useEffect(() => {
         if (!selectedAgentName && agents.length > 0) {
             const orchestratorAgent = agents.find(agent => agent.name === "OrchestratorAgent");

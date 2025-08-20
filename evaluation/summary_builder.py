@@ -362,10 +362,12 @@ class MessageProcessor:
                 content = data.get("content", {})
                 parts = content.get("parts", [])
 
-                if parts:
-                    function_call = parts[0].get("function_call", {})
-                    call_id = function_call.get("id")
+                for part in parts:
+                    function_call = part.get("function_call", {})
+                    if not function_call:
+                        continue
 
+                    call_id = function_call.get("id")
                     if call_id and call_id not in processed_tool_calls:
                         tool_call = ToolCall(
                             call_id=call_id,
