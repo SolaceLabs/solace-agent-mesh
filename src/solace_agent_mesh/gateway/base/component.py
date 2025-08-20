@@ -543,11 +543,14 @@ class BaseGatewayComponent(ComponentBase):
         Checks if a part is a FilePart with a resolvable URI and, if so,
         resolves it and mutates the part in-place.
         """
+        if not isinstance(part.root, FilePart):
+            return
+
+        file_part = part.root
         if not (
-            isinstance(part, FilePart)
-            and part.file
-            and part.file.uri
-            and part.file.uri.startswith("artifact://")
+            isinstance(file_part.file, FileWithUri)
+            and file_part.file.uri
+            and file_part.file.uri.startswith("artifact://")
         ):
             return
 
@@ -558,7 +561,7 @@ class BaseGatewayComponent(ComponentBase):
             )
             return
 
-        uri = part.file.uri
+        uri = file_part.file.uri
         log_id_prefix = f"{self.log_identifier}[ResolveURI]"
         try:
             log.info("%s Found artifact URI to resolve: %s", log_id_prefix, uri)
@@ -586,8 +589,12 @@ class BaseGatewayComponent(ComponentBase):
 
             if loaded_artifact.get("status") == "success":
                 content_bytes = loaded_artifact.get("raw_bytes")
-                part.file.bytes = base64.b64encode(content_bytes).decode("utf-8")
-                part.file.uri = None
+                new_file_content = FileWithBytes(
+                    bytes=base64.b64encode(content_bytes).decode("utf-8"),
+                    mime_type=file_part.file.mime_type,
+                    name=file_part.file.name,
+                )
+                file_part.file = new_file_content
                 log.info(
                     "%s Successfully resolved and embedded artifact: %s",
                     log_id_prefix,
@@ -788,58 +795,58 @@ class BaseGatewayComponent(ComponentBase):
                         )
                         content_modified_or_signal_handled = True
 
-                elif (
-                    isinstance(part, FilePart)
-                    and part.file
-                    and part.file.bytes
-                ):
-                    mime_type = part.file.mimeType or ""
-                    is_container = is_text_based_mime_type(mime_type)
-                    try:
-                        decoded_content_for_check = base64.b64decode(
-                            part.file.bytes
-                        ).decode("utf-8", errors="ignore")
-                        if (
-                            is_container
-                            and EMBED_DELIMITER_OPEN in decoded_content_for_check
-                        ):
-                            original_content = decoded_content_for_check
-                            resolved_content = (
-                                await resolve_embeds_recursively_in_string(
-                                    text=original_content,
-                                    context=embed_eval_context,
-                                    resolver_func=evaluate_embed,
-                                    types_to_resolve=LATE_EMBED_TYPES,
-                                    log_identifier=log_id_prefix,
-                                    config=embed_eval_config,
-                                    max_depth=self.gateway_recursive_embed_depth,
-                                )
-                            )
-                            if resolved_content != original_content:
-                                new_file_content = part.file.model_copy()
-                                new_file_content.bytes = base64.b64encode(
-                                    resolved_content.encode("utf-8")
-                                ).decode("utf-8")
-                                new_parts_for_owner.append(
-                                    A2APart(
-                                        root=FilePart(
-                                            file=new_file_content,
-                                            metadata=part.metadata,
-                                        )
+                elif isinstance(part, FilePart) and part.file:
+                    if isinstance(part.file, FileWithBytes) and part.file.bytes:
+                        mime_type = part.file.mime_type or ""
+                        is_container = is_text_based_mime_type(mime_type)
+                        try:
+                            decoded_content_for_check = base64.b64decode(
+                                part.file.bytes
+                            ).decode("utf-8", errors="ignore")
+                            if (
+                                is_container
+                                and EMBED_DELIMITER_OPEN in decoded_content_for_check
+                            ):
+                                original_content = decoded_content_for_check
+                                resolved_content = (
+                                    await resolve_embeds_recursively_in_string(
+                                        text=original_content,
+                                        context=embed_eval_context,
+                                        resolver_func=evaluate_embed,
+                                        types_to_resolve=LATE_EMBED_TYPES,
+                                        log_identifier=log_id_prefix,
+                                        config=embed_eval_config,
+                                        max_depth=self.gateway_recursive_embed_depth,
                                     )
                                 )
-                                content_modified_or_signal_handled = True
+                                if resolved_content != original_content:
+                                    new_file_content = part.file.model_copy()
+                                    new_file_content.bytes = base64.b64encode(
+                                        resolved_content.encode("utf-8")
+                                    ).decode("utf-8")
+                                    new_parts_for_owner.append(
+                                        A2APart(
+                                            root=FilePart(
+                                                file=new_file_content,
+                                                metadata=part.metadata,
+                                            )
+                                        )
+                                    )
+                                    content_modified_or_signal_handled = True
+                                else:
+                                    new_parts_for_owner.append(part_obj)
                             else:
                                 new_parts_for_owner.append(part_obj)
-                        else:
+                        except Exception as e:
+                            log.warning(
+                                "%s Error during recursive FilePart resolution for %s: %s. Using original.",
+                                log_id_prefix,
+                                part.file.name,
+                                e,
+                            )
                             new_parts_for_owner.append(part_obj)
-                    except Exception as e:
-                        log.warning(
-                            "%s Error during recursive FilePart resolution for %s: %s. Using original.",
-                            log_id_prefix,
-                            part.file.name,
-                            e,
-                        )
+                    else:
+                        # This is a FileWithUri or empty FileWithBytes, which we don't process for embeds here.
                         new_parts_for_owner.append(part_obj)
                 else:
                     new_parts_for_owner.append(part_obj)
