@@ -37,6 +37,8 @@ from a2a.types import (
     TaskStatus,
     TaskState,
     FilePart,
+    FileWithBytes,
+    FileWithUri,
     DataPart,
     Artifact as A2AArtifact,
     SendMessageRequest,
