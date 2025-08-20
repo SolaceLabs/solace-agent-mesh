@@ -37,8 +37,8 @@ const getParentTaskIdFromTaskObject = (task: TaskFE): string | null | undefined 
     if (task.events && task.events.length > 0) {
         const firstEvent = task.events[0];
         // Typically, the first event for a sub-task is a 'request' event containing parentTaskId in its metadata
-        if (firstEvent.full_payload?.params?.metadata?.parentTaskId) {
-            return firstEvent.full_payload.params.metadata.parentTaskId;
+        if (firstEvent.full_payload?.params?.message?.metadata?.parentTaskId) {
+            return firstEvent.full_payload.params.message.metadata.parentTaskId;
         }
     }
     return undefined;
