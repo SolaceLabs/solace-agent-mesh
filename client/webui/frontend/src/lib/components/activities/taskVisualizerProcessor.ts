@@ -250,7 +250,7 @@ export const processTaskForVisualization = (
 
         // Determine functionCallId for the step
         let functionCallIdForStep: string | undefined;
-        const metadataFunctionCallId = (payload?.result?.status?.message?.metadata as any)?.function_call_id;
+        // const metadataFunctionCallId = (payload?.result?.status?.message?.metadata as any)?.function_call_id;
 
         if (currentEventNestingLevel > 0) {
             functionCallIdForStep = subTaskToFunctionCallIdMap.get(currentEventOwningTaskId);
@@ -258,9 +258,9 @@ export const processTaskForVisualization = (
             functionCallIdForStep = activeFunctionCallIdByTask.get(currentEventOwningTaskId);
         }
 
-        if (metadataFunctionCallId) {
-            functionCallIdForStep = metadataFunctionCallId;
-        }
+        // if (metadataFunctionCallId) {
+        //     functionCallIdForStep = metadataFunctionCallId;
+        // }
 
         // Handle sub-task creation requests to establish the mapping early
         if (event.direction === "request" && currentEventNestingLevel > 0) {
@@ -522,7 +522,7 @@ export const processTaskForVisualization = (
                                     isSubTaskStep: currentEventNestingLevel > 0,
                                     nestingLevel: currentEventNestingLevel,
                                     owningTaskId: currentEventOwningTaskId,
-                                    functionCallId: invocationData.functionCallId,
+                                    functionCallId: functionCallIdForStep,
                                 });
                                 break;
                             }
@@ -567,7 +567,7 @@ export const processTaskForVisualization = (
                                     isSubTaskStep: currentEventNestingLevel > 0,
                                     nestingLevel: currentEventNestingLevel,
                                     owningTaskId: currentEventOwningTaskId,
-                                    functionCallId: toolResultData.functionCallId,
+                                    functionCallId: functionCallIdForStep,
                                 });
                                 break;
                             }
@@ -636,56 +636,6 @@ export const processTaskForVisualization = (
             const result = payload.result as any;
             const finalState = result.status.state as string;
             const responseAgentName = result.metadata?.agent_name || result.status?.message?.metadata?.agent_name || event.source_entity || "Agent";
-
-            if (currentEventNestingLevel > 0 && finalState === "completed") {
-                const parentTaskId = getParentTaskIdFromTaskObject(allMonitoredTasks[currentEventOwningTaskId]);
-                const parentAgentName = parentTaskId ? findAgentNameForTask(parentTaskId, allMonitoredTasks) : null;
-                const functionCallId = subTaskToFunctionCallIdMap.get(currentEventOwningTaskId);
-
-                if (parentAgentName && functionCallId) {
-                    const openToolCallForPerf = inProgressToolCalls.get(functionCallId);
-                    if (openToolCallForPerf) {
-                        const duration = new Date(eventTimestamp).getTime() - new Date(openToolCallForPerf.timestamp).getTime();
-                        const invokingAgentMetrics = report.agents[openToolCallForPerf.invokingAgentInstanceId];
-                        if (invokingAgentMetrics) {
-                            const toolCallPerf: ToolCallPerformance = {
-                                toolName: openToolCallForPerf.toolName,
-                                durationMs: duration,
-                                isPeer: openToolCallForPerf.isPeer,
-                                timestamp: openToolCallForPerf.timestamp,
-                                peerAgentName: openToolCallForPerf.isPeer ? openToolCallForPerf.toolName.substring(5) : undefined,
-                                subTaskId: openToolCallForPerf.subTaskId,
-                                parallelBlockId: openToolCallForPerf.parallelBlockId,
-                            };
-                            invokingAgentMetrics.toolCalls.push(toolCallPerf);
-                        }
-                        inProgressToolCalls.delete(functionCallId);
-                    }
-
-                    const toolResultData: ToolResultData = {
-                        toolName: `peer_${responseAgentName}`,
-                        functionCallId: functionCallId,
-                        resultData: result.status.message,
-                        isPeerResponse: true,
-                    };
-
-                    visualizerSteps.push({
-                        id: `vstep-toolresult-${visualizerSteps.length}-${eventId}`,
-                        type: "AGENT_TOOL_EXECUTION_RESULT",
-                        timestamp: eventTimestamp,
-                        title: `${parentAgentName}: Tool Result - peer_${responseAgentName}`,
-                        source: `peer_${responseAgentName}`,
-                        target: parentAgentName,
-                        data: { toolResult: toolResultData },
-                        rawEventIds: [eventId],
-                        isSubTaskStep: currentEventNestingLevel > 0,
-                        nestingLevel: currentEventNestingLevel,
-                        owningTaskId: currentEventOwningTaskId,
-                        functionCallId: functionCallId,
-                    });
-                    return;
-                }
-            }
 
             if (["completed", "failed", "canceled"].includes(finalState)) {
                 const stepType: VisualizerStepType = finalState === "completed" ? "TASK_COMPLETED" : "TASK_FAILED";
