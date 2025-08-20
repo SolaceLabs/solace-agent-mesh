@@ -58,7 +58,8 @@ dependencies = [
     "itsdangerous>=2.0",
     "solace-ai-connector~=1.1.8",
     "holidays>=0.24",
-    "rouge~=1.0.1"
+    "rouge~=1.0.1",
+    "openai==1.99.9"
 ]
 
 [project.optional-dependencies]
@@ -92,6 +93,7 @@ dependencies = [
     "pytest-cov>=4.0.0",
     "pytest-xdist>=3.5.0",
     "pytest-httpx>=0.35.0",
+    "fastmcp",
     "jsonschema>=4.0.0"
 ]
 extra-dependencies = [

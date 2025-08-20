@@ -85,10 +85,11 @@ class TestRun:
 class ProcessManager:
     """Manages subprocess lifecycle for the Solace AI Connector."""
 
-    def __init__(self, config: EvaluationConfig):
+    def __init__(self, config: EvaluationConfig, verbose: bool = False):
         self.config = config
         self.process: Optional[subprocess.Popen] = None
         self.namespace: Optional[str] = None
+        self.verbose = verbose
 
     def start_services(self) -> Tuple[subprocess.Popen, str]:
         """Start the Solace AI Connector and return process and namespace."""
@@ -138,9 +139,10 @@ class ProcessManager:
 class TaskService:
     """Handles task submission and tracking."""
 
-    def __init__(self, config: EvaluationConfig):
+    def __init__(self, config: EvaluationConfig, verbose: bool = False):
         self.config = config
         self.base_url = config.API_BASE_URL
+        self.verbose = verbose
 
     def submit_task(
         self, agent_name: str, message: str, artifact_paths: Optional[List[str]] = None
@@ -262,9 +264,10 @@ class TestRunBuilder:
 class TestExecutor:
     """Executes individual test runs."""
 
-    def __init__(self, task_service: TaskService, file_service: FileService):
+    def __init__(self, task_service: TaskService, file_service: FileService, verbose: bool = False):
         self.task_service = task_service
         self.file_service = file_service
+        self.verbose = verbose
 
     def execute_test(
         self,
@@ -331,13 +334,14 @@ class TestExecutor:
 class ModelEvaluator:
     """Handles the evaluation of a single model."""
 
-    def __init__(self, config: EvaluationConfig):
+    def __init__(self, config: EvaluationConfig, verbose: bool = False):
         self.config = config
-        self.process_manager = ProcessManager(config)
-        self.task_service = TaskService(config)
+        self.process_manager = ProcessManager(config, verbose=verbose)
+        self.task_service = TaskService(config, verbose=verbose)
         self.file_service = FileService()
         self.test_builder = TestRunBuilder(config)
-        self.test_executor = TestExecutor(self.task_service, self.file_service)
+        self.test_executor = TestExecutor(self.task_service, self.file_service, verbose=verbose)
+        self.verbose = verbose
 
     def evaluate_model(
         self, model_config: Dict[str, Any], base_results_path: str
@@ -444,9 +448,10 @@ class ModelEvaluator:
 class ResultsProcessor:
     """Handles post-processing of evaluation results."""
 
-    def __init__(self, file_service: FileService):
+    def __init__(self, file_service: FileService, verbose: bool = False):
         self.file_service = file_service
         self.summary_builder = SummaryBuilder()
+        self.verbose = verbose
 
     def summarize_results(self, base_results_path: str):
         """Generate summaries for all test results."""
@@ -486,11 +491,12 @@ class ResultsProcessor:
 class EvaluationRunner:
     """Main orchestrator that coordinates the entire evaluation process."""
 
-    def __init__(self):
+    def __init__(self, verbose: bool = False):
         self.config: Optional[EvaluationConfig] = None
         self.file_service = FileService()
-        self.results_processor = ResultsProcessor(self.file_service)
+        self.results_processor = ResultsProcessor(self.file_service, verbose=verbose)
         self.report_generator: Optional[ReportGenerator] = None
+        self.verbose = verbose
 
     def run_evaluation(self, config_path: str):
         """Main entry point for the evaluation process."""
@@ -518,6 +524,10 @@ class EvaluationRunner:
             # Generate reports
             self._generate_reports(config_path, base_results_path)
 
+            # Display verbose summary if enabled
+            if self.verbose:
+                self._display_verbose_summary(base_results_path)
+
         except Exception as e:
             print(f"Evaluation failed: {e}")
             raise
@@ -543,7 +553,7 @@ class EvaluationRunner:
         model_execution_times = {}
 
         for model_config in self.config.llm_models:
-            model_evaluator = ModelEvaluator(self.config)
+            model_evaluator = ModelEvaluator(self.config, verbose=self.verbose)
             execution_time = model_evaluator.evaluate_model(
                 model_config, base_results_path
             )
@@ -580,12 +590,130 @@ class EvaluationRunner:
         if self.report_generator:
             self.report_generator.generate_report(base_results_path)
 
+    def _display_verbose_summary(self, base_results_path: Path):
+        """Display a verbose summary of the evaluation results in the terminal."""
+
+        # Pre-process data to find column widths
+        summary_data = []
+        max_model_len = 0
+        max_test_case_len = 0
+
+        for model_dir in sorted(base_results_path.iterdir()):
+            if not model_dir.is_dir():
+                continue
+
+            results_file = model_dir / "results.json"
+            if not results_file.exists():
+                continue
+
+            try:
+                results_data = self.file_service.load_json(str(results_file))
+                model_name = results_data.get("model_name", model_dir.name)
+                max_model_len = max(max_model_len, len(model_name))
+
+                for test_case in results_data.get("test_cases", []):
+                    test_case_id = test_case.get("test_case_id")
+                    if not test_case_id:
+                        continue
+
+                    max_test_case_len = max(max_test_case_len, len(test_case_id))
+
+                    scores = {}
+                    tool_match = test_case.get("tool_match_scores", {}).get("average")
+                    if tool_match is not None:
+                        scores["Tool Match"] = f"{tool_match:.2f}"
+
+                    response_match = test_case.get("response_match_scores", {}).get("average")
+                    if response_match is not None:
+                        scores["Response Match"] = f"{response_match:.2f}"
+
+                    llm_eval = test_case.get("llm_eval_scores", {}).get("average")
+                    if llm_eval is not None:
+                        scores["LLM Eval"] = f"{llm_eval:.2f}"
+
+                    if scores:
+                        summary_data.append((model_name, test_case_id, scores))
+
+            except Exception as e:
+                print(f"Error processing results for {model_dir.name}: {e}")
+
+        # Print formatted output
+        if not summary_data:
+            print("No summary data to display.")
+            return
+
+        # Define headers and find max score lengths
+        headers = ["Tool Match", "Response Match", "LLM Eval"]
+
+        # Print header
+        header_line = (
+            f"{'Model':<{max_model_len}} | {'Test Case':<{max_test_case_len}} | "
+            f"{'Tool Match':<12} | {'Response Match':<16} | {'LLM Eval':<10}"
+        )
+        print(header_line)
+        print("-" * len(header_line))
+
+        # Print data rows
+        for model_name, test_case_id, scores in summary_data:
+            tool_score = scores.get("Tool Match", "N/A")
+            response_score = scores.get("Response Match", "N/A")
+            llm_score = scores.get("LLM Eval", "N/A")
+
+            print(
+                f"{model_name:<{max_model_len}} | {test_case_id:<{max_test_case_len}} | "
+                f"{tool_score:<12} | {response_score:<16} | {llm_score:<10}"
+            )
+
+    def _get_model_stats(self, model_path: str) -> Dict[str, Any]:
+        """Process results for a single model and return stats."""
+        model_stats = {}
+        results_file = os.path.join(model_path, "results.json")
+        if not os.path.exists(results_file):
+            return model_stats
+
+        results_data = self.file_service.load_json(results_file)
+        model_name = results_data.get("model_name", os.path.basename(model_path))
+        model_stats[model_name] = {}
+
+        for test_case in results_data.get("test_cases", []):
+            test_case_id = test_case.get("test_case_id")
+            if not test_case_id:
+                continue
+
+            scores = {}
+            tool_match = test_case.get("tool_match_scores", {}).get("average")
+            if tool_match is not None:
+                scores["avg_tool_match"] = tool_match
+
+            response_match = test_case.get("response_match_scores", {}).get("average")
+            if response_match is not None:
+                scores["avg_response_match"] = response_match
+
+            llm_eval = test_case.get("llm_eval_scores", {}).get("average")
+            if llm_eval is not None:
+                scores["avg_llm_eval"] = llm_eval
+
+            if scores:
+                model_stats[model_name][test_case_id] = scores
+        return model_stats
+
     def _save_execution_stats(self, base_results_path: str, start_time: float):
         """Save overall execution statistics."""
         end_time = time.time()
         total_execution_time = end_time - start_time
+        stats = {"total_execution_time": total_execution_time, "models": {}}
 
-        stats = {"total_execution_time": total_execution_time}
+        try:
+            for model_dir in os.listdir(base_results_path):
+                model_path = os.path.join(base_results_path, model_dir)
+                if not os.path.isdir(model_path):
+                    continue
+                model_stats = self._get_model_stats(model_path)
+                stats["models"].update(model_stats)
+
+        except Exception as e:
+            print(f"Error processing results for stats: {e}")
+
         stats_path = os.path.join(base_results_path, "stats.json")
         self.file_service.save_json(stats, stats_path)
 
@@ -593,9 +721,9 @@ class EvaluationRunner:
         print(f"Total execution time: {total_execution_time:.2f} seconds")
 
 
-def main(config_path: str):
+def main(config_path: str, verbose: bool = False):
     """Main entry point for the evaluation script."""
-    orchestrator = EvaluationRunner()
+    orchestrator = EvaluationRunner(verbose=verbose)
     orchestrator.run_evaluation(config_path)
 
 
@@ -609,5 +737,11 @@ if __name__ == "__main__":
         type=str,
         help="Path to the evaluation test_suite_config.json file.",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose output.",
+    )
     args = parser.parse_args()
-    main(args.test_suite_config_path)
+    main(args.test_suite_config_path, args.verbose)
