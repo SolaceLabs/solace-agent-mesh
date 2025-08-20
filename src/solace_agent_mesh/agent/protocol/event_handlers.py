@@ -10,6 +10,8 @@ from typing import Union, TYPE_CHECKING, List, Dict, Any
 import fnmatch
 from solace_ai_connector.common.log import log
 from solace_ai_connector.common.message import Message as SolaceMessage
+from ...agent.adk.callbacks import _publish_data_part_status_update
+from ...common.data_parts import ToolResultData
 from solace_ai_connector.common.event import Event, EventType
 from a2a.types import (
     A2ARequest,
@@ -185,6 +187,50 @@ async def process_event(component, event: Event):
                     nack_e,
                 )
         component.handle_error(e, event)
+
+
+async def _publish_peer_tool_result_notification(
+    component: "SamAgentComponent",
+    correlation_data: Dict[str, Any],
+    payload_to_queue: Any,
+    log_identifier: str,
+):
+    """Publishes a ToolResultData status update for a completed peer tool call."""
+    peer_tool_name = correlation_data.get("peer_tool_name")
+    function_call_id = correlation_data.get("adk_function_call_id")
+    original_task_context_data = correlation_data.get("original_task_context")
+
+    if not (peer_tool_name and function_call_id and original_task_context_data):
+        log.warning(
+            "%s Missing data in correlation_data. Cannot publish peer tool result notification.",
+            log_identifier,
+        )
+        return
+
+    log.info(
+        "%s Publishing tool_result notification for completed peer task '%s'.",
+        log_identifier,
+        peer_tool_name,
+    )
+    try:
+        tool_result_notification = ToolResultData(
+            tool_name=peer_tool_name,
+            result_data=payload_to_queue,
+            function_call_id=function_call_id,
+        )
+        await _publish_data_part_status_update(
+            host_component=component,
+            a2a_context=original_task_context_data,
+            data_part_model=tool_result_notification,
+        )
+    except Exception as e:
+        log.error(
+            "%s Failed to publish peer tool result notification for '%s': %s",
+            log_identifier,
+            peer_tool_name,
+            e,
+            exc_info=True,
+        )
 
 
 async def handle_a2a_request(component, message: SolaceMessage):
@@ -1310,6 +1356,13 @@ async def handle_a2a_response(component, message: SolaceMessage):
             full_response_text = final_text
             if artifact_summary:
                 full_response_text = f"{artifact_summary}\n\n{full_response_text}"
+
+            await _publish_peer_tool_result_notification(
+                component=component,
+                correlation_data=correlation_data,
+                payload_to_queue=payload_to_queue,
+                log_identifier=log_retrigger,
+            )
 
             current_result = {
                 "adk_function_call_id": correlation_data.get("adk_function_call_id"),
