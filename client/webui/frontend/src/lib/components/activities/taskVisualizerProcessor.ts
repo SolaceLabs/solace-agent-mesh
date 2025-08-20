@@ -639,7 +639,7 @@ export const processTaskForVisualization = (
             const finalState = result.status.state as string;
             const responseAgentName = result.metadata?.agent_name || result.status?.message?.metadata?.agent_name || event.source_entity || "Agent";
 
-            if (["completed", "failed", "canceled"].includes(finalState)) {
+            if (["completed", "failed", "canceled"].includes(finalState) && currentEventNestingLevel == 0) {
                 const stepType: VisualizerStepType = finalState === "completed" ? "TASK_COMPLETED" : "TASK_FAILED";
                 const title = `${responseAgentName}: Task ${finalState.charAt(0).toUpperCase() + finalState.slice(1)}`;
                 let dataPayload: any = {};
