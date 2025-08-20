@@ -18,7 +18,7 @@ apps:
       namespace: "__NAMESPACE__"
       supports_streaming: __SUPPORTS_STREAMING__
       agent_name: "__AGENT_NAME__"
-      display_name: "__AGENT_NAME__ Agent"
+      display_name: "__AGENT_SPACED_NAME__ Agent"
       model: __MODEL_ALIAS__ 
 
       instruction: |

@@ -31,7 +31,7 @@ Our weather agent will have the following capabilities:
 
 1. **Get Current Weather**: Fetch current weather conditions for a specified location
 2. **Get Weather Forecast**: Retrieve a multi-day weather forecast
-3. **Save Weather Reports**: Store weather data as artifacts for later reference
+3. **Save Weather Reports**: Store weather data as artifacts
 
 The agent will demonstrate:
 - External API integration
@@ -49,6 +49,50 @@ sam add agent --gui
 ```
 
 Follow the steps on the GUI to create a new agent named "Weather Agent". We can update the tools/skills section directly in the configuration file later.
+
+:::warning[Important Notice]
+This tutorial is intentionally comprehensive to demonstrate the full flexibility and advanced features available in Solace Agent Mesh agents. For most straightforward use cases, you only need a simple Python function and a corresponding reference in your YAML configuration file.
+
+<details>
+<summary>Example</summary>
+
+Simple python tool:
+
+```py
+# src/agent_name/tools.py
+from typing import Any, Dict, Optional
+from google.adk.tools import ToolContext
+
+async def echo(
+    text: str,
+    tool_context: Optional[ToolContext] = None,
+    tool_config: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    echo's a text
+    
+    Args:
+        text: text to be echoed
+    """
+    return {
+        "status": "success",
+        "message": f"User said '{text}'"
+    }
+```
+And update the agent config file's tool section as follows:
+
+```yaml
+      tools: 
+        - tool_type: python
+          component_module: src.agent_name.tools
+          function_name: echo
+
+
+```
+</details>
+
+Other concepts mentioned in this page such as lifecycle, services, artifacts are just to showcase a more advanced patterns.
+:::
 
 Create the directory structure for the weather agent:
 
@@ -87,7 +131,6 @@ Weather service for interacting with external weather APIs.
 """
 
 import aiohttp
-import asyncio
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from solace_ai_connector.common.log import log
@@ -273,7 +316,6 @@ from typing import Any, Dict, Optional
 from datetime import datetime
 from google.adk.tools import ToolContext
 from solace_ai_connector.common.log import log
-from .services.weather_service import WeatherService
 
 
 async def get_current_weather(
@@ -541,7 +583,8 @@ Create the lifecycle management:
 Lifecycle functions for the Weather Agent.
 """
 
-from typing import Any, Dict
+from typing import Any
+import asyncio
 from pydantic import BaseModel, Field, SecretStr
 from solace_ai_connector.common.log import log
 from .services.weather_service import WeatherService
@@ -562,7 +605,7 @@ class WeatherAgentInitConfig(BaseModel):
     )
 
 
-async def initialize_weather_agent(host_component: Any, init_config: WeatherAgentInitConfig):
+def initialize_weather_agent(host_component: Any, init_config: WeatherAgentInitConfig):
     """
     Initialize the Weather Agent with weather service.
     
@@ -597,7 +640,7 @@ async def initialize_weather_agent(host_component: Any, init_config: WeatherAgen
         raise
 
 
-async def cleanup_weather_agent(host_component: Any):
+def cleanup_weather_agent(host_component: Any):
     """
     Clean up Weather Agent resources.
     
@@ -606,22 +649,28 @@ async def cleanup_weather_agent(host_component: Any):
     """
     log_identifier = f"[{host_component.agent_name}:cleanup]"
     log.info(f"{log_identifier} Starting Weather Agent cleanup...")
-    
-    try:
-        # Get and close weather service
-        weather_service = host_component.get_agent_specific_state("weather_service")
-        if weather_service:
-            await weather_service.close()
-            log.info(f"{log_identifier} Weather service closed successfully")
+
+    async def cleanup_async(host_component: Any):
+        try:
+            # Get and close weather service
+            weather_service = host_component.get_agent_specific_state("weather_service")
+            if weather_service:
+                await weather_service.close()
+                log.info(f"{log_identifier} Weather service closed successfully")
+            
+            # Log final statistics
+            request_count = host_component.get_agent_specific_state("weather_requests_count", 0)
+            log.info(f"{log_identifier} Agent processed {request_count} weather requests during its lifetime")
+            
+            log.info(f"{log_identifier} Weather Agent cleanup completed")
         
-        # Log final statistics
-        request_count = host_component.get_agent_specific_state("weather_requests_count", 0)
-        log.info(f"{log_identifier} Agent processed {request_count} weather requests during its lifetime")
-        
-        log.info(f"{log_identifier} Weather Agent cleanup completed")
+        except Exception as e:
+            log.error(f"{log_identifier} Error during cleanup: {e}")
     
-    except Exception as e:
-        log.error(f"{log_identifier} Error during cleanup: {e}")
+    # run cleanup in the event loop
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(cleanup_async(host_component))
+    log.info(f"{log_identifier} Weather Agent cleanup completed successfully")
 ```
 
 ## Step 5: Agent Configuration
@@ -674,7 +723,7 @@ apps:
       
       # Lifecycle functions
       agent_init_function:
-        module: "weather_agent.lifecycle"
+        module: "src.weather_agent.lifecycle"
         name: "initialize_weather_agent"
         config:
           api_key: ${OPENWEATHER_API_KEY}
@@ -682,20 +731,20 @@ apps:
           startup_message: "Weather Agent is ready to provide weather information!"
       
       agent_cleanup_function:
-        module: "weather_agent.lifecycle"
+        module: "src.weather_agent.lifecycle"
         name: "cleanup_weather_agent"
       
       # Tools configuration
       tools:
         # Current weather tool
         - tool_type: python
-          component_module: "weather_agent.tools"
+          component_module: "src.weather_agent.tools"
           function_name: "get_current_weather"
           tool_description: "Get current weather conditions for a specified location"
         
         # Weather forecast tool
         - tool_type: python
-          component_module: "weather_agent.tools"
+          component_module: "src.weather_agent.tools"
           function_name: "get_weather_forecast"
           tool_description: "Get weather forecast for up to 5 days for a specified location"
         
@@ -715,7 +764,7 @@ apps:
       agent_card:
         description: "Professional weather agent providing current conditions, forecasts, and weather comparisons"
         defaultInputModes: ["text"]
-        defaultOutputModes: ["text", "data"]
+        defaultOutputModes: ["text", "file"]
         skills:
           - id: "get_current_weather"
             name: "Get Current Weather"
@@ -756,9 +805,10 @@ To start the agent, it is preferred to build the plugin and then install it with
 Start your weather agent for development purposes run:
 
 ```bash
-cd src
-sam run ../configs/agents/weather_agent.yaml
+sam run
 ```
+
+- To solely run the agent, use `sam run configs/agents/weather_agent.yaml`
 
 ## Step 9: Testing the Weather Agent
 

@@ -60,8 +60,6 @@ You can run the `init` command in a non-interactive mode by passing `--skip` and
 To get a list of all the available options, run `solace-agent-mesh init --help`
 :::
 
-<details>
-  <summary>Configurations</summary>
 
 :::info[Model name format]
 <details>
@@ -86,8 +84,6 @@ For example: `openai/llama-3.3-7b`
 
 This is the case for all the model names, such as LLMs, image generators, embedding models, etc.
 :::
-
-</details>
 
 ## Running the Project
 
@@ -149,7 +145,7 @@ You can use different gateway interfaces to communicate with the system such as 
 
 To access the browser UI, navigate to `http://localhost:8000` in your web browser. If you specified a different port during the init step, use that port instead. For Docker deployments with custom port mappings (using the `-p` flag), use the host port specified in your port mapping configuration.
 
-Try some commands like `Suggest some good outdoor activities in London given the season and current weather conditions.` or `Generate a mermaid diagram of the OAuth login flow`.
+Try some commands like `Suggest some good outdoor activities in London given the season and current weather conditions.`.
 
 
 ## Try a Tutorial

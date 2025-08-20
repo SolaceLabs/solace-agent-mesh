@@ -164,6 +164,7 @@ def _write_agent_yaml_from_data(
 
         replacements = {
             "__AGENT_NAME__": agent_name_camel,
+            "__AGENT_SPACED_NAME__": get_formatted_names(agent_name_camel).get("SPACED_CAPITALIZED_NAME"),
             "__NAMESPACE__": config_options.get(
                 "namespace", AGENT_DEFAULTS["namespace"]
             ),
