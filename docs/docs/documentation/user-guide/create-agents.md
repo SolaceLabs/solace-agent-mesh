@@ -75,7 +75,7 @@ The `config.yaml` (for plugin template) or `agent-name.yaml` (for agent instance
 - **Tools list**: Which tools the agent can access and how they're configured
 - **Lifecycle functions**: Setup and cleanup procedures
 - **Framework services**: Session management, artifact storage, and so on.
-- **Agent card**: Metadata describing the agent capabilities, skills and its visibility in the system
+- **[Agent card](../concepts/agents.md#agent-card)**: Metadata describing the agent capabilities, skills and its visibility in the system
 
 ### Tool Configuration
 

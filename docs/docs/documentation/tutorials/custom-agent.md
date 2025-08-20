@@ -784,6 +784,8 @@ apps:
         request_timeout_seconds: 30
 ```
 
+For more details on agent cards, see the [Agent Card Concepts](../concepts/agents.md#agent-card) documentation.
+
 ## Step 7: Environment Setup
 
 Before running your weather agent, you'll need to:
