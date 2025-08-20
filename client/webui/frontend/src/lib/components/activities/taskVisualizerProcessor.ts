@@ -421,7 +421,7 @@ export const processTaskForVisualization = (
                                                 const candSubTaskParentId = getParentTaskIdFromTaskObject(candSubTask);
 
                                                 if (candSubTaskParentId === currentEventOwningTaskId && candSubTask.events && candSubTask.events.length > 0) {
-                                                    const subTaskCreationRequest = candSubTask.events.find(e => e.direction === "request" && e.full_payload?.method?.startsWith("message/") && e.target_entity === peerAgentActualName);
+                                                    const subTaskCreationRequest = candSubTask.events.find(e => e.direction === "request" && e.full_payload?.params?.message?.metadata?.function_call_id === decision.functionCallId);
                                                     if (subTaskCreationRequest && new Date(getEventTimestamp(subTaskCreationRequest)).getTime() >= new Date(eventTimestamp).getTime()) {
                                                         const delInfo: DelegationInfo = {
                                                             functionCallId: decision.functionCallId,
