@@ -1,15 +1,9 @@
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-from ...business.services.session_service import ModernSessionService, SessionService
+from ...business.services.session_service import SessionService
 from ...data.persistence import database_service as db_service_module
 from ...data.persistence.database_service import DatabaseService
-from ...data.repositories.session_repository import (
-    IMessageRepository,
-    ISessionRepository,
-    MessageRepository,
-    SessionRepository,
-)
 
 T = TypeVar("T")
 
@@ -74,32 +68,7 @@ class ApplicationContainer:
         database_service = DatabaseService(self.database_url)
         self.container.register_singleton(DatabaseService, database_service)
 
-        # Set the global database service instance for legacy dependencies
         db_service_module.database_service = database_service
-
-        # Repository factories (each request gets a new instance with fresh DB session)
-        def create_session_repository():
-            session = database_service.SessionLocal()
-            return SessionRepository(session)
-
-        def create_message_repository():
-            session = database_service.SessionLocal()
-            return MessageRepository(session)
-
-        self.container.register_factory(ISessionRepository, create_session_repository)
-        self.container.register_factory(IMessageRepository, create_message_repository)
-
-        # Business service factories
-        self.container.register_factory(
-            SessionService,
-            lambda: SessionService(
-                self.container.get(ISessionRepository),
-                self.container.get(IMessageRepository),
-            ),
-        )
-
-    def get_session_service(self) -> SessionService:
-        return self.container.get(SessionService)
 
     def get_database_service(self) -> DatabaseService:
         return self.container.get(DatabaseService)
@@ -113,7 +82,6 @@ def initialize_container(database_url: str) -> ApplicationContainer:
     global _container
     _container = ApplicationContainer(database_url)
 
-    # Initialize database tables
     database_service = _container.get_database_service()
     database_service.create_tables()
 
@@ -128,48 +96,14 @@ def get_container() -> ApplicationContainer:
     return _container
 
 
-# Modern FastAPI dependency functions using industry standards
+# FastAPI dependency functions
 def get_session_service() -> SessionService:
     """
-    FastAPI dependency for getting session service.
+    FastAPI dependency for getting the session service.
 
-    Uses the modern approach where the service manages its own transactions
-    via DatabaseService context managers. No manual session management needed.
+    Returns the session service that handles its own transactions internally.
     """
     container = get_container()
     database_service = container.get_database_service()
 
-    # Return service that handles its own transactions internally
     return SessionService(db_service=database_service)
-
-
-def get_modern_session_service() -> ModernSessionService:
-    """
-    FastAPI dependency for getting the modern session service.
-
-    This is the recommended service to use for new code.
-    """
-    container = get_container()
-    database_service = container.get_database_service()
-
-    # Return modern service that handles its own transactions internally
-    return ModernSessionService(database_service)
-
-
-# Legacy compatibility functions - gradually migrate away from these
-def get_legacy_session_service():
-    """
-    DEPRECATED: Legacy FastAPI dependency.
-    Use get_session_service() or get_modern_session_service() instead.
-    """
-    container = get_container()
-    database_service = container.get_database_service()
-
-    # Use legacy dependency injection pattern
-    with database_service.session_scope() as db_session:
-        session_repo = SessionRepository(db_session)
-        message_repo = MessageRepository(db_session)
-        service = SessionService(
-            session_repo, message_repo, db_service=database_service
-        )
-        yield service

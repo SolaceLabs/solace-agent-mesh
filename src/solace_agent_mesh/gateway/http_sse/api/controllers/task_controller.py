@@ -4,52 +4,30 @@ Note: This controller maintains the existing task submission logic
 while using the new architectural patterns.
 """
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    Form,
-    File,
-    HTTPException,
-    Request as FastAPIRequest,
-    status,
-    UploadFile,
-)
-from typing import List, Optional
+from typing import TYPE_CHECKING
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import Request as FastAPIRequest
 from solace_ai_connector.common.log import log
 
+from .....common.types import InternalError, InvalidRequestError, JSONRPCResponse
+from ...business.services.session_service import SessionService
+from ...database.persistence_service import PersistenceService
+from ...dependencies import (
+    get_persistence_service,
+    get_sac_component,
+    get_session_manager,
+    get_user_id,
+)
+from ...infrastructure.dependency_injection import get_session_service
+from ...session_manager import SessionManager
+from ...shared.enums import SenderType
 from ..dto.requests.task_requests import (
-    SendTaskRequest,
-    SubscribeTaskRequest,
     CancelTaskRequest,
     ProcessedTaskRequest,
     TaskFilesInfo,
 )
-from ..dto.responses.task_responses import (
-    JSONRPCTaskResponse,
-    SendTaskResponse,
-    SubscribeTaskResponse,
-    CancelTaskResponse,
-)
-from ...business.services.session_service import SessionService
-from ...infrastructure.dependency_injection import get_session_service
-from ...shared.enums import SenderType
 
-# Import existing dependencies - we'll keep these for now
-from ...session_manager import SessionManager
-from ...dependencies import (
-    get_sac_component,
-    get_session_manager,
-    get_user_id,
-    get_persistence_service,
-)
-from .....common.types import (
-    JSONRPCResponse,
-    InternalError,
-    InvalidRequestError,
-)
-from ...database.persistence_service import PersistenceService
-
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ...component import WebUIBackendComponent
 
@@ -61,7 +39,7 @@ async def send_task_to_agent(
     request: FastAPIRequest,
     agent_name: str = Form(...),
     message: str = Form(...),
-    files: List[UploadFile] = File([]),
+    files: list[UploadFile] = File([]),
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     user_id: str = Depends(get_user_id),
@@ -77,19 +55,18 @@ async def send_task_to_agent(
         task_files = []
         for file in files:
             if file.filename:
-                task_files.append(TaskFilesInfo(
-                    filename=file.filename,
-                    content_type=file.content_type or "application/octet-stream",
-                    size=0  # We'd need to read the file to get size
-                ))
-        
+                task_files.append(
+                    TaskFilesInfo(
+                        filename=file.filename,
+                        content_type=file.content_type or "application/octet-stream",
+                        size=0,  # We'd need to read the file to get size
+                    )
+                )
+
         request_dto = ProcessedTaskRequest(
-            agent_name=agent_name,
-            message=message,
-            user_id=user_id,
-            files=task_files
+            agent_name=agent_name, message=message, user_id=user_id, files=task_files
         )
-        
+
         # Continue with existing logic
         client_id = session_manager.get_a2a_client_id(request)
         session_id = session_manager.ensure_a2a_session(request)
@@ -153,8 +130,8 @@ async def subscribe_task_from_agent(
     request: FastAPIRequest,
     agent_name: str = Form(...),
     message: str = Form(...),
-    files: List[UploadFile] = File([]),
-    session_id: Optional[str] = Form(None),
+    files: list[UploadFile] = File([]),
+    session_id: str | None = Form(None),
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     user_id: str = Depends(get_user_id),
@@ -171,20 +148,22 @@ async def subscribe_task_from_agent(
         task_files = []
         for file in files:
             if file.filename:
-                task_files.append(TaskFilesInfo(
-                    filename=file.filename,
-                    content_type=file.content_type or "application/octet-stream",
-                    size=0
-                ))
-        
+                task_files.append(
+                    TaskFilesInfo(
+                        filename=file.filename,
+                        content_type=file.content_type or "application/octet-stream",
+                        size=0,
+                    )
+                )
+
         request_dto = ProcessedTaskRequest(
             agent_name=agent_name,
             message=message,
             user_id=user_id,
             session_id=session_id,
-            files=task_files
+            files=task_files,
         )
-        
+
         client_id = session_manager.get_a2a_client_id(request)
 
         # If session_id is not provided by the client, create a new one.
@@ -200,7 +179,7 @@ async def subscribe_task_from_agent(
                 message=message,
                 sender_type=SenderType.USER,
                 sender_name=user_id,
-                agent_id=agent_name
+                agent_id=agent_name,
             )
             # Use the actual session ID from the message (may be different if session was recreated)
             if message_domain:
@@ -209,11 +188,13 @@ async def subscribe_task_from_agent(
             # Handle business domain validation errors
             log.warning("Validation error in session service: %s", e)
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=str(e)
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
             )
         except Exception as e:
-            log.warning("Failed to store message in new service, falling back to persistence service: %s", e)
+            log.warning(
+                "Failed to store message in new service, falling back to persistence service: %s",
+                e,
+            )
             # Fallback to existing persistence service
             persistence_service.store_chat_message(
                 session_id=session_id,
@@ -296,11 +277,8 @@ async def cancel_agent_task(
     log.info("%sReceived cancellation request.", log_prefix)
 
     try:
-        request_dto = CancelTaskRequest(
-            task_id=task_id,
-            user_id=user_id
-        )
-        
+        request_dto = CancelTaskRequest(task_id=task_id, user_id=user_id)
+
         client_id = session_manager.get_a2a_client_id(request)
         await component.cancel_a2a_task(task_id, client_id)
         log.info("%sCancellation request sent successfully.", log_prefix)

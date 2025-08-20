@@ -23,14 +23,12 @@ from solace_ai_connector.common.log import log
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 
-# Import new 3-tiered architecture components
 from .api.controllers import session_router, task_router, user_router
 from .data.persistence.database_service import DatabaseService
 
 # Global database service instance
 database_service: DatabaseService = None
 
-# Import remaining routers that haven't been migrated to new architecture yet
 from typing import TYPE_CHECKING
 
 from alembic import command
@@ -68,13 +66,11 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
     """
     log.info("Setting up FastAPI dependencies with 3-tiered architecture...")
 
-    # Initialize database service for new architecture
     database_url = persistence_service.engine.url.__str__()
     global database_service
     database_service = DatabaseService(database_url)
     log.info("Database service initialized")
 
-    # Set up existing component dependencies for backward compatibility
     dependencies.set_component_instance(component)
 
     # Run database migrations (only if needed)
@@ -111,7 +107,6 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
         except Exception as migration_error:
             log.warning(f"Migration failed but continuing: {migration_error}")
 
-    # Set persistence service for backward compatibility with non-migrated routers
     dependencies.set_persistence_service(persistence_service)
 
     # Extract and set API configuration
