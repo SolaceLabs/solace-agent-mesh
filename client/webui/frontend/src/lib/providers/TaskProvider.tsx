@@ -56,11 +56,13 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 return { ...prevTasks, [taskId]: { ...existingTask, events: updatedEvents, lastUpdated: eventTimestamp } };
             } else {
                 let initialRequestText = "Task started...";
-                if (event.direction === "request" && event.full_payload?.method?.startsWith("tasks/")) {
+                if (event.direction === "request" && event.full_payload?.method?.startsWith("message/")) {
                     const params = event.full_payload.params as { message: { parts: { kind: string; text: string }[] } };
                     if (params?.message?.parts) {
-                        const textParts = params.message.parts.filter(p => p.kind === "text");
-                        initialRequestText = textParts[1]?.text ?? textParts[0]?.text;
+                        const textPart = params.message.parts.find(p => p.kind === "text" && p.text);
+                        if (textPart) {
+                            initialRequestText = textPart.text;
+                        }
                     }
                 }
                 const newTask: TaskFE = {
