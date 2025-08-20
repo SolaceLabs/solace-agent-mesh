@@ -321,7 +321,8 @@ export const processTaskForVisualization = (
             }
             const agentInstanceId = `${statusUpdateAgentName}:${currentEventOwningTaskId}`;
 
-            if (statusMessage?.parts) {
+            // Only process the parts if this is an original event, not a forwarded one.
+            if (!isForwardedMessage && statusMessage?.parts) {
                 for (const part of statusMessage.parts) {
                     if (part.kind === "data") {
                         flushAggregatedTextStep(currentEventOwningTaskId);
