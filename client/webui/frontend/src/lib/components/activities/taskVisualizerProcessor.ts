@@ -238,7 +238,9 @@ export const processTaskForVisualization = (
 
         // Determine agent name
         let eventAgentName = event.source_entity || "UnknownAgent";
-        if (payload?.result?.metadata?.agent_name) {
+        if (payload?.params?.message?.metadata?.agent_name) {
+            eventAgentName = payload.params.message.metadata.agent_name;
+        } else if (payload?.result?.metadata?.agent_name) {
             eventAgentName = payload.result.metadata.agent_name;
         } else if (payload?.result?.status?.message?.metadata?.agent_name) {
             eventAgentName = payload.result.status.message.metadata.agent_name;
@@ -752,6 +754,8 @@ export const processTaskForVisualization = (
                 }
             }
         }
+
+        console.log("Visualization steps:", visualizerSteps);
     });
 
     // Final flush for any remaining aggregated text

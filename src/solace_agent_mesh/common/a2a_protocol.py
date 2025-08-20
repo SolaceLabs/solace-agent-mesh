@@ -327,21 +327,16 @@ def format_adk_event_as_a2a(
         )
         return JSONRPCResponse(id=jsonrpc_request_id, error=a2a_error), []
 
-    if adk_event.content and adk_event.content.parts:
-        if all(p.function_response is not None for p in adk_event.content.parts):
-            log.debug(
-                "%s Ignoring ADK event containing only function_response parts as it is redundant.",
-                log_identifier,
-            )
-            return None, []
-
     signals_to_forward: List[Tuple[int, Any]] = []
     is_final_adk_event = (
         # We have a different definition of final for ADK events:
         # For now, the only long running tool IDs are peer agent tasks, which we
         # need to wait for before considering the event final.
         adk_event.is_final_response()
-        and (not hasattr(adk_event, 'long_running_tool_ids') or not adk_event.long_running_tool_ids)
+        and (
+            not hasattr(adk_event, "long_running_tool_ids")
+            or not adk_event.long_running_tool_ids
+        )
     )
 
     a2a_parts: List[A2APart] = []
@@ -355,48 +350,11 @@ def format_adk_event_as_a2a(
                         "%s Skipping ADK inline_data part in status update translation.",
                         log_identifier,
                     )
-                elif part.function_call:
+                elif part.function_call or part.function_response:
                     log.debug(
                         "%s Skipping ADK function call part in A2A translation.",
                         log_identifier,
                     )
-                elif part.function_response:
-                    try:
-                        response_data = part.function_response.response
-                        tool_metadata = {
-                            "tool_name": part.function_response.name,
-                            "function_call_id": part.function_response.id,
-                            "status_from_tool": "success",
-                        }
-                        if isinstance(response_data, dict):
-                            a2a_parts.append(
-                                DataPart(data=response_data, metadata=tool_metadata)
-                            )
-                        elif isinstance(response_data, str):
-                            a2a_parts.append(
-                                DataPart(
-                                    data={"text": response_data}, metadata=tool_metadata
-                                )
-                            )
-                        else:
-                            a2a_parts.append(
-                                DataPart(
-                                    data={"value": str(response_data)},
-                                    metadata=tool_metadata,
-                                )
-                            )
-                    except Exception as func_resp_ex:
-                        log.warning(
-                            "%s Could not process function response for tool %s: %s. Creating error TextPart.",
-                            log_identifier,
-                            part.function_response.name,
-                            func_resp_ex,
-                        )
-                        a2a_parts.append(
-                            TextPart(
-                                text=f"[Error processing tool response for {part.function_response.name}: {func_resp_ex}]"
-                            )
-                        )
                 else:
                     log.warning(
                         "%s Skipping unknown ADK part type during A2A translation: %s",
@@ -422,14 +380,8 @@ def format_adk_event_as_a2a(
                 adk_event.id,
             )
 
-    is_function_response_event = any(
-        p.function_response
-        for p in (adk_event.content.parts if adk_event.content else [])
-    )
-    should_send_status = (
-        (is_streaming and bool(a2a_parts))
-        or is_function_response_event
-        or (is_final_adk_event and bool(a2a_parts))
+    should_send_status = (is_streaming and bool(a2a_parts)) or (
+        is_final_adk_event and bool(a2a_parts)
     )
 
     if not should_send_status:
@@ -439,16 +391,6 @@ def format_adk_event_as_a2a(
             adk_event.id,
         )
         return None, signals_to_forward
-
-    if is_function_response_event:
-        # This is the legacy way of signaling a tool response.
-        # The new way is via a dedicated `tool_result` DataPart signal
-        # sent from an after_tool_callback. We leave the DataPart in the
-        # message but remove the metadata signal to avoid duplication.
-        log.debug(
-            "%s Deprecated 'tool_response_content' metadata signal suppressed.",
-            log_identifier,
-        )
 
     a2a_message = A2AMessage(
         role="agent",
@@ -476,15 +418,11 @@ def format_adk_event_as_a2a(
         metadata=event_metadata,
         kind="status-update",
     )
-    event_type_for_log = (
-        "tool_response_content" if is_function_response_event else "llm_stream_chunk"
-    )
     log.debug(
-        "%s Formatting intermediate A2A response (TaskStatusUpdateEvent, final=%s) for Task ID %s. Event type: %s",
+        "%s Formatting intermediate A2A response (TaskStatusUpdateEvent, final=%s) for Task ID %s",
         log_identifier,
         is_final_update_for_this_event,
         logical_task_id,
-        event_type_for_log,
     )
     json_rpc_response_obj = JSONRPCResponse(
         id=jsonrpc_request_id, result=intermediate_result_obj

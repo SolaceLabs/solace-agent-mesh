@@ -18,6 +18,7 @@ from a2a.types import (
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...common.exceptions import MessageSizeExceededError
 
+
 class ArtifactIdentifier(BaseModel):
     """Identifies a specific version of an artifact."""
 
@@ -233,6 +234,7 @@ class PeerAgentTool(BaseTool):
             a2a_metadata["sessionBehavior"] = "RUN_BASED"
             a2a_metadata["parentTaskId"] = main_logical_task_id
             a2a_metadata["function_call_id"] = tool_context.function_call_id
+            a2a_metadata["agent_name"] = self.target_agent_name
 
             a2a_message = A2AMessage(
                 role="user",

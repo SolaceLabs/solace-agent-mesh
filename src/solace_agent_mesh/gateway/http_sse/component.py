@@ -459,6 +459,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                 "task_id": event_details["task_id"],
                                 "payload_summary": event_details["payload_summary"],
                                 "full_payload": payload_dict,
+                                "debug_type": event_details["debug_type"],
                             }
 
                             try:
@@ -1017,6 +1018,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             "direction": "unknown",
             "source_entity": "unknown",
             "target_entity": "unknown",
+            "debug_type": "unknown",
             "message_id": payload.get("id"),
             "task_id": None,
             "payload_summary": {
@@ -1042,6 +1044,14 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     ).get(
                         "agent_name"
                     )
+                    message = result.get("status", {}).get("message")
+                    parts = message.get("parts", [])
+                    if parts and parts[0].get("kind") == "data":
+                        details["debug_type"] = (
+                            parts[0].get("data", {}).get("type", "unknown")
+                        )
+                    elif parts and parts[0].get("kind") == "text":
+                        details["debug_type"] = "streaming_text"
                 elif kind == "task":
                     details["source_entity"] = result.get("metadata", {}).get(
                         "agent_name"
@@ -1059,6 +1069,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 details["payload_summary"]["method"] = method
 
                 if method in ["message/send", "message/stream"]:
+                    details["debug_type"] = method
                     msg = params.get("message", {})
                     details["task_id"] = payload.get("id")
                     details["target_entity"] = msg.get("metadata", {}).get("agent_name")
@@ -1086,6 +1097,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 details["direction"] = "response"
             elif "status" in topic:
                 details["direction"] = "status_update"
+                # TEMP - add debug_type based on the type in the data
+                details["debug_type"] = "unknown"
 
         # --- Phase 3: Create a payload summary ---
         try:
