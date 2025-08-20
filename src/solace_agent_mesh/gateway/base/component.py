@@ -736,12 +736,13 @@ class BaseGatewayComponent(ComponentBase):
                 )
 
             for part_obj in parts_owner.parts:
-                if isinstance(part_obj, TextPart) and part_obj.text is not None:
-                    text_to_resolve = part_obj.text
-                    original_part_text = part_obj.text
+                part = part_obj.root
+                if isinstance(part, TextPart) and part.text is not None:
+                    text_to_resolve = part.text
+                    original_part_text = part.text
 
                     if is_streaming_status_update:
-                        current_buffer += part_obj.text
+                        current_buffer += part.text
                         text_to_resolve = current_buffer
 
                     resolved_text, processed_idx, signals = (
@@ -765,7 +766,9 @@ class BaseGatewayComponent(ComponentBase):
                         content_modified_or_signal_handled = True
 
                     if resolved_text is not None:
-                        new_parts_for_owner.append(TextPart(text=resolved_text))
+                        new_parts_for_owner.append(
+                            A2APart(root=TextPart(text=resolved_text))
+                        )
                         if is_streaming_status_update:
                             if resolved_text != text_to_resolve[:processed_idx]:
                                 content_modified_or_signal_handled = True
@@ -786,15 +789,15 @@ class BaseGatewayComponent(ComponentBase):
                         content_modified_or_signal_handled = True
 
                 elif (
-                    isinstance(part_obj, FilePart)
-                    and part_obj.file
-                    and part_obj.file.bytes
+                    isinstance(part, FilePart)
+                    and part.file
+                    and part.file.bytes
                 ):
-                    mime_type = part_obj.file.mimeType or ""
+                    mime_type = part.file.mimeType or ""
                     is_container = is_text_based_mime_type(mime_type)
                     try:
                         decoded_content_for_check = base64.b64decode(
-                            part_obj.file.bytes
+                            part.file.bytes
                         ).decode("utf-8", errors="ignore")
                         if (
                             is_container
@@ -813,14 +816,16 @@ class BaseGatewayComponent(ComponentBase):
                                 )
                             )
                             if resolved_content != original_content:
-                                new_file_content = part_obj.file.model_copy()
+                                new_file_content = part.file.model_copy()
                                 new_file_content.bytes = base64.b64encode(
                                     resolved_content.encode("utf-8")
                                 ).decode("utf-8")
                                 new_parts_for_owner.append(
-                                    FilePart(
-                                        file=new_file_content,
-                                        metadata=part_obj.metadata,
+                                    A2APart(
+                                        root=FilePart(
+                                            file=new_file_content,
+                                            metadata=part.metadata,
+                                        )
                                     )
                                 )
                                 content_modified_or_signal_handled = True
@@ -832,7 +837,7 @@ class BaseGatewayComponent(ComponentBase):
                         log.warning(
                             "%s Error during recursive FilePart resolution for %s: %s. Using original.",
                             log_id_prefix,
-                            part_obj.file.name,
+                            part.file.name,
                             e,
                         )
                         new_parts_for_owner.append(part_obj)
