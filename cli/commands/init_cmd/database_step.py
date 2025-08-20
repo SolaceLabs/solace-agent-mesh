@@ -1,6 +1,8 @@
-import click
 from pathlib import Path
+
+import click
 from sqlalchemy import create_engine
+
 from ...utils import ask_if_not_provided, ask_yes_no_question
 
 
@@ -33,11 +35,9 @@ def database_setup_step(
         )
 
     for db_type, url_key, default_filename in db_configs:
-        # If a URL is already provided via CLI option, use it
         if options.get(url_key):
             database_url = options[url_key]
             click.echo(f"  Using provided database URL for {db_type}.")
-        # Otherwise, ask the user or use the default
         else:
             use_own_db = False
             if not skip_interactive:

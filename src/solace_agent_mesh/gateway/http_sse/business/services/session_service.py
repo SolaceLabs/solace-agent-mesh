@@ -35,7 +35,6 @@ class SessionService:
         with self.db_service.read_only_session() as session:
             query = session.query(SessionModel).filter(SessionModel.user_id == user_id)
 
-            # Apply pagination if provided
             if pagination:
                 offset = (pagination.page - 1) * pagination.page_size
                 query = query.offset(offset).limit(pagination.page_size)
@@ -84,7 +83,6 @@ class SessionService:
                 .order_by(MessageModel.created_at)
             )
 
-            # Apply pagination if provided
             if pagination:
                 offset = (pagination.page - 1) * pagination.page_size
                 message_query = message_query.offset(offset).limit(pagination.page_size)

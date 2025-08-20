@@ -420,16 +420,16 @@ def create_agent_config(
         try:
             db_url = collected_options.get(DATABASE_URL_KEY)
             if not db_url:
-                # This indicates a logic error in the configuration flow
                 error_msg = "Database URL was not provided or determined despite SQL session service being selected."
-                click.echo(click.style(f"Internal Error: {error_msg}", fg="red"), err=True)
+                click.echo(
+                    click.style(f"Internal Error: {error_msg}", fg="red"), err=True
+                )
                 raise ValueError(error_msg)
 
             if db_url.startswith("sqlite:///"):
                 db_file_path = Path(db_url.replace("sqlite:///", ""))
                 db_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Validate the connection. For SQLite, this also creates the file.
             click.echo(f"  Validating database: {db_url}")
             engine = create_engine(db_url)
             with engine.connect() as connection:
@@ -570,7 +570,6 @@ def create_agent_config(
         ",".join(AGENT_DEFAULTS["inter_agent_communication_allow_list"]),
         skip_interactive,
     )
-    # Parse comma-separated allow list, filtering out empty entries
     allow_list_items = (allow_list_str or "").split(",")
     collected_options["inter_agent_communication_allow_list"] = [
         item.strip() for item in allow_list_items if item.strip()
@@ -583,7 +582,6 @@ def create_agent_config(
         ",".join(AGENT_DEFAULTS["inter_agent_communication_deny_list"]),
         skip_interactive,
     )
-    # Parse comma-separated deny list, filtering out empty entries
     deny_list_items = (deny_list_str or "").split(",")
     collected_options["inter_agent_communication_deny_list"] = [
         item.strip() for item in deny_list_items if item.strip()

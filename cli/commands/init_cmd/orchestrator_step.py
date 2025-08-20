@@ -1,10 +1,12 @@
-import click
-from pathlib import Path
-import yaml
 import re
-from ...utils import ask_if_not_provided, load_template, get_formatted_names
+from pathlib import Path
+
+import click
+import yaml
+
 from config_portal.backend.common import DEFAULT_COMMUNICATION_TIMEOUT
 
+from ...utils import ask_if_not_provided, get_formatted_names, load_template
 
 ORCHESTRATOR_DEFAULTS = {
     "agent_name": "OrchestratorAgent",
@@ -413,7 +415,6 @@ def create_orchestrator_config(
                 "database_url: ${ORCHESTRATOR_DATABASE_URL}",
             )
         else:
-            # If the placeholder is on a line by itself, this will remove the line
             modified_orchestrator_content = re.sub(
                 r"^\s*__SESSION_DB_URL_LINE__\n?$",
                 "",
@@ -427,7 +428,6 @@ def create_orchestrator_config(
                 deny_list_line,
             )
         else:
-            # If the placeholder is on a line by itself, this will remove the line
             modified_orchestrator_content = re.sub(
                 r"^\s*__INTER_AGENT_COMMUNICATION_DENY_LIST_LINE__\n?$",
                 "",

@@ -77,7 +77,6 @@ async def get_session(
     log.info("User %s attempting to fetch session_id: %s", user_id, session_id)
 
     try:
-        # Validate session_id input
         if (
             not session_id
             or session_id.strip() == ""
@@ -133,7 +132,6 @@ async def get_session_history(
     )
 
     try:
-        # Validate session_id input
         if (
             not session_id
             or session_id.strip() == ""
@@ -204,7 +202,6 @@ async def update_session_name(
     log.info("User %s attempting to update session %s", user_id, session_id)
 
     try:
-        # Validate session_id input
         if (
             not session_id
             or session_id.strip() == ""
@@ -231,7 +228,6 @@ async def update_session_name(
 
         log.info("Session %s updated successfully", session_id)
 
-        # Convert to response DTO and return directly
         return SessionResponse(
             id=updated_domain.id,
             user_id=updated_domain.user_id,
@@ -268,7 +264,6 @@ async def delete_session(
     log.info("User %s attempting to delete session %s", user_id, session_id)
 
     try:
-        # Validate session_id input
         if (
             not session_id
             or session_id.strip() == ""

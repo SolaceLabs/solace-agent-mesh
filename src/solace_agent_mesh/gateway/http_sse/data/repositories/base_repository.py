@@ -87,15 +87,12 @@ class BaseRepository(IBaseRepository[EntityType], Generic[EntityType]):
         with self.db_service.read_only_session() as session:
             query = session.query(self.model_class)
 
-            # Apply filters
             if filters:
                 query = self._apply_filters(query, filters)
 
-            # Apply sorting
             if sort:
                 query = self._apply_sorting(query, sort)
 
-            # Apply pagination
             if pagination:
                 offset = (pagination.page - 1) * pagination.page_size
                 query = query.offset(offset).limit(pagination.page_size)
