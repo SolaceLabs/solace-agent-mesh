@@ -1661,7 +1661,8 @@ def notify_tool_execution_result_callback(
 
     if tool.is_long_running and not tool_response:
         log.debug(
-            "%s Tool is long-running. Don't notify its completion", log_identifier
+            "%s Tool is long-running and is not yet complete. Don't notify its completion",
+            log_identifier,
         )
         return
 
