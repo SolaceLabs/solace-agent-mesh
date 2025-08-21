@@ -117,8 +117,9 @@ class BaseGatewayComponent(ComponentBase):
 
         return super().get_config(key, default)
 
-    def __init__(self, **kwargs: Any):
+    def __init__(self, resolve_artifact_uris_in_gateway: bool = True, **kwargs: Any):
         super().__init__(info, **kwargs)
+        self.resolve_artifact_uris_in_gateway = resolve_artifact_uris_in_gateway
         log.info("%s Initializing Base Gateway Component...", self.log_identifier)
 
         try:
@@ -893,7 +894,7 @@ class BaseGatewayComponent(ComponentBase):
             elif isinstance(parsed_event, Task):
                 is_finalizing_context_for_embeds = True
 
-            if self.get_config("resolve_artifact_uris_in_gateway", False):
+            if self.resolve_artifact_uris_in_gateway:
                 log.debug(
                     "%s Resolving artifact URIs before sending to external...",
                     log_id_prefix,

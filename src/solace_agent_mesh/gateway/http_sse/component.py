@@ -107,9 +107,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.fastapi_https_port = self.get_config("fastapi_https_port", 8443)
             self.session_secret_key = self.get_config("session_secret_key")
             self.cors_allowed_origins = self.get_config("cors_allowed_origins", ["*"])
-            self.resolve_artifact_uris_in_gateway = self.get_config(
-                "resolve_artifact_uris_in_gateway", True
-            )
             self.ssl_keyfile = self.get_config("ssl_keyfile", "")
             self.ssl_certfile = self.get_config("ssl_certfile", "")
             self.ssl_keyfile_password = self.get_config("ssl_keyfile_password", "")
