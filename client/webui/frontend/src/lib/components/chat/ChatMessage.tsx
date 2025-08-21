@@ -106,9 +106,8 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
     }
 
     const textContent = message.parts?.some(p => p.kind === "text" && p.text.trim());
-    const hasArtifactNotification = !!message.artifactNotification;
 
-    if (!textContent && !hasArtifactNotification) {
+    if (!textContent && !message.artifactNotification) {
         return null;
     }
 
@@ -125,7 +124,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
         <ChatBubble key={message.metadata?.messageId} variant={variant}>
             <ChatBubbleMessage variant={variant}>
                 {textContent && <MessageContent message={message} />}
-                {hasArtifactNotification && (
+                {message.artifactNotification && (
                     <div className="flex items-center p-2 my-1 bg-blue-100 dark:bg-blue-900/50 rounded-md">
                         <FiFileText className="mr-2 text-blue-500 dark:text-blue-400" />
                         <span className="text-sm">
