@@ -605,18 +605,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setSessionId(backendSessionId);
 
             // 5. Reset UI state with new session ID
-            const welcomeMessages = configWelcomeMessage
+            const welcomeMessages: MessageFE[] = configWelcomeMessage
                 ? [
-                    {
-                        text: configWelcomeMessage,
-                        isUser: false,
-                        isComplete: true,
-                        metadata: {
-                            sessionId: backendSessionId,
-                            lastProcessedEventSequence: 0,
-                        },
-                    },
-                ]
+                      {
+                          parts: [{ kind: "text", text: configWelcomeMessage }],
+                          isUser: false,
+                          isComplete: true,
+                          role: "agent",
+                          metadata: {
+                              sessionId: backendSessionId,
+                              lastProcessedEventSequence: 0,
+                          },
+                      },
+                  ]
                 : [];
 
             setMessages(welcomeMessages);
@@ -645,18 +646,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             const fallbackSessionId = `web-session-${Date.now()}`;
             setSessionId(fallbackSessionId);
 
-            const fallbackMessages = configWelcomeMessage
+            const fallbackMessages: MessageFE[] = configWelcomeMessage
                 ? [
-                    {
-                        text: configWelcomeMessage,
-                        isUser: false,
-                        isComplete: true,
-                        metadata: {
-                            sessionId: fallbackSessionId,
-                            lastProcessedEventSequence: 0,
-                        },
-                    },
-                ]
+                      {
+                          parts: [{ kind: "text", text: configWelcomeMessage }],
+                          isUser: false,
+                          isComplete: true,
+                          role: "agent",
+                          metadata: {
+                              sessionId: fallbackSessionId,
+                              lastProcessedEventSequence: 0,
+                          },
+                      },
+                  ]
                 : [];
 
             setMessages(fallbackMessages);
