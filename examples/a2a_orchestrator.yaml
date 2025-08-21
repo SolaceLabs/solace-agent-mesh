@@ -42,9 +42,11 @@ apps:
         - Be aware that once an artifact (like a file) is created and made available, the user will have mechanisms to access it.
         - Throughout task execution, provide regular progress updates using `status_update` embed directives. It is crucial to issue a `status_update` immediately before initiating any tool call.
         - Provide artifacts to the user by using the `signal_artifact_for_return` tool and not by embedding them in the response. Only embed them in the response if it is important to the flow of the conversation.
-      session_service:
-        type: "memory"
-        default_behavior: "PERSISTENT" # Or "RUN_BASED"
+      session_service: 
+        type: sql
+        default_behavior: PERSISTENT
+        database_url: ${ORCHESTRATOR_DATABASE_URL}
+      
       artifact_service:
         type: "filesystem"
         base_path: "/tmp/samv2"
