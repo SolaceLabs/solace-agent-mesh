@@ -9,15 +9,52 @@ sidebar_position: 30
 Looking to get started with plugins? For more information, see the [Plugins](../concepts/plugins.md).
 :::
 
-To get started with Solace Agent Mesh, you must first create a project.
+To get started with Solace Agent Mesh, you can either create a complete project or use the preset configuration from the Docker image.
 
-## Prerequisites
+## Quick Start
+
+### Prerequisites
+1. You have Docker (or Podman) installed.
+2. You have an available AI provider and API key. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 3.7, Google Gemini 2.5 pro, or OpenAI GPT-4o.
+
+### Run The Preset App
+
+You can run pre-made SAM applications to quickly get started with Solace Agent Mesh without needing to set up a project from scratch. 
+
+```sh
+docker run --rm -it -p 8000:8000 --platform linux/amd64  --env-file <your-env-file-path> solace/solace-agent-mesh:latest
+```
+
+- Provide the required environment variables. You can also pass them as command-line arguments using the `-e` flag.
+
+Alternatively, you can combine your project with the preset app or only run specific agents from it.
+
+You can find a list of all available preset apps in the [Solace Agent Mesh GitHub repository](https://github.com/SolaceLabs/solace-agent-mesh/tree/main/preset/agents).
+
+:::tip
+To only run your custom agent without creating a new project, you can use the Docker image as follows:
+
+```bash
+docker run --rm -it --platform linux/amd64  -p 8000:8000 -v $(pwd):/app \
+  -e LLM_SERVICE_ENDPOINT=<your-llm-endpoint> \
+  -e LLM_SERVICE_API_KEY=<your-llm-api-key> \
+  -e LLM_SERVICE_PLANNING_MODEL_NAME=<your-llm-planning-model-name> \
+  -e LLM_SERVICE_GENERAL_MODEL_NAME=<your-llm-general-model-name> \
+  solace/solace-agent-mesh:latest run /preset/agents/basic /app/my-agent
+```
+
+- You can update `/app/my-agent` with the path to your agent yaml config. (Note: you'd still need `shared_config.yaml` file or have to hard-code it in your agent config)
+- `/preset/agents/basic` only runs the required agents, you can use `/preset/agents` to load all agents.
+- This example command only has the minimum required environment variables.
+:::
+
+## Create a Project
+
+### Prerequisites
 
 1. You have installed the Solace Agent Mesh CLI. If not, see the [Installation](./installation.md) page.
 2. You have activated the virtual environment you created following the [Installation](./installation.md) page. For containerized deployment such as Docker, ignore this prerequisite.
 3. You have an available AI provider and API key. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 3.7, Google Gemini 2.5 pro, or OpenAI GPT-4o.
-
-## Create a Project
 
 Create a directory for your project and navigate to it.
 
@@ -45,7 +82,7 @@ solace-agent-mesh init --gui
 You can also initialize your Solace Agent Mesh project using the official Docker image. This is helpful if you want to avoid local Python/SAM CLI installation or prefer a containerized workflow from the start.
 
 ```sh
-docker run --rm -it -v "$(pwd):/app" -p 5002:5002 solace/solace-agent-mesh:latest init --gui
+docker run --rm -it -v "$(pwd):/app" --platform linux/amd64  -p 5002:5002 solace/solace-agent-mesh:latest init --gui
 ```
 
 If the OS architecture on your host is not `linux/amd64`, you would need to add `--platform linux/amd64` when running container.
@@ -105,7 +142,7 @@ To learn more about the other CLI commands, see the [CLI documentation](../conce
 You can also run your Solace Agent Mesh project using the official Docker image. This is helpful if you want to avoid local Python/SAM CLI installation or prefer a containerized workflow from the start.
 
 ```sh
-docker run --rm -it -v "$(pwd):/app" -p 8000:8000 solace/solace-agent-mesh:latest run
+docker run --rm -it -v "$(pwd):/app" --platform linux/amd64  -p 8000:8000 solace/solace-agent-mesh:latest run
 ```
 
 If your host system architecture is not `linux/amd64`, add the `--platform linux/amd64` flag when you run the container.
@@ -133,8 +170,8 @@ ENTRYPOINT ["solace-agent-mesh"]
 Then build and run your custom image:
 
 ```sh
-docker build -t my-custom-image .
-docker run --rm -it -v "$(pwd):/app" -p 8000:8000 my-custom-image run
+docker build --platform linux/amd64 -t my-custom-image .
+docker run --rm -it -v "$(pwd):/app" --platform linux/amd64  -p 8000:8000 my-custom-image run
 ```
 :::
 </details>
