@@ -22,7 +22,7 @@ interface AgentDisplayCardProps {
 const DetailItem: React.FC<DetailItemProps> = ({ label, value, icon, fullWidthValue = false }) => {
     if (value === undefined || value === null || (typeof value === "string" && !value.trim())) return null;
     return (
-            <div className={`flex mb-1.5 text-sm ${fullWidthValue ? "flex-col items-start" : "items-center"}`}>
+        <div className={`flex mb-1.5 text-sm ${fullWidthValue ? "flex-col items-start" : "items-center"}`}>
             <div className="flex w-36 flex-shrink-0 items-center text-sm font-semibold text-nowrap">
                 {icon && <span className="mr-2">{icon}</span>}
                 {label}:
@@ -106,8 +106,8 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
         >
             {/* Front face */}
             <div className={`transform-style-preserve-3d relative h-full w-full transition-transform duration-700 ${isExpanded ? "rotate-y-180" : ""}`} style={{ transformStyle: "preserve-3d" }}>
-                <div 
-                    className="absolute flex h-full w-full flex-col overflow-hidden rounded-lg border shadow-xl" 
+                <div
+                    className="absolute flex h-full w-full flex-col overflow-hidden rounded-lg border shadow-xl"
                     style={{ backfaceVisibility: "hidden", transform: "rotateY(0deg)" }}
                 >
                     <div className="flex items-center p-4">
@@ -140,8 +140,8 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                 </div>
 
                 {/* Back face */}
-                <div 
-                    className="absolute flex h-full w-full flex-col overflow-hidden rounded-lg border shadow-xl" 
+                <div
+                    className="absolute flex h-full w-full flex-col overflow-hidden rounded-lg border shadow-xl"
                     style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
                 >
                     <div className="flex items-center p-3">
@@ -175,19 +175,11 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                         {agent.provider && (
                             <div className="mt-1.5 border-t pt-1.5">
                                 <h4 className="mb-0.5 text-xs font-semibold">Provider</h4>
-                                <DetailItem label="Name" value={agent.provider.name} />
+                                <DetailItem label="Name" value={agent.provider.organization} />
                                 <DetailItem
                                     label="URL"
                                     value={agent.provider.url || "N/A"}
                                 />
-                            </div>
-                        )}
-                        {agent.authentication && agent.authentication.type !== "none" && (
-                            <div className="mt-1.5 border-t pt-1.5">
-                                <h4 className="mb-0.5 text-xs font-semibold">Authentication</h4>
-                                <DetailItem label="Type" value={agent.authentication.type} icon={<Shield size={14} />} />
-                                <DetailItem label="Token URL" value={agent.authentication.token_url} />
-                                <DetailItem label="Scopes" value={agent.authentication.scopes?.join(", ")} />
                             </div>
                         )}
                         <DetailItem label="Capabilities" value={renderCapabilities(agent.capabilities)} icon={<Key size={14} />} fullWidthValue />
@@ -195,11 +187,8 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                         <DetailItem label="Output Modes" value={renderList(agent.defaultOutputModes)} icon={<Box size={14} />} fullWidthValue />
                         <DetailItem label="Skills" value={renderSkills(agent.skills)} icon={<Wrench size={14} />} fullWidthValue />
                         <DetailItem label="Tools Info" value={renderTools(agent.tools)} icon={<Code size={14} />} fullWidthValue />
-                        <DetailItem label="Model Settings" value={renderObjectAsDetails(agent.model_settings)} icon={<Settings size={14} />} fullWidthValue />
                         <div className="text-2xs mt-1.5 pt-1.5">
-                            <DetailItem label="A2A Protocol" value={agent.a2a_protocol_version} />
-                            <DetailItem label="ADK Version" value={agent.adk_version} />
-                            <DetailItem label="SAC Version" value={agent.sac_version} />
+                            <DetailItem label="A2A Protocol" value={agent.protocolVersion} />
                         </div>
                     </div>
                     <div className="border-t p-2 text-center text-sm text-accent-foreground">
