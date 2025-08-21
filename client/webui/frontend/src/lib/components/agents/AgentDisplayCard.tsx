@@ -182,7 +182,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                                 />
                             </div>
                         )}
-                        <DetailItem label="Capabilities" value={renderCapabilities(agent.capabilities)} icon={<Key size={14} />} fullWidthValue />
+                        <DetailItem label="Capabilities" value={renderCapabilities(agent.capabilities as { [key: string]: unknown })} icon={<Key size={14} />} fullWidthValue />
                         <DetailItem label="Input Modes" value={renderList(agent.defaultInputModes)} icon={<Box size={14} />} fullWidthValue />
                         <DetailItem label="Output Modes" value={renderList(agent.defaultOutputModes)} icon={<Box size={14} />} fullWidthValue />
                         <DetailItem label="Skills" value={renderSkills(agent.skills)} icon={<Wrench size={14} />} fullWidthValue />
