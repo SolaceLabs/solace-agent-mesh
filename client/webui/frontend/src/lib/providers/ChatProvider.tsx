@@ -23,6 +23,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const [notifications, setNotifications] = useState<Notification[]>([]);
 
+    // State Variables from useChat (excluding TaskMonitor parts) - moved up to avoid reference errors
+    const [sessionId, setSessionId] = useState<string>("");
+
     // Agents State
     const {
         agents,
@@ -36,7 +39,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         artifacts,
         isLoading: artifactsLoading,
         refetch: artifactsRefetch,
-    } = useArtifacts();
+    } = useArtifacts(sessionId);
 
 
     // Side Panel Control State
@@ -96,7 +99,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             const formData = new FormData();
             formData.append("file", file);
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/artifacts`, {
+                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(file.name)}`, {
                     method: "POST",
                     body: formData,
                     credentials: "include",
@@ -114,8 +117,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [apiPrefix, addNotification, artifactsRefetch]
     );
 
-    // State Variables from useChat (excluding TaskMonitor parts)
-    const [sessionId, setSessionId] = useState<string>("");
+    // Rest of state variables from useChat (excluding TaskMonitor parts)
     const [sessionName, setSessionName] = useState<string | null>(null);
     const [messages, setMessages] = useState<MessageFE[]>([]);
     const [userInput, setUserInput] = useState<string>("");
@@ -136,7 +138,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const deleteArtifactInternal = useCallback(
         async (filename: string) => {
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${encodeURIComponent(filename)}`, {
+                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
                     method: "DELETE",
                     credentials: "include",
                 });
@@ -209,14 +211,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setCurrentPreviewedVersionNumber(null);
             setPreviewFileContent(null);
             try {
-                const versionsResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${encodeURIComponent(artifactFilename)}/versions`, { credentials: "include" });
+                const versionsResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions`, { credentials: "include" });
                 if (!versionsResponse.ok) throw new Error("Error fetching version list");
                 const availableVersions: number[] = await versionsResponse.json();
                 if (!availableVersions || availableVersions.length === 0) throw new Error("No versions available");
                 setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
                 const latestVersion = Math.max(...availableVersions);
                 setCurrentPreviewedVersionNumber(latestVersion);
-                const contentResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}`, { credentials: "include" });
+                const contentResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}`, { credentials: "include" });
                 if (!contentResponse.ok) throw new Error("Error fetching latest version content");
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
@@ -250,7 +252,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
             setPreviewFileContent(null);
             try {
-                const contentResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}`, { credentials: "include" });
+                const contentResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}`, { credentials: "include" });
                 if (!contentResponse.ok) throw new Error(`Error fetching version ${targetVersion}`);
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {

@@ -8,10 +8,11 @@ import { useConfigContext } from "./useConfigContext";
 /**
  * Downloads an artifact file from the server
  * @param apiPrefix - The API prefix URL
+ * @param sessionId - The session ID to download artifacts from
  * @param artifact - The artifact to download
  */
-const downloadArtifactFile = async (apiPrefix: string, artifact: ArtifactInfo) => {
-	const response = await authenticatedFetch(`${apiPrefix}/api/v1/artifacts/${encodeURIComponent(artifact.filename)}`, {
+const downloadArtifactFile = async (apiPrefix: string, sessionId: string, artifact: ArtifactInfo) => {
+	const response = await authenticatedFetch(`${apiPrefix}/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifact.filename)}`, {
 		credentials: "include",
 	});
 
@@ -29,11 +30,16 @@ const downloadArtifactFile = async (apiPrefix: string, artifact: ArtifactInfo) =
  */
 export const useDownload = () => {
 	const { configServerUrl } = useConfigContext();
-	const { addNotification } = useChatContext();
+	const { addNotification, sessionId } = useChatContext();
 
 	const onDownload = async (artifact: ArtifactInfo) => {
+		if (!sessionId) {
+			addNotification(`Cannot download artifact: No active session.`, "error");
+			return;
+		}
+
 		try {
-			await downloadArtifactFile(configServerUrl, artifact);
+			await downloadArtifactFile(configServerUrl, sessionId, artifact);
 			addNotification(`Downloaded artifact: ${artifact.filename}.`);
 		} catch {
 			addNotification(`Failed to download artifact: ${artifact.filename}.`, "error");
