@@ -300,9 +300,9 @@ export const processTaskForVisualization = (
             if (isForwardedMessage) {
                 statusUpdateAgentName = messageMetadata.forwarded_from_peer;
             } else if (result.metadata?.agent_name) {
-                statusUpdateAgentName = result.metadata.agent_name;
+                statusUpdateAgentName = result.metadata.agent_name as string;
             } else if (messageMetadata?.agent_name) {
-                statusUpdateAgentName = messageMetadata.agent_name;
+                statusUpdateAgentName = messageMetadata.agent_name as string;
             } else {
                 statusUpdateAgentName = event.source_entity || "Agent";
             }

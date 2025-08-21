@@ -1,9 +1,9 @@
 import React from "react";
 import type { ReactNode } from "react";
 
-import { GitMerge, Info, Book, Link, Paperclip, Clock, Shield, Box, Wrench, Code, Settings, Key, Bot } from "lucide-react";
+import { GitMerge, Info, Book, Link, Paperclip, Clock, Box, Wrench, Key, Bot } from "lucide-react";
 
-import type { AgentInfo, AgentTool } from "@/lib/types";
+import type { AgentInfo } from "@/lib/types";
 import { formatTimestamp } from "@/lib/utils/format";
 
 interface DetailItemProps {
@@ -71,30 +71,31 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
         );
     };
 
-    const renderTools = (tools?: Array<AgentTool> | null) => {
-        if (!tools || tools.length === 0) return <span>No tools listed</span>;
-        return (
-            <div className="space-y-1">
-                {tools.map(tool => (
-                    <div key={tool.name} className="rounded p-1.5 text-xs">
-                        <p className="font-semibold text-foreground">{tool.name}</p>
-                        <p className="mb-1">{tool.description}</p>
-                    </div>
-                ))}
-            </div>
-        );
-    };
+    // Tool display in the agent cards is disabled for now
+    // const renderTools = (tools?: Array<AgentTool> | null) => {
+    //     if (!tools || tools.length === 0) return <span>No tools listed</span>;
+    //     return (
+    //         <div className="space-y-1">
+    //             {tools.map(tool => (
+    //                 <div key={tool.name} className="rounded p-1.5 text-xs">
+    //                     <p className="font-semibold text-foreground">{tool.name}</p>
+    //                     <p className="mb-1">{tool.description}</p>
+    //                 </div>
+    //             ))}
+    //         </div>
+    //     );
+    // };
 
-    const renderObjectAsDetails = (obj?: { [key: string]: unknown } | null) => {
-        if (!obj || Object.keys(obj).length === 0) return <span>N/A</span>;
-        return (
-            <div className="ml-1 border-l pl-2">
-                {Object.entries(obj).map(([key, value]) => (
-                    <DetailItem key={key} label={key.replace(/_/g, " ")} value={typeof value === "object" ? <span>{JSON.stringify(value)}</span> : String(value)} />
-                ))}
-            </div>
-        );
-    };
+    // const renderObjectAsDetails = (obj?: { [key: string]: unknown } | null) => {
+    //     if (!obj || Object.keys(obj).length === 0) return <span>N/A</span>;
+    //     return (
+    //         <div className="ml-1 border-l pl-2">
+    //             {Object.entries(obj).map(([key, value]) => (
+    //                 <DetailItem key={key} label={key.replace(/_/g, " ")} value={typeof value === "object" ? <span>{JSON.stringify(value)}</span> : String(value)} />
+    //             ))}
+    //         </div>
+    //     );
+    // };
 
     return (
         <div
@@ -186,7 +187,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                         <DetailItem label="Input Modes" value={renderList(agent.defaultInputModes)} icon={<Box size={14} />} fullWidthValue />
                         <DetailItem label="Output Modes" value={renderList(agent.defaultOutputModes)} icon={<Box size={14} />} fullWidthValue />
                         <DetailItem label="Skills" value={renderSkills(agent.skills)} icon={<Wrench size={14} />} fullWidthValue />
-                        <DetailItem label="Tools Info" value={renderTools(agent.tools)} icon={<Code size={14} />} fullWidthValue />
+                        {/* <DetailItem label="Tools Info" value={renderTools(agent.tools)} icon={<Code size={14} />} fullWidthValue /> */}
                         <div className="text-2xs mt-1.5 pt-1.5">
                             <DetailItem label="A2A Protocol" value={agent.protocolVersion} />
                         </div>
