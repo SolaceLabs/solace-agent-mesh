@@ -218,7 +218,7 @@ class BaseGatewayComponent(ComponentBase):
                 "filename": filename,
                 "version": int(version_list[0])
             }
-        except (ValueError, IndexError) as e:
+        except ValueError as e:
             raise ValueError(f"Invalid artifact URI format: {e}")
 
     def publish_a2a_message(
