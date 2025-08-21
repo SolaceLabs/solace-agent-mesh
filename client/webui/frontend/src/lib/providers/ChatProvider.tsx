@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect, useRef, type FormEvent, type R
 import { useConfigContext, useArtifacts } from "@/lib/hooks";
 import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
-import type { ArtifactInfo, CancelTaskRequest, DataPart, FileAttachment, FilePart, JSONRPCError, JSONRPCResponse, Message, MessageFE, Notification, Part, SendMessageRequest, SendStreamingMessageRequest, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart, ToolEvent } from "@/lib/types";
+import type { ArtifactInfo, CancelTaskRequest, DataPart, FileAttachment, FilePart, JSONRPCError, JSONRPCErrorResponse, Message, MessageFE, Notification, Part, SendMessageRequest, SendStreamingMessageRequest, SendStreamingMessageSuccessResponse, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart, ToolEvent } from "@/lib/types";
 
 interface ChatProviderProps {
     children: ReactNode;
@@ -301,11 +301,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         (event: MessageEvent) => {
             sseEventSequenceRef.current += 1;
             const currentEventSequence = sseEventSequenceRef.current;
-            let rpcResponse: JSONRPCResponse;
+            let rpcResponse: SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
 
             try {
                 console.log("TEST-SSE ChatProvider Raw Message:", event.data);
-                rpcResponse = JSON.parse(event.data) as JSONRPCResponse;
+                rpcResponse = JSON.parse(event.data) as SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
             } catch (error: unknown) {
                 console.error("Failed to parse SSE message:", error);
                 addNotification("Received unparseable agent update.", "error");
