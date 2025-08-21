@@ -50,21 +50,21 @@ The `sac` (Solace AI Connector) directory provides the core implementation for h
 
 **Classes:**
 - `SamAgentComponent(**kwargs)` - Solace AI Connector component that hosts a Google ADK agent
-  - `process_event(self, event: Event) -> None` - Main entry point for all SAC framework events
-  - `handle_timer_event(self, timer_data: Dict[str, Any]) -> None` - Handles scheduled timer events for agent card publishing
-  - `handle_cache_expiry_event(self, cache_data: Dict[str, Any]) -> None` - Handles cache expiry events for peer agent timeouts
-  - `finalize_task_success(self, a2a_context: Dict) -> None` - Async method to finalize successful task completion
-  - `finalize_task_canceled(self, a2a_context: Dict) -> None` - Finalizes task as CANCELED
-  - `finalize_task_error(self, exception: Exception, a2a_context: Dict) -> None` - Async method to finalize failed tasks
-  - `cleanup(self) -> None` - Cleans up resources on component shutdown
-  - `set_agent_specific_state(self, key: str, value: Any) -> None` - Sets key-value pair in agent state dictionary
-  - `get_agent_specific_state(self, key: str, default: Optional[Any] = None) -> Any` - Retrieves value from agent state
-  - `get_async_loop(self) -> Optional[asyncio.AbstractEventLoop]` - Returns dedicated asyncio event loop
-  - `set_agent_system_instruction_string(self, instruction_string: str) -> None` - Sets static system prompt injection
-  - `set_agent_system_instruction_callback(self, callback_function: Callable) -> None` - Sets dynamic system prompt callback
-  - `get_gateway_id(self) -> str` - Returns unique identifier for agent host instance
-  - `submit_a2a_task(self, target_agent_name: str, a2a_message: A2AMessage, user_id: str, user_config: Dict[str, Any], sub_task_id: str) -> str` - Submits task to peer agent
-  - `get_agent_context(self) -> Dict[str, Any]` - Returns agent context for middleware interactions
+  - `process_event(event: Event) -> None` - Main entry point for all SAC framework events
+  - `handle_timer_event(timer_data: Dict[str, Any]) -> None` - Handles scheduled timer events for agent card publishing
+  - `handle_cache_expiry_event(cache_data: Dict[str, Any]) -> None` - Handles cache expiry events for peer agent timeouts
+  - `finalize_task_success(a2a_context: Dict) -> None` - Async method to finalize successful task completion
+  - `finalize_task_canceled(a2a_context: Dict) -> None` - Finalizes task as CANCELED
+  - `finalize_task_error(exception: Exception, a2a_context: Dict) -> None` - Async method to finalize failed tasks
+  - `cleanup() -> None` - Cleans up resources on component shutdown
+  - `set_agent_specific_state(key: str, value: Any) -> None` - Sets key-value pair in agent state dictionary
+  - `get_agent_specific_state(key: str, default: Optional[Any] = None) -> Any` - Retrieves value from agent state
+  - `get_async_loop() -> Optional[asyncio.AbstractEventLoop]` - Returns dedicated asyncio event loop
+  - `set_agent_system_instruction_string(instruction_string: str) -> None` - Sets static system prompt injection
+  - `set_agent_system_instruction_callback(callback_function: Callable) -> None` - Sets dynamic system prompt callback
+  - `get_gateway_id() -> str` - Returns unique identifier for agent host instance
+  - `submit_a2a_task(target_agent_name: str, a2a_message: A2AMessage, user_id: str, user_config: Dict[str, Any], sub_task_id: str) -> str` - Submits task to peer agent
+  - `get_agent_context() -> Dict[str, Any]` - Returns agent context for middleware interactions
 
 **Constants/Variables:**
 - `info: Dict` - Metadata dictionary for SAC framework
@@ -124,23 +124,23 @@ patch_adk()
 
 **Classes:**
 - `TaskExecutionContext(task_id: str, a2a_context: Dict[str, Any])` - Encapsulates runtime state for a single agent task
-  - `cancel(self) -> None` - Signals that the task should be cancelled
-  - `is_cancelled(self) -> bool` - Checks if cancellation event has been set
-  - `append_to_streaming_buffer(self, text: str) -> None` - Appends text to streaming buffer
-  - `flush_streaming_buffer(self) -> str` - Returns and clears streaming buffer content
-  - `get_streaming_buffer_content(self) -> str` - Returns buffer content without clearing
-  - `append_to_run_based_buffer(self, text: str) -> None` - Appends text to run-based response buffer
-  - `register_peer_sub_task(self, sub_task_id: str, correlation_data: Dict[str, Any]) -> None` - Adds peer sub-task tracking
-  - `claim_sub_task_completion(self, sub_task_id: str) -> Optional[Dict[str, Any]]` - Atomically retrieves and removes sub-task data
-  - `register_parallel_call_sent(self, invocation_id: str) -> None` - Registers new parallel tool call
-  - `handle_peer_timeout(self, sub_task_id: str, correlation_data: Dict, timeout_sec: int, invocation_id: str) -> bool` - Handles peer timeout
-  - `record_parallel_result(self, result: Dict, invocation_id: str) -> bool` - Records parallel tool call result
-  - `clear_parallel_invocation_state(self, invocation_id: str) -> None` - Removes completed invocation state
-  - `register_produced_artifact(self, filename: str, version: int) -> None` - Tracks newly created artifacts
-  - `add_artifact_signal(self, signal: Dict[str, Any]) -> None` - Adds artifact return signal
-  - `get_and_clear_artifact_signals(self) -> List[Dict[str, Any]]` - Retrieves and clears artifact signals
-  - `set_event_loop(self, loop: asyncio.AbstractEventLoop) -> None` - Stores event loop reference
-  - `get_event_loop(self) -> Optional[asyncio.AbstractEventLoop]` - Retrieves stored event loop
+  - `cancel() -> None` - Signals that the task should be cancelled
+  - `is_cancelled() -> bool` - Checks if cancellation event has been set
+  - `append_to_streaming_buffer(text: str) -> None` - Appends text to streaming buffer
+  - `flush_streaming_buffer() -> str` - Returns and clears streaming buffer content
+  - `get_streaming_buffer_content() -> str` - Returns buffer content without clearing
+  - `append_to_run_based_buffer(text: str) -> None` - Appends text to run-based response buffer
+  - `register_peer_sub_task(sub_task_id: str, correlation_data: Dict[str, Any]) -> None` - Adds peer sub-task tracking
+  - `claim_sub_task_completion(sub_task_id: str) -> Optional[Dict[str, Any]]` - Atomically retrieves and removes sub-task data
+  - `register_parallel_call_sent(invocation_id: str) -> None` - Registers new parallel tool call
+  - `handle_peer_timeout(sub_task_id: str, correlation_data: Dict, timeout_sec: int, invocation_id: str) -> bool` - Handles peer timeout
+  - `record_parallel_result(result: Dict, invocation_id: str) -> bool` - Records parallel tool call result
+  - `clear_parallel_invocation_state(invocation_id: str) -> None` - Removes completed invocation state
+  - `register_produced_artifact(filename: str, version: int) -> None` - Tracks newly created artifacts
+  - `add_artifact_signal(signal: Dict[str, Any]) -> None` - Adds artifact return signal
+  - `get_and_clear_artifact_signals() -> List[Dict[str, Any]]` - Retrieves and clears artifact signals
+  - `set_event_loop(loop: asyncio.AbstractEventLoop) -> None` - Stores event loop reference
+  - `get_event_loop() -> Optional[asyncio.AbstractEventLoop]` - Retrieves stored event loop
 
 **Usage Examples:**
 ```python
@@ -172,4 +172,4 @@ if completed_data:
     print(f"Sub-task completed: {completed_data}")
 ```
 
-# content_hash: b703a8620c7a80b3686d4edd305cbd1dac0a79565bbed0e6268cd0fd73ea4809
+# content_hash: 01180b1fd17ef37313d4defed0d946dd7b3f72a3834c199fc7ab5c857eed2a60

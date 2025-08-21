@@ -281,4 +281,4 @@ async def client_example():
     # Check task status
     status_response = await client.get_task({"
 
-# content_hash: f2134b46f7bd0af3ad5b4d7a467c952acb38f80fde1dc8b4c2a481741fe645ad
+# content_hash: 47a93900d29f3d168cbd8df5692467c81603a90a5b066335bce36b34b989b245

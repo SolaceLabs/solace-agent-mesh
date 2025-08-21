@@ -358,4 +358,4 @@ async def client_integration_example():
             print(response.result.text_delta, end='', flush=True)
         elif hasattr(
 
-# content_hash: e167d9b3120d6b90c671ddefc874ca8e82b73dbf703b1a86d9171aa2df720eb6
+# content_hash: 2f6f35e372dbb311440d7b391e0583dda0fa8be433c7320d762d6ebe0d21ed8c

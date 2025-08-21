@@ -618,7 +618,7 @@ def calculate_sum(a: int, b: int, tool_config: dict = None) -> dict:
     result = a + b
     return {"result": result, "operation": "addition"}
 
-# content_hash: ecde0276af78fb97cb5da7077059e0df194dc5252021278271e877254172211d
+# content_hash: c04f0fa86f6b5a21db771d07ee201b3af85ac413c5e0bdd551cefbbae3a59b3f
 
 ================================================================================
 
@@ -830,6 +830,7 @@ from solace_agent_mesh.agent.adk.setup import load_adk_tools, initialize_adk_age
 from solace_agent_mesh.agent.adk.app_llm_agent import AppLlmAgent
 from solace_agent_mesh.agent.adk.filesystem_artifact_service import FilesystemArtifactService
 from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
+from solace_agent_mesh.agent.adk.services import initialize_session_service, initialize_artifact_service
 ```
 
 #### protocol/
@@ -1118,9 +1119,41 @@ def my_tool_with_context(tool_context):
     return {"session_id": original_session_id, "session_data": session}
 ```
 
-This comprehensive guide shows how all the components work together to create a powerful, distributed agent system. The modular architecture allows developers to customize behavior at multiple levels while leveraging the robust A2A communication protocol for inter-agent collaboration.
+### 9. Complete Agent Implementation Example
 
-# content_hash: dc8682bbeeffd5058bb5d7df53a098285590ae2464fb7c2e326ae7c8c1e4e4af
+```python
+from solace_agent_mesh.agent.sac.app import SamAgentApp
+from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from solace_agent_mesh.agent.adk.setup import load_adk_tools, initialize_adk_agent, initialize_adk_runner
+from solace_agent_mesh.agent.tools.registry import tool_registry
+from solace_agent_mesh.agent.tools.tool_definition import BuiltinTool
+
+# Custom initialization function
+def initialize_my_agent(host_component: SamAgentComponent, config: dict):
+    """Custom initialization function for the agent."""
+    # Store custom state
+    host_component.set_agent_specific_state('custom_data', config.get('custom_data'))
+    
+    # Set dynamic system instruction
+    def dynamic_instruction(context):
+        return f"You are a specialized agent for user {context.user_id}"
+    
+    host_component.set_agent_system_instruction_callback(dynamic_instruction)
+
+# Custom tool
+async def my_business_tool(
+    query: str,
+    tool_context = None,
+    tool_config: dict = None
+) -> dict:
+    """Custom business logic tool."""
+    host_component = tool_context._invocation_context.agent.host_component
+    custom_data = host_component.get_agent_specific_state('custom_data')
+    
+    # Process business logic
+    result =
+
+# content_hash: 2e9897747317218df09806a3db58de959f902d3aacfd3818b93dfabe4b710ba2
 
 ================================================================================
 
@@ -1192,7 +1225,7 @@ await handle_a2a_request(component, solace_message)
 - Integrates with Google ADK for task execution
 - Manages task contexts through `TaskExecutionContext`
 
-# content_hash: 1afd3ad20b32d02a93f8a0b91f84f04316c7d28d401cf1e2bcf6126ba794bf27
+# content_hash: dab982423d5c9ae757df03fb18b398a31b1753623ca9ea02fc9c0a0421e5f8fa
 
 ================================================================================
 
@@ -1252,21 +1285,21 @@ The `sac` (Solace AI Connector) directory provides the core implementation for h
 
 **Classes:**
 - `SamAgentComponent(**kwargs)` - Solace AI Connector component that hosts a Google ADK agent
-  - `process_event(self, event: Event) -> None` - Main entry point for all SAC framework events
-  - `handle_timer_event(self, timer_data: Dict[str, Any]) -> None` - Handles scheduled timer events for agent card publishing
-  - `handle_cache_expiry_event(self, cache_data: Dict[str, Any]) -> None` - Handles cache expiry events for peer agent timeouts
-  - `finalize_task_success(self, a2a_context: Dict) -> None` - Async method to finalize successful task completion
-  - `finalize_task_canceled(self, a2a_context: Dict) -> None` - Finalizes task as CANCELED
-  - `finalize_task_error(self, exception: Exception, a2a_context: Dict) -> None` - Async method to finalize failed tasks
-  - `cleanup(self) -> None` - Cleans up resources on component shutdown
-  - `set_agent_specific_state(self, key: str, value: Any) -> None` - Sets key-value pair in agent state dictionary
-  - `get_agent_specific_state(self, key: str, default: Optional[Any] = None) -> Any` - Retrieves value from agent state
-  - `get_async_loop(self) -> Optional[asyncio.AbstractEventLoop]` - Returns dedicated asyncio event loop
-  - `set_agent_system_instruction_string(self, instruction_string: str) -> None` - Sets static system prompt injection
-  - `set_agent_system_instruction_callback(self, callback_function: Callable) -> None` - Sets dynamic system prompt callback
-  - `get_gateway_id(self) -> str` - Returns unique identifier for agent host instance
-  - `submit_a2a_task(self, target_agent_name: str, a2a_message: A2AMessage, user_id: str, user_config: Dict[str, Any], sub_task_id: str) -> str` - Submits task to peer agent
-  - `get_agent_context(self) -> Dict[str, Any]` - Returns agent context for middleware interactions
+  - `process_event(event: Event) -> None` - Main entry point for all SAC framework events
+  - `handle_timer_event(timer_data: Dict[str, Any]) -> None` - Handles scheduled timer events for agent card publishing
+  - `handle_cache_expiry_event(cache_data: Dict[str, Any]) -> None` - Handles cache expiry events for peer agent timeouts
+  - `finalize_task_success(a2a_context: Dict) -> None` - Async method to finalize successful task completion
+  - `finalize_task_canceled(a2a_context: Dict) -> None` - Finalizes task as CANCELED
+  - `finalize_task_error(exception: Exception, a2a_context: Dict) -> None` - Async method to finalize failed tasks
+  - `cleanup() -> None` - Cleans up resources on component shutdown
+  - `set_agent_specific_state(key: str, value: Any) -> None` - Sets key-value pair in agent state dictionary
+  - `get_agent_specific_state(key: str, default: Optional[Any] = None) -> Any` - Retrieves value from agent state
+  - `get_async_loop() -> Optional[asyncio.AbstractEventLoop]` - Returns dedicated asyncio event loop
+  - `set_agent_system_instruction_string(instruction_string: str) -> None` - Sets static system prompt injection
+  - `set_agent_system_instruction_callback(callback_function: Callable) -> None` - Sets dynamic system prompt callback
+  - `get_gateway_id() -> str` - Returns unique identifier for agent host instance
+  - `submit_a2a_task(target_agent_name: str, a2a_message: A2AMessage, user_id: str, user_config: Dict[str, Any], sub_task_id: str) -> str` - Submits task to peer agent
+  - `get_agent_context() -> Dict[str, Any]` - Returns agent context for middleware interactions
 
 **Constants/Variables:**
 - `info: Dict` - Metadata dictionary for SAC framework
@@ -1326,23 +1359,23 @@ patch_adk()
 
 **Classes:**
 - `TaskExecutionContext(task_id: str, a2a_context: Dict[str, Any])` - Encapsulates runtime state for a single agent task
-  - `cancel(self) -> None` - Signals that the task should be cancelled
-  - `is_cancelled(self) -> bool` - Checks if cancellation event has been set
-  - `append_to_streaming_buffer(self, text: str) -> None` - Appends text to streaming buffer
-  - `flush_streaming_buffer(self) -> str` - Returns and clears streaming buffer content
-  - `get_streaming_buffer_content(self) -> str` - Returns buffer content without clearing
-  - `append_to_run_based_buffer(self, text: str) -> None` - Appends text to run-based response buffer
-  - `register_peer_sub_task(self, sub_task_id: str, correlation_data: Dict[str, Any]) -> None` - Adds peer sub-task tracking
-  - `claim_sub_task_completion(self, sub_task_id: str) -> Optional[Dict[str, Any]]` - Atomically retrieves and removes sub-task data
-  - `register_parallel_call_sent(self, invocation_id: str) -> None` - Registers new parallel tool call
-  - `handle_peer_timeout(self, sub_task_id: str, correlation_data: Dict, timeout_sec: int, invocation_id: str) -> bool` - Handles peer timeout
-  - `record_parallel_result(self, result: Dict, invocation_id: str) -> bool` - Records parallel tool call result
-  - `clear_parallel_invocation_state(self, invocation_id: str) -> None` - Removes completed invocation state
-  - `register_produced_artifact(self, filename: str, version: int) -> None` - Tracks newly created artifacts
-  - `add_artifact_signal(self, signal: Dict[str, Any]) -> None` - Adds artifact return signal
-  - `get_and_clear_artifact_signals(self) -> List[Dict[str, Any]]` - Retrieves and clears artifact signals
-  - `set_event_loop(self, loop: asyncio.AbstractEventLoop) -> None` - Stores event loop reference
-  - `get_event_loop(self) -> Optional[asyncio.AbstractEventLoop]` - Retrieves stored event loop
+  - `cancel() -> None` - Signals that the task should be cancelled
+  - `is_cancelled() -> bool` - Checks if cancellation event has been set
+  - `append_to_streaming_buffer(text: str) -> None` - Appends text to streaming buffer
+  - `flush_streaming_buffer() -> str` - Returns and clears streaming buffer content
+  - `get_streaming_buffer_content() -> str` - Returns buffer content without clearing
+  - `append_to_run_based_buffer(text: str) -> None` - Appends text to run-based response buffer
+  - `register_peer_sub_task(sub_task_id: str, correlation_data: Dict[str, Any]) -> None` - Adds peer sub-task tracking
+  - `claim_sub_task_completion(sub_task_id: str) -> Optional[Dict[str, Any]]` - Atomically retrieves and removes sub-task data
+  - `register_parallel_call_sent(invocation_id: str) -> None` - Registers new parallel tool call
+  - `handle_peer_timeout(sub_task_id: str, correlation_data: Dict, timeout_sec: int, invocation_id: str) -> bool` - Handles peer timeout
+  - `record_parallel_result(result: Dict, invocation_id: str) -> bool` - Records parallel tool call result
+  - `clear_parallel_invocation_state(invocation_id: str) -> None` - Removes completed invocation state
+  - `register_produced_artifact(filename: str, version: int) -> None` - Tracks newly created artifacts
+  - `add_artifact_signal(signal: Dict[str, Any]) -> None` - Adds artifact return signal
+  - `get_and_clear_artifact_signals() -> List[Dict[str, Any]]` - Retrieves and clears artifact signals
+  - `set_event_loop(loop: asyncio.AbstractEventLoop) -> None` - Stores event loop reference
+  - `get_event_loop() -> Optional[asyncio.AbstractEventLoop]` - Retrieves stored event loop
 
 **Usage Examples:**
 ```python
@@ -1374,7 +1407,7 @@ if completed_data:
     print(f"Sub-task completed: {completed_data}")
 ```
 
-# content_hash: b703a8620c7a80b3686d4edd305cbd1dac0a79565bbed0e6268cd0fd73ea4809
+# content_hash: 01180b1fd17ef37313d4defed0d946dd7b3f72a3834c199fc7ab5c857eed2a60
 
 ================================================================================
 
@@ -1446,219 +1479,228 @@ pretty_print_event_history([])
 
 **Source file:** `solace_agent_mesh/agent/tools/tools_llm.txt`
 
-# DEVELOPER GUIDE: tools
+# DEVELOPER GUIDE for tools
 
 ## Quick Summary
-The `tools` directory contains the complete set of built-in tools available to the agent. It follows a declarative, registry-based pattern where each tool module defines its functions and registers them with a central `tool_registry`. This allows for automatic discovery and dynamic availability of tools based on configuration and agent capabilities. The tools cover a wide range of functionalities including artifact management, audio/image processing, data analysis, web requests, and inter-agent communication.
+The tools directory contains a comprehensive collection of built-in ADK tools for agent functionality, including artifact management, audio processing, image generation, data analysis, web scraping, and peer agent communication. It provides a declarative tool registration system and standardized interfaces for LLM-callable functions. The tools follow a registry-based pattern where each module defines its functions and registers them with a central `tool_registry` for automatic discovery and dynamic availability.
 
 ## Files Overview
-- `__init__.py` - Imports all tool modules, triggering their registration with the central registry
-- `audio_tools.py` - Provides tools for text-to-speech (TTS), multi-speaker TTS, audio concatenation, and transcription
-- `builtin_artifact_tools.py` - Contains core tools for creating, listing, loading, modifying, and deleting artifacts
-- `builtin_data_analysis_tools.py` - Offers tools for generating charts from Plotly configurations
-- `general_agent_tools.py` - Includes general-purpose utilities like file-to-markdown conversion and Mermaid diagram generation
-- `image_tools.py` - Provides tools for image generation, editing, and vision-based description of images and audio
-- `peer_agent_tool.py` - Defines the `PeerAgentTool` class for delegating tasks to other agents
-- `registry.py` - Implements the singleton `tool_registry` for managing all tool definitions
-- `test_tools.py` - Contains tools specifically for testing agent behavior, such as delays and failures
-- `tool_definition.py` - Defines the `BuiltinTool` Pydantic model used for declaring tools
-- `web_tools.py` - Contains tools for making HTTP requests to external web resources with content processing
+- `__init__.py` - Imports all tool modules to trigger declarative registration
+- `audio_tools.py` - Text-to-speech, voice selection, audio concatenation, and transcription tools
+- `builtin_artifact_tools.py` - Artifact CRUD operations, content extraction, and metadata management
+- `builtin_data_analysis_tools.py` - Plotly chart generation and data visualization tools
+- `general_agent_tools.py` - File conversion, Mermaid diagrams, and general utility tools
+- `image_tools.py` - Image generation, description, editing, and multimodal content analysis
+- `peer_agent_tool.py` - Dynamic tool for delegating tasks to peer agents over Solace
+- `registry.py` - Singleton registry for tool discovery and management
+- `test_tools.py` - Testing utilities for delays, failures, and edge cases
+- `tool_definition.py` - Pydantic model defining the structure of built-in tools
+- `web_tools.py` - Web scraping, URL fetching, and content extraction tools
 
 ## Developer API Reference
 
 ### __init__.py
-**Purpose:** This file ensures that all built-in tool modules are imported when the `tools` package is loaded. This is crucial for the declarative tool registration pattern, as it triggers the `tool_registry.register()` calls within each tool module.
-**Import:** `import solace_agent_mesh.agent.tools`
+**Purpose:** Ensures all tool modules are imported to trigger declarative registration
+**Import:** `from solace_agent_mesh.agent.tools import *` or `import solace_agent_mesh.agent.tools`
 
 **Usage Examples:**
 ```python
-# Importing the tools package is sufficient to register all built-in tools.
+# Import triggers registration of all tools
+from solace_agent_mesh.agent.tools import *
+
+# Or import the package to register all tools
 import solace_agent_mesh.agent.tools
 
-# You can then access the registry to see all registered tools.
+# Access the registry to see all registered tools
 from solace_agent_mesh.agent.tools.registry import tool_registry
 all_tools = tool_registry.get_all_tools()
-print(f"Registered {len(all_tools)} tools.")
+print(f"Registered {len(all_tools)} tools")
 ```
 
 ### audio_tools.py
-**Purpose:** This file provides a collection of tools for audio processing, including text-to-speech (TTS) generation, audio concatenation, and transcription.
+**Purpose:** Audio processing and text-to-speech generation tools
 **Import:** `from solace_agent_mesh.agent.tools.audio_tools import select_voice, text_to_speech, multi_speaker_text_to_speech, concatenate_audio, transcribe_audio`
 
 **Functions:**
-- `select_voice(gender: Optional[str] = None, tone: Optional[str] = None, exclude_voices: Optional[List[str]] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Selects a suitable voice name based on criteria like gender and tone
-- `text_to_speech(text: str, output_filename: Optional[str] = None, voice_name: Optional[str] = None, gender: Optional[str] = None, tone: Optional[str] = None, language: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Converts text to speech using Gemini TTS API and saves as an MP3 artifact
-- `multi_speaker_text_to_speech(conversation_text: str, output_filename: Optional[str] = None, speaker_configs: Optional[List[Dict[str, str]]] = None, language: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Converts conversation text with speaker labels to speech using multiple voices
-- `concatenate_audio(clips_to_join: List[Dict[str, Any]], output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Combines multiple audio artifacts in a specified order into a single audio file
-- `transcribe_audio(audio_filename: str, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Transcribes an audio recording using an OpenAI-compatible audio transcription API
+- `select_voice(gender: Optional[str] = None, tone: Optional[str] = None, exclude_voices: Optional[List[str]] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Selects a suitable voice based on gender and tone criteria
+- `text_to_speech(text: str, output_filename: Optional[str] = None, voice_name: Optional[str] = None, gender: Optional[str] = None, tone: Optional[str] = None, language: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Converts text to speech using Gemini TTS API
+- `multi_speaker_text_to_speech(conversation_text: str, output_filename: Optional[str] = None, speaker_configs: Optional[List[Dict[str, str]]] = None, language: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Converts conversation text with speaker labels to multi-voice speech
+- `concatenate_audio(clips_to_join: List[Dict[str, Any]], output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Combines multiple audio artifacts with custom pause durations
+- `transcribe_audio(audio_filename: str, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Transcribes audio using OpenAI-compatible API
 
 **Constants/Variables:**
-- `ALL_AVAILABLE_VOICES: List[str]` - A list of all available voice names for TTS
-- `SUPPORTED_LANGUAGES: Dict[str, str]` - A mapping of common language names to their BCP-47 codes
-- `VOICE_TONE_MAPPING: Dict[str, List[str]]` - A dictionary mapping descriptive tones to lists of voice names
-- `GENDER_TO_VOICE_MAPPING: Dict[str, List[str]]` - A dictionary mapping genders to lists of voice names
+- `ALL_AVAILABLE_VOICES: List[str]` - List of all available voice names
+- `VOICE_TONE_MAPPING: Dict[str, List[str]]` - Maps tone preferences to voice names
+- `GENDER_TO_VOICE_MAPPING: Dict[str, List[str]]` - Maps gender preferences to voice names
+- `SUPPORTED_LANGUAGES: Dict[str, str]` - Maps language names to BCP-47 codes
+- `DEFAULT_VOICE: str` - Default voice name ("Kore")
 
 **Usage Examples:**
 ```python
-from google.adk.tools import ToolContext
+from solace_agent_mesh.agent.tools.audio_tools import text_to_speech, select_voice
 
-# Generate a simple audio file
-tts_result = await text_to_speech(
-    text="Welcome to the developer guide.",
-    output_filename="welcome.mp3",
+# Select a voice with specific criteria
+voice_result = await select_voice(
     gender="female",
     tone="friendly",
-    language="en-US",
-    tool_context=tool_context
+    tool_context=context
 )
 
-# Generate a multi-speaker conversation
-convo_result = await multi_speaker_text_to_speech(
-    conversation_text="SpeakerA: How are you?\nSpeakerB: I am fine, thank you.",
-    speaker_configs=[
-        {"name": "SpeakerA", "gender": "male", "tone": "warm"},
-        {"name": "SpeakerB", "gender": "female", "tone": "bright"}
-    ],
-    output_filename="dialogue.mp3",
-    tool_context=tool_context
+# Generate speech from text
+tts_result = await text_to_speech(
+    text="Hello, this is a test message",
+    voice_name="Kore",
+    language="en-US",
+    tool_context=context,
+    tool_config={"gemini_api_key": "your_key"}
 )
 ```
 
 ### builtin_artifact_tools.py
-**Purpose:** This file provides the core tools for artifact management, allowing the agent to create, read, list, update, and delete data artifacts within the current session.
-**Import:** `from solace_agent_mesh.agent.tools.builtin_artifact_tools import list_artifacts, load_artifact, signal_artifact_for_return, append_to_artifact, apply_embed_and_create_artifact, extract_content_from_artifact, delete_artifact`
+**Purpose:** Artifact management operations within the A2A Host
+**Import:** `from solace_agent_mesh.agent.tools.builtin_artifact_tools import list_artifacts, load_artifact, signal_artifact_for_return, apply_embed_and_create_artifact, extract_content_from_artifact, append_to_artifact, delete_artifact`
 
 **Functions:**
-- `list_artifacts(tool_context: ToolContext = None) -> Dict[str, Any]` - Lists all available data artifact filenames and their versions for the current session
-- `load_artifact(filename: str, version: int, load_metadata_only: bool = False, max_content_length: Optional[int] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Loads the content or metadata of a specific artifact version
-- `signal_artifact_for_return(filename: str, version: int, tool_context: ToolContext = None) -> Dict[str, Any]` - Signals that a specific version of an artifact should be returned to the original caller
-- `append_to_artifact(filename: str, content_chunk: str, mime_type: str, tool_context: ToolContext = None) -> Dict[str, Any]` - Appends a chunk of content to an existing artifact
-- `apply_embed_and_create_artifact(output_filename: str, embed_directive: str, output_metadata: Optional[Dict[str, Any]] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Resolves an embed directive and saves the resulting content as a new artifact
-- `extract_content_from_artifact(filename: str, extraction_goal: str, version: Optional[str] = "latest", output_filename_base: Optional[str] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Uses an internal LLM to extract/transform content from an existing artifact
-- `delete_artifact(filename: str, version: Optional[int] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Deletes a specific version of an artifact, or all versions if no version is specified
+- `list_artifacts(tool_context: ToolContext = None) -> Dict[str, Any]` - Lists all available artifacts with metadata summaries
+- `load_artifact(filename: str, version: int, load_metadata_only: bool = False, max_content_length: Optional[int] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Loads artifact content or metadata
+- `signal_artifact_for_return(filename: str, version: int, tool_context: ToolContext = None) -> Dict[str, Any]` - Signals artifact for return to caller
+- `apply_embed_and_create_artifact(output_filename: str, embed_directive: str, output_metadata: Optional[Dict[str, Any]] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Resolves embed directives and creates new artifacts
+- `extract_content_from_artifact(filename: str, extraction_goal: str, version: Optional[str] = "latest", output_filename_base: Optional[str] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Uses LLM to extract/transform artifact content
+- `append_to_artifact(filename: str, content_chunk: str, mime_type: str, tool_context: ToolContext = None) -> Dict[str, Any]` - Appends content to existing artifacts
+- `delete_artifact(filename: str, version: Optional[int] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Deletes artifact versions
 
 **Usage Examples:**
 ```python
-# List all artifacts in the current session
-artifacts = await list_artifacts(tool_context=tool_context)
-print(artifacts)
+from solace_agent_mesh.agent.tools.builtin_artifact_tools import list_artifacts, load_artifact
 
-# Load a specific artifact
+# List all artifacts
+artifacts = await list_artifacts(tool_context=context)
+
+# Load specific artifact version
 content = await load_artifact(
     filename="data.csv",
     version=1,
-    tool_context=tool_context
+    tool_context=context
 )
 
-# Extract specific information from an artifact
+# Extract content using LLM
 extracted = await extract_content_from_artifact(
-    filename="report.pdf",
-    extraction_goal="Extract all financial figures and create a summary table",
-    tool_context=tool_context
+    filename="document.pdf",
+    extraction_goal="Extract all email addresses",
+    tool_context=context
 )
 ```
 
 ### builtin_data_analysis_tools.py
-**Purpose:** This file offers tools for generating charts from Plotly configurations.
+**Purpose:** Data analysis and visualization tools
 **Import:** `from solace_agent_mesh.agent.tools.builtin_data_analysis_tools import create_chart_from_plotly_config`
 
 **Functions:**
-- `create_chart_from_plotly_config(config_content: str, config_format: Literal["json", "yaml"], output_filename: str, output_format: Optional[str] = "png", tool_context: ToolContext = None) -> Dict[str, Any]` - Generates a static chart image from a Plotly configuration provided as a string
+- `create_chart_from_plotly_config(config_content: str, config_format: Literal["json", "yaml"], output_filename: str, output_format: Optional[str] = "png", tool_context: ToolContext = None) -> Dict[str, Any]` - Generates static charts from Plotly configurations
 
 **Usage Examples:**
 ```python
-# Create a chart from JSON configuration
+from solace_agent_mesh.agent.tools.builtin_data_analysis_tools import create_chart_from_plotly_config
+
+# Create chart from JSON config
 chart_result = await create_chart_from_plotly_config(
-    config_content='{"data": [{"x": [1, 2, 3], "y": [4, 5, 6], "type": "scatter"}]}',
+    config_content='{"data": [{"x": [1,2,3], "y": [4,5,6], "type": "scatter"}]}',
     config_format="json",
     output_filename="my_chart.png",
-    output_format="png",
-    tool_context=tool_context
+    tool_context=context
 )
 ```
 
 ### general_agent_tools.py
-**Purpose:** This file includes general-purpose utilities like file-to-markdown conversion and Mermaid diagram generation.
+**Purpose:** General utility tools for file conversion and diagram generation
 **Import:** `from solace_agent_mesh.agent.tools.general_agent_tools import convert_file_to_markdown, mermaid_diagram_generator`
 
 **Functions:**
-- `convert_file_to_markdown(input_filename: str, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Converts an input file artifact to Markdown using the MarkItDown library
-- `mermaid_diagram_generator(mermaid_syntax: str, output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Generates a PNG image from Mermaid diagram syntax
+- `convert_file_to_markdown(input_filename: str, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Converts files to Markdown using MarkItDown
+- `mermaid_diagram_generator(mermaid_syntax: str, output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Generates PNG images from Mermaid syntax
 
 **Usage Examples:**
 ```python
-# Convert a PDF to Markdown
+from solace_agent_mesh.agent.tools.general_agent_tools import convert_file_to_markdown, mermaid_diagram_generator
+
+# Convert PDF to Markdown
 markdown_result = await convert_file_to_markdown(
-    input_filename="document.pdf:1",
-    tool_context=tool_context
+    input_filename="document.pdf",
+    tool_context=context
 )
 
-# Generate a Mermaid diagram
+# Generate Mermaid diagram
 diagram_result = await mermaid_diagram_generator(
     mermaid_syntax="graph TD; A-->B; B-->C;",
     output_filename="flowchart.png",
-    tool_context=tool_context
+    tool_context=context
 )
 ```
 
 ### image_tools.py
-**Purpose:** This file provides tools for image generation, editing, and vision-based description of images and audio.
+**Purpose:** Image generation, manipulation, and multimodal content analysis
 **Import:** `from solace_agent_mesh.agent.tools.image_tools import create_image_from_description, describe_image, describe_audio, edit_image_with_gemini`
 
 **Functions:**
-- `create_image_from_description(image_description: str, output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Generates an image based on a textual description
-- `describe_image(image_filename: str, prompt: str = "What is in this image?", tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Describes an image using an OpenAI-compatible vision API
-- `describe_audio(audio_filename: str, prompt: str = "What is in this recording?", tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Describes an audio recording using a multimodal API
-- `edit_image_with_gemini(image_filename: str, edit_prompt: str, output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Edits an existing image based on a text prompt using Google's Gemini model
+- `create_image_from_description(image_description: str, output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Generates images from text descriptions
+- `describe_image(image_filename: str, prompt: str = "What is in this image?", tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Describes images using vision API
+- `describe_audio(audio_filename: str, prompt: str = "What is in this recording?", tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Describes audio using multimodal API
+- `edit_image_with_gemini(image_filename: str, edit_prompt: str, output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Edits images using Gemini 2.0
 
 **Usage Examples:**
 ```python
-# Generate an image from description
+from solace_agent_mesh.agent.tools.image_tools import create_image_from_description, describe_image
+
+# Generate image from description
 image_result = await create_image_from_description(
-    image_description="A sunset over mountains with a lake in the foreground",
-    output_filename="sunset.png",
-    tool_context=tool_context
+    image_description="A sunset over mountains",
+    tool_context=context,
+    tool_config={"model": "dall-e-3", "api_key": "key", "api_base": "url"}
 )
 
-# Describe an existing image
+# Describe an image
 description = await describe_image(
-    image_filename="photo.jpg:1",
-    prompt="What objects are visible in this image?",
-    tool_context=tool_context
+    image_filename="photo.jpg",
+    prompt="What objects are in this image?",
+    tool_context=context,
+    tool_config={"model": "gpt-4-vision", "api_key": "key", "api_base": "url"}
 )
 ```
 
 ### peer_agent_tool.py
-**Purpose:** This file defines the `PeerAgentTool` class for delegating tasks to other agents in the mesh.
-**Import:** `from solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool`
+**Purpose:** Dynamic tool for delegating tasks to peer agents
+**Import:** `from solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool, ArtifactIdentifier`
 
 **Classes:**
-- `PeerAgentTool(target_agent_name: str, host_component)` - An ADK Tool that represents a discovered peer agent and handles task delegation
-  - `run_async(args: Dict[str, Any], tool_context: ToolContext) -> Any` - Handles the delegation of a task to a peer agent
+- `ArtifactIdentifier(filename: str, version: Union[str, int] = "latest")` - Identifies specific artifact versions
+- `PeerAgentTool(target_agent_name: str, host_component)` - Tool for peer agent communication
+  - `run_async(args: Dict[str, Any], tool_context: ToolContext) -> Any` - Delegates tasks to peer agents
 
 **Usage Examples:**
 ```python
-# Create a peer agent tool (typically done by the host component)
-peer_tool = PeerAgentTool("data_analyst_agent", host_component)
+from solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool, ArtifactIdentifier
 
-# The tool is then used by the LLM through the ADK framework
-# with parameters like task_description, user_query, and artifacts
+# Create peer tool (typically done automatically)
+peer_tool = PeerAgentTool("data_analyst", host_component)
+
+# Use through ADK (tool is registered automatically)
+# The LLM can call peer_data_analyst with task_description and artifacts
 ```
 
 ### registry.py
-**Purpose:** This file implements the singleton `tool_registry` for managing all tool definitions.
+**Purpose:** Singleton registry for tool discovery and management
 **Import:** `from solace_agent_mesh.agent.tools.registry import tool_registry`
 
 **Classes:**
-- `_ToolRegistry()` - A singleton registry for discovering and holding all BuiltinTool definitions
-  - `register(tool: BuiltinTool) -> None` - Registers a tool in the registry
-  - `get_tool_by_name(name: str) -> Optional[BuiltinTool]` - Returns a tool by its registered name
-  - `get_tools_by_category(category_name: str) -> List[BuiltinTool]` - Returns all tools belonging to a specific category
+- `_ToolRegistry()` - Singleton registry for built-in tools
+  - `register(tool: BuiltinTool) -> None` - Registers a tool definition
+  - `get_tool_by_name(name: str) -> Optional[BuiltinTool]` - Retrieves tool by name
+  - `get_tools_by_category(category_name: str) -> List[BuiltinTool]` - Gets tools by category
   - `get_all_tools() -> List[BuiltinTool]` - Returns all registered tools
-  - `clear() -> None` - Clears all registered tools (for testing)
+  - `clear() -> None` - Clears registry (testing only)
 
 **Constants/Variables:**
-- `tool_registry: _ToolRegistry` - The singleton instance of the tool registry
+- `tool_registry: _ToolRegistry` - Global singleton instance
 
 **Usage Examples:**
 ```python
@@ -1667,22 +1709,40 @@ from solace_agent_mesh.agent.tools.tool_definition import BuiltinTool
 
 # Get all registered tools
 all_tools = tool_registry.get_all_tools()
+print(f"Total tools: {len(all_tools)}")
 
 # Get tools by category
 audio_tools = tool_registry.get_tools_by_category("audio")
+web_tools = tool_registry.get_tools_by_category("web")
 
-# Get a specific tool
-tts_tool = tool_registry.get_tool_by_name("text_to_speech")
+# Get specific tool
+tool = tool_registry.get_tool_by_name("text_to_speech")
+
+# Register a custom tool
+my_tool = BuiltinTool(
+    name="my_tool",
+    implementation=my_function,
+    description="My custom tool",
+    parameters=schema,
+    category="custom"
+)
+tool_registry.register(my_tool)
 ```
 
 ### test_tools.py
-**Purpose:** This file contains tools specifically for testing agent behavior, such as delays and failures.
+**Purpose:** Testing utilities for delays, failures, and edge cases
 **Import:** `from solace_agent_mesh.agent.tools.test_tools import time_delay, always_fail_tool, dangling_tool_call_test_tool`
 
 **Functions:**
-- `time_delay(seconds: float, tool_context: ToolContext = None, tool_config:
+- `time_delay(seconds: float, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Pauses execution for testing
+- `always_fail_tool() -> dict` - Always raises exception for error testing
+- `dangling_tool_call_test_tool() -> None` - Returns None to test history repair
 
-# content_hash: 2b8fa2fca1d008d1bd98dbd8514fef790bfbcc6fea2c80f047e44157795c603d
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.tools.test_tools import time_
+
+# content_hash: afe5383c44670da57e9f2f417398e0c201ba988ff59a8726082de884df75bdc3
 
 ================================================================================
 
@@ -1829,13 +1889,14 @@ def my_tool(callback_context):
 # DEVELOPER GUIDE: a2a_spec
 
 ## Quick Summary
-The `a2a_spec` directory contains the complete Agent-to-Agent (A2A) communication specification for the Solace Agent Mesh. It includes the main JSON schema definition (`a2a.json`) that defines all data structures, request/response types, and error codes for agent communication, plus a `schemas/` subdirectory containing specialized validation schemas for various agent signals and progress updates.
+The `a2a_spec` directory contains the complete Agent-to-Agent (A2A) communication specification for the Solace Agent Mesh. It includes the main JSON schema definition (`a2a.json`) that defines all data structures, request/response types, and error codes for agent communication, plus a `schemas/` subdirectory containing specialized validation schemas for various agent signals and progress updates. Together, these provide a comprehensive framework for validating and implementing compliant agent-to-agent communication.
 
 ## Files and Subdirectories Overview
 - **Direct files:**
   - `a2a.json` - Complete JSON Schema specification for A2A protocol including all data types, requests, responses, and error definitions
+  - `a2a_spec_llm.txt` - Developer guide documentation for the A2A specification
 - **Subdirectories:**
-  - `schemas/` - JSON Schema definitions for agent communication signals (progress updates, tool invocations, LLM calls)
+  - `schemas/` - JSON Schema definitions for agent communication signals (progress updates, tool invocations, LLM calls, artifact creation)
 
 ## Developer API Reference
 
@@ -1885,11 +1946,15 @@ Task {
 }
 ```
 
+#### a2a_spec_llm.txt
+**Purpose:** Developer documentation and usage guide for the A2A specification
+**Import:** Documentation file for reference
+
 ### Subdirectory APIs
 
 #### schemas/
 **Purpose:** Provides JSON Schema definitions for agent communication signals and progress updates
-**Key Exports:** Schema definitions for progress tracking, tool invocations, and LLM calls
+**Key Exports:** Schema definitions for progress tracking, tool invocations, LLM calls, and artifact creation
 **Import Examples:**
 ```python
 import json
@@ -1902,9 +1967,10 @@ with open('solace_agent_mesh/common/a2a_spec/schemas/agent_progress_update.json'
 
 **Available Schemas:**
 - `agent_progress_update.json` - General progress status messages
-- `artifact_creation_progress.json` - File/artifact creation tracking
+- `artifact_creation_progress.json` - File/artifact creation tracking with chunked data
 - `llm_invocation.json` - LLM model invocation signals
-- `tool_invocation_start.json` - Tool execution notifications
+- `tool_invocation_start.json` - Tool execution start notifications
+- `tool_result.json` - Tool execution completion results
 
 ## Complete Usage Guide
 
@@ -1971,22 +2037,20 @@ validate_request(send_request)
 import json
 from jsonschema import validate
 
-# Load progress update schema
+# Load and validate progress update
 with open('solace_agent_mesh/common/a2a_spec/schemas/agent_progress_update.json') as f:
     progress_schema = json.load(f)
 
-# Create and validate progress update
 progress_update = {
     "type": "agent_progress_update",
     "status_text": "Processing your request..."
 }
 validate(instance=progress_update, schema=progress_schema)
 
-# Load tool invocation schema
+# Load and validate tool invocation
 with open('solace_agent_mesh/common/a2a_spec/schemas/tool_invocation_start.json') as f:
     tool_schema = json.load(f)
 
-# Create and validate tool invocation
 tool_invocation = {
     "type": "tool_invocation_start",
     "tool_name": "file_reader",
@@ -1994,6 +2058,18 @@ tool_invocation = {
     "function_call_id": "call_123"
 }
 validate(instance=tool_invocation, schema=tool_schema)
+
+# Load and validate tool result
+with open('solace_agent_mesh/common/a2a_spec/schemas/tool_result.json') as f:
+    result_schema = json.load(f)
+
+tool_result = {
+    "type": "tool_result",
+    "tool_name": "file_reader",
+    "result_data": {"content": "File contents...", "size": 1024},
+    "function_call_id": "call_123"
+}
+validate(instance=tool_result, schema=result_schema)
 ```
 
 ### 4. Working with Agent Cards
@@ -2027,31 +2103,43 @@ agent_card = {
 validate_agent_card(agent_card)
 ```
 
-### 5. Error Handling with A2A Error Types
+### 5. Artifact Creation Progress Tracking
 
 ```python
-# Create A2A-specific errors
-task_not_found_error = {
-    "code": -32001,
-    "message": "Task not found",
-    "data": {"taskId": "task-123"}
-}
+# Load artifact creation schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/artifact_creation_progress.json') as f:
+    artifact_schema = json.load(f)
 
-content_type_error = {
-    "code": -32005,
-    "message": "Incompatible content types",
-    "data": {"requested": "image/png", "supported": ["text/plain", "application/json"]}
+# Track artifact creation with chunked data
+artifact_progress = {
+    "type": "artifact_creation_progress",
+    "filename": "report.pdf",
+    "bytes_saved": 1024,
+    "artifact_chunk": "JVBERi0xLjQKJcOkw7zDtsO..."  # Base64 encoded chunk
 }
-
-# Create error response
-error_response = {
-    "jsonrpc": "2.0",
-    "id": "req-456",
-    "error": task_not_found_error
-}
+validate(instance=artifact_progress, schema=artifact_schema)
 ```
 
-### 6. Complete Request/Response Flow
+### 6. LLM Invocation Tracking
+
+```python
+# Load LLM invocation schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/llm_invocation.json') as f:
+    llm_schema = json.load(f)
+
+# Track LLM calls
+llm_invocation = {
+    "type": "llm_invocation",
+    "request": {
+        "model": "gpt-4",
+        "messages": [{"role": "user", "content": "Analyze this data"}],
+        "temperature": 0.7
+    }
+}
+validate(instance=llm_invocation, schema=llm_schema)
+```
+
+### 7. Complete Request/Response Flow with Progress Tracking
 
 ```python
 # 1. Create and send a message
@@ -2075,32 +2163,40 @@ request = {
     }
 }
 
-# 2. Handle response (Task or Message)
-def handle_response(response_data):
-    if "error" in response_data:
-        print(f"Error: {response_data['error']['message']}")
-        return
-    
-    result = response_data["result"]
-    if result.get("kind") == "task":
-        print(f"Task created: {result['id']}")
-        print(f"Status: {result['status']['state']}")
-    elif result.get("kind") == "message":
-        print(f"Direct response: {result['parts'][0]['text']}")
-
-# 3. Query task status
-task_query = {
-    "jsonrpc": "2.0",
-    "id": "req-002",
-    "method": "tasks/get",
-    "params": {
-        "id": "task-123",
-        "historyLength": 10
+# 2. Send progress updates during processing
+def send_progress_update(status_text):
+    progress = {
+        "type": "agent_progress_update",
+        "status_text": status_text
     }
-}
+    # Validate and send progress update
+    validate(instance=progress, schema=progress_schema)
+    return progress
+
+# 3. Track tool invocations
+def track_tool_invocation(tool_name, args, call_id):
+    invocation = {
+        "type": "tool_invocation_start",
+        "tool_name": tool_name,
+        "tool_args": args,
+        "function_call_id": call_id
+    }
+    validate(instance=invocation, schema=tool_schema)
+    return invocation
+
+# 4. Track tool results
+def track_tool_result(tool_name, result_data, call_id):
+    result = {
+        "type": "tool_result",
+        "tool_name": tool_name,
+        "result_data": result_data,
+        "function_call_id": call_id
+    }
+    validate(instance=result, schema=result_schema)
+    return result
 ```
 
-### 7. Schema Validation Utilities
+### 8. Comprehensive Schema Validation Utilities
 
 ```python
 class A2AValidator:
@@ -2121,7 +2217,8 @@ class A2AValidator:
             'agent_progress_update.json',
             'artifact_creation_progress.json',
             'llm_invocation.json',
-            'tool_invocation_start.json'
+            'tool_invocation_start.json',
+            'tool_result.json'
         ]
         for filename in schema_files:
             with open(f'{self.schema_dir}/schemas/{filename}') as f:
@@ -2138,17 +2235,64 @@ class A2AValidator:
         """Validate agent communication signal"""
         schema = self.signal_schemas[signal_type]
         validate(instance=data, schema=schema)
+    
+    def validate_a2a_message(self, message_data):
+        """Validate a complete A2A message"""
+        self.validate_definition(message_data, 'Message')
+    
+    def validate_agent_card(self, card_data):
+        """Validate an agent card"""
+        self.validate_definition(card_data, 'AgentCard')
+    
+    def validate_task(self, task_data):
+        """Validate a task object"""
+        self.validate_definition(task_data, 'Task')
 
-# Usage
+# Usage example
 validator = A2AValidator()
-validator.validate_definition(agent_card, 'AgentCard')
-validator.validate_definition(message, 'Message')
+
+# Validate main A2A objects
+validator.validate_agent_card(agent_card)
+validator.validate_a2a_message(message)
+
+# Validate communication signals
 validator.validate_signal(progress_update, 'agent_progress_update')
+validator.validate_signal(tool_invocation, 'tool_invocation_start')
+validator.validate_signal(tool_result, 'tool_result')
+validator.validate_signal(artifact_progress, 'artifact_creation_progress')
+validator.validate_signal(llm_invocation, 'llm_invocation')
 ```
 
-This comprehensive guide shows how to use both the main A2A specification and the specialized signal schemas together to build compliant agent-to-agent communication systems in the Solace Agent Mesh.
+### 9. Error Handling with A2A Error Types
 
-# content_hash: fc17e6449181d2404a0658c41236b0ac277bc87c09416e532a501890a513f219
+```python
+# Create A2A-specific errors using the schema definitions
+task_not_found_error = {
+    "code": -32001,
+    "message": "Task not found",
+    "data": {"taskId": "task-123"}
+}
+
+content_type_error = {
+    "code": -32005,
+    "message": "Incompatible content types",
+    "data": {"requested": "image/png", "supported": ["text/plain", "application/json"]}
+}
+
+# Create error response
+error_response = {
+    "jsonrpc": "2.0",
+    "id": "req-456",
+    "error": task_not_found_error
+}
+
+# Validate error response
+validator.validate_definition(error_response, 'JSONRPCErrorResponse')
+```
+
+This comprehensive guide shows how to use both the main A2A specification and the specialized signal schemas together to build compliant agent-to-agent communication systems in the Solace Agent Mesh, including progress tracking, tool invocation monitoring, LLM call tracking, and artifact creation progress.
+
+# content_hash: f9b143dcd949464f8cf51960be146ae5a87bdd25fd2af5cd93c400925212bb24
 
 ================================================================================
 
@@ -2163,9 +2307,11 @@ This directory contains JSON Schema definitions for various agent-to-agent (A2A)
 
 ## Files Overview
 - `agent_progress_update.json` - Schema for general agent progress status messages
-- `artifact_creation_progress.json` - Schema for tracking file/artifact creation progress
+- `artifact_creation_progress.json` - Schema for tracking file/artifact creation progress with chunked data
 - `llm_invocation.json` - Schema for LLM model invocation signals
 - `tool_invocation_start.json` - Schema for tool execution start notifications
+- `tool_result.json` - Schema for tool execution completion results
+- `schemas_llm.txt` - Previous developer guide (legacy documentation)
 
 ## Developer API Reference
 
@@ -2181,41 +2327,62 @@ This directory contains JSON Schema definitions for various agent-to-agent (A2A)
 ```
 
 **Properties:**
-- `type: "agent_progress_update"` - Constant identifier for this signal type
+- `type: "agent_progress_update"` - Constant identifier for this signal type (required)
 - `status_text: string` - Human-readable progress message (required)
 
 **Usage Examples:**
-```json
-{
-  "type": "agent_progress_update",
-  "status_text": "Analyzing the report..."
+```python
+import json
+from jsonschema import validate
+
+# Load and use schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/agent_progress_update.json') as f:
+    schema = json.load(f)
+
+# Valid data example
+data = {
+    "type": "agent_progress_update",
+    "status_text": "Analyzing the report..."
 }
+validate(instance=data, schema=schema)
 ```
 
 ### artifact_creation_progress.json
-**Purpose:** Defines the schema for tracking progress during file or artifact creation operations.
+**Purpose:** Defines the schema for tracking progress during file or artifact creation operations with chunked data transfer.
 
 **Schema Structure:**
 ```json
 {
   "type": "artifact_creation_progress",
   "filename": "string",
-  "bytes_saved": "integer"
+  "bytes_saved": "integer",
+  "artifact_chunk": "string"
 }
 ```
 
 **Properties:**
-- `type: "artifact_creation_progress"` - Constant identifier for this signal type
+- `type: "artifact_creation_progress"` - Constant identifier for this signal type (required)
 - `filename: string` - Name of the artifact being created (required)
 - `bytes_saved: integer` - Number of bytes saved so far (required)
+- `artifact_chunk: string` - The chunk of artifact data that was saved in this update (required)
 
 **Usage Examples:**
-```json
-{
-  "type": "artifact_creation_progress",
-  "filename": "report.pdf",
-  "bytes_saved": 1024
+```python
+import json
+from jsonschema import validate
+
+# Load and use schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/artifact_creation_progress.json') as f:
+    schema = json.load(f)
+
+# Valid data example
+data = {
+    "type": "artifact_creation_progress",
+    "filename": "report.pdf",
+    "bytes_saved": 1024,
+    "artifact_chunk": "JVBERi0xLjQKJcOkw7zDtsO..."
 }
+validate(instance=data, schema=schema)
 ```
 
 ### llm_invocation.json
@@ -2230,19 +2397,28 @@ This directory contains JSON Schema definitions for various agent-to-agent (A2A)
 ```
 
 **Properties:**
-- `type: "llm_invocation"` - Constant identifier for this signal type
-- `request: object` - Sanitized representation of the LlmRequest object (required)
+- `type: "llm_invocation"` - Constant identifier for this signal type (required)
+- `request: object` - Sanitized representation of the LlmRequest object sent to the model (required)
 
 **Usage Examples:**
-```json
-{
-  "type": "llm_invocation",
-  "request": {
-    "model": "gpt-4",
-    "messages": [{"role": "user", "content": "Analyze this data"}],
-    "temperature": 0.7
-  }
+```python
+import json
+from jsonschema import validate
+
+# Load and use schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/llm_invocation.json') as f:
+    schema = json.load(f)
+
+# Valid data example
+data = {
+    "type": "llm_invocation",
+    "request": {
+        "model": "gpt-4",
+        "messages": [{"role": "user", "content": "Analyze this data"}],
+        "temperature": 0.7
+    }
 }
+validate(instance=data, schema=schema)
 ```
 
 ### tool_invocation_start.json
@@ -2259,40 +2435,106 @@ This directory contains JSON Schema definitions for various agent-to-agent (A2A)
 ```
 
 **Properties:**
-- `type: "tool_invocation_start"` - Constant identifier for this signal type
+- `type: "tool_invocation_start"` - Constant identifier for this signal type (required)
 - `tool_name: string` - Name of the tool being called (required)
 - `tool_args: object` - Arguments passed to the tool (required)
 - `function_call_id: string` - ID from the LLM's function call (required)
 
 **Usage Examples:**
-```json
-{
-  "type": "tool_invocation_start",
-  "tool_name": "file_reader",
-  "tool_args": {
-    "filepath": "/path/to/file.txt",
-    "encoding": "utf-8"
-  },
-  "function_call_id": "call_abc123"
-}
-```
-
-**Note:** These are JSON Schema files used for validation. To use them in Python applications, you would typically load them with a JSON schema validation library like `jsonschema`:
-
 ```python
 import json
 from jsonschema import validate
 
-# Load schema
-with open('schemas/agent_progress_update.json') as f:
+# Load and use schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/tool_invocation_start.json') as f:
     schema = json.load(f)
 
-# Validate data
-data = {"type": "agent_progress_update", "status_text": "Processing..."}
+# Valid data example
+data = {
+    "type": "tool_invocation_start",
+    "tool_name": "file_reader",
+    "tool_args": {
+        "filepath": "/path/to/file.txt",
+        "encoding": "utf-8"
+    },
+    "function_call_id": "call_abc123"
+}
 validate(instance=data, schema=schema)
 ```
 
-# content_hash: 04e38ee5e7b8dac4570838ec05f2aa075a6b6843a00d983264afd7f63f66abc6
+### tool_result.json
+**Purpose:** Defines the schema for tool execution result signals that communicate the completion and results of tool invocations.
+
+**Schema Structure:**
+```json
+{
+  "type": "tool_result",
+  "tool_name": "string",
+  "result_data": "any",
+  "function_call_id": "string"
+}
+```
+
+**Properties:**
+- `type: "tool_result"` - Constant identifier for this signal type (required)
+- `tool_name: string` - Name of the tool that was called (required)
+- `result_data: any` - The data returned by the tool (required, can be any type)
+- `function_call_id: string` - ID from the LLM's function call that this result corresponds to (required)
+
+**Usage Examples:**
+```python
+import json
+from jsonschema import validate
+
+# Load and use schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/tool_result.json') as f:
+    schema = json.load(f)
+
+# Valid data example
+data = {
+    "type": "tool_result",
+    "tool_name": "file_reader",
+    "result_data": {
+        "content": "File contents here...",
+        "size": 1024,
+        "encoding": "utf-8"
+    },
+    "function_call_id": "call_abc123"
+}
+validate(instance=data, schema=schema)
+```
+
+**Common Usage Pattern:**
+```python
+import json
+from jsonschema import validate
+from pathlib import Path
+
+def validate_a2a_signal(signal_data: dict, schema_name: str) -> bool:
+    """Validate A2A signal data against its schema."""
+    schema_path = Path(f"solace_agent_mesh/common/a2a_spec/schemas/{schema_name}.json")
+    
+    with open(schema_path) as f:
+        schema = json.load(f)
+    
+    try:
+        validate(instance=signal_data, schema=schema)
+        return True
+    except Exception as e:
+        print(f"Validation failed: {e}")
+        return False
+
+# Example usage
+progress_data = {
+    "type": "agent_progress_update",
+    "status_text": "Processing request..."
+}
+
+if validate_a2a_signal(progress_data, "agent_progress_update"):
+    print("Signal is valid!")
+```
+
+# content_hash: 3e5a2f693dc3f4536f9c958168677fe2e3a0e18b3dc319891aceccb5ccfdda8a
 
 ================================================================================
 
@@ -2693,7 +2935,7 @@ async def client_example():
     # Check task status
     status_response = await client.get_task({"
 
-# content_hash: f2134b46f7bd0af3ad5b4d7a467c952acb38f80fde1dc8b4c2a481741fe645ad
+# content_hash: 47a93900d29f3d168cbd8df5692467c81603a90a5b066335bce36b34b989b245
 
 ================================================================================
 
@@ -4320,7 +4562,7 @@ if retrieved_context:
 context_manager.remove_context(task_id)
 ```
 
-# content_hash: 8075fd7b1834a8edde24a6cd726c844383319068b2249016eacd58b5698f4c7b
+# content_hash: 210480fddfbfdd605bf906adedce2bdc9f5784bb98122246c0b882dc7107349d
 
 ================================================================================
 
@@ -5071,7 +5313,7 @@ from solace_agent_mesh.gateway.http_sse.dependencies import (
 )
 from solace_agent_mesh.gateway.http_sse.services.agent_service import AgentService
 
-# content_hash: 663145a4b9fce78f32c08b118070544c84abb993d79bb70b53f7d5a124bb77b9
+# content_hash: a57903347835911872513351c759e46bc5c696f356cdd07679c22e4bf6b89dea
 
 ================================================================================
 
@@ -5260,35 +5502,24 @@ app.include_router(router, prefix="/api/v1/sse")
 **Purpose:** Handles task submission and management including cancellation.
 **Import:** `from solace_agent_mesh.gateway.http_sse.routers.tasks import router`
 
-**Classes:**
-- `CancelTaskApiPayload(BaseModel)` - Request body for task cancellation endpoint.
-  - `agent_name: str` - The name of the agent handling the task
-  - `task_id: str` - The ID of the task to cancel
-
 **Functions:**
-- `send_task_to_agent(agent_name: str, message: str, files: List[UploadFile]) -> JSONRPCResponse` - Submits a non-streaming task request.
-- `subscribe_task_from_agent(agent_name: str, message: str, files: List[UploadFile]) -> JSONRPCResponse` - Submits a streaming task request.
-- `cancel_agent_task(payload: CancelTaskApiPayload) -> Dict[str, str]` - Sends a cancellation request for a specific task.
+- `send_task_to_agent(request: FastAPIRequest, payload: SendMessageRequest) -> SendMessageSuccessResponse` - Submits a non-streaming task request.
+- `subscribe_task_from_agent(request: FastAPIRequest, payload: SendStreamingMessageRequest) -> SendStreamingMessageSuccessResponse` - Submits a streaming task request.
+- `cancel_agent_task(request: FastAPIRequest, taskId: str, payload: CancelTaskRequest) -> Dict[str, str]` - Sends a cancellation request for a specific task.
 
 **Usage Examples:**
 ```python
 # Include in FastAPI app
 from fastapi import FastAPI
-from solace_agent_mesh.gateway.http_sse.routers.tasks import router, CancelTaskApiPayload
+from solace_agent_mesh.gateway.http_sse.routers.tasks import router
 
 app = FastAPI()
 app.include_router(router, prefix="/api/v1/tasks")
 
 # Client usage:
-# POST /api/v1/tasks/send - Submit non-streaming task
-# POST /api/v1/tasks/subscribe - Submit streaming task
-# POST /api/v1/tasks/cancel - Cancel a task
-
-# Cancel task example:
-cancel_payload = CancelTaskApiPayload(
-    agent_name="my-agent",
-    task_id="task-123"
-)
+# POST /api/v1/tasks/message:send - Submit non-streaming task
+# POST /api/v1/tasks/message:stream - Submit streaming task
+# POST /api/v1/tasks/{taskId}:cancel - Cancel a task
 ```
 
 ### users.py
@@ -5313,7 +5544,7 @@ app.include_router(router, prefix="/api/v1/users")
 
 ### visualization.py
 **Purpose:** Manages A2A message visualization streams for monitoring and debugging.
-**Import:** `from solace_agent_mesh.gateway.http_sse.routers.visualization import router`
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.visualization import router, SubscriptionTarget, VisualizationSubscribeRequest`
 
 **Classes:**
 - `SubscriptionTarget(BaseModel)` - Defines an abstract target for A2A message visualization.
@@ -5352,7 +5583,7 @@ targets = [SubscriptionTarget(type="current_namespace_a2a_messages")]
 request = VisualizationSubscribeRequest(subscription_targets=targets)
 ```
 
-# content_hash: f910f22fcb75230b52544fa0bcdbd7d14441cfa2b8cceace0984e221cad0cf0a
+# content_hash: 18682076c83026c785a094e7e95cbc295128cc54c806ac9fa7a83bcdfc0b694d
 
 ================================================================================
 
@@ -5492,7 +5723,7 @@ async def cancel_task_example():
 asyncio.run(cancel_task_example())
 ```
 
-# content_hash: b0eb82ad4588d532f559328f64c86a1c6c6311b31066b61eadf1779f43f46cf7
+# content_hash: 3f2676625fa7b2371905ff8a09a201a7aa6f35afe7ca689b89ab8b5f93353684
 
 ================================================================================
 
@@ -6095,7 +6326,7 @@ async def client_integration_example():
             print(response.result.text_delta, end='', flush=True)
         elif hasattr(
 
-# content_hash: e167d9b3120d6b90c671ddefc874ca8e82b73dbf703b1a86d9171aa2df720eb6
+# content_hash: 2f6f35e372dbb311440d7b391e0583dda0fa8be433c7320d762d6ebe0d21ed8c
 
 ================================================================================
 

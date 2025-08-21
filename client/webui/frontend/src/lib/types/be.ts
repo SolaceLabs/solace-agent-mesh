@@ -96,19 +96,3 @@ export interface Notification {
     type?: "success" | "info" | "error";
 }
 
-/**
- * Represents a message object tailored for the frontend, extending the core A2A `Message`.
- * It includes additional state for UI rendering purposes.
- */
-export interface MessageFE extends Message {
-    isStatusBubble?: boolean;
-    isComplete?: boolean;
-    isError?: boolean;
-    uploadedFiles?: File[]; // For files being uploaded by the user
-    artifactNotification?: {
-        name: string;
-        version?: string;
-    };
-    // The 'text' content for display will be derived from `parts`.
-    // The 'files' for display will be derived from `parts`.
-}

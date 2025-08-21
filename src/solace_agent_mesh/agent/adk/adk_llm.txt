@@ -244,4 +244,4 @@ def calculate_sum(a: int, b: int, tool_config: dict = None) -> dict:
     result = a + b
     return {"result": result, "operation": "addition"}
 
-# content_hash: ecde0276af78fb97cb5da7077059e0df194dc5252021278271e877254172211d
+# content_hash: c04f0fa86f6b5a21db771d07ee201b3af85ac413c5e0bdd551cefbbae3a59b3f

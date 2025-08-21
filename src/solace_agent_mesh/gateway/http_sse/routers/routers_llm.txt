@@ -179,35 +179,24 @@ app.include_router(router, prefix="/api/v1/sse")
 **Purpose:** Handles task submission and management including cancellation.
 **Import:** `from solace_agent_mesh.gateway.http_sse.routers.tasks import router`
 
-**Classes:**
-- `CancelTaskApiPayload(BaseModel)` - Request body for task cancellation endpoint.
-  - `agent_name: str` - The name of the agent handling the task
-  - `task_id: str` - The ID of the task to cancel
-
 **Functions:**
-- `send_task_to_agent(agent_name: str, message: str, files: List[UploadFile]) -> JSONRPCResponse` - Submits a non-streaming task request.
-- `subscribe_task_from_agent(agent_name: str, message: str, files: List[UploadFile]) -> JSONRPCResponse` - Submits a streaming task request.
-- `cancel_agent_task(payload: CancelTaskApiPayload) -> Dict[str, str]` - Sends a cancellation request for a specific task.
+- `send_task_to_agent(request: FastAPIRequest, payload: SendMessageRequest) -> SendMessageSuccessResponse` - Submits a non-streaming task request.
+- `subscribe_task_from_agent(request: FastAPIRequest, payload: SendStreamingMessageRequest) -> SendStreamingMessageSuccessResponse` - Submits a streaming task request.
+- `cancel_agent_task(request: FastAPIRequest, taskId: str, payload: CancelTaskRequest) -> Dict[str, str]` - Sends a cancellation request for a specific task.
 
 **Usage Examples:**
 ```python
 # Include in FastAPI app
 from fastapi import FastAPI
-from solace_agent_mesh.gateway.http_sse.routers.tasks import router, CancelTaskApiPayload
+from solace_agent_mesh.gateway.http_sse.routers.tasks import router
 
 app = FastAPI()
 app.include_router(router, prefix="/api/v1/tasks")
 
 # Client usage:
-# POST /api/v1/tasks/send - Submit non-streaming task
-# POST /api/v1/tasks/subscribe - Submit streaming task
-# POST /api/v1/tasks/cancel - Cancel a task
-
-# Cancel task example:
-cancel_payload = CancelTaskApiPayload(
-    agent_name="my-agent",
-    task_id="task-123"
-)
+# POST /api/v1/tasks/message:send - Submit non-streaming task
+# POST /api/v1/tasks/message:stream - Submit streaming task
+# POST /api/v1/tasks/{taskId}:cancel - Cancel a task
 ```
 
 ### users.py
@@ -232,7 +221,7 @@ app.include_router(router, prefix="/api/v1/users")
 
 ### visualization.py
 **Purpose:** Manages A2A message visualization streams for monitoring and debugging.
-**Import:** `from solace_agent_mesh.gateway.http_sse.routers.visualization import router`
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.visualization import router, SubscriptionTarget, VisualizationSubscribeRequest`
 
 **Classes:**
 - `SubscriptionTarget(BaseModel)` - Defines an abstract target for A2A message visualization.
@@ -271,4 +260,4 @@ targets = [SubscriptionTarget(type="current_namespace_a2a_messages")]
 request = VisualizationSubscribeRequest(subscription_targets=targets)
 ```
 
-# content_hash: f910f22fcb75230b52544fa0bcdbd7d14441cfa2b8cceace0984e221cad0cf0a
+# content_hash: 18682076c83026c785a094e7e95cbc295128cc54c806ac9fa7a83bcdfc0b694d
