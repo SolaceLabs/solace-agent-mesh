@@ -256,7 +256,7 @@ Weather service for interacting with external weather APIs.
 
 import aiohttp
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from solace_ai_connector.common.log import log
 
 

@@ -15,7 +15,7 @@ To get started with Solace Agent Mesh, you can either create a complete project 
 
 ### Prerequisites
 1. You have Docker (or Podman) installed.
-2. You have an available AI provider and API key. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 3.7, Google Gemini 2.5 pro, or OpenAI GPT-4o.
+2. You have an available AI provider and API key. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 4, Google Gemini 2.5 pro, or OpenAI GPT-5.
 
 ### Run The Preset App
 
@@ -54,7 +54,7 @@ docker run --rm -it --platform linux/amd64  -p 8000:8000 -v $(pwd):/app \
 
 1. You have installed the Solace Agent Mesh CLI. If not, see the [Installation](./installation.md) page.
 2. You have activated the virtual environment you created following the [Installation](./installation.md) page. For containerized deployment such as Docker, ignore this prerequisite.
-3. You have an available AI provider and API key. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 3.7, Google Gemini 2.5 pro, or OpenAI GPT-4o.
+3. You have an available AI provider and API key. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 4, Google Gemini 2.5 pro, or OpenAI GPT-5.
 
 Create a directory for your project and navigate to it.
 

@@ -108,7 +108,7 @@ If you need to configure multiple brokers, you can do so by adding additional en
 
 #### Models
 
-The `models` section is used to configure the various Large Language Models (LLMs) and other generative models used by the agents. The configuration uses the [LiteLLM](https://litellm.ai/) library, which provides a standardized way to interact with different model providers.
+The `models` section is used to configure the various Large Language Models (LLMs) and other generative models used by the agents. The configuration uses the [LiteLLM](https://litellm.ai/) library, which provides a standardized way to interact with [different model providers](https://docs.litellm.ai/docs/providers).
 
 ##### Model Configuration Structure
 
@@ -123,7 +123,13 @@ Each model is defined with a set of parameters that tell the system how to inter
 | `max_tokens` | `MAX_TOKENS` | Set a reasonable max token limit for the model. |
 | `temperature` | `TEMPERATURE` | Lower temperature for more deterministic planning. |
 
-Alternatively, you can just pass the name of Google's vertex model to use directly if you have local configuration.
+Alternatively, you can use Gemini models directly through Google Studio AI or Vertex AI:
+
+```yaml
+model: gemini-2.5-pro
+```
+
+See the [documentation](https://google.github.io/adk-docs/agents/models/#using-google-gemini-models) for details on setting the environment for Gemini models.
 
 ##### Pre-defined Model Types
 
