@@ -298,12 +298,14 @@ apps:
       agent_init_function:
         module: "my_hello_agent.lifecycle" # This should point to your lifecycle python module
         name: "initialize_hello_agent"
+        base_path: .
         config:
           startup_message: "Hello Agent is starting up!"
           log_level: "INFO"
       
       agent_cleanup_function:
         module: "my_hello_agent.lifecycle"
+        base_path: .
         name: "cleanup_hello_agent"
       
       # Tools configuration
@@ -311,6 +313,7 @@ apps:
         # Hello tool with custom greeting
         - tool_type: python
           component_module: "my_hello_agent.tools"
+          component_base_path: .
           function_name: "hello_tool"
           tool_name: "greet_user" # Renaming the tool, must use this name in the agent card
           tool_config:
@@ -319,6 +322,7 @@ apps:
         # Farewell tool with custom farewell
         - tool_type: python
           component_module: "my_hello_agent.tools"
+          component_base_path: .
           function_name: "farewell_tool"
           tool_name: "say_goodbye"
           tool_config:

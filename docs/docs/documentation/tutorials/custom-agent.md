@@ -179,6 +179,7 @@ And update the weather agent config file's tool section under `configs/agent/wea
         # Current weather tool
         - tool_type: python
           component_module: "src.weather_agent.tools"
+          component_base_path: .
           function_name: "get_current_weather"
           tool_description: "Get current weather conditions for a specified location"
           tool_config:
@@ -188,6 +189,7 @@ And update the weather agent config file's tool section under `configs/agent/wea
         - tool_type: python
           component_module: "src.weather_agent.tools"
           function_name: "get_weather_forecast"
+          component_base_path: .
           tool_description: "Get weather forecast for up to 5 days for a specified location"
           tool_config:
             api_key: ${OPENWEATHER_API_KEY}
@@ -843,6 +845,7 @@ apps:
       agent_init_function:
         module: "src.weather_agent.lifecycle"
         name: "initialize_weather_agent"
+        base_path: .
         config:
           api_key: ${OPENWEATHER_API_KEY}
           base_url: "https://api.openweathermap.org/data/2.5"
@@ -850,6 +853,7 @@ apps:
       
       agent_cleanup_function:
         module: "src.weather_agent.lifecycle"
+        base_path: .
         name: "cleanup_weather_agent"
       
       # Tools configuration
@@ -857,12 +861,14 @@ apps:
         # Current weather tool
         - tool_type: python
           component_module: "src.weather_agent.tools"
+          component_base_path: .
           function_name: "get_current_weather"
           tool_description: "Get current weather conditions for a specified location"
         
         # Weather forecast tool
         - tool_type: python
           component_module: "src.weather_agent.tools"
+          component_base_path: .
           function_name: "get_weather_forecast"
           tool_description: "Get weather forecast for up to 5 days for a specified location"
         
