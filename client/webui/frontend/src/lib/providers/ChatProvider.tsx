@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect, useRef, type FormEvent, type R
 import { useConfigContext, useArtifacts } from "@/lib/hooks";
 import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
-import type { ArtifactInfo, CancelTaskRequest, DataPart, FileAttachment, FilePart, JSONRPCError, JSONRPCErrorResponse, Message, MessageFE, Notification, Part, SendMessageRequest, SendStreamingMessageRequest, SendStreamingMessageSuccessResponse, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart, ToolEvent } from "@/lib/types";
+import type { ArtifactInfo, CancelTaskRequest, FileAttachment, FilePart, JSONRPCErrorResponse, Message, MessageFE, Notification, Part, SendStreamingMessageRequest, SendStreamingMessageSuccessResponse, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart } from "@/lib/types";
 
 interface ChatProviderProps {
     children: ReactNode;
@@ -36,16 +36,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         refetch: artifactsRefetch,
         error: artifactsError,
     } = useArtifacts();
-
-    const artifactsRefetchIfNeeded = useCallback(
-        async (files: FileAttachment[]) => {
-            const needsRefetch = !artifactsLoading && files?.some(file => !artifacts.some(artifact => artifact.filename === file.name));
-            if (needsRefetch) {
-                await artifactsRefetch();
-            }
-        },
-        [artifacts, artifactsLoading, artifactsRefetch]
-    );
 
     // Side Panel Control State
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
@@ -322,11 +312,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     newMessages.push({
                         role: "agent",
                         parts: [{ kind: "text", text: messageContent }],
-                        messageId: `msg-${crypto.randomUUID()}`,
-                        kind: "message",
+                        isUser: false,
                         isError: true,
                         isComplete: true,
-                        metadata: { lastProcessedEventSequence: currentEventSequence },
+                        metadata: {
+                            messageId: `msg-${crypto.randomUUID()}`,
+                            lastProcessedEventSequence: currentEventSequence,
+                        },
                     });
                     return newMessages;
                 });
