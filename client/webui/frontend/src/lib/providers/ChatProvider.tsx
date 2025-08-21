@@ -479,13 +479,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             role: "agent",
                             parts: newContentParts,
                             files: newFileAttachments.length > 0 ? newFileAttachments : undefined,
-                            messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
-                            kind: "message",
-                            contextId: (result as TaskStatusUpdateEvent).contextId,
                             taskId: (result as TaskStatusUpdateEvent).taskId,
                             isUser: false,
                             isComplete: isFinalEvent,
-                            metadata: { lastProcessedEventSequence: currentEventSequence },
+                            metadata: {
+                                messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
+                                sessionId: (result as TaskStatusUpdateEvent).contextId,
+                                lastProcessedEventSequence: currentEventSequence,
+                            },
                         };
                         if (artifactToProcess) {
                             newBubble.artifactNotification = { name: artifactToProcess.name || artifactToProcess.artifactId };
@@ -499,12 +500,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     newMessages.push({
                         role: "agent",
                         parts: [{ kind: "text", text: latestStatusText.current }],
-                        messageId: `status-${crypto.randomUUID()}`,
-                        kind: "message",
                         taskId: (result as TaskStatusUpdateEvent).taskId,
+                        isUser: false,
                         isStatusBubble: true,
                         isComplete: false,
-                        metadata: { lastProcessedEventSequence: currentEventSequence },
+                        metadata: {
+                            messageId: `status-${crypto.randomUUID()}`,
+                            lastProcessedEventSequence: currentEventSequence,
+                        },
                     });
                 } else if (isFinalEvent) {
                     latestStatusText.current = null;
@@ -773,12 +776,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             const userMsg: MessageFE = {
                 role: "user",
                 parts: [{ kind: "text", text: currentInput }],
-                messageId: `msg-${crypto.randomUUID()}`,
-                kind: "message",
-                contextId: sessionId,
                 isUser: true,
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
-                metadata: { lastProcessedEventSequence: 0 },
+                metadata: {
+                    messageId: `msg-${crypto.randomUUID()}`,
+                    sessionId: sessionId,
+                    lastProcessedEventSequence: 0,
+                },
             };
             latestStatusText.current = "Thinking";
             setMessages(prev => [...prev, userMsg]);
