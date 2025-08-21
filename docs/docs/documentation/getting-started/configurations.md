@@ -102,6 +102,10 @@ The `broker_connection` section configures the connection to the Solace PubSub+ 
 | `temporary_queue` | `USE_TEMPORARY_QUEUES` | Whether to use temporary queues for communication. If `false`, a durable queue will be created. | `true` |
 | `max_connection_retries` | `MAX_CONNECTION_RETRIES` | The maximum number of times to retry connecting to the broker if the connection fails. A value of `-1` means retry forever. | `-1` |
 
+:::tip
+If you need to configure multiple brokers, you can do so by adding additional entries under `shared_config` with a unique name (For example,  `broker_connection_eu: &broker_connection_eu` or `broker_connection_us: &broker_connection_us`) and then use the proper reference in your agent configurations. (Example: `<<: *broker_connection_eu`)
+:::
+
 #### Models
 
 The `models` section is used to configure the various Large Language Models (LLMs) and other generative models used by the agents. The configuration uses the [LiteLLM](https://litellm.ai/) library, which provides a standardized way to interact with different model providers.
@@ -170,3 +174,8 @@ The `data_tools_config` section configures the behavior of data analysis tools.
 | `max_result_preview_rows` | `integer` | The maximum number of rows to show in a result preview. | `50` |
 | `max_result_preview_bytes` | `integer` | The maximum number of bytes to show in a result preview. | `4096` |
 
+
+
+## System Logs
+
+For details on how to configure system logging, including log rotation and verbosity levels, please see the [System Logs](../deployment/debugging.md#system-logs) section in the debugging documentation.
