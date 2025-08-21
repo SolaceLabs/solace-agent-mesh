@@ -13,6 +13,7 @@ import type {
     PerformanceReport,
     TaskFE,
     TaskState,
+    TaskStatusUpdateEvent,
     TextPart,
     ToolCallPerformance,
     ToolDecision,
@@ -42,22 +43,6 @@ const getParentTaskIdFromTaskObject = (task: TaskFE): string | null | undefined 
         }
     }
     return undefined;
-};
-
-const findAgentNameForTask = (taskId: string, allTasks: Record<string, TaskFE>): string | null => {
-    const task = allTasks[taskId];
-    if (!task) return null;
-    // Try to find the agent name from the events, as it's the most reliable source
-    for (const event of task.events || []) {
-        const payload = event.full_payload;
-        if (event.direction === "status_update" && payload?.result) {
-            const agentName = payload.result.metadata?.agent_name || payload.result.status?.message?.metadata?.agent_name || event.source_entity;
-            if (agentName) return agentName;
-        }
-    }
-    // Fallback to target_entity of the initial request
-    const requestEvent = task.events?.find(e => e.direction === "request");
-    return requestEvent?.target_entity || null;
 };
 
 const getEventTimestamp = (event: A2AEventSSEPayload): string => {
@@ -175,7 +160,7 @@ export const processTaskForVisualization = (
     const sortedEvents = combinedEvents.sort((a, b) => new Date(getEventTimestamp(a)).getTime() - new Date(getEventTimestamp(b)).getTime());
 
     const visualizerSteps: VisualizerStep[] = [];
-    let lastStatusText: string | null = null;
+    let lastStatusText: string | undefined = undefined;
     let currentAggregatedText = "";
     let aggregatedTextSourceAgent: string | undefined = undefined;
     let aggregatedTextTimestamp: string | undefined = undefined;
@@ -621,14 +606,14 @@ export const processTaskForVisualization = (
         if (event.direction === "artifact_update" && payload?.result?.artifact) {
             flushAggregatedTextStep(currentEventOwningTaskId);
             const artifactData = payload.result.artifact as Artifact;
-            const artifactAgentName = artifactData.metadata?.agent_name || event.source_entity || "Agent";
+            const artifactAgentName = (artifactData.metadata?.agent_name as string) || event.source_entity || "Agent";
             let mimeType: string | undefined = undefined;
             if (artifactData.parts && artifactData.parts.length > 0) {
                 const firstPart = artifactData.parts[0];
                 if (firstPart.kind === "file") {
                     mimeType = (firstPart as FilePart).file.mimeType || undefined;
                 } else if (firstPart.metadata?.mime_type) {
-                    mimeType = firstPart.metadata.mime_type;
+                    mimeType = firstPart.metadata.mime_type as string;
                 }
             }
             const artifactNotification: ArtifactNotificationData = {
@@ -771,7 +756,7 @@ export const processTaskForVisualization = (
 
     // If the task has reached a terminal state, we should not show a "current" status text.
     if (["completed", "failed", "canceled", "rejected"].includes(taskStatus)) {
-        lastStatusText = null;
+        lastStatusText = undefined;
     }
 
     const visualizedTask: VisualizedTask = {
