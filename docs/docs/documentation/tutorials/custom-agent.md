@@ -437,10 +437,10 @@ Weather agent tools for fetching and processing weather data.
 
 import json
 from typing import Any, Dict, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from google.adk.tools import ToolContext
 from solace_ai_connector.common.log import log
-
+from solace_agent_mesh.agent.utils.artifact_helpers import save_artifact_with_metadata
 
 async def get_current_weather(
     location: str,
@@ -653,9 +653,6 @@ async def _save_weather_artifact(
 ) -> Dict[str, Any]:
     """Save weather data as an artifact."""
     try:
-        from ...agent.utils.artifact_helpers import save_artifact_with_metadata
-        from datetime import datetime, timezone
-        
         # Prepare content
         content = json.dumps(weather_data, indent=2, default=str)
         timestamp = datetime.now(timezone.utc)

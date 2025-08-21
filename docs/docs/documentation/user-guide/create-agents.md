@@ -14,6 +14,8 @@ This page provides an in-depth theoretical overview of creating agents in Solace
 
 Solace Agent Mesh (SAM) is a powerful platform that enables you to create intelligent agents that can communicate with each other and perform complex tasks. At its core, SAM uses a **tool-based architecture** where LLM-powered agents are equipped with specific capabilities (tools) that they can use to accomplish user requests.
 
+**Before continuing with this tutorial, it's recommend to first learn about [agent concept](../concepts/agents.md).**
+
 This tutorial guides you through creating your first SAM agent from scratch. You will learn how to:
 
 - Define tools as Python functions
@@ -62,8 +64,8 @@ Before diving into the implementation, it is important to understand the key con
 
 The LLM (Large Language Model) orchestrating your agent decides which tools to use based on the user's request and the tool descriptions you provide.
 
-:::info
-Solace Agent Mesh provides a set of built-in tools plus built-in support [model context protocol (MCP)](../tutorials/mcp-integration.md) servers which can be configured in the tools list of your agent configuration
+:::tip
+Solace Agent Mesh provides a set of [built-in tools](../concepts/agents.md#built-in-tools) plus out-of-box support for [model context protocol (MCP)](../tutorials/mcp-integration.md) servers which can be configured in the tools list of your agent configuration
 :::
 
 ### Configuration File 
@@ -452,6 +454,10 @@ def cleanup_hello_agent(host_component: Any):
 You can enhance our hello tool to save greetings to a file using SAM's artifact service:
 
 ```python
+
+from datetime import datetime
+from solace_agent_mesh.agent.utils.artifact_helpers import save_artifact_with_metadata
+
 async def hello_tool_with_artifact(
     name: str,
     save_to_file: bool = False,
@@ -476,26 +482,30 @@ async def hello_tool_with_artifact(
     # Save to artifact if requested
     if save_to_file and tool_context:
         try:
-            from datetime import datetime
-            timestamp = datetime.now().isoformat()
+            # Prepare content
+            timestamp = datetime.now(timezone.utc)
+            filename = f"greeting_{name}_{timestamp}.txt"
+            content = f"Greeting: {greeting_message}\nTimestamp: {timestamp}\n"
             
-            # Use the artifact service to save the greeting
+            # Save artifact
             artifact_service = tool_context._invocation_context.artifact_service
-            if artifact_service:
-                filename = f"greeting_{name}_{timestamp}.txt"
-                content = f"Greeting: {greeting_message}\nTimestamp: {timestamp}\n"
-                
-                await artifact_service.save_artifact(
-                    app_name=tool_context._invocation_context.app_name,
-                    user_id=tool_context._invocation_context.user_id,
-                    session_id=tool_context._invocation_context.session.id,
-                    filename=filename,
-                    content=content.encode('utf-8'),
-                    mime_type="text/plain"
-                )
-                
-                result["artifact_saved"] = filename
-                log.info(f"{log_identifier} Saved greeting to artifact: {filename}")
+            await save_artifact_with_metadata(
+                artifact_service=artifact_service,
+                app_name=tool_context._invocation_context.app_name,
+                user_id=tool_context._invocation_context.user_id,
+                session_id=tool_context._invocation_context.session.id,
+                filename=filename,
+                content_bytes=content.encode('utf-8'),
+                mime_type="application/json",
+                metadata_dict={
+                    "description": "Greeting message",
+                    "source": "Greeting Agent",
+                },
+                timestamp=timestamp
+            )
+            
+            result["artifact_saved"] = filename
+            log.info(f"{log_identifier} Saved greeting to artifact: {filename}")
         
         except Exception as e:
             log.error(f"{log_identifier} Failed to save artifact: {e}")
