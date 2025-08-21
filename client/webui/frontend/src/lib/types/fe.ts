@@ -32,15 +32,15 @@ export interface TaskStoreState {
     taskOrder: string[]; // Array of taskIds to maintain insertion order or sorted order
 }
 
-/**
- * Represents a file attachment returned by the agent.
- */
-export interface FileAttachment {
-    name: string;
-    content?: string; // Base64 encoded content - Made optional for Artifact Panel preview
-    mime_type?: string; // Optional MIME type
-    last_modified?: string; // ISO 8601 timestamp string
-}
+// /**
+//  * Represents a file attachment returned by the agent.
+//  */
+// export interface FileAttachment {
+//     name: string;
+//     content?: string; // Base64 encoded content - Made optional for Artifact Panel preview
+//     mime_type?: string; // Optional MIME type
+//     last_modified?: string; // ISO 8601 timestamp string
+// }
 
 /**
  * Represents a tool event in the chat conversation.
@@ -51,11 +51,35 @@ export interface ToolEvent {
 }
 
 /**
+ * Represents a file attached to a message, primarily for UI rendering.
+ * This is distinct from the A2A `FilePart` but can be derived from it.
+ */
+export interface FileAttachment {
+    name: string;
+    content?: string; // Base64 encoded content
+    mime_type?: string;
+    last_modified?: string; // ISO 8601 timestamp
+    size?: number;
+    uri?: string;
+}
+
+/**
+ * Represents a UI notification (toast).
+ */
+export interface Notification {
+    id: string;
+    message: string;
+    type?: "success" | "info" | "error";
+}
+
+
+/**
  * Represents a single message in the chat conversation.
  */
 export interface MessageFE {
     taskId?: string; // The ID of the task that generated this message
     text?: string;
+    role?: "user" | "agent";
     isStatusBubble?: boolean; // Added to indicate a temporary status message
     isUser: boolean; // True if the message is from the user, false if from the agent/system
     isStatusMessage?: boolean; // True if this is a temporary status message (e.g., "Agent is thinking")
@@ -76,12 +100,6 @@ export interface MessageFE {
         sessionId?: string; // The A2A session ID associated with this message exchange
         lastProcessedEventSequence?: number; // Sequence number of the last SSE event processed for this bubble
     };
-}
-
-export interface Notification {
-    id: string; // Unique ID for transition key
-    message: string;
-    type?: "success" | "info" | "error";
 }
 
 // Layout Types
