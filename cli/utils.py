@@ -94,10 +94,10 @@ def get_formatted_names(name: str):
     # Normalize separators
     normalized = re.sub(r'[\s\-_]+', '_', name.strip())
 
-    step1 = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', normalized)      # fooBar -> foo_Bar
-    step2 = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', step1)        # APIKey -> API_Key
+    camel_case_split = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', normalized)      # fooBar -> foo_Bar
+    acronym_split = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', camel_case_split)        # APIKey -> API_Key
 
-    raw_parts = [p for p in step2.split('_') if p]
+    raw_parts = [p for p in acronym_split.split('_') if p]
 
     parts = [p.lower() for p in raw_parts]
 
