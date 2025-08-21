@@ -225,7 +225,7 @@ export function ChatPage() {
                                     })}
                                 </ChatMessageList>
                                 <div style={CHAT_STYLES}>
-                                    {isResponding && <LoadingMessageRow statusText={backendStatusText || latestStatusText.current} onViewWorkflow={handleViewProgressClick} />}
+                                    {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
                                     <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                                 </div>
                             </div>

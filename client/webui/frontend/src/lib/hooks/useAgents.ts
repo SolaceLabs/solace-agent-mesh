@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-import type { AgentCard, AgentInfo } from "@/lib/types";
+import type { AgentExtension, AgentInfo } from "@/lib/types";
 import { authenticatedFetch } from "@/lib/utils/api";
 
 import { useConfigContext } from "./useConfigContext";
@@ -14,7 +14,7 @@ const DISPLAY_NAME_EXTENSION_URI = "https://solace.com/a2a/extensions/display-na
 const transformAgentCard = (card: any): AgentInfo => {
     let displayName: string | undefined;
     if (card.capabilities?.extensions) {
-        const displayNameExtension = card.capabilities.extensions.find(ext => ext.uri === DISPLAY_NAME_EXTENSION_URI);
+        const displayNameExtension = card.capabilities.extensions.find((ext: AgentExtension) => ext.uri === DISPLAY_NAME_EXTENSION_URI);
         if (displayNameExtension?.params?.display_name) {
             displayName = displayNameExtension.params.display_name as string;
         }
