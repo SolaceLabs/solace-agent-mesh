@@ -92,6 +92,8 @@ Solace Agent Mesh comes with a comprehensive set of built-in tools that agents c
 - **Audio Tools**: Process and analyze audio content
 - **Image Tools**: Handle image processing and analysis
 
+For a complete list of all built-in tools and how to use them, see the [Built-In Tools](../user-guide/builtin-tools/builtin-tools.md).
+
 ## Agent Card
 
 The Agent Card is a public-facing profile that describes an agent's identity, capabilities, and how to interact with it. It functions like a digital business card, allowing other agents and clients within the Solace Agent Mesh to discover what an agent can do. This information is published by the agent and is crucial for dynamic discovery and interoperability.

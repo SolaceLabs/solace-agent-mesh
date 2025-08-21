@@ -65,7 +65,7 @@ Before diving into the implementation, it is important to understand the key con
 The LLM (Large Language Model) orchestrating your agent decides which tools to use based on the user's request and the tool descriptions you provide.
 
 :::tip
-Solace Agent Mesh provides a set of [built-in tools](../concepts/agents.md#built-in-tools) plus out-of-box support for [model context protocol (MCP)](../tutorials/mcp-integration.md) servers which can be configured in the tools list of your agent configuration
+Solace Agent Mesh provides a set of [built-in tools](./builtin-tools/builtin-tools.md) plus out-of-box support for [model context protocol (MCP)](../tutorials/mcp-integration.md) servers which can be configured in the tools list of your agent configuration
 :::
 
 ### Configuration File 
