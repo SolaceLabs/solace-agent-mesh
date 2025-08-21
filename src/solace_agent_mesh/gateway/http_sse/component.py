@@ -92,7 +92,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
         """
         Initializes the WebUIBackendComponent, inheriting from BaseGatewayComponent.
         """
-        super().__init__(**kwargs)
+        component_config = kwargs.get("component_config", {})
+        app_config = component_config.get("app_config", {})
+        resolve_uris = app_config.get("resolve_artifact_uris_in_gateway", True)
+
+        super().__init__(resolve_artifact_uris_in_gateway=resolve_uris, **kwargs)
         log.info("%s Initializing Web UI Backend Component...", self.log_identifier)
 
         try:
