@@ -127,7 +127,7 @@ Alternatively, you can just pass the name of Google's vertex model to use direct
 
 ##### Pre-defined Model Types
 
-The `shared_config.yaml` example defines several models for different purposes:
+The `shared_config.yaml` example defines several models for different purposes. Pre-defined models serve as an alias for the model configuration that allows you to refer to a configuration by its use case rather than its specific parameters.
 
 -   **`planning`**: Used by agents for planning and decision-making. It's configured for deterministic outputs (`temperature: 0.1`) and can use tools in parallel.
 -   **`general`**: A general-purpose model for various tasks.
