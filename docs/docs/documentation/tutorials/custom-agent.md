@@ -670,8 +670,7 @@ async def _save_weather_artifact(
             mime_type="application/json",
             metadata_dict={
                 "description": "Weather data report",
-                "source": "Weather Agent",
-                "type": "weather_report"
+                "source": "Weather Agent"
             },
             timestamp=timestamp
         )
