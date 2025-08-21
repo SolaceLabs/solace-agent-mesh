@@ -2,6 +2,8 @@
 
 import type { LucideIcon } from "lucide-react";
 
+import type { Part } from "./be";
+
 export interface A2AEventSSEPayload {
     event_type: "a2a_message" | string;
     timestamp: string; // ISO 8601
@@ -78,7 +80,6 @@ export interface Notification {
  */
 export interface MessageFE {
     taskId?: string; // The ID of the task that generated this message
-    text?: string;
     role?: "user" | "agent";
     isStatusBubble?: boolean; // Added to indicate a temporary status message
     isUser: boolean; // True if the message is from the user, false if from the agent/system
@@ -100,6 +101,7 @@ export interface MessageFE {
         sessionId?: string; // The A2A session ID associated with this message exchange
         lastProcessedEventSequence?: number; // Sequence number of the last SSE event processed for this bubble
     };
+    parts: Part[];
 }
 
 // Layout Types

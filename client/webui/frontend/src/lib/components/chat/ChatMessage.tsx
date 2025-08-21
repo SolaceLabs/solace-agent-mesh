@@ -26,7 +26,7 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
     const combinedText = textParts?.map(p => p.text).join("") || "";
 
     if (message.isUser) {
-        return <span>{combinedText}</span>;
+        return <MarkdownHTMLConverter>{combinedText}</MarkdownHTMLConverter>;
     }
 
     const trimmedText = combinedText.trim();
