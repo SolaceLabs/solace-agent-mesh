@@ -5,7 +5,7 @@ Patches message publishing methods to intercept and validate A2A messages.
 
 import functools
 import json
-from pathlib import Path
+import importlib.resources
 from typing import Any, Dict, List
 from unittest.mock import patch
 
@@ -13,11 +13,6 @@ import pytest
 from jsonschema import Draft7Validator, RefResolver, ValidationError
 
 
-# Define the path to the schema, assuming the script is run from the project root.
-# This path needs to be correct relative to where pytest is executed.
-SCHEMA_PATH = (
-    Path.cwd() / "src" / "solace_agent_mesh" / "common" / "a2a_spec" / "a2a.json"
-)
 
 METHOD_TO_SCHEMA_MAP = {
     "message/send": "SendMessageRequest",
@@ -46,17 +41,23 @@ class A2AMessageValidator:
         self.validator = self._create_validator(self.schema)
 
     def _load_schema(self) -> Dict[str, Any]:
-        """Loads the A2A JSON schema from file."""
+        """Loads the A2A JSON schema from the installed package."""
         try:
-            with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except FileNotFoundError:
+            # Use importlib.resources to find the schema file within the package.
+            # This works whether the package is installed or in editable mode.
+            with importlib.resources.path(
+                "solace_agent_mesh.common.a2a_spec", "a2a.json"
+            ) as schema_path:
+                with open(schema_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except (ModuleNotFoundError, FileNotFoundError):
             pytest.fail(
-                f"A2A Validator: Schema file not found at {SCHEMA_PATH}. "
-                "Please run 'scripts/sync_a2a_schema.py' to download it."
+                "A2A Validator: Schema file 'a2a.json' not found in package "
+                "'solace_agent_mesh.common.a2a_spec'. "
+                "Ensure the package is installed correctly or run 'scripts/sync_a2a_schema.py'."
             )
         except json.JSONDecodeError as e:
-            pytest.fail(f"A2A Validator: Failed to parse schema file {SCHEMA_PATH}: {e}")
+            pytest.fail(f"A2A Validator: Failed to parse schema file: {e}")
 
     def _create_validator(self, schema: Dict[str, Any]) -> Draft7Validator:
         """Creates a jsonschema validator with a resolver for local $refs."""
