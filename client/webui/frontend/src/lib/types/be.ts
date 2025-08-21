@@ -7,7 +7,6 @@ import type {
     AgentCard,
     AgentProvider,
     AgentSkill,
-    AgentTool,
     Artifact,
     CancelTaskRequest,
     DataPart,
@@ -34,7 +33,6 @@ export type {
     AgentCard,
     AgentProvider,
     AgentSkill,
-    AgentTool,
     Artifact,
     CancelTaskRequest,
     DataPart,
@@ -79,25 +77,4 @@ export interface ArtifactInfo {
     schema?: string | null | object; // Optional: Schema for the structure artifact
 }
 
-/**
- * Represents a file attached to a message, primarily for UI rendering.
- * This is distinct from the A2A `FilePart` but can be derived from it.
- */
-export interface FileAttachment {
-    name: string;
-    content?: string; // Base64 encoded content
-    mime_type?: string;
-    last_modified?: string; // ISO 8601 timestamp
-    size?: number;
-    uri?: string;
-}
-
-/**
- * Represents a UI notification (toast).
- */
-export interface Notification {
-    id: string;
-    message: string;
-    type?: "success" | "info" | "error";
-}
 
