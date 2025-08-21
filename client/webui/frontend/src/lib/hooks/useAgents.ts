@@ -11,7 +11,7 @@ const DISPLAY_NAME_EXTENSION_URI = "https://solace.com/a2a/extensions/display-na
  * Transforms a raw A2A AgentCard into a UI-friendly AgentInfo object,
  * extracting the display_name from the extensions array.
  */
-const transformAgentCard = (card: AgentCard): AgentInfo => {
+const transformAgentCard = (card: any): AgentInfo => {
     let displayName: string | undefined;
     if (card.capabilities?.extensions) {
         const displayNameExtension = card.capabilities.extensions.find(ext => ext.uri === DISPLAY_NAME_EXTENSION_URI);
@@ -49,7 +49,7 @@ export const useAgents = (): UseAgentsReturn => {
                 const errorData = await response.json().catch(() => ({ message: `Failed to fetch agents: ${response.statusText}` }));
                 throw new Error(errorData.message || `Failed to fetch agents: ${response.statusText}`);
             }
-            const data: AgentCard[] = await response.json();
+            const data: any[] = await response.json();
             const transformedAgents = data.map(transformAgentCard);
             setAgents(transformedAgents);
         } catch (err: unknown) {

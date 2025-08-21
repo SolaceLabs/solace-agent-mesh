@@ -5,7 +5,9 @@
 
 import type {
     AgentCard,
+    AgentProvider,
     AgentSkill,
+    AgentTool,
     Artifact,
     CancelTaskRequest,
     DataPart,
@@ -30,7 +32,9 @@ import type {
 // Re-export all the necessary types from the SDK.
 export type {
     AgentCard,
+    AgentProvider,
     AgentSkill,
+    AgentTool,
     Artifact,
     CancelTaskRequest,
     DataPart,
@@ -58,6 +62,7 @@ export type {
  */
 export interface AgentInfo extends AgentCard {
     display_name?: string;
+    last_seen?: string;
 }
 
 // This is a UI-specific type for managing artifacts in the side panel.

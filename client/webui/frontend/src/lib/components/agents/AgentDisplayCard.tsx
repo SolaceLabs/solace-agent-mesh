@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import { GitMerge, Info, Book, Link, Paperclip, Clock, Shield, Box, Wrench, Code, Settings, Key, Bot } from "lucide-react";
 
-import type { AgentCard, AgentTool } from "@/lib/types";
+import type { AgentInfo, AgentTool } from "@/lib/types";
 import { formatTimestamp } from "@/lib/utils/format";
 
 interface DetailItemProps {
@@ -14,7 +14,7 @@ interface DetailItemProps {
 }
 
 interface AgentDisplayCardProps {
-    agent: AgentCard;
+    agent: AgentInfo;
     isExpanded: boolean;
     onToggleExpand: () => void;
 }
@@ -132,7 +132,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                             </div>
                         )}
                         <DetailItem label="Version" value={agent.version} icon={<GitMerge size={14} />} />
-                        {agent.capabilities && Object.keys(agent.capabilities).length > 0 && <DetailItem label="Key Capabilities" value={renderCapabilities(agent.capabilities)} icon={<Key size={14} />} fullWidthValue />}
+                        {agent.capabilities && Object.keys(agent.capabilities).length > 0 && <DetailItem label="Key Capabilities" value={renderCapabilities(agent.capabilities as { [key: string]: unknown })} icon={<Key size={14} />} fullWidthValue />}
                     </div>
                     <div className="border-t p-2 text-center text-sm text-accent-foreground">
                         Click for details
