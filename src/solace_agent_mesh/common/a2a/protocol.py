@@ -16,6 +16,7 @@ from a2a.types import (
     Message,
     MessageSendParams,
     SendMessageRequest,
+    SendMessageSuccessResponse,
     SendStreamingMessageRequest,
     SendStreamingMessageSuccessResponse,
     Task,
@@ -355,3 +356,36 @@ def create_send_streaming_message_request(
     """
     send_params = MessageSendParams(message=message, metadata=metadata)
     return SendStreamingMessageRequest(id=task_id, params=send_params)
+
+
+def create_send_message_success_response(
+    result: Union[Task, Message], request_id: Optional[Union[str, int]]
+) -> SendMessageSuccessResponse:
+    """
+    Creates a SendMessageSuccessResponse object.
+
+    Args:
+        result: The result payload (Task or Message).
+        request_id: The ID of the original request.
+
+    Returns:
+        A new `SendMessageSuccessResponse` object.
+    """
+    return SendMessageSuccessResponse(id=request_id, result=result)
+
+
+def create_send_streaming_message_success_response(
+    result: Union[Task, Message, TaskStatusUpdateEvent, TaskArtifactUpdateEvent],
+    request_id: Optional[Union[str, int]],
+) -> SendStreamingMessageSuccessResponse:
+    """
+    Creates a SendStreamingMessageSuccessResponse object.
+
+    Args:
+        result: The result payload.
+        request_id: The ID of the original request.
+
+    Returns:
+        A new `SendStreamingMessageSuccessResponse` object.
+    """
+    return SendStreamingMessageSuccessResponse(id=request_id, result=result)

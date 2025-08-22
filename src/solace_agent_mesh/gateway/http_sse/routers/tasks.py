@@ -20,20 +20,16 @@ from solace_ai_connector.common.log import log
 from ....gateway.http_sse.session_manager import SessionManager
 from ....gateway.http_sse.services.task_service import TaskService
 
-from a2a.types import CancelTaskRequest, SendMessageRequest, SendStreamingMessageRequest
 from a2a.types import (
     CancelTaskRequest,
     SendMessageRequest,
     SendStreamingMessageRequest,
     SendMessageSuccessResponse,
     SendStreamingMessageSuccessResponse,
-    Task,
-    TaskStatus,
-    TaskState,
-    JSONRPCResponse,
     InternalError,
     InvalidRequestError,
 )
+from ....common import a2a
 
 from ....gateway.http_sse.dependencies import (
     get_session_manager,
@@ -116,16 +112,15 @@ async def send_task_to_agent(
 
         log.info("%sTask submitted successfully. TaskID: %s", log_prefix, task_id)
 
-        initial_task_status = TaskStatus(state=TaskState.submitted)
-        task_object = Task(
-            id=task_id,
-            contextId=session_id,
-            status=initial_task_status,
-            kind="task",
-            metadata={"agent_name": agent_name},
+        task_object = a2a.create_initial_task(
+            task_id=task_id,
+            context_id=session_id,
+            agent_name=agent_name,
         )
 
-        return SendMessageSuccessResponse(id=payload.id, result=task_object)
+        return a2a.create_send_message_success_response(
+            result=task_object, request_id=payload.id
+        )
 
     except InvalidRequestError as e:
         log.warning("%sInvalid request: %s", log_prefix, e.message, exc_info=True)
@@ -227,16 +222,15 @@ async def subscribe_task_from_agent(
         )
 
         # Create a compliant A2A Task object for the initial response
-        initial_task_status = TaskStatus(state=TaskState.submitted)
-        task_object = Task(
-            id=task_id,
-            contextId=session_id,
-            status=initial_task_status,
-            kind="task",
-            metadata={"agent_name": agent_name},
+        task_object = a2a.create_initial_task(
+            task_id=task_id,
+            context_id=session_id,
+            agent_name=agent_name,
         )
 
-        return SendStreamingMessageSuccessResponse(id=payload.id, result=task_object)
+        return a2a.create_send_streaming_message_success_response(
+            result=task_object, request_id=payload.id
+        )
 
     except InvalidRequestError as e:
         log.warning("%sInvalid request: %s", log_prefix, e.message, exc_info=True)

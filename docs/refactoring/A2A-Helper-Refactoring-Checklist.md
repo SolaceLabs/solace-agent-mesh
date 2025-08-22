@@ -43,8 +43,8 @@ These files have the most significant and direct interaction with `a2a.types` an
 These files have fewer direct interactions but should be updated for consistency and completeness.
 
 6.  **`src/solace_agent_mesh/gateway/http_sse/routers/tasks.py`**
-    - [ ] Replace manual `Task` and `TaskStatus` creation with `a2a.create_initial_task`.
-    - [ ] Replace `SendMessageSuccessResponse` with `a2a.create_success_response`.
+    - [x] Replace manual `Task` and `TaskStatus` creation with `a2a.create_initial_task`.
+    - [x] Replace `SendMessageSuccessResponse` with `a2a.create_success_response`.
 
 7.  **`src/solace_agent_mesh/gateway/http_sse/routers/sessions.py`**
     - [ ] Replace `JSONRPCSuccessResponse` with `a2a.create_success_response`.
