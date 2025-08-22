@@ -137,8 +137,6 @@ In simple terms, plugins of type agent are just packaged agents. However, there 
 
 Here’s a detailed comparison to help you decide.
 
-### Comparison Table
-
 | Feature | Standalone Agent (`sam add agent`) | Agent Plugin (`sam plugin create`) |
 | :--- | :--- | :--- |
 | **Creation** | A single command creates a configuration file in your project. | Creates a complete, standard Python project structure. |
