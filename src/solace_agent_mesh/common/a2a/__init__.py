@@ -16,6 +16,7 @@ from .artifact import (
 )
 from .events import (
     create_artifact_update,
+    create_data_signal_event,
     create_status_update,
     get_artifact_from_artifact_update,
     get_data_parts_from_status_update,
@@ -78,6 +79,7 @@ __all__ = [
     "get_parts_from_artifact",
     # events.py
     "create_artifact_update",
+    "create_data_signal_event",
     "create_status_update",
     "get_artifact_from_artifact_update",
     "get_data_parts_from_status_update",

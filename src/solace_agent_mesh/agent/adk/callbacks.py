@@ -95,17 +95,11 @@ async def _publish_data_part_status_update(
     logical_task_id = a2a_context.get("logical_task_id")
     context_id = a2a_context.get("contextId")
 
-    data_part = DataPart(data=data_part_model.model_dump())
-    part_wrapper = Part(root=data_part)
-    a2a_message = a2a.create_agent_parts_message(
-        parts=[part_wrapper], task_id=logical_task_id, context_id=context_id
-    )
-    status_update_event = a2a.create_status_update(
+    status_update_event = a2a.create_data_signal_event(
         task_id=logical_task_id,
         context_id=context_id,
-        message=a2a_message,
-        is_final=False,
-        metadata={"agent_name": host_component.agent_name},
+        signal_data=data_part_model,
+        agent_name=host_component.agent_name,
     )
 
     loop = host_component.get_async_loop()
@@ -1426,18 +1420,11 @@ def solace_llm_invocation_callback(
         context_id = a2a_context.get("contextId")
 
         llm_data = LlmInvocationData(request=llm_request.model_dump(exclude_none=True))
-        data_part = DataPart(data=llm_data.model_dump())
-        part_wrapper = Part(root=data_part)
-
-        a2a_message = a2a.create_agent_parts_message(
-            parts=[part_wrapper], task_id=logical_task_id, context_id=context_id
-        )
-        status_update_event = a2a.create_status_update(
+        status_update_event = a2a.create_data_signal_event(
             task_id=logical_task_id,
             context_id=context_id,
-            message=a2a_message,
-            is_final=False,
-            metadata={"agent_name": host_component.agent_name},
+            signal_data=llm_data,
+            agent_name=host_component.agent_name,
         )
 
         loop = host_component.get_async_loop()
@@ -1505,6 +1492,8 @@ def solace_llm_response_callback(
             "type": "llm_response",
             "data": llm_response.model_dump(exclude_none=True),
         }
+        # This signal doesn't have a dedicated Pydantic model, so we create the
+        # DataPart directly and use the lower-level helpers.
         data_part = DataPart(data=llm_response_data)
         part_wrapper = Part(root=data_part)
         a2a_message = a2a.create_agent_parts_message(

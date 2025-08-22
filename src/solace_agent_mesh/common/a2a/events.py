@@ -16,9 +16,43 @@ from a2a.types import (
 )
 
 from . import message as message_helpers
+from ...common.data_parts import SignalData
 
 
 # --- Creation Helpers ---
+
+
+def create_data_signal_event(
+    task_id: str,
+    context_id: str,
+    signal_data: SignalData,
+    agent_name: str,
+) -> TaskStatusUpdateEvent:
+    """
+    Creates a TaskStatusUpdateEvent from a specific signal data model.
+
+    This is a generalized helper that takes any of the defined SignalData
+    types and wraps it in the full A2A event structure.
+
+    Args:
+        task_id: The ID of the task being updated.
+        context_id: The context ID for the task.
+        signal_data: The Pydantic model for the signal (e.g., ToolInvocationStartData).
+        agent_name: The name of the agent sending the signal.
+
+    Returns:
+        A new `TaskStatusUpdateEvent` object containing the signal.
+    """
+    a2a_message = message_helpers.create_agent_data_message(
+        data=signal_data.model_dump(), task_id=task_id, context_id=context_id
+    )
+    return create_status_update(
+        task_id=task_id,
+        context_id=context_id,
+        message=a2a_message,
+        is_final=False,
+        metadata={"agent_name": agent_name},
+    )
 
 
 def create_status_update(
