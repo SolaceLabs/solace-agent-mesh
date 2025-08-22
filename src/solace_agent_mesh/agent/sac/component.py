@@ -40,7 +40,6 @@ from google.genai import types as adk_types
 from google.adk.tools.mcp_tool import MCPToolset
 from a2a.types import (
     AgentCard,
-    Task,
     TaskStatus,
     TaskState,
     Message as A2AMessage,
@@ -52,7 +51,6 @@ from a2a.types import (
     Part,
     Artifact as A2AArtifact,
     TaskStatusUpdateEvent,
-    TaskArtifactUpdateEvent,
     SendMessageRequest,
     MessageSendParams,
     CancelTaskRequest,
@@ -1514,7 +1512,9 @@ class SamAgentComponent(ComponentBase):
             )
             payload_to_publish = rpc_response.model_dump(exclude_none=True)
 
-            target_topic = a2a_context.get("statusTopic") or a2a.get_gateway_status_topic(
+            target_topic = a2a_context.get(
+                "statusTopic"
+            ) or a2a.get_gateway_status_topic(
                 self.namespace, self.get_gateway_id(), logical_task_id
             )
 
@@ -2365,7 +2365,9 @@ class SamAgentComponent(ComponentBase):
 
             canceled_status = TaskStatus(
                 state=TaskState.canceled,
-                message=a2a.create_agent_text_message(text="Task cancelled by request."),
+                message=a2a.create_agent_text_message(
+                    text="Task cancelled by request."
+                ),
             )
             agent_name = self.get_config("agent_name")
             final_task = a2a.create_final_task(
