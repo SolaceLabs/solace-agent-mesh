@@ -41,9 +41,6 @@ from a2a.types import (
     FileWithUri,
     DataPart,
     Artifact as A2AArtifact,
-    SendMessageRequest,
-    SendStreamingMessageRequest,
-    MessageSendParams,
 )
 from ...common import a2a
 from ...common.utils import is_text_based_mime_type
@@ -360,12 +357,14 @@ class BaseGatewayComponent(ComponentBase):
             context_id=a2a_session_id,
         )
 
-        send_params = MessageSendParams(message=a2a_message)
-
         if is_streaming:
-            a2a_request = SendStreamingMessageRequest(id=task_id, params=send_params)
+            a2a_request = a2a.create_send_streaming_message_request(
+                message=a2a_message, task_id=task_id
+            )
         else:
-            a2a_request = SendMessageRequest(id=task_id, params=send_params)
+            a2a_request = a2a.create_send_message_request(
+                message=a2a_message, task_id=task_id
+            )
 
         payload = a2a_request.model_dump(by_alias=True, exclude_none=True)
         target_topic = a2a.get_agent_request_topic(self.namespace, target_agent_name)

@@ -1,12 +1,15 @@
 """
 Helpers for creating and consuming A2A Message and Part objects.
 """
+import base64
 import uuid
 from typing import Any, Dict, List, Optional, Union
 
 from a2a.types import (
     DataPart,
     FilePart,
+    FileWithBytes,
+    FileWithUri,
     Message,
     Part,
     Role,
@@ -139,6 +142,41 @@ def create_user_message(
         metadata=metadata,
         kind="message",
     )
+
+
+def create_text_part(text: str, metadata: Optional[Dict[str, Any]] = None) -> TextPart:
+    """Creates a TextPart object."""
+    return TextPart(text=text, metadata=metadata)
+
+
+def create_file_part_from_uri(
+    uri: str,
+    name: Optional[str] = None,
+    mime_type: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> FilePart:
+    """Creates a FilePart object from a URI."""
+    file_content = FileWithUri(uri=uri, name=name, mime_type=mime_type)
+    return FilePart(file=file_content, metadata=metadata)
+
+
+def create_file_part_from_bytes(
+    content_bytes: bytes,
+    name: Optional[str] = None,
+    mime_type: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> FilePart:
+    """Creates a FilePart object from bytes."""
+    encoded_bytes = base64.b64encode(content_bytes).decode("utf-8")
+    file_content = FileWithBytes(bytes=encoded_bytes, name=name, mime_type=mime_type)
+    return FilePart(file=file_content, metadata=metadata)
+
+
+def create_data_part(
+    data: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None
+) -> DataPart:
+    """Creates a DataPart object."""
+    return DataPart(data=data, metadata=metadata)
 
 
 # --- Consumption Helpers ---

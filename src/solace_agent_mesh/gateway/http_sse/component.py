@@ -37,14 +37,9 @@ from a2a.types import (
     FilePart,
     FileWithUri,
     JSONRPCError,
-    JSONRPCErrorResponse as A2AJSONRPCErrorResponse,
     JSONRPCResponse,
     Message as A2AMessage,
-    MessageSendParams,
     Part as A2APart,
-    SendMessageRequest,
-    SendStreamingMessageRequest,
-    SendStreamingMessageSuccessResponse,
     Task,
     TaskArtifactUpdateEvent,
     TaskState,
@@ -1369,12 +1364,12 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     if save_result["status"] in ["success", "partial_success"]:
                         data_version = save_result.get("data_version", 0)
                         artifact_uri = f"artifact://{self.gateway_id}/{client_id}/{a2a_session_id}/{upload_file.filename}?version={data_version}"
-                        file_content = FileWithUri(
+                        file_part = a2a.create_file_part_from_uri(
+                            uri=artifact_uri,
                             name=upload_file.filename,
                             mime_type=upload_file.content_type,
-                            uri=artifact_uri,
                         )
-                        a2a_parts.append(FilePart(file=file_content))
+                        a2a_parts.append(file_part)
                         file_metadata_summary_parts.append(
                             f"- {upload_file.filename} ({upload_file.content_type}, {len(content_bytes)} bytes, URI: {artifact_uri})"
                         )
@@ -1409,7 +1404,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 )
 
         if user_message:
-            a2a_parts.append(TextPart(text=user_message))
+            a2a_parts.append(a2a.create_text_part(text=user_message))
 
         external_request_context = {
             "app_name_for_artifacts": self.gateway_id,
@@ -1460,8 +1455,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
         if isinstance(event_data, TaskArtifactUpdateEvent):
             sse_event_type = "artifact_update"
 
-        sse_payload_model = SendStreamingMessageSuccessResponse(
-            id=a2a_task_id, result=event_data
+        sse_payload_model = a2a.create_success_response(
+            result=event_data, request_id=a2a_task_id
         )
         sse_payload = sse_payload_model.model_dump(by_alias=True, exclude_none=True)
 
@@ -1508,8 +1503,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
             sse_task_id,
         )
 
-        sse_payload_model = SendStreamingMessageSuccessResponse(
-            id=a2a_task_id, result=task_data
+        sse_payload_model = a2a.create_success_response(
+            result=task_data, request_id=a2a_task_id
         )
         sse_payload = sse_payload_model.model_dump(by_alias=True, exclude_none=True)
 
@@ -1560,9 +1555,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
             error_data,
         )
 
-        sse_payload_model = A2AJSONRPCErrorResponse(
-            id=external_request_context.get("original_rpc_id", sse_task_id),
+        sse_payload_model = a2a.create_error_response(
             error=error_data,
+            request_id=external_request_context.get("original_rpc_id", sse_task_id),
         )
         sse_payload = sse_payload_model.model_dump(by_alias=True, exclude_none=True)
 

@@ -13,6 +13,7 @@ from a2a.types import (
     JSONRPCError,
     JSONRPCResponse,
     Message,
+    MessageSendParams,
     SendMessageRequest,
     SendStreamingMessageRequest,
     TaskIdParams,
@@ -263,6 +264,23 @@ def create_internal_error_response(
     return JSONRPCResponse(id=request_id, error=error)
 
 
+def create_error_response(
+    error: JSONRPCError,
+    request_id: Optional[Union[str, int]],
+) -> JSONRPCResponse:
+    """
+    Creates a JSON-RPC error response object from a given error model.
+
+    Args:
+        error: The JSONRPCError model instance.
+        request_id: The ID of the original request.
+
+    Returns:
+        A new `JSONRPCResponse` object containing the error.
+    """
+    return JSONRPCResponse(id=request_id, error=error)
+
+
 def create_cancel_task_request(task_id: str) -> CancelTaskRequest:
     """
     Creates a CancelTaskRequest object.
@@ -275,3 +293,43 @@ def create_cancel_task_request(task_id: str) -> CancelTaskRequest:
     """
     params = TaskIdParams(id=task_id)
     return CancelTaskRequest(id=uuid.uuid4().hex, params=params)
+
+
+def create_send_message_request(
+    message: Message,
+    task_id: str,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> SendMessageRequest:
+    """
+    Creates a SendMessageRequest object.
+
+    Args:
+        message: The A2AMessage object to send.
+        task_id: The unique ID for the task.
+        metadata: Optional metadata for the send request.
+
+    Returns:
+        A new `SendMessageRequest` object.
+    """
+    send_params = MessageSendParams(message=message, metadata=metadata)
+    return SendMessageRequest(id=task_id, params=send_params)
+
+
+def create_send_streaming_message_request(
+    message: Message,
+    task_id: str,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> SendStreamingMessageRequest:
+    """
+    Creates a SendStreamingMessageRequest object.
+
+    Args:
+        message: The A2AMessage object to send.
+        task_id: The unique ID for the task.
+        metadata: Optional metadata for the send request.
+
+    Returns:
+        A new `SendStreamingMessageRequest` object.
+    """
+    send_params = MessageSendParams(message=message, metadata=metadata)
+    return SendStreamingMessageRequest(id=task_id, params=send_params)
