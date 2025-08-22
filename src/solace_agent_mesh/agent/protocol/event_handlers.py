@@ -40,14 +40,14 @@ from a2a.types import (
     TaskStatusUpdateEvent,
     TextPart,
 )
-from ...common.a2a_protocol import (
+from ...common.a2a import (
     get_agent_request_topic,
     get_discovery_topic,
     translate_a2a_to_adk_content,
     get_client_response_topic,
     get_agent_response_subscription_topic,
     get_agent_status_subscription_topic,
-    _extract_text_from_parts,
+    get_text_from_message,
 )
 from ...agent.utils.artifact_helpers import (
     generate_artifact_metadata_summary,
@@ -597,7 +597,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     header_text=header_text,
                 )
 
-                task_description = _extract_text_from_parts(a2a_message_for_adk.parts)
+                task_description = get_text_from_message(a2a_message_for_adk)
                 final_prompt = f"{task_description}\n\n{artifact_summary}"
 
                 a2a_message_for_adk = a2a_message_for_adk.model_copy(
@@ -1075,7 +1075,9 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                     and status_event.status.message.parts
                                 ):
                                     response_parts_data = []
-                                    for part_wrapper in status_event.status.message.parts:
+                                    for (
+                                        part_wrapper
+                                    ) in status_event.status.message.parts:
                                         part = part_wrapper.root
                                         if isinstance(part, TextPart):
                                             response_parts_data.append(str(part.text))
@@ -1300,9 +1302,7 @@ async def handle_a2a_response(component, message: SolaceMessage):
                     try:
                         task_obj = Task(**payload_to_queue)
                         if task_obj.status and task_obj.status.message:
-                            final_text = _extract_text_from_parts(
-                                task_obj.status.message.parts
-                            )
+                            final_text = get_text_from_message(task_obj.status.message)
 
                         if (
                             task_obj.metadata
@@ -1460,9 +1460,7 @@ def publish_agent_card(component):
         PEER_TOPOLOGY_EXTENSION_URI = (
             "https://solace.com/a2a/extensions/peer-agent-topology"
         )
-        DISPLAY_NAME_EXTENSION_URI = (
-            "https://solace.com/a2a/extensions/display-name"
-        )
+        DISPLAY_NAME_EXTENSION_URI = "https://solace.com/a2a/extensions/display-name"
 
         extensions_list = []
 

@@ -45,15 +45,15 @@ from a2a.types import (
     SendStreamingMessageRequest,
     MessageSendParams,
 )
-from ...common.a2a_protocol import (
+from ...common.a2a import (
     get_gateway_response_topic,
     get_gateway_response_subscription_topic,
     get_gateway_status_topic,
     get_gateway_status_subscription_topic,
     get_discovery_topic,
     get_agent_request_topic,
-    _topic_matches_subscription,
-    _subscription_to_regex,
+    topic_matches_subscription,
+    subscription_to_regex,
 )
 from ...common.utils import is_text_based_mime_type
 from ...common.utils.embeds import (
@@ -669,7 +669,7 @@ class BaseGatewayComponent(ComponentBase):
         self, topic: str, subscription_pattern: str
     ) -> Optional[str]:
         """Extracts the task ID from the end of a topic string based on the subscription."""
-        base_regex_str = _subscription_to_regex(subscription_pattern).replace(r".*", "")
+        base_regex_str = subscription_to_regex(subscription_pattern).replace(r".*", "")
         match = re.match(base_regex_str, topic)
         if match:
             task_id_part = topic[match.end() :]
@@ -1062,7 +1062,9 @@ class BaseGatewayComponent(ComponentBase):
                             state=TaskState.working,
                             message=A2AMessage(
                                 role="agent",
-                                parts=[A2APart(root=TextPart(text=resolved_remaining_text))],
+                                parts=[
+                                    A2APart(root=TextPart(text=resolved_remaining_text))
+                                ],
                             ),
                         )
                         flush_event = TaskStatusUpdateEvent(
@@ -1249,18 +1251,18 @@ class BaseGatewayComponent(ComponentBase):
                     processed_successfully = False
                     continue
 
-                if _topic_matches_subscription(
+                if topic_matches_subscription(
                     topic, get_discovery_topic(self.namespace)
                 ):
                     processed_successfully = await self._handle_discovery_message(
                         payload
                     )
-                elif _topic_matches_subscription(
+                elif topic_matches_subscription(
                     topic,
                     get_gateway_response_subscription_topic(
                         self.namespace, self.gateway_id
                     ),
-                ) or _topic_matches_subscription(
+                ) or topic_matches_subscription(
                     topic,
                     get_gateway_status_subscription_topic(
                         self.namespace, self.gateway_id
@@ -1274,11 +1276,11 @@ class BaseGatewayComponent(ComponentBase):
                         self.namespace, self.gateway_id
                     )
 
-                    if _topic_matches_subscription(topic, response_sub):
+                    if topic_matches_subscription(topic, response_sub):
                         task_id_from_topic = self._extract_task_id_from_topic(
                             topic, response_sub
                         )
-                    elif _topic_matches_subscription(topic, status_sub):
+                    elif topic_matches_subscription(topic, status_sub):
                         task_id_from_topic = self._extract_task_id_from_topic(
                             topic, status_sub
                         )
