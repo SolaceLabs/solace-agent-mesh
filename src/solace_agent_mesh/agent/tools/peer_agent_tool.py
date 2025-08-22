@@ -159,7 +159,7 @@ class PeerAgentTool(BaseTool):
             f"Now please execute this task that was given to you:\n\n{task_description}"
         )
 
-        return [TextPart(text=context_message)]
+        return [a2a.create_text_part(text=context_message)]
 
     async def run_async(
         self, *, args: Dict[str, Any], tool_context: ToolContext

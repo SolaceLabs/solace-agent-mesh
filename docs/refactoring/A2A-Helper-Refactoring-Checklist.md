@@ -51,7 +51,7 @@ These files have fewer direct interactions but should be updated for consistency
     - [x] Refactor error handling to use `a2a.create_internal_error_response` before raising `HTTPException`.
 
 8.  **`src/solace_agent_mesh/agent/tools/peer_agent_tool.py`**
-    - [ ] Refactor `_prepare_a2a_parts` to use `a2a.create_agent_text_message` or similar helpers.
+    - [x] Refactor `_prepare_a2a_parts` to use `a2a.create_agent_text_message` or similar helpers.
 
 ## Phase 3: Final Cleanup and Verification
 
