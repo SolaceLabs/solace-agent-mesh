@@ -47,8 +47,8 @@ These files have fewer direct interactions but should be updated for consistency
     - [x] Replace `SendMessageSuccessResponse` with `a2a.create_success_response`.
 
 7.  **`src/solace_agent_mesh/gateway/http_sse/routers/sessions.py`**
-    - [ ] Replace `JSONRPCSuccessResponse` with `a2a.create_success_response`.
-    - [ ] Refactor error handling to use `a2a.create_internal_error_response` before raising `HTTPException`.
+    - [x] Replace `JSONRPCSuccessResponse` with `a2a.create_success_response`.
+    - [x] Refactor error handling to use `a2a.create_internal_error_response` before raising `HTTPException`.
 
 8.  **`src/solace_agent_mesh/agent/tools/peer_agent_tool.py`**
     - [ ] Refactor `_prepare_a2a_parts` to use `a2a.create_agent_text_message` or similar helpers.

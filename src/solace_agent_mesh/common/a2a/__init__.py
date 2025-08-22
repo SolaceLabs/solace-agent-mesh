@@ -41,6 +41,8 @@ from .message import (
 from .protocol import (
     create_cancel_task_request,
     create_error_response,
+    create_generic_success_response,
+    create_internal_error,
     create_internal_error_response,
     create_send_message_request,
     create_send_message_success_response,
@@ -115,6 +117,8 @@ __all__ = [
     # protocol.py
     "create_cancel_task_request",
     "create_error_response",
+    "create_generic_success_response",
+    "create_internal_error",
     "create_internal_error_response",
     "create_send_message_request",
     "create_send_message_success_response",

@@ -13,6 +13,7 @@ from a2a.types import (
     InternalError,
     JSONRPCError,
     JSONRPCResponse,
+    JSONRPCSuccessResponse,
     Message,
     MessageSendParams,
     SendMessageRequest,
@@ -283,8 +284,42 @@ def create_internal_error_response(
     Returns:
         A new `JSONRPCResponse` object containing an `InternalError`.
     """
-    error = InternalError(message=message, data=data)
+    error = create_internal_error(message=message, data=data)
     return JSONRPCResponse(id=request_id, error=error)
+
+
+def create_internal_error(
+    message: str,
+    data: Optional[Dict[str, Any]] = None,
+) -> InternalError:
+    """
+    Creates an InternalError object.
+
+    Args:
+        message: The error message.
+        data: Optional structured data to include with the error.
+
+    Returns:
+        A new `InternalError` object.
+    """
+    return InternalError(message=message, data=data)
+
+
+def create_generic_success_response(
+    result: Any, request_id: Optional[Union[str, int]] = None
+) -> JSONRPCSuccessResponse:
+    """
+    Creates a generic successful JSON-RPC response object.
+    Note: This is for non-A2A-spec-compliant endpoints that use a similar structure.
+
+    Args:
+        result: The result payload for the response.
+        request_id: The ID of the original request.
+
+    Returns:
+        A new `JSONRPCSuccessResponse` object.
+    """
+    return JSONRPCSuccessResponse(id=request_id, result=result)
 
 
 def create_error_response(
