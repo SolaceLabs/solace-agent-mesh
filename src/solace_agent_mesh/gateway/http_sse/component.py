@@ -31,6 +31,7 @@ from ...core_a2a.service import CoreA2AService
 from google.adk.artifacts import BaseArtifactService
 
 from a2a.types import (
+    A2ARequest,
     AgentCard,
     Artifact as A2AArtifact,
     DataPart,
@@ -1023,58 +1024,88 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         # --- Phase 1: Parse the payload to extract core info ---
         try:
-            # Handle Responses (Task, TaskStatusUpdateEvent, etc.)
-            if "result" in payload and isinstance(payload["result"], dict):
-                result = payload["result"]
-                kind = result.get("kind")
-                details["direction"] = kind or "response"
-                details["task_id"] = result.get("taskId") or result.get("id")
+            # Try to parse as a JSON-RPC response first
+            if "result" in payload or "error" in payload:
+                rpc_response = JSONRPCResponse.model_validate(payload)
+                result = a2a.get_response_result(rpc_response)
+                error = a2a.get_response_error(rpc_response)
+                details["message_id"] = rpc_response.root.id
 
-                if kind == "status-update":
-                    details["source_entity"] = result.get("metadata", {}).get(
-                        "agent_name"
-                    ) or result.get("status", {}).get("message", {}).get(
-                        "metadata", {}
-                    ).get(
-                        "agent_name"
-                    )
-                    message = result.get("status", {}).get("message")
-                    parts = message.get("parts", [])
-                    if parts and parts[0].get("kind") == "data":
-                        details["debug_type"] = (
-                            parts[0].get("data", {}).get("type", "unknown")
+                if result:
+                    kind = getattr(result, "kind", None)
+                    details["direction"] = kind or "response"
+                    details["task_id"] = getattr(
+                        result, "task_id", None
+                    ) or getattr(result, "id", None)
+
+                    if isinstance(result, TaskStatusUpdateEvent):
+                        details["source_entity"] = (
+                            result.metadata.get("agent_name") if result.metadata else None
                         )
-                    elif parts and parts[0].get("kind") == "text":
-                        details["debug_type"] = "streaming_text"
-                elif kind == "task":
-                    details["source_entity"] = result.get("metadata", {}).get(
-                        "agent_name"
+                        message = a2a.get_message_from_status_update(result)
+                        if message:
+                            if not details["source_entity"]:
+                                details["source_entity"] = (
+                                    message.metadata.get("agent_name")
+                                    if message.metadata
+                                    else None
+                                )
+                            data_parts = a2a.get_data_parts_from_message(message)
+                            if data_parts:
+                                details["debug_type"] = data_parts[0].data.get(
+                                    "type", "unknown"
+                                )
+                            elif a2a.get_text_from_message(message):
+                                details["debug_type"] = "streaming_text"
+                    elif isinstance(result, Task):
+                        details["source_entity"] = (
+                            result.metadata.get("agent_name") if result.metadata else None
+                        )
+                    elif isinstance(result, TaskArtifactUpdateEvent):
+                        artifact = a2a.get_artifact_from_artifact_update(result)
+                        if artifact:
+                            details["source_entity"] = (
+                                artifact.metadata.get("agent_name")
+                                if artifact.metadata
+                                else None
+                            )
+                elif error:
+                    details["direction"] = "error_response"
+                    details["task_id"] = (
+                        error.data.get("taskId") if isinstance(error.data, dict) else None
                     )
-                elif kind == "artifact-update":
-                    details["source_entity"] = (
-                        result.get("artifact", {}).get("metadata", {}).get("agent_name")
-                    )
+                    details["debug_type"] = "error"
 
-            # Handle Requests (SendMessageRequest, CancelTaskRequest, etc.)
-            elif "method" in payload and isinstance(payload.get("params"), dict):
-                method = payload["method"]
-                params = payload["params"]
+            # Try to parse as a JSON-RPC request
+            elif "method" in payload:
+                rpc_request = A2ARequest.model_validate(payload)
+                method = a2a.get_request_method(rpc_request)
                 details["direction"] = "request"
                 details["payload_summary"]["method"] = method
+                details["message_id"] = a2a.get_request_id(rpc_request)
 
                 if method in ["message/send", "message/stream"]:
                     details["debug_type"] = method
-                    msg = params.get("message", {})
-                    details["task_id"] = payload.get("id")
-                    details["target_entity"] = msg.get("metadata", {}).get("agent_name")
+                    message = a2a.get_message_from_send_request(rpc_request)
+                    details["task_id"] = a2a.get_request_id(rpc_request)
+                    if message:
+                        details["target_entity"] = (
+                            message.metadata.get("agent_name")
+                            if message.metadata
+                            else None
+                        )
                 elif method == "tasks/cancel":
-                    details["task_id"] = params.get("id")
+                    details["task_id"] = a2a.get_task_id_from_cancel_request(
+                        rpc_request
+                    )
 
-            # Handle Discovery messages
+            # Handle Discovery messages (which are not JSON-RPC)
             elif "/a2a/v1/discovery/" in topic:
+                agent_card = AgentCard.model_validate(payload)
                 details["direction"] = "discovery"
-                details["source_entity"] = payload.get("name", "unknown_agent")
+                details["source_entity"] = agent_card.name
                 details["target_entity"] = "broadcast"
+                details["message_id"] = None  # Discovery has no ID
 
         except Exception as e:
             log.warning(

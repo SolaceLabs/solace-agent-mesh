@@ -22,9 +22,9 @@ These files have the most significant and direct interaction with `a2a.types` an
     - [x] Refactor `_process_parsed_a2a_event` to use helpers for creating `TaskStatusUpdateEvent` and `TaskArtifactUpdateEvent`.
 
 3.  **`src/solace_agent_mesh/gateway/http_sse/component.py`**
-    - [ ] Replace direct creation of `SendStreamingMessageSuccessResponse` and `A2AJSONRPCErrorResponse` with `a2a.create_success_response` and `a2a.create_internal_error_response`.
-    - [ ] Refactor `_translate_external_input` to use `a2a.create_text_part` and `a2a.create_file_part` helpers.
-    - [ ] Refactor `_infer_visualization_event_details` to operate on validated `a2a.types` objects using helpers, rather than parsing raw dictionaries.
+    - [x] Replace direct creation of `SendStreamingMessageSuccessResponse` and `A2AJSONRPCErrorResponse` with `a2a.create_success_response` and `a2a.create_internal_error_response`.
+    - [x] Refactor `_translate_external_input` to use `a2a.create_text_part` and `a2a.create_file_part` helpers.
+    - [x] Refactor `_infer_visualization_event_details` to operate on validated `a2a.types` objects using helpers, rather than parsing raw dictionaries.
 
 4.  **`src/solace_agent_mesh/core_a2a/service.py`**
     - [ ] Refactor `submit_task` to use a helper for creating `SendMessageRequest`.
