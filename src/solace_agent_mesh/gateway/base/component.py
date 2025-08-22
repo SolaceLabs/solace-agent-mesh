@@ -728,8 +728,13 @@ class BaseGatewayComponent(ComponentBase):
                     self.task_context_manager.get_context(stream_buffer_key) or ""
                 )
 
-            for part_obj in parts_owner.parts:
-                part = part_obj.root
+            unwrapped_parts: List[Union[TextPart, DataPart, FilePart]] = []
+            if isinstance(parts_owner, A2AMessage):
+                unwrapped_parts = a2a.get_parts_from_message(parts_owner)
+            elif isinstance(parts_owner, A2AArtifact):
+                unwrapped_parts = a2a.get_parts_from_artifact(parts_owner)
+
+            for part in unwrapped_parts:
                 if isinstance(part, TextPart) and part.text is not None:
                     text_to_resolve = part.text
                     original_part_text = part.text
@@ -820,9 +825,9 @@ class BaseGatewayComponent(ComponentBase):
                                     )
                                     content_modified_or_signal_handled = True
                                 else:
-                                    new_parts_for_owner.append(part_obj)
+                                    new_parts_for_owner.append(A2APart(root=part))
                             else:
-                                new_parts_for_owner.append(part_obj)
+                                new_parts_for_owner.append(A2APart(root=part))
                         except Exception as e:
                             log.warning(
                                 "%s Error during recursive FilePart resolution for %s: %s. Using original.",
@@ -830,12 +835,12 @@ class BaseGatewayComponent(ComponentBase):
                                 part.file.name,
                                 e,
                             )
-                            new_parts_for_owner.append(part_obj)
+                            new_parts_for_owner.append(A2APart(root=part))
                     else:
                         # This is a FileWithUri or empty FileWithBytes, which we don't process for embeds here.
-                        new_parts_for_owner.append(part_obj)
+                        new_parts_for_owner.append(A2APart(root=part))
                 else:
-                    new_parts_for_owner.append(part_obj)
+                    new_parts_for_owner.append(A2APart(root=part))
 
             parts_owner.parts = new_parts_for_owner
 

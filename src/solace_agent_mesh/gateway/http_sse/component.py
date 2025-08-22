@@ -1029,7 +1029,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 rpc_response = JSONRPCResponse.model_validate(payload)
                 result = a2a.get_response_result(rpc_response)
                 error = a2a.get_response_error(rpc_response)
-                details["message_id"] = rpc_response.root.id
+                details["message_id"] = a2a.get_response_id(rpc_response)
 
                 if result:
                     kind = getattr(result, "kind", None)
