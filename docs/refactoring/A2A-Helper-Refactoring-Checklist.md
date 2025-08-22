@@ -27,9 +27,9 @@ These files have the most significant and direct interaction with `a2a.types` an
     - [x] Refactor `_infer_visualization_event_details` to operate on validated `a2a.types` objects using helpers, rather than parsing raw dictionaries.
 
 4.  **`src/solace_agent_mesh/core_a2a/service.py`**
-    - [ ] Refactor `submit_task` to use a helper for creating `SendMessageRequest`.
-    - [ ] Refactor `submit_streaming_task` to use a helper for creating `SendStreamingMessageRequest`.
-    - [ ] Refactor `cancel_task` to use a helper for creating `CancelTaskRequest`.
+    - [x] Refactor `submit_task` to use a helper for creating `SendMessageRequest`.
+    - [x] Refactor `submit_streaming_task` to use a helper for creating `SendStreamingMessageRequest`.
+    - [x] Refactor `cancel_task` to use a helper for creating `CancelTaskRequest`.
 
 5.  **`src/solace_agent_mesh/agent/sac/component.py`**
     - [ ] Replace manual `TaskStatus` creation with helpers in `finalize_task_success`, `finalize_task_canceled`, and `finalize_task_error`.

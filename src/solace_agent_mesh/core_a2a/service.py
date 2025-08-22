@@ -9,15 +9,10 @@ from typing import Dict, Optional, Any, List, Tuple
 from solace_ai_connector.common.log import log
 
 from a2a.types import (
-    SendMessageRequest,
-    SendStreamingMessageRequest,
-    CancelTaskRequest,
-    TaskIdParams,
-    MessageSendParams,
     Message as A2AMessage,
     AgentCard,
 )
-from ..common.a2a import get_agent_request_topic
+from ..common import a2a
 from ..common.agent_registry import AgentRegistry
 
 
@@ -92,15 +87,14 @@ class CoreA2AService:
             if not a2a_message.contextId:
                 a2a_message.contextId = session_id
 
-            send_params = MessageSendParams(
+            request = a2a.create_send_message_request(
                 message=a2a_message,
+                task_id=task_id,
                 metadata=metadata_override,
             )
-
-            request = SendMessageRequest(id=task_id, params=send_params)
             payload = request.model_dump(by_alias=True, exclude_none=True)
 
-            target_topic = get_agent_request_topic(self.namespace, agent_name)
+            target_topic = a2a.get_agent_request_topic(self.namespace, agent_name)
 
             user_properties = {
                 "replyTo": reply_to_topic,
@@ -185,15 +179,14 @@ class CoreA2AService:
             if not a2a_message.contextId:
                 a2a_message.contextId = session_id
 
-            send_params = MessageSendParams(
+            request = a2a.create_send_streaming_message_request(
                 message=a2a_message,
+                task_id=task_id,
                 metadata=metadata_override,
             )
-
-            request = SendStreamingMessageRequest(id=task_id, params=send_params)
             payload = request.model_dump(by_alias=True, exclude_none=True)
 
-            target_topic = get_agent_request_topic(self.namespace, agent_name)
+            target_topic = a2a.get_agent_request_topic(self.namespace, agent_name)
 
             user_properties = {
                 "replyTo": reply_to_topic,
@@ -258,12 +251,10 @@ class CoreA2AService:
             raise ValueError("Missing required parameters for cancel_task")
 
         try:
-            params = TaskIdParams(id=task_id)
-
-            request = CancelTaskRequest(id=uuid.uuid4().hex, params=params)
+            request = a2a.create_cancel_task_request(task_id=task_id)
             payload = request.model_dump(by_alias=True, exclude_none=True)
 
-            target_topic = get_agent_request_topic(self.namespace, agent_name)
+            target_topic = a2a.get_agent_request_topic(self.namespace, agent_name)
 
             user_properties = {
                 "clientId": client_id,
