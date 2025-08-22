@@ -675,7 +675,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 log.error(
                     "%s Failed to ACK unhandled request type %s: %s",
                     component.log_identifier,
-                    type(a2a_request.root).__name__,
+                    method,
                     ack_e,
                 )
             return None
