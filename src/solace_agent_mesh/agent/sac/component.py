@@ -51,8 +51,6 @@ from a2a.types import (
     DataPart,
     Part,
     Artifact as A2AArtifact,
-    JSONRPCResponse,
-    InternalError,
     TaskStatusUpdateEvent,
     TaskArtifactUpdateEvent,
     SendMessageRequest,
@@ -1511,8 +1509,8 @@ class SamAgentComponent(ComponentBase):
                 )
 
         try:
-            rpc_response = JSONRPCResponse(
-                id=jsonrpc_request_id, result=status_update_event
+            rpc_response = a2a.create_success_response(
+                result=status_update_event, request_id=jsonrpc_request_id
             )
             payload_to_publish = rpc_response.model_dump(exclude_none=True)
 
@@ -2041,9 +2039,9 @@ class SamAgentComponent(ComponentBase):
                         final=False,
                         kind="status-update",
                     )
-                    artifact_payload = JSONRPCResponse(
-                        id=a2a_context.get("jsonrpc_request_id"),
+                    artifact_payload = a2a.create_success_response(
                         result=status_update_event,
+                        request_id=a2a_context.get("jsonrpc_request_id"),
                     ).model_dump(exclude_none=True)
 
                     self._publish_a2a_event(
@@ -2256,7 +2254,9 @@ class SamAgentComponent(ComponentBase):
                 artifacts=(final_a2a_artifacts if final_a2a_artifacts else None),
                 metadata=final_task_metadata,
             )
-            final_response = JSONRPCResponse(id=jsonrpc_request_id, result=final_task)
+            final_response = a2a.create_success_response(
+                result=final_task, request_id=jsonrpc_request_id
+            )
             a2a_payload = final_response.model_dump(exclude_none=True)
             target_topic = peer_reply_topic or a2a.get_client_response_topic(
                 namespace, client_id
@@ -2325,12 +2325,10 @@ class SamAgentComponent(ComponentBase):
                 client_id = a2a_context.get("client_id")
                 peer_reply_topic = a2a_context.get("replyToTopic")
                 namespace = self.get_config("namespace")
-                error_response = JSONRPCResponse(
-                    id=jsonrpc_request_id,
-                    error=InternalError(
-                        message=f"Failed to finalize successful task: {e}",
-                        data={"taskId": logical_task_id},
-                    ),
+                error_response = a2a.create_internal_error_response(
+                    message=f"Failed to finalize successful task: {e}",
+                    request_id=jsonrpc_request_id,
+                    data={"taskId": logical_task_id},
                 )
                 target_topic = peer_reply_topic or a2a.get_client_response_topic(
                     namespace, client_id
@@ -2376,7 +2374,9 @@ class SamAgentComponent(ComponentBase):
                 final_status=canceled_status,
                 metadata={"agent_name": agent_name},
             )
-            final_response = JSONRPCResponse(id=jsonrpc_request_id, result=final_task)
+            final_response = a2a.create_success_response(
+                result=final_task, request_id=jsonrpc_request_id
+            )
             a2a_payload = final_response.model_dump(exclude_none=True)
             target_topic = peer_reply_topic or a2a.get_client_response_topic(
                 namespace, client_id
@@ -2576,12 +2576,11 @@ class SamAgentComponent(ComponentBase):
                 "Otherwise, you can start a new topic."
             )
 
-            error_payload = InternalError(
+            final_response = a2a.create_internal_error_response(
                 message=limit_message_text,
+                request_id=jsonrpc_request_id,
                 data={"taskId": logical_task_id, "reason": "llm_call_limit_reached"},
             )
-
-            final_response = JSONRPCResponse(id=jsonrpc_request_id, error=error_payload)
             a2a_payload = final_response.model_dump(exclude_none=True)
 
             target_topic = peer_reply_topic or a2a.get_client_response_topic(
@@ -2667,7 +2666,9 @@ class SamAgentComponent(ComponentBase):
                 metadata={"agent_name": self.get_config("agent_name")},
             )
 
-            final_response = JSONRPCResponse(id=jsonrpc_request_id, result=final_task)
+            final_response = a2a.create_success_response(
+                result=final_task, request_id=jsonrpc_request_id
+            )
             a2a_payload = final_response.model_dump(exclude_none=True)
             target_topic = peer_reply_topic or a2a.get_client_response_topic(
                 namespace, client_id

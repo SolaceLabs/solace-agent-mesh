@@ -35,6 +35,8 @@ from .message import (
     get_text_from_message,
 )
 from .protocol import (
+    create_internal_error_response,
+    create_success_response,
     get_a2a_base_topic,
     get_agent_request_topic,
     get_agent_response_subscription_topic,
@@ -96,6 +98,8 @@ __all__ = [
     "get_task_id_from_message",
     "get_text_from_message",
     # protocol.py
+    "create_internal_error_response",
+    "create_success_response",
     "get_a2a_base_topic",
     "get_agent_request_topic",
     "get_agent_response_subscription_topic",

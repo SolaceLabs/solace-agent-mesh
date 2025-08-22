@@ -8,6 +8,7 @@ from typing import Any, Optional
 from a2a.types import (
     A2ARequest,
     CancelTaskRequest,
+    InternalError,
     JSONRPCError,
     JSONRPCResponse,
     Message,
@@ -222,3 +223,39 @@ def get_response_error(response: JSONRPCResponse) -> Optional[JSONRPCError]:
     if hasattr(response.root, "error"):
         return response.root.error
     return None
+
+
+def create_success_response(
+    result: Any, request_id: Optional[Union[str, int]]
+) -> JSONRPCResponse:
+    """
+    Creates a successful JSON-RPC response object.
+
+    Args:
+        result: The result payload for the response.
+        request_id: The ID of the original request.
+
+    Returns:
+        A new `JSONRPCResponse` object.
+    """
+    return JSONRPCResponse(id=request_id, result=result)
+
+
+def create_internal_error_response(
+    message: str,
+    request_id: Optional[Union[str, int]],
+    data: Optional[Dict[str, Any]] = None,
+) -> JSONRPCResponse:
+    """
+    Creates a JSON-RPC response object for an InternalError.
+
+    Args:
+        message: The error message.
+        request_id: The ID of the original request.
+        data: Optional structured data to include with the error.
+
+    Returns:
+        A new `JSONRPCResponse` object containing an `InternalError`.
+    """
+    error = InternalError(message=message, data=data)
+    return JSONRPCResponse(id=request_id, error=error)
