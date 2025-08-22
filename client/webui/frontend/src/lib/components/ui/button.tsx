@@ -6,8 +6,8 @@ import { cn } from "@/lib/utils";
 
 import {  Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
-const commonButtonStyles =
-    "text-[var(--color-primary-wMain)] hover:text-[var(--color-primary-text-w60)] hover:bg-[var(--color-primary-w10)] dark:text-[var(--color-primary-w20)] dark:hover:text-[var(--color-primary-text-w10)] dark:hover:bg-[var(--color-primary-w60)]";
+const commonTextStyles = "text-[var(--color-primary-wMain)] hover:text-[var(--color-primary-text-w60)] dark:text-[var(--color-primary-w20)] dark:hover:text-[var(--color-primary-text-w10)]";
+const commonButtonStyles = commonTextStyles + " hover:bg-[var(--color-primary-w10)] dark:hover:bg-[var(--color-primary-w60)]";
 
 const buttonVariants = cva(
     "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm font-semibold transition-all disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:hover:bg-transparent dark:disabled:hover:bg-transparent",
@@ -19,7 +19,7 @@ const buttonVariants = cva(
                 outline: commonButtonStyles + " border border-1 border-[var(--color-primary-wMain)]",
                 secondary: commonButtonStyles,
                 ghost: commonButtonStyles,
-                link: "underline-offset-4 hover:underline",
+                link: commonTextStyles + " underline-offset-4 hover:underline",
             },
             size: {
                 default: "h-9 px-5 py-2 has-[>svg]:px-3",
