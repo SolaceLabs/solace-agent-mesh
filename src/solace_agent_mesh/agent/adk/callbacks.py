@@ -1387,20 +1387,10 @@ def solace_llm_invocation_callback(
         )
         return None
 
-    try:
-        from ...common.a2a_protocol import A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY
-
-        callback_context.state[A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY] = False
-        log.debug(
-            "%s Reset %s to False.", log_identifier, A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY
-        )
-    except Exception as e_flag_reset:
-        log.error(
-            "%s Error resetting %s: %s",
-            log_identifier,
-            A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY,
-            e_flag_reset,
-        )
+    callback_context.state[A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY] = False
+    log.debug(
+        "%s Reset %s to False.", log_identifier, A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY
+    )
 
     try:
         a2a_context = callback_context.state.get("a2a_context")
