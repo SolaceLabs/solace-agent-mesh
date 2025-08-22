@@ -40,17 +40,20 @@ from google.genai import types as adk_types
 from google.adk.tools.mcp_tool import MCPToolset
 from a2a.types import (
     AgentCard,
-    TaskState,
+    Artifact as A2AArtifact,
+    CancelTaskRequest,
+    DataPart,
     FilePart,
     FileWithBytes,
     FileWithUri,
-    Part,
-    Artifact as A2AArtifact,
-    TaskStatusUpdateEvent,
-    SendMessageRequest,
+    Message as A2AMessage,
     MessageSendParams,
-    CancelTaskRequest,
+    Part,
+    SendMessageRequest,
     TaskIdParams,
+    TaskState,
+    TaskStatus,
+    TaskStatusUpdateEvent,
 )
 from ...common import a2a
 from ...common.data_parts import AgentProgressUpdateData
@@ -2010,10 +2013,8 @@ class SamAgentComponent(ComponentBase):
                         task_id=logical_task_id,
                         context_id=original_session_id,
                     )
-                    task_status = TaskStatus(
-                        state=TaskState.working,
-                        message=a2a_message,
-                        timestamp=datetime.now(timezone.utc).isoformat(),
+                    task_status = a2a.create_task_status(
+                        state=TaskState.working, message=a2a_message
                     )
                     status_update_event = TaskStatusUpdateEvent(
                         task_id=logical_task_id,
@@ -2420,7 +2421,7 @@ class SamAgentComponent(ComponentBase):
         )
         try:
             # Create the status update event
-            tool_error_data_part = DataPart(
+            tool_error_data_part = a2a.create_data_part(
                 data={
                     "a2a_signal_type": "tool_execution_error",
                     "error_message": str(exception),
