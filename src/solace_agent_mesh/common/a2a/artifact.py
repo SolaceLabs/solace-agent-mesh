@@ -2,14 +2,6 @@
 Helpers for creating and consuming A2A Artifact objects.
 """
 import uuid
-from typing import Any, List, Optional
-
-from a2a.types import (
-    Artifact,
-    DataPart,
-    Part,
-    TextPart,
-)
 
 
 # --- Creation Helpers ---
@@ -82,6 +74,26 @@ def get_artifact_name(artifact: Artifact) -> Optional[str]:
     return artifact.name
 
 
-def get_parts_from_artifact(artifact: Artifact) -> List[Part]:
-    """Safely retrieves the parts from an Artifact object."""
-    return artifact.parts
+from a2a.types import (
+    Artifact,
+    DataPart,
+    FilePart,
+    Part,
+    TextPart,
+)
+from typing import Any, List, Optional, Union
+
+
+def get_parts_from_artifact(
+    artifact: Artifact,
+) -> List[Union[TextPart, DataPart, FilePart]]:
+    """
+    Extracts the raw, unwrapped Part objects (TextPart, DataPart, etc.) from an Artifact.
+
+    Args:
+        artifact: The `Artifact` object.
+
+    Returns:
+        A list of the unwrapped content parts.
+    """
+    return [part.root for part in artifact.parts]
