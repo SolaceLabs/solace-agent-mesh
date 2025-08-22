@@ -41,7 +41,6 @@ from google.adk.tools.mcp_tool import MCPToolset
 from a2a.types import (
     AgentCard,
     Artifact as A2AArtifact,
-    CancelTaskRequest,
     DataPart,
     FilePart,
     FileWithBytes,
@@ -50,7 +49,6 @@ from a2a.types import (
     MessageSendParams,
     Part,
     SendMessageRequest,
-    TaskIdParams,
     TaskState,
     TaskStatus,
     TaskStatusUpdateEvent,
@@ -790,8 +788,9 @@ class SamAgentComponent(ComponentBase):
                     sub_task_id,
                 )
                 task_id_for_peer = sub_task_id.replace(CORRELATION_DATA_PREFIX, "", 1)
-                cancel_params = TaskIdParams(id=task_id_for_peer)
-                cancel_request = CancelTaskRequest(params=cancel_params)
+                cancel_request = a2a.create_cancel_task_request(
+                    task_id=task_id_for_peer
+                )
                 user_props = {"clientId": self.agent_name}
                 peer_topic = self._get_agent_request_topic(peer_agent_name)
                 self._publish_a2a_message(

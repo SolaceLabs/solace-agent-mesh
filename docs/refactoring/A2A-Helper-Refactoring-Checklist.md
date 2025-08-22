@@ -34,7 +34,7 @@ These files have the most significant and direct interaction with `a2a.types` an
 5.  **`src/solace_agent_mesh/agent/sac/component.py`**
     - [x] Replace manual `TaskStatus` creation with helpers in `finalize_task_success`, `finalize_task_canceled`, and `finalize_task_error`.
     - [x] Replace direct `DataPart` and `TextPart` creation with `a2a` part creation helpers.
-    - [ ] Replace manual `CancelTaskRequest` creation with a helper when propagating cancellations.
+    - [x] Replace manual `CancelTaskRequest` creation with a helper when propagating cancellations.
     - [ ] Refactor `_format_final_task_status` to use `a2a.create_agent_parts_message`.
     - [ ] Refactor `finalize_task_success` to use `a2a.create_final_task`.
 
