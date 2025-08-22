@@ -257,14 +257,14 @@ async def handle_a2a_request(component, message: SolaceMessage):
         payload_dict = message.get_payload()
         if not isinstance(payload_dict, dict):
             raise ValueError("Payload is not a dictionary.")
-        jsonrpc_request_id = payload_dict.get("id")
         a2a_request: A2ARequest = A2ARequest.model_validate(payload_dict)
-        jsonrpc_request_id = a2a_request.root.id
+        jsonrpc_request_id = a2a.get_request_id(a2a_request)
 
         # The concept of logical_task_id changes. For Cancel, it's in params.id.
         # For Send, we will generate it.
         logical_task_id = None
-        if isinstance(a2a_request.root, CancelTaskRequest):
+        method = a2a.get_request_method(a2a_request)
+        if method == "tasks/cancel":
             logical_task_id = a2a.get_task_id_from_cancel_request(a2a_request)
             log.info(
                 "%s Received CancelTaskRequest for Task ID: %s.",
@@ -365,16 +365,14 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     ack_e,
                 )
             return None
-        elif isinstance(
-            a2a_request.root, (SendMessageRequest, SendStreamingMessageRequest)
-        ):
+        elif method in ["message/send", "message/stream"]:
             a2a_message = a2a.get_message_from_send_request(a2a_request)
             if not a2a_message:
                 raise ValueError("Could not extract message from SendMessageRequest")
 
             # The gateway/client is the source of truth for the task ID.
             # The agent adopts the ID from the JSON-RPC request envelope.
-            logical_task_id = str(a2a_request.root.id)
+            logical_task_id = str(a2a.get_request_id(a2a_request))
             # The session id is now contextId on the message
             original_session_id = a2a_message.context_id
             message_id = a2a_message.message_id
@@ -407,9 +405,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 )
             user_id = message.get_user_properties().get("userId", "default_user")
             agent_name = component.get_config("agent_name")
-            is_streaming_request = isinstance(
-                a2a_request.root, SendStreamingMessageRequest
-            )
+            is_streaming_request = method == "message/stream"
             host_supports_streaming = component.get_config("supports_streaming", False)
             if is_streaming_request and not host_supports_streaming:
                 raise ValueError(
@@ -589,7 +585,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 final_prompt = f"{task_description}\n\n{artifact_summary}"
 
                 a2a_message_for_adk = a2a_message_for_adk.model_copy(
-                    update={"parts": [Part(root=TextPart(text=final_prompt))]}
+                    update={"parts": [a2a.create_part(a2a.create_text_part(text=final_prompt))]}
                 )
                 log.debug(
                     "%s Generated new prompt for task %s with artifact context.",
@@ -671,7 +667,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
             log.warning(
                 "%s Received unhandled A2A request type: %s. Acknowledging.",
                 component.log_identifier,
-                type(a2a_request.root).__name__,
+                method,
             )
             try:
                 message.call_acknowledgements()
@@ -1041,16 +1037,12 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                     sub_task_id,
                                 )
 
-                                if (
-                                    status_event.status
-                                    and status_event.status.message
-                                    and status_event.status.message.parts
-                                ):
+                                if status_event.status and status_event.status.message:
                                     response_parts_data = []
-                                    for (
-                                        part_wrapper
-                                    ) in status_event.status.message.parts:
-                                        part = part_wrapper.root
+                                    unwrapped_parts = a2a.get_parts_from_message(
+                                        status_event.status.message
+                                    )
+                                    for part in unwrapped_parts:
                                         if isinstance(part, TextPart):
                                             response_parts_data.append(str(part.text))
                                         elif isinstance(part, DataPart):
@@ -1139,8 +1131,8 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                 payload_data,
                                 task_parse_error,
                             )
-                            if not a2a_response.root.error:
-                                a2a_response.root.error = a2a.create_internal_error(
+                            if not a2a.get_response_error(a2a_response):
+                                error = a2a.create_internal_error(
                                     message=f"Failed to parse response from peer agent for sub-task {sub_task_id}",
                                     data={
                                         "original_payload": payload_data.model_dump(
@@ -1149,12 +1141,15 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                         "error": str(task_parse_error),
                                     },
                                 )
+                                a2a_response = a2a.create_error_response(
+                                    error, a2a.get_response_id(a2a_response)
+                                )
                             payload_to_queue = None
                             is_final_response = True
 
                     if (
                         not parsed_successfully
-                        and not a2a_response.root.error
+                        and not a2a.get_response_error(a2a_response)
                         and payload_to_queue is None
                     ):
                         log.error(
@@ -1163,13 +1158,16 @@ async def handle_a2a_response(component, message: SolaceMessage):
                             sub_task_id,
                             payload_data,
                         )
-                        a2a_response.root.error = a2a.create_internal_error(
+                        error = a2a.create_internal_error(
                             message=f"Unknown response structure from peer agent for sub-task {sub_task_id}",
                             data={
                                 "original_payload": payload_data.model_dump(
                                     by_alias=True, exclude_none=True
                                 )
                             },
+                        )
+                        a2a_response = a2a.create_error_response(
+                            error, a2a.get_response_id(a2a_response)
                         )
                         is_final_response = True
 
