@@ -15,8 +15,8 @@ This checklist provides a terse, actionable list of tasks for creating the A2A H
 6.  [x] Create `src/solace_agent_mesh/common/a2a/message.py`.
 7.  [x] Add `Message` and `Part` creation helpers to `a2a/message.py`.
 8.  [x] Add `Message` and `Part` consumption helpers to `a2a/message.py`.
-9.  [ ] Create `src/solace_agent_mesh/common/a2a/task.py`.
-10. [ ] Add `Task` creation and consumption helpers to `a2a/task.py`.
+9.  [x] Create `src/solace_agent_mesh/common/a2a/task.py`.
+10. [x] Add `Task` creation and consumption helpers to `a2a/task.py`.
 11. [ ] Create `src/solace_agent_mesh/common/a2a/artifact.py`.
 12. [ ] Add `Artifact` creation and consumption helpers to `a2a/artifact.py`.
 13. [ ] Create `src/solace_agent_mesh/common/a2a/events.py`.
