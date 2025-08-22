@@ -26,6 +26,8 @@ from a2a.types import (
     TaskStatusUpdateEvent,
 )
 
+from .a2a.protocol import get_gateway_response_topic, get_gateway_status_topic
+
 A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY = "temp:llm_stream_chunks_processed"
 A2A_STATUS_SIGNAL_STORAGE_KEY = "temp:a2a_status_signals_collected"
 
