@@ -2,6 +2,15 @@
 Helpers for creating and consuming A2A Artifact objects.
 """
 import uuid
+from typing import Any, List, Optional, Union
+
+from a2a.types import (
+    Artifact,
+    DataPart,
+    FilePart,
+    Part,
+    TextPart,
+)
 
 
 # --- Creation Helpers ---
@@ -72,16 +81,6 @@ def get_artifact_id(artifact: Artifact) -> str:
 def get_artifact_name(artifact: Artifact) -> Optional[str]:
     """Safely retrieves the name from an Artifact object."""
     return artifact.name
-
-
-from a2a.types import (
-    Artifact,
-    DataPart,
-    FilePart,
-    Part,
-    TextPart,
-)
-from typing import Any, List, Optional, Union
 
 
 def get_parts_from_artifact(
