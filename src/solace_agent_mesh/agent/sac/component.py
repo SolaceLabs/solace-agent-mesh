@@ -2261,13 +2261,12 @@ class SamAgentComponent(ComponentBase):
                     len(task_context.produced_artifacts),
                 )
 
-            final_task = Task(
-                id=logical_task_id,
-                contextId=original_session_id,
-                status=final_status,
+            final_task = a2a.create_final_task(
+                task_id=logical_task_id,
+                context_id=original_session_id,
+                final_status=final_status,
                 artifacts=(final_a2a_artifacts if final_a2a_artifacts else None),
                 metadata=final_task_metadata,
-                kind="task",
             )
             final_response = JSONRPCResponse(id=jsonrpc_request_id, result=final_task)
             a2a_payload = final_response.model_dump(exclude_none=True)
@@ -2383,12 +2382,11 @@ class SamAgentComponent(ComponentBase):
                 message=a2a.create_agent_text_message(text="Task cancelled by request."),
             )
             agent_name = self.get_config("agent_name")
-            final_task = Task(
-                id=logical_task_id,
-                contextId=a2a_context.get("contextId"),
-                status=canceled_status,
+            final_task = a2a.create_final_task(
+                task_id=logical_task_id,
+                context_id=a2a_context.get("contextId"),
+                final_status=canceled_status,
                 metadata={"agent_name": agent_name},
-                kind="task",
             )
             final_response = JSONRPCResponse(id=jsonrpc_request_id, result=final_task)
             a2a_payload = final_response.model_dump(exclude_none=True)
@@ -2681,12 +2679,11 @@ class SamAgentComponent(ComponentBase):
                 ),
             )
 
-            final_task = Task(
-                id=logical_task_id,
-                contextId=a2a_context.get("contextId"),
-                status=failed_status,
+            final_task = a2a.create_final_task(
+                task_id=logical_task_id,
+                context_id=a2a_context.get("contextId"),
+                final_status=failed_status,
                 metadata={"agent_name": self.get_config("agent_name")},
-                kind="task",
             )
 
             final_response = JSONRPCResponse(id=jsonrpc_request_id, result=final_task)
