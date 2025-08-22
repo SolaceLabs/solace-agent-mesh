@@ -2,3 +2,223 @@
 Helpers for A2A protocol-level concerns, such as topic construction and
 parsing of JSON-RPC requests and responses.
 """
+import re
+from typing import Any, Optional
+
+from a2a.types import (
+    A2ARequest,
+    CancelTaskRequest,
+    JSONRPCError,
+    JSONRPCResponse,
+    Message,
+    SendMessageRequest,
+    SendStreamingMessageRequest,
+)
+
+# --- Topic Construction Helpers ---
+
+A2A_VERSION = "v1"
+A2A_BASE_PATH = f"a2a/{A2A_VERSION}"
+
+
+def get_a2a_base_topic(namespace: str) -> str:
+    """Returns the base topic prefix for all A2A communication."""
+    if not namespace:
+        raise ValueError("A2A namespace cannot be empty.")
+    return f"{namespace.rstrip('/')}/{A2A_BASE_PATH}"
+
+
+def get_discovery_topic(namespace: str) -> str:
+    """Returns the topic for agent card discovery."""
+    return f"{get_a2a_base_topic(namespace)}/discovery/agentcards"
+
+
+def get_agent_request_topic(namespace: str, agent_name: str) -> str:
+    """Returns the topic for sending requests to a specific agent."""
+    if not agent_name:
+        raise ValueError("Agent name cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/agent/request/{agent_name}"
+
+
+def get_gateway_status_topic(namespace: str, gateway_id: str, task_id: str) -> str:
+    """
+    Returns the specific topic for an agent to publish status updates TO a specific gateway instance.
+    """
+    if not gateway_id:
+        raise ValueError("Gateway ID cannot be empty.")
+    if not task_id:
+        raise ValueError("Task ID cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/gateway/status/{gateway_id}/{task_id}"
+
+
+def get_gateway_response_topic(namespace: str, gateway_id: str, task_id: str) -> str:
+    """
+    Returns the specific topic for an agent to publish the final response TO a specific gateway instance.
+    Includes task_id for potential correlation/filtering, though gateway might subscribe more broadly.
+    """
+    if not gateway_id:
+        raise ValueError("Gateway ID cannot be empty.")
+    if not task_id:
+        raise ValueError("Task ID cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/gateway/response/{gateway_id}/{task_id}"
+
+
+def get_gateway_status_subscription_topic(namespace: str, self_gateway_id: str) -> str:
+    """
+    Returns the wildcard topic for a gateway instance to subscribe to receive status updates
+    intended for it.
+    """
+    if not self_gateway_id:
+        raise ValueError("Gateway ID is required for gateway status subscription")
+    return f"{get_a2a_base_topic(namespace)}/gateway/status/{self_gateway_id}/>"
+
+
+def get_gateway_response_subscription_topic(
+    namespace: str, self_gateway_id: str
+) -> str:
+    """
+    Returns the wildcard topic for a gateway instance to subscribe to receive final responses
+    intended for it.
+    """
+    if not self_gateway_id:
+        raise ValueError("Gateway ID is required for gateway response subscription")
+    return f"{get_a2a_base_topic(namespace)}/gateway/response/{self_gateway_id}/>"
+
+
+def get_peer_agent_status_topic(
+    namespace: str, delegating_agent_name: str, sub_task_id: str
+) -> str:
+    """
+    Returns the topic for publishing status updates for a sub-task *back to the delegating agent*.
+    This topic includes the delegating agent's name.
+    """
+    if not delegating_agent_name:
+        raise ValueError("delegating_agent_name is required for peer status topic")
+    return (
+        f"{get_a2a_base_topic(namespace)}/agent/status/{delegating_agent_name}/{sub_task_id}"
+    )
+
+
+def get_agent_response_topic(
+    namespace: str, delegating_agent_name: str, sub_task_id: str
+) -> str:
+    """
+    Returns the specific topic for publishing the final response for a sub-task
+    back to the delegating agent. Includes the delegating agent's name.
+    """
+    if not delegating_agent_name:
+        raise ValueError("delegating_agent_name is required for peer response topic")
+    if not sub_task_id:
+        raise ValueError("sub_task_id is required for peer response topic")
+    return f"{get_a2a_base_topic(namespace)}/agent/response/{delegating_agent_name}/{sub_task_id}"
+
+
+def get_agent_response_subscription_topic(namespace: str, self_agent_name: str) -> str:
+    """
+    Returns the wildcard topic for an agent to subscribe to receive responses
+    for tasks it delegated. Includes the agent's own name.
+    """
+    if not self_agent_name:
+        raise ValueError("self_agent_name is required for agent response subscription")
+    return f"{get_a2a_base_topic(namespace)}/agent/response/{self_agent_name}/>"
+
+
+def get_agent_status_subscription_topic(namespace: str, self_agent_name: str) -> str:
+    """
+    Returns the wildcard topic for an agent to subscribe to receive status updates
+    for tasks it delegated. Includes the agent's own name.
+    """
+    if not self_agent_name:
+        raise ValueError("self_agent_name is required for agent status subscription")
+    return f"{get_a2a_base_topic(namespace)}/agent/status/{self_agent_name}/>"
+
+
+def get_client_response_topic(namespace: str, client_id: str) -> str:
+    """Returns the topic for publishing the final response TO a specific client."""
+    if not client_id:
+        raise ValueError("Client ID cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/client/response/{client_id}"
+
+
+def get_client_status_topic(namespace: str, client_id: str, task_id: str) -> str:
+    """
+    Returns the specific topic for publishing status updates for a task *to the original client*.
+    This topic is client and task-specific.
+    """
+    if not client_id:
+        raise ValueError("Client ID cannot be empty.")
+    if not task_id:
+        raise ValueError("Task ID cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/client/status/{client_id}/{task_id}"
+
+
+def get_client_status_subscription_topic(namespace: str, client_id: str) -> str:
+    """
+    Returns the wildcard topic for a client to subscribe to receive status updates
+    for tasks it initiated. Includes the client's own ID.
+    """
+    if not client_id:
+        raise ValueError("Client ID cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/client/status/{client_id}/>"
+
+
+def subscription_to_regex(subscription: str) -> str:
+    """Converts a Solace topic subscription string to a regex pattern."""
+    # Escape regex special characters except for Solace wildcards
+    pattern = re.escape(subscription)
+    # Replace Solace single-level wildcard '*' with regex equivalent '[^/]+'
+    pattern = pattern.replace(r"\*", r"[^/]+")
+    # Replace Solace multi-level wildcard '>' at the end with regex equivalent '.*'
+    if pattern.endswith(r"/>"):
+        pattern = pattern[:-1] + r".*"  # Remove escaped '>' and add '.*'
+    return pattern
+
+
+def topic_matches_subscription(topic: str, subscription: str) -> bool:
+    """Checks if a topic matches a Solace subscription pattern."""
+    regex_pattern = subscription_to_regex(subscription)
+    return re.fullmatch(regex_pattern, topic) is not None
+
+
+# --- JSON-RPC Envelope Helpers ---
+
+
+def get_request_id(request: A2ARequest) -> str | int:
+    """Gets the JSON-RPC request ID from any A2A request object."""
+    return request.root.id
+
+
+def get_request_method(request: A2ARequest) -> str:
+    """Gets the JSON-RPC method name from any A2A request object."""
+    return request.root.method
+
+
+def get_message_from_send_request(request: A2ARequest) -> Optional[Message]:
+    """
+    Safely gets the Message object from a SendMessageRequest or
+    SendStreamingMessageRequest. Returns None for other request types.
+    """
+    if isinstance(request.root, (SendMessageRequest, SendStreamingMessageRequest)):
+        return request.root.params.message
+    return None
+
+
+def get_task_id_from_cancel_request(request: A2ARequest) -> Optional[str]:
+    """Safely gets the task ID from a CancelTaskRequest."""
+    if isinstance(request.root, CancelTaskRequest):
+        return request.root.params.id
+    return None
+
+
+def get_response_result(response: JSONRPCResponse) -> Optional[Any]:
+    """Safely gets the result object from any successful JSON-RPC response."""
+    if hasattr(response.root, "result"):
+        return response.root.result
+    return None
+
+
+def get_response_error(response: JSONRPCResponse) -> Optional[JSONRPCError]:
+    """Safely gets the error object from any JSON-RPC error response."""
+    if hasattr(response.root, "error"):
+        return response.root.error
+    return None

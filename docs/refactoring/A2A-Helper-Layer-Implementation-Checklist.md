@@ -9,9 +9,9 @@ This checklist provides a terse, actionable list of tasks for creating the A2A H
 
 ## Phase 2: Populate Helper Modules
 
-3.  [ ] Create `src/solace_agent_mesh/common/a2a/protocol.py`.
-4.  [ ] Move all topic construction functions from `a2a_protocol.py` to `a2a/protocol.py`.
-5.  [ ] Add JSON-RPC request/response parsing helpers to `a2a/protocol.py`.
+3.  [x] Create `src/solace_agent_mesh/common/a2a/protocol.py`.
+4.  [x] Move all topic construction functions from `a2a_protocol.py` to `a2a/protocol.py`.
+5.  [x] Add JSON-RPC request/response parsing helpers to `a2a/protocol.py`.
 6.  [ ] Create `src/solace_agent_mesh/common/a2a/message.py`.
 7.  [ ] Add `Message` and `Part` creation helpers to `a2a/message.py`.
 8.  [ ] Add `Message` and `Part` consumption helpers to `a2a/message.py`.
