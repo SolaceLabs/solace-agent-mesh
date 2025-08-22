@@ -1188,8 +1188,7 @@ async def handle_a2a_response(component, message: SolaceMessage):
                         )
                         is_final_response = True
 
-                error = a2a.get_response_error(a2a_response)
-                if error:
+                elif error := a2a.get_response_error(a2a_response):
                     log.warning(
                         "%s Received error response from peer for sub-task %s: %s",
                         component.log_identifier,
