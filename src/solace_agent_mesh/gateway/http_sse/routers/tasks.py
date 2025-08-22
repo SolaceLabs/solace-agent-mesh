@@ -291,17 +291,6 @@ async def cancel_agent_task(
 
         return {"message": "Cancellation request sent"}
 
-    except InternalError as e:
-        log.error(
-            "%sInternal error sending cancellation: %s",
-            log_prefix,
-            e.message,
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=e.model_dump(exclude_none=True),
-        )
     except Exception as e:
         log.exception("%sUnexpected error sending cancellation: %s", log_prefix, e)
         error_resp = a2a.create_internal_error(
