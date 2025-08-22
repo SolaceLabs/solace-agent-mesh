@@ -1148,7 +1148,7 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                 task_parse_error,
                             )
                             if not a2a_response.root.error:
-                                a2a_response.root.error = InternalError(
+                                a2a_response.root.error = a2a.create_internal_error(
                                     message=f"Failed to parse response from peer agent for sub-task {sub_task_id}",
                                     data={
                                         "original_payload": payload_data.model_dump(
@@ -1171,7 +1171,7 @@ async def handle_a2a_response(component, message: SolaceMessage):
                             sub_task_id,
                             payload_data,
                         )
-                        a2a_response.root.error = InternalError(
+                        a2a_response.root.error = a2a.create_internal_error(
                             message=f"Unknown response structure from peer agent for sub-task {sub_task_id}",
                             data={
                                 "original_payload": payload_data.model_dump(
