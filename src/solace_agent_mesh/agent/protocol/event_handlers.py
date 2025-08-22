@@ -18,6 +18,7 @@ from a2a.types import (
     AgentCard,
     AgentCapabilities,
     AgentExtension,
+    CancelTaskRequest,
     DataPart,
     GetTaskPushNotificationConfigRequest,
     GetTaskRequest,
