@@ -3,7 +3,7 @@ Helpers for A2A protocol-level concerns, such as topic construction and
 parsing of JSON-RPC requests and responses.
 """
 import re
-from typing import Any, Optional
+from typing import Any, Dict, Optional, Union
 
 from a2a.types import (
     A2ARequest,
