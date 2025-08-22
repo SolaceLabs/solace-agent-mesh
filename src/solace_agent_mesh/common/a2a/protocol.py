@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional, Union
 from a2a.types import (
     A2ARequest,
     CancelTaskRequest,
+    GetTaskSuccessResponse,
     InternalError,
     JSONRPCError,
     JSONRPCResponse,
@@ -16,7 +17,11 @@ from a2a.types import (
     MessageSendParams,
     SendMessageRequest,
     SendStreamingMessageRequest,
+    SendStreamingMessageSuccessResponse,
+    Task,
+    TaskArtifactUpdateEvent,
     TaskIdParams,
+    TaskStatusUpdateEvent,
 )
 
 # --- Topic Construction Helpers ---
@@ -232,16 +237,33 @@ def create_success_response(
     result: Any, request_id: Optional[Union[str, int]]
 ) -> JSONRPCResponse:
     """
-    Creates a successful JSON-RPC response object.
+    Creates a successful JSON-RPC response object by wrapping the result in the
+    appropriate specific success response model based on the result's type.
 
     Args:
-        result: The result payload for the response.
+        result: The result payload (e.g., Task, TaskStatusUpdateEvent).
         request_id: The ID of the original request.
 
     Returns:
         A new `JSONRPCResponse` object.
+
+    Raises:
+        TypeError: If the result type is not a supported A2A model.
     """
-    return JSONRPCResponse(id=request_id, result=result)
+    specific_response: Any
+    if isinstance(result, (TaskStatusUpdateEvent, TaskArtifactUpdateEvent)):
+        specific_response = SendStreamingMessageSuccessResponse(
+            id=request_id, result=result
+        )
+    elif isinstance(result, Task):
+        # When returning a final task, GetTaskSuccessResponse is a suitable choice.
+        specific_response = GetTaskSuccessResponse(id=request_id, result=result)
+    else:
+        raise TypeError(
+            f"Unsupported result type for create_success_response: {type(result).__name__}"
+        )
+
+    return JSONRPCResponse(root=specific_response)
 
 
 def create_internal_error_response(

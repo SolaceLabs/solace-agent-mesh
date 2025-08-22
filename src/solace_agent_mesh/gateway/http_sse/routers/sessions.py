@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 router = APIRouter()
 
 
-@router.post("/new", response_model=JSONRPCResponse)
+@router.post("/new", response_model=JSONRPCSuccessResponse)
 async def create_new_session(
     request: FastAPIRequest,
     session_manager: SessionManager = Depends(get_session_manager),
@@ -49,7 +49,7 @@ async def create_new_session(
         )
 
 
-@router.get("/current", response_model=JSONRPCResponse)
+@router.get("/current", response_model=JSONRPCSuccessResponse)
 async def get_current_session(
     request: FastAPIRequest,
     session_manager: SessionManager = Depends(get_session_manager),
