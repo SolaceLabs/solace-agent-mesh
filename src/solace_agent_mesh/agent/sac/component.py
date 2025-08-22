@@ -2053,44 +2053,80 @@ class SamAgentComponent(ComponentBase):
                     e,
                 )
 
-    def _format_final_task_status(self, last_event: ADKEvent) -> TaskStatus:
+    def _format_final_task_status(
+        self, last_event: Optional[ADKEvent], override_text: Optional[str] = None
+    ) -> TaskStatus:
         """Helper to format the final TaskStatus based on the last ADK event."""
         log.debug(
             "%s Formatting final task status from last ADK event %s",
             self.log_identifier,
-            last_event.id,
+            last_event.id if last_event else "None",
         )
         a2a_state = TaskState.completed
         a2a_parts = []
 
-        if last_event.content and last_event.content.parts:
-            for part in last_event.content.parts:
-                if part.text:
-                    a2a_parts.append(a2a.create_text_part(text=part.text))
-                elif part.function_response:
-                    try:
-                        response_data = part.function_response.response
-                        if isinstance(response_data, dict):
-                            a2a_parts.append(
-                                a2a.create_data_part(
-                                    data=response_data,
-                                    metadata={"tool_name": part.function_response.name},
+        if override_text is not None:
+            a2a_parts.append(a2a.create_text_part(text=override_text))
+            # Add non-text parts from the last event
+            if last_event and last_event.content and last_event.content.parts:
+                for part in last_event.content.parts:
+                    if part.text is None:
+                        if part.function_response:
+                            try:
+                                response_data = part.function_response.response
+                                if isinstance(response_data, dict):
+                                    a2a_parts.append(
+                                        a2a.create_data_part(
+                                            data=response_data,
+                                            metadata={
+                                                "tool_name": part.function_response.name
+                                            },
+                                        )
+                                    )
+                                else:
+                                    a2a_parts.append(
+                                        a2a.create_text_part(
+                                            text=f"Tool {part.function_response.name} result: {str(response_data)}"
+                                        )
+                                    )
+                            except Exception:
+                                a2a_parts.append(
+                                    a2a.create_text_part(
+                                        text=f"[Tool {part.function_response.name} result omitted]"
+                                    )
                                 )
-                            )
-                        else:
+        else:
+            # Original logic
+            if last_event and last_event.content and last_event.content.parts:
+                for part in last_event.content.parts:
+                    if part.text:
+                        a2a_parts.append(a2a.create_text_part(text=part.text))
+                    elif part.function_response:
+                        try:
+                            response_data = part.function_response.response
+                            if isinstance(response_data, dict):
+                                a2a_parts.append(
+                                    a2a.create_data_part(
+                                        data=response_data,
+                                        metadata={
+                                            "tool_name": part.function_response.name
+                                        },
+                                    )
+                                )
+                            else:
+                                a2a_parts.append(
+                                    a2a.create_text_part(
+                                        text=f"Tool {part.function_response.name} result: {str(response_data)}"
+                                    )
+                                )
+                        except Exception:
                             a2a_parts.append(
                                 a2a.create_text_part(
-                                    text=f"Tool {part.function_response.name} result: {str(response_data)}"
+                                    text=f"[Tool {part.function_response.name} result omitted]"
                                 )
                             )
-                    except Exception:
-                        a2a_parts.append(
-                            a2a.create_text_part(
-                                text=f"[Tool {part.function_response.name} result omitted]"
-                            )
-                        )
 
-        elif last_event.actions:
+        if last_event and last_event.actions:
             if last_event.actions.requested_auth_configs:
                 a2a_state = TaskState.input_required
                 a2a_parts.append(
@@ -2159,45 +2195,8 @@ class SamAgentComponent(ComponentBase):
                         logical_task_id,
                         len(aggregated_text.encode("utf-8")),
                     )
-
-                final_a2a_parts = []
-                if aggregated_text:
-                    final_a2a_parts.append(a2a.create_text_part(text=aggregated_text))
-
-                if last_event and last_event.content and last_event.content.parts:
-                    for part in last_event.content.parts:
-                        if part.text is None:
-                            if part.function_response:
-                                try:
-                                    response_data = part.function_response.response
-                                    if isinstance(response_data, dict):
-                                        final_a2a_parts.append(
-                                            a2a.create_data_part(
-                                                data=response_data,
-                                                metadata={
-                                                    "tool_name": part.function_response.name
-                                                },
-                                            )
-                                        )
-                                    else:
-                                        final_a2a_parts.append(
-                                            a2a.create_text_part(
-                                                text=f"Tool {part.function_response.name} result: {str(response_data)}"
-                                            )
-                                        )
-                                except Exception:
-                                    final_a2a_parts.append(
-                                        a2a.create_text_part(
-                                            text=f"[Tool {part.function_response.name} result omitted]"
-                                        )
-                                    )
-
-                if not final_a2a_parts:
-                    final_a2a_parts.append(a2a.create_text_part(text=""))
-
-                final_status = a2a.create_task_status(
-                    state=TaskState.completed,
-                    message=a2a.create_agent_parts_message(parts=final_a2a_parts),
+                final_status = self._format_final_task_status(
+                    last_event, override_text=aggregated_text
                 )
             else:
                 if last_event:
