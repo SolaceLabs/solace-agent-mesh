@@ -2197,7 +2197,6 @@ class SamAgentComponent(ComponentBase):
                 if not final_a2a_parts:
                     final_a2a_parts.append(TextPart(text=""))
 
-                wrapped_final_parts = [Part(root=p) for p in final_a2a_parts]
                 final_status = TaskStatus(
                     state=TaskState.completed,
                     message=a2a.create_agent_parts_message(parts=final_a2a_parts),

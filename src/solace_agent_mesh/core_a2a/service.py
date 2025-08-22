@@ -17,7 +17,7 @@ from a2a.types import (
     Message as A2AMessage,
     AgentCard,
 )
-from ..common.a2a_protocol import get_agent_request_topic
+from ..common.a2a import get_agent_request_topic
 from ..common.agent_registry import AgentRegistry
 
 
