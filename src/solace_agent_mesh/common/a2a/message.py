@@ -2,12 +2,11 @@
 Helpers for creating and consuming A2A Message and Part objects.
 """
 import uuid
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional
 
 from a2a.types import (
     DataPart,
-    FileWithBytes,
-    FileWithUri,
+    FilePart,
     Message,
     Part,
     Role,
@@ -121,30 +120,30 @@ def get_text_from_message(message: Message, delimiter: str = "\n") -> str:
     return message_sdk_utils.get_message_text(message, delimiter=delimiter)
 
 
-def get_data_parts_from_message(message: Message) -> list[dict[str, Any]]:
+def get_data_parts_from_message(message: Message) -> List[DataPart]:
     """
-    Extracts dictionary data from all DataPart objects in a Message's parts.
+    Extracts DataPart objects from a Message's parts.
 
     Args:
         message: The `Message` object.
 
     Returns:
-        A list of dictionaries containing the data from any `DataPart` objects found.
+        A list of `DataPart` objects found.
     """
-    return message_sdk_utils.get_data_parts(message.parts)
+    return [part.root for part in message.parts if isinstance(part.root, DataPart)]
 
 
-def get_file_parts_from_message(message: Message) -> list[Union[FileWithBytes, FileWithUri]]:
+def get_file_parts_from_message(message: Message) -> List[FilePart]:
     """
-    Extracts file data from all FilePart objects in a Message's parts.
+    Extracts FilePart objects from a Message's parts.
 
     Args:
         message: The `Message` object.
 
     Returns:
-        A list of `FileWithBytes` or `FileWithUri` objects containing the file data.
+        A list of `FilePart` objects found.
     """
-    return message_sdk_utils.get_file_parts(message.parts)
+    return [part.root for part in message.parts if isinstance(part.root, FilePart)]
 
 
 def get_message_id(message: Message) -> str:
