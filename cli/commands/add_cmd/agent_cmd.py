@@ -303,7 +303,7 @@ def create_agent_config(
     collected_options["namespace"] = ask_if_not_provided(
         collected_options,
         "namespace",
-        "Enter A2A namespace (e.g., myorg/dev, or leave for ${NAMESPACE})",
+        "Enter namespace (e.g., myorg/dev, or leave for ${NAMESPACE})",
         AGENT_DEFAULTS["namespace"],
         skip_interactive,
     )
@@ -538,7 +538,7 @@ def create_agent_config(
     is_flag=True,
     help="Skip interactive prompts and use defaults (CLI mode only).",
 )
-@click.option("--namespace", help="A2A namespace (e.g., myorg/dev).")
+@click.option("--namespace", help="namespace (e.g., myorg/dev).")
 @click.option("--supports-streaming", type=bool, help="Enable streaming support.")
 @click.option(
     "--model-type",

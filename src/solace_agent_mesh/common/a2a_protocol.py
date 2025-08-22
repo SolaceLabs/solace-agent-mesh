@@ -34,7 +34,7 @@ A2A_STATUS_SIGNAL_STORAGE_KEY = "temp:a2a_status_signals_collected"
 def get_a2a_base_topic(namespace: str) -> str:
     """Returns the base topic prefix for all A2A communication."""
     if not namespace:
-        raise ValueError("A2A namespace cannot be empty.")
+        raise ValueError("namespace cannot be empty.")
     return f"{namespace.rstrip('/')}/{A2A_BASE_PATH}"
 
 

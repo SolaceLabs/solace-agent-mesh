@@ -189,7 +189,7 @@ def get_publish_a2a_func(
 def get_namespace(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> str:
-    """FastAPI dependency to get the A2A namespace."""
+    """FastAPI dependency to get the namespace."""
     log.debug("[Dependencies] get_namespace called")
     return component.get_namespace()
 

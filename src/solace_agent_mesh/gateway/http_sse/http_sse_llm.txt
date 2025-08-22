@@ -51,7 +51,7 @@ This design creates a clean separation of concerns, where the web layer (FastAPI
         -   `get_agent_registry() -> AgentRegistry`: Returns the shared `AgentRegistry` instance.
         -   `get_core_a2a_service() -> CoreA2AService`: Returns the core service for creating A2A messages.
         -   `get_shared_artifact_service() -> Optional[BaseArtifactService]`: Returns the service for artifact storage.
-        -   `get_namespace() -> str`: Returns the configured A2A namespace.
+        -   `get_namespace() -> str`: Returns the configured namespace.
         -   `get_gateway_id() -> str`: Returns the unique ID of this gateway.
     -   **Core Logic Methods:**
         -   `publish_a2a(topic: str, payload: Dict, user_properties: Optional[Dict] = None)`: Publishes a message onto the A2A messaging fabric. This is the primary method for sending data to agents.
