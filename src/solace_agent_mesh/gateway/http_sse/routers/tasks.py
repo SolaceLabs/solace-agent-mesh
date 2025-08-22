@@ -26,8 +26,6 @@ from a2a.types import (
     SendStreamingMessageRequest,
     SendMessageSuccessResponse,
     SendStreamingMessageSuccessResponse,
-    InternalError,
-    InvalidRequestError,
 )
 from ....common import a2a
 
@@ -92,7 +90,8 @@ async def send_task_to_agent(
             "%sUsing ClientID: %s, SessionID: %s", log_prefix, client_id, session_id
         )
 
-        a2a_parts = payload.params.message.parts
+        # Use the helper to get the unwrapped parts from the incoming message.
+        a2a_parts = a2a.get_parts_from_message(payload.params.message)
 
         external_req_ctx = {
             "app_name_for_artifacts": component.gateway_id,
@@ -122,29 +121,17 @@ async def send_task_to_agent(
             result=task_object, request_id=payload.id
         )
 
-    except InvalidRequestError as e:
-        log.warning("%sInvalid request: %s", log_prefix, e.message, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=e.model_dump(exclude_none=True),
-        )
     except PermissionError as pe:
         log.warning("%sPermission denied: %s", log_prefix, str(pe))
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(pe),
         )
-    except InternalError as e:
-        log.error(
-            "%sInternal error submitting task: %s", log_prefix, e.message, exc_info=True
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=e.model_dump(exclude_none=True),
-        )
     except Exception as e:
         log.exception("%sUnexpected error submitting task: %s", log_prefix, e)
-        error_resp = InternalError(message="Unexpected server error: %s" % e)
+        error_resp = a2a.create_internal_error(
+            message="Unexpected server error: %s" % e
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_resp.model_dump(exclude_none=True),
@@ -199,7 +186,8 @@ async def subscribe_task_from_agent(
             "%sUsing ClientID: %s, SessionID: %s", log_prefix, client_id, session_id
         )
 
-        a2a_parts = payload.params.message.parts
+        # Use the helper to get the unwrapped parts from the incoming message.
+        a2a_parts = a2a.get_parts_from_message(payload.params.message)
 
         external_req_ctx = {
             "app_name_for_artifacts": component.gateway_id,
@@ -232,32 +220,17 @@ async def subscribe_task_from_agent(
             result=task_object, request_id=payload.id
         )
 
-    except InvalidRequestError as e:
-        log.warning("%sInvalid request: %s", log_prefix, e.message, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=e.model_dump(exclude_none=True),
-        )
     except PermissionError as pe:
         log.warning("%sPermission denied: %s", log_prefix, str(pe))
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(pe),
         )
-    except InternalError as e:
-        log.error(
-            "%sInternal error submitting streaming task: %s",
-            log_prefix,
-            e.message,
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=e.model_dump(exclude_none=True),
-        )
     except Exception as e:
         log.exception("%sUnexpected error submitting streaming task: %s", log_prefix, e)
-        error_resp = InternalError(message="Unexpected server error: %s" % e)
+        error_resp = a2a.create_internal_error(
+            message="Unexpected server error: %s" % e
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_resp.model_dump(exclude_none=True),
@@ -318,14 +291,6 @@ async def cancel_agent_task(
 
         return {"message": "Cancellation request sent"}
 
-    except InvalidRequestError as e:
-        log.warning(
-            "%sInvalid cancellation request: %s", log_prefix, e.message, exc_info=True
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=e.model_dump(exclude_none=True),
-        )
     except InternalError as e:
         log.error(
             "%sInternal error sending cancellation: %s",
@@ -339,7 +304,9 @@ async def cancel_agent_task(
         )
     except Exception as e:
         log.exception("%sUnexpected error sending cancellation: %s", log_prefix, e)
-        error_resp = InternalError(message="Unexpected server error: %s" % e)
+        error_resp = a2a.create_internal_error(
+            message="Unexpected server error: %s" % e
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_resp.model_dump(exclude_none=True),

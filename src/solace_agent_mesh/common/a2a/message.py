@@ -235,3 +235,16 @@ def get_context_id(message: Message) -> Optional[str]:
 def get_task_id(message: Message) -> Optional[str]:
     """Safely retrieves the task ID from a Message object."""
     return message.task_id
+
+
+def get_parts_from_message(message: Message) -> List[Union[TextPart, DataPart, FilePart]]:
+    """
+    Extracts the raw, unwrapped Part objects (TextPart, DataPart, etc.) from a Message.
+
+    Args:
+        message: The `Message` object.
+
+    Returns:
+        A list of the unwrapped content parts.
+    """
+    return [part.root for part in message.parts]

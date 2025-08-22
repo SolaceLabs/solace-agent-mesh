@@ -35,6 +35,7 @@ from .message import (
     get_data_parts_from_message,
     get_file_parts_from_message,
     get_message_id,
+    get_parts_from_message,
     get_task_id as get_task_id_from_message,  # Alias to avoid name clash
     get_text_from_message,
 )
@@ -113,6 +114,7 @@ __all__ = [
     "get_data_parts_from_message",
     "get_file_parts_from_message",
     "get_message_id",
+    "get_parts_from_message",
     "get_task_id_from_message",
     "get_text_from_message",
     # protocol.py
