@@ -40,6 +40,7 @@ from a2a.types import (
     TaskStatusUpdateEvent,
     TextPart,
 )
+from ...common import a2a
 from ...common.a2a import (
     get_agent_request_topic,
     get_discovery_topic,

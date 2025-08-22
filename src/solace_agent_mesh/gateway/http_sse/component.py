@@ -52,9 +52,7 @@ from a2a.types import (
     TaskStatusUpdateEvent,
     TextPart,
 )
-from ...common.a2a import (
-    _topic_matches_subscription,
-)
+from ...common import a2a
 
 from ...agent.utils.artifact_helpers import save_artifact_with_metadata
 from ...common.middleware.config_resolver import ConfigResolver

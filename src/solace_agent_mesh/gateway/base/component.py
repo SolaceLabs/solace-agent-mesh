@@ -371,7 +371,7 @@ class BaseGatewayComponent(ComponentBase):
             a2a_request = SendMessageRequest(id=task_id, params=send_params)
 
         payload = a2a_request.model_dump(by_alias=True, exclude_none=True)
-        target_topic = get_agent_request_topic(self.namespace, target_agent_name)
+        target_topic = a2a.get_agent_request_topic(self.namespace, target_agent_name)
 
         user_properties = {
             "clientId": self.gateway_id,
@@ -380,11 +380,11 @@ class BaseGatewayComponent(ComponentBase):
         if user_config:
             user_properties["a2aUserConfig"] = user_config
 
-        user_properties["replyTo"] = get_gateway_response_topic(
+        user_properties["replyTo"] = a2a.get_gateway_response_topic(
             self.namespace, self.gateway_id, task_id
         )
         if is_streaming:
-            user_properties["a2aStatusTopic"] = get_gateway_status_topic(
+            user_properties["a2aStatusTopic"] = a2a.get_gateway_status_topic(
                 self.namespace, self.gateway_id, task_id
             )
 
@@ -656,7 +656,7 @@ class BaseGatewayComponent(ComponentBase):
         self, topic: str, subscription_pattern: str
     ) -> Optional[str]:
         """Extracts the task ID from the end of a topic string based on the subscription."""
-        base_regex_str = subscription_to_regex(subscription_pattern).replace(r".*", "")
+        base_regex_str = a2a.subscription_to_regex(subscription_pattern).replace(r".*", "")
         match = re.match(base_regex_str, topic)
         if match:
             task_id_part = topic[match.end() :]
@@ -1233,36 +1233,36 @@ class BaseGatewayComponent(ComponentBase):
                     processed_successfully = False
                     continue
 
-                if topic_matches_subscription(
-                    topic, get_discovery_topic(self.namespace)
+                if a2a.topic_matches_subscription(
+                    topic, a2a.get_discovery_topic(self.namespace)
                 ):
                     processed_successfully = await self._handle_discovery_message(
                         payload
                     )
-                elif topic_matches_subscription(
+                elif a2a.topic_matches_subscription(
                     topic,
-                    get_gateway_response_subscription_topic(
+                    a2a.get_gateway_response_subscription_topic(
                         self.namespace, self.gateway_id
                     ),
-                ) or topic_matches_subscription(
+                ) or a2a.topic_matches_subscription(
                     topic,
-                    get_gateway_status_subscription_topic(
+                    a2a.get_gateway_status_subscription_topic(
                         self.namespace, self.gateway_id
                     ),
                 ):
                     task_id_from_topic: Optional[str] = None
-                    response_sub = get_gateway_response_subscription_topic(
+                    response_sub = a2a.get_gateway_response_subscription_topic(
                         self.namespace, self.gateway_id
                     )
-                    status_sub = get_gateway_status_subscription_topic(
+                    status_sub = a2a.get_gateway_status_subscription_topic(
                         self.namespace, self.gateway_id
                     )
 
-                    if topic_matches_subscription(topic, response_sub):
+                    if a2a.topic_matches_subscription(topic, response_sub):
                         task_id_from_topic = self._extract_task_id_from_topic(
                             topic, response_sub
                         )
-                    elif topic_matches_subscription(topic, status_sub):
+                    elif a2a.topic_matches_subscription(topic, status_sub):
                         task_id_from_topic = self._extract_task_id_from_topic(
                             topic, status_sub
                         )
