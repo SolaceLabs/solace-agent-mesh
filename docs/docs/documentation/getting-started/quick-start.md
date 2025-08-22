@@ -5,21 +5,17 @@ sidebar_position: 30
 
 # Quick Start
 
-:::note[Plugins]
-Looking to get started with plugins? For more information, see the [Plugins](../concepts/plugins.md).
-:::
-
 To get started with Solace Agent Mesh, you can either use the preset configuration from the Docker image or create your own complete project.
 
-## Quick Start
+## Use Preset Agents
 
 ### Prerequisites
 1. You must have Docker (or Podman) installed.
 2. You must have an available AI provider and API key. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 4, Google Gemini 2.5 pro, or OpenAI GPT-5.
 
-### Run The Preset App
+### Run Preset Agents
 
-You can run pre-made SAM applications to quickly get started with Solace Agent Mesh without needing to set up a project from scratch. 
+You can run pre-made SAM agents to quickly get started with Solace Agent Mesh without needing to set up a project from scratch. 
 
 ```sh
 docker run --rm -it -p 8000:8000 --platform linux/amd64  --env-file <your-env-file-path> solace/solace-agent-mesh:latest
@@ -49,6 +45,10 @@ docker run --rm -it --platform linux/amd64  -p 8000:8000 -v $(pwd):/app \
 :::
 
 ## Create a Project
+
+:::note[Plugins]
+Looking to get started with plugins? For more information, see the [Plugins](../concepts/plugins.md).
+:::
 
 ### Prerequisites
 
