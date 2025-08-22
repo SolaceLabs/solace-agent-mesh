@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 
@@ -9,8 +9,11 @@ class Project(Base):
     __tablename__ = "projects"
     id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
-    user_id = Column(String, nullable=False)
+    user_id = Column(String, nullable=True)  # None for global projects
     description = Column(String, nullable=True)
+    is_global = Column(Boolean, default=False)
+    template_id = Column(String, ForeignKey("projects.id"), nullable=True)  # Links to original template
+    created_by_user_id = Column(String, nullable=False)  # Who created this project
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     sessions = relationship(
@@ -23,6 +26,9 @@ class Project(Base):
             "name": self.name,
             "user_id": self.user_id,
             "description": self.description,
+            "is_global": self.is_global,
+            "template_id": self.template_id,
+            "created_by_user_id": self.created_by_user_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
