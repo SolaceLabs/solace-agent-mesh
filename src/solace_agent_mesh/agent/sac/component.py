@@ -2098,9 +2098,9 @@ class SamAgentComponent(ComponentBase):
                 )
 
         if not a2a_parts:
-            a2a_parts.append(a2a.create_text_part(text=""))
-
-        a2a_message = a2a.create_agent_parts_message(parts=a2a_parts)
+            a2a_message = a2a.create_agent_text_message(text="")
+        else:
+            a2a_message = a2a.create_agent_parts_message(parts=a2a_parts)
         return a2a.create_task_status(state=a2a_state, message=a2a_message)
 
     async def finalize_task_success(self, a2a_context: Dict):
