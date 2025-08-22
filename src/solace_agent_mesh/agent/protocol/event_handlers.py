@@ -3,10 +3,8 @@ Contains event handling logic for the A2A_ADK_HostComponent.
 """
 
 import json
-import yaml
 import asyncio
-import uuid
-from typing import Union, TYPE_CHECKING, List, Dict, Any
+from typing import TYPE_CHECKING, Dict, Any
 import fnmatch
 from solace_ai_connector.common.log import log
 from solace_ai_connector.common.message import Message as SolaceMessage
@@ -21,14 +19,11 @@ from a2a.types import (
     CancelTaskRequest,
     DataPart,
     JSONRPCResponse,
-    Message as A2AMessage,
     Part,
     SendMessageRequest,
     SendStreamingMessageRequest,
     Task,
     TaskArtifactUpdateEvent,
-    TaskState,
-    TaskStatus,
     TaskStatusUpdateEvent,
     TextPart,
 )
@@ -44,7 +39,6 @@ from ...common.a2a import (
 )
 from ...agent.utils.artifact_helpers import (
     generate_artifact_metadata_summary,
-    load_artifact_content_or_metadata,
 )
 from ...agent.adk.runner import run_adk_async_task_thread_wrapper
 from ..sac.task_execution_context import TaskExecutionContext
@@ -53,8 +47,6 @@ from google.adk.agents import RunConfig
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
 from google.adk.agents.run_config import StreamingMode
-from google.adk.events import Event as ADKEvent
-from google.genai import types as adk_types
 
 
 def _register_peer_artifacts_in_parent_context(
@@ -115,7 +107,9 @@ async def process_event(component, event: Event):
                 )
             else:
                 log.warning(
-                    f"{component.log_identifier} InvocationMonitor not available in component for event on topic {topic}"
+                    "%s InvocationMonitor not available in component for event on topic %s",
+                    component.log_identifier,
+                    topic,
                 )
             namespace = component.get_config("namespace")
             agent_name = component.get_config("agent_name")
@@ -939,13 +933,11 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                         message.call_acknowledgements()
                                         return
 
-                                    main_logical_task_id = (
-                                        original_task_context.get("logical_task_id")
+                                    main_logical_task_id = original_task_context.get(
+                                        "logical_task_id"
                                     )
                                     original_jsonrpc_request_id = (
-                                        original_task_context.get(
-                                            "jsonrpc_request_id"
-                                        )
+                                        original_task_context.get("jsonrpc_request_id")
                                     )
                                     main_context_id = original_task_context.get(
                                         "contextId"
