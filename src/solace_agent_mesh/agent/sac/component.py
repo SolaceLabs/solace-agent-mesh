@@ -1282,7 +1282,7 @@ class SamAgentComponent(ComponentBase):
             return
 
         try:
-            a2a_message = new_agent_text_message(
+            a2a_message = a2a.create_agent_text_message(
                 text=text_content,
                 task_id=logical_task_id,
                 context_id=a2a_context.get("contextId"),
@@ -1349,13 +1349,11 @@ class SamAgentComponent(ComponentBase):
                 metadata={"source_embed_type": "status_update"},
             )
             part_wrapper = Part(root=signal_data_part)
-            # TODO: Create a helper for creating agent messages from parts
-            a2a_message = a2a.create_user_message(
+            a2a_message = a2a.create_agent_parts_message(
                 parts=[part_wrapper],
                 task_id=logical_task_id,
                 context_id=a2a_context.get("contextId"),
             )
-            a2a_message.role = "agent"
             task_status = TaskStatus(
                 state=TaskState.working,
                 message=a2a_message,
@@ -1530,7 +1528,7 @@ class SamAgentComponent(ComponentBase):
             )
             payload_to_publish = rpc_response.model_dump(exclude_none=True)
 
-            target_topic = a2a_context.get("statusTopic") or get_gateway_status_topic(
+            target_topic = a2a_context.get("statusTopic") or a2a.get_gateway_status_topic(
                 self.namespace, self.get_gateway_id(), logical_task_id
             )
 
@@ -1992,7 +1990,7 @@ class SamAgentComponent(ComponentBase):
         namespace = self.get_config("namespace")
         gateway_id = self.get_gateway_id()
 
-        artifact_topic = peer_status_topic or get_gateway_status_topic(
+        artifact_topic = peer_status_topic or a2a.get_gateway_status_topic(
             namespace, gateway_id, logical_task_id
         )
 
@@ -2038,7 +2036,7 @@ class SamAgentComponent(ComponentBase):
 
                 if a2a_file_part:
                     part_wrapper = Part(root=a2a_file_part)
-                    a2a_message = new_agent_parts_message(
+                    a2a_message = a2a.create_agent_parts_message(
                         parts=[part_wrapper],
                         task_id=logical_task_id,
                         context_id=original_session_id,
@@ -2132,9 +2130,7 @@ class SamAgentComponent(ComponentBase):
             a2a_parts.append(TextPart(text=""))
 
         wrapped_parts = [Part(root=p) for p in a2a_parts]
-        # TODO: Create a helper for creating agent messages from parts
-        a2a_message = a2a.create_user_message(parts=wrapped_parts)
-        a2a_message.role = "agent"
+        a2a_message = a2a.create_agent_parts_message(parts=wrapped_parts)
         return TaskStatus(state=a2a_state, message=a2a_message)
 
     async def finalize_task_success(self, a2a_context: Dict):
@@ -2232,7 +2228,7 @@ class SamAgentComponent(ComponentBase):
                 wrapped_final_parts = [Part(root=p) for p in final_a2a_parts]
                 final_status = TaskStatus(
                     state=TaskState.completed,
-                    message=new_agent_parts_message(parts=wrapped_final_parts),
+                    message=a2a.create_agent_parts_message(parts=wrapped_final_parts),
                 )
             else:
                 if last_event:
@@ -2275,7 +2271,7 @@ class SamAgentComponent(ComponentBase):
             )
             final_response = JSONRPCResponse(id=jsonrpc_request_id, result=final_task)
             a2a_payload = final_response.model_dump(exclude_none=True)
-            target_topic = peer_reply_topic or get_client_response_topic(
+            target_topic = peer_reply_topic or a2a.get_client_response_topic(
                 namespace, client_id
             )
 
@@ -2349,7 +2345,7 @@ class SamAgentComponent(ComponentBase):
                         data={"taskId": logical_task_id},
                     ),
                 )
-                target_topic = peer_reply_topic or get_client_response_topic(
+                target_topic = peer_reply_topic or a2a.get_client_response_topic(
                     namespace, client_id
                 )
                 self._publish_a2a_message(
@@ -2396,7 +2392,7 @@ class SamAgentComponent(ComponentBase):
             )
             final_response = JSONRPCResponse(id=jsonrpc_request_id, result=final_task)
             a2a_payload = final_response.model_dump(exclude_none=True)
-            target_topic = peer_reply_topic or get_client_response_topic(
+            target_topic = peer_reply_topic or a2a.get_client_response_topic(
                 namespace, client_id
             )
 
@@ -2465,7 +2461,7 @@ class SamAgentComponent(ComponentBase):
             )
 
             part_wrapper = Part(root=tool_error_data_part)
-            status_message = new_agent_parts_message(
+            status_message = a2a.create_agent_parts_message(
                 parts=[part_wrapper],
                 task_id=logical_task_id,
                 context_id=a2a_context.get("contextId"),
@@ -2609,7 +2605,7 @@ class SamAgentComponent(ComponentBase):
             final_response = JSONRPCResponse(id=jsonrpc_request_id, error=error_payload)
             a2a_payload = final_response.model_dump(exclude_none=True)
 
-            target_topic = peer_reply_topic or get_client_response_topic(
+            target_topic = peer_reply_topic or a2a.get_client_response_topic(
                 namespace, client_id
             )
 
@@ -2695,7 +2691,7 @@ class SamAgentComponent(ComponentBase):
 
             final_response = JSONRPCResponse(id=jsonrpc_request_id, result=final_task)
             a2a_payload = final_response.model_dump(exclude_none=True)
-            target_topic = peer_reply_topic or get_client_response_topic(
+            target_topic = peer_reply_topic or a2a.get_client_response_topic(
                 namespace, client_id
             )
 

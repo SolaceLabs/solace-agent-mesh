@@ -23,6 +23,7 @@ from .events import (
 )
 from .message import (
     create_agent_data_message,
+    create_agent_parts_message,
     create_agent_text_message,
     create_user_message,
     get_context_id,
@@ -83,6 +84,7 @@ __all__ = [
     "get_message_from_status_update",
     # message.py
     "create_agent_data_message",
+    "create_agent_parts_message",
     "create_agent_text_message",
     "create_user_message",
     "get_context_id",

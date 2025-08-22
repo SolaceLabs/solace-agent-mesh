@@ -75,6 +75,34 @@ def create_agent_data_message(
     )
 
 
+def create_agent_parts_message(
+    parts: List[Part],
+    task_id: Optional[str] = None,
+    context_id: Optional[str] = None,
+    message_id: Optional[str] = None,
+) -> Message:
+    """
+    Creates a new agent message containing a list of Parts.
+
+    Args:
+        parts: The list of `Part` objects for the message content.
+        task_id: The task ID for the message.
+        context_id: The context ID for the message.
+        message_id: The message ID. If None, a new UUID is generated.
+
+    Returns:
+        A new `Message` object with role 'agent'.
+    """
+    return Message(
+        role=Role.agent,
+        parts=parts,
+        message_id=message_id or str(uuid.uuid4().hex),
+        task_id=task_id,
+        context_id=context_id,
+        kind="message",
+    )
+
+
 def create_user_message(
     parts: List[Part],
     task_id: Optional[str] = None,
