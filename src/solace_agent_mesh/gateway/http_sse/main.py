@@ -23,7 +23,7 @@ from solace_ai_connector.common.log import log
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 
-from .api.controllers import session_router, task_router, user_router
+from .api.controllers import session_router, task_router, user_router, project_router
 from .data.persistence.database_service import DatabaseService
 
 # Global database service instance
@@ -378,6 +378,7 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
     app.include_router(session_router, prefix=api_prefix, tags=["Sessions"])
     app.include_router(user_router, prefix=f"{api_prefix}/users", tags=["Users"])
     app.include_router(task_router, prefix=f"{api_prefix}/tasks", tags=["Tasks"])
+    app.include_router(project_router, prefix=api_prefix, tags=["Projects"])
     log.info("3-tiered architecture controllers mounted")
 
     # Mount remaining routers that haven't been migrated yet
