@@ -52,7 +52,7 @@ from a2a.types import (
     TaskStatusUpdateEvent,
     TextPart,
 )
-from ...common.a2a_protocol import (
+from ...common.a2a import (
     _topic_matches_subscription,
 )
 
