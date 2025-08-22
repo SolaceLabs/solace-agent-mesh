@@ -2,7 +2,7 @@
 Helpers for creating and consuming A2A Message and Part objects.
 """
 import uuid
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from a2a.types import (
     DataPart,
@@ -51,6 +51,7 @@ def create_agent_data_message(
     task_id: Optional[str] = None,
     context_id: Optional[str] = None,
     message_id: Optional[str] = None,
+    part_metadata: Optional[Dict[str, Any]] = None,
 ) -> Message:
     """
     Creates a new agent message containing a single DataPart.
@@ -60,11 +61,12 @@ def create_agent_data_message(
         task_id: The task ID for the message.
         context_id: The context ID for the message.
         message_id: The message ID. If None, a new UUID is generated.
+        part_metadata: Optional metadata for the DataPart.
 
     Returns:
         A new `Message` object with role 'agent'.
     """
-    data_part = DataPart(data=data)
+    data_part = DataPart(data=data, metadata=part_metadata)
     return Message(
         role=Role.agent,
         parts=[Part(root=data_part)],

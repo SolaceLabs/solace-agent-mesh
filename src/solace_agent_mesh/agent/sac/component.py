@@ -57,6 +57,7 @@ from a2a.types import (
     TaskIdParams,
 )
 from ...common import a2a
+from ...common.data_parts import AgentProgressUpdateData
 from ...common.a2a.translation import format_and_route_adk_event
 from ...agent.utils.config_parser import resolve_instruction_provider
 from ...agent.utils.artifact_helpers import (
@@ -1331,26 +1332,13 @@ class SamAgentComponent(ComponentBase):
             return
 
         try:
-            signal_data_part = DataPart(
-                data={
-                    "type": "agent_progress_update",
-                    "status_text": status_text,
-                },
-                metadata={"source_embed_type": "status_update"},
-            )
-            part_wrapper = Part(root=signal_data_part)
-            a2a_message = a2a.create_agent_parts_message(
-                parts=[part_wrapper],
+            progress_data = AgentProgressUpdateData(status_text=status_text)
+            status_update_event = a2a.create_data_signal_event(
                 task_id=logical_task_id,
                 context_id=a2a_context.get("contextId"),
-            )
-            event_metadata = {"agent_name": self.agent_name}
-            status_update_event = a2a.create_status_update(
-                task_id=logical_task_id,
-                context_id=a2a_context.get("contextId"),
-                message=a2a_message,
-                is_final=False,
-                metadata=event_metadata,
+                signal_data=progress_data,
+                agent_name=self.agent_name,
+                part_metadata={"source_embed_type": "status_update"},
             )
 
             await self._publish_status_update_with_buffer_flush(

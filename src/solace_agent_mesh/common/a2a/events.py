@@ -27,6 +27,7 @@ def create_data_signal_event(
     context_id: str,
     signal_data: SignalData,
     agent_name: str,
+    part_metadata: Optional[Dict[str, Any]] = None,
 ) -> TaskStatusUpdateEvent:
     """
     Creates a TaskStatusUpdateEvent from a specific signal data model.
@@ -39,12 +40,16 @@ def create_data_signal_event(
         context_id: The context ID for the task.
         signal_data: The Pydantic model for the signal (e.g., ToolInvocationStartData).
         agent_name: The name of the agent sending the signal.
+        part_metadata: Optional metadata for the DataPart.
 
     Returns:
         A new `TaskStatusUpdateEvent` object containing the signal.
     """
     a2a_message = message_helpers.create_agent_data_message(
-        data=signal_data.model_dump(), task_id=task_id, context_id=context_id
+        data=signal_data.model_dump(),
+        task_id=task_id,
+        context_id=context_id,
+        part_metadata=part_metadata,
     )
     return create_status_update(
         task_id=task_id,
