@@ -436,7 +436,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                     "solace_topics", set()
                                 )
                                 if any(
-                                    _topic_matches_subscription(topic, pattern)
+                                    a2a.topic_matches_subscription(topic, pattern)
                                     for pattern in subscribed_topics_for_stream
                                 ):
                                     is_permitted = True
