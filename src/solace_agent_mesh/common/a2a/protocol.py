@@ -222,6 +222,13 @@ def get_task_id_from_cancel_request(request: A2ARequest) -> Optional[str]:
     return None
 
 
+def get_response_id(response: JSONRPCResponse) -> Optional[Union[str, int]]:
+    """Safely gets the ID from any JSON-RPC response object."""
+    if hasattr(response.root, "id"):
+        return response.root.id
+    return None
+
+
 def get_response_result(response: JSONRPCResponse) -> Optional[Any]:
     """Safely gets the result object from any successful JSON-RPC response."""
     if hasattr(response.root, "result"):

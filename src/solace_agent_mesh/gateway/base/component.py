@@ -521,15 +521,11 @@ class BaseGatewayComponent(ComponentBase):
                         signal_type,
                     )
 
-    async def _resolve_uri_in_file_part(self, part: A2APart):
+    async def _resolve_uri_in_file_part(self, file_part: FilePart):
         """
-        Checks if a part is a FilePart with a resolvable URI and, if so,
+        Checks if a FilePart has a resolvable URI and, if so,
         resolves it and mutates the part in-place.
         """
-        if not isinstance(part.root, FilePart):
-            return
-
-        file_part = part.root
         if not (
             isinstance(file_part.file, FileWithUri)
             and file_part.file.uri
@@ -595,37 +591,44 @@ class BaseGatewayComponent(ComponentBase):
                 "%s Error resolving artifact URI '%s': %s", log_id_prefix, uri, e
             )
 
-    async def _resolve_uris_in_parts_list(self, parts: List[A2APart]):
-        """Iterates over a list of A2APart objects and resolves any FilePart URIs."""
+    async def _resolve_uris_in_unwrapped_parts_list(
+        self, parts: List[Union[TextPart, DataPart, FilePart]]
+    ):
+        """Iterates over a list of unwrapped part objects and resolves any FilePart URIs."""
         if not parts:
             return
         for part in parts:
-            await self._resolve_uri_in_file_part(part)
+            if isinstance(part, FilePart):
+                await self._resolve_uri_in_file_part(part)
 
     async def _resolve_uris_in_payload(self, parsed_event: Any):
         """
         Dispatcher that calls the appropriate targeted URI resolver based on the
         Pydantic model type of the event.
         """
+        parts_to_resolve: List[Union[TextPart, DataPart, FilePart]] = []
         if isinstance(parsed_event, TaskStatusUpdateEvent):
-            if parsed_event.status and parsed_event.status.message:
-                await self._resolve_uris_in_parts_list(
-                    parsed_event.status.message.parts
-                )
+            message = a2a.get_message_from_status_update(parsed_event)
+            if message:
+                parts_to_resolve.extend(a2a.get_parts_from_message(message))
         elif isinstance(parsed_event, TaskArtifactUpdateEvent):
-            if parsed_event.artifact:
-                await self._resolve_uris_in_parts_list(parsed_event.artifact.parts)
+            artifact = a2a.get_artifact_from_artifact_update(parsed_event)
+            if artifact:
+                parts_to_resolve.extend(a2a.get_parts_from_artifact(artifact))
         elif isinstance(parsed_event, Task):
             if parsed_event.status and parsed_event.status.message:
-                await self._resolve_uris_in_parts_list(
-                    parsed_event.status.message.parts
+                parts_to_resolve.extend(
+                    a2a.get_parts_from_message(parsed_event.status.message)
                 )
             if parsed_event.artifacts:
                 for artifact in parsed_event.artifacts:
-                    await self._resolve_uris_in_parts_list(artifact.parts)
+                    parts_to_resolve.extend(a2a.get_parts_from_artifact(artifact))
+
+        if parts_to_resolve:
+            await self._resolve_uris_in_unwrapped_parts_list(parts_to_resolve)
         else:
             log.debug(
-                "%s Payload type '%s' does not support targeted URI resolution. Skipping.",
+                "%s Payload type '%s' did not yield any parts for URI resolution. Skipping.",
                 self.log_identifier,
                 type(parsed_event).__name__,
             )
@@ -1098,7 +1101,7 @@ class BaseGatewayComponent(ComponentBase):
             )
             return False
 
-        original_rpc_id = str(rpc_response.root.id)
+        original_rpc_id = str(a2a.get_response_id(rpc_response))
 
         external_request_context = self.task_context_manager.get_context(
             task_id_from_topic
