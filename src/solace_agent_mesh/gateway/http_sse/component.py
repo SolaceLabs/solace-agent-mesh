@@ -1295,7 +1295,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
     async def _translate_external_input(
         self, external_event_data: Dict[str, Any]
-    ) -> Tuple[str, List[A2APart], Dict[str, Any]]:
+    ) -> Tuple[str, List[Union[TextPart, DataPart, FilePart]], Dict[str, Any]]:
         """
         Translates raw HTTP request data (from FastAPI form) into A2A task parameters.
 
@@ -1307,7 +1307,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
         Returns:
             A tuple containing:
             - target_agent_name (str): The name of the A2A agent to target.
-            - a2a_parts (List[A2APart]): A list of A2A Part objects for the message.
+            - a2a_parts (List[Union[TextPart, DataPart, FilePart]]): A list of unwrapped A2A Part objects.
             - external_request_context (Dict[str, Any]): Context for TaskContextManager.
         """
         log_id_prefix = f"{self.log_identifier}[TranslateInput]"
@@ -1330,7 +1330,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "Client ID or A2A Session ID is missing in external_event_data."
             )
 
-        a2a_parts: List[A2APart] = []
+        a2a_parts: List[Union[TextPart, DataPart, FilePart]] = []
 
         if files and self.shared_artifact_service:
             file_metadata_summary_parts = []
@@ -1409,7 +1409,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 )
 
         if user_message:
-            a2a_parts.append(A2APart(root=TextPart(text=user_message)))
+            a2a_parts.append(TextPart(text=user_message))
 
         external_request_context = {
             "app_name_for_artifacts": self.gateway_id,

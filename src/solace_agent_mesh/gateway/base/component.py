@@ -324,7 +324,7 @@ class BaseGatewayComponent(ComponentBase):
         )
         if not isinstance(a2a_parts, list):
             a2a_parts = list(a2a_parts)
-        a2a_parts.insert(0, A2APart(root=timestamp_header_part))
+        a2a_parts.insert(0, timestamp_header_part)
         log.debug("%s Prepended timestamp to a2a_parts.", log_id_prefix)
 
         a2a_session_id = external_request_context.get("a2a_session_id")
@@ -354,13 +354,10 @@ class BaseGatewayComponent(ComponentBase):
         # This correlation ID is used by the gateway to track the task
         task_id = f"gdk-task-{uuid.uuid4().hex}"
 
-        a2a_message = A2AMessage(
-            role="user",
+        a2a_message = a2a.create_user_message(
             parts=a2a_parts,
             metadata=a2a_metadata,
-            message_id=uuid.uuid4().hex,
             context_id=a2a_session_id,
-            kind="message",
         )
 
         send_params = MessageSendParams(message=a2a_message)
@@ -482,15 +479,12 @@ class BaseGatewayComponent(ComponentBase):
                         )
                         continue
                     try:
-                        signal_data_part = DataPart(
+                        signal_a2a_message = a2a.create_agent_data_message(
                             data={
                                 "type": "agent_progress_update",
                                 "status_text": status_text,
                             },
-                            metadata={"source": "gateway_signal"},
-                        )
-                        signal_a2a_message = A2AMessage(
-                            role="agent", parts=[A2APart(root=signal_data_part)]
+                            part_metadata={"source": "gateway_signal"},
                         )
                         a2a_task_id_for_signal = external_request_context.get(
                             "a2a_task_id_for_event", original_rpc_id
