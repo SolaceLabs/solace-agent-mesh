@@ -40,14 +40,10 @@ from google.genai import types as adk_types
 from google.adk.tools.mcp_tool import MCPToolset
 from a2a.types import (
     AgentCard,
-    TaskStatus,
     TaskState,
-    Message as A2AMessage,
-    TextPart,
     FilePart,
     FileWithBytes,
     FileWithUri,
-    DataPart,
     Part,
     Artifact as A2AArtifact,
     TaskStatusUpdateEvent,
@@ -2070,26 +2066,26 @@ class SamAgentComponent(ComponentBase):
         if last_event.content and last_event.content.parts:
             for part in last_event.content.parts:
                 if part.text:
-                    a2a_parts.append(TextPart(text=part.text))
+                    a2a_parts.append(a2a.create_text_part(text=part.text))
                 elif part.function_response:
                     try:
                         response_data = part.function_response.response
                         if isinstance(response_data, dict):
                             a2a_parts.append(
-                                DataPart(
+                                a2a.create_data_part(
                                     data=response_data,
                                     metadata={"tool_name": part.function_response.name},
                                 )
                             )
                         else:
                             a2a_parts.append(
-                                TextPart(
+                                a2a.create_text_part(
                                     text=f"Tool {part.function_response.name} result: {str(response_data)}"
                                 )
                             )
                     except Exception:
                         a2a_parts.append(
-                            TextPart(
+                            a2a.create_text_part(
                                 text=f"[Tool {part.function_response.name} result omitted]"
                             )
                         )
@@ -2097,13 +2093,15 @@ class SamAgentComponent(ComponentBase):
         elif last_event.actions:
             if last_event.actions.requested_auth_configs:
                 a2a_state = TaskState.input_required
-                a2a_parts.append(TextPart(text="[Agent requires input/authentication]"))
+                a2a_parts.append(
+                    a2a.create_text_part(text="[Agent requires input/authentication]")
+                )
 
         if not a2a_parts:
-            a2a_parts.append(TextPart(text=""))
+            a2a_parts.append(a2a.create_text_part(text=""))
 
         a2a_message = a2a.create_agent_parts_message(parts=a2a_parts)
-        return TaskStatus(state=a2a_state, message=a2a_message)
+        return a2a.create_task_status(state=a2a_state, message=a2a_message)
 
     async def finalize_task_success(self, a2a_context: Dict):
         """
@@ -2164,7 +2162,7 @@ class SamAgentComponent(ComponentBase):
 
                 final_a2a_parts = []
                 if aggregated_text:
-                    final_a2a_parts.append(TextPart(text=aggregated_text))
+                    final_a2a_parts.append(a2a.create_text_part(text=aggregated_text))
 
                 if last_event and last_event.content and last_event.content.parts:
                     for part in last_event.content.parts:
@@ -2174,7 +2172,7 @@ class SamAgentComponent(ComponentBase):
                                     response_data = part.function_response.response
                                     if isinstance(response_data, dict):
                                         final_a2a_parts.append(
-                                            DataPart(
+                                            a2a.create_data_part(
                                                 data=response_data,
                                                 metadata={
                                                     "tool_name": part.function_response.name
@@ -2183,21 +2181,21 @@ class SamAgentComponent(ComponentBase):
                                         )
                                     else:
                                         final_a2a_parts.append(
-                                            TextPart(
+                                            a2a.create_text_part(
                                                 text=f"Tool {part.function_response.name} result: {str(response_data)}"
                                             )
                                         )
                                 except Exception:
                                     final_a2a_parts.append(
-                                        TextPart(
+                                        a2a.create_text_part(
                                             text=f"[Tool {part.function_response.name} result omitted]"
                                         )
                                     )
 
                 if not final_a2a_parts:
-                    final_a2a_parts.append(TextPart(text=""))
+                    final_a2a_parts.append(a2a.create_text_part(text=""))
 
-                final_status = TaskStatus(
+                final_status = a2a.create_task_status(
                     state=TaskState.completed,
                     message=a2a.create_agent_parts_message(parts=final_a2a_parts),
                 )
@@ -2205,13 +2203,10 @@ class SamAgentComponent(ComponentBase):
                 if last_event:
                     final_status = self._format_final_task_status(last_event)
                 else:
-                    final_status = TaskStatus(
+                    final_status = a2a.create_task_status(
                         state=TaskState.completed,
-                        message=A2AMessage(
-                            role="agent",
-                            parts=[TextPart(text="Task completed.")],
-                            messageId=uuid.uuid4().hex,
-                            kind="message",
+                        message=a2a.create_agent_text_message(
+                            text="Task completed."
                         ),
                     )
 
@@ -2348,7 +2343,7 @@ class SamAgentComponent(ComponentBase):
             peer_reply_topic = a2a_context.get("replyToTopic")
             namespace = self.get_config("namespace")
 
-            canceled_status = TaskStatus(
+            canceled_status = a2a.create_task_status(
                 state=TaskState.canceled,
                 message=a2a.create_agent_text_message(
                     text="Task cancelled by request."
@@ -2638,7 +2633,7 @@ class SamAgentComponent(ComponentBase):
             peer_reply_topic = a2a_context.get("replyToTopic")
             namespace = self.get_config("namespace")
 
-            failed_status = TaskStatus(
+            failed_status = a2a.create_task_status(
                 state=TaskState.failed,
                 message=a2a.create_agent_text_message(
                     text="An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."

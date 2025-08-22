@@ -1,6 +1,7 @@
 """
 Helpers for creating and consuming A2A Task objects.
 """
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from a2a.types import (
@@ -39,6 +40,27 @@ def create_initial_task(
         status=initial_status,
         kind="task",
         metadata={"agent_name": agent_name},
+    )
+
+
+def create_task_status(
+    state: TaskState,
+    message: Optional[Message] = None,
+) -> TaskStatus:
+    """
+    Creates a TaskStatus object.
+
+    Args:
+        state: The state of the task.
+        message: An optional message providing more details.
+
+    Returns:
+        A new `TaskStatus` object with a current timestamp.
+    """
+    return TaskStatus(
+        state=state,
+        message=message,
+        timestamp=datetime.now(timezone.utc).isoformat(),
     )
 
 

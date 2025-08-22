@@ -2,7 +2,6 @@
 Helpers for creating and consuming A2A asynchronous event objects, such as
 TaskStatusUpdateEvent and TaskArtifactUpdateEvent.
 """
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from a2a.types import (
@@ -16,6 +15,7 @@ from a2a.types import (
 )
 
 from . import message as message_helpers
+from . import task as task_helpers
 from ...common.data_parts import SignalData
 
 
@@ -80,10 +80,9 @@ def create_status_update(
     Returns:
         A new `TaskStatusUpdateEvent` object.
     """
-    task_status = TaskStatus(
+    task_status = task_helpers.create_task_status(
         state=TaskState.working,
         message=message,
-        timestamp=datetime.now(timezone.utc).isoformat(),
     )
     return TaskStatusUpdateEvent(
         task_id=task_id,

@@ -71,6 +71,7 @@ from .protocol import (
 from .task import (
     create_final_task,
     create_initial_task,
+    create_task_status,
     get_task_artifacts,
     get_task_context_id,
     get_task_history,
@@ -141,6 +142,7 @@ __all__ = [
     # task.py
     "create_final_task",
     "create_initial_task",
+    "create_task_status",
     "get_task_artifacts",
     "get_task_context_id",
     "get_task_history",
