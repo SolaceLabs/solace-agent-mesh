@@ -11,10 +11,10 @@ from pydantic import BaseModel, Field
 from solace_ai_connector.common.log import log
 
 from a2a.types import (
-    Message as A2AMessage,
     TextPart,
     AgentCard,
 )
+from ...common import a2a
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...common.exceptions import MessageSizeExceededError
 
@@ -236,13 +236,10 @@ class PeerAgentTool(BaseTool):
             a2a_metadata["function_call_id"] = tool_context.function_call_id
             a2a_metadata["agent_name"] = self.target_agent_name
 
-            a2a_message = A2AMessage(
-                role="user",
+            a2a_message = a2a.create_user_message(
                 parts=a2a_message_parts,
                 metadata=a2a_metadata,
-                message_id=uuid.uuid4().hex,
                 context_id=original_task_context.get("contextId"),
-                kind="message",
             )
 
             correlation_data = {

@@ -2,7 +2,7 @@
 Helpers for creating and consuming A2A Message and Part objects.
 """
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from a2a.types import (
     DataPart,
@@ -78,7 +78,7 @@ def create_agent_data_message(
 
 
 def create_agent_parts_message(
-    parts: List[Part],
+    parts: List[Union[TextPart, DataPart, FilePart]],
     task_id: Optional[str] = None,
     context_id: Optional[str] = None,
     message_id: Optional[str] = None,
@@ -87,7 +87,7 @@ def create_agent_parts_message(
     Creates a new agent message containing a list of Parts.
 
     Args:
-        parts: The list of `Part` objects for the message content.
+        parts: The list of content `Part` objects (e.g. TextPart, DataPart).
         task_id: The task ID for the message.
         context_id: The context ID for the message.
         message_id: The message ID. If None, a new UUID is generated.
@@ -95,9 +95,10 @@ def create_agent_parts_message(
     Returns:
         A new `Message` object with role 'agent'.
     """
+    wrapped_parts = [Part(root=p) for p in parts]
     return Message(
         role=Role.agent,
-        parts=parts,
+        parts=wrapped_parts,
         message_id=message_id or str(uuid.uuid4().hex),
         task_id=task_id,
         context_id=context_id,
@@ -106,29 +107,33 @@ def create_agent_parts_message(
 
 
 def create_user_message(
-    parts: List[Part],
+    parts: List[Union[TextPart, DataPart, FilePart]],
     task_id: Optional[str] = None,
     context_id: Optional[str] = None,
     message_id: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> Message:
     """
     Creates a new user message containing a list of Parts.
 
     Args:
-        parts: The list of `Part` objects for the message content.
+        parts: The list of content `Part` objects (e.g. TextPart, DataPart).
         task_id: The task ID for the message.
         context_id: The context ID for the message.
         message_id: The message ID. If None, a new UUID is generated.
+        metadata: Optional metadata for the message.
 
     Returns:
         A new `Message` object with role 'user'.
     """
+    wrapped_parts = [Part(root=p) for p in parts]
     return Message(
         role=Role.user,
-        parts=parts,
+        parts=wrapped_parts,
         message_id=message_id or str(uuid.uuid4().hex),
         task_id=task_id,
         context_id=context_id,
+        metadata=metadata,
         kind="message",
     )
 

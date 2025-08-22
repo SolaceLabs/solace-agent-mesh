@@ -1495,9 +1495,8 @@ def solace_llm_response_callback(
         # This signal doesn't have a dedicated Pydantic model, so we create the
         # DataPart directly and use the lower-level helpers.
         data_part = DataPart(data=llm_response_data)
-        part_wrapper = Part(root=data_part)
         a2a_message = a2a.create_agent_parts_message(
-            parts=[part_wrapper],
+            parts=[data_part],
             task_id=logical_task_id,
             context_id=a2a_context.get("contextId"),
         )
