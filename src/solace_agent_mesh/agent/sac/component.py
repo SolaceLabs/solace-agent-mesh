@@ -60,17 +60,8 @@ from a2a.types import (
     CancelTaskRequest,
     TaskIdParams,
 )
-from a2a.utils.message import new_agent_text_message, new_agent_parts_message
-from ...common.a2a_protocol import (
-    get_a2a_base_topic,
-    get_discovery_topic,
-    get_agent_request_topic,
-    get_agent_response_topic,
-    get_client_response_topic,
-    get_peer_agent_status_topic,
-    format_and_route_adk_event,
-    get_gateway_status_topic,
-)
+from ...common import a2a
+from ...common.a2a.translation import format_and_route_adk_event
 from ...agent.utils.config_parser import resolve_instruction_provider
 from ...agent.utils.artifact_helpers import (
     get_latest_artifact_version,
@@ -1358,11 +1349,13 @@ class SamAgentComponent(ComponentBase):
                 metadata={"source_embed_type": "status_update"},
             )
             part_wrapper = Part(root=signal_data_part)
-            a2a_message = new_agent_parts_message(
+            # TODO: Create a helper for creating agent messages from parts
+            a2a_message = a2a.create_user_message(
                 parts=[part_wrapper],
                 task_id=logical_task_id,
                 context_id=a2a_context.get("contextId"),
             )
+            a2a_message.role = "agent"
             task_status = TaskStatus(
                 state=TaskState.working,
                 message=a2a_message,
@@ -2139,7 +2132,9 @@ class SamAgentComponent(ComponentBase):
             a2a_parts.append(TextPart(text=""))
 
         wrapped_parts = [Part(root=p) for p in a2a_parts]
-        a2a_message = new_agent_parts_message(parts=wrapped_parts)
+        # TODO: Create a helper for creating agent messages from parts
+        a2a_message = a2a.create_user_message(parts=wrapped_parts)
+        a2a_message.role = "agent"
         return TaskStatus(state=a2a_state, message=a2a_message)
 
     async def finalize_task_success(self, a2a_context: Dict):
@@ -2389,7 +2384,7 @@ class SamAgentComponent(ComponentBase):
 
             canceled_status = TaskStatus(
                 state=TaskState.canceled,
-                message=new_agent_text_message(text="Task cancelled by request."),
+                message=a2a.create_agent_text_message(text="Task cancelled by request."),
             )
             agent_name = self.get_config("agent_name")
             final_task = Task(
@@ -2685,7 +2680,7 @@ class SamAgentComponent(ComponentBase):
 
             failed_status = TaskStatus(
                 state=TaskState.failed,
-                message=new_agent_text_message(
+                message=a2a.create_agent_text_message(
                     text="An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
                 ),
             )
@@ -2919,21 +2914,21 @@ class SamAgentComponent(ComponentBase):
 
     def _get_a2a_base_topic(self) -> str:
         """Returns the base topic prefix using helper."""
-        return get_a2a_base_topic(self.namespace)
+        return a2a.get_a2a_base_topic(self.namespace)
 
     def _get_discovery_topic(self) -> str:
         """Returns the discovery topic using helper."""
-        return get_discovery_topic(self.namespace)
+        return a2a.get_discovery_topic(self.namespace)
 
     def _get_agent_request_topic(self, agent_id: str) -> str:
         """Returns the agent request topic using helper."""
-        return get_agent_request_topic(self.namespace, agent_id)
+        return a2a.get_agent_request_topic(self.namespace, agent_id)
 
     def _get_agent_response_topic(
         self, delegating_agent_name: str, sub_task_id: str
     ) -> str:
         """Returns the agent response topic using helper."""
-        return get_agent_response_topic(
+        return a2a.get_agent_response_topic(
             self.namespace, delegating_agent_name, sub_task_id
         )
 
@@ -2941,13 +2936,13 @@ class SamAgentComponent(ComponentBase):
         self, delegating_agent_name: str, sub_task_id: str
     ) -> str:
         """Returns the peer agent status topic using helper."""
-        return get_peer_agent_status_topic(
+        return a2a.get_peer_agent_status_topic(
             self.namespace, delegating_agent_name, sub_task_id
         )
 
     def _get_client_response_topic(self, client_id: str) -> str:
         """Returns the client response topic using helper."""
-        return get_client_response_topic(self.namespace, client_id)
+        return a2a.get_client_response_topic(self.namespace, client_id)
 
     def _publish_a2a_message(
         self, payload: Dict, topic: str, user_properties: Optional[Dict] = None
