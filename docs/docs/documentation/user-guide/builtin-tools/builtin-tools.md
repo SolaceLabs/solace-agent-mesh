@@ -11,7 +11,7 @@ This guide provides instructions for enabling and configuring the built-in tools
 
 Built-in tools are pre-packaged functionalities that can be granted to agents without requiring custom Python code. These tools address common operations such as file management, data analysis, web requests, and multi-modal generation.
 
-Solace Agent Mesh framework manages these tools through a central `tool_registry`, which is responsible for loading the tools, generating instructional prompts for the Large Language Model (LLM), and handling their execution in a consistent manner.
+The Solace Agent Mesh framework manages these tools through a central `tool_registry`, which is responsible for loading the tools, generating instructional prompts for the Large Language Model (LLM), and handling their execution in a consistent manner.
 
 ## Configuration Methods
 
@@ -52,7 +52,7 @@ tools:
 ```
 
 :::info Note
-Solace Agent Mesh framework automatically handles duplicate tool registrations. If a tool group is enabled and a tool from that group is also listed individually, the tool is only loaded once.
+The Solace Agent Mesh framework automatically handles duplicate tool registrations. If a tool group is enabled and a tool from that group is also listed individually, the tool is only loaded once.
 :::
 
 ## Available Tool Groups and Tools

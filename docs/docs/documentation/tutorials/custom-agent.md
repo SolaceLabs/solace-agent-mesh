@@ -5,7 +5,7 @@ sidebar_position: 5
 
 # Build Your Own Agent
 
-This tutorial shows you how to build a sophisticated weather agent using Solace Agent Mesh framework. Learn how to integrate with external APIs, manage resources properly, and create production-ready agents.
+This tutorial shows you how to build a sophisticated weather agent using the Solace Agent Mesh framework. Learn how to integrate with external APIs, manage resources properly, and create production-ready agents.
 
 ## Overview
 

@@ -52,7 +52,7 @@ Looking to get started with plugins? For more information, see the [Plugins](../
 
 ### Prerequisites
 
-1. You must have installed Solace Agent Mesh CLI. If not, see the [Installation](./installation.md) page.
+1. You must have installed the Solace Agent Mesh CLI. If not, see the [Installation](./installation.md) page.
 2. You must have activated the virtual environment you created following the [Installation](./installation.md) page. For containerized deployment such as Docker, ignore this prerequisite.
 3. You must have an available AI provider and API key. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 4, Google Gemini 2.5 pro, or OpenAI GPT-5.
 

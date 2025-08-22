@@ -14,7 +14,7 @@ The SAM CLI is installed as part of the package for Solace Agent Mesh. For more 
 
 :::tip[CLI Tips]
 
-- Solace Agent Mesh CLI comes with a short alias of `sam` which can be used in place of `solace-agent-mesh`.
+- The Solace Agent Mesh CLI comes with a short alias of `sam` which can be used in place of `solace-agent-mesh`.
 - You can determine the version of the SAM CLI by running `solace-agent-mesh --version`.
 - You can get help on any command by running `solace-agent-mesh [COMMAND] --help`.
   :::

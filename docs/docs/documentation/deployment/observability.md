@@ -9,7 +9,7 @@ Solace Agent Mesh provides a comprehensive set of tools for real-time system mon
 
 ## Workflow Viewer
 
-Solace Agent Mesh web UI includes a built-in workflow viewer, which provides an interactive web-based UI for each user query and its corresponding response. This visualizer allows you to:
+The Solace Agent Mesh web UI includes a built-in workflow viewer, which provides an interactive web-based UI for each user query and its corresponding response. This visualizer allows you to:
 
 - Track the complete life cycle of a stimulus (request) as it moves through the system.
 - Visualize the flow of requests/responses among agents, the user gateway and LLM.
@@ -19,7 +19,7 @@ To launch the workflow viewer for a specific query/response pair, click the **Vi
 
 ## Agents View
 
-Solace Agent Mesh web UI also includes an **Agents** view, which provides a comprehensive overview of all registered agents in the system in real-time. This view allows you to:
+The Solace Agent Mesh web UI also includes an **Agents** view, which provides a comprehensive overview of all registered agents in the system in real-time. This view allows you to:
 - See all agents currently registered in the system.
 - View agents description, capabilities, and skills
 - View agent hierarchical topology and relationships.

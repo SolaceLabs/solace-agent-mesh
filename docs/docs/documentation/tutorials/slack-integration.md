@@ -141,7 +141,7 @@ Launch the Slack gateway with:
 sam run configs/gateways/slack-bot.yaml
 ```
 
-For detailed information about available SAM CLI commands, see [Solace Agent Mesh CLI](../concepts/cli.md).
+For detailed information about available SAM CLI commands, see [the Solace Agent Mesh CLI](../concepts/cli.md).
 
 ## Testing the Installation
 
