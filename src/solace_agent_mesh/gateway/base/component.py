@@ -1120,11 +1120,14 @@ class BaseGatewayComponent(ComponentBase):
         parsed_event_obj: Union[
             Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent, JSONRPCError, None
         ] = None
-        if hasattr(rpc_response.root, "error") and rpc_response.root.error:
-            parsed_event_obj = rpc_response.root.error
-        elif hasattr(rpc_response.root, "result") and rpc_response.root.result:
-            # The result is already a parsed Pydantic model.
-            parsed_event_obj = rpc_response.root.result
+        error = a2a.get_response_error(rpc_response)
+        if error:
+            parsed_event_obj = error
+        else:
+            result = a2a.get_response_result(rpc_response)
+            if result:
+                # The result is already a parsed Pydantic model.
+                parsed_event_obj = result
 
             # Validate task ID match
             actual_task_id = None
@@ -1153,11 +1156,7 @@ class BaseGatewayComponent(ComponentBase):
                 "%s Failed to parse or validate A2A event from RPC result for task %s. Result: %s",
                 self.log_identifier,
                 task_id_from_topic,
-                (
-                    rpc_response.root.result
-                    if hasattr(rpc_response.root, "result")
-                    else "N/A"
-                ),
+                a2a.get_response_result(rpc_response) or "N/A",
             )
             generic_error = JSONRPCError(
                 code=-32000, message="Invalid event structure received from agent."

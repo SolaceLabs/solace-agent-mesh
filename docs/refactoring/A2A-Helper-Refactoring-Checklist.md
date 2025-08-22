@@ -15,8 +15,8 @@ These files have the most significant and direct interaction with `a2a.types` an
     - [x] Refactor `handle_a2a_response` to use `a2a.get_data_parts_from_status_update` instead of manual iteration.
 
 2.  **`src/solace_agent_mesh/gateway/base/component.py`**
-    - [ ] Replace `JSONRPCResponse.model_validate(payload)` with helpers where applicable.
-    - [ ] Replace direct access to `rpc_response.root.result` and `rpc_response.root.error` with `a2a.get_response_result` and `a2a.get_response_error`.
+    - [x] Replace `JSONRPCResponse.model_validate(payload)` with helpers where applicable.
+    - [x] Replace direct access to `rpc_response.root.result` and `rpc_response.root.error` with `a2a.get_response_result` and `a2a.get_response_error`.
     - [ ] Refactor `submit_a2a_task` to use helpers for creating `SendMessageRequest` and `SendStreamingMessageRequest`.
     - [ ] Refactor `_translate_external_input` to use `a2a` part creation helpers instead of direct instantiation.
     - [ ] Refactor `_process_parsed_a2a_event` to use helpers for creating `TaskStatusUpdateEvent` and `TaskArtifactUpdateEvent`.
