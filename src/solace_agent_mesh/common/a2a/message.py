@@ -82,6 +82,7 @@ def create_agent_parts_message(
     task_id: Optional[str] = None,
     context_id: Optional[str] = None,
     message_id: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> Message:
     """
     Creates a new agent message containing a list of Parts.
@@ -91,6 +92,7 @@ def create_agent_parts_message(
         task_id: The task ID for the message.
         context_id: The context ID for the message.
         message_id: The message ID. If None, a new UUID is generated.
+        metadata: Optional metadata for the message.
 
     Returns:
         A new `Message` object with role 'agent'.
@@ -102,6 +104,7 @@ def create_agent_parts_message(
         message_id=message_id or str(uuid.uuid4().hex),
         task_id=task_id,
         context_id=context_id,
+        metadata=metadata,
         kind="message",
     )
 

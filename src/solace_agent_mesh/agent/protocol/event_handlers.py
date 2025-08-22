@@ -704,16 +704,9 @@ async def handle_a2a_request(component, message: SolaceMessage):
             e,
         )
         error_data = {"taskId": logical_task_id} if logical_task_id else None
-        if isinstance(e, ValueError):
-            error_response = JSONRPCResponse(
-                id=jsonrpc_request_id,
-                error=InvalidRequestError(message=str(e), data=error_data),
-            )
-        else:
-            error_response = JSONRPCResponse(
-                id=jsonrpc_request_id,
-                error=JSONParseError(message=str(e), data=error_data),
-            )
+        error_response = a2a.create_internal_error_response(
+            message=str(e), request_id=jsonrpc_request_id, data=error_data
+        )
 
         target_topic = reply_topic_from_peer or (
             get_client_response_topic(namespace, client_id) if client_id else None
@@ -744,12 +737,10 @@ async def handle_a2a_request(component, message: SolaceMessage):
         log.exception(
             "%s Unexpected error handling A2A request: %s", component.log_identifier, e
         )
-        error_response = JSONRPCResponse(
-            id=jsonrpc_request_id,
-            error=InternalError(
-                message=f"Unexpected server error: {e}",
-                data={"taskId": logical_task_id},
-            ),
+        error_response = a2a.create_internal_error_response(
+            message=f"Unexpected server error: {e}",
+            request_id=jsonrpc_request_id,
+            data={"taskId": logical_task_id},
         )
         target_topic = reply_topic_from_peer or (
             get_client_response_topic(namespace, client_id) if client_id else None
@@ -878,8 +869,9 @@ async def handle_a2a_response(component, message: SolaceMessage):
             try:
                 a2a_response = JSONRPCResponse.model_validate(payload_dict)
 
-                if a2a_response.root.result:
-                    payload_data = a2a_response.root.result
+                result = a2a.get_response_result(a2a_response)
+                if result:
+                    payload_data = result
 
                     # Store the peer's task ID if we see it for the first time
                     peer_task_id = getattr(payload_data, "task_id", None)
@@ -920,20 +912,16 @@ async def handle_a2a_response(component, message: SolaceMessage):
                     if isinstance(payload_data, TaskStatusUpdateEvent):
                         try:
                             status_event = payload_data
-
-                            if (
-                                status_event.status
-                                and status_event.status.message
-                                and status_event.status.message.parts
-                            ):
-                                for part_from_peer in status_event.status.message.parts:
-                                    actual_part = part_from_peer.root
-                                    if isinstance(actual_part, DataPart):
-                                        log.info(
-                                            "%s Received DataPart signal from peer for sub-task %s. Forwarding...",
-                                            component.log_identifier,
-                                            sub_task_id,
-                                        )
+                            data_parts = a2a.get_data_parts_from_status_update(
+                                status_event
+                            )
+                            if data_parts:
+                                for data_part in data_parts:
+                                    log.info(
+                                        "%s Received DataPart signal from peer for sub-task %s. Forwarding...",
+                                        component.log_identifier,
+                                        sub_task_id,
+                                    )
                                         correlation_data = await component._get_correlation_data_for_sub_task(
                                             sub_task_id
                                         )
@@ -996,11 +984,8 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                             else "UnknownPeer"
                                         )
 
-                                        forwarded_message = A2AMessage(
-                                            role="agent",
-                                            parts=[part_from_peer],
-                                            messageId=uuid.uuid4().hex,
-                                            kind="message",
+                                        forwarded_message = a2a.create_agent_parts_message(
+                                            parts=[data_part],
                                             metadata={
                                                 "agent_name": component.agent_name,
                                                 "forwarded_from_peer": peer_agent_name,
@@ -1203,17 +1188,18 @@ async def handle_a2a_response(component, message: SolaceMessage):
                         )
                         is_final_response = True
 
-                elif a2a_response.root.error:
+                error = a2a.get_response_error(a2a_response)
+                if error:
                     log.warning(
                         "%s Received error response from peer for sub-task %s: %s",
                         component.log_identifier,
                         sub_task_id,
-                        a2a_response.root.error,
+                        error,
                     )
                     payload_to_queue = {
-                        "error": a2a_response.root.error.message,
-                        "code": a2a_response.root.error.code,
-                        "data": a2a_response.root.error.data,
+                        "error": error.message,
+                        "code": error.code,
+                        "data": error.data,
                     }
                     is_final_response = True
                 else:

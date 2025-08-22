@@ -9,10 +9,10 @@ These files have the most significant and direct interaction with `a2a.types` an
 1.  **`src/solace_agent_mesh/agent/protocol/event_handlers.py`**
     - [x] Replace manual `CancelTaskRequest`, `SendMessageRequest` creation with `a2a` helpers.
     - [x] Replace direct access to `a2a_request.root.params.message` with `a2a.get_message_from_send_request`.
-    - [ ] Replace manual iteration over `message.parts` with `a2a.get_data_parts_from_message` and `a2a.get_text_from_message`.
-    - [ ] Replace manual `JSONRPCResponse` creation for errors with `a2a.create_internal_error_response`.
-    - [ ] Refactor `handle_a2a_response` to use `a2a.get_response_result` and `a2a.get_response_error`.
-    - [ ] Refactor `handle_a2a_response` to use `a2a.get_data_parts_from_status_update` instead of manual iteration.
+    - [x] Replace manual iteration over `message.parts` with `a2a.get_data_parts_from_message` and `a2a.get_text_from_message`.
+    - [x] Replace manual `JSONRPCResponse` creation for errors with `a2a.create_internal_error_response`.
+    - [x] Refactor `handle_a2a_response` to use `a2a.get_response_result` and `a2a.get_response_error`.
+    - [x] Refactor `handle_a2a_response` to use `a2a.get_data_parts_from_status_update` instead of manual iteration.
 
 2.  **`src/solace_agent_mesh/gateway/base/component.py`**
     - [ ] Replace `JSONRPCResponse.model_validate(payload)` with helpers where applicable.
