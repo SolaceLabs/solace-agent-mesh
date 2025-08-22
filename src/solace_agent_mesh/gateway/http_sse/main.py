@@ -33,11 +33,10 @@ from ...gateway.http_sse.routers import (
 
 from ...gateway.http_sse import dependencies
 from a2a.types import (
-    JSONRPCErrorResponse,
     JSONRPCError,
     InternalError,
-    InvalidRequestError,
 )
+from ...common import a2a
 
 from typing import TYPE_CHECKING
 
@@ -387,7 +386,7 @@ async def http_exception_handler(request: FastAPIRequest, exc: HTTPException):
             error_message = "Resource not found"
 
     error_obj = JSONRPCError(code=error_code, message=error_message, data=error_data)
-    response = JSONRPCErrorResponse(error=error_obj)
+    response = a2a.create_error_response(error=error_obj, request_id=None)
     return JSONResponse(
         status_code=exc.status_code, content=response.model_dump(exclude_none=True)
     )
@@ -404,10 +403,10 @@ async def validation_exception_handler(
         request.method,
         request.url,
     )
-    error_obj = InvalidRequestError(
+    error_obj = a2a.create_invalid_request_error(
         message="Invalid request parameters", data=exc.errors()
     )
-    response = JSONRPCErrorResponse(error=error_obj)
+    response = a2a.create_error_response(error=error_obj, request_id=None)
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content=response.model_dump(exclude_none=True),
@@ -420,10 +419,10 @@ async def generic_exception_handler(request: FastAPIRequest, exc: Exception):
     log.exception(
         "Unhandled Exception: %s, Request: %s %s", exc, request.method, request.url
     )
-    error_obj = InternalError(
+    error_obj = a2a.create_internal_error(
         message="An unexpected server error occurred: %s" % type(exc).__name__
     )
-    response = JSONRPCErrorResponse(error=error_obj)
+    response = a2a.create_error_response(error=error_obj, request_id=None)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=response.model_dump(exclude_none=True),

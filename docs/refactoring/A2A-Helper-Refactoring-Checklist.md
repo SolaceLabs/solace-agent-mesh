@@ -56,7 +56,7 @@ These files have fewer direct interactions but should be updated for consistency
 ## Phase 3: Final Cleanup and Verification
 
 9.  **Code-wide Search:**
-    - [ ] Search the entire codebase for any remaining direct imports from `a2a.types` outside of the `common/a2a` helper layer.
+    - [x] Search the entire codebase for any remaining direct imports from `a2a.types` outside of the `common/a2a` helper layer.
     - [ ] Search for manual dictionary creations that mimic A2A objects (e.g., `{"role": "agent", "parts": [...]}`).
 
 10. **Testing:**

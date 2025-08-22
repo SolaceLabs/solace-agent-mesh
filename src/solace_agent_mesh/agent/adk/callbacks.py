@@ -16,9 +16,6 @@ from google.adk.artifacts import BaseArtifactService
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
-from ...common.a2a_protocol import (
-    A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY,
-)
 from google.genai import types as adk_types
 from google.adk.tools.mcp_tool import MCPTool
 from solace_ai_connector.common.log import log
@@ -48,10 +45,6 @@ from ...common.utils.embeds import (
 
 from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 
-from a2a.types import (
-    DataPart,
-    Part,
-)
 from ...common import a2a
 from ...common.data_parts import (
     AgentProgressUpdateData,
@@ -81,6 +74,8 @@ from ...agent.adk.stream_parser import (
     ARTIFACT_BLOCK_DELIMITER_OPEN,
     ARTIFACT_BLOCK_DELIMITER_CLOSE,
 )
+
+A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY = "temp:llm_stream_chunks_processed"
 
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
@@ -1494,7 +1489,7 @@ def solace_llm_response_callback(
         }
         # This signal doesn't have a dedicated Pydantic model, so we create the
         # DataPart directly and use the lower-level helpers.
-        data_part = DataPart(data=llm_response_data)
+        data_part = a2a.create_data_part(data=llm_response_data)
         a2a_message = a2a.create_agent_parts_message(
             parts=[data_part],
             task_id=logical_task_id,

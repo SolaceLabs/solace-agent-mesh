@@ -11,6 +11,7 @@ from a2a.types import (
     CancelTaskRequest,
     GetTaskSuccessResponse,
     InternalError,
+    InvalidRequestError,
     JSONRPCError,
     JSONRPCResponse,
     JSONRPCSuccessResponse,
@@ -303,6 +304,22 @@ def create_internal_error(
         A new `InternalError` object.
     """
     return InternalError(message=message, data=data)
+
+
+def create_invalid_request_error(
+    message: str, data: Optional[Any] = None
+) -> InvalidRequestError:
+    """
+    Creates an InvalidRequestError object.
+
+    Args:
+        message: The error message.
+        data: Optional structured data to include with the error.
+
+    Returns:
+        A new `InvalidRequestError` object.
+    """
+    return InvalidRequestError(message=message, data=data)
 
 
 def create_generic_success_response(
