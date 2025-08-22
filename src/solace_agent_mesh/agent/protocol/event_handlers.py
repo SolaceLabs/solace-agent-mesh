@@ -1015,18 +1015,19 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                                 ),
                                             },
                                         )
-                                        forwarded_status = TaskStatus(
-                                            state=TaskState.working,
-                                            message=forwarded_message,
-                                            timestamp=status_event.status.timestamp,
-                                        )
-                                        forwarded_event = TaskStatusUpdateEvent(
+                                        forwarded_event = a2a.create_status_update(
                                             task_id=main_logical_task_id,
                                             context_id=main_context_id,
-                                            status=forwarded_status,
-                                            final=False,
-                                            kind="status-update",
+                                            message=forwarded_message,
+                                            is_final=False,
                                         )
+                                        if (
+                                            status_event.status
+                                            and status_event.status.timestamp
+                                        ):
+                                            forwarded_event.status.timestamp = (
+                                                status_event.status.timestamp
+                                            )
                                         forwarded_rpc_response = JSONRPCResponse(
                                             id=original_jsonrpc_request_id,
                                             result=forwarded_event,

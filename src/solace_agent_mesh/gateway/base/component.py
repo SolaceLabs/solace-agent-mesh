@@ -45,16 +45,7 @@ from a2a.types import (
     SendStreamingMessageRequest,
     MessageSendParams,
 )
-from ...common.a2a import (
-    get_gateway_response_topic,
-    get_gateway_response_subscription_topic,
-    get_gateway_status_topic,
-    get_gateway_status_subscription_topic,
-    get_discovery_topic,
-    get_agent_request_topic,
-    topic_matches_subscription,
-    subscription_to_regex,
-)
+from ...common import a2a
 from ...common.utils import is_text_based_mime_type
 from ...common.utils.embeds import (
     resolve_embeds_in_string,
@@ -501,9 +492,6 @@ class BaseGatewayComponent(ComponentBase):
                         signal_a2a_message = A2AMessage(
                             role="agent", parts=[A2APart(root=signal_data_part)]
                         )
-                        signal_task_status = TaskStatus(
-                            state=TaskState.working, message=signal_a2a_message
-                        )
                         a2a_task_id_for_signal = external_request_context.get(
                             "a2a_task_id_for_event", original_rpc_id
                         )
@@ -514,12 +502,11 @@ class BaseGatewayComponent(ComponentBase):
                             )
                             continue
 
-                        signal_event = TaskStatusUpdateEvent(
+                        signal_event = a2a.create_status_update(
                             task_id=a2a_task_id_for_signal,
                             context_id=external_request_context.get("a2a_session_id"),
-                            status=signal_task_status,
-                            final=False,
-                            kind="status-update",
+                            message=signal_a2a_message,
+                            is_final=False,
                         )
                         await self._send_update_to_external(
                             external_request_context=external_request_context,
@@ -1058,19 +1045,14 @@ class BaseGatewayComponent(ComponentBase):
                         is_finalizing_context=True,
                     )
                     if resolved_remaining_text:
-                        flush_status = TaskStatus(
-                            state=TaskState.working,
-                            message=A2AMessage(
-                                role="agent",
-                                parts=[
-                                    A2APart(root=TextPart(text=resolved_remaining_text))
-                                ],
-                            ),
+                        flush_message = a2a.create_agent_text_message(
+                            text=resolved_remaining_text
                         )
-                        flush_event = TaskStatusUpdateEvent(
-                            id=a2a_task_id,
-                            status=flush_status,
-                            final=False,
+                        flush_event = a2a.create_status_update(
+                            task_id=a2a_task_id,
+                            context_id=external_request_context.get("a2a_session_id"),
+                            message=flush_message,
+                            is_final=False,
                         )
                         await self._send_update_to_external(
                             external_request_context, flush_event, True

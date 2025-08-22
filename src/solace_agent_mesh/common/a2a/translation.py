@@ -25,7 +25,7 @@ from a2a.types import (
     TaskStatusUpdateEvent,
 )
 
-from .protocol import get_gateway_response_topic, get_gateway_status_topic
+from .. import a2a
 
 
 def translate_a2a_to_adk_content(
@@ -240,24 +240,17 @@ def format_adk_event_as_a2a(
         message_id=uuid.uuid4().hex,
         kind="message",
     )
-    task_status = TaskStatus(
-        state=TaskState.working,
-        message=a2a_message,
-        timestamp=datetime.now(timezone.utc).isoformat(),
-    )
-
     is_final_update_for_this_event = is_final_adk_event
 
     host_agent_name = a2a_context.get("host_agent_name", "unknown_agent")
     event_metadata = {"agent_name": host_agent_name}
 
-    intermediate_result_obj = TaskStatusUpdateEvent(
+    intermediate_result_obj = a2a.create_status_update(
         task_id=logical_task_id,
         context_id=a2a_context.get("contextId"),
-        status=task_status,
-        final=is_final_update_for_this_event,
+        message=a2a_message,
+        is_final=is_final_update_for_this_event,
         metadata=event_metadata,
-        kind="status-update",
     )
     log.debug(
         "%s Formatting intermediate A2A response (TaskStatusUpdateEvent, final=%s) for Task ID %s",
@@ -307,7 +300,7 @@ async def format_and_route_adk_event(
             )
         else:
             gateway_id = component.get_gateway_id()
-            target_topic = get_gateway_status_topic(
+            target_topic = a2a.get_gateway_status_topic(
                 namespace, gateway_id, logical_task_id
             )
             log.debug(
@@ -346,7 +339,7 @@ async def format_and_route_adk_event(
             if peer_reply_topic:
                 target_topic = peer_reply_topic
             else:
-                target_topic = get_gateway_response_topic(
+                target_topic = a2a.get_gateway_response_topic(
                     namespace, gateway_id, logical_task_id
                 )
             user_properties = {}

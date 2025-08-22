@@ -1287,19 +1287,13 @@ class SamAgentComponent(ComponentBase):
                 task_id=logical_task_id,
                 context_id=a2a_context.get("contextId"),
             )
-            task_status = TaskStatus(
-                state=TaskState.working,
-                message=a2a_message,
-                timestamp=datetime.now(timezone.utc).isoformat(),
-            )
             event_metadata = {"agent_name": self.agent_name}
-            status_update_event = TaskStatusUpdateEvent(
+            status_update_event = a2a.create_status_update(
                 task_id=logical_task_id,
                 context_id=a2a_context.get("contextId"),
-                status=task_status,
-                final=is_stream_terminating_content,
+                message=a2a_message,
+                is_final=is_stream_terminating_content,
                 metadata=event_metadata,
-                kind="status-update",
             )
 
             await self._publish_status_update_with_buffer_flush(
@@ -1354,19 +1348,13 @@ class SamAgentComponent(ComponentBase):
                 task_id=logical_task_id,
                 context_id=a2a_context.get("contextId"),
             )
-            task_status = TaskStatus(
-                state=TaskState.working,
-                message=a2a_message,
-                timestamp=datetime.now(timezone.utc).isoformat(),
-            )
             event_metadata = {"agent_name": self.agent_name}
-            status_update_event = TaskStatusUpdateEvent(
+            status_update_event = a2a.create_status_update(
                 task_id=logical_task_id,
                 context_id=a2a_context.get("contextId"),
-                status=task_status,
-                final=False,
+                message=a2a_message,
+                is_final=False,
                 metadata=event_metadata,
-                kind="status-update",
             )
 
             await self._publish_status_update_with_buffer_flush(
@@ -2464,19 +2452,12 @@ class SamAgentComponent(ComponentBase):
                 task_id=logical_task_id,
                 context_id=a2a_context.get("contextId"),
             )
-            intermediate_status = TaskStatus(
-                state=TaskState.working,
-                message=status_message,
-                timestamp=datetime.now(timezone.utc).isoformat(),
-            )
-
-            status_update_event = TaskStatusUpdateEvent(
+            status_update_event = a2a.create_status_update(
                 task_id=logical_task_id,
                 context_id=a2a_context.get("contextId"),
-                status=intermediate_status,
-                final=False,
+                message=status_message,
+                is_final=False,
                 metadata={"agent_name": self.get_config("agent_name")},
-                kind="status-update",
             )
 
             await self._publish_status_update_with_buffer_flush(

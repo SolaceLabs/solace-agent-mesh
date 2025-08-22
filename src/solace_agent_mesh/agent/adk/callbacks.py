@@ -50,13 +50,9 @@ from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 
 from a2a.types import (
     DataPart,
-    Message as A2AMessage,
     Part,
-    TaskState,
-    TaskStatus,
-    TaskStatusUpdateEvent,
 )
-from a2a.utils.message import new_agent_parts_message
+from ...common import a2a
 from ...common.data_parts import (
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
@@ -101,20 +97,14 @@ async def _publish_data_part_status_update(
 
     data_part = DataPart(data=data_part_model.model_dump())
     part_wrapper = Part(root=data_part)
-    a2a_message = new_agent_parts_message(
+    a2a_message = a2a.create_agent_parts_message(
         parts=[part_wrapper], task_id=logical_task_id, context_id=context_id
     )
-    task_status = TaskStatus(
-        state=TaskState.working,
-        message=a2a_message,
-        timestamp=datetime.now(timezone.utc).isoformat(),
-    )
-    status_update_event = TaskStatusUpdateEvent(
+    status_update_event = a2a.create_status_update(
         task_id=logical_task_id,
         context_id=context_id,
-        status=task_status,
-        final=False,
-        kind="status-update",
+        message=a2a_message,
+        is_final=False,
         metadata={"agent_name": host_component.agent_name},
     )
 
@@ -1439,20 +1429,14 @@ def solace_llm_invocation_callback(
         data_part = DataPart(data=llm_data.model_dump())
         part_wrapper = Part(root=data_part)
 
-        a2a_message = new_agent_parts_message(
+        a2a_message = a2a.create_agent_parts_message(
             parts=[part_wrapper], task_id=logical_task_id, context_id=context_id
         )
-        task_status = TaskStatus(
-            state=TaskState.working,
-            message=a2a_message,
-            timestamp=datetime.now(timezone.utc).isoformat(),
-        )
-        status_update_event = TaskStatusUpdateEvent(
+        status_update_event = a2a.create_status_update(
             task_id=logical_task_id,
             context_id=context_id,
-            status=task_status,
-            final=False,
-            kind="status-update",
+            message=a2a_message,
+            is_final=False,
             metadata={"agent_name": host_component.agent_name},
         )
 
@@ -1523,23 +1507,17 @@ def solace_llm_response_callback(
         }
         data_part = DataPart(data=llm_response_data)
         part_wrapper = Part(root=data_part)
-        a2a_message = new_agent_parts_message(
+        a2a_message = a2a.create_agent_parts_message(
             parts=[part_wrapper],
             task_id=logical_task_id,
             context_id=a2a_context.get("contextId"),
         )
-        task_status = TaskStatus(
-            state=TaskState.working,
-            message=a2a_message,
-            timestamp=datetime.now(timezone.utc).isoformat(),
-        )
-        status_update_event = TaskStatusUpdateEvent(
+        status_update_event = a2a.create_status_update(
             task_id=logical_task_id,
             context_id=a2a_context.get("contextId"),
-            status=task_status,
-            final=False,
+            message=a2a_message,
+            is_final=False,
             metadata={"agent_name": agent_name},
-            kind="status-update",
         )
         loop = host_component.get_async_loop()
         if loop and loop.is_running():
