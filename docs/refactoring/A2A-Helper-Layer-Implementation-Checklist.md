@@ -26,5 +26,5 @@ This checklist provides a terse, actionable list of tasks for creating the A2A H
 
 ## Phase 3: Finalize and Clean Up
 
-17. [ ] Populate `src/solace_agent_mesh/common/a2a/__init__.py` to expose the public API.
+17. [x] Populate `src/solace_agent_mesh/common/a2a/__init__.py` to expose the public API.
 18. [ ] Delete the old `src/solace_agent_mesh/common/a2a_protocol.py` file.
