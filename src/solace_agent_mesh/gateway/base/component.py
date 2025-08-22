@@ -765,7 +765,7 @@ class BaseGatewayComponent(ComponentBase):
 
                     if resolved_text is not None:
                         new_parts_for_owner.append(
-                            A2APart(root=TextPart(text=resolved_text))
+                            a2a.create_part(a2a.create_text_part(text=resolved_text))
                         )
                         if is_streaming_status_update:
                             if resolved_text != text_to_resolve[:processed_idx]:
@@ -816,8 +816,8 @@ class BaseGatewayComponent(ComponentBase):
                                         resolved_content.encode("utf-8")
                                     ).decode("utf-8")
                                     new_parts_for_owner.append(
-                                        A2APart(
-                                            root=FilePart(
+                                        a2a.create_part(
+                                            FilePart(
                                                 file=new_file_content,
                                                 metadata=part.metadata,
                                             )
@@ -825,9 +825,9 @@ class BaseGatewayComponent(ComponentBase):
                                     )
                                     content_modified_or_signal_handled = True
                                 else:
-                                    new_parts_for_owner.append(A2APart(root=part))
+                                    new_parts_for_owner.append(a2a.create_part(part))
                             else:
-                                new_parts_for_owner.append(A2APart(root=part))
+                                new_parts_for_owner.append(a2a.create_part(part))
                         except Exception as e:
                             log.warning(
                                 "%s Error during recursive FilePart resolution for %s: %s. Using original.",
@@ -835,12 +835,12 @@ class BaseGatewayComponent(ComponentBase):
                                 part.file.name,
                                 e,
                             )
-                            new_parts_for_owner.append(A2APart(root=part))
+                            new_parts_for_owner.append(a2a.create_part(part))
                     else:
                         # This is a FileWithUri or empty FileWithBytes, which we don't process for embeds here.
-                        new_parts_for_owner.append(A2APart(root=part))
+                        new_parts_for_owner.append(a2a.create_part(part))
                 else:
-                    new_parts_for_owner.append(A2APart(root=part))
+                    new_parts_for_owner.append(a2a.create_part(part))
 
             parts_owner.parts = new_parts_for_owner
 
@@ -939,14 +939,13 @@ class BaseGatewayComponent(ComponentBase):
                     log.debug(
                         "%s Resolving embeds in final task response...", log_id_prefix
                     )
-                    combined_text = ""
-                    non_text_parts = []
-                    for part_wrapper in parsed_event.status.message.parts:
-                        part = part_wrapper.root
-                        if isinstance(part, TextPart) and part.text:
-                            combined_text += part.text
-                        else:
-                            non_text_parts.append(part_wrapper)
+                    message = parsed_event.status.message
+                    combined_text = a2a.get_text_from_message(message)
+                    data_parts = a2a.get_data_parts_from_message(message)
+                    file_parts = a2a.get_file_parts_from_message(message)
+                    non_text_parts = [
+                        a2a.create_part(p) for p in data_parts + file_parts
+                    ]
 
                     if combined_text:
                         embed_eval_context = {
@@ -990,7 +989,7 @@ class BaseGatewayComponent(ComponentBase):
                             )
 
                         new_parts = (
-                            [A2APart(root=TextPart(text=resolved_text))]
+                            [a2a.create_part(a2a.create_text_part(text=resolved_text))]
                             if resolved_text
                             else []
                         )

@@ -179,6 +179,19 @@ def create_data_part(
     return DataPart(data=data, metadata=metadata)
 
 
+def create_part(content: Union[TextPart, DataPart, FilePart]) -> Part:
+    """
+    Creates a wrapped Part object from an unwrapped content part.
+
+    Args:
+        content: The unwrapped content part (TextPart, DataPart, or FilePart).
+
+    Returns:
+        A new `Part` object.
+    """
+    return Part(root=content)
+
+
 # --- Consumption Helpers ---
 
 
