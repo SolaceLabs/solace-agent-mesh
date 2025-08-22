@@ -5,14 +5,41 @@ from sqlalchemy.sql import func
 Base = declarative_base()
 
 
+class Project(Base):
+    __tablename__ = "projects"
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    user_id = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    sessions = relationship(
+        "Session", back_populates="project", cascade="all, delete-orphan"
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "user_id": self.user_id,
+            "description": self.description,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class Session(Base):
     __tablename__ = "sessions"
     id = Column(String, primary_key=True)
     name = Column(String, nullable=True)
     user_id = Column(String, nullable=False)  # Simple string field, no foreign key
     agent_id = Column(String, nullable=True)
+    project_id = Column(
+        String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    project = relationship("Project", back_populates="sessions")
     messages = relationship(
         "ChatMessage", back_populates="session", cascade="all, delete-orphan"
     )
@@ -23,6 +50,7 @@ class Session(Base):
             "name": self.name,
             "user_id": self.user_id,
             "agent_id": self.agent_id,
+            "project_id": self.project_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
