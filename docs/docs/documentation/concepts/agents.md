@@ -5,7 +5,7 @@ sidebar_position: 20
 
 # Agents
 
-Agents are specialized processing units within the Solace Agent Mesh framework that are built around the Google Agent Development Kit (ADK) and provide the core intelligence layer. They:
+Agents are specialized processing units within Solace Agent Mesh framework that are built around the Google Agent Development Kit (ADK) and provide the core intelligence layer. They:
 
 * perform specific tasks or provide domain-specific knowledge or capabilities
 * integrate with the ADK runtime for advanced AI capabilities including tool usage, memory management, and session handling
@@ -96,13 +96,13 @@ For a complete list of all built-in tools and how to use them, see the [Built-In
 
 ## Agent Card
 
-The Agent Card is a public-facing profile that describes an agent's identity, capabilities, and how to interact with it. It functions like a digital business card, allowing other agents and clients within the Solace Agent Mesh to discover what an agent can do. This information is published by the agent and is crucial for dynamic discovery and interoperability.
+The Agent Card is a public-facing profile that describes an agent's identity, capabilities, and how to interact with it. It functions like a digital business card, allowing other agents and clients within Solace Agent Mesh to discover what an agent can do. This information is published by the agent and is crucial for dynamic discovery and interoperability.
 
 The Agent Card is defined in the agent's YAML configuration file under the `agent_card` section.
 
 ### Key Fields
 
-Here are the primary fields you can configure in the `agent_card`:
+You can configure the following fields in the `agent card`:
 
 -   **`description`**: A summary of the agent's purpose and capabilities.
 -   **`defaultInputModes`**: A list of supported MIME types for input (e.g., `["text/plain", "application/json", "file"]`).

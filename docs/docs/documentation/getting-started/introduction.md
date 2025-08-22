@@ -22,11 +22,11 @@ Built on event-driven architecture technology from Solace with Google ADK integr
 
 ### What Problems Does the Mesh Solve?
 
-The Solace Agent Mesh tackles the hardest challenges in building collaborative AI systems: agent coordination, system integration, and extensibility at scale. This section reveals the key problems it solves and shows how organizations are using it today.
+Solace Agent Mesh tackles the hardest challenges in building collaborative AI systems: agent coordination, system integration, and extensibility at scale. This section reveals the key problems it solves and shows how organizations are using it today.
 
 
 - **Event-Driven Architecture at the Core:**  
-  The beating heart of the Solace Agent Mesh is its event mesh—a neural network for your AI components. This architecture creates a fluid, asynchronous communication layer where messages flow naturally between agents, gateways, and external systems. By decoupling senders from receivers, the mesh dramatically simplifies agent interactions, ensures message delivery even during component failures, and lets you add, remove, or restart components on the fly without disrupting workflows.
+  The beating heart of Solace Agent Mesh is its event mesh—a neural network for your AI components. This architecture creates a fluid, asynchronous communication layer where messages flow naturally between agents, gateways, and external systems. By decoupling senders from receivers, the mesh dramatically simplifies agent interactions, ensures message delivery even during component failures, and lets you add, remove, or restart components on the fly without disrupting workflows.
 
 - **Breaking Down AI Silos:**  
   Specialized agents operate independently yet collaborate effortlessly—like expert teammates rather than isolated tools.
@@ -78,7 +78,7 @@ The Solace Agent Mesh tackles the hardest challenges in building collaborative A
 
 ## Real-World Applications
 
-Organizations are using the Solace Agent Mesh in diverse scenarios:
+Organizations are using Solace Agent Mesh in diverse scenarios:
 
 - **Intelligent Enterprise Automation:**  
   - Customer service systems that route inquiries to specialized agents based on intent and context.

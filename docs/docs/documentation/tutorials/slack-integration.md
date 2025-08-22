@@ -110,7 +110,7 @@ After installation, the bot token (beginning with `xoxb-`) is visible. Make note
 
 After configuring your Slack App, the next step is to add the Slack gateway to Solace Agent Mesh.
 
-1. Add the gateway plugin using the Solace Agent Mesh (SAM) CLI:
+1. Add the gateway plugin using Solace Agent Mesh (SAM) CLI:
 
    ```sh
    sam plugin add slack-bot --plugin sam-slack

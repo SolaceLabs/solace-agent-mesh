@@ -5,7 +5,7 @@ sidebar_position: 10
 
 # Gateways
 
-Gateways are a crucial component of the Solace Agent Mesh framework that expose the agent mesh to external systems through various protocols. Built on a common base gateway architecture, they provide the following functions:
+Gateways are a crucial component of Solace Agent Mesh framework that expose the agent mesh to external systems through various protocols. Built on a common base gateway architecture, they provide the following functions:
 
 - serve as the primary interface between Solace Agent Mesh and the outside world
 - manage the flow of information in and out of the system through the A2A protocol
@@ -22,7 +22,7 @@ Gateways are the external interfaces that connect various systems to the A2A age
 
 2. **Authentication & Authorization**: Common authentication and user enrichment flow across all gateway types, with pluggable identity providers.
 
-3. **Configurable System Purpose**: Each gateway has a configurable system purpose that sets the context for all stimuli entering the Solace Agent Mesh through that gateway. This design allows for tailored processing based on the specific use case or domain.
+3. **Configurable System Purpose**: Each gateway has a configurable system purpose that sets the context for all stimuli entering Solace Agent Mesh through that gateway. This design allows for tailored processing based on the specific use case or domain.
 
 4. **Customizable Output Formatting**: Gateways have a configurable output description that controls how stimuli responses are formatted when sent back to the outside world. This configurable output description ensures that the output meets the requirements of the receiving system or user interface.
 

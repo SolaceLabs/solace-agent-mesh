@@ -5,7 +5,7 @@ sidebar_position: 5
 
 # Build Your Own Agent
 
-This tutorial shows you how to build a sophisticated weather agent using the Solace Agent Mesh framework. Learn how to integrate with external APIs, manage resources properly, and create production-ready agents.
+This tutorial shows you how to build a sophisticated weather agent using Solace Agent Mesh framework. Learn how to integrate with external APIs, manage resources properly, and create production-ready agents.
 
 ## Overview
 
@@ -51,9 +51,9 @@ sam add agent --gui
 :::tip
 You can create an agent either by using the `sam add agent` command or by creating a new plugin of type agent, `sam plugin create my-hello-agent --type agent`. 
 
-Check the [`Agent or Plugin, Which to use?`](../concepts/plugins.md#agent-or-plugin-which-to-use) guide to decide which is the better choice for you.
+For information and recommendations about these options, see [`Agent or Plugin: Which To use?`](../concepts/plugins.md#agent-or-plugin-which-to-use).
 
-For an example of plugin agents, check the [Create Agents](../user-guide/create-agents.md#step-1-initialize-your-agent) guide.
+For an example of plugin agents, see the [Create Agents](../user-guide/create-agents.md#step-1-initialize-your-agent) guide.
 :::
 
 Follow the steps on the GUI to create a new agent named "Weather Agent". We can update the tools/skills section directly in the configuration file later.
@@ -196,7 +196,7 @@ And update the weather agent config file's tool section under `configs/agent/wea
 
 ```
 
-For better discoverability, update the [agent card](../concepts/agents.md#agent-card) section in the same yaml file as follows:
+For better discoverability, update the [agent card](../concepts/agents.md#agent-card) section in the same YAML file as follows:
 ```yaml
       # Agent card
       agent_card:
@@ -212,10 +212,10 @@ For better discoverability, update the [agent card](../concepts/agents.md#agent-
             description: "Provide detailed weather forecasts up to 5 days ahead"
 ```
 
-To run the agent, you can continue following documentation from the [Step 7](#step-7-environment-setup) of this tutorial.
+To run the agent, you can continue following documentation from [Step 7](#step-7-environment-setup) of this tutorial.
 </details>
 
-Other concepts mentioned in this page such as lifecycle, services, artifacts are just to showcase a more advanced patterns.
+Other concepts mentioned in this page such as lifecycle, services, artifacts are just to showcase more advanced patterns.
 :::
 
 Create the directory structure for the weather agent:
@@ -791,7 +791,7 @@ def cleanup_weather_agent(host_component: Any):
 
 ## Step 5: Agent Configuration
 
-Create the comprehensive yaml configuration:
+Create the comprehensive YAML configuration:
 
 ```yaml
 # Weather Agent Configuration

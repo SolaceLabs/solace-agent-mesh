@@ -6,13 +6,13 @@ toc_max_heading_level: 4
 
 # Configurations
 
-## Shared Configs
+## Shared Configurations
 
-The `shared_config.yaml` file is used to define configurations that can be shared across multiple agents or components in the Solace Agent Mesh. This allows for centralized management of common settings like broker connections and language model configurations.
+The `shared_config.yaml` file is used to define configurations that can be shared across multiple agents or components in Solace Agent Mesh. This allows for centralized management of common settings like broker connections and language model configurations.
 
 ### Using Shared Configurations
 
-All agents and gateways require access to a `shared_config`. You have two primary ways to provide this configuration:
+All agents and gateways require access to a `shared_config` object. You can provide configuration in the following ways:
 
 1.  **Hard-coding values**: You can directly embed the `shared_config` values within your agent or gateway YAML files.
 2.  **Using `!include`**: For better project consistency and management, you can use the `!include` directive to load a shared configuration file.
@@ -21,7 +21,7 @@ When a plugin is installed, it may come with hard-coded default values. It is a 
 
 ### Managing Multiple Shared Configuration Files
 
-You can use multiple shared configuration files to manage different environments or setups (e.g., for different cloud providers). There are two main rules to follow:
+You can use multiple shared configuration files to manage different environments or setups (e.g., for different cloud providers). You must follow these rules:
 
 1.  **Filename**: The filename must always start with `shared_config` (e.g., `shared_config_aws.yaml`, `shared_config_gcp.yaml`).
 2.  **Sub-directories**: You can organize these files into sub-directories (e.g., `configs/agents/shared_config.yaml`). When you do this, you must update the `!include` path in your agent or gateway configurations to point to the correct location.
@@ -90,7 +90,7 @@ shared_config:
 
 #### Broker Connection
 
-The `broker_connection` section configures the connection to the Solace PubSub+ event broker.
+The `broker_connection` section configures the connection to the Solace PubSub+ event broker. The connection parameters are described in the following table:
 
 | Parameter | Environment Variable | Description | Default |
 | :--- | :--- | :--- | :--- |
@@ -112,7 +112,7 @@ The `models` section is used to configure the various Large Language Models (LLM
 
 ##### Model Configuration Structure
 
-Each model is defined with a set of parameters that tell the system how to interact with it.
+The following table describes the parameters that tell the system how to interact with the model:
 
 | Parameter | Environment Variable | Description |
 | :--- | :--- | :--- |
@@ -131,9 +131,9 @@ model: gemini-2.5-pro
 
 See the [documentation](https://google.github.io/adk-docs/agents/models/#using-google-gemini-models) for details on setting the environment for Gemini models.
 
-##### Pre-defined Model Types
+##### Pre-Defined Model Types
 
-The `shared_config.yaml` example defines several models for different purposes. Pre-defined models serve as an alias for the model configuration that allows you to refer to a configuration by its use case rather than its specific parameters.
+The `shared_config.yaml` example defines several models for different purposes. A pre-defined model serves as an alias for the model configuration. This alias allows you to refer to a configuration by its use case rather than its specific parameters.
 
 -   **`planning`**: Used by agents for planning and decision-making. It's configured for deterministic outputs (`temperature: 0.1`) and can use tools in parallel.
 -   **`general`**: A general-purpose model for various tasks.
@@ -151,7 +151,7 @@ The `services` section in `shared_config.yaml` is used to configure various serv
 
 ##### Session Service
 
-The `session_service` manages the lifecycle of user sessions.
+The parameters are described in the following table:
 
 | Parameter | Options | Description | Default |
 | :--- | :--- | :--- | :--- |

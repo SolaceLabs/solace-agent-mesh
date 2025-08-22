@@ -1,6 +1,6 @@
 # SAM REST API Client
 
-A Python client library for interacting with the Solace Agent Mesh (SAM) REST API Gateway.
+A Python client library for interacting with Solace Agent Mesh (SAM) REST API Gateway.
 
 This library simplifies task submission and result retrieval by abstracting the underlying HTTP calls, including the polling mechanism for asynchronous tasks.
 

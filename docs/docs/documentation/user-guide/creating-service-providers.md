@@ -5,7 +5,7 @@ sidebar_position: 50
 
 # Creating Service Providers
 
-This guide details the process for developers to create service provider plugins for integrating backend systems (for example, HR platforms, CRMs) with the Solace Agent Mesh (SAM).
+This guide details the process for developers to create service provider plugins for integrating backend systems (for example, HR platforms, CRMs) with Solace Agent Mesh (SAM).
 
 ## Understanding Service Providers
 

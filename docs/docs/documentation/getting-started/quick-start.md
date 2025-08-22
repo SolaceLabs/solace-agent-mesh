@@ -9,13 +9,13 @@ sidebar_position: 30
 Looking to get started with plugins? For more information, see the [Plugins](../concepts/plugins.md).
 :::
 
-To get started with Solace Agent Mesh, you can either create a complete project or use the preset configuration from the Docker image.
+To get started with Solace Agent Mesh, you can either use the preset configuration from the Docker image or create your own complete project.
 
 ## Quick Start
 
 ### Prerequisites
-1. You have Docker (or Podman) installed.
-2. You have an available AI provider and API key. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 4, Google Gemini 2.5 pro, or OpenAI GPT-5.
+1. You must have Docker (or Podman) installed.
+2. You must have an available AI provider and API key. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 4, Google Gemini 2.5 pro, or OpenAI GPT-5.
 
 ### Run The Preset App
 
@@ -32,7 +32,7 @@ Alternatively, you can combine your project with the preset app or only run spec
 You can find a list of all available preset apps in the [Solace Agent Mesh GitHub repository](https://github.com/SolaceLabs/solace-agent-mesh/tree/main/preset/agents).
 
 :::tip
-To only run your custom agent without creating a new project, you can use the Docker image as follows:
+To run your custom agent without creating a new project, you can use the Docker image as follows:
 
 ```bash
 docker run --rm -it --platform linux/amd64  -p 8000:8000 -v $(pwd):/app \
@@ -43,7 +43,7 @@ docker run --rm -it --platform linux/amd64  -p 8000:8000 -v $(pwd):/app \
   solace/solace-agent-mesh:latest run /preset/agents/basic /app/my-agent
 ```
 
-- You can update `/app/my-agent` with the path to your agent yaml config. (Note: you'd still need `shared_config.yaml` file or have to hard-code it in your agent config)
+- You can update `/app/my-agent` with the path to your agent YAML config. Note: You will still need either a `shared_config.yaml` file or to hard code the settings in your agent configuration.
 - `/preset/agents/basic` only runs the required agents, you can use `/preset/agents` to load all agents.
 - This example command only has the minimum required environment variables.
 :::
@@ -52,9 +52,9 @@ docker run --rm -it --platform linux/amd64  -p 8000:8000 -v $(pwd):/app \
 
 ### Prerequisites
 
-1. You have installed the Solace Agent Mesh CLI. If not, see the [Installation](./installation.md) page.
-2. You have activated the virtual environment you created following the [Installation](./installation.md) page. For containerized deployment such as Docker, ignore this prerequisite.
-3. You have an available AI provider and API key. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 4, Google Gemini 2.5 pro, or OpenAI GPT-5.
+1. You must have installed Solace Agent Mesh CLI. If not, see the [Installation](./installation.md) page.
+2. You must have activated the virtual environment you created following the [Installation](./installation.md) page. For containerized deployment such as Docker, ignore this prerequisite.
+3. You must have an available AI provider and API key. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 4, Google Gemini 2.5 pro, or OpenAI GPT-5.
 
 Create a directory for your project and navigate to it.
 
@@ -85,7 +85,7 @@ You can also initialize your Solace Agent Mesh project using the official Docker
 docker run --rm -it -v "$(pwd):/app" --platform linux/amd64  -p 5002:5002 solace/solace-agent-mesh:latest init --gui
 ```
 
-If the OS architecture on your host is not `linux/amd64`, you would need to add `--platform linux/amd64` when running container.
+If the OS architecture on your host is not linux/amd64, you must add --platform linux/amd64 when you run the container.
 
 For Broker Setup, do not select the Broker Type `New local Solace PubSub+ broker container`. This option is incompatible with Docker deployments because the `Download and Run Container` action attempts to download a container image from within the already running container, which causes the operation to fail.
 

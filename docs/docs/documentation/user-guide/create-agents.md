@@ -14,7 +14,7 @@ This page provides an in-depth theoretical overview of creating agents in Solace
 
 Solace Agent Mesh (SAM) is a powerful platform that enables you to create intelligent agents that can communicate with each other and perform complex tasks. At its core, SAM uses a **tool-based architecture** where LLM-powered agents are equipped with specific capabilities (tools) that they can use to accomplish user requests.
 
-**Before continuing with this tutorial, it's recommend to first learn about [agent concept](../concepts/agents.md).**
+**Before continuing with this tutorial, make sure you are familiar with the basic [agent concept](../concepts/agents.md).**
 
 This tutorial guides you through creating your first SAM agent from scratch. You will learn how to:
 
@@ -65,7 +65,7 @@ Before diving into the implementation, it is important to understand the key con
 The LLM (Large Language Model) orchestrating your agent decides which tools to use based on the user's request and the tool descriptions you provide.
 
 :::tip
-Solace Agent Mesh provides a set of [built-in tools](./builtin-tools/builtin-tools.md) plus out-of-box support for [model context protocol (MCP)](../tutorials/mcp-integration.md) servers which can be configured in the tools list of your agent configuration
+Solace Agent Mesh provides a set of [built-in tools](./builtin-tools/builtin-tools.md) plus support for [model context protocol (MCP)](../tutorials/mcp-integration.md) servers, which can be configured in the tools list of your agent configuration.
 :::
 
 ### Configuration File 
@@ -74,14 +74,14 @@ The `config.yaml` (for plugin template) or `agent-name.yaml` (for agent instance
 
 - **Agent identity**: Name, description, and capabilities
 - **Model configuration**: Which LLM to use
-- **Tools list**: Which tools the agent can access and how they're configured
+- **Tools list**: Defines which tools the agent can access and how they're configured
 - **Lifecycle functions**: Setup and cleanup procedures
 - **Framework services**: Session management, artifact storage, and so on.
 - **[Agent card](../concepts/agents.md#agent-card)**: Metadata describing the agent capabilities, skills and its visibility in the system
 
 ### Tool Configuration
 
-Within the `tools` list in your yaml config, each tool can have its own `tool_config` section. This allows you to:
+Within the `tools` list in your YAML config, each tool can have its own `tool_config` section. This allows you to:
 
 - Configure the same tool function for different purposes
 - Pass specific parameters to tool instances
@@ -120,17 +120,16 @@ Create a simple agent that can greet users and demonstrate the core concepts.
 You can create an agent either by using the `sam add agent` command or by creating a new plugin of type agent, `sam plugin create my-hello-agent --type agent`. 
 
 :::tip
-Check the [`Agent or Plugin, Which to use?`](../concepts/plugins.md#agent-or-plugin-which-to-use) guide to decide which is the better choice for you.
+For information and recommendations about these options, see [`Agent or Plugin: Which To use?`](../concepts/plugins.md#agent-or-plugin-which-to-use).
 :::
 
 
 ### Step 1: Initialize your Agent
 
 In this tutorial, you create a new agent by creating a new plugin of type agent.
-For an example of custom agents, check the [Build Your Own Agent](../tutorials/custom-agent.md) guide.
+For an example of custom agents, see [Build Your Own Agent](../tutorials/custom-agent.md) guide.
 
-Although plugins directory structure is slightly different than agents, both require a yaml configuration file, and a python module with the respective tools and lifecycle functions.
-
+Although the directory structure for plugins is slightly different than the one for agents, both require a YAML configuration file, and a python module with the tools and lifecycle functions you want.
 
 To create a new agent plugin, run the following command:
 
@@ -560,7 +559,7 @@ cd src
 sam run ../config.yaml
 ```
 
-By moving to the `src` directory, the module path is set correctly, allowing SAM to find your functions without having to install them in your python environment as a plugin package.
+Changing to the src directory allows the module path to be set correctly so that SAM can find your functions without your having to install them in your python environment as a plugin package.
 :::
 
 To properly instantiate your plugin agent, first build the plugin.
@@ -576,7 +575,7 @@ sam plugin add my-first-weather-agent --plugin PATH/TO/weather-agent/dist/weathe
 ```
 
 :::note
-Using the `sam plugin add` command will install your plugin as a python dependency into your python environment.
+Using the `sam plugin add` command installs your plugin as a python dependency into your python environment.
 This also means changing the source code without reinstalling the plugin will not reflect the changes.
 :::
 

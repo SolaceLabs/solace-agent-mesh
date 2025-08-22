@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 # Solace Agent Mesh CLI
 
-Solace Agent Mesh comes with a comprehensive CLI tool that you can use to create, and run an instance of Solace Agent Mesh, which is referred to as a Solace Agent Mesh (SAM) application. The Solace Agent Mesh (SAM) CLI also allows you to add agents and gateways, manage plugins, help you debug, and much more.
+Solace Agent Mesh comes with a comprehensive CLI tool that you can use to create, and run an instance of Solace Agent Mesh, which is referred to as a Solace Agent Mesh (SAM) application. Solace Agent Mesh (SAM) CLI also allows you to add agents and gateways, manage plugins, help you debug, and much more.
 
 ## Installation
 
@@ -14,7 +14,7 @@ The SAM CLI is installed as part of the package for Solace Agent Mesh. For more 
 
 :::tip[CLI Tips]
 
-- The Solace Agent Mesh CLI comes with a short alias of `sam` which can be used in place of `solace-agent-mesh`.
+- Solace Agent Mesh CLI comes with a short alias of `sam` which can be used in place of `solace-agent-mesh`.
 - You can determine the version of the SAM CLI by running `solace-agent-mesh --version`.
 - You can get help on any command by running `solace-agent-mesh [COMMAND] --help`.
   :::

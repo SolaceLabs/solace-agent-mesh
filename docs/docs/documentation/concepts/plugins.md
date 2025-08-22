@@ -43,7 +43,7 @@ Follow the prompts to create a new plugin. A plugin can be one of the following 
 - **Gateway Plugin**: Contains custom gateways that can be used in a Solace Agent Mesh project.
 - **Custom Plugin**: Contains custom integrations such as HR providers or other specialized functionality.
 
-The Solace Agent Mesh (SAM) CLI creates a directory with the provided name and the following structure:
+Solace Agent Mesh (SAM) CLI creates a directory with the provided name and the following structure:
 
 ```
 plugin-name/
@@ -131,8 +131,7 @@ You can manage available plugins with the `plugin catalog` command, which launch
 solace-agent-mesh plugin catalog
 ``` 
 
-
-## Agent or Plugin, Which to use?
+## Agent or Plugin: Which To Use?
 
 In simple terms, plugins of type agent are just packaged agents. However, there are distinct advantages to each approach, and choosing the right one depends on your use case.
 
@@ -151,26 +150,26 @@ Here’s a detailed comparison to help you decide.
 | **Versioning** | Versioned along with the main project. | Can be versioned independently according to Python packaging standards (e.g., `v0.1.0`, `v0.2.0`). |
 | **Development** | Simple and direct. Edit files and run. Ideal for rapid prototyping. | Involves a build/install cycle. Better for structured, long-term development. |
 
-### When to Use a Standalone Agent
+### When To Use a Standalone Agent
 
-Choose to create a standalone agent with `sam add agent` when:
+Create a standalone agent when:
 
-- **Prototyping**: You need to quickly test an idea or build a proof-of-concept.
-- **Project-Specific Logic**: The agent is tightly coupled to a single project and is not intended for reuse.
-- **Simplicity**: You want the most straightforward path to adding a simple agent without the overhead of a full package structure.
+- You need to quickly test an idea or build a proof-of-concept.
+- The agent is tightly coupled to a single project and is not intended for reuse.
+- You want the most straightforward path to adding a simple agent without the overhead of a full package structure.
 
-### When to Use an Agent Plugin
+### When To Use an Agent Plugin
 
-Creating an agent as a plugin is the recommended approach and is ideal when:
+Create an agent as a plugin when:
 
-- **Reusability is Key**: You plan to use the same agent in multiple projects.
-- **Sharing and Collaboration**: You want to share your agent with other developers, teams, or the open-source community.
-- **Formal Development**: You are building a robust, production-ready agent that benefits from a formal package structure, dependency management, and versioning.
-- **Creating a Library**: You are building a collection of standardized agents for your organization.
+- You plan to use the same agent in multiple projects.
+- You want to share your agent with other developers, teams, or the open-source community.
+- You are building a robust, production-ready agent that benefits from a formal package structure, dependency management, and versioning.
+- You are building a collection of standardized agents for your organization.
 
-### Strategic Recommendation
+### Recommendation
 
-From a strategic standpoint, the choice dictates our approach to building enterprise AI capabilities.
+The choice of how to build your agent depends on your goals and the requirements of your project:
 
 - **Standalone Agents** should be viewed as tactical tools for rapid, isolated prototyping. They serve immediate, project-specific needs but do not contribute to a scalable, long-term asset library.
 
