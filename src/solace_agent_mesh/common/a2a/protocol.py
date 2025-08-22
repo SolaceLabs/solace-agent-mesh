@@ -3,6 +3,7 @@ Helpers for A2A protocol-level concerns, such as topic construction and
 parsing of JSON-RPC requests and responses.
 """
 import re
+import uuid
 from typing import Any, Dict, Optional, Union
 
 from a2a.types import (
@@ -14,6 +15,7 @@ from a2a.types import (
     Message,
     SendMessageRequest,
     SendStreamingMessageRequest,
+    TaskIdParams,
 )
 
 # --- Topic Construction Helpers ---
@@ -259,3 +261,17 @@ def create_internal_error_response(
     """
     error = InternalError(message=message, data=data)
     return JSONRPCResponse(id=request_id, error=error)
+
+
+def create_cancel_task_request(task_id: str) -> CancelTaskRequest:
+    """
+    Creates a CancelTaskRequest object.
+
+    Args:
+        task_id: The ID of the task to cancel.
+
+    Returns:
+        A new `CancelTaskRequest` object.
+    """
+    params = TaskIdParams(id=task_id)
+    return CancelTaskRequest(id=uuid.uuid4().hex, params=params)

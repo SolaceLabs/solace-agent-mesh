@@ -18,7 +18,6 @@ from a2a.types import (
     AgentCard,
     AgentCapabilities,
     AgentExtension,
-    CancelTaskRequest,
     DataPart,
     GetTaskPushNotificationConfigRequest,
     GetTaskRequest,
@@ -33,7 +32,6 @@ from a2a.types import (
     SetTaskPushNotificationConfigRequest,
     Task,
     TaskArtifactUpdateEvent,
-    TaskIdParams,
     TaskResubscriptionRequest,
     TaskState,
     TaskStatus,
@@ -279,7 +277,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
         # For Send, we will generate it.
         logical_task_id = None
         if isinstance(a2a_request.root, CancelTaskRequest):
-            logical_task_id = a2a_request.root.params.id
+            logical_task_id = a2a.get_task_id_from_cancel_request(a2a_request)
             log.info(
                 "%s Received CancelTaskRequest for Task ID: %s.",
                 component.log_identifier,
@@ -322,11 +320,8 @@ async def handle_a2a_request(component, message: SolaceMessage):
                                 logical_task_id,
                             )
                             try:
-                                peer_cancel_params = TaskIdParams(
-                                    id=peer_task_id_to_cancel
-                                )
-                                peer_cancel_request = CancelTaskRequest(
-                                    id=uuid.uuid4().hex, params=peer_cancel_params
+                                peer_cancel_request = a2a.create_cancel_task_request(
+                                    task_id=peer_task_id_to_cancel
                                 )
                                 peer_cancel_user_props = {
                                     "clientId": component.agent_name
@@ -385,13 +380,17 @@ async def handle_a2a_request(component, message: SolaceMessage):
         elif isinstance(
             a2a_request.root, (SendMessageRequest, SendStreamingMessageRequest)
         ):
+            a2a_message = a2a.get_message_from_send_request(a2a_request)
+            if not a2a_message:
+                raise ValueError("Could not extract message from SendMessageRequest")
+
             # The gateway/client is the source of truth for the task ID.
             # The agent adopts the ID from the JSON-RPC request envelope.
             logical_task_id = str(a2a_request.root.id)
             # The session id is now contextId on the message
-            original_session_id = a2a_request.root.params.message.context_id
-            message_id = a2a_request.root.params.message.message_id
-            task_metadata = a2a_request.root.params.message.metadata or {}
+            original_session_id = a2a_message.context_id
+            message_id = a2a_message.message_id
+            task_metadata = a2a_message.metadata or {}
             system_purpose = task_metadata.get("system_purpose")
             response_format = task_metadata.get("response_format")
             session_behavior_from_meta = task_metadata.get("sessionBehavior")
@@ -571,7 +570,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 logical_task_id,
             )
 
-            a2a_message_for_adk = a2a_request.root.params.message
+            a2a_message_for_adk = a2a_message
             invoked_artifacts = (
                 a2a_message_for_adk.metadata.get("invoked_with_artifacts", [])
                 if a2a_message_for_adk.metadata
