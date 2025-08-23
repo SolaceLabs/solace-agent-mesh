@@ -1485,6 +1485,25 @@ class BaseGatewayComponent(ComponentBase):
         pass
 
     @abstractmethod
+    async def _translate_external_input(
+        self, external_event: Any
+    ) -> Tuple[str, List[ContentPart], Dict[str, Any]]:
+        """
+        Translates raw platform-specific event data into A2A task parameters.
+
+        Args:
+            external_event: Raw event data from the external platform
+                            (e.g., FastAPIRequest, Slack event dictionary).
+
+        Returns:
+            A tuple containing:
+            - target_agent_name (str): The name of the A2A agent to target.
+            - a2a_parts (List[ContentPart]): A list of unwrapped A2A Part objects.
+            - external_request_context (Dict[str, Any]): Context for TaskContextManager.
+        """
+        pass
+
+    @abstractmethod
     def _start_listener(self) -> None:
         pass
 
