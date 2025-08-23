@@ -1493,12 +1493,6 @@ class BaseGatewayComponent(ComponentBase):
         pass
 
     @abstractmethod
-    def _translate_external_input(
-        self, external_event: Any
-    ) -> Tuple[str, List[ContentPart], Dict[str, Any]]:
-        pass
-
-    @abstractmethod
     async def _send_update_to_external(
         self,
         external_request_context: Dict[str, Any],
