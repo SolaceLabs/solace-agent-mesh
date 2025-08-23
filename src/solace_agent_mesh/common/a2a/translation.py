@@ -33,8 +33,8 @@ def translate_a2a_to_adk_content(
 ) -> adk_types.Content:
     """Translates an A2A Message object to ADK Content."""
     adk_parts: List[adk_types.Part] = []
-    for part_wrapper in a2a_message.parts:
-        part = part_wrapper.root
+    unwrapped_parts = a2a.get_parts_from_message(a2a_message)
+    for part in unwrapped_parts:
         try:
             if isinstance(part, TextPart):
                 adk_parts.append(adk_types.Part(text=part.text))
@@ -82,8 +82,8 @@ def _extract_text_from_parts(parts: List[A2APart]) -> str:
     Note: This function intentionally ignores DataPart types.
     """
     output_parts = []
-    for part_wrapper in parts:
-        part = part_wrapper.root
+    unwrapped_parts = [part.root for part in parts]
+    for part in unwrapped_parts:
         if isinstance(part, TextPart):
             output_parts.append(part.text)
         elif isinstance(part, DataPart):
@@ -178,12 +178,12 @@ def format_adk_event_as_a2a(
         )
     )
 
-    a2a_parts: List[A2APart] = []
+    unwrapped_a2a_parts: List[Union[TextPart, DataPart, FilePart]] = []
     if adk_event.content and adk_event.content.parts:
         for part in adk_event.content.parts:
             try:
                 if part.text:
-                    a2a_parts.append(A2APart(root=TextPart(text=part.text)))
+                    unwrapped_a2a_parts.append(a2a.create_text_part(text=part.text))
                 elif part.inline_data:
                     log.debug(
                         "%s Skipping ADK inline_data part in status update translation.",
@@ -202,12 +202,12 @@ def format_adk_event_as_a2a(
                     )
             except Exception as e:
                 log.exception("%s Error translating ADK part: %s", log_identifier, e)
-                a2a_parts.append(
-                    A2APart(root=TextPart(text="[Error processing agent output part]"))
+                unwrapped_a2a_parts.append(
+                    a2a.create_text_part(text="[Error processing agent output part]")
                 )
 
     if is_final_adk_event and not is_streaming:
-        if not a2a_parts:
+        if not unwrapped_a2a_parts:
             log.debug(
                 "%s Skipping non-streaming final ADK event %s with no content in format_adk_event_as_a2a.",
                 log_identifier,
@@ -221,8 +221,8 @@ def format_adk_event_as_a2a(
                 adk_event.id,
             )
 
-    should_send_status = (is_streaming and bool(a2a_parts)) or (
-        is_final_adk_event and bool(a2a_parts)
+    should_send_status = (is_streaming and bool(unwrapped_a2a_parts)) or (
+        is_final_adk_event and bool(unwrapped_a2a_parts)
     )
 
     if not should_send_status:
@@ -233,12 +233,9 @@ def format_adk_event_as_a2a(
         )
         return None, signals_to_forward
 
-    a2a_message = A2AMessage(
-        role="agent",
-        parts=a2a_parts,
-        metadata=None,
+    a2a_message = a2a.create_agent_parts_message(
+        parts=unwrapped_a2a_parts,
         message_id=uuid.uuid4().hex,
-        kind="message",
     )
     is_final_update_for_this_event = is_final_adk_event
 

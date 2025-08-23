@@ -179,6 +179,14 @@ def create_data_part(
     return DataPart(data=data, metadata=metadata)
 
 
+def update_message_parts(
+    message: Message, new_parts: List[Union[TextPart, DataPart, FilePart]]
+) -> Message:
+    """Returns a new Message with its parts replaced."""
+    wrapped_parts = [Part(root=p) for p in new_parts]
+    return message.model_copy(update={"parts": wrapped_parts})
+
+
 # --- Consumption Helpers ---
 
 

@@ -584,8 +584,9 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 task_description = get_text_from_message(a2a_message_for_adk)
                 final_prompt = f"{task_description}\n\n{artifact_summary}"
 
-                a2a_message_for_adk = a2a_message_for_adk.model_copy(
-                    update={"parts": [a2a.create_part(a2a.create_text_part(text=final_prompt))]}
+                a2a_message_for_adk = a2a.update_message_parts(
+                    message=a2a_message_for_adk,
+                    new_parts=[a2a.create_text_part(text=final_prompt)],
                 )
                 log.debug(
                     "%s Generated new prompt for task %s with artifact context.",

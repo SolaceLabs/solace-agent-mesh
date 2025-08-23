@@ -943,9 +943,7 @@ class BaseGatewayComponent(ComponentBase):
                     combined_text = a2a.get_text_from_message(message)
                     data_parts = a2a.get_data_parts_from_message(message)
                     file_parts = a2a.get_file_parts_from_message(message)
-                    non_text_parts = [
-                        a2a.create_part(p) for p in data_parts + file_parts
-                    ]
+                    unwrapped_non_text_parts = data_parts + file_parts
 
                     if combined_text:
                         embed_eval_context = {
@@ -988,13 +986,16 @@ class BaseGatewayComponent(ComponentBase):
                                 is_finalizing_context=True,
                             )
 
-                        new_parts = (
-                            [a2a.create_part(a2a.create_text_part(text=resolved_text))]
+                        unwrapped_new_parts = (
+                            [a2a.create_text_part(text=resolved_text)]
                             if resolved_text
                             else []
                         )
-                        new_parts.extend(non_text_parts)
-                        parsed_event.status.message.parts = new_parts
+                        unwrapped_new_parts.extend(unwrapped_non_text_parts)
+                        parsed_event.status.message = a2a.update_message_parts(
+                            message=parsed_event.status.message,
+                            new_parts=unwrapped_new_parts,
+                        )
                         log.info(
                             "%s Final response text updated with resolved embeds.",
                             log_id_prefix,
