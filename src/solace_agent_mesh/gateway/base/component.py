@@ -719,7 +719,7 @@ class BaseGatewayComponent(ComponentBase):
                 parts_owner = event_with_parts.artifact
 
         if parts_owner and parts_owner.parts:
-            new_parts_for_owner: List[A2APart] = []
+            unwrapped_new_parts: List[Union[TextPart, DataPart, FilePart]] = []
             stream_buffer_key = f"{a2a_task_id}_stream_buffer"
             current_buffer = ""
 
@@ -764,8 +764,8 @@ class BaseGatewayComponent(ComponentBase):
                         content_modified_or_signal_handled = True
 
                     if resolved_text is not None:
-                        new_parts_for_owner.append(
-                            a2a.create_part(a2a.create_text_part(text=resolved_text))
+                        unwrapped_new_parts.append(
+                            a2a.create_text_part(text=resolved_text)
                         )
                         if is_streaming_status_update:
                             if resolved_text != text_to_resolve[:processed_idx]:
@@ -815,19 +815,17 @@ class BaseGatewayComponent(ComponentBase):
                                     new_file_content.bytes = base64.b64encode(
                                         resolved_content.encode("utf-8")
                                     ).decode("utf-8")
-                                    new_parts_for_owner.append(
-                                        a2a.create_part(
-                                            FilePart(
-                                                file=new_file_content,
-                                                metadata=part.metadata,
-                                            )
+                                    unwrapped_new_parts.append(
+                                        FilePart(
+                                            file=new_file_content,
+                                            metadata=part.metadata,
                                         )
                                     )
                                     content_modified_or_signal_handled = True
                                 else:
-                                    new_parts_for_owner.append(a2a.create_part(part))
+                                    unwrapped_new_parts.append(part)
                             else:
-                                new_parts_for_owner.append(a2a.create_part(part))
+                                unwrapped_new_parts.append(part)
                         except Exception as e:
                             log.warning(
                                 "%s Error during recursive FilePart resolution for %s: %s. Using original.",
@@ -835,14 +833,26 @@ class BaseGatewayComponent(ComponentBase):
                                 part.file.name,
                                 e,
                             )
-                            new_parts_for_owner.append(a2a.create_part(part))
+                            unwrapped_new_parts.append(part)
                     else:
                         # This is a FileWithUri or empty FileWithBytes, which we don't process for embeds here.
-                        new_parts_for_owner.append(a2a.create_part(part))
+                        unwrapped_new_parts.append(part)
                 else:
-                    new_parts_for_owner.append(a2a.create_part(part))
+                    unwrapped_new_parts.append(part)
 
-            parts_owner.parts = new_parts_for_owner
+            if isinstance(parts_owner, A2AMessage):
+                if isinstance(event_with_parts, TaskStatusUpdateEvent):
+                    event_with_parts.status.message = a2a.update_message_parts(
+                        message=parts_owner, new_parts=unwrapped_new_parts
+                    )
+                elif isinstance(event_with_parts, Task):
+                    event_with_parts.status.message = a2a.update_message_parts(
+                        message=parts_owner, new_parts=unwrapped_new_parts
+                    )
+            elif isinstance(parts_owner, A2AArtifact):
+                event_with_parts.artifact = a2a.update_artifact_parts(
+                    artifact=parts_owner, new_parts=unwrapped_new_parts
+                )
 
             if is_streaming_status_update:
                 self.task_context_manager.store_context(

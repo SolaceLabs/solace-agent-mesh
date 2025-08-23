@@ -70,6 +70,14 @@ def create_data_artifact(
     )
 
 
+def update_artifact_parts(
+    artifact: Artifact, new_parts: List[Union[TextPart, DataPart, FilePart]]
+) -> Artifact:
+    """Returns a new Artifact with its parts replaced."""
+    wrapped_parts = [Part(root=p) for p in new_parts]
+    return artifact.model_copy(update={"parts": wrapped_parts})
+
+
 # --- Consumption Helpers ---
 
 
