@@ -403,10 +403,9 @@ async def validation_exception_handler(
         request.method,
         request.url,
     )
-    error_obj = a2a.create_invalid_request_error(
-        message="Invalid request parameters", data=exc.errors()
+    response = a2a.create_invalid_request_error_response(
+        message="Invalid request parameters", data=exc.errors(), request_id=None
     )
-    response = a2a.create_error_response(error=error_obj, request_id=None)
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content=response.model_dump(exclude_none=True),

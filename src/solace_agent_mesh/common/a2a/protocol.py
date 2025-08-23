@@ -311,6 +311,26 @@ def create_internal_error_response(
     return JSONRPCResponse(id=request_id, error=error)
 
 
+def create_invalid_request_error_response(
+    message: str,
+    request_id: Optional[Union[str, int]],
+    data: Optional[Any] = None,
+) -> JSONRPCResponse:
+    """
+    Creates a JSON-RPC response object for an InvalidRequestError.
+
+    Args:
+        message: The error message.
+        request_id: The ID of the original request.
+        data: Optional structured data to include with the error.
+
+    Returns:
+        A new `JSONRPCResponse` object containing an `InvalidRequestError`.
+    """
+    error = create_invalid_request_error(message=message, data=data)
+    return JSONRPCResponse(id=request_id, error=error)
+
+
 def create_internal_error(
     message: str,
     data: Optional[Dict[str, Any]] = None,
