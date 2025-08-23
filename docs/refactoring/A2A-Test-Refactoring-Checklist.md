@@ -5,10 +5,10 @@ This checklist tracks the refactoring of the test suite to align with the new `c
 ## Phase 1: Refactor Core Test Components
 
 1.  **Refactor `TestGatewayComponent`** (`tests/sam-test-infrastructure/src/sam_test_infrastructure/gateway_interface/component.py`)
-    - [ ] Update imports to use `a2a.types` and `ContentPart`, removing imports from `common.types`.
-    - [ ] Update `_captured_outputs` type hint to use official `a2a.types`.
-    - [ ] Update `_translate_external_input` method signature to return `List[ContentPart]`.
-    - [ ] Update `_translate_external_input` implementation to use `a2a.create_*_part` helpers.
+    - [x] Update imports to use `a2a.types` and `ContentPart`, removing imports from `common.types`.
+    - [x] Update `_captured_outputs` type hint to use official `a2a.types`.
+    - [x] Update `_translate_external_input` method signature to return `List[ContentPart]`.
+    - [x] Update `_translate_external_input` implementation to use `a2a.create_*_part` helpers.
 
 2.  **Refactor `conftest.py`** (`tests/integration/conftest.py`)
     - [ ] Remove `mock_a2a_client` fixture.
