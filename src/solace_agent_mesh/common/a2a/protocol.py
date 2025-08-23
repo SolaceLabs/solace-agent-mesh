@@ -243,6 +243,21 @@ def get_response_error(response: JSONRPCResponse) -> Optional[JSONRPCError]:
     return None
 
 
+def get_error_message(error: JSONRPCError) -> str:
+    """Safely gets the message string from a JSONRPCError object."""
+    return error.message
+
+
+def get_error_code(error: JSONRPCError) -> int:
+    """Safely gets the code from a JSONRPCError object."""
+    return error.code
+
+
+def get_error_data(error: JSONRPCError) -> Optional[Any]:
+    """Safely gets the data from a JSONRPCError object."""
+    return error.data
+
+
 def create_success_response(
     result: Any, request_id: Optional[Union[str, int]]
 ) -> JSONRPCResponse:
