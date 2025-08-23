@@ -5,6 +5,7 @@ import base64
 import uuid
 from typing import Any, Dict, List, Optional, Union
 
+from .types import ContentPart
 from a2a.types import (
     DataPart,
     FilePart,
@@ -81,7 +82,7 @@ def create_agent_data_message(
 
 
 def create_agent_parts_message(
-    parts: List[Union[TextPart, DataPart, FilePart]],
+    parts: List[ContentPart],
     task_id: Optional[str] = None,
     context_id: Optional[str] = None,
     message_id: Optional[str] = None,
@@ -113,7 +114,7 @@ def create_agent_parts_message(
 
 
 def create_user_message(
-    parts: List[Union[TextPart, DataPart, FilePart]],
+    parts: List[ContentPart],
     task_id: Optional[str] = None,
     context_id: Optional[str] = None,
     message_id: Optional[str] = None,
@@ -180,7 +181,7 @@ def create_data_part(
 
 
 def update_message_parts(
-    message: Message, new_parts: List[Union[TextPart, DataPart, FilePart]]
+    message: Message, new_parts: List[ContentPart]
 ) -> Message:
     """Returns a new Message with its parts replaced."""
     wrapped_parts = [Part(root=p) for p in new_parts]
@@ -245,7 +246,7 @@ def get_task_id(message: Message) -> Optional[str]:
     return message.task_id
 
 
-def get_parts_from_message(message: Message) -> List[Union[TextPart, DataPart, FilePart]]:
+def get_parts_from_message(message: Message) -> List[ContentPart]:
     """
     Extracts the raw, unwrapped Part objects (TextPart, DataPart, etc.) from a Message.
 
@@ -263,9 +264,7 @@ def get_data_from_data_part(part: DataPart) -> Dict[str, Any]:
     return part.data
 
 
-def get_metadata_from_part(
-    part: Union[TextPart, DataPart, FilePart]
-) -> Optional[Dict[str, Any]]:
+def get_metadata_from_part(part: ContentPart) -> Optional[Dict[str, Any]]:
     """Safely retrieves the metadata from any Part object."""
     return part.metadata
 

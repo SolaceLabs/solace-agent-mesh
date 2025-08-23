@@ -178,7 +178,7 @@ def format_adk_event_as_a2a(
         )
     )
 
-    unwrapped_a2a_parts: List[Union[TextPart, DataPart, FilePart]] = []
+    unwrapped_a2a_parts: List[ContentPart] = []
     if adk_event.content and adk_event.content.parts:
         for part in adk_event.content.parts:
             try:

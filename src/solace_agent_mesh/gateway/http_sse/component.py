@@ -30,6 +30,7 @@ from ...common.agent_registry import AgentRegistry
 from ...core_a2a.service import CoreA2AService
 from google.adk.artifacts import BaseArtifactService
 
+from ...common.a2a.types import ContentPart
 from a2a.types import (
     A2ARequest,
     AgentCard,
@@ -1321,7 +1322,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
     async def _translate_external_input(
         self, external_event_data: Dict[str, Any]
-    ) -> Tuple[str, List[Union[TextPart, DataPart, FilePart]], Dict[str, Any]]:
+    ) -> Tuple[str, List[ContentPart], Dict[str, Any]]:
         """
         Translates raw HTTP request data (from FastAPI form) into A2A task parameters.
 

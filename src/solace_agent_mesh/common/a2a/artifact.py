@@ -4,6 +4,7 @@ Helpers for creating and consuming A2A Artifact objects.
 import uuid
 from typing import Any, List, Optional, Union
 
+from .types import ContentPart
 from a2a.types import (
     Artifact,
     DataPart,
@@ -70,9 +71,7 @@ def create_data_artifact(
     )
 
 
-def update_artifact_parts(
-    artifact: Artifact, new_parts: List[Union[TextPart, DataPart, FilePart]]
-) -> Artifact:
+def update_artifact_parts(artifact: Artifact, new_parts: List[ContentPart]) -> Artifact:
     """Returns a new Artifact with its parts replaced."""
     wrapped_parts = [Part(root=p) for p in new_parts]
     return artifact.model_copy(update={"parts": wrapped_parts})
@@ -91,9 +90,7 @@ def get_artifact_name(artifact: Artifact) -> Optional[str]:
     return artifact.name
 
 
-def get_parts_from_artifact(
-    artifact: Artifact,
-) -> List[Union[TextPart, DataPart, FilePart]]:
+def get_parts_from_artifact(artifact: Artifact) -> List[ContentPart]:
     """
     Extracts the raw, unwrapped Part objects (TextPart, DataPart, etc.) from an Artifact.
 

@@ -46,6 +46,7 @@ from ...common.utils.embeds import (
 from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 
 from ...common import a2a
+from ...common.a2a.types import ContentPart
 from ...common.data_parts import (
     AgentProgressUpdateData,
     ArtifactCreationProgressData,

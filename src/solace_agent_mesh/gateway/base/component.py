@@ -24,8 +24,8 @@ from ...common.services.identity_service import (
     create_identity_service,
 )
 from .task_context import TaskContextManager
+from ...common.a2a.types import ContentPart
 from a2a.types import (
-    Part as A2APart,
     Message as A2AMessage,
     AgentCard,
     JSONRPCResponse,
@@ -250,7 +250,7 @@ class BaseGatewayComponent(ComponentBase):
     async def submit_a2a_task(
         self,
         target_agent_name: str,
-        a2a_parts: List[A2APart],
+        a2a_parts: List[ContentPart],
         external_request_context: Dict[str, Any],
         user_identity: Any,
         is_streaming: bool = True,
@@ -1495,7 +1495,7 @@ class BaseGatewayComponent(ComponentBase):
     @abstractmethod
     def _translate_external_input(
         self, external_event: Any
-    ) -> Tuple[str, List[A2APart], Dict[str, Any]]:
+    ) -> Tuple[str, List[ContentPart], Dict[str, Any]]:
         pass
 
     @abstractmethod

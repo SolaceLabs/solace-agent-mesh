@@ -7,6 +7,7 @@ insulating the application from the specifics of the a2a-sdk.
 This __init__.py file exposes the most commonly used helpers for easy access.
 """
 
+from .types import ContentPart
 from .artifact import (
     create_data_artifact,
     create_text_artifact,
@@ -100,6 +101,8 @@ from .task import (
 from .translation import format_adk_event_as_a2a, translate_a2a_to_adk_content
 
 __all__ = [
+    # types.py
+    "ContentPart",
     # artifact.py
     "create_data_artifact",
     "create_text_artifact",

@@ -10,6 +10,7 @@ from google.genai import types as adk_types
 from pydantic import BaseModel, Field
 from solace_ai_connector.common.log import log
 
+from ...common.a2a.types import ContentPart
 from a2a.types import (
     TextPart,
     AgentCard,
@@ -140,7 +141,7 @@ class PeerAgentTool(BaseTool):
 
     def _prepare_a2a_parts(
         self, args: Dict[str, Any], tool_context: ToolContext
-    ) -> List[TextPart]:
+    ) -> List[ContentPart]:
         """
         Prepares the A2A message parts from tool arguments.
         """
