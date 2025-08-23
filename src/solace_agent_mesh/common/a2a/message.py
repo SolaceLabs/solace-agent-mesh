@@ -261,3 +261,15 @@ def get_parts_from_message(message: Message) -> List[Union[TextPart, DataPart, F
         A list of the unwrapped content parts.
     """
     return [part.root for part in message.parts]
+
+
+def get_data_from_data_part(part: DataPart) -> Dict[str, Any]:
+    """Safely retrieves the data dictionary from a DataPart object."""
+    return part.data
+
+
+def get_metadata_from_part(
+    part: Union[TextPart, DataPart, FilePart]
+) -> Optional[Dict[str, Any]]:
+    """Safely retrieves the metadata from any Part object."""
+    return part.metadata
