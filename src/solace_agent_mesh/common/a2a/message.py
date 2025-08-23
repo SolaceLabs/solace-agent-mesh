@@ -273,3 +273,30 @@ def get_metadata_from_part(
 ) -> Optional[Dict[str, Any]]:
     """Safely retrieves the metadata from any Part object."""
     return part.metadata
+
+
+def get_uri_from_file_part(part: FilePart) -> Optional[str]:
+    """Safely retrieves the URI from a FilePart, if it exists."""
+    if isinstance(part.file, FileWithUri):
+        return part.file.uri
+    return None
+
+
+def get_bytes_from_file_part(part: FilePart) -> Optional[bytes]:
+    """Safely retrieves and decodes the bytes from a FilePart, if they exist."""
+    if isinstance(part.file, FileWithBytes) and part.file.bytes:
+        try:
+            return base64.b64decode(part.file.bytes)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def get_filename_from_file_part(part: FilePart) -> Optional[str]:
+    """Safely retrieves the filename from a FilePart."""
+    return part.file.name
+
+
+def get_mimetype_from_file_part(part: FilePart) -> Optional[str]:
+    """Safely retrieves the MIME type from a FilePart."""
+    return part.file.mime_type
