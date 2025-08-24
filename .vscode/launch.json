@@ -28,7 +28,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/event-mesh-gateway.yaml examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml examples/test_agent.yaml examples/a2a_multimodal.yaml",
+            "args": "--envfile .env examples/slack.yaml examples/event-mesh-gateway.yaml examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml examples/test_agent.yaml examples/a2a_multimodal.yaml",
             "justMyCode": false,
         },
         {

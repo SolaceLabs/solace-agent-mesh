@@ -30,7 +30,7 @@ from sam_test_infrastructure.llm_server.server import TestLLMServer
 from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )
-from solace_agent_mesh.common.types import Task, JSONRPCError
+from a2a.types import Task, JSONRPCError
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector

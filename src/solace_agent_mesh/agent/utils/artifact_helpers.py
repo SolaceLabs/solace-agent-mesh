@@ -16,7 +16,7 @@ from typing import Any, Dict, Optional, Tuple, List, Union, TYPE_CHECKING
 from google.adk.artifacts import BaseArtifactService
 from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
-from ...common.types import ArtifactInfo
+from ...common.a2a.types import ArtifactInfo
 from ...common.utils.mime_helpers import is_text_based_mime_type, is_text_based_file
 from ...agent.utils.context_helpers import get_original_session_id
 
