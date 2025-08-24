@@ -9,6 +9,7 @@ import asyncio
 import json
 import base64
 import uuid
+import time
 from typing import List, Dict, Any
 
 try:
@@ -357,8 +358,13 @@ async def test_longevity_with_variety_and_peer_calls(
 
     for i in range(total_tasks):
         profile = TASK_PROFILES[i % len(TASK_PROFILES)]
+        task_start_time = time.monotonic()
         await _run_task_from_profile(
             test_gateway_app_instance, test_llm_server, profile, i
+        )
+        task_duration = time.monotonic() - task_start_time
+        print(
+            f"  Task {i+1}/{total_tasks} ({profile['id']}) completed in {task_duration:.4f} seconds."
         )
         if (i + 1) % 20 == 0:
             print(f"  ... completed {i+1}/{total_tasks} tasks.")
@@ -415,8 +421,13 @@ async def test_very_long_longevity_soak_test(
 
     for i in range(total_tasks):
         profile = TASK_PROFILES[i % len(TASK_PROFILES)]
+        task_start_time = time.monotonic()
         await _run_task_from_profile(
             test_gateway_app_instance, test_llm_server, profile, i
+        )
+        task_duration = time.monotonic() - task_start_time
+        print(
+            f"  Task {i+1}/{total_tasks} ({profile['id']}) completed in {task_duration:.4f} seconds."
         )
         if (i + 1) % 50 == 0:
             print(f"  ... completed {i+1}/{total_tasks} tasks.")
