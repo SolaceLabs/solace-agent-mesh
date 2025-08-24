@@ -527,13 +527,13 @@ def shared_solace_connector(
         lambda: test_artifact_service_instance,
     )
 
-    log_level_str = request.config.getoption("--log-cli-level") or "INFO"
+    log_level_str = request.config.getoption("--log-cli-level") or "DEBUG"
 
     connector_config = {
         "apps": app_infos,
         "log": {
             "stdout_log_level": log_level_str.upper(),
-            "log_file_level": "INFO",
+            "log_file_level": "DEBUG",
             "enable_trace": False,
         },
     }
