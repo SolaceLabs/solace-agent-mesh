@@ -11,14 +11,14 @@ This checklist tracks the refactoring of the test suite to align with the new `c
     - [x] Update `_translate_external_input` implementation to use `a2a.create_*_part` helpers.
 
 2.  **Refactor `conftest.py`** (`tests/integration/conftest.py`)
-    - [ ] Remove `mock_a2a_client` fixture.
-    - [ ] Remove `mock_card_resolver` fixture.
-    - [ ] Rewrite `mock_task_response` to use `a2a.create_final_task`.
-    - [ ] Rewrite `mock_task_response_cancel` to use `a2a.create_final_task`.
-    - [ ] Rewrite `mock_sse_task_response` to use `a2a.create_status_update`.
-    - [ ] Rewrite `mock_task_callback_response` to return a valid `a2a.types.TaskPushNotificationConfig`.
-    - [ ] Update `mock_agent_skills` to return an `a2a.types.AgentSkill` object.
-    - [ ] Update `mock_agent_card` to return an `a2a.types.AgentCard` object.
+    - [x] Remove `mock_a2a_client` fixture.
+    - [x] Remove `mock_card_resolver` fixture.
+    - [x] Rewrite `mock_task_response` to use `a2a.create_final_task`.
+    - [x] Rewrite `mock_task_response_cancel` to use `a2a.create_final_task`.
+    - [x] Rewrite `mock_sse_task_response` to use `a2a.create_status_update`.
+    - [x] Rewrite `mock_task_callback_response` to return a valid `a2a.types.TaskPushNotificationConfig`.
+    - [x] Update `mock_agent_skills` to return an `a2a.types.AgentSkill` object.
+    - [x] Update `mock_agent_card` to return an `a2a.types.AgentCard` object.
 
 ## Phase 2: Final Cleanup and Verification
 
