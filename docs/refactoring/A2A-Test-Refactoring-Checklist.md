@@ -23,9 +23,9 @@ This checklist tracks the refactoring of the test suite to align with the new `c
 ## Phase 2: Final Cleanup and Verification
 
 3.  **Delete Deprecated Files**
-    - [ ] Delete `src/solace_agent_mesh/common/types.py`.
-    - [ ] Delete `src/solace_agent_mesh/common/client/client.py`.
-    - [ ] Delete `src/solace_agent_mesh/common/a2a_protocol.py`.
+    - [x] Delete `src/solace_agent_mesh/common/types.py`.
+    - [x] Delete `src/solace_agent_mesh/common/client/client.py`.
+    - [x] Delete `src/solace_agent_mesh/common/a2a_protocol.py`.
 
 4.  **Update Documentation**
     - [ ] Update `docs/refactoring/A2A-Helper-Refactoring-Checklist.md` to mark all items as complete.
