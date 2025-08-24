@@ -88,7 +88,7 @@ async def run_adk_async_task_thread_wrapper(
                 await component.session_service.append_event(
                     session=adk_session, event=context_setting_event
                 )
-                log.info(
+                log.debug(
                     "%s Appended context-setting event to ADK session %s (via component.session_service) for task %s.",
                     component.log_identifier,
                     adk_session.id,
