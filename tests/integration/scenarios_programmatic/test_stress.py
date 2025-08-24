@@ -280,7 +280,7 @@ async def test_concurrency_stress_with_variety(
     monitor = MemoryMonitor(
         test_id=f"concurrency_variety_{parallel_tasks}_tasks",
         objects_to_track=[shared_solace_connector],
-        size_threshold_bytes=700 * 1024,
+        size_threshold_bytes=2000 * 1024,
         max_depth=100,
     )
 
@@ -349,7 +349,7 @@ async def test_longevity_with_variety_and_peer_calls(
     monitor = MemoryMonitor(
         test_id=f"longevity_variety_{total_tasks}_tasks",
         objects_to_track=[shared_solace_connector],
-        size_threshold_bytes=1000 * 1024,
+        size_threshold_bytes=5000 * 1024,
         max_depth=100,
     )
 

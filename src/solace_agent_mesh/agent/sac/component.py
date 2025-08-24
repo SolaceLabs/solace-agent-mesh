@@ -41,13 +41,11 @@ from google.adk.tools.mcp_tool import MCPToolset
 from a2a.types import (
     AgentCard,
     Artifact as A2AArtifact,
-    DataPart,
     FilePart,
     FileWithBytes,
     FileWithUri,
     Message as A2AMessage,
     MessageSendParams,
-    Part,
     SendMessageRequest,
     TaskState,
     TaskStatus,
@@ -2204,9 +2202,7 @@ class SamAgentComponent(ComponentBase):
                 else:
                     final_status = a2a.create_task_status(
                         state=TaskState.completed,
-                        message=a2a.create_agent_text_message(
-                            text="Task completed."
-                        ),
+                        message=a2a.create_agent_text_message(text="Task completed."),
                     )
 
             final_a2a_artifacts: List[A2AArtifact] = []

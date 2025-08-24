@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import json
 import base64
 import uuid
-from datetime import datetime, timezone
 from solace_ai_connector.common.log import log
 from google.genai import types as adk_types
 from google.adk.events import Event as ADKEvent
@@ -19,9 +18,6 @@ from a2a.types import (
     DataPart,
     JSONRPCResponse,
     InternalError,
-    TaskStatus,
-    TaskState,
-    TaskStatusUpdateEvent,
 )
 
 from .. import a2a
@@ -73,7 +69,7 @@ def translate_a2a_to_adk_content(
     return adk_types.Content(role=adk_role, parts=adk_parts)
 
 
-def _extract_text_from_parts(parts: List[ContentPart]) -> str:
+def _extract_text_from_parts(parts: List[a2a.ContentPart]) -> str:
     """
     Extracts and combines text/file info from a list of A2A parts
     into a single string for display or logging.
@@ -176,7 +172,7 @@ def format_adk_event_as_a2a(
         )
     )
 
-    unwrapped_a2a_parts: List[ContentPart] = []
+    unwrapped_a2a_parts: List[a2a.ContentPart] = []
     if adk_event.content and adk_event.content.parts:
         for part in adk_event.content.parts:
             try:
