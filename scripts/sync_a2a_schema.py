@@ -9,6 +9,7 @@ import importlib.util
 import re
 import sys
 from pathlib import Path
+from typing import Optional
 
 import httpx
 
@@ -96,6 +97,36 @@ def modify_url_with_tag(url: str, tag: str) -> str:
     return modified_url
 
 
+def parse_protocol_version_from_file(types_file_path: Path) -> Optional[str]:
+    """
+    Parses the default protocol_version from the AgentCard definition in the types.py file.
+    """
+    try:
+        with open(types_file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            # Use a regex that is less sensitive to whitespace and type hint changes
+            match = re.search(
+                r"class AgentCard\(.*?protocol_version:.*?=\s*'([^']+)'",
+                content,
+                re.DOTALL,  # Allow . to match newlines
+            )
+            if match:
+                version = match.group(1)
+                print(f"Found protocol_version in AgentCard: {version}")
+                return version
+            print(
+                "Warning: Could not find 'protocol_version' default in AgentCard definition.",
+                file=sys.stderr,
+            )
+            return None
+    except Exception as e:
+        print(
+            f"Error parsing protocol_version from {types_file_path}: {e}",
+            file=sys.stderr,
+        )
+        return None
+
+
 def download_schema_with_fallback(base_url: str, version: str, save_path: Path):
     """
     Attempts to download the schema for the given version, falling back to
@@ -170,10 +201,18 @@ def download_schema_with_fallback(base_url: str, version: str, save_path: Path):
 def main():
     """Main script execution."""
     print("--- Starting A2A Schema Synchronization ---")
-    sdk_version = get_sdk_version()
     types_py_path = find_sdk_types_file()
+
+    # Try to get the precise protocol version from the AgentCard model
+    schema_version = parse_protocol_version_from_file(types_py_path)
+
+    # Fallback to SDK package version if parsing fails
+    if not schema_version:
+        print("Warning: Falling back to a2a-sdk package version.", file=sys.stderr)
+        schema_version = get_sdk_version()
+
     base_url = parse_url_from_header(types_py_path)
-    download_schema_with_fallback(base_url, sdk_version, SCHEMA_PATH)
+    download_schema_with_fallback(base_url, schema_version, SCHEMA_PATH)
     print("--- A2A Schema Synchronization Complete ---")
 
 
