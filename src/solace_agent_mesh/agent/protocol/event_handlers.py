@@ -19,7 +19,6 @@ from a2a.types import (
     CancelTaskRequest,
     DataPart,
     JSONRPCResponse,
-    Part,
     SendMessageRequest,
     SendStreamingMessageRequest,
     Task,

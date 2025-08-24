@@ -41,7 +41,6 @@ from a2a.types import (
     JSONRPCError,
     JSONRPCResponse,
     Message as A2AMessage,
-    Part as A2APart,
     Task,
     TaskArtifactUpdateEvent,
     TaskState,

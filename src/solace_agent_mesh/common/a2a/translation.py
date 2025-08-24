@@ -17,7 +17,6 @@ from a2a.types import (
     TextPart,
     FilePart,
     DataPart,
-    Part as A2APart,
     JSONRPCResponse,
     InternalError,
     TaskStatus,
@@ -74,7 +73,7 @@ def translate_a2a_to_adk_content(
     return adk_types.Content(role=adk_role, parts=adk_parts)
 
 
-def _extract_text_from_parts(parts: List[A2APart]) -> str:
+def _extract_text_from_parts(parts: List[ContentPart]) -> str:
     """
     Extracts and combines text/file info from a list of A2A parts
     into a single string for display or logging.
@@ -82,8 +81,7 @@ def _extract_text_from_parts(parts: List[A2APart]) -> str:
     Note: This function intentionally ignores DataPart types.
     """
     output_parts = []
-    unwrapped_parts = [part.root for part in parts]
-    for part in unwrapped_parts:
+    for part in parts:
         if isinstance(part, TextPart):
             output_parts.append(part.text)
         elif isinstance(part, DataPart):
