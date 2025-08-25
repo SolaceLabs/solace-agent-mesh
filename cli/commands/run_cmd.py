@@ -1,8 +1,10 @@
-import click
 import os
 import sys
 from pathlib import Path
-from dotenv import load_dotenv, find_dotenv
+
+import click
+from dotenv import find_dotenv, load_dotenv
+
 from cli.utils import error_exit
 from solace_agent_mesh.common.utils.initializer import initialize
 
@@ -110,7 +112,7 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
                 ),
                 err=True,
             )
-            return 1
+            sys.exit(1)
 
         for filepath in configs_dir.rglob("*.yaml"):
             if filepath.name.startswith("_") or filepath.name.startswith(
