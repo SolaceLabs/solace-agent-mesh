@@ -20,11 +20,14 @@ from solace_ai_connector.common.log import log
 from ....gateway.http_sse.session_manager import SessionManager
 from ....gateway.http_sse.services.task_service import TaskService
 
-from ....common.types import (
-    JSONRPCResponse,
-    InternalError,
-    InvalidRequestError,
+from a2a.types import (
+    CancelTaskRequest,
+    SendMessageRequest,
+    SendStreamingMessageRequest,
+    SendMessageSuccessResponse,
+    SendStreamingMessageSuccessResponse,
 )
+from ....common import a2a
 
 from ....gateway.http_sse.dependencies import (
     get_session_manager,
@@ -41,29 +44,29 @@ if TYPE_CHECKING:
 router = APIRouter()
 
 
-class CancelTaskApiPayload(BaseModel):
-    """Request body for the task cancellation endpoint."""
-
-    agent_name: str = Field(
-        ..., description="The name of the agent currently handling the task."
-    )
-    task_id: str = Field(..., description="The ID of the task to cancel.")
-
-
-@router.post("/send", response_model=JSONRPCResponse)
+@router.post("/message:send", response_model=SendMessageSuccessResponse)
 async def send_task_to_agent(
     request: FastAPIRequest,
-    agent_name: str = Form(...),
-    message: str = Form(...),
-    files: List[UploadFile] = File([]),
+    payload: SendMessageRequest,
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ):
     """
     Submits a non-streaming task request to the specified agent.
-    Accepts multipart/form-data.
+    Accepts application/json.
     """
-    log_prefix = "[POST /api/v1/tasks/send] "
+    log_prefix = "[POST /api/v1/message:send] "
+
+    agent_name = None
+    if payload.params and payload.params.message and payload.params.message.metadata:
+        agent_name = payload.params.message.metadata.get("agent_name")
+
+    if not agent_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing 'agent_name' in request payload message metadata.",
+        )
+
     log.info("%sReceived request for agent: %s", log_prefix, agent_name)
 
     try:
@@ -87,20 +90,19 @@ async def send_task_to_agent(
             "%sUsing ClientID: %s, SessionID: %s", log_prefix, client_id, session_id
         )
 
-        external_event_data = {
-            "agent_name": agent_name,
-            "message": message,
-            "files": files,
-            "client_id": client_id,
+        # Use the helper to get the unwrapped parts from the incoming message.
+        a2a_parts = a2a.get_parts_from_message(payload.params.message)
+
+        external_req_ctx = {
+            "app_name_for_artifacts": component.gateway_id,
+            "user_id_for_artifacts": client_id,
             "a2a_session_id": session_id,
+            "user_id_for_a2a": client_id,
+            "target_agent_name": agent_name,
         }
 
-        target_agent, a2a_parts, external_req_ctx = (
-            await component._translate_external_input(external_event_data)
-        )
-
         task_id = await component.submit_a2a_task(
-            target_agent_name=target_agent,
+            target_agent_name=agent_name,
             a2a_parts=a2a_parts,
             external_request_context=external_req_ctx,
             user_identity=user_identity,
@@ -109,53 +111,58 @@ async def send_task_to_agent(
 
         log.info("%sTask submitted successfully. TaskID: %s", log_prefix, task_id)
 
-        return JSONRPCResponse(result={"taskId": task_id})
-
-    except InvalidRequestError as e:
-        log.warning("%sInvalid request: %s", log_prefix, e.message, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=e.model_dump(exclude_none=True),
+        task_object = a2a.create_initial_task(
+            task_id=task_id,
+            context_id=session_id,
+            agent_name=agent_name,
         )
+
+        return a2a.create_send_message_success_response(
+            result=task_object, request_id=payload.id
+        )
+
     except PermissionError as pe:
         log.warning("%sPermission denied: %s", log_prefix, str(pe))
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(pe),
         )
-    except InternalError as e:
-        log.error(
-            "%sInternal error submitting task: %s", log_prefix, e.message, exc_info=True
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=e.model_dump(exclude_none=True),
-        )
     except Exception as e:
         log.exception("%sUnexpected error submitting task: %s", log_prefix, e)
-        error_resp = InternalError(message="Unexpected server error: %s" % e)
+        error_resp = a2a.create_internal_error(
+            message="Unexpected server error: %s" % e
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_resp.model_dump(exclude_none=True),
         )
 
 
-@router.post("/subscribe", response_model=JSONRPCResponse)
+@router.post("/message:stream", response_model=SendStreamingMessageSuccessResponse)
 async def subscribe_task_from_agent(
     request: FastAPIRequest,
-    agent_name: str = Form(...),
-    message: str = Form(...),
-    files: List[UploadFile] = File([]),
+    payload: SendStreamingMessageRequest,
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     user: dict = Depends(get_current_user),
 ):
     """
     Submits a streaming task request (`tasks/sendSubscribe`) to the specified agent.
-    Accepts multipart/form-data.
+    Accepts application/json.
     The client should subsequently connect to the SSE endpoint using the returned taskId.
     """
-    log_prefix = "[POST /api/v1/tasks/subscribe] "
+    log_prefix = "[POST /api/v1/message:stream] "
+
+    agent_name = None
+    if payload.params and payload.params.message and payload.params.message.metadata:
+        agent_name = payload.params.message.metadata.get("agent_name")
+
+    if not agent_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing 'agent_name' in request payload message metadata.",
+        )
+
     log.info("%sReceived streaming request for agent: %s", log_prefix, agent_name)
 
     try:
@@ -179,20 +186,19 @@ async def subscribe_task_from_agent(
             "%sUsing ClientID: %s, SessionID: %s", log_prefix, client_id, session_id
         )
 
-        external_event_data = {
-            "agent_name": agent_name,
-            "message": message,
-            "files": files,
-            "client_id": client_id,
+        # Use the helper to get the unwrapped parts from the incoming message.
+        a2a_parts = a2a.get_parts_from_message(payload.params.message)
+
+        external_req_ctx = {
+            "app_name_for_artifacts": component.gateway_id,
+            "user_id_for_artifacts": client_id,
             "a2a_session_id": session_id,
+            "user_id_for_a2a": client_id,
+            "target_agent_name": agent_name,
         }
 
-        target_agent, a2a_parts, external_req_ctx = (
-            await component._translate_external_input(external_event_data)
-        )
-
         task_id = await component.submit_a2a_task(
-            target_agent_name=target_agent,
+            target_agent_name=agent_name,
             a2a_parts=a2a_parts,
             external_request_context=external_req_ctx,
             user_identity=user_identity,
@@ -203,91 +209,93 @@ async def subscribe_task_from_agent(
             "%sStreaming task submitted successfully. TaskID: %s", log_prefix, task_id
         )
 
-        return JSONRPCResponse(result={"taskId": task_id})
-
-    except InvalidRequestError as e:
-        log.warning("%sInvalid request: %s", log_prefix, e.message, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=e.model_dump(exclude_none=True),
+        # Create a compliant A2A Task object for the initial response
+        task_object = a2a.create_initial_task(
+            task_id=task_id,
+            context_id=session_id,
+            agent_name=agent_name,
         )
+
+        return a2a.create_send_streaming_message_success_response(
+            result=task_object, request_id=payload.id
+        )
+
     except PermissionError as pe:
         log.warning("%sPermission denied: %s", log_prefix, str(pe))
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(pe),
         )
-    except InternalError as e:
-        log.error(
-            "%sInternal error submitting streaming task: %s",
-            log_prefix,
-            e.message,
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=e.model_dump(exclude_none=True),
-        )
     except Exception as e:
         log.exception("%sUnexpected error submitting streaming task: %s", log_prefix, e)
-        error_resp = InternalError(message="Unexpected server error: %s" % e)
+        error_resp = a2a.create_internal_error(
+            message="Unexpected server error: %s" % e
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_resp.model_dump(exclude_none=True),
         )
 
 
-@router.post("/cancel", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/tasks/{taskId}:cancel", status_code=status.HTTP_202_ACCEPTED)
 async def cancel_agent_task(
     request: FastAPIRequest,
-    payload: CancelTaskApiPayload,
+    taskId: str,
+    payload: CancelTaskRequest,
     session_manager: SessionManager = Depends(get_session_manager),
     task_service: TaskService = Depends(get_task_service),
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
 ):
     """
     Sends a cancellation request for a specific task to the specified agent.
     Returns 202 Accepted, as cancellation is asynchronous.
     """
-    log_prefix = "[POST /api/v1/tasks/cancel][Task:%s] " % payload.task_id
-    log.info(
-        "%sReceived cancellation request for agent: %s", log_prefix, payload.agent_name
-    )
+    log_prefix = f"[POST /api/v1/tasks/{taskId}:cancel] "
+    log.info("%sReceived cancellation request.", log_prefix)
+
+    if taskId != payload.params.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Task ID in URL path does not match task ID in payload.",
+        )
+
+    context = component.task_context_manager.get_context(taskId)
+    if not context:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No active task context found for task ID: {taskId}",
+        )
+
+    agent_name = context.get("target_agent_name")
+    if not agent_name:
+        log.error(
+            "%sCould not determine target agent for task %s. Context is missing 'target_agent_name'.",
+            log_prefix,
+            taskId,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not determine target agent for the task.",
+        )
+
+    log.info("%sTarget agent for cancellation is '%s'", log_prefix, agent_name)
 
     try:
         client_id = session_manager.get_a2a_client_id(request)
 
         log.info("%sUsing ClientID: %s", log_prefix, client_id)
 
-        await task_service.cancel_task(
-            payload.agent_name, payload.task_id, client_id, client_id
-        )
+        await task_service.cancel_task(agent_name, taskId, client_id, client_id)
 
         log.info("%sCancellation request published successfully.", log_prefix)
 
         return {"message": "Cancellation request sent"}
 
-    except InvalidRequestError as e:
-        log.warning(
-            "%sInvalid cancellation request: %s", log_prefix, e.message, exc_info=True
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=e.model_dump(exclude_none=True),
-        )
-    except InternalError as e:
-        log.error(
-            "%sInternal error sending cancellation: %s",
-            log_prefix,
-            e.message,
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=e.model_dump(exclude_none=True),
-        )
     except Exception as e:
         log.exception("%sUnexpected error sending cancellation: %s", log_prefix, e)
-        error_resp = InternalError(message="Unexpected server error: %s" % e)
+        error_resp = a2a.create_internal_error(
+            message="Unexpected server error: %s" % e
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_resp.model_dump(exclude_none=True),

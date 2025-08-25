@@ -3,7 +3,7 @@ description: |
   Tests 'apply_embed_and_create_artifact' behavior when 'output_filename'
   contains embed-like syntax. Expects the syntax to be treated literally,
   creating an artifact with the embed syntax in its actual name.
-tags: ["all","agent","tools","builtin_artifact_tools"]
+tags: ["all", "agent", "tools", "builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -64,10 +64,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "Processed 'source_for_embed_outname.txt' and saved it as 'output_«state:var».txt'."
-    task_state: "completed"
+    kind: task
+    id: '*'
+    contextId: "session_apply_embed_outname_literal_001"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "Processed 'source_for_embed_outname.txt' and saved it as 'output_«state:var».txt'."
     assert_artifact_state:
       # Check the newly created output artifact
       - filename: "output_«state:var».txt" # Asserting the literal filename

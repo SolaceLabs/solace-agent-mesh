@@ -1,0 +1,206 @@
+# DEVELOPER GUIDE: Renderers
+
+## Quick Summary
+The Renderers directory contains React components for rendering different types of content in a chat preview interface. Each renderer handles a specific content type (audio, images, CSV, HTML, etc.) and provides appropriate display and interaction capabilities.
+
+## Files Overview
+- **AudioRenderer.tsx** - Renders audio content with playback controls
+- **CsvRenderer.tsx** - Parses and displays CSV data in a table format
+- **HTMLRenderer.tsx** - Renders HTML content in a sandboxed iframe
+- **ImageRenderer.tsx** - Displays images from base64 data
+- **MarkdownRenderer.tsx** - Renders Markdown content with copy functionality
+- **MermaidRenderer.tsx** - Renders Mermaid diagrams with pan/zoom controls
+- **StructuredDataRenderer.tsx** - Displays JSON/YAML data with structured and raw views
+- **TextRenderer.tsx** - Displays plain text with copy functionality
+
+## Developer API Reference
+
+### AudioRenderer.tsx
+**Purpose:** Renders audio content with HTML5 audio controls
+**Import:** `import { AudioRenderer } from './Renderers/AudioRenderer'`
+
+**Components:**
+- `AudioRenderer(props: BaseRendererProps)` - Audio player component
+  - Accepts base64 audio content and MIME type
+  - Provides standard audio controls (play, pause, seek, volume)
+  - Handles loading and error states
+
+**Usage Examples:**
+```tsx
+import { AudioRenderer } from './Renderers/AudioRenderer';
+
+<AudioRenderer 
+  content="base64AudioData" 
+  mime_type="audio/mpeg" 
+  setRenderError={setError} 
+/>
+```
+
+### CsvRenderer.tsx
+**Purpose:** Parses CSV content and displays it in a responsive table
+**Import:** `import { CsvRenderer } from './Renderers/CsvRenderer'`
+
+**Components:**
+- `CsvRenderer(props: BaseRendererProps)` - CSV table component
+  - Parses CSV with support for quoted fields and line breaks
+  - Creates responsive table with sticky headers
+  - Handles empty cells and malformed data
+
+**Functions:**
+- `parseCsv(csvString: string) -> string[][]` - Internal CSV parser function
+
+**Usage Examples:**
+```tsx
+import { CsvRenderer } from './Renderers/CsvRenderer';
+
+<CsvRenderer 
+  content="name,age,city\nJohn,30,NYC\nJane,25,LA" 
+  setRenderError={setError} 
+/>
+```
+
+### HTMLRenderer.tsx
+**Purpose:** Renders HTML content in a secure sandboxed iframe
+**Import:** `import { HtmlRenderer } from './Renderers/HTMLRenderer'`
+
+**Components:**
+- `HtmlRenderer(props: BaseRendererProps)` - HTML preview component
+  - Wraps JavaScript in IIFEs for error handling
+  - Uses iframe sandbox for security
+  - Supports interactive HTML content
+
+**Usage Examples:**
+```tsx
+import { HtmlRenderer } from './Renderers/HTMLRenderer';
+
+<HtmlRenderer 
+  content="<html><body><h1>Hello World</h1></body></html>" 
+  setRenderError={setError} 
+/>
+```
+
+### ImageRenderer.tsx
+**Purpose:** Displays images from base64 encoded data
+**Import:** `import { ImageRenderer } from './Renderers/ImageRenderer'`
+
+**Components:**
+- `ImageRenderer(props: BaseRendererProps)` - Image display component
+  - Converts base64 data to data URLs
+  - Responsive image sizing with object-contain
+  - Handles image loading errors
+
+**Usage Examples:**
+```tsx
+import { ImageRenderer } from './Renderers/ImageRenderer';
+
+<ImageRenderer 
+  content="base64ImageData" 
+  mime_type="image/png" 
+  setRenderError={setError} 
+/>
+```
+
+### MarkdownRenderer.tsx
+**Purpose:** Renders Markdown content with copy functionality
+**Import:** `import { MarkdownRenderer } from './Renderers/MarkdownRenderer'`
+
+**Components:**
+- `MarkdownRenderer(props: BaseRendererProps)` - Markdown display component
+  - Uses MarkdownHTMLConverter for rendering
+  - Includes keyboard copy functionality via useCopy hook
+  - Supports text selection
+
+**Usage Examples:**
+```tsx
+import { MarkdownRenderer } from './Renderers/MarkdownRenderer';
+
+<MarkdownRenderer 
+  content="# Hello\n\nThis is **markdown** content." 
+  setRenderError={setError} 
+/>
+```
+
+### MermaidRenderer.tsx
+**Purpose:** Renders Mermaid diagrams with interactive pan/zoom controls
+**Import:** `import { MermaidRenderer } from './Renderers/MermaidRenderer'`
+
+**Components:**
+- `MermaidRenderer(props: BaseRendererProps)` - Interactive diagram component
+  - Sanitizes Mermaid content for security
+  - Provides pan and zoom functionality
+  - Includes reset view controls
+  - Loads Mermaid.js from CDN in iframe
+
+**Usage Examples:**
+```tsx
+import { MermaidRenderer } from './Renderers/MermaidRenderer';
+
+<MermaidRenderer 
+  content="graph TD; A-->B; A-->C; B-->D; C-->D;" 
+  setRenderError={setError} 
+/>
+```
+
+### StructuredDataRenderer.tsx
+**Purpose:** Displays JSON/YAML data with structured and raw text views
+**Import:** `import { StructuredDataRenderer } from './Renderers/StructuredDataRenderer'`
+
+**Components:**
+- `StructuredDataRenderer(props: StructuredDataRendererProps)` - Dual-view data component
+  - `rendererType: "json" | "yaml"` - Specifies data format
+  - Toggle between structured JSONViewer and raw text
+  - Handles parsing errors gracefully
+  - Uses js-yaml library for YAML parsing
+
+**Usage Examples:**
+```tsx
+import { StructuredDataRenderer } from './Renderers/StructuredDataRenderer';
+
+<StructuredDataRenderer 
+  content='{"name": "John", "age": 30}' 
+  rendererType="json"
+  setRenderError={setError} 
+/>
+
+<StructuredDataRenderer 
+  content="name: John\nage: 30" 
+  rendererType="yaml"
+  setRenderError={setError} 
+/>
+```
+
+### TextRenderer.tsx
+**Purpose:** Displays plain text with copy functionality and custom styling
+**Import:** `import { TextRenderer } from './Renderers/TextRenderer'`
+
+**Components:**
+- `TextRenderer(props: TextRendererProps)` - Plain text display component
+  - `className?: string` - Optional CSS classes
+  - Preserves whitespace and line breaks
+  - Includes keyboard copy functionality
+  - Supports text selection
+
+**Usage Examples:**
+```tsx
+import { TextRenderer } from './Renderers/TextRenderer';
+
+<TextRenderer 
+  content="Plain text content with\nline breaks preserved" 
+  setRenderError={setError}
+  className="custom-text-styles" 
+/>
+```
+
+### Common Types
+**BaseRendererProps Interface:**
+```typescript
+interface BaseRendererProps {
+  content: string;
+  mime_type?: string;
+  setRenderError: (error: string | null) => void;
+}
+```
+
+All renderers accept these base properties for consistent error handling and content display.
+
+# content_hash: dd9ff3dcaccc3990cca21e622b81463c15a4bf56d371ec6f49465dd51b48428a

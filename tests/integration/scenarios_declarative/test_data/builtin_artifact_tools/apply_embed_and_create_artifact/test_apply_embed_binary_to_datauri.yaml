@@ -3,7 +3,7 @@ description: |
   Tests 'apply_embed_and_create_artifact' with a binary source artifact (image)
   and the 'format:datauri' directive. Expects the output artifact to contain
   the data URI string with a text/plain MIME type.
-tags: ["all","agent","tools","builtin_artifact_tools"]
+tags: ["all", "agent", "tools", "builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -64,10 +64,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "Converted 'source_image.png' to a data URI and saved it as 'output_image_data_uri.txt'."
-    task_state: "completed"
+    kind: task
+    id: '*'
+    contextId: "session_apply_embed_datauri_001"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "Converted 'source_image.png' to a data URI and saved it as 'output_image_data_uri.txt'."
     assert_artifact_state:
       # Check the newly created output artifact (the data URI string)
       - filename: "output_image_data_uri.txt"

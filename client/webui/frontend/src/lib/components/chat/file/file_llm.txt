@@ -1,0 +1,101 @@
+# DEVELOPER GUIDE: file
+
+## Quick Summary
+This directory contains React components for displaying and managing file attachments in a chat interface. It provides UI components for file badges, file messages with preview/download functionality, and utilities for determining appropriate file icons based on file types.
+
+## Files Overview
+- **FileBadge.tsx** - Removable badge component for displaying file names with optional delete functionality
+- **FileMessage.tsx** - Message component for displaying file attachments with preview and download actions
+- **fileUtils.tsx** - Utility functions for determining appropriate file icons based on file type and MIME type
+
+## Developer API Reference
+
+### FileBadge.tsx
+**Purpose:** Renders a badge component displaying a file name with an optional remove button
+**Import:** `import { FileBadge } from "@/lib/components/chat/file/FileBadge"`
+
+**Components:**
+- `FileBadge({ fileName, onRemove })` - A badge component that displays a file name with optional removal functionality
+  - `fileName: string` - The name of the file to display
+  - `onRemove?: () => void` - Optional callback function called when the remove button is clicked
+
+**Usage Examples:**
+```tsx
+import { FileBadge } from "@/lib/components/chat/file/FileBadge";
+
+// Basic file badge without remove functionality
+<FileBadge fileName="document.pdf" />
+
+// File badge with remove functionality
+<FileBadge 
+  fileName="image.jpg" 
+  onRemove={() => console.log("File removed")} 
+/>
+```
+
+### FileMessage.tsx
+**Purpose:** Renders file attachment messages with preview and download capabilities
+**Import:** `import { FileAttachmentMessage, FileMessage } from "@/lib/components/chat/file/FileMessage"`
+
+**Components:**
+- `FileAttachmentMessage({ fileAttachment })` - Component for displaying file attachment messages
+  - `fileAttachment: FileAttachment` - The file attachment object to display
+
+- `FileMessage({ filename, className, onDownload })` - Generic file message component with preview and download actions
+  - `filename: string` - The name of the file to display
+  - `className?: string` - Optional CSS class name for styling
+  - `onDownload?: () => void` - Optional callback function for download action
+
+**Usage Examples:**
+```tsx
+import { FileAttachmentMessage, FileMessage } from "@/lib/components/chat/file/FileMessage";
+
+// File attachment message
+<FileAttachmentMessage fileAttachment={myFileAttachment} />
+
+// Generic file message with download
+<FileMessage 
+  filename="report.pdf"
+  className="my-custom-class"
+  onDownload={() => handleDownload()}
+/>
+
+// Simple file message without download
+<FileMessage filename="data.csv" />
+```
+
+### fileUtils.tsx
+**Purpose:** Provides utility functions for determining appropriate file icons based on file types
+**Import:** `import { getFileIcon } from "@/lib/components/chat/file/fileUtils"`
+
+**Functions:**
+- `getFileIcon(artifact: ArtifactInfo | undefined, className?: string) -> JSX.Element` - Returns the appropriate file icon component based on the artifact's file type and MIME type
+  - `artifact: ArtifactInfo | undefined` - The artifact information containing filename and MIME type
+  - `className?: string` - Optional CSS class for the icon (defaults to "h-4 w-4")
+
+**Usage Examples:**
+```tsx
+import { getFileIcon } from "@/lib/components/chat/file/fileUtils";
+
+// Get icon for an artifact
+const icon = getFileIcon(myArtifact);
+
+// Get icon with custom styling
+const styledIcon = getFileIcon(myArtifact, "h-6 w-6 text-blue-500");
+
+// Handle undefined artifact (returns generic file icon)
+const defaultIcon = getFileIcon(undefined);
+
+// Use in a component
+function MyFileComponent({ artifact }) {
+  const FileIcon = getFileIcon(artifact);
+  return (
+    <div>
+      {FileIcon}
+      <span>{artifact?.filename}</span>
+    </div>
+  );
+}
+```
+
+# content_hash: 50df4f2d4916ea3ab442d73988664933c5b1cf4938b6ca84bca672f9ed741ee9

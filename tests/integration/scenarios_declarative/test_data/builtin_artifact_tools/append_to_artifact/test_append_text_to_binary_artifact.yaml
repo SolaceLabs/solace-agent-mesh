@@ -3,7 +3,7 @@ description: |
   Tests appending a text chunk to a pre-existing binary artifact.
   Verifies that the original artifact's MIME type is preserved and
   the new content includes both original binary and appended text.
-tags: ["all","agent","tools","builtin_artifact_tools"]
+tags: ["all", "agent", "tools", "builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -65,10 +65,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "Okay, I have appended the text to 'append_target_binary.png'. It is now version 1 and has a total size of 90 bytes."
-    task_state: "completed"
+    kind: task
+    id: '*'
+    contextId: "session_append_text_to_binary_test_001"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "Okay, I have appended the text to 'append_target_binary.png'. It is now version 1 and has a total size of 90 bytes."
     assert_artifact_state:
       # Check the initial artifact (version 0)
       - filename: "append_target_binary.png"

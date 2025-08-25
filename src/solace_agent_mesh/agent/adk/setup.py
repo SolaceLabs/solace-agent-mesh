@@ -619,6 +619,10 @@ def initialize_adk_agent(
         track_artifacts_cb_with_component = functools.partial(
             adk_callbacks.track_produced_artifacts_callback, host_component=component
         )
+        notify_tool_result_cb_with_component = functools.partial(
+            adk_callbacks.notify_tool_execution_result_callback,
+            host_component=component,
+        )
 
         async def chained_after_tool_callback(
             tool: BaseTool,
@@ -634,6 +638,13 @@ def initialize_adk_agent(
             )
 
             try:
+                # First, notify the UI about the raw result.
+                # This is a fire-and-forget notification that does not modify the response.
+                notify_tool_result_cb_with_component(
+                    tool, args, tool_context, tool_response
+                )
+
+                # Now, proceed with the existing chain that modifies the response for the LLM.
                 processed_by_large_handler = await large_response_cb_with_component(
                     tool, args, tool_context, tool_response
                 )

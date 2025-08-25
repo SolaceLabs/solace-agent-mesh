@@ -3,7 +3,7 @@ description: |
   Tests 'apply_embed_and_create_artifact' with the 'output_metadata' parameter.
   Verifies that the provided metadata is saved with the new artifact, along
   with the tool-added 'source_directive'.
-tags: ["all","agent","tools","builtin_artifact_tools"]
+tags: ["all", "agent", "tools", "builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -64,10 +64,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "Processed 'source_for_meta.txt' and saved as 'output_with_meta.txt' with custom metadata."
-    task_state: "completed"
+    kind: task
+    id: '*'
+    contextId: "session_apply_embed_meta_001"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "Processed 'source_for_meta.txt' and saved as 'output_with_meta.txt' with custom metadata."
     assert_artifact_state:
       # Check the newly created output artifact
       - filename: "output_with_meta.txt"

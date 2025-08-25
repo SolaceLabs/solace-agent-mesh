@@ -1,0 +1,340 @@
+# DEVELOPER GUIDE: ui
+
+## Quick Summary
+The ui directory provides a comprehensive design system and component library for building modern React applications. It combines a complete set of reusable UI components (direct files) with specialized chat functionality (chat subdirectory). The architecture follows a modular approach with consistent styling, accessibility features, and TypeScript support. Components are built on top of Radix UI primitives and styled with Tailwind CSS using a custom design token system.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `ViewWorkflowButton.tsx` - Workflow visualization trigger button with network icon
+  - `accordion.tsx` - Collapsible content sections with smooth animations
+  - `alert.tsx` - Status messages and notifications with variant support
+  - `avatar.tsx` - User profile images with fallback support
+  - `badge.tsx` - Status indicators and labels with type-based styling
+  - `button.tsx` - Primary action component with variants, sizes, and tooltip support
+  - `card.tsx` - Content containers with header, body, and footer sections
+  - `chart.tsx` - Data visualization components built on Recharts
+  - `dialog.tsx` - Modal dialogs and overlays
+  - `dropdown-menu.tsx` - Contextual menus with keyboard navigation
+  - `input.tsx` - Form input fields with validation styling
+  - `menu.tsx` - Custom menu component with keyboard navigation
+  - `popover.tsx` - Floating content containers
+  - `popoverManual.tsx` - Manual popover with custom positioning
+  - `resizable.tsx` - Resizable panel layouts
+  - `select.tsx` - Dropdown selection components
+  - `separator.tsx` - Visual dividers
+  - `sheet.tsx` - Slide-out panels and drawers
+  - `side-panel.tsx` - Resizable side panels with touch support
+  - `sidebar.tsx` - Navigation sidebar with collapsible states
+  - `skeleton.tsx` - Loading placeholders
+  - `spinner.tsx` - Loading indicators with size and color variants
+  - `table.tsx` - Data tables with sorting and selection
+  - `tabs.tsx` - Tabbed content navigation
+  - `textarea.tsx` - Multi-line text input
+  - `toast-container.tsx` - Toast notification container
+  - `tooltip.tsx` - Contextual help and information
+
+- **Subdirectories:**
+  - `chat/` - Complete chat interface components and hooks for messaging functionality
+
+## Developer API Reference
+
+### Direct Files
+
+#### ViewWorkflowButton.tsx
+**Purpose:** Specialized button for triggering workflow visualization with network icon
+**Import:** `import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton"`
+
+**Components:**
+- `ViewWorkflowButton` - Button with network icon for workflow actions
+  - Props: `onClick: () => void`, `text?: string`
+
+#### accordion.tsx
+**Purpose:** Collapsible content sections with smooth expand/collapse animations
+**Import:** `import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/lib/components/ui/accordion"`
+
+**Components:**
+- `Accordion` - Root container for accordion sections
+- `AccordionItem` - Individual collapsible section
+- `AccordionTrigger` - Clickable header that toggles content
+- `AccordionContent` - Collapsible content area
+
+#### alert.tsx
+**Purpose:** Status messages and notifications with variant-based styling
+**Import:** `import { Alert, AlertTitle, AlertDescription } from "@/lib/components/ui/alert"`
+
+**Components:**
+- `Alert` - Main alert container with variant support (`default`, `destructive`)
+- `AlertTitle` - Alert heading text
+- `AlertDescription` - Alert body content
+
+#### avatar.tsx
+**Purpose:** User profile images with automatic fallback handling
+**Import:** `import { Avatar, AvatarImage, AvatarFallback } from "@/lib/components/ui/avatar"`
+
+**Components:**
+- `Avatar` - Container for user profile image
+- `AvatarImage` - Profile image component
+- `AvatarFallback` - Fallback content when image fails to load
+
+#### badge.tsx
+**Purpose:** Status indicators and labels with semantic color coding
+**Import:** `import { Badge } from "@/lib/components/ui/badge"`
+
+**Components:**
+- `Badge` - Status indicator with variants (`default`, `secondary`, `destructive`, `outline`) and types (`error`, `warning`, `info`, `success`)
+
+#### button.tsx
+**Purpose:** Primary action component with comprehensive variant and size support
+**Import:** `import { Button } from "@/lib/components/ui/button"`
+
+**Components:**
+- `Button` - Main action button with variants (`default`, `destructive`, `outline`, `secondary`, `ghost`, `link`), sizes (`default`, `sm`, `lg`, `icon`), and built-in tooltip support
+  - Props: `variant?`, `size?`, `tooltip?`, `testid?`, `asChild?`
+
+#### card.tsx
+**Purpose:** Content containers with structured layout sections
+**Import:** `import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, CardAction } from "@/lib/components/ui/card"`
+
+**Components:**
+- `Card` - Main container with shadow and border
+- `CardHeader` - Header section with title and description
+- `CardTitle` - Card heading
+- `CardDescription` - Card subtitle
+- `CardContent` - Main content area
+- `CardFooter` - Footer section for actions
+- `CardAction` - Action button area in header
+
+#### chart.tsx
+**Purpose:** Data visualization components built on Recharts with theming support
+**Import:** `import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, type ChartConfig } from "@/lib/components/ui/chart"`
+
+**Components:**
+- `ChartContainer` - Main chart wrapper with configuration
+- `ChartTooltip` - Interactive chart tooltips
+- `ChartTooltipContent` - Customizable tooltip content
+- `ChartLegend` - Chart legend component
+- `ChartLegendContent` - Customizable legend content
+- `useChart` - Hook for accessing chart configuration
+
+#### dialog.tsx
+**Purpose:** Modal dialogs and overlays with accessibility features
+**Import:** `import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/lib/components/ui/dialog"`
+
+**Components:**
+- `Dialog` - Root dialog component
+- `DialogTrigger` - Element that opens the dialog
+- `DialogContent` - Modal content container
+- `DialogHeader` - Dialog header section
+- `DialogTitle` - Dialog title
+- `DialogDescription` - Dialog description
+- `DialogFooter` - Dialog footer for actions
+- `DialogClose` - Close button component
+
+#### dropdown-menu.tsx
+**Purpose:** Contextual menus with keyboard navigation and accessibility
+**Import:** `import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuRadioItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuGroup, DropdownMenuRadioGroup } from "@/lib/components/ui/dropdown-menu"`
+
+**Components:**
+- `DropdownMenu` - Root menu component
+- `DropdownMenuTrigger` - Element that opens the menu
+- `DropdownMenuContent` - Menu content container
+- `DropdownMenuItem` - Individual menu item with variant support
+- `DropdownMenuCheckboxItem` - Checkbox menu item
+- `DropdownMenuRadioItem` - Radio button menu item
+- `DropdownMenuLabel` - Menu section label
+- `DropdownMenuSeparator` - Visual divider
+- `DropdownMenuShortcut` - Keyboard shortcut display
+- `DropdownMenuSub` - Submenu container
+- `DropdownMenuSubTrigger` - Submenu trigger
+- `DropdownMenuSubContent` - Submenu content
+
+#### input.tsx
+**Purpose:** Form input fields with validation styling and focus states
+**Import:** `import { Input } from "@/lib/components/ui/input"`
+
+**Components:**
+- `Input` - Text input with validation styling and focus states
+
+#### menu.tsx
+**Purpose:** Custom menu component with keyboard navigation and accessibility
+**Import:** `import { Menu, type MenuAction, type MenuProps } from "@/lib/components/ui/menu"`
+
+**Components:**
+- `Menu` - Custom menu with action-based configuration
+  - Props: `actions: MenuAction[]`, `className?`
+- `MenuAction` - Menu item configuration interface
+
+#### popover.tsx
+**Purpose:** Floating content containers with automatic positioning
+**Import:** `import { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "@/lib/components/ui/popover"`
+
+**Components:**
+- `Popover` - Root popover component
+- `PopoverTrigger` - Element that opens the popover
+- `PopoverContent` - Floating content container
+- `PopoverAnchor` - Positioning anchor
+
+#### popoverManual.tsx
+**Purpose:** Manual popover with custom positioning and lifecycle control
+**Import:** `import { PopoverManual } from "@/lib/components/ui/popoverManual"`
+
+**Components:**
+- `PopoverManual` - Manually controlled popover with custom positioning
+  - Props: `isOpen`, `onClose`, `anchorRef`, `placement?`, `offset?`, `closeOnClickOutside?`, `closeOnEscape?`
+
+#### resizable.tsx
+**Purpose:** Resizable panel layouts with drag handles
+**Import:** `import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable"`
+
+**Components:**
+- `ResizablePanelGroup` - Container for resizable panels
+- `ResizablePanel` - Individual resizable panel
+- `ResizableHandle` - Drag handle for resizing
+
+#### select.tsx
+**Purpose:** Dropdown selection components with search and grouping
+**Import:** `import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectLabel, SelectSeparator, SelectGroup, SelectScrollUpButton, SelectScrollDownButton } from "@/lib/components/ui/select"`
+
+**Components:**
+- `Select` - Root select component
+- `SelectTrigger` - Select trigger button with size variants
+- `SelectContent` - Dropdown content container
+- `SelectItem` - Individual option item
+- `SelectValue` - Selected value display
+- `SelectLabel` - Option group label
+- `SelectSeparator` - Visual divider
+- `SelectGroup` - Option grouping
+
+#### separator.tsx
+**Purpose:** Visual dividers for content sections
+**Import:** `import { Separator } from "@/lib/components/ui/separator"`
+
+**Components:**
+- `Separator` - Horizontal or vertical divider line
+
+#### sheet.tsx
+**Purpose:** Slide-out panels and drawers from screen edges
+**Import:** `import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetClose } from "@/lib/components/ui/sheet"`
+
+**Components:**
+- `Sheet` - Root sheet component
+- `SheetTrigger` - Element that opens the sheet
+- `SheetContent` - Sliding panel content with side positioning
+- `SheetHeader` - Sheet header section
+- `SheetTitle` - Sheet title
+- `SheetDescription` - Sheet description
+- `SheetFooter` - Sheet footer
+- `SheetClose` - Close button
+
+#### side-panel.tsx
+**Purpose:** Resizable side panels with touch support and keyboard navigation
+**Import:** `import { SidePanel, type SidePanelProps } from "@/lib/components/ui/side-panel"`
+
+**Components:**
+- `SidePanel` - Resizable side panel with position and size controls
+  - Props: `defaultWidth?`, `minWidth?`, `maxWidth?`, `position?`, `resizable?`, `onWidthChange?`
+
+#### sidebar.tsx
+**Purpose:** Navigation sidebar with collapsible states and mobile support
+**Import:** `import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarTrigger, useSidebar } from "@/lib/components/ui/sidebar"`
+
+**Components:**
+- `SidebarProvider` - Context provider for sidebar state
+- `Sidebar` - Main sidebar container with variants and collapsible modes
+- `SidebarContent` - Scrollable content area
+- `SidebarHeader` - Sidebar header section
+- `SidebarFooter` - Sidebar footer section
+- `SidebarMenu` - Menu container
+- `SidebarMenuItem` - Individual menu item
+- `SidebarMenuButton` - Menu button with tooltip support
+- `SidebarTrigger` - Toggle button for sidebar
+- `useSidebar` - Hook for sidebar state management
+
+#### skeleton.tsx
+**Purpose:** Loading placeholders with pulse animation
+**Import:** `import { Skeleton } from "@/lib/components/ui/skeleton"`
+
+**Components:**
+- `Skeleton` - Animated loading placeholder
+
+#### spinner.tsx
+**Purpose:** Loading indicators with size and color variants
+**Import:** `import { Spinner } from "@/lib/components/ui/spinner"`
+
+**Components:**
+- `Spinner` - Loading spinner with size (`small`, `medium`, `large`) and variant (`primary`, `secondary`, `muted`, `foreground`) options
+
+#### table.tsx
+**Purpose:** Data tables with sorting, selection, and responsive design
+**Import:** `import { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption } from "@/lib/components/ui/table"`
+
+**Components:**
+- `Table` - Main table container with responsive wrapper
+- `TableHeader` - Table header section
+- `TableBody` - Table body content
+- `TableFooter` - Table footer section
+- `TableHead` - Header cell component
+- `TableRow` - Table row with hover states
+- `TableCell` - Table data cell
+- `TableCaption` - Table caption
+
+#### tabs.tsx
+**Purpose:** Tabbed content navigation with keyboard support
+**Import:** `import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/lib/components/ui/tabs"`
+
+**Components:**
+- `Tabs` - Root tabs container
+- `TabsList` - Tab navigation list
+- `TabsTrigger` - Individual tab button
+- `TabsContent` - Tab panel content
+
+#### textarea.tsx
+**Purpose:** Multi-line text input with auto-resize capabilities
+**Import:** `import { Textarea } from "@/lib/components/ui/textarea"`
+
+**Components:**
+- `Textarea` - Multi-line text input component
+
+#### toast-container.tsx
+**Purpose:** Container for toast notifications with positioning
+**Import:** `import { ToastContainer } from "@/lib/components/ui/toast-container"`
+
+**Components:**
+- `ToastContainer` - Fixed positioned container for toast notifications
+
+#### tooltip.tsx
+**Purpose:** Contextual help and information with smart positioning
+**Import:** `import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/lib/components/ui/tooltip"`
+
+**Components:**
+- `TooltipProvider` - Context provider for tooltip configuration
+- `Tooltip` - Root tooltip component
+- `TooltipTrigger` - Element that triggers the tooltip
+- `TooltipContent` - Tooltip content with arrow
+
+### Subdirectory APIs
+
+#### chat/
+**Purpose:** Complete chat interface components and hooks for messaging functionality
+**Key Exports:** Chat bubbles, message lists, input components, and auto-scroll hooks
+**Import Examples:**
+```tsx
+import { ChatBubble, ChatBubbleMessage } from "@/lib/components/ui/chat/chat-bubble"
+import { ChatMessageList } from "@/lib/components/ui/chat/chat-message-list"
+import { ChatInput } from "@/lib/components/ui/chat/chat-input"
+import { useAutoScroll } from "@/lib/components/ui/chat/hooks/useAutoScroll"
+```
+
+## Complete Usage Guide
+
+### 1. Basic Component Usage
+
+```tsx
+import { Button } from "@/lib/components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "@/lib/components/ui/card";
+import { Input } from "@/lib/components/ui/input";
+import { Badge } from "@/lib/components/ui/badge";
+
+function BasicExample
+
+# content_hash: ef3e1cf17fb78511d649138f05f89e97f842de3cc735b89a12d3736ca831dbdf

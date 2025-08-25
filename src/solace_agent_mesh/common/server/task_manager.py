@@ -206,7 +206,7 @@ class InMemoryTaskManager(TaskManager):
                     id=task_send_params.id,
                     sessionId=task_send_params.sessionId,
                     messages=[task_send_params.message],
-                    status=TaskStatus(state=TaskState.SUBMITTED),
+                    status=TaskStatus(state=TaskState.submitted),
                     history=[task_send_params.message],
                 )
                 self.tasks[task_send_params.id] = task

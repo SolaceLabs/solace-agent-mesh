@@ -11,7 +11,7 @@
 
 test_case_id: test_ssrf_localhost_blocked
 description: "Tests that the web_request tool blocks requests to localhost."
-tags: ["all","agent","tools","web_tools"]
+tags: ["all", "agent", "tools", "web_tools"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -58,18 +58,72 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "status_update"
+    kind: task
+    id: '*'
+    contextId: session_test_ssrf_localhost_blocked
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
     event_purpose: "llm_invocation"
   - type: "status_update"
+    kind: task
+    id: '*'
+    contextId: session_test_ssrf_localhost_blocked
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
     event_purpose: "llm_response"
   - type: "status_update"
+    kind: task
+    id: '*'
+    contextId: session_test_ssrf_localhost_blocked
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
     event_purpose: "tool_invocation_start"
     expected_tool_name: "web_request"
   - type: "status_update"
+    kind: task
+    id: '*'
+    contextId: session_test_ssrf_localhost_blocked
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
     event_purpose: "llm_invocation"
   - type: "status_update"
+    kind: task
+    id: '*'
+    contextId: session_test_ssrf_localhost_blocked
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
     event_purpose: "llm_response"
   - type: "final_response"
-    task_state: "completed"
-    content_parts:
-      - type: "text"
-        text_contains: "unable to access the local service"
+    kind: task
+    id: '*'
+    contextId: session_test_ssrf_localhost_blocked
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "unable to access the local service"

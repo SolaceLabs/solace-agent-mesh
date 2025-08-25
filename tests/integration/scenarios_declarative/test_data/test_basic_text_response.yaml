@@ -1,39 +1,6 @@
 test_case_id: "basic_text_response_001"
 description: "Agent receives a simple text query and responds with text directly."
-tags: ["all","default"]
-
-gateway_input:
-  target_agent_name: "TestAgent" # Must match agent_name in sam_app_under_test fixture
-  user_identity: "declarative_user@example.com"
-  a2a_parts: # Changed 'parts' to 'a2a_parts'
-    - type: "text"
-      text: "Hello Agent, what is 2+2?"
-  external_context:
-    # Example context, can be expanded as needed by tests or gateway logic
-    source_test_file: "test_basic_text_response.yaml"
-    initial_request_timestamp: "2025-05-31T12:00:00Z"
-
-llm_interactions:
-  - step_id: "agent_responds_to_query"
-    # expected_request: # Optional: Add if you want to verify specific prompt details
-    #   prompt_contains: "2+2"
-    static_response:
-      id: "chatcmpl-test-basictext"
-      object: "chat.completion"
-      model: "test-llm-model" # Should match model in TestLLMServer response
-      choices:
-        - index: 0
-          message:
-            role: "assistant"
-            content: "Two plus two equals four."
-          finish_reason: "stop"
-      usage:
-        prompt_tokens: 10
-        completion_tokens: 5
-        total_tokens: 15
-
-test_case_id: "basic_text_response_001"
-description: "Agent receives a simple text query and responds with text directly."
+tags: ["all", "default"]
 skip_intermediate_events: true # ADDED: This flag will simplify the assertions below
 gateway_input:
   target_agent_name: "TestAgent" # Must match agent_name in sam_app_under_test fixture
@@ -44,13 +11,14 @@ gateway_input:
   external_context:
     source_test_file: "test_basic_text_response.yaml"
     initial_request_timestamp: "2025-05-31T12:00:00Z"
+    a2a_session_id: "session_basic_text_response_001"
 
 llm_interactions:
   - step_id: "agent_responds_to_query"
     static_response:
       id: "chatcmpl-test-basictext"
       object: "chat.completion"
-      model: "test-llm-model" 
+      model: "test-llm-model"
       choices:
         - index: 0
           message:
@@ -64,7 +32,7 @@ llm_interactions:
 
 expected_gateway_output:
   # Only specify the final response we care about due to skip_intermediate_events: true
-  - type: "final_response" 
+  - type: "final_response"
     content_parts:
       - type: "text"
         text_exact: "Two plus two equals four."

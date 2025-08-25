@@ -38,6 +38,16 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "Once upon a time, there was a brave knight who set off on a quest to find the legendary Golden Chalice."
+    kind: "task"
+    id: "*"
+    contextId: "*"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "Once upon a time, there was a brave knight who set off on a quest to find the legendary Golden Chalice."

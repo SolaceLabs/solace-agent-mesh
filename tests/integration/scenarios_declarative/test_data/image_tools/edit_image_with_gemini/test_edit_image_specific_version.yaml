@@ -1,6 +1,6 @@
 test_case_id: edit_image_specific_version
 description: "Tests editing a specific version of an image."
-tags: ["all","agent","tools","image_tools"]
+tags: ["all", "agent", "tools", "image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -43,11 +43,20 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    task_state: "completed"
-    content_parts:
-      - type: "text"
-        text_contains: "I have successfully edited version 1 of the image."
+    kind: task
+    id: '*'
+    contextId: "session_edit_image_specific_version"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
 
+              - "I have successfully edited version 1 of the image."
 expected_artifacts:
   - filename_matches_regex: "^edited_versioned_image_[a-f0-9]{8}\\.jpg$"
     mime_type: "image/jpeg"

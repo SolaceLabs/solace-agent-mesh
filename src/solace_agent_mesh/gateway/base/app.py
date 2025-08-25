@@ -11,7 +11,7 @@ from solace_ai_connector.common.utils import deep_merge
 from solace_ai_connector.flow.app import App
 from solace_ai_connector.components.component_base import ComponentBase
 
-from ...common.a2a_protocol import (
+from ...common.a2a import (
     get_discovery_topic,
     get_gateway_response_subscription_topic,
     get_gateway_status_subscription_topic,

@@ -57,9 +57,17 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "I'm sorry, I can't perform the extraction because the source filename was not specified."
-    task_state: "completed"
+    kind: "task"
+    id: "*"
+    contextId: "session_extract_content_missing_filename_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_exact: "I'm sorry, I can't perform the extraction because the source filename was not specified."
 
 # No expected_artifacts or assert_artifact_state needed as no artifacts are touched or created.

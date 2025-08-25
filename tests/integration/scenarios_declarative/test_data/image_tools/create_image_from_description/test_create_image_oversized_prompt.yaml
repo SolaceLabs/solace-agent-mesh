@@ -1,6 +1,6 @@
 test_case_id: "create_image_exploit_002"
 description: "Verifies that the create_image_from_description tool handles oversized prompts gracefully."
-tags: ["all","agent","tools","image_tools"]
+tags: ["all", "agent", "tools", "image_tools"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -34,8 +34,18 @@ primed_image_generation_responses:
     status_code: 413
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "description was too long"
+    kind: task
+    id: '*'
+    contextId: "fixed_session_for_create_image_exploit_002"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
     # This assertion checks that no artifact was created.
+              - "description was too long"
 expected_artifacts: []

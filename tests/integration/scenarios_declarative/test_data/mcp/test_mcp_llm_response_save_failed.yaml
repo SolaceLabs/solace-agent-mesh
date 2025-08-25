@@ -1,6 +1,7 @@
 test_case_id: "mcp_llm_response_save_failed_001"
-description: "Verifies that if artifact saving fails, the LLM receives a clear error message."
-tags: ["all","agent","mcp"]
+description: "Verifies that if artifact saving fails, the LLM receives a clear error
+  message."
+tags: ["all", "agent", "mcp"]
 skip_intermediate_events: true
 
 monkeypatch_spec:
@@ -33,7 +34,9 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "get_data_stdio"
-                  arguments: '{"response_to_return": {"content": [{"type": "text", "text": "This response should trigger a save, which will then fail."}]}}'
+                  arguments: '{"response_to_return": {"content": [{"type": "text",
+                    "text": "This response should trigger a save, which will then
+                    fail."}]}}'
 
   # 2. LLM gets the tool response indicating the save failure
   - expected_request:
@@ -44,17 +47,29 @@ llm_interactions:
             message_to_llm: "Saving the full response as an artifact failed."
             saved_mcp_response_artifact_details:
               status: "error"
-              message: "Content processing failed. First error: Failed to save content item as artifact: Disk is full"
+              message: "Content processing failed. First error: Failed to save content
+                item as artifact: Disk is full"
 
     static_response:
       choices:
         - message:
             role: "assistant"
-            content: "I tried to save the data as an artifact, but the operation failed. The content is still available if you need it."
+            content: "I tried to save the data as an artifact, but the operation failed.
+              The content is still available if you need it."
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "I tried to save the data as an artifact, but the operation failed. The content is still available if you need it."
+    kind: task
+    id: '*'
+    contextId: "session_mcp_llm_response_save_failed_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I tried to save the data as an artifact, but the operation
+              failed. The content is still available if you need it."
     # No assert_artifact_state, as no artifact should be created.

@@ -1,0 +1,266 @@
+# DEVELOPER GUIDE: preview
+
+## Quick Summary
+The preview directory provides a comprehensive content rendering system for chat interfaces. It consists of a main `ContentRenderer` component that acts as a router, delegating to specialized renderer components in the `Renderers` subdirectory based on content type. The architecture supports multiple content formats including text, markdown, HTML, images, audio, CSV, JSON/YAML, and Mermaid diagrams.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `ContentRenderer.tsx` - Main routing component that selects appropriate renderer based on content type
+- **Subdirectories:**
+  - `Renderers/` - Collection of specialized renderer components for different content types
+
+## Developer API Reference
+
+### Direct Files
+
+#### ContentRenderer.tsx
+**Purpose:** Central routing component that selects and renders appropriate content renderer based on type
+**Import:** `import { ContentRenderer } from 'frontend/src/lib/components/chat/preview/ContentRenderer'`
+
+**Components:**
+- `ContentRenderer(props: ContentRendererProps)` - Main content routing component
+  - Routes content to appropriate specialized renderer
+  - Supports csv, mermaid, html, json, yaml, image, markdown, audio, and text content
+  - Falls back to TextRenderer for unknown types
+
+**Interfaces:**
+- `ContentRendererProps` - Props interface for ContentRenderer
+  - `content: string` - The content to render
+  - `rendererType: string` - Type of renderer to use
+  - `mime_type?: string` - Optional MIME type for binary content
+  - `setRenderError: (error: string | null) => void` - Error callback
+
+### Subdirectory APIs
+
+#### Renderers/
+**Purpose:** Provides specialized renderer components for different content types
+**Key Exports:** AudioRenderer, CsvRenderer, HtmlRenderer, ImageRenderer, MarkdownRenderer, MermaidRenderer, StructuredDataRenderer, TextRenderer
+**Import Examples:**
+```tsx
+import { AudioRenderer, ImageRenderer, MarkdownRenderer } from 'frontend/src/lib/components/chat/preview/Renderers'
+import { CsvRenderer } from 'frontend/src/lib/components/chat/preview/Renderers/CsvRenderer'
+```
+
+**Main Components:**
+- `AudioRenderer` - HTML5 audio player with controls
+- `CsvRenderer` - Table display for CSV data
+- `HtmlRenderer` - Sandboxed HTML content display
+- `ImageRenderer` - Base64 image display
+- `MarkdownRenderer` - Markdown content with copy functionality
+- `MermaidRenderer` - Interactive diagram rendering
+- `StructuredDataRenderer` - JSON/YAML data viewer
+- `TextRenderer` - Plain text with copy functionality
+
+## Complete Usage Guide
+
+### 1. Basic Content Rendering
+The most common usage is through the main ContentRenderer component:
+
+```tsx
+import React, { useState } from 'react';
+import { ContentRenderer } from 'frontend/src/lib/components/chat/preview/ContentRenderer';
+
+function ChatMessage() {
+  const [renderError, setRenderError] = useState<string | null>(null);
+  
+  return (
+    <div>
+      <ContentRenderer
+        content="# Hello World\n\nThis is **markdown** content."
+        rendererType="markdown"
+        setRenderError={setRenderError}
+      />
+      {renderError && <div className="error">{renderError}</div>}
+    </div>
+  );
+}
+```
+
+### 2. Direct Renderer Usage
+You can also use individual renderers directly:
+
+```tsx
+import React, { useState } from 'react';
+import { 
+  MarkdownRenderer, 
+  CsvRenderer, 
+  ImageRenderer 
+} from 'frontend/src/lib/components/chat/preview/Renderers';
+
+function DirectRendererExample() {
+  const [renderError, setRenderError] = useState<string | null>(null);
+  
+  return (
+    <div>
+      {/* Markdown content */}
+      <MarkdownRenderer
+        content="## Data Analysis\n\nResults show significant improvement."
+        setRenderError={setRenderError}
+      />
+      
+      {/* CSV data */}
+      <CsvRenderer
+        content="name,score,grade\nAlice,95,A\nBob,87,B\nCharlie,92,A"
+        setRenderError={setRenderError}
+      />
+      
+      {/* Image content */}
+      <ImageRenderer
+        content="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        mime_type="image/png"
+        setRenderError={setRenderError}
+      />
+    </div>
+  );
+}
+```
+
+### 3. Working with Different Content Types
+
+```tsx
+import React, { useState } from 'react';
+import { ContentRenderer } from 'frontend/src/lib/components/chat/preview/ContentRenderer';
+
+function MultiContentExample() {
+  const [renderError, setRenderError] = useState<string | null>(null);
+  
+  const examples = [
+    {
+      type: 'json',
+      content: '{"users": [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]}'
+    },
+    {
+      type: 'mermaid',
+      content: 'graph TD; A[Start] --> B{Decision}; B -->|Yes| C[Action 1]; B -->|No| D[Action 2];'
+    },
+    {
+      type: 'html',
+      content: '<div style="padding: 20px; background: #f0f0f0;"><h2>Interactive HTML</h2><button onclick="alert(\'Hello!\')">Click me</button></div>'
+    },
+    {
+      type: 'csv',
+      content: 'Product,Price,Stock\n"Laptop",999.99,15\n"Mouse",29.99,50\n"Keyboard",79.99,30'
+    }
+  ];
+  
+  return (
+    <div>
+      {examples.map((example, index) => (
+        <div key={index} style={{ marginBottom: '20px', border: '1px solid #ccc', padding: '10px' }}>
+          <h3>Content Type: {example.type}</h3>
+          <ContentRenderer
+            content={example.content}
+            rendererType={example.type}
+            setRenderError={setRenderError}
+          />
+        </div>
+      ))}
+      {renderError && <div className="error">Render Error: {renderError}</div>}
+    </div>
+  );
+}
+```
+
+### 4. Binary Content Handling
+
+```tsx
+import React, { useState } from 'react';
+import { ContentRenderer } from 'frontend/src/lib/components/chat/preview/ContentRenderer';
+
+function BinaryContentExample() {
+  const [renderError, setRenderError] = useState<string | null>(null);
+  
+  return (
+    <div>
+      {/* Audio content */}
+      <ContentRenderer
+        content="base64AudioDataHere"
+        rendererType="audio"
+        mime_type="audio/mpeg"
+        setRenderError={setRenderError}
+      />
+      
+      {/* Image content */}
+      <ContentRenderer
+        content="base64ImageDataHere"
+        rendererType="image"
+        mime_type="image/jpeg"
+        setRenderError={setRenderError}
+      />
+    </div>
+  );
+}
+```
+
+### 5. Error Handling Pattern
+
+```tsx
+import React, { useState, useCallback } from 'react';
+import { ContentRenderer } from 'frontend/src/lib/components/chat/preview/ContentRenderer';
+
+function ErrorHandlingExample() {
+  const [renderError, setRenderError] = useState<string | null>(null);
+  
+  const handleRenderError = useCallback((error: string | null) => {
+    setRenderError(error);
+    if (error) {
+      console.error('Content rendering failed:', error);
+      // Could also send to error tracking service
+    }
+  }, []);
+  
+  const clearError = () => setRenderError(null);
+  
+  return (
+    <div>
+      {renderError && (
+        <div className="error-banner" style={{ background: '#fee', padding: '10px', marginBottom: '10px' }}>
+          <strong>Rendering Error:</strong> {renderError}
+          <button onClick={clearError} style={{ marginLeft: '10px' }}>Dismiss</button>
+        </div>
+      )}
+      
+      <ContentRenderer
+        content="invalid json content {"
+        rendererType="json"
+        setRenderError={handleRenderError}
+      />
+    </div>
+  );
+}
+```
+
+### 6. Custom Styling with TextRenderer
+
+```tsx
+import React, { useState } from 'react';
+import { TextRenderer } from 'frontend/src/lib/components/chat/preview/Renderers/TextRenderer';
+
+function StyledTextExample() {
+  const [renderError, setRenderError] = useState<string | null>(null);
+  
+  return (
+    <div>
+      <TextRenderer
+        content="This is custom styled text content\nwith preserved line breaks"
+        setRenderError={setRenderError}
+        className="custom-text-renderer"
+      />
+      
+      <style jsx>{`
+        .custom-text-renderer {
+          font-family: 'Courier New', monospace;
+          background-color: #f8f8f8;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          padding: 12px;
+        }
+      `}</style>
+    </div>
+  );
+}
+```
+
+This preview system provides a flexible, extensible architecture for rendering various content types in chat interfaces, with proper error handling and consistent APIs across all renderer components.
+
+# content_hash: 5741db4c1ab64b8191f838a52d66ada58e744b5b60ab1ccf0e3f3409de821b6d

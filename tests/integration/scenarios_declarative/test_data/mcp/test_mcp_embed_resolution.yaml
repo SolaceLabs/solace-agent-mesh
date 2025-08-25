@@ -1,6 +1,7 @@
 test_case_id: "mcp_embed_resolution_001"
-description: "Tests that MCP tools properly resolve both early and late embeds in their parameters"
-tags: ["all","agent","mcp"]
+description: "Tests that MCP tools properly resolve both early and late embeds in
+  their parameters"
+tags: ["all", "agent", "mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:
@@ -19,7 +20,8 @@ gateway_input:
   user_identity: "mcp_embed_tester@example.com"
   parts:
     - type: "text"
-      text: "Call the MCP tool with embed parameters: math calculation and artifact content."
+      text: "Call the MCP tool with embed parameters: math calculation and artifact
+        content."
   external_context:
     a2a_session_id: "session_mcp_embed_001"
 
@@ -51,7 +53,8 @@ llm_interactions:
         - tool_name: "get_data_stdio"
           response_json_matches:
             status: "processed_and_saved"
-            message_to_llm_matches_regex: "The full response has been saved as artifact 'get_data_stdio_text_0_.*\\.txt' \\(version 0\\)\\."
+            message_to_llm_matches_regex: "The full response has been saved as artifact
+              'get_data_stdio_text_0_.*\\.txt' \\(version 0\\)\\."
             saved_mcp_response_artifact_details:
               status: "success"
               artifacts_saved:
@@ -66,9 +69,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "Successfully called MCP tool with resolved embed parameters."
+    kind: task
+    id: '*'
+    contextId: "session_mcp_embed_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "Successfully called MCP tool with resolved embed parameters."
     assert_artifact_state:
       - filename_matches_regex: "get_data_stdio_text_0_.*\\.txt$"
         version: 0

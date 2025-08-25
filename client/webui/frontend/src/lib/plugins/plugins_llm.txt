@@ -1,0 +1,61 @@
+# DEVELOPER GUIDE: plugins
+
+## Quick Summary
+The plugins directory provides a plugin system for extending UI components, specifically for Agent Mesh layouts. It includes a registry system for managing and rendering plugins with support for different plugin types.
+
+## Files Overview
+- `PluginRegistry.tsx` - Main plugin registry class that manages plugin registration, retrieval, and rendering
+
+## Developer API Reference
+
+### PluginRegistry.tsx
+**Purpose:** Manages plugin registration and rendering for UI components, particularly Agent Mesh layouts
+**Import:** `import { pluginRegistry } from "path/to/plugins/PluginRegistry"`
+
+**Classes:**
+- `PluginRegistry()` - Main plugin management system that handles registration and rendering of UI plugins
+  - `registerPlugin(plugin: PluginInterface) -> void` - Registers a new plugin in the registry
+  - `getPluginById(id: string) -> PluginInterface | undefined` - Retrieves a specific plugin by its ID
+  - `getPluginsByType(type: string) -> PluginInterface[]` - Gets all plugins of a specific type
+  - `renderPlugin(id: string, data: unknown) -> React.ReactNode | undefined` - Renders a plugin component with provided data
+  - `plugins: PluginInterface[]` - Read-only property that returns all registered plugins
+
+**Constants/Variables:**
+- `pluginRegistry: PluginRegistry` - Singleton instance of the plugin registry
+
+**Usage Examples:**
+```tsx
+import { pluginRegistry } from "path/to/plugins/PluginRegistry";
+import { PLUGIN_TYPES } from "path/to/plugins/constants";
+import { Grid } from "lucide-react";
+
+// Register a custom plugin
+pluginRegistry.registerPlugin({
+  type: PLUGIN_TYPES.LAYOUT,
+  id: "my-custom-layout",
+  label: "Custom Layout",
+  icon: Grid,
+  priority: 200,
+  render: (data) => <div>Custom layout for {data.agents?.length} agents</div>
+});
+
+// Get a specific plugin
+const plugin = pluginRegistry.getPluginById("cards");
+
+// Get all layout plugins
+const layoutPlugins = pluginRegistry.getPluginsByType(PLUGIN_TYPES.LAYOUT);
+
+// Render a plugin
+const agentData = { agents: [/* agent objects */] };
+const renderedComponent = pluginRegistry.renderPlugin("cards", agentData);
+
+// Get all registered plugins
+const allPlugins = pluginRegistry.plugins;
+```
+
+**Note:** This module requires the following interfaces and constants to be imported from the parent directory:
+- `PluginInterface` and `PluginManagerInterface` from the index file
+- `PLUGIN_TYPES` from the constants file
+- `AgentMeshCards` component from the components directory
+
+# content_hash: 2cf1ddf24a4b03fc68f0fdd04e9472fc0f820997a294b3f342451060f42aad5a

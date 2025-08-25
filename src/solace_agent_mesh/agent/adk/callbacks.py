@@ -16,9 +16,6 @@ from google.adk.artifacts import BaseArtifactService
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
-from ...common.a2a_protocol import (
-    A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY,
-)
 from google.genai import types as adk_types
 from google.adk.tools.mcp_tool import MCPTool
 from solace_ai_connector.common.log import log
@@ -48,14 +45,14 @@ from ...common.utils.embeds import (
 
 from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 
-if TYPE_CHECKING:
-    from ..sac.component import SamAgentComponent
-
-from ...common.types import (
-    TaskStatusUpdateEvent,
-    TaskStatus,
-    TaskState,
-    Message as A2AMessage,
+from ...common import a2a
+from ...common.a2a.types import ContentPart
+from ...common.data_parts import (
+    AgentProgressUpdateData,
+    ArtifactCreationProgressData,
+    LlmInvocationData,
+    ToolInvocationStartData,
+    ToolResultData,
 )
 
 from ...agent.utils.artifact_helpers import (
@@ -68,6 +65,7 @@ from ..tools.builtin_artifact_tools import _internal_create_artifact
 from ...agent.adk.tool_wrapper import ADKToolWrapper
 
 # Import the new parser and its events
+from pydantic import BaseModel
 from ...agent.adk.stream_parser import (
     FencedBlockStreamParser,
     BlockStartedEvent,
@@ -77,6 +75,44 @@ from ...agent.adk.stream_parser import (
     ARTIFACT_BLOCK_DELIMITER_OPEN,
     ARTIFACT_BLOCK_DELIMITER_CLOSE,
 )
+
+A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY = "temp:llm_stream_chunks_processed"
+
+if TYPE_CHECKING:
+    from ..sac.component import SamAgentComponent
+
+
+async def _publish_data_part_status_update(
+    host_component: "SamAgentComponent",
+    a2a_context: Dict[str, Any],
+    data_part_model: BaseModel,
+):
+    """Helper to construct and publish a TaskStatusUpdateEvent with a DataPart."""
+    logical_task_id = a2a_context.get("logical_task_id")
+    context_id = a2a_context.get("contextId")
+
+    status_update_event = a2a.create_data_signal_event(
+        task_id=logical_task_id,
+        context_id=context_id,
+        signal_data=data_part_model,
+        agent_name=host_component.agent_name,
+    )
+
+    loop = host_component.get_async_loop()
+    if loop and loop.is_running():
+        asyncio.run_coroutine_threadsafe(
+            host_component._publish_status_update_with_buffer_flush(
+                status_update_event,
+                a2a_context,
+                skip_buffer_flush=False,
+            ),
+            loop,
+        )
+    else:
+        log.error(
+            "%s Async loop not available. Cannot publish status update.",
+            host_component.log_identifier,
+        )
 
 
 async def process_artifact_blocks_callback(
@@ -132,8 +168,11 @@ async def process_artifact_blocks_callback(
                         )
                         filename = event.params.get("filename", "unknown_artifact")
                         if a2a_context:
-                            await host_component._publish_agent_status_signal_update(
-                                f"Receiving artifact `{filename}`...", a2a_context
+                            progress_data = AgentProgressUpdateData(
+                                status_text=f"Receiving artifact `{filename}`..."
+                            )
+                            await _publish_data_part_status_update(
+                                host_component, a2a_context, progress_data
                             )
                         params_str = " ".join(
                             [f'{k}="{v}"' for k, v in event.params.items()]
@@ -149,10 +188,14 @@ async def process_artifact_blocks_callback(
                         )
                         params = parser._block_params
                         filename = params.get("filename", "unknown_artifact")
-                        status_message = f"Creating artifact `{filename}` ({event.buffered_size}B saved)..."
                         if a2a_context:
-                            await host_component._publish_agent_status_signal_update(
-                                status_message, a2a_context
+                            progress_data = ArtifactCreationProgressData(
+                                filename=filename,
+                                bytes_saved=event.buffered_size,
+                                artifact_chunk=event.chunk,
+                            )
+                            await _publish_data_part_status_update(
+                                host_component, a2a_context, progress_data
                             )
 
                     elif isinstance(event, BlockCompletedEvent):
@@ -217,6 +260,7 @@ async def process_artifact_blocks_callback(
                             tool_config=None,  # No specific config for this internal tool
                             tool_name="_internal_create_artifact",
                             origin="internal",
+                            resolution_type="early",
                         )
                         save_result = await wrapped_creator(**kwargs_for_call)
 
@@ -694,8 +738,7 @@ async def manage_large_mcp_tool_responses_callback(
 
     if needs_saving_as_artifact and (
         save_result
-        and save_result.status
-        in [McpSaveStatus.SUCCESS, McpSaveStatus.PARTIAL_SUCCESS]
+        and save_result.status in [McpSaveStatus.SUCCESS, McpSaveStatus.PARTIAL_SUCCESS]
     ):
         if needs_truncation_for_llm:
             final_llm_response_dict["status"] = "processed_saved_and_truncated"
@@ -1345,20 +1388,10 @@ def solace_llm_invocation_callback(
         )
         return None
 
-    try:
-        from ...common.a2a_protocol import A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY
-
-        callback_context.state[A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY] = False
-        log.debug(
-            "%s Reset %s to False.", log_identifier, A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY
-        )
-    except Exception as e_flag_reset:
-        log.error(
-            "%s Error resetting %s: %s",
-            log_identifier,
-            A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY,
-            e_flag_reset,
-        )
+    callback_context.state[A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY] = False
+    log.debug(
+        "%s Reset %s to False.", log_identifier, A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY
+    )
 
     try:
         a2a_context = callback_context.state.get("a2a_context")
@@ -1369,28 +1402,15 @@ def solace_llm_invocation_callback(
             )
             return None
 
-        agent_name = host_component.get_config("agent_name", "unknown_agent")
         logical_task_id = a2a_context.get("logical_task_id")
+        context_id = a2a_context.get("contextId")
 
-        llm_invocation_metadata = {
-            "type": "llm_invocation",
-            "data": llm_request.model_dump(exclude_none=True),
-        }
-        a2a_message = A2AMessage(
-            role="agent",
-            parts=[],
-            metadata=llm_invocation_metadata,
-        )
-        task_status = TaskStatus(
-            state=TaskState.WORKING,
-            message=a2a_message,
-            timestamp=datetime.now(timezone.utc),
-        )
-        status_update_event = TaskStatusUpdateEvent(
-            id=logical_task_id,
-            status=task_status,
-            final=False,
-            metadata={"agent_name": agent_name},
+        llm_data = LlmInvocationData(request=llm_request.model_dump(exclude_none=True))
+        status_update_event = a2a.create_data_signal_event(
+            task_id=logical_task_id,
+            context_id=context_id,
+            signal_data=llm_data,
+            agent_name=host_component.agent_name,
         )
 
         loop = host_component.get_async_loop()
@@ -1454,20 +1474,23 @@ def solace_llm_response_callback(
         agent_name = host_component.get_config("agent_name", "unknown_agent")
         logical_task_id = a2a_context.get("logical_task_id")
 
-        llm_response_metadata = {
+        llm_response_data = {
             "type": "llm_response",
             "data": llm_response.model_dump(exclude_none=True),
         }
-        a2a_message = A2AMessage(role="agent", parts=[], metadata=llm_response_metadata)
-        task_status = TaskStatus(
-            state=TaskState.WORKING,
-            message=a2a_message,
-            timestamp=datetime.now(timezone.utc),
+        # This signal doesn't have a dedicated Pydantic model, so we create the
+        # DataPart directly and use the lower-level helpers.
+        data_part = a2a.create_data_part(data=llm_response_data)
+        a2a_message = a2a.create_agent_parts_message(
+            parts=[data_part],
+            task_id=logical_task_id,
+            context_id=a2a_context.get("contextId"),
         )
-        status_update_event = TaskStatusUpdateEvent(
-            id=logical_task_id,
-            status=task_status,
-            final=True,
+        status_update_event = a2a.create_status_update(
+            task_id=logical_task_id,
+            context_id=a2a_context.get("contextId"),
+            message=a2a_message,
+            is_final=False,
             metadata={"agent_name": agent_name},
         )
         loop = host_component.get_async_loop()
@@ -1529,8 +1552,6 @@ def notify_tool_invocation_start_callback(
         )
         return
 
-    logical_task_id = a2a_context.get("logical_task_id")
-
     try:
         serializable_args = {}
         for k, v in args.items():
@@ -1540,57 +1561,97 @@ def notify_tool_invocation_start_callback(
             except TypeError:
                 serializable_args[k] = str(v)
 
-        a2a_message_parts = []
-        message_metadata = {
-            "type": "tool_invocation_start",
-            "data": {
-                "tool_name": tool.name,
-                "tool_args": serializable_args,
-                "function_call_id": tool_context.function_call_id,
-            },
-        }
-
-        a2a_message = A2AMessage(
-            role="agent", parts=a2a_message_parts, metadata=message_metadata
+        tool_data = ToolInvocationStartData(
+            tool_name=tool.name,
+            tool_args=serializable_args,
+            function_call_id=tool_context.function_call_id,
         )
-
-        task_status = TaskStatus(
-            state=TaskState.WORKING,
-            message=a2a_message,
-            timestamp=datetime.now(timezone.utc),
+        asyncio.run_coroutine_threadsafe(
+            _publish_data_part_status_update(host_component, a2a_context, tool_data),
+            host_component.get_async_loop(),
         )
-
-        status_update_event = TaskStatusUpdateEvent(
-            id=logical_task_id,
-            status=task_status,
-            final=False,
-            metadata={"agent_name": host_component.get_config("agent_name")},
+        log.debug(
+            "%s Scheduled tool_invocation_start notification.",
+            log_identifier,
         )
-
-        loop = host_component.get_async_loop()
-        if loop and loop.is_running():
-
-            asyncio.run_coroutine_threadsafe(
-                host_component._publish_status_update_with_buffer_flush(
-                    status_update_event,
-                    a2a_context,
-                    skip_buffer_flush=False,
-                ),
-                loop,
-            )
-            log.debug(
-                "%s Scheduled tool_invocation_start notification with buffer flush.",
-                log_identifier,
-            )
-        else:
-            log.error(
-                "%s Async loop not available. Cannot publish tool_invocation_start notification.",
-                log_identifier,
-            )
 
     except Exception as e:
         log.exception(
             "%s Error publishing tool_invocation_start status update: %s",
+            log_identifier,
+            e,
+        )
+
+    return None
+
+
+def notify_tool_execution_result_callback(
+    tool: BaseTool,
+    args: Dict[str, Any],
+    tool_context: ToolContext,
+    tool_response: Any,
+    host_component: "SamAgentComponent",
+) -> None:
+    """
+    ADK after_tool_callback to send an A2A status message with the result
+    of a tool's execution.
+    """
+    log_identifier = f"[Callback:NotifyToolResult:{tool.name}]"
+    log.debug("%s Triggered for tool '%s'", log_identifier, tool.name)
+
+    if not host_component:
+        log.error(
+            "%s Host component instance not provided. Cannot send notification.",
+            log_identifier,
+        )
+        return
+
+    a2a_context = tool_context.state.get("a2a_context")
+    if not a2a_context:
+        log.error(
+            "%s a2a_context not found in tool_context.state. Cannot send notification.",
+            log_identifier,
+        )
+        return
+
+    if tool.is_long_running and not tool_response:
+        log.debug(
+            "%s Tool is long-running and is not yet complete. Don't notify its completion",
+            log_identifier,
+        )
+        return
+
+    try:
+        # Attempt to make the response JSON serializable
+        serializable_response = tool_response
+        if hasattr(tool_response, "model_dump"):
+            serializable_response = tool_response.model_dump(exclude_none=True)
+        else:
+            try:
+                # A simple check to see if it can be dumped.
+                # This isn't perfect but catches many non-serializable types.
+                json.dumps(tool_response)
+            except (TypeError, OverflowError):
+                serializable_response = str(tool_response)
+
+        tool_data = ToolResultData(
+            tool_name=tool.name,
+            result_data=serializable_response,
+            function_call_id=tool_context.function_call_id,
+        )
+        asyncio.run_coroutine_threadsafe(
+            _publish_data_part_status_update(host_component, a2a_context, tool_data),
+            host_component.get_async_loop(),
+        )
+        log.debug(
+            "%s Scheduled tool_result notification for function call ID %s.",
+            log_identifier,
+            tool_context.function_call_id,
+        )
+
+    except Exception as e:
+        log.exception(
+            "%s Error publishing tool_result status update: %s",
             log_identifier,
             e,
         )

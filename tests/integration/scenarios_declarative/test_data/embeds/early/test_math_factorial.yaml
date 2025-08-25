@@ -1,6 +1,6 @@
 test_case_id: "embed_math_factorial_001"
 description: "Tests «math:factorial(5)»."
-tags: ["all","common","embeds"]
+tags: ["all", "common", "embeds"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -9,9 +9,19 @@ gateway_input:
   parts: [{type: "text", text: "Calculate factorial(5)"}]
 llm_interactions:
   - static_response:
-      choices: [{message: {role: "assistant", content: "Factorial is «math:factorial(5)»."}}]
+      choices: [message: {role: "assistant", content: "Factorial is «math:factorial(5)»."}]
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "Factorial is 120."
+    kind: task
+    id: '*'
+    contextId: session_embed_math_factorial_001
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "Factorial is 120."

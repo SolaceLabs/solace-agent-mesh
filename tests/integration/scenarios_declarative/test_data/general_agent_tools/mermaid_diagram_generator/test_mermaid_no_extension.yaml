@@ -1,6 +1,6 @@
 test_case_id: test_mermaid_no_extension
 description: "Tests that the tool correctly adds a .png extension to a filename that lacks one."
-tags: ["all","agent","tools","general_agent_tools"]
+tags: ["all", "agent", "tools", "general_agent_tools"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -38,15 +38,33 @@ llm_interactions:
 
 expected_gateway_output:
   - type: status_update
+    kind: task
+    id: '*'
+    contextId: "session_mermaid_no_extension"
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
     event_purpose: tool_invocation_start
     expected_tool_name: "mermaid_diagram_generator"
     expected_tool_args_contain:
       output_filename: "diagram-no-extension"
 
   - type: final_response
-    content_parts:
-      - type: text
-        text_exact: "I have created the graph and saved it as 'diagram-no-extension.png'."
+    kind: task
+    id: '*'
+    contextId: "session_mermaid_no_extension"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: text
+            text_exact: "I have created the graph and saved it as 'diagram-no-extension.png'."
 
 expected_artifacts:
   - filename: "diagram-no-extension.png"

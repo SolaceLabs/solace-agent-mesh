@@ -1,6 +1,6 @@
 test_case_id: describe_audio_malformed_api_response
 description: "Tests describe_audio tool when the API returns a malformed response."
-tags: ["all","agent","tools","image_tools"]
+tags: ["all", "agent", "tools", "image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -36,8 +36,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "The tool returned an error: API response does not contain valid choices."
+    kind: task
+    id: '*'
+    contextId: "session_malformed_response"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
 
+              - "The tool returned an error: API response does not contain valid choices."
 expected_artifacts: []

@@ -1,0 +1,86 @@
+# DEVELOPER GUIDE: common
+
+## Quick Summary
+The `common` directory contains reusable UI components that provide core functionality across the application. It includes a markdown-to-HTML converter with sanitization and a flexible message banner component for displaying alerts and notifications.
+
+## Files Overview
+- `MarkdownHTMLConverter.tsx` - Converts markdown text to sanitized HTML React elements with theme styling
+- `MessageBanner.tsx` - Displays styled alert messages with icons and optional dismiss functionality
+
+## Developer API Reference
+
+### MarkdownHTMLConverter.tsx
+**Purpose:** Converts markdown strings to sanitized HTML React elements with proper theme styling and security measures
+**Import:** `import { MarkdownHTMLConverter } from "@/lib/components/common/MarkdownHTMLConverter"`
+
+**Components:**
+- `MarkdownHTMLConverter({ children, className }: MarkdownHTMLConverterProps)` - React component that renders markdown as HTML
+  - `children?: string` - The markdown string to convert and render
+  - `className?: string` - Additional CSS classes to apply to the wrapper div
+
+**Usage Examples:**
+```tsx
+import { MarkdownHTMLConverter } from "@/lib/components/common/MarkdownHTMLConverter";
+
+// Basic markdown rendering
+<MarkdownHTMLConverter>
+  {`# Hello World\n\nThis is **bold** text with a [link](https://example.com)`}
+</MarkdownHTMLConverter>
+
+// With custom styling
+<MarkdownHTMLConverter className="my-custom-class">
+  {markdownContent}
+</MarkdownHTMLConverter>
+
+// Handles empty/null content gracefully
+<MarkdownHTMLConverter>
+  {null} {/* Returns null, no error */}
+</MarkdownHTMLConverter>
+```
+
+### MessageBanner.tsx
+**Purpose:** Displays styled alert messages with variant-based theming, icons, and optional dismiss functionality
+**Import:** `import { MessageBanner } from "@/lib/components/common/MessageBanner"`
+
+**Components:**
+- `MessageBanner({ variant, message, dismissible, onDismiss, className, ...props }: MessageBannerProps)` - Alert banner component
+  - `variant?: "error" | "warning" | "info" | "success"` - Visual style variant (default: "error")
+  - `message: string` - The message text to display
+  - `dismissible?: boolean` - Whether to show dismiss button (default: false)
+  - `onDismiss?: () => void` - Callback function when dismiss button is clicked
+  - `className?: string` - Additional CSS classes
+  - `...props` - Standard HTML div attributes
+
+**Types:**
+- `MessageBannerProps` - Interface extending React.HTMLAttributes<HTMLDivElement> with banner-specific props
+
+**Usage Examples:**
+```tsx
+import { MessageBanner } from "@/lib/components/common/MessageBanner";
+
+// Basic error message
+<MessageBanner message="Something went wrong!" />
+
+// Success message with dismiss
+<MessageBanner 
+  variant="success" 
+  message="Operation completed successfully!" 
+  dismissible 
+  onDismiss={() => console.log('Dismissed')} 
+/>
+
+// Warning message
+<MessageBanner 
+  variant="warning" 
+  message="Please check your input" 
+/>
+
+// Info message with custom styling
+<MessageBanner 
+  variant="info" 
+  message="New features available" 
+  className="mb-4"
+/>
+```
+
+# content_hash: 0f5040312fe2c71a23b3b1d44e0be23bbd8b1255b603e87d294611730215830d

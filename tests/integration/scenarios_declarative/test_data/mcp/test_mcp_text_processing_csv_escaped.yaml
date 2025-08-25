@@ -1,6 +1,7 @@
 test_case_id: "mcp_text_processing_csv_escaped_001"
-description: "Tests that a CSV string with escaped newlines (\\\\n) is correctly parsed and saved."
-tags: ["all","agent","mcp"]
+description: "Tests that a CSV string with escaped newlines (\\\\n) is correctly parsed
+  and saved."
+tags: ["all", "agent", "mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:
@@ -28,13 +29,15 @@ llm_interactions:
                   name: "get_data_stdio"
                   # The text contains literal '\\n' which should be handled by the processor.
                   # The YAML parser will interpret '\\n' as a literal backslash and n.
-                  arguments: '{"response_to_return": {"content": [{"type": "text", "text": "id,name,value\\n1,Alice,100\\n2,Bob,200"}]}}'
+                  arguments: '{"response_to_return": {"content": [{"type": "text",
+                    "text": "id,name,value\\n1,Alice,100\\n2,Bob,200"}]}}'
   - expected_request:
       expected_tool_responses_in_llm_messages:
         - tool_name: "get_data_stdio"
           response_json_matches:
             status: "processed_and_saved"
-            message_to_llm_matches_regex: "The full response has been saved as artifact 'get_data_stdio_csv_0_.*\\.csv' \\(version 0\\)\\."
+            message_to_llm_matches_regex: "The full response has been saved as artifact
+              'get_data_stdio_csv_0_.*\\.csv' \\(version 0\\)\\."
             saved_mcp_response_artifact_details:
               status: "success"
               artifacts_saved:
@@ -44,13 +47,24 @@ llm_interactions:
       choices:
         - message:
             role: "assistant"
-            content: "I have retrieved the CSV data with escaped newlines and saved it as an artifact."
+            content: "I have retrieved the CSV data with escaped newlines and saved
+              it as an artifact."
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "I have retrieved the CSV data with escaped newlines and saved it as an artifact."
+    kind: task
+    id: '*'
+    contextId: "session_mcp_text_processing_csv_escaped_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I have retrieved the CSV data with escaped newlines and saved
+              it as an artifact."
     assert_artifact_state:
       - filename_matches_regex: "get_data_stdio_csv_0_.*\\.csv$"
         version: 0

@@ -3,7 +3,7 @@ description: |
   Tests 'apply_embed_and_create_artifact' when a JSONPath modifier
   in the embed_directive does not find a match. Expects the tool to succeed
   and save a representation of 'None' or 'null' as the content.
-tags: ["all","agent","tools","builtin_artifact_tools"]
+tags: ["all", "agent", "tools", "builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -64,10 +64,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "Tried to extract '$.address', which was not found. The result (likely 'None' or empty) has been saved to 'output_nomatch.txt'."
-    task_state: "completed"
+    kind: task
+    id: '*'
+    contextId: "session_apply_embed_jsonpath_nomatch_001"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "Tried to extract '$.address', which was not found. The result (likely 'None' or empty) has been saved to 'output_nomatch.txt'."
     assert_artifact_state:
       # Check the newly created output artifact
       - filename: "output_nomatch.txt"

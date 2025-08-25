@@ -40,7 +40,7 @@ from ..dependencies import (
 from solace_ai_connector.common.log import log
 
 from ....common.middleware import ConfigResolver
-from ....common.types import ArtifactInfo
+from ....common.a2a.types import ArtifactInfo
 from ....common.utils.mime_helpers import is_text_based_mime_type
 from ....common.utils.embeds import (
     resolve_embeds_recursively_in_string,

@@ -1,0 +1,235 @@
+# DEVELOPER GUIDE: schemas
+
+## Quick Summary
+This directory contains JSON Schema definitions for various agent-to-agent (A2A) communication signals in the Solace Agent Mesh. These schemas define the structure and validation rules for different types of progress updates, tool invocations, and LLM interactions that agents can send to each other.
+
+## Files Overview
+- `agent_progress_update.json` - Schema for general agent progress status messages
+- `artifact_creation_progress.json` - Schema for tracking file/artifact creation progress with chunked data
+- `llm_invocation.json` - Schema for LLM model invocation signals
+- `tool_invocation_start.json` - Schema for tool execution start notifications
+- `tool_result.json` - Schema for tool execution completion results
+- `schemas_llm.txt` - Previous developer guide (legacy documentation)
+
+## Developer API Reference
+
+### agent_progress_update.json
+**Purpose:** Defines the schema for agent progress update signals that communicate human-readable status messages between agents.
+
+**Schema Structure:**
+```json
+{
+  "type": "agent_progress_update",
+  "status_text": "string"
+}
+```
+
+**Properties:**
+- `type: "agent_progress_update"` - Constant identifier for this signal type (required)
+- `status_text: string` - Human-readable progress message (required)
+
+**Usage Examples:**
+```python
+import json
+from jsonschema import validate
+
+# Load and use schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/agent_progress_update.json') as f:
+    schema = json.load(f)
+
+# Valid data example
+data = {
+    "type": "agent_progress_update",
+    "status_text": "Analyzing the report..."
+}
+validate(instance=data, schema=schema)
+```
+
+### artifact_creation_progress.json
+**Purpose:** Defines the schema for tracking progress during file or artifact creation operations with chunked data transfer.
+
+**Schema Structure:**
+```json
+{
+  "type": "artifact_creation_progress",
+  "filename": "string",
+  "bytes_saved": "integer",
+  "artifact_chunk": "string"
+}
+```
+
+**Properties:**
+- `type: "artifact_creation_progress"` - Constant identifier for this signal type (required)
+- `filename: string` - Name of the artifact being created (required)
+- `bytes_saved: integer` - Number of bytes saved so far (required)
+- `artifact_chunk: string` - The chunk of artifact data that was saved in this update (required)
+
+**Usage Examples:**
+```python
+import json
+from jsonschema import validate
+
+# Load and use schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/artifact_creation_progress.json') as f:
+    schema = json.load(f)
+
+# Valid data example
+data = {
+    "type": "artifact_creation_progress",
+    "filename": "report.pdf",
+    "bytes_saved": 1024,
+    "artifact_chunk": "JVBERi0xLjQKJcOkw7zDtsO..."
+}
+validate(instance=data, schema=schema)
+```
+
+### llm_invocation.json
+**Purpose:** Defines the schema for LLM invocation signals that communicate when an agent is calling a language model.
+
+**Schema Structure:**
+```json
+{
+  "type": "llm_invocation",
+  "request": "object"
+}
+```
+
+**Properties:**
+- `type: "llm_invocation"` - Constant identifier for this signal type (required)
+- `request: object` - Sanitized representation of the LlmRequest object sent to the model (required)
+
+**Usage Examples:**
+```python
+import json
+from jsonschema import validate
+
+# Load and use schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/llm_invocation.json') as f:
+    schema = json.load(f)
+
+# Valid data example
+data = {
+    "type": "llm_invocation",
+    "request": {
+        "model": "gpt-4",
+        "messages": [{"role": "user", "content": "Analyze this data"}],
+        "temperature": 0.7
+    }
+}
+validate(instance=data, schema=schema)
+```
+
+### tool_invocation_start.json
+**Purpose:** Defines the schema for tool invocation start signals that notify when an agent begins executing a tool.
+
+**Schema Structure:**
+```json
+{
+  "type": "tool_invocation_start",
+  "tool_name": "string",
+  "tool_args": "object",
+  "function_call_id": "string"
+}
+```
+
+**Properties:**
+- `type: "tool_invocation_start"` - Constant identifier for this signal type (required)
+- `tool_name: string` - Name of the tool being called (required)
+- `tool_args: object` - Arguments passed to the tool (required)
+- `function_call_id: string` - ID from the LLM's function call (required)
+
+**Usage Examples:**
+```python
+import json
+from jsonschema import validate
+
+# Load and use schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/tool_invocation_start.json') as f:
+    schema = json.load(f)
+
+# Valid data example
+data = {
+    "type": "tool_invocation_start",
+    "tool_name": "file_reader",
+    "tool_args": {
+        "filepath": "/path/to/file.txt",
+        "encoding": "utf-8"
+    },
+    "function_call_id": "call_abc123"
+}
+validate(instance=data, schema=schema)
+```
+
+### tool_result.json
+**Purpose:** Defines the schema for tool execution result signals that communicate the completion and results of tool invocations.
+
+**Schema Structure:**
+```json
+{
+  "type": "tool_result",
+  "tool_name": "string",
+  "result_data": "any",
+  "function_call_id": "string"
+}
+```
+
+**Properties:**
+- `type: "tool_result"` - Constant identifier for this signal type (required)
+- `tool_name: string` - Name of the tool that was called (required)
+- `result_data: any` - The data returned by the tool (required, can be any type)
+- `function_call_id: string` - ID from the LLM's function call that this result corresponds to (required)
+
+**Usage Examples:**
+```python
+import json
+from jsonschema import validate
+
+# Load and use schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/tool_result.json') as f:
+    schema = json.load(f)
+
+# Valid data example
+data = {
+    "type": "tool_result",
+    "tool_name": "file_reader",
+    "result_data": {
+        "content": "File contents here...",
+        "size": 1024,
+        "encoding": "utf-8"
+    },
+    "function_call_id": "call_abc123"
+}
+validate(instance=data, schema=schema)
+```
+
+**Common Usage Pattern:**
+```python
+import json
+from jsonschema import validate
+from pathlib import Path
+
+def validate_a2a_signal(signal_data: dict, schema_name: str) -> bool:
+    """Validate A2A signal data against its schema."""
+    schema_path = Path(f"solace_agent_mesh/common/a2a_spec/schemas/{schema_name}.json")
+    
+    with open(schema_path) as f:
+        schema = json.load(f)
+    
+    try:
+        validate(instance=signal_data, schema=schema)
+        return True
+    except Exception as e:
+        print(f"Validation failed: {e}")
+        return False
+
+# Example usage
+progress_data = {
+    "type": "agent_progress_update",
+    "status_text": "Processing request..."
+}
+
+if validate_a2a_signal(progress_data, "agent_progress_update"):
+    print("Signal is valid!")
+```
+
+# content_hash: 3e5a2f693dc3f4536f9c958168677fe2e3a0e18b3dc319891aceccb5ccfdda8a

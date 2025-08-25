@@ -193,19 +193,34 @@ export function findSubflowBySubTaskId(context: TimelineLayoutManager, subTaskId
 
 // Enhanced context resolution with multiple fallback strategies
 export function resolveSubflowContext(manager: TimelineLayoutManager, step: VisualizerStep): SubflowContext | null {
-    const currentSubflow = getCurrentSubflow(manager);
+    const currentPhase = getCurrentPhase(manager);
+    if (!currentPhase) return null;
 
-    if (step.owningTaskId && step.isSubTaskStep) {
-        const taskMatch = findSubflowBySubTaskId(manager, step.owningTaskId);
-        const subflows = getCurrentPhase(manager)?.subflows || [];
-        const subflowIdHasDuplicate = new Set(subflows.map(sf => sf.id)).size !== subflows.length;
-        if (taskMatch && !subflowIdHasDuplicate) {
-            return taskMatch;
+    // 1. The most reliable match is the functionCallId that initiated the subflow.
+    if (step.functionCallId) {
+        const directMatch = findSubflowByFunctionCallId(manager, step.functionCallId);
+        if (directMatch) {
+            return directMatch;
         }
     }
 
+    // 2. The next best match is the sub-task's own task ID.
+    if (step.owningTaskId && step.isSubTaskStep) {
+        const taskMatch = findSubflowBySubTaskId(manager, step.owningTaskId);
+        if (taskMatch) {
+            // This check is a safeguard against race conditions where two subflows might get the same ID, which shouldn't happen.
+            const subflows = currentPhase.subflows || [];
+            const subflowIdHasDuplicate = new Set(subflows.map(sf => sf.id)).size !== subflows.length;
+            if (!subflowIdHasDuplicate) {
+                return taskMatch;
+            }
+        }
+    }
+
+    // 3. As a fallback, check if the event source matches the agent of the "current" subflow.
+    // This is less reliable in parallel scenarios but can help with event ordering issues.
+    const currentSubflow = getCurrentSubflow(manager);
     if (currentSubflow && step.source) {
-        // Check if the current subflow's peer agent name matches the step source
         const normalizedStepSource = step.source.replace(/[^a-zA-Z0-9_]/g, "_");
         const normalizedStepTarget = step.target?.replace(/[^a-zA-Z0-9_]/g, "_");
         const peerAgentId = currentSubflow.peerAgent.id;
@@ -214,16 +229,11 @@ export function resolveSubflowContext(manager: TimelineLayoutManager, step: Visu
         }
     }
 
-    if (step.functionCallId) {
-        const directMatch = findSubflowByFunctionCallId(manager, step.functionCallId);
-        if (directMatch) {
-            return directMatch;
-        }
-    }
-
+    // 4. Final fallback to the current subflow context.
     if (currentSubflow) {
         return currentSubflow;
     }
+
     return null;
 }
 

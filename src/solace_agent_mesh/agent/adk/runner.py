@@ -3,6 +3,7 @@ Manages the asynchronous execution of the ADK Runner.
 """
 
 import asyncio
+import uuid
 from google.adk.agents.invocation_context import LlmCallsLimitExceededError
 
 
@@ -22,7 +23,7 @@ from google.genai import types as adk_types
 from google.adk.events import Event as ADKEvent
 from google.adk.events.event_actions import EventActions
 
-from ...common.types import CancelTaskRequest, TaskIdParams
+from ...common import a2a
 
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
@@ -87,7 +88,7 @@ async def run_adk_async_task_thread_wrapper(
                 await component.session_service.append_event(
                     session=adk_session, event=context_setting_event
                 )
-                log.info(
+                log.debug(
                     "%s Appended context-setting event to ADK session %s (via component.session_service) for task %s.",
                     component.log_identifier,
                     adk_session.id,
@@ -156,8 +157,9 @@ async def run_adk_async_task_thread_wrapper(
                     task_id_for_peer = sub_task_id.replace(
                         component.CORRELATION_DATA_PREFIX, "", 1
                     )
-                    peer_cancel_params = TaskIdParams(id=task_id_for_peer)
-                    peer_cancel_request = CancelTaskRequest(params=peer_cancel_params)
+                    peer_cancel_request = a2a.create_cancel_task_request(
+                        task_id=task_id_for_peer
+                    )
                     peer_cancel_user_props = {"clientId": component.agent_name}
                     peer_request_topic = component._get_agent_request_topic(
                         target_peer_agent_name

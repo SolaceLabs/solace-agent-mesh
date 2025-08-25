@@ -11,6 +11,7 @@ export interface ChatState {
     selectedAgentName: string;
     notifications: Notification[];
     isCancelling: boolean;
+    latestStatusText: React.RefObject<string | null>;
     // Agents
     agents: AgentCard[];
     agentsError: string | null;
@@ -47,7 +48,7 @@ export interface ChatActions {
     handleCancel: () => void;
     addNotification: (message: string, type?: "success" | "info" | "error") => void;
     setSelectedAgentName: React.Dispatch<React.SetStateAction<string>>;
-    uploadArtifactFile: (file: File) => Promise<void>;
+    uploadArtifactFile: (file: File) => Promise<string | null>;
     /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
     setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "workflow">>;

@@ -35,9 +35,19 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "The file '你好世界-report-📊.txt' has been created."
+    kind: "task"
+    id: "*"
+    contextId: "fixed_session_for_fenced_artifact_unicode_test_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "The file '你好世界-report-📊.txt' has been created."
     assert_artifact_state:
       - filename: "你好世界-report-📊.txt"
         version: 0

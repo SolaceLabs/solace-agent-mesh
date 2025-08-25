@@ -1,6 +1,6 @@
 test_case_id: convert_unsupported_type
 description: "Tests that the tool returns an error when the input file type is not supported."
-tags: ["all","agent","tools","general_agent_tools"]
+tags: ["all", "agent", "tools", "general_agent_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -44,9 +44,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: final_response
-    task_state: "completed"
-    content_parts:
-      - type: text
-        text_contains: "I am sorry, but I cannot convert `unsupported.bin` because its file type is not supported."
+    kind: task
+    id: '*'
+    contextId: "session_convert_unsupported_type"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: text
+            text_contains:
 
+              - "I am sorry, but I cannot convert `unsupported.bin` because its file type is not supported."
 expected_artifacts: []

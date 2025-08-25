@@ -1,6 +1,6 @@
 test_case_id: "create_image_error_handling_001"
 description: "Verifies that the tool handles an API failure from the image generation service."
-tags: ["all","agent","tools","image_tools"]
+tags: ["all", "agent", "tools", "image_tools"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -33,7 +33,17 @@ primed_image_generation_responses:
     status_code: 500
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "API error"
+    kind: task
+    id: '*'
+    contextId: "fixed_session_for_create_image_error_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "API error"
 expected_artifacts: []

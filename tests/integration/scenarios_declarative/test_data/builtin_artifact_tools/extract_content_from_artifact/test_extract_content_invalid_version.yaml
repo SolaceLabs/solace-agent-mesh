@@ -60,10 +60,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "I'm sorry, the version specified ('not_latest_or_int') for the file 'source_for_invalid_version.txt' is not valid. Please use 'latest' or a specific version number."
-    task_state: "completed"
+    kind: "task"
+    id: "*"
+    contextId: "session_extract_content_invalid_version_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_exact: "I'm sorry, the version specified ('not_latest_or_int') for the file 'source_for_invalid_version.txt' is not valid. Please use 'latest' or a specific version number."
 
 # Source artifact should be untouched.
 assert_artifact_state:

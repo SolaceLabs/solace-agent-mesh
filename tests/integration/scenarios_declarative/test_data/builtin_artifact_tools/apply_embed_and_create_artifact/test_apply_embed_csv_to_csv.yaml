@@ -3,7 +3,7 @@ description: |
   Tests 'apply_embed_and_create_artifact' with a CSV source artifact and
   the 'format:csv' directive. Expects the output artifact to be a CSV file
   with content identical to the source (as no modifiers are applied).
-tags: ["all","agent","tools","builtin_artifact_tools"]
+tags: ["all", "agent", "tools", "builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -68,10 +68,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "Processed 'source_data.csv' and saved the result as 'output_data.csv'."
-    task_state: "completed"
+    kind: task
+    id: '*'
+    contextId: "session_apply_embed_csv_to_csv_001"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "Processed 'source_data.csv' and saved the result as 'output_data.csv'."
     assert_artifact_state:
       # Check the newly created output artifact
       - filename: "output_data.csv"
