@@ -7,13 +7,14 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from solace_ai_connector.common.log import log
 from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
 from a2a.types import (
-    Part as A2APart,
     TextPart,
     Task,
     TaskStatusUpdateEvent,
     TaskArtifactUpdateEvent,
     JSONRPCError,
 )
+from ...common import a2a
+from ...common.a2a import ContentPart
 
 # from solace_agent_mesh.core_a2a.service import CoreA2AService # If direct interaction needed
 
@@ -146,41 +147,53 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
             "%s __GATEWAY_NAME_SNAKE_CASE__ listener shutdown initiated.", log_id_prefix
         )
 
-    async def _authenticate_external_user(
-        self, external_event_data: Any  # Type hint with actual external event data type
-    ) -> Optional[str]:
+    async def _extract_initial_claims(
+        self, external_event_data: Any
+    ) -> Optional[Dict[str, Any]]:
         """
-        GDK Hook: Authenticates the user or system from the external event data.
-        - Implement logic based on your gateway's authentication mechanism (e.g., API key, token, signature).
-        - Use configurations retrieved in __init__ (e.g., self.service_api_key).
-        - Return a unique user/system identifier (string) on success, or None on failure.
-          This identifier will be used for A2A authorization (scope checking).
-        """
-        log_id_prefix = f"{self.log_identifier}[AuthenticateUser]"
-        # log.debug("%s Authenticating external event: %s", log_id_prefix, external_event_data)
+        GDK Hook: Extracts the primary identity claims from a platform-specific event.
+        This method MUST be implemented by derived gateway components.
 
-        # --- Implement Authentication Logic Here ---
+        The base class's `authenticate_and_enrich_user` method will call this,
+        and then (if configured) pass the result to an Identity Service for enrichment.
+
+        Args:
+            external_event_data: Raw event data from the external platform
+                                 (e.g., FastAPIRequest, Slack event dictionary).
+
+        Returns:
+            A dictionary of initial claims, which MUST include an 'id' key.
+            Example: {"id": "user@example.com", "source": "api_key"}
+            Return None if authentication fails.
+        """
+        log_id_prefix = f"{self.log_identifier}[ExtractClaims]"
+        # log.debug("%s Extracting initial claims from external event: %s", log_id_prefix, external_event_data)
+
+        # --- Implement Claims Extraction Logic Here ---
         # Example: Check an API key from headers or payload
         # provided_key = external_event_data.get("headers", {}).get("X-API-Key")
-        # if provided_key and provided_key == self.service_api_key:
-        #     user_identity = external_event_data.get("user_id_field", "default_system_user")
-        #     log.info("%s Authentication successful for user: %s", log_id_prefix, user_identity)
-        #     return user_identity
+        # if provided_key and provided_key == self.get_config("service_api_key"):
+        #     user_id = external_event_data.get("user_id_field", "default_system_user")
+        #     log.info("%s Authentication successful for user: %s", log_id_prefix, user_id)
+        #     return {"id": user_id, "source": "api_key"}
         # else:
         #     log.warning("%s Authentication failed: API key mismatch or missing.", log_id_prefix)
         #     return None
 
-        # If no authentication is needed for this gateway:
-        # return "anonymous___GATEWAY_NAME_SNAKE_CASE___user"
+        # If no authentication is needed for this gateway, you can use a default identity
+        # from the configuration. The base class handles this logic if `force_user_identity`
+        # or `default_user_identity` are set, but you can implement it here if needed.
+        # return {"id": "anonymous___GATEWAY_NAME_SNAKE_CASE___user", "source": "anonymous"}
 
-        log.warning(
-            "%s _authenticate_external_user not fully implemented.", log_id_prefix
-        )
-        return "placeholder_user_identity"  # Replace with actual logic
+        log.warning("%s _extract_initial_claims not fully implemented.", log_id_prefix)
+        return {
+            "id": "placeholder_user_identity",
+            "source": "placeholder",
+        }  # Replace with actual logic
 
     async def _translate_external_input(
         self, external_event_data: Any, authenticated_user_identity: str
-    ) -> Tuple[Optional[str], List[A2APart], Dict[str, Any]]:
+    ) -> Tuple[Optional[str], List[ContentPart], Dict[str, Any]]:
         """
         GDK Hook: Translates the incoming external event/request into an A2A task.
         - `external_event_data`: The raw data from the external system.
@@ -188,14 +201,14 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
 
         Returns a tuple:
         - `target_agent_name` (str | None): Name of the A2A agent to route the task to. None if translation fails.
-        - `a2a_parts` (List[A2APart]): List of A2A Parts (TextPart, FilePart, DataPart) for the task.
+        - `a2a_parts` (List[ContentPart]): List of A2A Parts (TextPart, FilePart, DataPart) for the task.
         - `external_request_context` (Dict[str, Any]): Dictionary to store any context needed later
           (e.g., for _send_final_response_to_external, like original request ID, reply-to address).
         """
         log_id_prefix = f"{self.log_identifier}[TranslateInput]"
         # log.debug("%s Translating external event: %s", log_id_prefix, external_event_data)
 
-        a2a_parts: List[A2APart] = []
+        a2a_parts: List[ContentPart] = []
         target_agent_name: Optional[str] = (
             None  # Determine this based on event data or config
         )
