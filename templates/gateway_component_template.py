@@ -8,6 +8,8 @@ from solace_ai_connector.common.log import log
 from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
 from a2a.types import (
     TextPart,
+    FilePart,  # If handling files
+    DataPart,  # If handling structured data
     Task,
     TaskStatusUpdateEvent,
     TaskArtifactUpdateEvent,
