@@ -6,7 +6,7 @@ to be bound at runtime, enabling pluggable behavior for configuration resolution
 and other middleware functions.
 """
 
-from typing import Optional, Type, Dict, Any, List
+from typing import Optional, Type, Dict, Any, List, Callable
 from solace_ai_connector.common.log import log
 
 LOG_IDENTIFIER = "[MiddlewareRegistry]"
@@ -22,6 +22,7 @@ class MiddlewareRegistry:
 
     _config_resolver: Optional[Type] = None
     _initialization_callbacks: List[callable] = []
+    _tool_configurator: Optional[Callable] = None
 
     @classmethod
     def bind_config_resolver(cls, resolver_class: Type):
@@ -97,6 +98,32 @@ class MiddlewareRegistry:
         log.info("%s Middleware initialization complete.", LOG_IDENTIFIER)
 
     @classmethod
+    def bind_tool_configurator(cls, configurator: Callable):
+        """
+        Bind a tool configurator function.
+
+        Args:
+            configurator: A callable that configures tools with signature:
+                         (tool_type: str, component, tool_config, **kwargs) -> dict
+        """
+        cls._tool_configurator = configurator
+        log.info(
+            "%s Bound tool configurator: %s",
+            LOG_IDENTIFIER,
+            configurator.__name__,
+        )
+
+    @classmethod
+    def get_tool_configurator(cls) -> Optional[Callable]:
+        """
+        Get the registered tool configurator.
+
+        Returns:
+            The tool configurator function if registered, None otherwise
+        """
+        return cls._tool_configurator
+
+    @classmethod
     def reset_bindings(cls):
         """
         Reset all bindings to defaults.
@@ -106,6 +133,7 @@ class MiddlewareRegistry:
         """
         cls._config_resolver = None
         cls._initialization_callbacks = []
+        cls._tool_configurator = None
         log.info("%s Reset all middleware bindings", LOG_IDENTIFIER)
 
     @classmethod
@@ -121,5 +149,8 @@ class MiddlewareRegistry:
                 cls._config_resolver.__name__ if cls._config_resolver else "default"
             ),
             "initialization_callbacks": len(cls._initialization_callbacks),
+            "tool_configurator": (
+                cls._tool_configurator.__name__ if cls._tool_configurator else "none"
+            ),
             "has_custom_bindings": cls._config_resolver is not None,
         }

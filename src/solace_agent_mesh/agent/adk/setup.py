@@ -26,6 +26,7 @@ from google.adk.tools.mcp_tool.mcp_session_manager import (
 
 from mcp import StdioServerParameters
 
+from ...common.middleware.registry import MiddlewareRegistry
 from ..tools.registry import tool_registry
 from ..tools.tool_definition import BuiltinTool
 
@@ -321,11 +322,46 @@ async def load_adk_tools(
                             tool_name,
                         )
 
-                    mcp_toolset_instance = EmbedResolvingMCPToolset(
-                        connection_params=connection_params,
-                        tool_filter=tool_filter_list,
-                        tool_config=tool_config,
-                    )
+                    # Get the tool configurator if registered
+                    tool_configurator = MiddlewareRegistry.get_tool_configurator()
+                    additional_params = {}
+
+                    if tool_configurator:
+                        try:
+                            # Call the tool configurator with MCP-specific context
+                            additional_params = tool_configurator(
+                                tool_type="mcp",
+                                component=component,
+                                tool_config=tool_config,
+                                connection_params=connection_params,
+                                tool_filter=tool_filter_list,
+                            )
+                            log.debug(
+                                "%s Tool configurator returned additional params: %s",
+                                component.log_identifier,
+                                additional_params,
+                            )
+                        except Exception as e:
+                            log.error(
+                                "%s Tool configurator failed for %s: %s",
+                                component.log_identifier,
+                                tool_config.get("name", "unknown"),
+                                e,
+                            )
+                            # Continue with normal tool creation if configurator fails
+                            additional_params = {}
+
+                    # Create the EmbedResolvingMCPToolset with base parameters
+                    toolset_params = {
+                        "connection_params": connection_params,
+                        "tool_filter": tool_filter_list,
+                        "tool_config": tool_config,
+                    }
+
+                    # Merge additional parameters from configurator
+                    toolset_params.update(additional_params)
+
+                    mcp_toolset_instance = EmbedResolvingMCPToolset(**toolset_params)
                     mcp_toolset_instance.origin = "mcp"
 
                     # Check for duplicates from the MCP server
