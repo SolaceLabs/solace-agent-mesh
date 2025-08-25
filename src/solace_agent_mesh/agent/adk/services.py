@@ -28,7 +28,6 @@ from google.adk.memory import (
 )
 
 from .artifacts.filesystem_artifact_service import FilesystemArtifactService
-from .artifacts.s3_artifact_service import S3ArtifactService
 
 try:
     from sam_test_infrastructure.artifact_service.service import (
@@ -263,6 +262,8 @@ def initialize_artifact_service(component) -> BaseArtifactService:
             )
 
         try:
+            from .artifacts.s3_artifact_service import S3ArtifactService
+            
             s3_config = {}
             
             for key, value in config.items():
@@ -281,6 +282,13 @@ def initialize_artifact_service(component) -> BaseArtifactService:
                 s3_config["aws_secret_access_key"] = aws_secret_access_key
 
             concrete_service = S3ArtifactService(bucket_name=bucket_name, **s3_config)
+        except ImportError as e:
+            log.error(
+                "%s S3 dependencies not available: %s",
+                component.log_identifier,
+                e,
+            )
+            raise
         except Exception as e:
             log.error(
                 "%s Failed to initialize S3ArtifactService: %s",
