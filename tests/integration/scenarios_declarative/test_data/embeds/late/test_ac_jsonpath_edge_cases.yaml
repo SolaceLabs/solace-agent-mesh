@@ -1,0 +1,25 @@
+test_case_id: "embed_ac_jsonpath_edge_cases_001"
+description: "Tests JSONPath edge cases: empty arrays, multiple elements, and no matches."
+skip_intermediate_events: true
+setup_artifacts:
+  - filename: "edge_cases.json"
+    mime_type: "application/json"
+    content: '{"empty_array":[],"multiple_items":["first","second","third"],"single_item":["only"],"nested":{"values":["a","b"]}}'
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "embed_late_tester@example.com"
+  parts: [{type: "text", text: "Test edge cases for JSONPath"}]
+llm_interactions:
+  - static_response:
+      choices: [{message: {role: "assistant", content: "Empty: «artifact_content:edge_cases.json>>>jsonpath:$.empty_array[*]>>>format:json»\nMultiple: «artifact_content:edge_cases.json>>>jsonpath:$.multiple_items[*]>>>format:json»\nSingle: «artifact_content:edge_cases.json>>>jsonpath:$.single_item[0]>>>format:json»\nNo match: «artifact_content:edge_cases.json>>>jsonpath:$.nonexistent>>>format:json»"}}]
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: 'Empty: []'
+      - type: "text"
+        text_contains: 'Multiple: ["first","second","third"]'
+      - type: "text"
+        text_contains: 'Single: "only"'
+      - type: "text"
+        text_contains: 'No match: []'
