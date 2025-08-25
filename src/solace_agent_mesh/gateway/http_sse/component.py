@@ -34,22 +34,13 @@ from ...common.a2a.types import ContentPart
 from a2a.types import (
     A2ARequest,
     AgentCard,
-    Artifact as A2AArtifact,
-    DataPart,
-    FilePart,
-    FileWithUri,
     JSONRPCError,
     JSONRPCResponse,
-    Message as A2AMessage,
     Task,
     TaskArtifactUpdateEvent,
-    TaskState,
-    TaskStatus,
     TaskStatusUpdateEvent,
-    TextPart,
 )
 from ...common import a2a
-
 from ...agent.utils.artifact_helpers import save_artifact_with_metadata
 from ...common.middleware.config_resolver import ConfigResolver
 
@@ -1034,13 +1025,15 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 if result:
                     kind = getattr(result, "kind", None)
                     details["direction"] = kind or "response"
-                    details["task_id"] = getattr(
-                        result, "task_id", None
-                    ) or getattr(result, "id", None)
+                    details["task_id"] = getattr(result, "task_id", None) or getattr(
+                        result, "id", None
+                    )
 
                     if isinstance(result, TaskStatusUpdateEvent):
                         details["source_entity"] = (
-                            result.metadata.get("agent_name") if result.metadata else None
+                            result.metadata.get("agent_name")
+                            if result.metadata
+                            else None
                         )
                         message = a2a.get_message_from_status_update(result)
                         if message:
@@ -1059,7 +1052,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                 details["debug_type"] = "streaming_text"
                     elif isinstance(result, Task):
                         details["source_entity"] = (
-                            result.metadata.get("agent_name") if result.metadata else None
+                            result.metadata.get("agent_name")
+                            if result.metadata
+                            else None
                         )
                     elif isinstance(result, TaskArtifactUpdateEvent):
                         artifact = a2a.get_artifact_from_artifact_update(result)
@@ -1072,7 +1067,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 elif error:
                     details["direction"] = "error_response"
                     details["task_id"] = (
-                        error.data.get("taskId") if isinstance(error.data, dict) else None
+                        error.data.get("taskId")
+                        if isinstance(error.data, dict)
+                        else None
                     )
                     details["debug_type"] = "error"
 
@@ -1333,7 +1330,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
         Returns:
             A tuple containing:
             - target_agent_name (str): The name of the A2A agent to target.
-            - a2a_parts (List[Union[TextPart, DataPart, FilePart]]): A list of unwrapped A2A Part objects.
+            - a2a_parts (List[ContentPart]): A list of unwrapped A2A Part objects.
             - external_request_context (Dict[str, Any]): Context for TaskContextManager.
         """
         log_id_prefix = f"{self.log_identifier}[TranslateInput]"
@@ -1356,7 +1353,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "Client ID or A2A Session ID is missing in external_event_data."
             )
 
-        a2a_parts: List[Union[TextPart, DataPart, FilePart]] = []
+        a2a_parts: List[ContentPart] = []
 
         if files and self.shared_artifact_service:
             file_metadata_summary_parts = []

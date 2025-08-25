@@ -34,8 +34,6 @@ from a2a.types import (
     TaskArtifactUpdateEvent,
     JSONRPCError,
     TextPart,
-    TaskStatus,
-    TaskState,
     FilePart,
     FileWithBytes,
     FileWithUri,
@@ -43,6 +41,7 @@ from a2a.types import (
     Artifact as A2AArtifact,
 )
 from ...common import a2a
+from ...common.a2a import ContentPart
 from ...common.utils import is_text_based_mime_type
 from ...common.utils.embeds import (
     resolve_embeds_in_string,
@@ -591,10 +590,8 @@ class BaseGatewayComponent(ComponentBase):
                 "%s Error resolving artifact URI '%s': %s", log_id_prefix, uri, e
             )
 
-    async def _resolve_uris_in_unwrapped_parts_list(
-        self, parts: List[Union[TextPart, DataPart, FilePart]]
-    ):
-        """Iterates over a list of unwrapped part objects and resolves any FilePart URIs."""
+    async def _resolve_uris_in_parts_list(self, parts: List[ContentPart]):
+        """Iterates over a list of part objects and resolves any FilePart URIs."""
         if not parts:
             return
         for part in parts:
@@ -606,7 +603,7 @@ class BaseGatewayComponent(ComponentBase):
         Dispatcher that calls the appropriate targeted URI resolver based on the
         Pydantic model type of the event.
         """
-        parts_to_resolve: List[Union[TextPart, DataPart, FilePart]] = []
+        parts_to_resolve: List[ContentPart] = []
         if isinstance(parsed_event, TaskStatusUpdateEvent):
             message = a2a.get_message_from_status_update(parsed_event)
             if message:
@@ -625,7 +622,7 @@ class BaseGatewayComponent(ComponentBase):
                     parts_to_resolve.extend(a2a.get_parts_from_artifact(artifact))
 
         if parts_to_resolve:
-            await self._resolve_uris_in_unwrapped_parts_list(parts_to_resolve)
+            await self._resolve_uris_in_parts_list(parts_to_resolve)
         else:
             log.debug(
                 "%s Payload type '%s' did not yield any parts for URI resolution. Skipping.",
@@ -652,7 +649,9 @@ class BaseGatewayComponent(ComponentBase):
         self, topic: str, subscription_pattern: str
     ) -> Optional[str]:
         """Extracts the task ID from the end of a topic string based on the subscription."""
-        base_regex_str = a2a.subscription_to_regex(subscription_pattern).replace(r".*", "")
+        base_regex_str = a2a.subscription_to_regex(subscription_pattern).replace(
+            r".*", ""
+        )
         match = re.match(base_regex_str, topic)
         if match:
             task_id_part = topic[match.end() :]
@@ -719,7 +718,7 @@ class BaseGatewayComponent(ComponentBase):
                 parts_owner = event_with_parts.artifact
 
         if parts_owner and parts_owner.parts:
-            unwrapped_new_parts: List[Union[TextPart, DataPart, FilePart]] = []
+            new_parts: List[ContentPart] = []
             stream_buffer_key = f"{a2a_task_id}_stream_buffer"
             current_buffer = ""
 
@@ -728,13 +727,13 @@ class BaseGatewayComponent(ComponentBase):
                     self.task_context_manager.get_context(stream_buffer_key) or ""
                 )
 
-            unwrapped_parts: List[Union[TextPart, DataPart, FilePart]] = []
+            parts: List[ContentPart] = []
             if isinstance(parts_owner, A2AMessage):
-                unwrapped_parts = a2a.get_parts_from_message(parts_owner)
+                parts = a2a.get_parts_from_message(parts_owner)
             elif isinstance(parts_owner, A2AArtifact):
-                unwrapped_parts = a2a.get_parts_from_artifact(parts_owner)
+                parts = a2a.get_parts_from_artifact(parts_owner)
 
-            for part in unwrapped_parts:
+            for part in parts:
                 if isinstance(part, TextPart) and part.text is not None:
                     text_to_resolve = part.text
                     original_part_text = part.text
@@ -764,9 +763,7 @@ class BaseGatewayComponent(ComponentBase):
                         content_modified_or_signal_handled = True
 
                     if resolved_text is not None:
-                        unwrapped_new_parts.append(
-                            a2a.create_text_part(text=resolved_text)
-                        )
+                        new_parts.append(a2a.create_text_part(text=resolved_text))
                         if is_streaming_status_update:
                             if resolved_text != text_to_resolve[:processed_idx]:
                                 content_modified_or_signal_handled = True
@@ -815,7 +812,7 @@ class BaseGatewayComponent(ComponentBase):
                                     new_file_content.bytes = base64.b64encode(
                                         resolved_content.encode("utf-8")
                                     ).decode("utf-8")
-                                    unwrapped_new_parts.append(
+                                    new_parts.append(
                                         FilePart(
                                             file=new_file_content,
                                             metadata=part.metadata,
@@ -823,9 +820,9 @@ class BaseGatewayComponent(ComponentBase):
                                     )
                                     content_modified_or_signal_handled = True
                                 else:
-                                    unwrapped_new_parts.append(part)
+                                    new_parts.append(part)
                             else:
-                                unwrapped_new_parts.append(part)
+                                new_parts.append(part)
                         except Exception as e:
                             log.warning(
                                 "%s Error during recursive FilePart resolution for %s: %s. Using original.",
@@ -833,25 +830,25 @@ class BaseGatewayComponent(ComponentBase):
                                 part.file.name,
                                 e,
                             )
-                            unwrapped_new_parts.append(part)
+                            new_parts.append(part)
                     else:
                         # This is a FileWithUri or empty FileWithBytes, which we don't process for embeds here.
-                        unwrapped_new_parts.append(part)
+                        new_parts.append(part)
                 else:
-                    unwrapped_new_parts.append(part)
+                    new_parts.append(part)
 
             if isinstance(parts_owner, A2AMessage):
                 if isinstance(event_with_parts, TaskStatusUpdateEvent):
                     event_with_parts.status.message = a2a.update_message_parts(
-                        message=parts_owner, new_parts=unwrapped_new_parts
+                        message=parts_owner, new_parts=new_parts
                     )
                 elif isinstance(event_with_parts, Task):
                     event_with_parts.status.message = a2a.update_message_parts(
-                        message=parts_owner, new_parts=unwrapped_new_parts
+                        message=parts_owner, new_parts=new_parts
                     )
             elif isinstance(parts_owner, A2AArtifact):
                 event_with_parts.artifact = a2a.update_artifact_parts(
-                    artifact=parts_owner, new_parts=unwrapped_new_parts
+                    artifact=parts_owner, new_parts=new_parts
                 )
 
             if is_streaming_status_update:
@@ -953,7 +950,7 @@ class BaseGatewayComponent(ComponentBase):
                     combined_text = a2a.get_text_from_message(message)
                     data_parts = a2a.get_data_parts_from_message(message)
                     file_parts = a2a.get_file_parts_from_message(message)
-                    unwrapped_non_text_parts = data_parts + file_parts
+                    non_text_parts = data_parts + file_parts
 
                     if combined_text:
                         embed_eval_context = {
@@ -996,15 +993,15 @@ class BaseGatewayComponent(ComponentBase):
                                 is_finalizing_context=True,
                             )
 
-                        unwrapped_new_parts = (
+                        new_parts = (
                             [a2a.create_text_part(text=resolved_text)]
                             if resolved_text
                             else []
                         )
-                        unwrapped_new_parts.extend(unwrapped_non_text_parts)
+                        new_parts.extend(non_text_parts)
                         parsed_event.status.message = a2a.update_message_parts(
                             message=parsed_event.status.message,
-                            new_parts=unwrapped_new_parts,
+                            new_parts=new_parts,
                         )
                         log.info(
                             "%s Final response text updated with resolved embeds.",
@@ -1498,7 +1495,7 @@ class BaseGatewayComponent(ComponentBase):
         Returns:
             A tuple containing:
             - target_agent_name (str): The name of the A2A agent to target.
-            - a2a_parts (List[ContentPart]): A list of unwrapped A2A Part objects.
+            - a2a_parts (List[ContentPart]): A list of A2A Part objects.
             - external_request_context (Dict[str, Any]): Context for TaskContextManager.
         """
         pass

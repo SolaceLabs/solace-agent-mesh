@@ -16,8 +16,6 @@ from a2a.types import (
 from ...common import a2a
 from ...common.a2a import ContentPart
 
-# from solace_agent_mesh.core_a2a.service import CoreA2AService # If direct interaction needed
-
 info = {
     "class_name": "__GATEWAY_NAME_PASCAL_CASE__GatewayComponent",
     "description": (
@@ -25,14 +23,9 @@ info = {
         "Handles communication between the __GATEWAY_NAME_SNAKE_CASE__ system and the A2A agent ecosystem."
     ),
     "config_parameters": [],  # Defined by __GATEWAY_NAME_PASCAL_CASE__GatewayApp
-    "input_schema": {
-        "type": "object",
-        "description": "Not typically used directly by GDK; component reacts to external events or A2A control messages.",
-    },
-    "output_schema": {
-        "type": "object",
-        "description": "Not typically used directly by GDK; component publishes results to external system or A2A.",
-    },
+    # Not needed for gateway components
+    "input_schema": {},
+    "output_schema": {},
 }
 
 
@@ -414,8 +407,11 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         #         pass
 
         # Default: Log that this gateway does not handle intermediate updates.
-        log.debug("%s __GATEWAY_NAME_PASCAL_CASE__ Gateway does not process intermediate updates. Update for task %s ignored.",
-                  log_id_prefix, task_id)
+        log.debug(
+            "%s __GATEWAY_NAME_PASCAL_CASE__ Gateway does not process intermediate updates. Update for task %s ignored.",
+            log_id_prefix,
+            task_id,
+        )
         pass  # No-op by default
 
     # --- Optional: Helper methods for your gateway ---
