@@ -6,6 +6,8 @@ shared_config:
       broker_password: ${SOLACE_BROKER_PASSWORD, default}
       broker_vpn: ${SOLACE_BROKER_VPN, default}
       temporary_queue: ${USE_TEMPORARY_QUEUES, true}
+      # Ensure high enough limits if many agents are running
+      # max_connection_retries: -1 # Retry forever
 
   - models:
     planning: &planning_model
@@ -16,6 +18,12 @@ shared_config:
       api_base: ${LLM_SERVICE_ENDPOINT} # Use env var for endpoint URL
       # 'api_key' provides authentication.
       api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
+      # Enable parallel tool calls for planning model
+      parallel_tool_calls: true 
+
+      # max_tokens: ${MAX_TOKENS, 16000} # Set a reasonable max token limit for planning
+      # temperature: 0.1 # Lower temperature for more deterministic planning
+      
 
     general: &general_model
       # This dictionary structure tells ADK to use the LiteLlm wrapper.
@@ -45,7 +53,6 @@ shared_config:
       api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
 
     multimodal: &multimodal_model  "gemini-2.5-flash-preview-04-17"
-    gemini_pro: &gemini_pro_model "gemini-2.5-pro-exp-03-25"
 
   - services:
     # Default session service configuration

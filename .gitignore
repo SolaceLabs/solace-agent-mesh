@@ -141,6 +141,7 @@ cython_debug/
 .pypirc
 tmp
 .sam 
+playground.py
 
 # VS Code
 .history

@@ -28,7 +28,7 @@ No public classes, functions, or constants defined.
   - `get_all_agents() -> List[AgentCard]` - Retrieves all currently discovered agent cards from the registry
   - `process_discovery_message(agent_card: AgentCard)` - Processes an incoming agent card discovery message
   - `agent_registry: AgentRegistry` - The shared agent registry instance
-  - `namespace: str` - The A2A namespace string
+  - `namespace: str` - The namespace string
   - `log_identifier: str` - Identifier used for logging
 
 **Functions:**

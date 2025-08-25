@@ -19,6 +19,7 @@ const ARTIFACT_SERVICE_TYPE_CHOICES = [
   { value: "memory", label: "Memory" },
   { value: "filesystem", label: "Filesystem" },
   { value: "gcs", label: "Google Cloud Storage (GCS)" },
+  { value: "s3", label: "Amazon S3 Compatible" },
 ];
 
 const ARTIFACT_SERVICE_SCOPE_CHOICES = [
@@ -39,8 +40,17 @@ const GatewayArtifactServiceStep: React.FC<GatewayArtifactServiceStepProps> = ({
     const { name, value } = e.target;
     updateData({ [name]: value });
 
-    if (name === "artifact_service_type" && value !== "filesystem") {
-      updateData({ artifact_service_base_path: undefined });
+    if (name === "artifact_service_type") {
+      if (value !== "filesystem") {
+        updateData({ artifact_service_base_path: undefined });
+      }
+      if (value !== "s3") {
+        updateData({ 
+          s3_bucket_name: undefined,
+          s3_endpoint_url: undefined,
+          s3_region: undefined
+        });
+      }
     }
   };
 
@@ -48,11 +58,16 @@ const GatewayArtifactServiceStep: React.FC<GatewayArtifactServiceStepProps> = ({
     data.artifact_service_type &&
     data.artifact_service_type !== "use_default_shared_artifact";
   const showBasePath = data.artifact_service_type === "filesystem";
+  const showS3Config = data.artifact_service_type === "s3";
 
   let canProceed = true;
   if (showCustomArtifactConfig) {
     if (!data.artifact_service_scope) canProceed = false;
     if (showBasePath && !data.artifact_service_base_path) canProceed = false;
+    if (showS3Config) {
+      if (!data.s3_bucket_name) canProceed = false;
+      if (!data.s3_region) canProceed = false;
+    }
   }
 
   return (
@@ -105,6 +120,56 @@ const GatewayArtifactServiceStep: React.FC<GatewayArtifactServiceStepProps> = ({
                 required={showBasePath}
               />
             </FormField>
+          )}
+
+          {showS3Config && (
+            <>
+              <FormField
+                label="S3 Bucket Name"
+                htmlFor="s3_bucket_name"
+                required={showS3Config}
+                helpText="Name of the S3 bucket to store artifacts."
+              >
+                <Input
+                  id="s3_bucket_name"
+                  name="s3_bucket_name"
+                  value={data.s3_bucket_name || ""}
+                  onChange={handleChange}
+                  placeholder="my-artifacts-bucket"
+                  required={showS3Config}
+                />
+              </FormField>
+
+              <FormField
+                label="S3 Endpoint URL"
+                htmlFor="s3_endpoint_url"
+                helpText="S3 endpoint URL (leave empty for AWS S3, required for S3-compatible services like MinIO)."
+              >
+                <Input
+                  id="s3_endpoint_url"
+                  name="s3_endpoint_url"
+                  value={data.s3_endpoint_url || ""}
+                  onChange={handleChange}
+                  placeholder="https://s3.amazonaws.com or https://minio.example.com"
+                />
+              </FormField>
+
+              <FormField
+                label="S3 Region"
+                htmlFor="s3_region"
+                required={showS3Config}
+                helpText="AWS region or S3-compatible service region."
+              >
+                <Input
+                  id="s3_region"
+                  name="s3_region"
+                  value={data.s3_region || ""}
+                  onChange={handleChange}
+                  placeholder="us-east-1"
+                  required={showS3Config}
+                />
+              </FormField>
+            </>
           )}
         </>
       )}

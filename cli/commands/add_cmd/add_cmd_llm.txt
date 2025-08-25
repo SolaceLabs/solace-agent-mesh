@@ -56,7 +56,7 @@ AGENT_DEFAULTS = {
     "inter_agent_communication_allow_list": list[str],  # Allow list: ["*"]
     "inter_agent_communication_deny_list": list[str],   # Deny list: []
     "inter_agent_communication_timeout": int,           # Timeout in seconds
-    "namespace": str,                    # A2A namespace
+    "namespace": str,                    # namespace
 }
 ```
 

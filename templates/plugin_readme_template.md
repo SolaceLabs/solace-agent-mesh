@@ -2,7 +2,7 @@
 
 __PLUGIN_DESCRIPTION__
 
-This is a plugin for the Solace Agent Mesh (SAM).
+This is a plugin for Solace Agent Mesh (SAM).
 
 ## Configuration (`config.yaml`)
 

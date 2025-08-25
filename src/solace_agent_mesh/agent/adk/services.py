@@ -27,7 +27,8 @@ from google.adk.memory import (
     VertexAiRagMemoryService,
 )
 
-from .filesystem_artifact_service import FilesystemArtifactService
+from .artifacts.filesystem_artifact_service import FilesystemArtifactService
+from .artifacts.s3_artifact_service import S3ArtifactService
 
 try:
     from sam_test_infrastructure.artifact_service.service import (
@@ -250,6 +251,39 @@ def initialize_artifact_service(component) -> BaseArtifactService:
         except Exception as e:
             log.error(
                 "%s Failed to initialize FilesystemArtifactService: %s",
+                component.log_identifier,
+                e,
+            )
+            raise
+    elif service_type == "s3":
+        bucket_name = config.get("bucket_name")
+        if not bucket_name or not bucket_name.strip():
+            raise ValueError(
+                f"{component.log_identifier} 'bucket_name' is required and cannot be empty for S3 artifact service."
+            )
+
+        try:
+            s3_config = {}
+            
+            for key, value in config.items():
+                if key not in ["type", "bucket_name", "artifact_scope"]:
+                    s3_config[key] = value
+            
+            if "endpoint_url" not in s3_config:
+                s3_config["endpoint_url"] = "https://s3.amazonaws.com"
+                
+            aws_access_key_id = config.get("aws_access_key_id") or os.environ.get("AWS_ACCESS_KEY_ID")
+            aws_secret_access_key = config.get("aws_secret_access_key") or os.environ.get("AWS_SECRET_ACCESS_KEY")
+            
+            if aws_access_key_id:
+                s3_config["aws_access_key_id"] = aws_access_key_id
+            if aws_secret_access_key:
+                s3_config["aws_secret_access_key"] = aws_secret_access_key
+
+            concrete_service = S3ArtifactService(bucket_name=bucket_name, **s3_config)
+        except Exception as e:
+            log.error(
+                "%s Failed to initialize S3ArtifactService: %s",
                 component.log_identifier,
                 e,
             )

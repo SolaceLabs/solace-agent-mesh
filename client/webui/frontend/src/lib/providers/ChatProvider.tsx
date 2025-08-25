@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
 
-import { useConfigContext, useArtifacts } from "@/lib/hooks";
+import { useConfigContext, useArtifacts, useAgents } from "@/lib/hooks";
 import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
 import type { ArtifactInfo, CancelTaskRequest, FileAttachment, FilePart, JSONRPCErrorResponse, Message, MessageFE, Notification, Part, SendStreamingMessageRequest, SendStreamingMessageSuccessResponse, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart } from "@/lib/types";
@@ -28,6 +28,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const isFinalizing = useRef(false);
     const latestStatusText = useRef<string | null>(null);
     const sseEventSequenceRef = useRef<number>(0);
+
+    // Agents State
+    const {
+        agents,
+        error: agentsError,
+        isLoading: agentsLoading,
+        refetch: agentsRefetch,
+    } = useAgents();
 
     // Chat Side Panel State
     const {
@@ -602,17 +610,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // 5. Reset UI state with new session ID
             const welcomeMessages: MessageFE[] = configWelcomeMessage
                 ? [
-                      {
-                          parts: [{ kind: "text", text: configWelcomeMessage }],
-                          isUser: false,
-                          isComplete: true,
-                          role: "agent",
-                          metadata: {
-                              sessionId: backendSessionId,
-                              lastProcessedEventSequence: 0,
-                          },
-                      },
-                  ]
+                    {
+                        parts: [{ kind: "text", text: configWelcomeMessage }],
+                        isUser: false,
+                        isComplete: true,
+                        role: "agent",
+                        metadata: {
+                            sessionId: backendSessionId,
+                            lastProcessedEventSequence: 0,
+                        },
+                    },
+                ]
                 : [];
 
             setMessages(welcomeMessages);
@@ -643,17 +651,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             const fallbackMessages: MessageFE[] = configWelcomeMessage
                 ? [
-                      {
-                          parts: [{ kind: "text", text: configWelcomeMessage }],
-                          isUser: false,
-                          isComplete: true,
-                          role: "agent",
-                          metadata: {
-                              sessionId: fallbackSessionId,
-                              lastProcessedEventSequence: 0,
-                          },
-                      },
-                  ]
+                    {
+                        parts: [{ kind: "text", text: configWelcomeMessage }],
+                        isUser: false,
+                        isComplete: true,
+                        role: "agent",
+                        metadata: {
+                            sessionId: fallbackSessionId,
+                            lastProcessedEventSequence: 0,
+                        },
+                    },
+                ]
                 : [];
 
             setMessages(fallbackMessages);
@@ -923,6 +931,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         currentTaskId,
         isCancelling,
         latestStatusText,
+        agents,
+        agentsLoading,
+        agentsError,
+        agentsRefetch,
         handleNewSession,
         handleSubmit,
         handleCancel,

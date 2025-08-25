@@ -5,7 +5,7 @@ sidebar_position: 40
 
 # Component Overview
 
-The Solace Agent Mesh (SAM) is built on event-driven architecture principles using the A2A (Agent-to-Agent) protocol, with all components communicating through a standardized protocol over Solace PubSub+. This architectural choice enables loose coupling between components, making the system highly flexible and scalable.
+Solace Agent Mesh (SAM) is built on event-driven architecture principles using the A2A (Agent-to-Agent) protocol, with all components communicating through a standardized protocol over Solace PubSub+. This architectural choice enables loose coupling between components, making the system highly flexible and scalable.
 
 SAM integrates the Google Agent Development Kit (ADK) with a Solace event mesh to provide a "Universal A2A Agent Host" that enables distributed AI agent communication. Each component is designed to perform specific roles while working together seamlessly through the A2A protocol.
 

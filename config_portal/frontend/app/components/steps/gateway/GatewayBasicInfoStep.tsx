@@ -47,7 +47,7 @@ const GatewayBasicInfoStep: React.FC<GatewayBasicInfoStepProps> = ({
         label="A2A Namespace"
         htmlFor="namespace"
         required
-        helpText="The A2A namespace this gateway will operate under."
+        helpText="The namespace this gateway will operate under."
       >
         <Input
           id="namespace"

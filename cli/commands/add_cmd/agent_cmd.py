@@ -1,19 +1,22 @@
-import click
-from pathlib import Path
-import yaml
 import json
+from pathlib import Path
+
+import click
+import yaml
+
 from config_portal.backend.common import (
     AGENT_DEFAULTS,
     USE_DEFAULT_SHARED_ARTIFACT,
     USE_DEFAULT_SHARED_SESSION,
 )
-from .web_add_agent_step import launch_add_agent_web_portal
+
 from ...utils import (
     ask_if_not_provided,
     get_formatted_names,
-    load_template,
     indent_multiline_string,
+    load_template,
 )
+from .web_add_agent_step import launch_add_agent_web_portal
 
 
 def _write_agent_yaml_from_data(
@@ -66,6 +69,26 @@ def _write_agent_yaml_from_data(
                     AGENT_DEFAULTS["artifact_service_base_path"],
                 )
                 custom_artifact_lines.append(f'base_path: "{base_path_val}"')
+            elif type_val == "s3":
+                bucket_name_val = config_options.get(
+                    "artifact_service_bucket_name",
+                    AGENT_DEFAULTS.get("artifact_service_bucket_name", ""),
+                )
+                custom_artifact_lines.append(f'bucket_name: "{bucket_name_val}"')
+
+                endpoint_url_val = config_options.get(
+                    "artifact_service_endpoint_url",
+                    AGENT_DEFAULTS.get("artifact_service_endpoint_url", ""),
+                )
+                if endpoint_url_val:
+                    custom_artifact_lines.append(f'endpoint_url: "{endpoint_url_val}"')
+
+                region_val = config_options.get(
+                    "artifact_service_region",
+                    AGENT_DEFAULTS.get("artifact_service_region", "us-east-1"),
+                )
+                if region_val:
+                    custom_artifact_lines.append(f'region: "{region_val}"')
             custom_artifact_lines.append(f"artifact_scope: {scope_val}")
             artifact_service_block = "\n" + "\n".join(
                 [f"        {line}" for line in custom_artifact_lines]
@@ -81,7 +104,7 @@ def _write_agent_yaml_from_data(
                 if not isinstance(actual_tools_list, list):
                     click.echo(
                         click.style(
-                            f"Warning: Tools data was a string but not a valid JSON list. Defaulting to empty tools list.",
+                            "Warning: Tools data was a string but not a valid JSON list. Defaulting to empty tools list.",
                             fg="yellow",
                         ),
                         err=True,
@@ -164,6 +187,7 @@ def _write_agent_yaml_from_data(
 
         replacements = {
             "__AGENT_NAME__": agent_name_camel,
+            "__AGENT_SPACED_NAME__": get_formatted_names(agent_name_camel).get("SPACED_CAPITALIZED_NAME"),
             "__NAMESPACE__": config_options.get(
                 "namespace", AGENT_DEFAULTS["namespace"]
             ),
@@ -172,7 +196,7 @@ def _write_agent_yaml_from_data(
                     "supports_streaming", AGENT_DEFAULTS["supports_streaming"]
                 )
             ).lower(),
-            "__MODEL_ALIAS__": f'*{config_options.get("model_type", AGENT_DEFAULTS["model_type"])}_model',
+            "__MODEL_ALIAS__": f"*{config_options.get('model_type', AGENT_DEFAULTS['model_type'])}_model",
             "__INSTRUCTION__": instructions,
             "__TOOLS_CONFIG__": tools_replacement_value,
             "__SESSION_SERVICE__": session_service_block,
@@ -302,7 +326,7 @@ def create_agent_config(
     collected_options["namespace"] = ask_if_not_provided(
         collected_options,
         "namespace",
-        "Enter A2A namespace (e.g., myorg/dev, or leave for ${NAMESPACE})",
+        "Enter namespace (e.g., myorg/dev, or leave for ${NAMESPACE})",
         AGENT_DEFAULTS["namespace"],
         skip_interactive,
     )
@@ -364,7 +388,7 @@ def create_agent_config(
         "Artifact service type",
         AGENT_DEFAULTS["artifact_service_type"],
         skip_interactive,
-        choices=[USE_DEFAULT_SHARED_ARTIFACT, "memory", "filesystem", "gcs"],
+        choices=[USE_DEFAULT_SHARED_ARTIFACT, "memory", "filesystem", "gcs", "s3"],
     )
     if collected_options["artifact_service_type"] != USE_DEFAULT_SHARED_ARTIFACT:
         if collected_options.get("artifact_service_type") == "filesystem":
@@ -373,6 +397,28 @@ def create_agent_config(
                 "artifact_service_base_path",
                 "Artifact service base path",
                 AGENT_DEFAULTS["artifact_service_base_path"],
+                skip_interactive,
+            )
+        elif collected_options.get("artifact_service_type") == "s3":
+            collected_options["artifact_service_bucket_name"] = ask_if_not_provided(
+                collected_options,
+                "artifact_service_bucket_name",
+                "S3 bucket name",
+                AGENT_DEFAULTS.get("artifact_service_bucket_name", ""),
+                skip_interactive,
+            )
+            collected_options["artifact_service_endpoint_url"] = ask_if_not_provided(
+                collected_options,
+                "artifact_service_endpoint_url",
+                "S3 endpoint URL (leave empty for AWS S3)",
+                AGENT_DEFAULTS.get("artifact_service_endpoint_url", ""),
+                skip_interactive,
+            )
+            collected_options["artifact_service_region"] = ask_if_not_provided(
+                collected_options,
+                "artifact_service_region",
+                "S3 region",
+                AGENT_DEFAULTS.get("artifact_service_region", "us-east-1"),
                 skip_interactive,
             )
         collected_options["artifact_service_scope"] = ask_if_not_provided(
@@ -537,7 +583,7 @@ def create_agent_config(
     is_flag=True,
     help="Skip interactive prompts and use defaults (CLI mode only).",
 )
-@click.option("--namespace", help="A2A namespace (e.g., myorg/dev).")
+@click.option("--namespace", help="namespace (e.g., myorg/dev).")
 @click.option("--supports-streaming", type=bool, help="Enable streaming support.")
 @click.option(
     "--model-type",
@@ -559,11 +605,22 @@ def create_agent_config(
 )
 @click.option(
     "--artifact-service-type",
-    type=click.Choice(["memory", "filesystem", "gcs"]),
+    type=click.Choice(["memory", "filesystem", "gcs", "s3"]),
     help="Artifact service type.",
 )
 @click.option(
     "--artifact-service-base-path", help="Base path for filesystem artifact service."
+)
+@click.option(
+    "--artifact-service-bucket-name",
+    help="S3 bucket name (for s3 artifact service type).",
+)
+@click.option(
+    "--artifact-service-endpoint-url",
+    help="S3 endpoint URL (for s3 artifact service type, optional for AWS S3).",
+)
+@click.option(
+    "--artifact-service-region", help="S3 region (for s3 artifact service type)."
 )
 @click.option(
     "--artifact-service-scope",

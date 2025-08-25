@@ -8,7 +8,7 @@ import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/
 import type { TextPart } from "@/lib/types";
 import { Button, ChatMessageList, CHAT_STYLES } from "@/lib/components/ui";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
-import { useAgents, useChatContext, useSessionPreview, useTaskContext } from "@/lib/hooks";
+import { useChatContext, useSessionPreview, useTaskContext } from "@/lib/hooks";
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
 import { ChatSessionDialog } from "../chat/ChatSessionDialog";
@@ -35,7 +35,7 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
-    const { sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText } = useChatContext();
+    const { agents, sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
 
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
@@ -115,7 +115,6 @@ export function ChatPage() {
         };
     }, [isSidePanelCollapsed, setIsSidePanelCollapsed, sidePanelSizes.default]);
 
-    const { agents } = useAgents();
     useEffect(() => {
         if (!selectedAgentName && agents.length > 0) {
             const orchestratorAgent = agents.find(agent => agent.name === "OrchestratorAgent");

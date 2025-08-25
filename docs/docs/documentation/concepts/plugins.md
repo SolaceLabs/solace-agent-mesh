@@ -43,7 +43,7 @@ Follow the prompts to create a new plugin. A plugin can be one of the following 
 - **Gateway Plugin**: Contains custom gateways that can be used in a Solace Agent Mesh project.
 - **Custom Plugin**: Contains custom integrations such as HR providers or other specialized functionality.
 
-The Solace Agent Mesh (SAM) CLI creates a directory with the provided name and the following structure:
+Solace Agent Mesh (SAM) CLI creates a directory with the provided name and the following structure:
 
 ```
 plugin-name/
@@ -130,3 +130,47 @@ You can manage available plugins with the `plugin catalog` command, which launch
 ```bash
 solace-agent-mesh plugin catalog
 ``` 
+
+## Agent or Plugin: Which To Use?
+
+In simple terms, plugins of type agent are just packaged agents. However, there are distinct advantages to each approach, and choosing the right one depends on your use case.
+
+Here’s a detailed comparison to help you decide.
+
+| Feature | Standalone Agent (`sam add agent`) | Agent Plugin (`sam plugin create`) |
+| :--- | :--- | :--- |
+| **Creation** | A single command creates a configuration file in your project. | Creates a complete, standard Python project structure. |
+| **Structure** | Consists of a YAML configuration file and associated Python tool files within a SAM project. | A self-contained Python package with `pyproject.toml`, a `src` directory, and configuration templates. |
+| **Packaging** | Not packaged. It exists as a component within a larger SAM project. | Packaged into a standard Python wheel (`.whl`) file using `sam plugin build`. |
+| **Distribution** | Shared by copying files or sharing the entire project. | Easily distributed as a wheel file, via a Git repository, or published to a package index like PyPI. |
+| **Reusability** | Primarily for use within the project where it was created. | Designed for high reusability across different projects, teams, and communities. |
+| **Installation** | No installation needed. The agent is configured and run as part of the main project. | Installed into the Python environment using `sam plugin add`, which handles the package installation. |
+| **Versioning** | Versioned along with the main project. | Can be versioned independently according to Python packaging standards (e.g., `v0.1.0`, `v0.2.0`). |
+| **Development** | Simple and direct. Edit files and run. Ideal for rapid prototyping. | Involves a build/install cycle. Better for structured, long-term development. |
+
+### When To Use a Standalone Agent
+
+Create a standalone agent when:
+
+- You need to quickly test an idea or build a proof-of-concept.
+- The agent is tightly coupled to a single project and is not intended for reuse.
+- You want the most straightforward path to adding a simple agent without the overhead of a full package structure.
+
+### When To Use an Agent Plugin
+
+Create an agent as a plugin when:
+
+- You plan to use the same agent in multiple projects.
+- You want to share your agent with other developers, teams, or the open-source community.
+- You are building a robust, production-ready agent that benefits from a formal package structure, dependency management, and versioning.
+- You are building a collection of standardized agents for your organization.
+
+### Recommendation
+
+The choice of how to build your agent depends on your goals and the requirements of your project:
+
+- **Standalone Agents** should be viewed as tactical tools for rapid, isolated prototyping. They serve immediate, project-specific needs but do not contribute to a scalable, long-term asset library.
+
+- **Agent Plugins** are the foundation for building a robust, governable, and reusable AI ecosystem. This model treats AI capabilities as enterprise assets, promoting standardization, reducing redundant development costs, and accelerating innovation across the organization. For any capability intended for broader use or long-term value, the plugin framework is the mandated path to maximize return on investment and ensure architectural integrity.
+
+
