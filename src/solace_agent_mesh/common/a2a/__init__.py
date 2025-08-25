@@ -106,7 +106,6 @@ __all__ = [
     # artifact.py
     "create_data_artifact",
     "create_text_artifact",
-    "update_artifact_parts",
     "get_artifact_id",
     "get_artifact_name",
     "get_parts_from_artifact",
