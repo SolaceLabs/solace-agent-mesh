@@ -41,7 +41,7 @@ class Session(Base):
     user_id = Column(String, nullable=False)  # Simple string field, no foreign key
     agent_id = Column(String, nullable=True)
     project_id = Column(
-        String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+        String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True
     )
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

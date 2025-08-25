@@ -105,6 +105,8 @@ class BaseRepository(IBaseRepository[EntityType], Generic[EntityType]):
             session.add(entity)
             session.flush()
             session.refresh(entity)
+            # Ensure the entity is fully loaded before the session closes
+            session.expunge(entity)
             return entity
 
     def update(self, entity_id: str, entity_data: dict[str, Any]) -> EntityType | None:
@@ -124,6 +126,8 @@ class BaseRepository(IBaseRepository[EntityType], Generic[EntityType]):
 
             session.flush()
             session.refresh(entity)
+            # Ensure the entity is fully loaded before the session closes
+            session.expunge(entity)
             return entity
 
     def delete(self, entity_id: str) -> bool:

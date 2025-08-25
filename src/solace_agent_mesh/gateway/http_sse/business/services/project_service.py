@@ -48,7 +48,9 @@ class ProjectService:
             created_by_user_id=user_id
         )
         
-        self.logger.info(f"Successfully created project {db_project.id} for user {user_id}")
+        # Access the id immediately before the object might get detached
+        project_id = db_project.id
+        self.logger.info(f"Successfully created project {project_id} for user {user_id}")
         return self._model_to_domain(db_project)
 
     def get_project(self, project_id: str, user_id: str) -> Optional[ProjectDomain]:
@@ -98,7 +100,7 @@ class ProjectService:
         db_projects = self.project_repository.get_global_projects()
         return self._models_to_domain_list(db_projects)
 
-    async def update_project(self, project_id: str, user_id: str, 
+    def update_project(self, project_id: str, user_id: str, 
                            name: Optional[str] = None, description: Optional[str] = None) -> Optional[ProjectDomain]:
         """
         Update a project's details.
@@ -113,7 +115,7 @@ class ProjectService:
             Optional[DomainProject]: The updated project if successful, None otherwise
         """
         # First verify the project exists and user has access
-        existing_project = await self.get_project(project_id, user_id)
+        existing_project = self.get_project(project_id, user_id)
         if not existing_project:
             return None
         
@@ -141,7 +143,7 @@ class ProjectService:
         
         return None
 
-    async def delete_project(self, project_id: str, user_id: str) -> bool:
+    def delete_project(self, project_id: str, user_id: str) -> bool:
         """
         Delete a project.
         
@@ -153,7 +155,7 @@ class ProjectService:
             bool: True if deleted successfully, False otherwise
         """
         # First verify the project exists and user has access
-        existing_project = await self.get_project(project_id, user_id)
+        existing_project = self.get_project(project_id, user_id)
         if not existing_project:
             return False
         

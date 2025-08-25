@@ -4,7 +4,7 @@ Repository interfaces and implementations.
 
 from .base_repository import IBaseRepository, BaseRepository
 from .session_repository import ISessionRepository, IMessageRepository, SessionRepository, MessageRepository
-from .user_repository import IUserRepository, UserRepository
+from .project_repository import IProjectRepository, ProjectRepository
 
 __all__ = [
     "IBaseRepository",
@@ -13,6 +13,6 @@ __all__ = [
     "IMessageRepository",
     "SessionRepository",
     "MessageRepository",
-    "IUserRepository",
-    "UserRepository",
+    "IProjectRepository",
+    "ProjectRepository",
 ]

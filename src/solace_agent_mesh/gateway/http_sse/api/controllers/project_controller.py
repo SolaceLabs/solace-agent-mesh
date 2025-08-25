@@ -41,7 +41,7 @@ async def create_project(
     try:
         logger.info(f"Creating project '{request.name}' for user {user_id}")
         
-        project = await project_service.create_project(
+        project = project_service.create_project(
             name=request.name,
             user_id=user_id,
             description=request.description
@@ -91,7 +91,7 @@ async def get_user_projects(
     try:
         logger.debug(f"Retrieving projects for user {user_id}")
         
-        projects = await project_service.get_user_projects(user_id)
+        projects = project_service.get_user_projects(user_id)
         
         project_responses = [
             ProjectResponse(
