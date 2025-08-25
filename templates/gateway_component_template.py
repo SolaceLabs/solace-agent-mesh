@@ -192,18 +192,27 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         }  # Replace with actual logic
 
     async def _translate_external_input(
-        self, external_event_data: Any, authenticated_user_identity: str
-    ) -> Tuple[Optional[str], List[ContentPart], Dict[str, Any]]:
+        self, external_event_data: Any
+    ) -> Tuple[str, List[ContentPart], Dict[str, Any]]:
         """
-        GDK Hook: Translates the incoming external event/request into an A2A task.
-        - `external_event_data`: The raw data from the external system.
-        - `authenticated_user_identity`: The identity returned by _authenticate_external_user.
+        GDK Hook: Translates the incoming external event/request into A2A task parameters.
+        This method is called *after* `authenticate_and_enrich_user`. The gateway's
+        event processing logic (e.g., a polling loop or request handler) is responsible
+        for calling `authenticate_and_enrich_user` first, and then passing the raw
+        event data to this method.
 
-        Returns a tuple:
-        - `target_agent_name` (str | None): Name of the A2A agent to route the task to. None if translation fails.
-        - `a2a_parts` (List[ContentPart]): List of A2A Parts (TextPart, FilePart, DataPart) for the task.
-        - `external_request_context` (Dict[str, Any]): Dictionary to store any context needed later
-          (e.g., for _send_final_response_to_external, like original request ID, reply-to address).
+        Args:
+            external_event_data: The raw data from the external system.
+
+        Returns:
+            A tuple:
+            - `target_agent_name` (str): Name of the A2A agent to route the task to.
+            - `a2a_parts` (List[ContentPart]): List of A2A Parts for the task.
+            - `external_request_context` (Dict[str, Any]): Dictionary to store any context
+              needed later (e.g., for _send_final_response_to_external).
+
+        Raises:
+            ValueError: If translation fails (e.g., target agent cannot be determined).
         """
         log_id_prefix = f"{self.log_identifier}[TranslateInput]"
         # log.debug("%s Translating external event: %s", log_id_prefix, external_event_data)
@@ -212,12 +221,11 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         target_agent_name: Optional[str] = (
             None  # Determine this based on event data or config
         )
+        # This context is stored and passed back to the `_send_*_to_external` methods.
+        # It should contain any information needed to route the response back to the
+        # original requester in the external system.
         external_request_context: Dict[str, Any] = {
-            "user_id_for_a2a": authenticated_user_identity,
-            "app_name_for_artifacts": self.gateway_id,  # For artifact service context
-            "user_id_for_artifacts": authenticated_user_identity,
             "a2a_session_id": f"__GATEWAY_NAME_SNAKE_CASE__-session-{self.generate_uuid()}",  # Example session ID
-            # Add any other relevant context from external_event_data needed for response handling
             # "original_request_id": external_event_data.get("id"),
         }
 
@@ -236,23 +244,24 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         #    - Extract text:
         #      text_content = external_event_data.get("message_text", "")
         #      if text_content:
-        #          a2a_parts.append(TextPart(text=text_content))
+        #          a2a_parts.append(a2a.create_text_part(text=text_content))
         #    - Handle files (if any): Download, save to artifact service, create FilePart with URI.
-        #      (Requires self.shared_artifact_service to be configured and available)
+        #      (Requires self.shared_artifact_service to be configured and available).
+        #      The `user_identity` dict is available in the calling context (e.g., polling loop).
         #      # if "file_url" in external_event_data and self.shared_artifact_service:
         #      #     file_bytes = await download_file(external_event_data["file_url"])
         #      #     file_name = external_event_data.get("file_name", "attachment.dat")
         #      #     mime_type = external_event_data.get("mime_type", "application/octet-stream")
         #      #     artifact_uri = await self.save_to_artifact_service(
         #      #         file_bytes, file_name, mime_type,
-        #      #         authenticated_user_identity, external_request_context["a2a_session_id"]
+        #      #         user_identity, external_request_context["a2a_session_id"]
         #      #     )
         #      #     if artifact_uri:
-        #      #         a2a_parts.append(FilePart(file=FileWithUri(name=file_name, mime_type=mime_type, uri=artifact_uri)))
+        #      #         a2a_parts.append(a2a.create_file_part_from_uri(uri=artifact_uri, name=file_name, mime_type=mime_type))
         #    - Handle structured data:
         #      # structured_data = external_event_data.get("data_payload")
         #      # if structured_data:
-        #      #    a2a_parts.append(DataPart(data=structured_data, metadata={"source": "__GATEWAY_NAME_SNAKE_CASE__"}))
+        #      #    a2a_parts.append(a2a.create_data_part(data=structured_data, metadata={"source": "__GATEWAY_NAME_SNAKE_CASE__"}))
 
         # Example: Simple text passthrough
         raw_text = str(
@@ -260,18 +269,18 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
                 "text_input_field", "Default text from __GATEWAY_NAME_SNAKE_CASE__"
             )
         )
-        a2a_parts.append(TextPart(text=raw_text))
+        a2a_parts.append(a2a.create_text_part(text=raw_text))
 
         if not target_agent_name:
             log.error("%s Could not determine target_agent_name.", log_id_prefix)
-            return None, [], {}  # Indicate translation failure
+            raise ValueError("Could not determine target agent for the request.")
 
         if not a2a_parts:
             log.warning(
                 "%s No A2A parts created from external event. Task might be empty.",
                 log_id_prefix,
             )
-            # Depending on requirements, you might want to return None, [], {} here too.
+            # Depending on requirements, you might want to raise ValueError here too.
 
         log.info(
             "%s Translation complete. Target: %s, Parts: %d",
@@ -385,14 +394,19 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
 
         return str(uuid.uuid4())
 
-    # async def save_to_artifact_service(self, content_bytes: bytes, filename: str, mime_type: str, user_id: str, session_id: str) -> Optional[str]:
+    # async def save_to_artifact_service(self, content_bytes: bytes, filename: str, mime_type: str, user_identity: Dict[str, Any], session_id: str) -> Optional[str]:
     #     """Helper to save content to the shared artifact service."""
     #     if not self.shared_artifact_service:
     #         log.error("%s Artifact service not available. Cannot save file: %s", self.log_identifier, filename)
     #         return None
     #     try:
-    #         from src.solace_agent_mesh.agent.utils.artifact_helpers import save_artifact_with_metadata # Adjust import
+    #         from ...agent.utils.artifact_helpers import save_artifact_with_metadata # Adjust import
     #         from datetime import datetime, timezone
+
+    #         user_id = user_identity.get("id")
+    #         if not user_id:
+    #             log.error("%s Cannot save artifact, user_id not found in user_identity.", self.log_identifier)
+    #             return None
 
     #         save_result = await save_artifact_with_metadata(
     #             artifact_service=self.shared_artifact_service,
