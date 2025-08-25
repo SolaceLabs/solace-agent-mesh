@@ -1,14 +1,14 @@
 """
 Helpers for creating and consuming A2A Artifact objects.
 """
+
 import uuid
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional
 
 from .types import ContentPart
 from a2a.types import (
     Artifact,
     DataPart,
-    FilePart,
     Part,
     TextPart,
 )

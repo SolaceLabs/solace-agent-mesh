@@ -2,6 +2,7 @@
 Helpers for creating and consuming A2A asynchronous event objects, such as
 TaskStatusUpdateEvent and TaskArtifactUpdateEvent.
 """
+
 from typing import Any, Dict, List, Optional
 
 from a2a.types import (
@@ -10,7 +11,6 @@ from a2a.types import (
     Message,
     TaskArtifactUpdateEvent,
     TaskState,
-    TaskStatus,
     TaskStatusUpdateEvent,
 )
 

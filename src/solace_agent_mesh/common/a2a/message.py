@@ -1,9 +1,10 @@
 """
 Helpers for creating and consuming A2A Message and Part objects.
 """
+
 import base64
 import uuid
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from .types import ContentPart
 from a2a.types import (
@@ -180,9 +181,7 @@ def create_data_part(
     return DataPart(data=data, metadata=metadata)
 
 
-def update_message_parts(
-    message: Message, new_parts: List[ContentPart]
-) -> Message:
+def update_message_parts(message: Message, new_parts: List[ContentPart]) -> Message:
     """Returns a new Message with its parts replaced."""
     wrapped_parts = [Part(root=p) for p in new_parts]
     return message.model_copy(update={"parts": wrapped_parts})
