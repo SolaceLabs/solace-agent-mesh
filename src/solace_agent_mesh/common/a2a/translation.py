@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import json
 import base64
 import uuid
+import re
 from solace_ai_connector.common.log import log
 from google.genai import types as adk_types
 from google.adk.events import Event as ADKEvent
@@ -18,10 +19,9 @@ from a2a.types import (
     DataPart,
     JSONRPCResponse,
     InternalError,
-    TaskStatus,
-    TaskState,
-    TaskStatusUpdateEvent,
 )
+
+from .. import a2a
 
 A2A_VERSION = "v1"
 A2A_BASE_PATH = f"a2a/{A2A_VERSION}"
@@ -184,9 +184,6 @@ def _topic_matches_subscription(topic: str, subscription: str) -> bool:
     """Checks if a topic matches a Solace subscription pattern."""
     regex_pattern = _subscription_to_regex(subscription)
     return re.fullmatch(regex_pattern, topic) is not None
-)
-
-from .. import a2a
 
 
 def translate_a2a_to_adk_content(
