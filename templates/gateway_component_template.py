@@ -98,13 +98,30 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
     #         try:
     #             # new_events = await self.external_client.get_new_events() # Or sync equivalent
     #             # for event_data in new_events:
-    #             #     # Process each event: authenticate, translate, submit A2A task
-    #             #     # This often involves calling other GDK methods or internal helpers
-    #             #     authenticated_user = await self._authenticate_external_user(event_data)
-    #             #     if authenticated_user:
-    #             #         target_agent, parts, context = await self._translate_external_input(event_data, authenticated_user)
-    #             #         if target_agent and parts:
-    #             #             await self.submit_a2a_task(target_agent, parts, context, authenticated_user)
+    #             #     # 1. Authenticate the user and enrich their profile.
+    #             #     user_identity = await self.authenticate_and_enrich_user(event_data)
+    #             #     if not user_identity:
+    #             #         log.warning("%s Authentication failed for event, skipping.", log_id_prefix)
+    #             #         continue
+    #             #
+    #             #     # 2. Translate the external event into an A2A task.
+    #             #     try:
+    #             #         target_agent, parts, context = await self._translate_external_input(event_data)
+    #             #     except ValueError as e:
+    #             #         log.error("%s Translation failed for event: %s", log_id_prefix, e)
+    #             #         # Optionally, send an error back to the user in the external system here.
+    #             #         continue
+    #             #
+    #             #     # 3. Submit the A2A task.
+    #             #     if target_agent and parts:
+    #             #         await self.submit_a2a_task(
+    #             #             target_agent_name=target_agent,
+    #             #             a2a_parts=parts,
+    #             #             external_request_context=context,
+    #             #             user_identity=user_identity,
+    #             #             is_streaming=True # Or False, depending on gateway needs
+    #             #         )
+    #             #
     #             # await asyncio.sleep(self.get_config("polling_interval_seconds", 60))
     #             pass # Placeholder
     #         except asyncio.CancelledError:
@@ -299,33 +316,33 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         - `task_data`: The final A2A Task object (contains status, results, etc.).
         """
         log_id_prefix = f"{self.log_identifier}[SendFinalResponse]"
-        # log.debug("%s Sending final response for task %s. Context: %s", log_id_prefix, task_data.id, external_request_context)
+        task_id = a2a.get_task_id(task_data)
+        # log.debug("%s Sending final response for task %s. Context: %s", log_id_prefix, task_id, external_request_context)
 
         # --- Implement Logic to Send Response to External System ---
-        # 1. Extract relevant information from task_data:
-        #    - task_data.status.state (e.g., TaskState.completed, TaskState.failed)
-        #    - task_data.status.message.parts (usually TextPart for final agent response)
-        #    - task_data.artifacts (if agent produced artifacts)
+        # 1. Extract relevant information from task_data using the `a2a` facade:
+        #    from a2a.types import TaskState
+        #    task_status = a2a.get_task_status(task_data) # e.g., TaskState.completed
+        #    artifacts = a2a.get_task_artifacts(task_data)
+        #    response_text = a2a.get_text_from_message(task_data.status.message) if task_data.status and task_data.status.message else ""
 
         # 2. Format the response according to the external system's requirements.
-        #    response_text = "Task completed."
-        #    if task_data.status and task_data.status.message and task_data.status.message.parts:
-        #        for part in task_data.status.message.parts:
-        #            if isinstance(part, TextPart):
-        #                response_text = part.text
-        #                break
-        #    if task_data.status and task_data.status.state == TaskState.failed:
-        #        response_text = f"Task failed: {response_text}"
+        #    if task_status == TaskState.failed:
+        #        final_message = f"Task failed: {response_text}"
+        #    elif task_status == TaskState.canceled:
+        #        final_message = "Task was canceled."
+        #    else:
+        #        final_message = response_text
 
         # 3. Use information from external_request_context to send the response
         #    (e.g., reply-to address, original request ID).
         #    # original_request_id = external_request_context.get("original_request_id")
-        #    # await self.external_client.send_reply(original_request_id, response_text)
+        #    # await self.external_client.send_reply(original_request_id, final_message)
 
         log.warning(
             "%s _send_final_response_to_external not fully implemented for task %s.",
             log_id_prefix,
-            task_data.id,
+            task_id,
         )
 
     async def _send_error_to_external(
@@ -339,17 +356,19 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         - `error_data`: A JSONRPCError object.
         """
         log_id_prefix = f"{self.log_identifier}[SendError]"
-        # log.warning("%s Sending error to external system. Error: %s. Context: %s", log_id_prefix, error_data.message, external_request_context)
+        error_message = a2a.get_error_message(error_data)
+        error_code = a2a.get_error_code(error_data)
+        # log.warning("%s Sending error to external system. Error: %s. Context: %s", log_id_prefix, error_message, external_request_context)
 
         # --- Implement Logic to Send Error to External System ---
-        # error_message_to_send = f"A2A Error: {error_data.message} (Code: {error_data.code})"
+        # error_message_to_send = f"A2A Error: {error_message} (Code: {error_code})"
         # # original_request_id = external_request_context.get("original_request_id")
         # # await self.external_client.send_error_reply(original_request_id, error_message_to_send)
 
         log.warning(
             "%s _send_error_to_external not fully implemented. Error: %s",
             log_id_prefix,
-            error_data.message,
+            error_message,
         )
 
     async def _send_update_to_external(
@@ -365,27 +384,38 @@ class __GATEWAY_NAME_PASCAL_CASE__GatewayComponent(BaseGatewayComponent):
         - `is_final_chunk_of_update`: True if this is the last part of a streamed TextPart from TaskStatusUpdateEvent.
         """
         log_id_prefix = f"{self.log_identifier}[SendUpdate]"
-        # task_id = event_data.id
+        task_id = event_data.task_id
         # log.debug("%s Received A2A update for task %s. Type: %s. FinalChunk: %s",
         #           log_id_prefix, task_id, type(event_data).__name__, is_final_chunk_of_update)
 
         # --- Implement Logic to Send Intermediate Update (if supported) ---
         # if isinstance(event_data, TaskStatusUpdateEvent):
-        #     if event_data.status and event_data.status.message and event_data.status.message.parts:
-        #         for part in event_data.status.message.parts:
-        #             if isinstance(part, TextPart):
-        #                 # Send part.text to external system
+        #     message = a2a.get_message_from_status_update(event_data)
+        #     if message:
+        #         # Get text content
+        #         text_content = a2a.get_text_from_message(message)
+        #         if text_content:
+        #             # Send text_content to external system
+        #             pass
+        #
+        #         # Check for specific status signals (DataParts)
+        #         data_parts = a2a.get_data_parts_from_message(message)
+        #         for part in data_parts:
+        #             data = a2a.get_data_from_data_part(part)
+        #             if data.get("type") == "agent_progress_update":
+        #                 status_text = data.get("status_text")
+        #                 # Send status_text to external system
         #                 pass
-        #             elif isinstance(part, DataPart) and part.data.get("a2a_signal_type") == "agent_status_message":
-        #                 # Send agent status signal text part.data.get("text")
-        #                 pass
+        #
         # elif isinstance(event_data, TaskArtifactUpdateEvent):
-        #     # Handle artifact updates (e.g., notify external system of new artifact URI)
-        #     pass
+        #     artifact = a2a.get_artifact_from_artifact_update(event_data)
+        #     if artifact:
+        #         # Handle artifact updates (e.g., notify external system of new artifact URI)
+        #         pass
 
         # Default: Log that this gateway does not handle intermediate updates.
-        # log.debug("%s __GATEWAY_NAME_PASCAL_CASE__ Gateway does not process intermediate updates. Update for task %s ignored.",
-        #           log_id_prefix, task_id)
+        log.debug("%s __GATEWAY_NAME_PASCAL_CASE__ Gateway does not process intermediate updates. Update for task %s ignored.",
+                  log_id_prefix, task_id)
         pass  # No-op by default
 
     # --- Optional: Helper methods for your gateway ---
