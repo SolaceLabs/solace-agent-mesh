@@ -10,6 +10,7 @@ from solace_ai_connector.common.log import log
 from solace_ai_connector.common.message import Message as SolaceMessage
 from ...agent.adk.callbacks import _publish_data_part_status_update
 from ...common.data_parts import ToolResultData
+from ...common.a2a.types import ToolsExtensionParams
 from solace_ai_connector.common.event import Event, EventType
 from a2a.types import (
     A2ARequest,
@@ -1431,6 +1432,7 @@ def publish_agent_card(component):
             "https://solace.com/a2a/extensions/peer-agent-topology"
         )
         DISPLAY_NAME_EXTENSION_URI = "https://solace.com/a2a/extensions/display-name"
+        TOOLS_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/tools"
 
         extensions_list = []
 
@@ -1452,6 +1454,17 @@ def publish_agent_card(component):
             )
             extensions_list.append(display_name_extension)
 
+        # Create the extension object for the agent's tools.
+        dynamic_tools = getattr(component, "agent_card_tool_manifest", [])
+        if dynamic_tools:
+            tools_params = ToolsExtensionParams(tools=dynamic_tools)
+            tools_extension = AgentExtension(
+                uri=TOOLS_EXTENSION_URI,
+                description="A list of tools available to the agent.",
+                params=tools_params.model_dump(exclude_none=True),
+            )
+            extensions_list.append(tools_extension)
+
         # Build the capabilities object, including our custom extensions.
         capabilities = AgentCapabilities(
             streaming=supports_streaming,
@@ -1462,7 +1475,7 @@ def publish_agent_card(component):
 
         skills_from_config = card_config.get("skills", [])
         # The 'tools' field is not part of the official AgentCard spec.
-        # dynamic_tools = getattr(component, "agent_card_tool_manifest", [])
+        # The tools are now included as an extension.
 
         # Ensure all skills have a 'tags' field to prevent validation errors.
         processed_skills = []
