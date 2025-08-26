@@ -212,7 +212,7 @@ For better discoverability, update the [agent card](../concepts/agents.md#agent-
             description: "Provide detailed weather forecasts up to 5 days ahead"
 ```
 
-To run the agent, you can continue following documentation from [Step 7](#step-7-environment-setup) of this tutorial.
+To run the agent, you can continue following documentation from [Step 6](#step-6-environment-setup) of this tutorial.
 </details>
 
 Other concepts mentioned in this page such as lifecycle, services, artifacts are just to showcase more advanced patterns.
@@ -904,7 +904,7 @@ apps:
 
 For more details on agent cards, see the [Agent Card Concepts](../concepts/agents.md#agent-card) documentation.
 
-## Step 7: Environment Setup
+## Step 6: Environment Setup
 
 Before running your weather agent, you'll need to:
 
@@ -918,7 +918,7 @@ Before running your weather agent, you'll need to:
    # Other environment variables as needed
    ```
 
-## Step 8: Running the Agent
+## Step 7: Running the Agent
 
 To start the agent, it is preferred to build the plugin and then install it with your agent name. But for debugging or isolated development testing, you can run your agent from the `src` directory directly using the SAM CLI.
 
@@ -930,7 +930,7 @@ sam run
 
 - To solely run the agent, use `sam run configs/agents/weather_agent.yaml`
 
-## Step 9: Testing the Weather Agent
+## Step 8: Testing the Weather Agent
 
 You can test your weather agent with these example requests:
 
