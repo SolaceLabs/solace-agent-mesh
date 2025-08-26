@@ -1457,7 +1457,19 @@ def publish_agent_card(component):
         # Create the extension object for the agent's tools.
         dynamic_tools = getattr(component, "agent_card_tool_manifest", [])
         if dynamic_tools:
-            tools_params = ToolsExtensionParams(tools=dynamic_tools)
+            # Ensure all tools have a 'tags' field to prevent validation errors.
+            processed_tools = []
+            for tool in dynamic_tools:
+                if "tags" not in tool:
+                    log.debug(
+                        "%s Tool '%s' in manifest is missing 'tags' field. Defaulting to empty list.",
+                        component.log_identifier,
+                        tool.get("id", "unknown"),
+                    )
+                    tool["tags"] = []
+                processed_tools.append(tool)
+
+            tools_params = ToolsExtensionParams(tools=processed_tools)
             tools_extension = AgentExtension(
                 uri=TOOLS_EXTENSION_URI,
                 description="A list of tools available to the agent.",
