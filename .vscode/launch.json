@@ -14,6 +14,15 @@
             "justMyCode": false,
         },
         {
+            "name": "mcp",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/mcp_gateway.yaml examples/a2a_orchestrator.yaml examples/a2a_agents.yaml",
+            "justMyCode": false,
+        },
+        {
             "name": "SAM (test)",
             "type": "debugpy",
             "request": "launch",

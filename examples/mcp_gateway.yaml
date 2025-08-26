@@ -1,0 +1,46 @@
+# Solace AI Connector Configuration for MCP Gateway
+
+log:
+  stdout_log_level: DEBUG
+  log_file_level: DEBUG
+  log_file: mcp_gateway.log
+
+# Shared SAM config
+!include shared_config.yaml
+
+apps:
+  - name: mcp_gateway_test_app
+    app_base_path: . # Assume running from project root where src/ is located
+    app_module: src.mcp_gateway.app
+
+    # Broker settings for this app instance
+    broker:
+      <<: *broker_connection
+
+    # --- App Level Config (Validated by McpGatewayGatewayApp.app_schema) ---
+    app_config:
+      # --- Required ---
+      namespace: ${NAMESPACE, a2a/dev} # Namespace for A2A communication
+      gateway_id: mcp-gateway-test-01 # Unique ID for this instance
+
+      # --- Artifact Service (Required) ---
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+
+      # --- Authorization Service (None for Phase 1) ---
+      authorization_service:
+        type: "none"
+
+      # --- MCP Gateway Specific Parameters ---
+      mcp_host: "127.0.0.1"
+      mcp_port: 8080
+      agent_discovery_interval: 30  # seconds (faster for testing)
+      tool_name_format: "{agent_name}_agent"
+
+      system_purpose: >
+        MCP Gateway that exposes SAM agents as individual MCP tools for external clients.
+        Each agent in the SAM mesh becomes an accessible tool via the MCP protocol.
+
+      response_format: >
+        Responses are formatted as plain text from the underlying agents.

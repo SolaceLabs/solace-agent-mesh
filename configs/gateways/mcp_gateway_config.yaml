@@ -1,0 +1,50 @@
+# Solace Agent Mesh: mcp_gateway Gateway Configuration
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: "mcp_gateway_gateway.log"
+
+!include ../shared_config.yaml
+
+apps:
+  - name: mcp_gateway_gateway_app
+    app_base_path: .
+    app_module: src.mcp_gateway.app
+
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      gateway_id: mcp-gateway-gw-01
+      
+      artifact_service: *default_artifact_service
+
+      authorization_service:
+        type: "none" # Or "default_rbac"
+        # role_definitions_path: "config/auth/roles.yaml"
+        # user_assignments_path: "config/auth/users.yaml"
+
+      system_purpose: >
+        The system is an AI Chatbot with agentic capabilities.
+        It will use the agents available to provide information,
+        reasoning and general assistance for the users in this system.
+        **Always return useful artifacts and files that you create to the user.**
+        Provide a status update before each tool call.
+        Your external name is Agent Mesh.
+
+      response_format: >
+        Responses should be clear, concise, and professionally toned.
+        Format responses to the user in Markdown using appropriate formatting.
+
+      
+      # enable_embed_resolution: true # Default is true
+      # gateway_artifact_content_limit_bytes: 10485760 # 10MB
+      # gateway_recursive_embed_depth: 3
+
+      # --- MCP Gateway Specific Parameters ---
+      mcp_host: "127.0.0.1"
+      mcp_port: 8080
+      agent_discovery_interval: 60  # seconds
+      tool_name_format: "{agent_name}"
