@@ -386,10 +386,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         if (data && typeof data === "object" && "type" in data) {
                             switch (data.type) {
                                 case "agent_progress_update":
-                                    agentStatusText = (data as any).status_text || "Processing...";
+                                    agentStatusText = String(data?.status_text ?? "Processing...");
                                     break;
                                 case "artifact_creation_progress":
-                                    agentStatusText = `Saving artifact: ${(data as any).filename} (${(data as any).bytes_saved} bytes)`;
+                                    agentStatusText = `Saving artifact: ${String(data?.filename ?? "unknown file")} (${Number(data?.bytes_saved ?? 0)} bytes)`;
                                     break;
                                 case "tool_invocation_start":
                                     break;
@@ -422,7 +422,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Update UI state based on processed parts
             setMessages(prevMessages => {
-                let newMessages = [...prevMessages];
+                const newMessages = [...prevMessages];
                 let lastMessage = newMessages[newMessages.length - 1];
 
                 // Remove old status bubble

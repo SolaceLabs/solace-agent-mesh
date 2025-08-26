@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 // This file is the single source of truth for A2A protocol types in the frontend.
 // It re-exports types from the official @a2a-js/sdk to ensure compliance.
 
@@ -65,6 +63,9 @@ export type {
 export interface AgentInfo extends AgentCard {
     display_name?: string;
     last_seen?: string;
+    peer_agents?: string[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    tools?: any[]; // TO BE UPDATED
 }
 
 // This is a UI-specific type for managing artifacts in the side panel.
