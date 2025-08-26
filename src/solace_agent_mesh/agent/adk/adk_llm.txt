@@ -23,6 +23,7 @@ Once initialized, the `AppLlmAgent` (a custom agent class) is managed by the `ru
   - `stream_parser.py`: An internal utility for parsing fenced artifact blocks from an LLM's streaming response
   - `tool_wrapper.py`: A wrapper for Python functions to make them compatible with ADK, handling embed resolution and config injection
 - **Subdirectories:**
+  - `artifacts/`: Contains filesystem and S3-compatible artifact storage implementations
   - `models/`: Contains concrete `BaseLlm` implementations for interfacing with various LLM providers
 
 ## Developer API Reference
@@ -145,6 +146,15 @@ Once initialized, the `AppLlmAgent` (a custom agent class) is managed by the `ru
 
 ### Subdirectory APIs
 
+#### artifacts/
+**Purpose:** Contains filesystem and S3-compatible artifact storage implementations for managing artifacts with versioning, user namespacing, and session-based organization
+**Key Exports:** `FilesystemArtifactService`, `S3ArtifactService` classes for local and cloud artifact storage
+**Import Examples:**
+```python
+from solace_agent_mesh.agent.adk.artifacts.filesystem_artifact_service import FilesystemArtifactService
+from solace_agent_mesh.agent.adk.artifacts.s3_artifact_service import S3ArtifactService
+```
+
 #### models/
 **Purpose:** Contains concrete `BaseLlm` implementations for interfacing with various LLM providers
 **Key Exports:** `LiteLlm` class for broad model provider compatibility
@@ -206,42 +216,18 @@ llm = LiteLlm(
 ### 3. Artifact Service Usage
 
 ```python
-from solace_agent_mesh.agent.adk.filesystem_artifact_service import FilesystemArtifactService
+from solace_agent_mesh.agent.adk.artifacts.filesystem_artifact_service import FilesystemArtifactService
+from solace_agent_mesh.agent.adk.artifacts.s3_artifact_service import S3ArtifactService
 from google.genai import types as adk_types
 
 # Initialize filesystem artifact service
 artifact_service = FilesystemArtifactService(base_path="/tmp/artifacts")
 
+# Or initialize S3 artifact service
+artifact_service = S3ArtifactService(bucket_name="my-artifacts-bucket")
+
 # Save an artifact
 content = "Hello, world!"
-artifact = adk_types.Part.from_text(content)
-version = await artifact_service.save_artifact(
-    app_name="my_agent",
-    user_id="user123",
-    session_id="session456",
-    filename="greeting.txt",
-    artifact=artifact
-)
+artifact = adk_types.Part.from_text(content
 
-# Load an artifact
-loaded_artifact = await artifact_service.load_artifact(
-    app_name="my_agent",
-    user_id="user123", 
-    session_id="session456",
-    filename="greeting.txt",
-    version=version
-)
-```
-
-### 4. Tool Wrapper Usage
-
-```python
-from solace_agent_mesh.agent.adk.tool_wrapper import ADKToolWrapper
-
-# Define a simple tool function
-def calculate_sum(a: int, b: int, tool_config: dict = None) -> dict:
-    """Calculate the sum of two numbers."""
-    result = a + b
-    return {"result": result, "operation": "addition"}
-
-# content_hash: c04f0fa86f6b5a21db771d07ee201b3af85ac413c5e0bdd551cefbbae3a59b3f
+# content_hash: 629ea64c24ef561214d3d053d3b8ecb94c0903034ab01354904f0b05ef06f235

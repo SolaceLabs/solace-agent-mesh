@@ -58,7 +58,7 @@ This design creates a clean separation of concerns, where the web layer (FastAPI
   - **Gateway-Development-Kit (GDK) Hooks:** These methods implement the `BaseGatewayComponent` abstract interface.
     - `_start_listener()`: Starts the FastAPI/Uvicorn server.
     - `_stop_listener()`: Stops the FastAPI/Uvicorn server.
-    - `_translate_external_input(...)`: Translates an incoming HTTP request (e.g., form data with files) into a structured A2A message (`List[A2APart]`).
+    - `_translate_external_input(...)`: Translates an incoming HTTP request (e.g., form data with files) into a structured A2A message (`List[ContentPart]`).
     - `_send_update_to_external(...)`: Sends an intermediate status update from an agent back to the client via SSE.
     - `_send_final_response_to_external(...)`: Sends the final A2A Task result to the client via SSE.
     - `_send_error_to_external(...)`: Sends an error notification to the client via SSE.
@@ -296,4 +296,4 @@ from solace_agent_mesh.gateway.http_sse.dependencies import (
 )
 from solace_agent_mesh.gateway.http_sse.services.agent_service import AgentService
 
-# content_hash: a57903347835911872513351c759e46bc5c696f356cdd07679c22e4bf6b89dea
+# content_hash: 765fb33c6a30298c67ac7c1525df5787791b2b37e0d69b046e405aec85287feb

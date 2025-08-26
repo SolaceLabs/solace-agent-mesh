@@ -363,4 +363,4 @@ from solace_agent_mesh.gateway.base.task_context import TaskContextManager
 
 # Initialize the task context manager (usually done by BaseGat
 
-# content_hash: 8ddda603c3d38ee2fca1aa9bc0ed89e678ce81aae0143f1823a782a381ddfd42
+# content_hash: 8ff3c690b39ed85edd13c1e9f2965e9da9050eeeea66823dbbad322f600f0d09

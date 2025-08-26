@@ -1,3 +1,5 @@
+# DEVELOPER GUIDE: solace_agent_mesh
+
 ## Quick Summary
 The `solace_agent_mesh` directory contains the core implementation of a distributed AI agent communication system built on the Solace event mesh. It provides a complete framework for hosting Google ADK (Agent Development Kit) agents with Agent-to-Agent (A2A) protocol support, enabling real-time communication, task delegation, and multi-platform integration.
 
@@ -355,7 +357,6 @@ async def client_integration_example():
     print("Submitting task and streaming response...")
     async for response in client.send_task_streaming(task_payload):
         if hasattr(response.result, 'text_delta'):
-            print(response.result.text_delta, end='', flush=True)
-        elif hasattr(
+            print(response.result.text_delta,
 
-# content_hash: 2f6f35e372dbb311440d7b391e0583dda0fa8be433c7320d762d6ebe0d21ed8c
+# content_hash: 59d897c57c8a54f55bda0548509f1b6bc7af3a1afde93f59a8525c0eb98659e1

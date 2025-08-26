@@ -27,6 +27,7 @@ Together, these components form a cohesive ecosystem, enabling developers to eit
   - `exceptions.py`: Custom exceptions for Solace Agent Mesh.
   - `types.py`: Contains all Pydantic models for A2A protocol messages, tasks, and data structures.
 - **Subdirectories:**
+  - `a2a/`: Comprehensive abstraction layer providing helper functions for creating, consuming, and translating A2A protocol objects.
   - `a2a_spec/`: Complete JSON Schema specification for the A2A protocol.
   - `client/`: Provides a high-level client for discovering and communicating with remote A2A agents.
   - `middleware/`: A pluggable framework for configuration resolution and system extensibility.
@@ -97,6 +98,12 @@ Together, these components form a cohesive ecosystem, enabling developers to eit
   - `type: Literal["artifact_creation_progress"]`: The constant type identifier.
   - `filename: str`: The name of the artifact being created.
   - `bytes_saved: int`: The number of bytes saved so far.
+  - `artifact_chunk: str`: The chunk of artifact data that was saved in this progress update.
+- **`ToolResultData`**: Data model for tool execution result signals.
+  - `type: Literal["tool_result"]`: The constant type identifier.
+  - `tool_name: str`: The name of the tool that was called.
+  - `result_data: Any`: The data returned by the tool.
+  - `function_call_id: str`: The ID from the LLM's function call.
 
 #### exceptions.py
 **Purpose:** Defines custom exceptions specific to the Solace Agent Mesh system.
@@ -130,6 +137,16 @@ Together, these components form a cohesive ecosystem, enabling developers to eit
   - `InternalError`, `TaskNotFoundError`, etc.: Specific error types inheriting from `JSONRPCError`.
 
 ### Subdirectory APIs
+
+#### a2a/
+**Purpose:** Comprehensive abstraction layer providing helper functions for creating, consuming, and translating A2A protocol objects
+**Key Exports:** Helper functions for messages, tasks, artifacts, events, and protocol operations
+**Import Examples:**
+```python
+from solace_agent_mesh.common.a2a import create_agent_text_message, create_initial_task, translate_a2a_to_adk_content
+from solace_agent_mesh.common.a2a.message import create_text_part, get_text_from_message
+from solace_agent_mesh.common.a2a.protocol import get_agent_request_topic, create_send_message_request
+```
 
 #### a2a_spec/
 **Purpose:** Contains the complete Agent-to-Agent (A2A) communication specification including JSON schema definitions
@@ -244,41 +261,6 @@ agent_card = AgentCard(
     peer_agents={}
 )
 
-registry.add_or_update_agent(agent_card)
-discovered_agents = registry.get_agent_names()
-print(f"Discovered agents: {discovered_agents}")
-```
+registry.add_or_update_agent(agent_
 
-### 2. Building an A2A Client
-This example demonstrates how to use the client library to interact with remote agents.
-
-```python
-import asyncio
-from solace_agent_mesh.common.client import A2AClient, A2ACardResolver
-from solace_agent_mesh.common.types import Message, TextPart
-
-async def client_example():
-    # Discover agent capabilities
-    resolver = A2ACardResolver("https://agent.example.com")
-    agent_card = resolver.get_agent_card()
-    print(f"Found agent: {agent_card.name}")
-    
-    # Create client
-    client = A2AClient(agent_card=agent_card)
-    
-    # Send a task
-    task_payload = {
-        "message": {
-            "role": "user",
-            "parts": [{"type": "text", "text": "Summarize this document"}]
-        }
-    }
-    
-    response = await client.send_task(task_payload)
-    task_id = response.result.id
-    print(f"Task created: {task_id}")
-    
-    # Check task status
-    status_response = await client.get_task({"
-
-# content_hash: 47a93900d29f3d168cbd8df5692467c81603a90a5b066335bce36b34b989b245
+# content_hash: 1e02a8692a4f781b66ebf5b56ec8adedbbcfec3a02cc8f1cd02a22b95e057b14

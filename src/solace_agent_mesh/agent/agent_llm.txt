@@ -375,4 +375,4 @@ async def my_business_tool(
     # Process business logic
     result =
 
-# content_hash: 2e9897747317218df09806a3db58de959f902d3aacfd3818b93dfabe4b710ba2
+# content_hash: 0f715df09d7832604a952539e00e04abb912609b2657b9801bcf5f46a1bf6369

@@ -5,7 +5,7 @@ import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
 import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/chat";
-import type { TextPart } from "@/lib/types";
+import type { TextPart, AgentInfo } from "@/lib/types";
 import { Button, ChatMessageList, CHAT_STYLES } from "@/lib/components/ui";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 import { useChatContext, useSessionPreview, useTaskContext } from "@/lib/hooks";
@@ -122,7 +122,7 @@ export function ChatPage() {
 
             setSelectedAgentName(agentName);
 
-            const selectedAgent = agents.find(agent => agent.name === agentName);
+            const selectedAgent = agents.find(agent => agent.name === agentName) as AgentInfo;
             const displayedText = selectedAgent?.display_name ? `Hi! I'm the ${selectedAgent?.display_name} Agent. How can I help?` : `Hi! I'm ${agentName}. How can I help?`;
 
             setMessages(prev => {

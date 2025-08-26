@@ -80,14 +80,14 @@ class MyGatewayApp(BaseGatewayApp):
     - `get_config(self, key: str, default: Any = None) -> Any` - Retrieves configuration from nested app_config or component_config
     - `publish_a2a_message(self, topic: str, payload: Dict, user_properties: Optional[Dict] = None) -> None` - Publishes A2A messages to Solace broker
     - `authenticate_and_enrich_user(self, external_event_data: Any) -> Optional[Dict[str, Any]]` - Orchestrates user authentication and identity enrichment
-    - `submit_a2a_task(self, target_agent_name: str, a2a_parts: List[A2APart], external_request_context: Dict[str, Any], user_identity: Any, is_streaming: bool = True, api_version: str = "v2") -> str` - Submits task to target agent, returns task_id
+    - `submit_a2a_task(self, target_agent_name: str, a2a_parts: List[ContentPart], external_request_context: Dict[str, Any], user_identity: Any, is_streaming: bool = True, api_version: str = "v2") -> str` - Submits task to target agent, returns task_id
     - `run(self) -> None` - Starts component's async operations and external platform listener
     - `cleanup(self) -> None` - Cleans up resources and stops background threads
   - **Abstract Methods (Must be Implemented):**
     - `_extract_initial_claims(self, external_event_data: Any) -> Optional[Dict[str, Any]]` - Extract identity claims from platform event (must return dict with 'id' key)
     - `_start_listener(self) -> None` - Start external platform listener (e.g., web server, WebSocket)
     - `_stop_listener(self) -> None` - Stop external platform listener
-    - `_translate_external_input(self, external_event: Any) -> Tuple[str, List[A2APart], Dict[str, Any]]` - Convert external event to A2A format: (target_agent_name, a2a_parts, context)
+    - `_translate_external_input(self, external_event: Any) -> Tuple[str, List[ContentPart], Dict[str, Any]]` - Convert external event to A2A format: (target_agent_name, a2a_parts, context)
     - `_send_update_to_external(self, external_request_context: Dict[str, Any], event_data: Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent], is_final_chunk_of_update: bool) -> None` - Send streaming update to external platform
     - `_send_final_response_to_external(self, external_request_context: Dict[str, Any], task_data: Task) -> None` - Send final response to external platform
     - `_send_error_to_external(self, external_request_context: Dict[str, Any], error_data: JSONRPCError) -> None` - Send error to external platform
@@ -104,7 +104,8 @@ class MyGatewayApp(BaseGatewayApp):
 ```python
 from typing import Any, Dict, List, Optional, Tuple, Union
 from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
-from a2a.types import Part as A2APart, TextPart, Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent, JSONRPCError
+from solace_agent_mesh.common.a2a.types import ContentPart
+from a2a.types import TextPart, Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent, JSONRPCError
 
 class MyGatewayComponent(BaseGatewayComponent):
     
@@ -126,7 +127,7 @@ class MyGatewayComponent(BaseGatewayComponent):
         """Stop your platform listener."""
         pass
     
-    def _translate_external_input(self, external_event: Any) -> Tuple[str, List[A2APart], Dict[str, Any]]:
+    async def _translate_external_input(self, external_event: Any) -> Tuple[str, List[ContentPart], Dict[str, Any]]:
         """Convert external event to A2A format."""
         # Example translation
         target_agent = "my-agent"
@@ -166,7 +167,7 @@ async def handle_external_request(request):
         return "Authentication failed"
     
     # Translate request
-    target_agent, a2a_parts, context = component._translate_external_input(request)
+    target_agent, a2a_parts, context = await component._translate_external_input(request)
     
     # Submit to A2A system
     task_id = await component.submit_a2a_task(
@@ -220,4 +221,4 @@ if retrieved_context:
 context_manager.remove_context(task_id)
 ```
 
-# content_hash: 210480fddfbfdd605bf906adedce2bdc9f5784bb98122246c0b882dc7107349d
+# content_hash: 427a78e5f29b1bf3caf01b3388c0cc4925fdbd3d519920aade46598c9062e02a

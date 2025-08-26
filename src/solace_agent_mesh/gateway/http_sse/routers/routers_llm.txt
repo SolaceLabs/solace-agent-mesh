@@ -138,8 +138,8 @@ app.include_router(router, prefix="/api/v1")
 **Import:** `from solace_agent_mesh.gateway.http_sse.routers.sessions import router`
 
 **Functions:**
-- `create_new_session(request: FastAPIRequest) -> JSONRPCResponse` - Forces creation of a new A2A session.
-- `get_current_session(request: FastAPIRequest) -> JSONRPCResponse` - Returns information about the current session.
+- `create_new_session(request: FastAPIRequest) -> JSONRPCSuccessResponse` - Forces creation of a new A2A session.
+- `get_current_session(request: FastAPIRequest) -> JSONRPCSuccessResponse` - Returns information about the current session.
 
 **Usage Examples:**
 ```python
@@ -260,4 +260,4 @@ targets = [SubscriptionTarget(type="current_namespace_a2a_messages")]
 request = VisualizationSubscribeRequest(subscription_targets=targets)
 ```
 
-# content_hash: 18682076c83026c785a094e7e95cbc295128cc54c806ac9fa7a83bcdfc0b694d
+# content_hash: 06355b3b169d52d43490f8937b9b15c25a298b29debe3daab4ee810c3131288a
