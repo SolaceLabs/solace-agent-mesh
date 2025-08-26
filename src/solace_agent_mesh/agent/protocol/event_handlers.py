@@ -1493,11 +1493,6 @@ def publish_agent_card(component):
         processed_skills = []
         for skill in skills_from_config:
             if "tags" not in skill:
-                log.warning(
-                    "%s Skill '%s' in agent_card config is missing 'tags' field. Defaulting to empty list.",
-                    component.log_identifier,
-                    skill.get("id", "unknown"),
-                )
                 skill["tags"] = []
             processed_skills.append(skill)
 
