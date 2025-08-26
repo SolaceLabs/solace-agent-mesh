@@ -3,6 +3,8 @@ from pathlib import Path
 import importlib
 import click
 import re
+import requests
+from time import sleep
 
 
 def ask_yes_no_question(question: str, default=False) -> bool:
@@ -189,3 +191,16 @@ def indent_multiline_string(
         )
     else:
         return "\n".join(indentation + line for line in text.splitlines()).lstrip()
+
+def wait_for_server(url, timeout=30):
+    start = 0
+    while start < timeout:
+        try:
+            r = requests.get(url)
+            if r.status_code == 200:
+                return True
+        except Exception:
+            pass
+        sleep(0.5)
+        start += 0.5
+    return False
