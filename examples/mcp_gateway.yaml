@@ -35,8 +35,8 @@ apps:
       # --- MCP Gateway Specific Parameters ---
       mcp_host: "127.0.0.1"
       mcp_port: 8080
-      agent_discovery_interval: 30  # seconds (faster for testing)
-      tool_name_format: "{agent_name}_agent"
+      agent_discovery_interval: 10  # seconds (faster for testing)
+      tool_name_format: "{agent_name}"
 
       system_purpose: >
         MCP Gateway that exposes SAM agents as individual MCP tools for external clients.

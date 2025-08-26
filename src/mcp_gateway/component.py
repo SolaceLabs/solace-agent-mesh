@@ -3,6 +3,7 @@ Solace Agent Mesh Component class for the McpGateway Gateway.
 """
 
 import asyncio  # If needed for async operations with external system
+from ..solace_agent_mesh.common.types import TaskState
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from solace_ai_connector.common.log import log
@@ -19,6 +20,7 @@ from solace_agent_mesh.common.types import (
     JSONRPCError,
     FileContent,  # Added for FilePart example
 )
+
 
 # from solace_agent_mesh.core_a2a.service import CoreA2AService # If direct interaction needed
 
@@ -225,10 +227,53 @@ class McpGatewayGatewayComponent(BaseGatewayComponent):
                          log_id_prefix, agent_name, e)
 
     async def _call_agent_via_a2a(self, agent_name: str, message: str) -> str:
-        """Placeholder A2A integration - will be implemented in later phases"""
+        """Calls an agent via A2A protocol and returns the response"""
+        log_id_prefix = f"{self.log_identifier}[CallAgent:{agent_name}]"
         log.info("%s MCP tool called for agent '%s' with message: %s", 
-                self.log_identifier, agent_name, message[:50] + "..." if len(message) > 50 else message)
-        return f"Agent '{agent_name}' tool called successfully. Message received: {message[:100]}"
+                log_id_prefix, agent_name, message[:50] + "..." if len(message) > 50 else message)
+        
+        try:
+            # Create placeholder user identity for Phase 2
+            user_identity = {
+                "id": "mcp_client",
+                "name": "MCP Client",
+                "source": "mcp_gateway"
+            }
+            
+            # Create A2A parts from the message
+            a2a_parts = [TextPart(text=message)]
+            
+            # Create external request context
+            session_id = f"mcp-{self.generate_uuid()}"
+            external_request_context = {
+                "user_id_for_a2a": user_identity["id"],
+                "app_name_for_artifacts": self.gateway_id,
+                "user_id_for_artifacts": user_identity["id"],
+                "a2a_session_id": session_id,
+                "original_message": message,
+                "target_agent": agent_name
+            }
+            
+            # Submit A2A task and wait for completion
+            task_id = await self.submit_a2a_task(
+                target_agent_name=agent_name,
+                a2a_parts=a2a_parts,
+                external_request_context=external_request_context,
+                user_identity=user_identity,
+                is_streaming=False  # Non-streaming for Phase 2 simplicity
+            )
+            
+            log.info("%s Submitted A2A task %s, waiting for completion...", log_id_prefix, task_id)
+            
+            # Wait for task completion (simple polling approach for Phase 2)
+            response_text = await self._wait_for_task_completion(task_id, external_request_context)
+            
+            log.info("%s Task %s completed successfully", log_id_prefix, task_id)
+            return response_text
+            
+        except Exception as e:
+            log.exception("%s Error calling agent '%s': %s", log_id_prefix, agent_name, e)
+            return f"Error communicating with agent '{agent_name}': {str(e)}"
 
     # async def _poll_external_system(self): # Example polling loop
     #     log_id_prefix = f"{self.log_identifier}[PollLoop]"
@@ -254,6 +299,34 @@ class McpGatewayGatewayComponent(BaseGatewayComponent):
     #             await asyncio.sleep(60) # Wait before retrying on error
     #     log.info("%s mcp_gateway polling loop stopped.", log_id_prefix)
 
+    async def _wait_for_task_completion(self, task_id: str, external_request_context: Dict[str, Any], timeout_seconds: int = 30) -> str:
+        """Wait for A2A task completion and extract response text"""
+        log_id_prefix = f"{self.log_identifier}[WaitTask:{task_id}]"
+        
+        import asyncio
+        start_time = asyncio.get_event_loop().time()
+        
+        while True:
+            # Check if we've exceeded timeout
+            if asyncio.get_event_loop().time() - start_time > timeout_seconds:
+                raise TimeoutError(f"Task {task_id} did not complete within {timeout_seconds} seconds")
+            
+            # Check task context for completion
+            task_context = self.task_context_manager.get_context(task_id)
+            if not task_context:
+                # Task context removed means task completed or failed
+                # Check if we have a stored response
+                response_key = f"{task_id}_response"
+                stored_response = self.task_context_manager.get_context(response_key)
+                if stored_response:
+                    self.task_context_manager.remove_context(response_key)
+                    return stored_response
+                else:
+                    raise RuntimeError(f"Task {task_id} completed but no response found")
+            
+            # Wait a bit before checking again
+            await asyncio.sleep(0.1)
+    
     def _stop_listener(self) -> None:
         """
         GDK Hook: Stop the MCP HTTP server and clean up resources.
@@ -275,6 +348,80 @@ class McpGatewayGatewayComponent(BaseGatewayComponent):
         self.registered_agents.clear()
 
         log.info("%s MCP gateway listener shutdown complete.", log_id_prefix)
+        
+    async def _extract_initial_claims(self, external_event_data: Any) -> Optional[Dict[str, Any]]:
+        """Extract identity claims from MCP request data"""
+        # For Phase 2, return placeholder identity since MCP requests don't have built-in auth
+        return {
+            "id": "mcp_client",
+            "name": "MCP Client",
+            "source": "mcp_gateway"
+        }
+    
+    async def _translate_external_input(self, external_event_data: Any, authenticated_user_identity: str) -> Tuple[Optional[str], List[A2APart], Dict[str, Any]]:
+        """Translate MCP tool call to A2A format"""
+        # This method is called by BaseGatewayComponent for external events
+        # For MCP gateway, this is handled directly in _call_agent_via_a2a
+        # Return empty values as this won't be used in our MCP flow
+        return None, [], {}
+    
+    async def _send_final_response_to_external(self, external_request_context: Dict[str, Any], task_data: Task) -> None:
+        """Send final A2A task result back to MCP client"""
+        log_id_prefix = f"{self.log_identifier}[SendFinalResponse]"
+        task_id = task_data.id
+        
+        try:
+            # Extract response text from task status
+            response_text = "Task completed."
+            if task_data.status and task_data.status.message and task_data.status.message.parts:
+                text_parts = []
+                for part in task_data.status.message.parts:
+                    if isinstance(part, TextPart) and part.text:
+                        text_parts.append(part.text)
+                
+                if text_parts:
+                    response_text = "".join(text_parts)
+            
+            # Check if task failed
+            if task_data.status and task_data.status.state == TaskState.FAILED:
+                response_text = f"Task failed: {response_text}"
+            
+            # Store response for _wait_for_task_completion to retrieve
+            response_key = f"{task_id}_response"
+            self.task_context_manager.store_context(response_key, response_text)
+            
+            log.info("%s Stored final response for task %s: %s", log_id_prefix, task_id, 
+                    response_text[:100] + "..." if len(response_text) > 100 else response_text)
+            
+        except Exception as e:
+            log.exception("%s Error processing final response for task %s: %s", log_id_prefix, task_id, e)
+            # Store error as response
+            error_response = f"Error processing response: {str(e)}"
+            response_key = f"{task_id}_response"
+            self.task_context_manager.store_context(response_key, error_response)
+    
+    async def _send_error_to_external(self, external_request_context: Dict[str, Any], error_data: JSONRPCError) -> None:
+        """Send A2A error back to MCP client"""
+        log_id_prefix = f"{self.log_identifier}[SendError]"
+        
+        # Extract task ID from context if available
+        task_id = external_request_context.get("a2a_task_id_for_event")
+        if not task_id:
+            log.warning("%s No task ID found in context for error handling", log_id_prefix)
+            return
+        
+        # Store error as response
+        error_message = f"A2A Error: {error_data.message} (Code: {error_data.code})"
+        response_key = f"{task_id}_response"
+        self.task_context_manager.store_context(response_key, error_message)
+        
+        log.warning("%s Stored error response for task %s: %s", log_id_prefix, task_id, error_message)
+    
+    async def _send_update_to_external(self, external_request_context: Dict[str, Any], event_data: Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent], is_final_chunk_of_update: bool) -> None:
+        """Send intermediate A2A task updates to external system"""
+        # For Phase 2, we're using non-streaming mode, so this is a no-op
+        # In Phase 3, we could implement streaming updates here
+        pass
 
     async def _authenticate_external_user(
         self, external_event_data: Any  # Type hint with actual external event data type
@@ -308,157 +455,8 @@ class McpGatewayGatewayComponent(BaseGatewayComponent):
         )
         return "placeholder_user_identity"  # Replace with actual logic
 
-    async def _translate_external_input(
-        self, external_event_data: Any, authenticated_user_identity: str
-    ) -> Tuple[Optional[str], List[A2APart], Dict[str, Any]]:
-        """
-        GDK Hook: Translates the incoming external event/request into an A2A task.
-        - `external_event_data`: The raw data from the external system.
-        - `authenticated_user_identity`: The identity returned by _authenticate_external_user.
 
-        Returns a tuple:
-        - `target_agent_name` (str | None): Name of the A2A agent to route the task to. None if translation fails.
-        - `a2a_parts` (List[A2APart]): List of A2A Parts (TextPart, FilePart, DataPart) for the task.
-        - `external_request_context` (Dict[str, Any]): Dictionary to store any context needed later
-          (e.g., for _send_final_response_to_external, like original request ID, reply-to address).
-        """
-        log_id_prefix = f"{self.log_identifier}[TranslateInput]"
-        # log.debug("%s Translating external event: %s", log_id_prefix, external_event_data)
 
-        a2a_parts: List[A2APart] = []
-        target_agent_name: Optional[str] = (
-            None  # Determine this based on event data or config
-        )
-        external_request_context: Dict[str, Any] = {
-            "user_id_for_a2a": authenticated_user_identity,
-            "app_name_for_artifacts": self.gateway_id,  # For artifact service context
-            "user_id_for_artifacts": authenticated_user_identity,
-            "a2a_session_id": f"mcp_gateway-session-{self.generate_uuid()}",  # Example session ID
-            # Add any other relevant context from external_event_data needed for response handling
-            # "original_request_id": external_event_data.get("id"),
-        }
-
-        # --- Implement Translation Logic Here ---
-        # 1. Determine Target Agent:
-        #    - Statically from config: target_agent_name = self.get_config("default_target_agent")
-        #    - Dynamically from event_data: target_agent_name = external_event_data.get("target_agent_field")
-        #    - Based on processing_rules:
-        #      for rule in self.processing_rules:
-        #          if rule.matches(external_event_data):
-        #              target_agent_name = rule.get_agent_name()
-        #              break
-        target_agent_name = "OrchestratorAgent"  # Placeholder
-
-        # 2. Construct A2A Parts:
-        #    - Extract text:
-        #      text_content = external_event_data.get("message_text", "")
-        #      if text_content:
-        #          a2a_parts.append(TextPart(text=text_content))
-        #    - Handle files (if any): Download, save to artifact service, create FilePart with URI.
-        #      (Requires self.shared_artifact_service to be configured and available)
-        #      # if "file_url" in external_event_data and self.shared_artifact_service:
-        #      #     file_bytes = await download_file(external_event_data["file_url"])
-        #      #     file_name = external_event_data.get("file_name", "attachment.dat")
-        #      #     mime_type = external_event_data.get("mime_type", "application/octet-stream")
-        #      #     artifact_uri = await self.save_to_artifact_service(
-        #      #         file_bytes, file_name, mime_type,
-        #      #         authenticated_user_identity, external_request_context["a2a_session_id"]
-        #      #     )
-        #      #     if artifact_uri:
-        #      #         a2a_parts.append(FilePart(file=FileContent(name=file_name, mimeType=mime_type, uri=artifact_uri)))
-        #    - Handle structured data:
-        #      # structured_data = external_event_data.get("data_payload")
-        #      # if structured_data:
-        #      #    a2a_parts.append(DataPart(data=structured_data, metadata={"source": "mcp_gateway"}))
-
-        # Example: Simple text passthrough
-        raw_text = str(
-            external_event_data.get(
-                "text_input_field", "Default text from mcp_gateway"
-            )
-        )
-        a2a_parts.append(TextPart(text=raw_text))
-
-        if not target_agent_name:
-            log.error("%s Could not determine target_agent_name.", log_id_prefix)
-            return None, [], {}  # Indicate translation failure
-
-        if not a2a_parts:
-            log.warning(
-                "%s No A2A parts created from external event. Task might be empty.",
-                log_id_prefix,
-            )
-            # Depending on requirements, you might want to return None, [], {} here too.
-
-        log.info(
-            "%s Translation complete. Target: %s, Parts: %d",
-            log_id_prefix,
-            target_agent_name,
-            len(a2a_parts),
-        )
-        return target_agent_name, a2a_parts, external_request_context
-
-    async def _send_final_response_to_external(
-        self, external_request_context: Dict[str, Any], task_data: Task
-    ) -> None:
-        """
-        GDK Hook: Sends the final A2A Task result back to the external mcp_gateway system.
-        - `external_request_context`: The context dictionary returned by _translate_external_input.
-        - `task_data`: The final A2A Task object (contains status, results, etc.).
-        """
-        log_id_prefix = f"{self.log_identifier}[SendFinalResponse]"
-        # log.debug("%s Sending final response for task %s. Context: %s", log_id_prefix, task_data.id, external_request_context)
-
-        # --- Implement Logic to Send Response to External System ---
-        # 1. Extract relevant information from task_data:
-        #    - task_data.status.state (e.g., TaskState.COMPLETED, TaskState.FAILED)
-        #    - task_data.status.message.parts (usually TextPart for final agent response)
-        #    - task_data.artifacts (if agent produced artifacts)
-
-        # 2. Format the response according to the external system's requirements.
-        #    response_text = "Task completed."
-        #    if task_data.status and task_data.status.message and task_data.status.message.parts:
-        #        for part in task_data.status.message.parts:
-        #            if isinstance(part, TextPart):
-        #                response_text = part.text
-        #                break
-        #    if task_data.status and task_data.status.state == TaskState.FAILED:
-        #        response_text = f"Task failed: {response_text}"
-
-        # 3. Use information from external_request_context to send the response
-        #    (e.g., reply-to address, original request ID).
-        #    # original_request_id = external_request_context.get("original_request_id")
-        #    # await self.external_client.send_reply(original_request_id, response_text)
-
-        log.warning(
-            "%s _send_final_response_to_external not fully implemented for task %s.",
-            log_id_prefix,
-            task_data.id,
-        )
-
-    async def _send_error_to_external(
-        self, external_request_context: Dict[str, Any], error_data: JSONRPCError
-    ) -> None:
-        """
-        GDK Hook: Sends an A2A error back to the external mcp_gateway system.
-        This is called if an error occurs within the A2A GDK processing (e.g., task submission failure,
-        authorization failure after initial authentication).
-        - `external_request_context`: Context from _translate_external_input.
-        - `error_data`: A JSONRPCError object.
-        """
-        log_id_prefix = f"{self.log_identifier}[SendError]"
-        # log.warning("%s Sending error to external system. Error: %s. Context: %s", log_id_prefix, error_data.message, external_request_context)
-
-        # --- Implement Logic to Send Error to External System ---
-        # error_message_to_send = f"A2A Error: {error_data.message} (Code: {error_data.code})"
-        # # original_request_id = external_request_context.get("original_request_id")
-        # # await self.external_client.send_error_reply(original_request_id, error_message_to_send)
-
-        log.warning(
-            "%s _send_error_to_external not fully implemented. Error: %s",
-            log_id_prefix,
-            error_data.message,
-        )
 
     async def _send_update_to_external(
         self,
@@ -496,10 +494,9 @@ class McpGatewayGatewayComponent(BaseGatewayComponent):
         #           log_id_prefix, task_id)
         pass  # No-op by default
 
-    # --- Optional: Helper methods for your gateway ---
-    def generate_uuid(self) -> str:  # Made this a method of the class
+    def generate_uuid(self) -> str:
+        """Generate a unique UUID string"""
         import uuid
-
         return str(uuid.uuid4())
 
     # async def save_to_artifact_service(self, content_bytes: bytes, filename: str, mime_type: str, user_id: str, session_id: str) -> Optional[str]:
