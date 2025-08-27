@@ -4,7 +4,7 @@ import webbrowser
 import os
 import time
 from pathlib import Path
-from cli.utils import error_exit,  wait_for_server
+from cli.utils import error_exit, wait_for_server
 
 
 config_portal_host = "CONFIG_PORTAL_HOST"
