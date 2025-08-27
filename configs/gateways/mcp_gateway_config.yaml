@@ -1,50 +1,67 @@
-# Solace Agent Mesh: mcp_gateway Gateway Configuration
+# Solace AI Connector Configuration for MCP Gateway
 
 log:
-  stdout_log_level: INFO
+  stdout_log_level: DEBUG
   log_file_level: DEBUG
-  log_file: "mcp_gateway_gateway.log"
+  log_file: mcp_gateway.log
 
-!include ../shared_config.yaml
+# Shared SAM config
+!include shared_config.yaml
 
 apps:
-  - name: mcp_gateway_gateway_app
-    app_base_path: .
+  - name: mcp_gateway_test_app
+    app_base_path: . # Assume running from project root where src/ is located
     app_module: src.mcp_gateway.app
 
+    # Broker settings for this app instance
     broker:
       <<: *broker_connection
 
+    # --- App Level Config (Validated by McpGatewayGatewayApp.app_schema) ---
     app_config:
-      namespace: ${NAMESPACE}
-      gateway_id: mcp-gateway-gw-01
-      
-      artifact_service: *default_artifact_service
+      # --- Required ---
+      namespace: ${NAMESPACE, a2a/dev} # Namespace for A2A communication
+      gateway_id: mcp-gateway-test-01 # Unique ID for this instance
 
+      # --- Artifact Service (Required) ---
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+
+      # --- Authorization Service (None for Phase 1) ---
       authorization_service:
-        type: "none" # Or "default_rbac"
-        # role_definitions_path: "config/auth/roles.yaml"
-        # user_assignments_path: "config/auth/users.yaml"
-
-      system_purpose: >
-        The system is an AI Chatbot with agentic capabilities.
-        It will use the agents available to provide information,
-        reasoning and general assistance for the users in this system.
-        **Always return useful artifacts and files that you create to the user.**
-        Provide a status update before each tool call.
-        Your external name is Agent Mesh.
-
-      response_format: >
-        Responses should be clear, concise, and professionally toned.
-        Format responses to the user in Markdown using appropriate formatting.
-
-      
-      # enable_embed_resolution: true # Default is true
-      # gateway_artifact_content_limit_bytes: 10485760 # 10MB
-      # gateway_recursive_embed_depth: 3
+        type: "none"
 
       # --- MCP Gateway Specific Parameters ---
-      mcp_host: "127.0.0.1"
+      mcp_host: "localhost"
       mcp_port: 8080
-      agent_discovery_interval: 60  # seconds
+      agent_discovery_interval: 10  # seconds (faster for testing)
       tool_name_format: "{agent_name}"
+
+      system_purpose: >
+        MCP Gateway that exposes SAM agents as individual MCP tools for external clients.
+        Each agent in the SAM mesh becomes an accessible tool via the MCP protocol.
+
+      response_format: >
+        Responses are formatted as plain text from the underlying agents.
+
+      enable_authentication: true
+      oauth_authorization_endpoint: "https://login.microsoftonline.com/ce001ea4-74b1-40fc-9184-edb4a21a35d5/oauth2/v2.0/authorize"
+      oauth_token_endpoint: "https://login.microsoftonline.com/ce001ea4-74b1-40fc-9184-edb4a21a35d5/oauth2/v2.0/token"
+      oauth_client_id: "${AZURE_CLIENT_ID}"
+      oauth_client_secret: "${AZURE_CLIENT_SECRET}"
+      oauth_jwks_uri: "https://login.microsoftonline.com/ce001ea4-74b1-40fc-9184-edb4a21a35d5/discovery/v2.0/keys"
+      oauth_issuer: "https://login.microsoftonline.com/ce001ea4-74b1-40fc-9184-edb4a21a35d5/v2.0"
+      oauth_audience: "${AZURE_CLIENT_ID}"
+      oauth_scopes: "openid profile email User.Read"
+      # --- OAuth Authentication (Azure Example) ---
+      # Uncomment and configure for OAuth authentication
+      # enable_authentication: true
+      # oauth_authorization_endpoint: "https://login.microsoftonline.com/{your-tenant-id}/oauth2/v2.0/authorize"
+      # oauth_token_endpoint: "https://login.microsoftonline.com/{your-tenant-id}/oauth2/v2.0/token"
+      # oauth_client_id: "${AZURE_CLIENT_ID}"
+      # oauth_client_secret: "${AZURE_CLIENT_SECRET}"
+      # oauth_jwks_uri: "https://login.microsoftonline.com/{your-tenant-id}/discovery/v2.0/keys"
+      # oauth_issuer: "https://login.microsoftonline.com/{your-tenant-id}/v2.0"
+      # oauth_audience: "${AZURE_CLIENT_ID}"
+      # oauth_scopes: "openid profile email User.Read"

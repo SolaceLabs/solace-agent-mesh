@@ -33,7 +33,7 @@ apps:
         type: "none"
 
       # --- MCP Gateway Specific Parameters ---
-      mcp_host: "127.0.0.1"
+      mcp_host: "localhost"
       mcp_port: 8080
       agent_discovery_interval: 10  # seconds (faster for testing)
       tool_name_format: "{agent_name}"
@@ -44,3 +44,13 @@ apps:
 
       response_format: >
         Responses are formatted as plain text from the underlying agents.
+
+      enable_authentication: true
+      oauth_authorization_endpoint: "https://login.microsoftonline.com/ce001ea4-74b1-40fc-9184-edb4a21a35d5/oauth2/v2.0/authorize"
+      oauth_token_endpoint: "https://login.microsoftonline.com/ce001ea4-74b1-40fc-9184-edb4a21a35d5/oauth2/v2.0/token"
+      oauth_client_id: "${AZURE_CLIENT_ID}"
+      oauth_client_secret: "${AZURE_CLIENT_SECRET}"
+      oauth_jwks_uri: "https://login.microsoftonline.com/ce001ea4-74b1-40fc-9184-edb4a21a35d5/discovery/v2.0/keys"
+      oauth_issuer: "https://login.microsoftonline.com/ce001ea4-74b1-40fc-9184-edb4a21a35d5/v2.0"
+      oauth_audience: "${AZURE_CLIENT_ID}"
+      oauth_scopes: "openid profile email User.Read"
