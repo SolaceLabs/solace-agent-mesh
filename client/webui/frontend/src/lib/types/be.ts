@@ -55,31 +55,3 @@ export type {
     TaskStatusUpdateEvent,
     TextPart,
 };
-
-/**
- * A UI-specific interface that extends the official A2A AgentCard with additional
- * properties needed for rendering, like a display_name.
- */
-export interface AgentInfo extends AgentCard {
-    display_name?: string;
-    last_seen?: string;
-    peer_agents?: string[];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    tools?: any[]; // TO BE UPDATED
-}
-
-// This is a UI-specific type for managing artifacts in the side panel.
-// It is distinct from the A2A `Artifact` type.
-export interface ArtifactInfo {
-    filename: string;
-    mime_type: string;
-    size: number; // in bytes
-    last_modified: string; // ISO 8601 timestamp
-    uri?: string; // Optional but recommended artifact URI
-    version?: number; // Optional: Represents the latest version number when listing
-    versionCount?: number; // Optional: Total number of available versions
-    description?: string | null; // Optional: Description of the artifact
-    schema?: string | null | object; // Optional: Schema for the structure artifact
-}
-
-

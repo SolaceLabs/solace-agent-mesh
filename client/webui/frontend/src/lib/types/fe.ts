@@ -2,7 +2,7 @@
 
 import type { LucideIcon } from "lucide-react";
 
-import type { Part } from "./be";
+import type { AgentCard, AgentSkill, Part } from "./be";
 
 export interface A2AEventSSEPayload {
     event_type: "a2a_message" | string;
@@ -34,22 +34,38 @@ export interface TaskStoreState {
     taskOrder: string[]; // Array of taskIds to maintain insertion order or sorted order
 }
 
-// /**
-//  * Represents a file attachment returned by the agent.
-//  */
-// export interface FileAttachment {
-//     name: string;
-//     content?: string; // Base64 encoded content - Made optional for Artifact Panel preview
-//     mime_type?: string; // Optional MIME type
-//     last_modified?: string; // ISO 8601 timestamp string
-// }
-
 /**
  * Represents a tool event in the chat conversation.
  */
 export interface ToolEvent {
     toolName: string;
     data: unknown; // The result data from the tool
+}
+
+
+/**
+ * A UI-specific interface that extends the official A2A AgentCard with additional
+ * properties needed for rendering, like a display_name.
+ */
+export interface AgentInfo extends AgentCard {
+    display_name?: string;
+    last_seen?: string;
+    peer_agents?: string[];
+    tools?: AgentSkill[];
+}
+
+// This is a UI-specific type for managing artifacts in the side panel.
+// It is distinct from the A2A `Artifact` type.
+export interface ArtifactInfo {
+    filename: string;
+    mime_type: string;
+    size: number; // in bytes
+    last_modified: string; // ISO 8601 timestamp
+    uri?: string; // Optional but recommended artifact URI
+    version?: number; // Optional: Represents the latest version number when listing
+    versionCount?: number; // Optional: Total number of available versions
+    description?: string | null; // Optional: Description of the artifact
+    schema?: string | null | object; // Optional: Schema for the structure artifact
 }
 
 /**
@@ -73,7 +89,6 @@ export interface Notification {
     message: string;
     type?: "success" | "info" | "error";
 }
-
 
 /**
  * Represents a single message in the chat conversation.
