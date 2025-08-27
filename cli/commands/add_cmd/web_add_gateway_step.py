@@ -5,6 +5,7 @@ from pathlib import Path
 from cli.utils import wait_for_server
 
 
+from cli.utils import find_free_port
 from config_portal.backend.server import run_flask
 
 
@@ -28,12 +29,14 @@ def launch_add_gateway_web_portal(cli_options: dict):
     with multiprocessing.Manager() as manager:
         shared_data_from_web = manager.dict()
 
-        flask_process_args = ("127.0.0.1", 5002, shared_data_from_web)
+        # Find an available port (preferring 5002 if available)
+        port = find_free_port()
+        flask_process_args = ("127.0.0.1", port, shared_data_from_web)
         add_gateway_gui_process = multiprocessing.Process(
             target=run_flask, args=flask_process_args
         )
         add_gateway_gui_process.start()
-        portal_url = "http://127.0.0.1:5002/?config_mode=addGateway"
+        portal_url = f"http://127.0.0.1:{port}/?config_mode=addGateway"
 
         click.echo(
             click.style(

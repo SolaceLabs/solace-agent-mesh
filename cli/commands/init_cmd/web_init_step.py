@@ -5,6 +5,8 @@ import webbrowser
 from ...utils import wait_for_server
 
 
+from cli.utils import find_free_port
+
 try:
     from config_portal.backend.server import run_flask
 except ImportError as e:
@@ -31,11 +33,13 @@ def perform_web_init(current_cli_params: dict) -> dict:
 
     with multiprocessing.Manager() as manager:
         shared_config_from_web = manager.dict()
+        # Find an available port (preferring 5002 if available)
+        port = find_free_port()
         init_gui_process = multiprocessing.Process(
-            target=run_flask, args=("127.0.0.1", 5002, shared_config_from_web)
+            target=run_flask, args=("127.0.0.1", port, shared_config_from_web)
         )
         init_gui_process.start()
-        portal_url = "http://127.0.0.1:5002"
+        portal_url = f"http://127.0.0.1:{port}"
         click.echo(
             click.style(
                 f"Web configuration portal is running at {portal_url}",

@@ -5,6 +5,7 @@ import click
 import re
 import requests
 from time import sleep
+import socket
 
 
 def ask_yes_no_question(question: str, default=False) -> bool:
@@ -204,3 +205,27 @@ def wait_for_server(url, timeout=30):
         sleep(0.5)
         start += 0.5
     return False
+
+def find_free_port(preferred_port=5002):
+    """
+    Find a free port, preferring the specified port if available.
+    
+    Args:
+        preferred_port (int): The port to try first (default: 5002)
+        
+    Returns:
+        int: An available port number
+    """
+    try:
+        # First try the preferred port
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind(('127.0.0.1', preferred_port))
+        sock.close()
+        return preferred_port
+    except OSError:
+        # If preferred port is not available, let OS assign a port
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind(('127.0.0.1', 0))
+        port = sock.getsockname()[1]
+        sock.close()
+        return port

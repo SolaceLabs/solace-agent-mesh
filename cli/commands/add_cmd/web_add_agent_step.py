@@ -6,6 +6,7 @@ from pathlib import Path
 from cli.utils import wait_for_server
 
 
+from cli.utils import find_free_port
 from config_portal.backend.server import run_flask
 
 
@@ -21,11 +22,13 @@ def launch_add_agent_web_portal(cli_options: dict):
     with multiprocessing.Manager() as manager:
         shared_data_from_web = manager.dict()
 
+        # Find an available port (preferring 5002 if available)
+        port = find_free_port()
         add_agent_gui_process = multiprocessing.Process(
-            target=run_flask, args=("127.0.0.1", 5002, shared_data_from_web)
+            target=run_flask, args=("127.0.0.1", port, shared_data_from_web)
         )
         add_agent_gui_process.start()
-        portal_url = "http://127.0.0.1:5002/?config_mode=addAgent"
+        portal_url = f"http://127.0.0.1:{port}/?config_mode=addAgent"
         click.echo(
             click.style(
                 f"Add Agent portal is running. Opening your browser to '{portal_url}'...",
