@@ -3,7 +3,6 @@ import multiprocessing
 import sys
 import webbrowser
 from pathlib import Path
-from time import sleep
 from cli.utils import wait_for_server
 
 
