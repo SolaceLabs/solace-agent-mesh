@@ -3,6 +3,7 @@ Solace Agent Mesh Component class for the McpGateway Gateway.
 """
 
 import asyncio  # If needed for async operations with external system
+import time
 from ..solace_agent_mesh.common.types import TaskState
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -60,8 +61,12 @@ class McpGatewayGatewayComponent(BaseGatewayComponent):
         self.agent_discovery_interval = self.get_config("agent_discovery_interval", 60)
         self.tool_name_format = self.get_config("tool_name_format", "{agent_name}_agent")
 
-        # --- Initialize FastMCP Server ---
-        self.mcp_server = FastMCP(name="Solace Agent Mesh")
+        # --- Initialize FastMCP Server with optional OAuth ---
+        if self.get_config("enable_authentication", False):
+            self.mcp_server = FastMCP(name="Solace Agent Mesh", auth=self._create_oauth_proxy())
+        else:
+            self.mcp_server = FastMCP(name="Solace Agent Mesh")
+        
         self.registered_agents = {}  # Track registered agent tools: {agent_name: tool_name}
         self.discovery_task = None
         self.http_server_task = None
@@ -70,6 +75,55 @@ class McpGatewayGatewayComponent(BaseGatewayComponent):
             "%s MCP Gateway Component initialization complete. Server: %s:%d",
             self.log_identifier, self.mcp_host, self.mcp_port
         )
+
+    def _create_oauth_proxy(self):
+        """Create OAuth proxy with appropriate token verification for the provider"""
+        try:
+            from fastmcp.server.auth import OAuthProxy
+            
+            # Construct the base URL - this must match your Azure redirect URI exactly
+            base_url = self.get_config("oauth_base_url") or f"http://{self.mcp_host}:{self.mcp_port}"
+            log.info("%s OAuth proxy base URL: %s", self.log_identifier, base_url)
+            
+            # Get scopes configuration
+            scopes_config = self.get_config("oauth_scopes", "openid profile email")
+            required_scopes = scopes_config.split() if scopes_config else []
+            
+            # Detect provider and use appropriate token verifier
+            auth_endpoint = self.get_config("oauth_authorization_endpoint", "")
+            
+            if "login.microsoftonline.com" in auth_endpoint:
+                # Azure requires Graph API validation instead of JWT verification
+                log.info("%s Detected Azure OAuth provider - using Graph API token verification", self.log_identifier)
+                from fastmcp.server.auth.providers.azure import AzureTokenVerifier
+                token_verifier = AzureTokenVerifier(
+                    required_scopes=required_scopes + ["User.Read"],  # User.Read needed for Graph API
+                    timeout_seconds=10
+                )
+            else:
+                # Standard JWT verification for most other providers (Google, etc.)
+                log.info("%s Using standard JWT token verification", self.log_identifier)
+                from fastmcp.server.auth.providers.jwt import JWTVerifier
+                token_verifier = JWTVerifier(
+                    jwks_uri=self.get_config("oauth_jwks_uri"),
+                    issuer=self.get_config("oauth_issuer"),
+                    audience=self.get_config("oauth_audience"),
+                    required_scopes=required_scopes
+                )
+            
+            # Create OAuth proxy with appropriate token verifier
+            return OAuthProxy(
+                upstream_authorization_endpoint=self.get_config("oauth_authorization_endpoint"),
+                upstream_token_endpoint=self.get_config("oauth_token_endpoint"),
+                upstream_client_id=self.get_config("oauth_client_id"),
+                upstream_client_secret=self.get_config("oauth_client_secret"),
+                token_verifier=token_verifier,
+                base_url=base_url,
+                redirect_path="/mcp/auth/callback"
+            )
+        except Exception as e:
+            log.exception("%s Error creating OAuth proxy: %s", self.log_identifier, e)
+            raise
 
     def _start_listener(self) -> None:
         """
@@ -227,31 +281,38 @@ class McpGatewayGatewayComponent(BaseGatewayComponent):
                          log_id_prefix, agent_name, e)
 
     async def _call_agent_via_a2a(self, agent_name: str, message: str) -> str:
-        """Calls an agent via A2A protocol and returns the response"""
+        """Calls an agent via A2A protocol with proper OAuth user context"""
         log_id_prefix = f"{self.log_identifier}[CallAgent:{agent_name}]"
         log.info("%s MCP tool called for agent '%s' with message: %s", 
                 log_id_prefix, agent_name, message[:50] + "..." if len(message) > 50 else message)
         
         try:
-            # Create placeholder user identity for Phase 2
+            # Get authenticated user identity
+            authenticated_user = await self._authenticate_external_user(None)  # MCP token in context
+            if not authenticated_user:
+                return "Authentication required. Please authenticate with the MCP gateway."
+            
+            # Get user details for better context
+            initial_claims = await self._extract_initial_claims(None)
             user_identity = {
-                "id": "mcp_client",
-                "name": "MCP Client",
-                "source": "mcp_gateway"
+                "id": authenticated_user,
+                "name": initial_claims.get("name", "OAuth User") if initial_claims else "OAuth User",
+                "source": "oauth"
             }
             
             # Create A2A parts from the message
             a2a_parts = [TextPart(text=message)]
             
             # Create external request context
-            session_id = f"mcp-{self.generate_uuid()}"
+            session_id = f"mcp-oauth-{self.generate_uuid()}"
             external_request_context = {
-                "user_id_for_a2a": user_identity["id"],
+                "user_id_for_a2a": authenticated_user,
                 "app_name_for_artifacts": self.gateway_id,
-                "user_id_for_artifacts": user_identity["id"],
+                "user_id_for_artifacts": authenticated_user,
                 "a2a_session_id": session_id,
                 "original_message": message,
-                "target_agent": agent_name
+                "target_agent": agent_name,
+                "source": "mcp_oauth_gateway"
             }
             
             # Submit A2A task and wait for completion
@@ -263,7 +324,8 @@ class McpGatewayGatewayComponent(BaseGatewayComponent):
                 is_streaming=False  # Non-streaming for Phase 2 simplicity
             )
             
-            log.info("%s Submitted A2A task %s, waiting for completion...", log_id_prefix, task_id)
+            log.info("%s Submitted OAuth-authenticated A2A task %s for user %s", 
+                    log_id_prefix, task_id, authenticated_user)
             
             # Wait for task completion (simple polling approach for Phase 2)
             response_text = await self._wait_for_task_completion(task_id, external_request_context)
@@ -350,13 +412,52 @@ class McpGatewayGatewayComponent(BaseGatewayComponent):
         log.info("%s MCP gateway listener shutdown complete.", log_id_prefix)
         
     async def _extract_initial_claims(self, external_event_data: Any) -> Optional[Dict[str, Any]]:
-        """Extract identity claims from MCP request data"""
-        # For Phase 2, return placeholder identity since MCP requests don't have built-in auth
-        return {
-            "id": "mcp_client",
-            "name": "MCP Client",
-            "source": "mcp_gateway"
-        }
+        """Extract identity claims from MCP OAuth request"""
+        log_id_prefix = f"{self.log_identifier}[ExtractClaims]"
+        
+        if not self.get_config("enable_authentication", False):
+            # No auth mode - return anonymous user
+            return {
+                "user_id": "anonymous",
+                "email": "anonymous@local",
+                "name": "Anonymous User",
+                "source": "no_auth"
+            }
+        
+        try:
+            from fastmcp.server.dependencies import get_access_token
+            
+            token = get_access_token()
+            if not token or not token.claims:
+                log.warning("%s No valid OAuth token found in request", log_id_prefix)
+                return None
+            
+            claims = token.claims
+            
+            # Extract primary identifiers
+            user_id = claims.get("sub") or claims.get("user_id") or claims.get("id")
+            email = claims.get("email") or claims.get("preferred_username")
+            
+            if not user_id:
+                log.warning("%s No user ID found in OAuth token claims", log_id_prefix)
+                return None
+            
+            # Build initial claims
+            initial_claims = {
+                "user_id": user_id,
+                "email": email,
+                "name": claims.get("name") or email or user_id,
+                "provider": claims.get("iss", "unknown"),
+                "source": "oauth",
+                "raw_claims": claims
+            }
+            
+            log.debug("%s Extracted initial claims for user: %s", log_id_prefix, user_id)
+            return initial_claims
+            
+        except Exception as e:
+            log.exception("%s Error extracting OAuth claims: %s", log_id_prefix, e)
+            return None
     
     async def _translate_external_input(self, external_event_data: Any, authenticated_user_identity: str) -> Tuple[Optional[str], List[A2APart], Dict[str, Any]]:
         """Translate MCP tool call to A2A format"""
@@ -427,33 +528,24 @@ class McpGatewayGatewayComponent(BaseGatewayComponent):
         self, external_event_data: Any  # Type hint with actual external event data type
     ) -> Optional[str]:
         """
-        GDK Hook: Authenticates the user or system from the external event data.
-        - Implement logic based on your gateway's authentication mechanism (e.g., API key, token, signature).
-        - Use configurations retrieved in __init__ (e.g., self.service_api_key).
-        - Return a unique user/system identifier (string) on success, or None on failure.
-          This identifier will be used for A2A authorization (scope checking).
+        Authenticate and get user identity from OAuth token
         """
         log_id_prefix = f"{self.log_identifier}[AuthenticateUser]"
-        # log.debug("%s Authenticating external event: %s", log_id_prefix, external_event_data)
-
-        # --- Implement Authentication Logic Here ---
-        # Example: Check an API key from headers or payload
-        # provided_key = external_event_data.get("headers", {}).get("X-API-Key")
-        # if provided_key and provided_key == self.service_api_key:
-        #     user_identity = external_event_data.get("user_id_field", "default_system_user")
-        #     log.info("%s Authentication successful for user: %s", log_id_prefix, user_identity)
-        #     return user_identity
-        # else:
-        #     log.warning("%s Authentication failed: API key mismatch or missing.", log_id_prefix)
-        #     return None
-
-        # If no authentication is needed for this gateway:
-        # return "anonymous_mcp_gateway_user"
-
-        log.warning(
-            "%s _authenticate_external_user not fully implemented.", log_id_prefix
-        )
-        return "placeholder_user_identity"  # Replace with actual logic
+        
+        # Extract initial claims first
+        initial_claims = await self._extract_initial_claims(external_event_data)
+        if not initial_claims:
+            log.warning("%s Failed to extract initial claims", log_id_prefix)
+            return None
+        
+        user_id = initial_claims.get("user_id")
+        email = initial_claims.get("email")
+        name = initial_claims.get("name")
+        
+        log.info("%s Authenticated user: %s (%s)", log_id_prefix, name, email or user_id)
+        
+        # Return identifier for A2A (email preferred, fallback to user_id)
+        return email or user_id
 
 
 

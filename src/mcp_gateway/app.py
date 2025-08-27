@@ -55,6 +55,64 @@ class McpGatewayGatewayApp(BaseGatewayApp):
             "default": "{agent_name}_agent",
             "description": "Format string for MCP tool names. Use {agent_name} placeholder.",
         },
+        
+        # OAuth Authentication Parameters
+        {
+            "name": "enable_authentication",
+            "required": False,
+            "type": "boolean",
+            "default": False,
+            "description": "Enable OAuth authentication for MCP gateway",
+        },
+        {
+            "name": "oauth_authorization_endpoint",
+            "required": False,
+            "type": "string",
+            "description": "OAuth authorization endpoint URL",
+        },
+        {
+            "name": "oauth_token_endpoint",
+            "required": False,
+            "type": "string",
+            "description": "OAuth token endpoint URL",
+        },
+        {
+            "name": "oauth_client_id",
+            "required": False,
+            "type": "string",
+            "description": "OAuth client ID",
+        },
+        {
+            "name": "oauth_client_secret",
+            "required": False,
+            "type": "string",
+            "description": "OAuth client secret",
+        },
+        {
+            "name": "oauth_jwks_uri",
+            "required": False,
+            "type": "string",
+            "description": "JWKS URI for token verification",
+        },
+        {
+            "name": "oauth_issuer",
+            "required": False,
+            "type": "string",
+            "description": "Expected token issuer",
+        },
+        {
+            "name": "oauth_audience",
+            "required": False,
+            "type": "string",
+            "description": "Expected token audience",
+        },
+        {
+            "name": "oauth_scopes",
+            "required": False,
+            "type": "string",
+            "default": "openid profile email",
+            "description": "OAuth scopes (space-separated)",
+        },
     ]
 
     def __init__(self, app_info: Dict[str, Any], **kwargs):
