@@ -113,6 +113,36 @@ class McpGatewayGatewayApp(BaseGatewayApp):
             "default": "openid profile email",
             "description": "OAuth scopes (space-separated)",
         },
+        
+        # File Handling Parameters for MCP Resources
+        {
+            "name": "enable_artifact_resources",
+            "required": False,
+            "type": "boolean",
+            "default": True,
+            "description": "Enable automatic registration of signaled artifacts as MCP resources",
+        },
+        {
+            "name": "max_file_size_mb",
+            "required": False,
+            "type": "integer",
+            "default": 100,
+            "description": "Maximum file size for MCP resource downloads in MB",
+        },
+        {
+            "name": "large_file_threshold_tokens",
+            "required": False,
+            "type": "integer",
+            "default": 10000,
+            "description": "Token threshold for large file warnings in resource metadata",
+        },
+        {
+            "name": "max_auto_read_size_bytes",
+            "required": False,
+            "type": "integer",
+            "default": 1048576,
+            "description": "Maximum file size (bytes) for auto_read_safe flag (1MB default)",
+        },
     ]
 
     def __init__(self, app_info: Dict[str, Any], **kwargs):
