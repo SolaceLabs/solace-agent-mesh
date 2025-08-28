@@ -22,7 +22,7 @@ from sam_test_infrastructure.a2a_validator.validator import (
     A2AMessageValidator,
 )
 from solace_agent_mesh.agent.sac.app import SamAgentApp
-from a2a.types import Task, TaskState
+from a2a.types import Task, TaskState, TaskStatusUpdateEvent
 from solace_agent_mesh.common import a2a
 
 from .test_helpers import (
@@ -120,8 +120,8 @@ async def test_programmatic_task_cancellation(
         final_event, Task
     ), f"Scenario {scenario_id}: Event after cancellation should be a Task object, but was {type(final_event).__name__}."
     assert (
-        final_event.status.state == TaskState.CANCELED
-    ), f"Scenario {scenario_id}: Task status should be CANCELED, but was {final_event.status.state}."
+        a2a.get_task_status(final_event) == TaskState.canceled
+    ), f"Scenario {scenario_id}: Task status should be CANCELED, but was {a2a.get_task_status(final_event)}."
 
     print(f"Scenario {scenario_id}: Completed successfully.")
 
@@ -200,8 +200,8 @@ async def test_cancel_during_llm_call(
         final_event, Task
     ), f"Scenario {scenario_id}: Event after cancellation should be a Task object, but was {type(final_event).__name__}."
     assert (
-        final_event.status.state == TaskState.CANCELED
-    ), f"Scenario {scenario_id}: Task status should be CANCELED, but was {final_event.status.state}."
+        a2a.get_task_status(final_event) == TaskState.canceled
+    ), f"Scenario {scenario_id}: Task status should be CANCELED, but was {a2a.get_task_status(final_event)}."
 
     test_llm_server.set_response_delay(0.01)
     print(f"Scenario {scenario_id}: Completed successfully.")
@@ -307,10 +307,10 @@ async def test_peer_task_cancellation_propagation(
         for event in events:
             if isinstance(event, Task):
                 final_main_event = event
-        if final_main_event and final_main_event.status.state in [
-            TaskState.CANCELED,
-            TaskState.FAILED,
-            TaskState.COMPLETED,
+        if final_main_event and a2a.get_task_status(final_main_event) in [
+            TaskState.canceled,
+            TaskState.failed,
+            TaskState.completed,
         ]:
             break
         await asyncio.sleep(1)
@@ -319,8 +319,8 @@ async def test_peer_task_cancellation_propagation(
         final_main_event is not None
     ), f"Scenario {scenario_id}: Did not receive the final Task object for the main task."
     assert (
-        final_main_event.status.state == TaskState.CANCELED
-    ), f"Scenario {scenario_id}: Main task status should be CANCELED, but was {final_main_event.status.state}."
+        a2a.get_task_status(final_main_event) == TaskState.canceled
+    ), f"Scenario {scenario_id}: Main task status should be CANCELED, but was {a2a.get_task_status(final_main_event)}."
 
     print(f"Scenario {scenario_id}: Completed successfully.")
 
@@ -378,7 +378,7 @@ async def test_cancel_a_completed_task(
             task_id, drain_timeout=1.0
         )
         for event in events:
-            if isinstance(event, Task) and event.status.state == TaskState.COMPLETED:
+            if isinstance(event, Task) and a2a.get_task_status(event) == TaskState.completed:
                 completed_task = event
                 break
         if completed_task:
@@ -389,8 +389,8 @@ async def test_cancel_a_completed_task(
         completed_task is not None
     ), f"Scenario {scenario_id}: Task did not complete within the timeout."
     assert (
-        completed_task.status.state == TaskState.COMPLETED
-    ), f"Scenario {scenario_id}: Task status should be COMPLETED, but was {completed_task.status.state}."
+        a2a.get_task_status(completed_task) == TaskState.completed
+    ), f"Scenario {scenario_id}: Task status should be COMPLETED, but was {a2a.get_task_status(completed_task)}."
 
     await test_gateway_app_instance.cancel_task(
         agent_name=target_agent, task_id=task_id
@@ -413,8 +413,8 @@ async def test_cancel_a_completed_task(
         final_task_event is not None
     ), f"Scenario {scenario_id}: Could not determine final task state."
     assert (
-        final_task_event.status.state == TaskState.COMPLETED
-    ), f"Scenario {scenario_id}: Final task status should remain COMPLETED, but was {final_task_event.status.state}."
+        a2a.get_task_status(final_task_event) == TaskState.completed
+    ), f"Scenario {scenario_id}: Final task status should remain COMPLETED, but was {a2a.get_task_status(final_task_event)}."
 
     print(f"Scenario {scenario_id}: Completed successfully.")
 
@@ -543,16 +543,14 @@ async def test_cancel_during_streaming_output(
         final_event is not None
     ), f"Scenario {scenario_id}: Did not receive the final Task object after cancellation."
     assert (
-        final_event.status.state == TaskState.CANCELED
-    ), f"Scenario {scenario_id}: Task status should be CANCELED, but was {final_event.status.state}."
+        a2a.get_task_status(final_event) == TaskState.canceled
+    ), f"Scenario {scenario_id}: Task status should be CANCELED, but was {a2a.get_task_status(final_event)}."
 
     all_received_content = "".join(
-        e.status.message.parts[0].text
+        a2a.get_text_from_message(a2a.get_message_from_status_update(e))
         for e in all_events_after_cancel
-        if isinstance(e, Task)
-        and e.status.message
-        and e.status.message.parts
-        and e.status.message.parts[0].text
+        if isinstance(e, TaskStatusUpdateEvent)
+        and a2a.get_message_from_status_update(e)
     )
     assert (
         long_content not in all_received_content
