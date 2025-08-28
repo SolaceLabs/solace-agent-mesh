@@ -13,7 +13,7 @@ from fastapi import (
     UploadFile,
 )
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Union
 
 from solace_ai_connector.common.log import log
 
@@ -44,18 +44,15 @@ if TYPE_CHECKING:
 router = APIRouter()
 
 
-@router.post("/message:send", response_model=SendMessageSuccessResponse)
-async def send_task_to_agent(
+async def _submit_task(
     request: FastAPIRequest,
-    payload: SendMessageRequest,
-    session_manager: SessionManager = Depends(get_session_manager),
-    component: "WebUIBackendComponent" = Depends(get_sac_component),
+    payload: Union[SendMessageRequest, SendStreamingMessageRequest],
+    session_manager: SessionManager,
+    component: "WebUIBackendComponent",
+    is_streaming: bool,
 ):
-    """
-    Submits a non-streaming task request to the specified agent.
-    Accepts application/json.
-    """
-    log_prefix = "[POST /api/v1/message:send] "
+    """Helper to submit a task, handling both streaming and non-streaming cases."""
+    log_prefix = f"[POST /api/v1/message:{'stream' if is_streaming else 'send'}] "
 
     agent_name = None
     if payload.params and payload.params.message and payload.params.message.metadata:
@@ -106,7 +103,7 @@ async def send_task_to_agent(
             a2a_parts=a2a_parts,
             external_request_context=external_req_ctx,
             user_identity=user_identity,
-            is_streaming=False,
+            is_streaming=is_streaming,
         )
 
         log.info("%sTask submitted successfully. TaskID: %s", log_prefix, task_id)
@@ -117,9 +114,14 @@ async def send_task_to_agent(
             agent_name=agent_name,
         )
 
-        return a2a.create_send_message_success_response(
-            result=task_object, request_id=payload.id
-        )
+        if is_streaming:
+            return a2a.create_send_streaming_message_success_response(
+                result=task_object, request_id=payload.id
+            )
+        else:
+            return a2a.create_send_message_success_response(
+                result=task_object, request_id=payload.id
+            )
 
     except PermissionError as pe:
         log.warning("%sPermission denied: %s", log_prefix, str(pe))
@@ -138,103 +140,45 @@ async def send_task_to_agent(
         )
 
 
+@router.post("/message:send", response_model=SendMessageSuccessResponse)
+async def send_task_to_agent(
+    request: FastAPIRequest,
+    payload: SendMessageRequest,
+    session_manager: SessionManager = Depends(get_session_manager),
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+):
+    """
+    Submits a non-streaming task request to the specified agent.
+    Accepts application/json.
+    """
+    return await _submit_task(
+        request=request,
+        payload=payload,
+        session_manager=session_manager,
+        component=component,
+        is_streaming=False,
+    )
+
+
 @router.post("/message:stream", response_model=SendStreamingMessageSuccessResponse)
 async def subscribe_task_from_agent(
     request: FastAPIRequest,
     payload: SendStreamingMessageRequest,
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    user: dict = Depends(get_current_user),
 ):
     """
-    Submits a streaming task request (`tasks/sendSubscribe`) to the specified agent.
+    Submits a streaming task request to the specified agent.
     Accepts application/json.
     The client should subsequently connect to the SSE endpoint using the returned taskId.
     """
-    log_prefix = "[POST /api/v1/message:stream] "
-
-    agent_name = None
-    if payload.params and payload.params.message and payload.params.message.metadata:
-        agent_name = payload.params.message.metadata.get("agent_name")
-
-    if not agent_name:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing 'agent_name' in request payload message metadata.",
-        )
-
-    log.info("%sReceived streaming request for agent: %s", log_prefix, agent_name)
-
-    try:
-        user_identity = await component.authenticate_and_enrich_user(request)
-        if user_identity is None:
-            log.warning("%sUser authentication failed. Denying request.", log_prefix)
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User authentication failed or identity not found.",
-            )
-        log.info(
-            "%sAuthenticated user identity: %s",
-            log_prefix,
-            user_identity.get("id", "unknown"),
-        )
-
-        client_id = session_manager.get_a2a_client_id(request)
-        session_id = session_manager.ensure_a2a_session(request)
-
-        log.info(
-            "%sUsing ClientID: %s, SessionID: %s", log_prefix, client_id, session_id
-        )
-
-        # Use the helper to get the unwrapped parts from the incoming message.
-        a2a_parts = a2a.get_parts_from_message(payload.params.message)
-
-        external_req_ctx = {
-            "app_name_for_artifacts": component.gateway_id,
-            "user_id_for_artifacts": client_id,
-            "a2a_session_id": session_id,
-            "user_id_for_a2a": client_id,
-            "target_agent_name": agent_name,
-        }
-
-        task_id = await component.submit_a2a_task(
-            target_agent_name=agent_name,
-            a2a_parts=a2a_parts,
-            external_request_context=external_req_ctx,
-            user_identity=user_identity,
-            is_streaming=True,
-        )
-
-        log.info(
-            "%sStreaming task submitted successfully. TaskID: %s", log_prefix, task_id
-        )
-
-        # Create a compliant A2A Task object for the initial response
-        task_object = a2a.create_initial_task(
-            task_id=task_id,
-            context_id=session_id,
-            agent_name=agent_name,
-        )
-
-        return a2a.create_send_streaming_message_success_response(
-            result=task_object, request_id=payload.id
-        )
-
-    except PermissionError as pe:
-        log.warning("%sPermission denied: %s", log_prefix, str(pe))
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(pe),
-        )
-    except Exception as e:
-        log.exception("%sUnexpected error submitting streaming task: %s", log_prefix, e)
-        error_resp = a2a.create_internal_error(
-            message="Unexpected server error: %s" % e
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=error_resp.model_dump(exclude_none=True),
-        )
+    return await _submit_task(
+        request=request,
+        payload=payload,
+        session_manager=session_manager,
+        component=component,
+        is_streaming=True,
+    )
 
 
 @router.post("/tasks/{taskId}:cancel", status_code=status.HTTP_202_ACCEPTED)
