@@ -114,17 +114,10 @@ def extract_outputs_from_event_list(
         )
 
     if isinstance(terminal_event_obj, Task):
-        if (
-            terminal_event_obj.status
-            and terminal_event_obj.status.message
-            and terminal_event_obj.status.message.parts
-        ):
-            temp_task_text = ""
-            for part in terminal_event_obj.status.message.parts:
-                if isinstance(part.root, TextPart) and part.root.text:
-                    temp_task_text += part.root.text
-            if temp_task_text:
-                text_from_terminal_event = temp_task_text
+        if terminal_event_obj.status and terminal_event_obj.status.message:
+            text_from_terminal_event = get_message_text(
+                terminal_event_obj.status.message, delimiter=""
+            )
         print(
             f"TestHelper: Scenario {scenario_id}: Extracted text from terminal Task object (length: {len(text_from_terminal_event) if text_from_terminal_event else 0})."
         )
