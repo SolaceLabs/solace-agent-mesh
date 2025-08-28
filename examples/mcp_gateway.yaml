@@ -45,7 +45,7 @@ apps:
       response_format: >
         Responses are formatted as plain text from the underlying agents.
 
-      enable_authentication: true
+      enable_authentication: false
       oauth_authorization_endpoint: "https://login.microsoftonline.com/ce001ea4-74b1-40fc-9184-edb4a21a35d5/oauth2/v2.0/authorize"
       oauth_token_endpoint: "https://login.microsoftonline.com/ce001ea4-74b1-40fc-9184-edb4a21a35d5/oauth2/v2.0/token"
       oauth_client_id: "${AZURE_CLIENT_ID}"

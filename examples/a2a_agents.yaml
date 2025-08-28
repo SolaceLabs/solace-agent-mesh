@@ -79,7 +79,7 @@ apps:
       supports_streaming: true
       agent_name: "MarkitdownAgent"
       display_name: "Markdown Creator"
-      model: *multimodal_model # Or *planning_model, choose as appropriate
+      model: *planning_model # Or *planning_model, choose as appropriate
       instruction: |
         The MarkitdownAgent has the following capability:
         * convert various file types (like PDF, DOCX, XLSX, HTML, CSV, PPTX, ZIP) to Markdown.

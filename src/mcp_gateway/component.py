@@ -3,7 +3,9 @@ Solace Agent Mesh Component class for the McpGateway Gateway.
 """
 
 import asyncio  # If needed for async operations with external system
+import base64
 import time
+from datetime import datetime, timezone
 from ..solace_agent_mesh.common.types import TaskState
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -22,6 +24,7 @@ from solace_agent_mesh.common.types import (
     FileContent,  # Added for FilePart example
 )
 
+from solace_agent_mesh.agent.utils.artifact_helpers import save_artifact_with_metadata
 
 # from solace_agent_mesh.core_a2a.service import CoreA2AService # If direct interaction needed
 
@@ -243,9 +246,12 @@ class McpGatewayGatewayComponent(BaseGatewayComponent):
             description = agent_info.get("description", f"Interact with {agent_name} agent")
             
             # Create dynamic tool function
-            async def agent_tool(message: str) -> str:
-                """Dynamically created tool for agent interaction"""
-                return await self._call_agent_via_a2a(agent_name, message)
+            async def agent_tool(
+                message: str,
+                files: list[dict[str, str]] = None
+            ) -> str:
+                """Dynamically created tool for agent interaction with file support"""
+                return await self._call_agent_via_a2a(agent_name, message, files)
             
             # Set function metadata
             agent_tool.__name__ = tool_name
@@ -280,7 +286,7 @@ class McpGatewayGatewayComponent(BaseGatewayComponent):
             log.exception("%s Error unregistering agent '%s' tool: %s", 
                          log_id_prefix, agent_name, e)
 
-    async def _call_agent_via_a2a(self, agent_name: str, message: str) -> str:
+    async def _call_agent_via_a2a(self, agent_name: str, message: str, files: list[dict[str, str]] = None) -> str:
         """Calls an agent via A2A protocol with proper OAuth user context"""
         log_id_prefix = f"{self.log_identifier}[CallAgent:{agent_name}]"
         log.info("%s MCP tool called for agent '%s' with message: %s", 
@@ -300,11 +306,98 @@ class McpGatewayGatewayComponent(BaseGatewayComponent):
                 "source": "oauth"
             }
             
-            # Create A2A parts from the message
+            # Create session ID for artifact storage
+            session_id = f"mcp-oauth-{self.generate_uuid()}"
+            
+            # Create A2A parts starting with the message
             a2a_parts = [TextPart(text=message)]
             
+            # Process files if provided (Phase 1 Substep 2: Save to artifact service)
+            if files and self.shared_artifact_service:
+                log.info("%s Received %d files from MCP client:", log_id_prefix, len(files))
+                file_metadata_summary_parts = []
+                
+                for i, file_dict in enumerate(files):
+                    # Claude sends files as {filename: content} pairs
+                    for filename, content in file_dict.items():
+                        try:
+                            # Convert content to bytes (Claude sends raw text)
+                            if isinstance(content, str):
+                                content_bytes = content.encode('utf-8')
+                            else:
+                                content_bytes = content
+                        
+                            if not content_bytes:
+                                log.warning("%s Skipping empty file: %s", log_id_prefix, filename)
+                                continue
+                                
+                            log.info("%s Processing file: %s (%d bytes)", 
+                                    log_id_prefix, filename, len(content_bytes))
+                            
+                            # Save to artifact service (following HTTP SSE gateway pattern)
+                            save_result = await save_artifact_with_metadata(
+                                artifact_service=self.shared_artifact_service,
+                                app_name=self.gateway_id,
+                                user_id=authenticated_user,
+                                session_id=session_id,
+                                filename=filename,
+                                content_bytes=content_bytes,
+                                mime_type="application/octet-stream",  # Default, could be improved with MIME detection
+                                metadata_dict={
+                                    "source": "mcp_gateway_upload",
+                                    "original_filename": filename,
+                                    "upload_timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                                    "gateway_id": self.gateway_id,
+                                    "mcp_user_id": authenticated_user,
+                                    "a2a_session_id": session_id,
+                                },
+                                timestamp=datetime.now(timezone.utc),
+                            )
+                            
+                            if save_result["status"] in ["success", "partial_success"]:
+                                data_version = save_result.get("data_version", 0)
+                                artifact_uri = f"artifact://{self.gateway_id}/{authenticated_user}/{session_id}/{filename}?version={data_version}"
+                                
+                                # Create FileContent object
+                                file_content = FileContent(
+                                    name=filename,
+                                    mimeType="application/octet-stream",
+                                    uri=artifact_uri,
+                                )
+                                
+                                # Add FilePart to A2A message
+                                a2a_parts.append(FilePart(file=file_content))
+                                file_metadata_summary_parts.append(
+                                    f"- {filename} ({len(content_bytes)} bytes, URI: {artifact_uri})"
+                                )
+                                
+                                log.info("%s Successfully saved file to artifact service: %s", 
+                                        log_id_prefix, artifact_uri)
+                            else:
+                                log.error("%s Failed to save file %s: %s", 
+                                        log_id_prefix, filename, save_result.get("message"))
+                            
+                        except Exception as e:
+                            log.exception("%s Error processing file (%s): %s", 
+                                         log_id_prefix, filename, e)
+                
+                # Add file summary to message if files were processed
+                if file_metadata_summary_parts:
+                    file_summary = (
+                        "The user uploaded the following file(s):\n" + 
+                        "\n".join(file_metadata_summary_parts) + 
+                        f"\n\nUser message: {message}"
+                    )
+                    # Update the text part with file information
+                    a2a_parts[0] = TextPart(text=file_summary)
+                    
+            elif files and not self.shared_artifact_service:
+                log.error("%s Files provided but artifact service not available", log_id_prefix)
+                return "File upload not available: artifact service not configured"
+            else:
+                log.debug("%s No files provided with this request", log_id_prefix)
+            
             # Create external request context
-            session_id = f"mcp-oauth-{self.generate_uuid()}"
             external_request_context = {
                 "user_id_for_a2a": authenticated_user,
                 "app_name_for_artifacts": self.gateway_id,

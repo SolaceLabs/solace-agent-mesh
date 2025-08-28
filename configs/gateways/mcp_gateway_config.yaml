@@ -27,6 +27,7 @@ apps:
       artifact_service:
         type: "filesystem"
         base_path: "/tmp/samv2"
+        artifact_scope: namespace
 
       # --- Authorization Service (None for Phase 1) ---
       authorization_service:
