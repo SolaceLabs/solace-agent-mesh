@@ -22,7 +22,8 @@ from sam_test_infrastructure.a2a_validator.validator import (
     A2AMessageValidator,
 )
 from solace_agent_mesh.agent.sac.app import SamAgentApp
-from solace_agent_mesh.common.types import Task, TaskState
+from a2a.types import Task, TaskState
+from solace_agent_mesh.common import a2a
 
 from .test_helpers import (
     prime_llm_server,
