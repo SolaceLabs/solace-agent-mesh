@@ -29,6 +29,8 @@ from .test_helpers import (
     prime_llm_server,
     create_gateway_input_data,
     submit_test_input,
+    get_all_task_events,
+    find_first_event_of_type,
 )
 
 import uuid
@@ -100,18 +102,10 @@ async def test_programmatic_task_cancellation(
         agent_name=target_agent, task_id=task_id
     )
 
-    final_event = None
-    for _ in range(10):
-        events = await test_gateway_app_instance.get_all_captured_outputs(
-            task_id, drain_timeout=1.0
-        )
-        for event in events:
-            if isinstance(event, Task):
-                final_event = event
-                break
-        if final_event:
-            break
-        await asyncio.sleep(1)
+    all_events = await get_all_task_events(
+        test_gateway_app_instance, task_id, overall_timeout=10.0
+    )
+    final_event = find_first_event_of_type(all_events, Task)
 
     assert (
         final_event is not None
@@ -180,18 +174,10 @@ async def test_cancel_during_llm_call(
         agent_name=target_agent, task_id=task_id
     )
 
-    final_event = None
-    for _ in range(10):
-        events = await test_gateway_app_instance.get_all_captured_outputs(
-            task_id, drain_timeout=1.0
-        )
-        for event in events:
-            if isinstance(event, Task):
-                final_event = event
-                break
-        if final_event:
-            break
-        await asyncio.sleep(1)
+    all_events = await get_all_task_events(
+        test_gateway_app_instance, task_id, overall_timeout=10.0
+    )
+    final_event = find_first_event_of_type(all_events, Task)
 
     assert (
         final_event is not None
@@ -299,21 +285,10 @@ async def test_peer_task_cancellation_propagation(
         main_task_id
     ), f"Scenario {scenario_id}: cancel_task was not called for the main task."
 
-    final_main_event = None
-    for _ in range(15):
-        events = await test_gateway_app_instance.get_all_captured_outputs(
-            main_task_id, drain_timeout=1.0
-        )
-        for event in events:
-            if isinstance(event, Task):
-                final_main_event = event
-        if final_main_event and a2a.get_task_status(final_main_event) in [
-            TaskState.canceled,
-            TaskState.failed,
-            TaskState.completed,
-        ]:
-            break
-        await asyncio.sleep(1)
+    all_events = await get_all_task_events(
+        test_gateway_app_instance, main_task_id, overall_timeout=15.0
+    )
+    final_main_event = find_first_event_of_type(all_events, Task)
 
     assert (
         final_main_event is not None
@@ -372,18 +347,10 @@ async def test_cancel_a_completed_task(
         test_gateway_app_instance, test_input_data, scenario_id
     )
 
-    completed_task = None
-    for _ in range(10):
-        events = await test_gateway_app_instance.get_all_captured_outputs(
-            task_id, drain_timeout=1.0
-        )
-        for event in events:
-            if isinstance(event, Task) and a2a.get_task_status(event) == TaskState.completed:
-                completed_task = event
-                break
-        if completed_task:
-            break
-        await asyncio.sleep(1)
+    all_events = await get_all_task_events(
+        test_gateway_app_instance, task_id, overall_timeout=10.0
+    )
+    completed_task = find_first_event_of_type(all_events, Task)
 
     assert (
         completed_task is not None
@@ -525,19 +492,10 @@ async def test_cancel_during_streaming_output(
         agent_name=target_agent, task_id=task_id
     )
 
-    final_event = None
-    all_events_after_cancel = []
-    for _ in range(20):
-        events = await test_gateway_app_instance.get_all_captured_outputs(
-            task_id, drain_timeout=1.0
-        )
-        all_events_after_cancel.extend(events)
-        for event in events:
-            if isinstance(event, Task):
-                final_event = event
-        if final_event:
-            break
-        await asyncio.sleep(0.5)
+    all_events_after_cancel = await get_all_task_events(
+        test_gateway_app_instance, task_id, overall_timeout=10.0
+    )
+    final_event = find_first_event_of_type(all_events_after_cancel, Task)
 
     assert (
         final_event is not None
