@@ -228,6 +228,159 @@ apps:
         allow_list: []
         request_timeout_seconds: 120 # Increased for potential web + LLM processing
 
+# --- SAM Documentation Agent ---
+  - name: sam_docs_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "SolaceAgentMeshDocsAgent"
+      display_name: "Solace Agent Mesh Docs Agent"
+      model: *planning_model
+      instruction: |
+        ALWAYS RETURN RESPONSES IN A FILE 
+        ALWAYS RETURN RESPONSES IN A FILE 
+        ALWAYS RETURN RESPONSES IN A FILE 
+        WHEN THE USER ASKS JUST PROVIDE A VERY BRIEF SUMMARY OF THE CONTENT BELOW AS A MESSAGE ALWAYS PUT IT IN A FILE UNLESS ASKED OTHERWISE BY THE USER
+        BE VERY VERY BRIEF, ONLY A FEW LINES PER STEP. VERY BRIEF!
+        # Creating Agents (Solace Agent Mesh)
+
+        ## Introduction
+        Solace Agent Mesh (SAM) lets you build LLM-powered agents that cooperate via tools and events. This overview captures the key ideas and the practical steps to stand up a working “Hello World” agent.  
+
+        ## Quick Start
+        1) Create an agent skeleton with the CLI:
+          ```
+          sam add agent my-first-agent
+          ```
+          - Launches an interactive setup (use `--gui` for browser-based configuration).
+          - Generates files + configuration.
+          - Bootstraps the agent structure.
+          For full options:
+          ```
+          sam add agent --help
+          ```
+
+        ## Core Concepts
+        - **Tools**: Python functions the agent can invoke to do work (process data, call APIs, create files, talk to other agents/services). The LLM picks tools based on your tool metadata.
+        - **Configuration File**: `config.yaml` (plugin template) or `agent-name.yaml` (instance) defines:
+          - Agent identity (name/description/capabilities)
+          - Model config (which LLM)
+          - Tools list (and per-tool config)
+          - Lifecycle functions (init/cleanup)
+          - Framework services (session/artifacts)
+          - Agent card (skills & visibility)
+        - **Tool Configuration**: Each tool entry may include a `tool_config` block to pass parameters or specialize behavior. For `tool_type: python`, you can override `tool_name`/`tool_description` to present friendlier names/descriptions when reusing a generic function.
+        - **ToolContext**: Passed to tools for access to SAM services:
+          - Logging
+          - Artifact Service (store/retrieve files)
+          - Session info (user/session)
+          - Agent state shared across calls
+        - **Lifecycle Functions**:
+        - `agent_init_function`: start-up work (e.g., DB/API clients)
+        - `agent_cleanup_function`: shutdown/cleanup
+        - Optional but recommended for resource management
+
+        ## Step-by-Step Guide
+        ### Step 1 — Initialize your Agent (as a plugin)
+        Create an agent plugin and follow prompts:
+        ```
+        sam plugin create my-hello-agent --type agent
+        ```
+        This sets up a directory like:
+        ```
+        my-hello-agent/
+        ├── src/
+        │   └── my_hello_agent/
+        │       ├── __init__.py
+        │       ├── tools.py
+        │       └── lifecycle.py   # create this yourself
+        ├── config.yaml
+        ├── pyproject.toml
+        └── README.md
+        ```
+
+        ### Step 2 — The Tool Function
+        Write async Python functions that:
+        - Accept `tool_context` and `tool_config` (optional)
+        - Return a dict with at least a `status` field
+        - Use SAM logging consistently
+        - Read settings from `tool_config` (e.g., `greeting_prefix`)
+
+        ### Step 3 — The Agent Configuration
+        In your agent’s YAML, define:
+        - Basic identity (namespace, `agent_name`, `display_name`, `supports_streaming`)
+        - Model config (`model`)
+        - **instruction** (system prompt)
+        - Lifecycle functions (`agent_init_function` / `agent_cleanup_function`)
+        - Tools list (with `tool_type`, module + function, optional `tool_config`)
+        - Agent card (skills mapped to tool IDs)
+        - Session & Artifact services
+
+        ### Step 4 — The Lifecycle Function
+        Create `lifecycle.py` with:
+        - An init function that validates config (Pydantic is recommended), initializes connections/resources, and sets agent state
+        - A cleanup function to close resources and optionally log summary stats
+
+        ## Advanced Concepts
+        - **Artifacts**: Tools can save outputs to the Artifact Service (e.g., write a greeting to a file along with metadata and timestamps).
+        - **Multiple Tool Configurations**: Reuse the same tool function with different `tool_config` values to create multiple specialized capabilities.
+
+        ## Running Your Agent
+        Run the full app (including your new agent):
+        ```
+        sam run
+        ```
+        Or run a specific agent config:
+        ```
+        sam run configs/agents/my-first-weather-agent.yaml
+        ```
+
+        ## Best Practices
+        - **Tool Design**: Single responsibility, clear docstrings, structured error returns, consistent logging.
+        - **Configuration**: Prefer environment variables for secrets; validate with Pydantic; document YAML well.
+        - **Testing**: Unit-test tools, integration-test with SAM infra, and mock external services.
+
+        ---
+        References: Solace Agent Mesh “Create Agents” guide (concepts, examples, and structure).
+        ALWAYS RETURN RESPONSES IN A FILE 
+        ALWAYS RETURN RESPONSES IN A FILE 
+        ALWAYS RETURN RESPONSES IN A FILE 
+
+      tools:
+        - tool_type: builtin
+          tool_name: "web_request"
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        type: "memory"
+        default_behavior: "PERSISTENT"
+
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+
+      agent_card:
+        description: "Solace Agent Mesh documentation agent that provides comprehensive information about creating and configuring SAM agents."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text"]
+        skills: []
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+      inter_agent_communication:
+        allow_list: ["*"]
+        request_timeout_seconds: 2000
+
 # --- Report Agent ---
   # - name: report_generation_agent_app
   #   app_base_path: .
