@@ -1,6 +1,6 @@
 import React from "react";
 import { PluginViewData } from "../types";
-import { Box, GitMerge, CheckCircle, Tag, Cpu, Server } from "react-feather";
+import { Box, GitMerge, CheckCircle, Tag, Cpu, Server } from "lucide-react";
 
 const Button: React.FC<
   React.ButtonHTMLAttributes<HTMLButtonElement> & {

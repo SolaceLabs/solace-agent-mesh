@@ -73,7 +73,6 @@
     "radix-ui": "^1.4.2",
     "react": ">=19.0.0",
     "react-dom": ">=19.0.0",
-    "react-feather": "^2.0.10",
     "react-json-view-lite": "^2.4.1",
     "react-resizable-panels": "^3.0.3",
     "recharts": "^2.15.3",
