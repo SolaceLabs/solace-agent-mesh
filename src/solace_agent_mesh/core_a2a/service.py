@@ -33,7 +33,7 @@ class CoreA2AService:
 
         Args:
             agent_registry: An instance of the shared AgentRegistry.
-            namespace: The A2A namespace string.
+            namespace: The namespace string.
         """
         if not isinstance(agent_registry, AgentRegistry):
             raise TypeError("agent_registry must be an instance of AgentRegistry")

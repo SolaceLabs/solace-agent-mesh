@@ -3,7 +3,8 @@ import multiprocessing
 import sys
 import webbrowser
 from pathlib import Path
-from time import sleep
+from cli.utils import wait_for_server
+
 
 from config_portal.backend.server import run_flask
 
@@ -31,9 +32,17 @@ def launch_add_agent_web_portal(cli_options: dict):
                 fg="green",
             )
         )
-        sleep(1)
         try:
-            webbrowser.open(portal_url)
+            if wait_for_server(portal_url):
+                click.echo(
+                    click.style(
+                        f"Opening your browser to '{portal_url}'...",
+                        fg="green",
+                    )
+                )
+                webbrowser.open(portal_url)
+            else:
+                raise TimeoutError("Server did not start in time.")
         except Exception:
             click.echo(
                 click.style(

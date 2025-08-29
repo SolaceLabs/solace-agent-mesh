@@ -7,7 +7,7 @@ sidebar_position: 4
 
 ## Overview
 
-The Solace Agent Mesh is an event-driven framework for creating a distributed ecosystem of collaborative AI agents. The architecture is designed to decouple agent logic from communication and orchestration, enabling scalability, resilience, and modularity.
+Solace Agent Mesh is an event-driven framework for creating a distributed ecosystem of collaborative AI agents. The architecture is designed to decouple agent logic from communication and orchestration, enabling scalability, resilience, and modularity.
 
 It integrates three primary technologies:
 - **Solace PubSub+ Event Broker**: Provides the messaging fabric for all asynchronous communication, utilizing topic-based routing for the Agent-to-Agent (A2A) protocol.
@@ -16,7 +16,7 @@ It integrates three primary technologies:
 
 ## Architectural Principles
 
-The design of the Solace Agent Mesh is founded on several key architectural principles:
+The design of Solace Agent Mesh is founded on several key architectural principles:
 
 - **Event-Driven Architecture (EDA)**: All interactions between major components are asynchronous and mediated by the event broker. This eliminates direct dependencies, allowing components to be developed, deployed, and scaled independently.
 - **Component Decoupling**: Gateways, Agent Hosts, and other services communicate through standardized A2A protocol messages over the event mesh. They do not require knowledge of each other's network location, implementation language, or internal logic.

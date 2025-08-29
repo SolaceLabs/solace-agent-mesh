@@ -43,7 +43,7 @@ apps:
 
     app_config:
       # --- GDK BaseGatewayApp Common Config ---
-      namespace: ${NAMESPACE, myorg/dev} # Your A2A namespace
+      namespace: ${NAMESPACE, myorg/dev} # Your namespace
       gateway_id: "webhook-gw-01"    # Optional: Unique ID for this gateway instance
       
       artifact_service: # Required for saving payloads/files as artifacts

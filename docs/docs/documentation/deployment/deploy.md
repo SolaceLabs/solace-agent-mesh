@@ -7,7 +7,7 @@ sidebar_position: 10
 
 ## Development
 
-In a development environment, you can use the Solace Agent Mesh CLI to run the project as a single application. By default, environment variables are loaded from your configuration file (typically a `.env` file at the project root):
+In a development environment, you can use Solace Agent Mesh CLI to run the project as a single application. By default, environment variables are loaded from your configuration file (typically a `.env` file at the project root):
 
 ```bash
 sam run

@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 # RAG Integration
 
-This tutorial guides you through setting up and configuring the Solace Agent Mesh (SAM) Retrieval Augmented Generation (RAG) plugin. The RAG plugin enables your agents to answer questions by retrieving information from a knowledge base of your documents.
+This tutorial guides you through setting up and configuring Solace Agent Mesh (SAM) Retrieval Augmented Generation (RAG) plugin. The RAG plugin enables your agents to answer questions by retrieving information from a knowledge base of your documents.
 
 ## What is SAM RAG?
 

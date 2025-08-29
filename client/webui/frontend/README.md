@@ -1,6 +1,6 @@
 # Frontend Web UI
 
-Frontend interface for the Solace Agent Mesh (SAM) platform. This React application provides a modern chat interface for interacting with AI agents and visualizing agent communication flows.
+Frontend interface for Solace Agent Mesh (SAM) platform. This React application provides a modern chat interface for interacting with AI agents and visualizing agent communication flows.
 
 ## Features
 

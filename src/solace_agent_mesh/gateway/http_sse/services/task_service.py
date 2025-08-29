@@ -44,7 +44,7 @@ class TaskService:
             publish_func: A callable function (provided by WebUIBackendComponent)
                           to publish messages to the A2A messaging layer.
                           Expected signature: publish_func(topic: str, payload: Dict, user_properties: Optional[Dict])
-            namespace: The A2A namespace string.
+            namespace: The namespace string.
             gateway_id: The unique ID of this gateway instance.
             sse_manager: An instance of the SSEManager.
             task_context_map: Shared dictionary to store task context.

@@ -39,7 +39,6 @@ export default defineConfig({
         "lucide-react",
         "marked",
         "radix-ui",
-        "react-icons",
         "react-json-view-lite",
         "react-resizable-panels",
         "recharts",

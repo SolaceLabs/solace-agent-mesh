@@ -90,7 +90,7 @@ uv venv .venv
 
 **Install Solace Agent Mesh**
 
-1. The following command installs the Solace Agent Mesh (SAM) CLI in your environment:
+1. The following command installs Solace Agent Mesh (SAM) CLI in your environment:
 
 <details>
     <summary>Using PIP</summary>

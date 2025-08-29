@@ -2,7 +2,8 @@ import click
 import multiprocessing
 import webbrowser
 from pathlib import Path
-from time import sleep
+from cli.utils import wait_for_server
+
 
 from config_portal.backend.server import run_flask
 
@@ -40,22 +41,17 @@ def launch_add_gateway_web_portal(cli_options: dict):
                 fg="cyan",
             )
         )
-        sleep(2)
         try:
-            if not add_gateway_gui_process.is_alive():
+            if wait_for_server(portal_url):
                 click.echo(
-                    click.style("Web server failed to start.", fg="red"), err=True
+                    click.style(
+                        f"Opening your browser to '{portal_url}'...",
+                        fg="green",
+                    )
                 )
-                add_gateway_gui_process.join(timeout=1)
-                return None
-
-            click.echo(
-                click.style(
-                    f"Opening your browser to '{portal_url}'...",
-                    fg="green",
-                )
-            )
-            webbrowser.open(portal_url)
+                webbrowser.open(portal_url)
+            else:
+                raise TimeoutError("Server did not start in time.")
         except Exception as e:
             click.echo(
                 click.style(

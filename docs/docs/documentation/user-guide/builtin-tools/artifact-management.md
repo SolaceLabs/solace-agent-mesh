@@ -7,7 +7,7 @@ sidebar_position: 10
 
 This guide details how agents utilize built-in tools to manage file artifacts and their associated metadata. The system employs an explicit, metadata-aware methodology wherein the agent maintains full control over the lifecycle of artifacts, including their creation, listing, loading, and return.
 
-## 1. The Metadata-Aware Workflow
+## The Metadata-Aware Workflow
 
 Rather than automatically bundling all created artifacts in the final response, the agent follows a structured workflow:
 
@@ -17,7 +17,7 @@ Rather than automatically bundling all created artifacts in the final response, 
 4.  **Load & Analyze**: The agent can use `load_artifact` to read the content of a text-based artifact or inspect the detailed metadata of any artifact (for example, to ascertain the schema of a CSV file).
 5.  **Return on Request**: To transmit an artifact to the user or a calling application, the agent must explicitly invoke `signal_artifact_for_return`. Artifacts are not returned automatically.
 
-## 2. Configuration
+## Configuration
 
 The file management tools are encapsulated within the `artifact_management` tool group.
 
@@ -42,7 +42,7 @@ The `artifact_handling_mode` setting in your `app_config` dictates the behavior 
 artifact_handling_mode: "reference"
 ```
 
-## 3. Tool Reference
+## Tool Reference
 
 ### `create_artifact`
 Creates a new file artifact and its corresponding metadata.
@@ -87,7 +87,7 @@ Instructs the system to transmit a specific artifact version to the caller.
 - **Returns**: A dictionary confirming that the request has been received.
 - **Note**: This tool functions as a signal. The actual transmission of the artifact is handled by the system in accordance with the configured `artifact_handling_mode`.
 
-## 4. Key Concepts
+## Key Concepts
 - **Explicit Control**: Agents possess full, explicit control over the entire artifact lifecycle.
 - **Metadata-Driven Context**: The automatic injection and summarization of metadata are fundamental to providing agents with situational awareness.
 - **Signaled Return**: Artifacts are transmitted to the user only upon an explicit request from the agent via the `signal_artifact_for_return` tool.
