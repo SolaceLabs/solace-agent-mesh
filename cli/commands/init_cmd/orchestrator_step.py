@@ -118,7 +118,7 @@ def create_orchestrator_config(
     s3_bucket_name = None
     s3_endpoint_url = None
     s3_region = None
-    
+
     if artifact_type == "filesystem":
         artifact_base_path = ask_if_not_provided(
             options,
@@ -135,7 +135,7 @@ def create_orchestrator_config(
             options["s3_endpoint_url"] = options["artifact_service_endpoint_url"]
         if options.get("artifact_service_region"):
             options["s3_region"] = options["artifact_service_region"]
-            
+
         s3_bucket_name = ask_if_not_provided(
             options,
             "s3_bucket_name",
@@ -312,11 +312,10 @@ def create_orchestrator_config(
         if artifact_type == "filesystem":
             artifact_base_path_line = f'base_path: "{artifact_base_path}"'
         elif artifact_type == "s3":
-            s3_config_lines = [f'bucket_name: "{s3_bucket_name}"']
-            if s3_endpoint_url:
-                s3_config_lines.append(f'endpoint_url: "{s3_endpoint_url}"')
-            if s3_region:
-                s3_config_lines.append(f'region: "{s3_region}"')
+            s3_config_lines = ["bucket_name: ${S3_BUCKET_NAME}"]
+            # Only include endpoint_url if it's for non-AWS S3 (S3_ENDPOINT_URL will be empty for AWS)
+            s3_config_lines.append("endpoint_url: ${S3_ENDPOINT_URL:-}")
+            s3_config_lines.append("region: ${S3_REGION}")
             artifact_base_path_line = "\n      ".join(s3_config_lines)
 
         shared_replacements = {

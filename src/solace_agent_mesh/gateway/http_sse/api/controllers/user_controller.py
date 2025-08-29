@@ -19,11 +19,17 @@ async def get_current_user_endpoint(
 ):
     log.info("[GET /api/v1/users/me] Request received.")
 
-    return {
-        "username": user.get("email")
-        or user.get("id")
+    # Get the user ID with proper priority
+    username = (
+        user.get("id")  # Primary ID from AuthMiddleware
         or user.get("user_id")
-        or user.get("username"),
+        or user.get("username")
+        or user.get("email")
+        or "anonymous"
+    )
+
+    return {
+        "username": username,
         "authenticated": user.get("authenticated", False),
         "auth_method": user.get("auth_method", "none"),
     }
