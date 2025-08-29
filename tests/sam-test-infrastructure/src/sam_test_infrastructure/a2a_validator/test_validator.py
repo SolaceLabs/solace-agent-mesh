@@ -120,7 +120,9 @@ def test_invalid_response_both_result_and_error(validator: A2AMessageValidator):
         },
         "error": {"code": -32000, "message": "An error"},
     }
-    with pytest.raises(pytest.fail.Exception, match="is valid under each of"):
+    with pytest.raises(
+        pytest.fail.Exception, match="'result' and 'error' are mutually exclusive"
+    ):
         validator.validate_message(payload, "a2a/v1/gateway/response/gw-1/task-1")
 
 

@@ -225,6 +225,18 @@ class A2AMessageValidator:
             self.validator.check_schema(schema_to_use)
             self.validator.validate(payload, schema_to_use)
 
+            # The JSON-RPC spec states that 'result' and 'error' MUST NOT coexist.
+            # The generated schema might use 'anyOf' which doesn't enforce this.
+            # We add an explicit check here to ensure compliance.
+            if not is_request and "result" in payload and "error" in payload:
+                raise ValidationError(
+                    "'result' and 'error' are mutually exclusive and cannot be present in the same response.",
+                    validator="dependencies",
+                    validator_value={"result": ["error"], "error": ["result"]},
+                    instance=payload,
+                    schema=schema_to_use,
+                )
+
         except ValidationError as e:
             pytest.fail(
                 f"A2A Schema Validation Error from {source_info} on topic '{topic}':\n"
