@@ -6,6 +6,8 @@ import re
 import uuid
 from typing import Any, Dict, Optional, Union
 
+from solace_ai_connector.common.log import log
+
 from a2a.types import (
     A2ARequest,
     CancelTaskRequest,
