@@ -594,7 +594,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     logical_task_id,
                 )
 
-            adk_content = translate_a2a_to_adk_content(
+            adk_content = await translate_a2a_to_adk_content(
                 a2a_message=a2a_message_for_adk,
                 component=component,
                 user_id=user_id,

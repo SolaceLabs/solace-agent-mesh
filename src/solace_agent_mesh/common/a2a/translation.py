@@ -173,7 +173,7 @@ async def _prepare_a2a_filepart_for_adk(
         )
 
 
-def translate_a2a_to_adk_content(
+async def translate_a2a_to_adk_content(
     a2a_message: A2AMessage,
     component: "SamAgentComponent",
     user_id: str,
@@ -187,60 +187,44 @@ def translate_a2a_to_adk_content(
     unwrapped_parts = a2a.get_parts_from_message(a2a_message)
     log_identifier = component.log_identifier
 
-    # Use an inner async function to allow awaiting the helper
-    async def process_parts():
-        for part in unwrapped_parts:
-            try:
-                if isinstance(part, TextPart):
-                    adk_parts.append(
-                        adk_types.Part(text=a2a.get_text_from_text_part(part))
-                    )
-                elif isinstance(part, FilePart):
-                    adk_part = await _prepare_a2a_filepart_for_adk(
-                        part, component, user_id, session_id
-                    )
-                    if adk_part:
-                        adk_parts.append(adk_part)
-                elif isinstance(part, DataPart):
-                    try:
-                        data_str = json.dumps(
-                            a2a.get_data_from_data_part(part), indent=2
-                        )
-                        adk_parts.append(
-                            adk_types.Part(
-                                text=f"Received data:\n```json\n{data_str}\n```"
-                            )
-                        )
-                    except Exception as e:
-                        log.warning(
-                            "%s Could not serialize DataPart for ADK: %s",
-                            log_identifier,
-                            e,
-                        )
-                        adk_parts.append(
-                            adk_types.Part(
-                                text="Received unserializable structured data."
-                            )
-                        )
-                else:
-                    log.warning(
-                        "%s Unsupported A2A part type: %s", log_identifier, type(part)
-                    )
-            except Exception as e:
-                log.exception("%s Error translating A2A part: %s", log_identifier, e)
+    for part in unwrapped_parts:
+        try:
+            if isinstance(part, TextPart):
                 adk_parts.append(
-                    adk_types.Part(text="[Error processing received part]")
+                    adk_types.Part(text=a2a.get_text_from_text_part(part))
                 )
-
-    # Run the async part processing
-    # This is a bit of a workaround to call async code from a sync function.
-    # It's acceptable here because this is only called from within the agent's
-    # async context.
-    try:
-        loop = asyncio.get_running_loop()
-        loop.run_until_complete(process_parts())
-    except RuntimeError:  # No running loop
-        asyncio.run(process_parts())
+            elif isinstance(part, FilePart):
+                adk_part = await _prepare_a2a_filepart_for_adk(
+                    part, component, user_id, session_id
+                )
+                if adk_part:
+                    adk_parts.append(adk_part)
+            elif isinstance(part, DataPart):
+                try:
+                    data_str = json.dumps(
+                        a2a.get_data_from_data_part(part), indent=2
+                    )
+                    adk_parts.append(
+                        adk_types.Part(
+                            text=f"Received data:\n```json\n{data_str}\n```"
+                        )
+                    )
+                except Exception as e:
+                    log.warning(
+                        "%s Could not serialize DataPart for ADK: %s",
+                        log_identifier,
+                        e,
+                    )
+                    adk_parts.append(
+                        adk_types.Part(text="Received unserializable structured data.")
+                    )
+            else:
+                log.warning(
+                    "%s Unsupported A2A part type: %s", log_identifier, type(part)
+                )
+        except Exception as e:
+            log.exception("%s Error translating A2A part: %s", log_identifier, e)
+            adk_parts.append(adk_types.Part(text="[Error processing received part]"))
 
     adk_role = "user" if a2a_message.role == "user" else "model"
     return adk_types.Content(role=adk_role, parts=adk_parts)
