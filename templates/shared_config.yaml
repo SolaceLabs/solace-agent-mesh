@@ -6,8 +6,7 @@ shared_config:
       broker_password: ${SOLACE_BROKER_PASSWORD, default}
       broker_vpn: ${SOLACE_BROKER_VPN, default}
       temporary_queue: ${USE_TEMPORARY_QUEUES, true}
-      # Ensure high enough limits if many agents are running
-      # max_connection_retries: -1 # Retry forever
+      
 
   - models:
     planning: &planning_model
@@ -57,13 +56,13 @@ shared_config:
   - services:
     # Default session service configuration
     session_service: &default_session_service
-      type: "__DEFAULT_SESSION_SERVICE_TYPE__"
-      default_behavior: "__DEFAULT_SESSION_SERVICE_BEHAVIOR__"
+      type: "memory"
+      default_behavior: "PERSISTENT"
     
     # Default artifact service configuration
     artifact_service: &default_artifact_service
       type: "__DEFAULT_ARTIFACT_SERVICE_TYPE__"
-      __DEFAULT_ARTIFACT_SERVICE_BASE_PATH_LINE__
+      # __DEFAULT_ARTIFACT_SERVICE_BASE_PATH_LINE__
       artifact_scope: __DEFAULT_ARTIFACT_SERVICE_SCOPE__
     
     # Default data tools configuration

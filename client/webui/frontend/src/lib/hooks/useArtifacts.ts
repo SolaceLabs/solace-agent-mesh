@@ -12,10 +12,7 @@ interface UseArtifactsReturn {
     refetch: () => Promise<void>;
 }
 
-/**
- * Custom hook to fetch and manage artifact data
- * @returns Object containing artifacts data, loading state, error state, and refetch function
- */
+
 export const useArtifacts = (): UseArtifactsReturn => {
     const { configServerUrl } = useConfigContext();
     const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
@@ -28,7 +25,7 @@ export const useArtifacts = (): UseArtifactsReturn => {
         setIsLoading(true);
         setError(null);
         try {
-            const response = await authenticatedFetch(`${apiPrefix}/artifacts/`, { credentials: "include" });
+            const response = await authenticatedFetch(`${apiPrefix}/artifacts`, { credentials: "include" });
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ message: `Failed to fetch artifacts. ${response.statusText}` }));
                 throw new Error(errorData.message || `Failed to fetch artifacts. ${response.statusText}`);

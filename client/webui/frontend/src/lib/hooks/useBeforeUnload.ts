@@ -1,37 +1,41 @@
-import { useEffect, useCallback } from 'react';
-import { useChatContext } from './useChatContext';
+import { useEffect, useCallback } from "react";
+import { useChatContext } from "./useChatContext";
+import { useConfigContext } from "./useConfigContext";
 
-/**
- * Custom hook to handle beforeunload warning when chat data is present
- * Displays a browser confirmation dialog warning users about losing chat history
- * Remove this hook when session history is saved
- */
+
 export function useBeforeUnload() {
     const { messages } = useChatContext();
+    const config = useConfigContext();
 
     /**
      * Cross-browser beforeunload event handler
-     * Handles different browser implementations and compatibility issues
+     * Only warns when persistence is disabled and messages exist
      */
-    const handleBeforeUnload = useCallback((event: BeforeUnloadEvent): string | void => {
-        if (messages.length <= 1) {
-            return;
-        }
+    const handleBeforeUnload = useCallback(
+        (event: BeforeUnloadEvent): string | void => {
+            if (config?.persistenceEnabled !== false) {
+                return;
+            }
 
-        event.preventDefault();
+            if (messages.length <= 1) {
+                return;
+            }
 
-        // Some browsers use the return value as the dialog message
-        return "Are you sure you want to leave? Your chat history will be lost.";
-    }, [messages.length]);
+            event.preventDefault();
+
+            return "Are you sure you want to leave? Your chat history will be lost.";
+        },
+        [messages.length, config?.persistenceEnabled]
+    );
 
     /**
      * Setup and cleanup beforeunload event listener
      */
     useEffect(() => {
-        window.addEventListener('beforeunload', handleBeforeUnload);
+        window.addEventListener("beforeunload", handleBeforeUnload);
 
         return () => {
-            window.removeEventListener('beforeunload', handleBeforeUnload);
+            window.removeEventListener("beforeunload", handleBeforeUnload);
         };
-    },  [handleBeforeUnload]);
+    }, [handleBeforeUnload]);
 }

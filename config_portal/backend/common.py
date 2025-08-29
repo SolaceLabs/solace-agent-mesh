@@ -24,7 +24,7 @@ INIT_DEFAULT = {
 USE_DEFAULT_SHARED_SESSION = "use_default_shared_session"
 USE_DEFAULT_SHARED_ARTIFACT = "use_default_shared_artifact"
 
-DEFAULT_COMMUNICATION_TIMEOUT = 600  # 10 minutes
+DEFAULT_COMMUNICATION_TIMEOUT = 600
 
 AGENT_DEFAULTS = {
     "supports_streaming": True,
@@ -34,7 +34,7 @@ AGENT_DEFAULTS = {
     "enable_embed_resolution": True,
     "enable_artifact_content_instruction": True,
     "tools": "[]",
-    "session_service_type": USE_DEFAULT_SHARED_SESSION,
+    "session_service_type": "sql",
     "session_service_behavior": "PERSISTENT",
     "artifact_service_type": USE_DEFAULT_SHARED_ARTIFACT,
     "artifact_service_base_path": "/tmp/samv2",

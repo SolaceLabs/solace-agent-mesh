@@ -9,8 +9,22 @@ import base64
 import re
 from datetime import datetime, timezone
 from solace_ai_connector.common.log import log
-from google.genai import types as adk_types
-from google.adk.events import Event as ADKEvent
+try:
+    from google.genai import types as adk_types
+    from google.adk.events import Event as ADKEvent
+except ImportError:
+    
+    class MockADKTypes:
+        class Part:
+            pass
+        class Content:
+            parts = []
+    
+    class MockADKEvent:
+        pass
+    
+    adk_types = MockADKTypes()
+    ADKEvent = MockADKEvent
 
 from .types import (
     Message as A2AMessage,
@@ -168,6 +182,15 @@ def get_client_status_subscription_topic(namespace: str, client_id: str) -> str:
     if not client_id:
         raise ValueError("Client ID cannot be empty.")
     return f"{get_a2a_base_topic(namespace)}/client/status/{client_id}/>"
+
+
+def get_mop_subscription_topic(namespace: str, agent_name: str) -> str:
+    """
+    Returns the wildcard topic for an agent to subscribe to MOP (Message Operations Protocol) messages.
+    """
+    if not agent_name:
+        raise ValueError("Agent name cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/{agent_name}/mop/>"
 
 
 def _subscription_to_regex(subscription: str) -> str:
@@ -330,7 +353,10 @@ def format_adk_event_as_a2a(
         # For now, the only long running tool IDs are peer agent tasks, which we
         # need to wait for before considering the event final.
         adk_event.is_final_response()
-        and (not hasattr(adk_event, 'long_running_tool_ids') or not adk_event.long_running_tool_ids)
+        and (
+            not hasattr(adk_event, "long_running_tool_ids")
+            or not adk_event.long_running_tool_ids
+        )
     )
 
     a2a_parts: List[A2APart] = []

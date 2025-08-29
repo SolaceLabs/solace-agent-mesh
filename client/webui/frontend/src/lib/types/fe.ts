@@ -32,9 +32,7 @@ export interface TaskStoreState {
     taskOrder: string[]; // Array of taskIds to maintain insertion order or sorted order
 }
 
-/**
- * Represents a file attachment returned by the agent.
- */
+
 export interface FileAttachment {
     name: string;
     content?: string; // Base64 encoded content - Made optional for Artifact Panel preview
@@ -144,4 +142,12 @@ export interface NavigationContextValue {
     setActiveItem: (itemId: string) => void;
     items: NavigationItem[];
     setItems: (items: NavigationItem[]) => void;
+}
+
+
+export interface Session {
+    id: string;
+    created_at: string;
+    updated_at: string;
+    name: string | null;
 }
