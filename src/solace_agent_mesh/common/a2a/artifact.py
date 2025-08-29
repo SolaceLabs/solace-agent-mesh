@@ -20,7 +20,10 @@ from a2a.types import (
 from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
 from .. import a2a
-from ...agent.utils.artifact_helpers import load_artifact_content_or_metadata
+from ...agent.utils.artifact_helpers import (
+    load_artifact_content_or_metadata,
+    format_artifact_uri,
+)
 
 if TYPE_CHECKING:
     from google.adk.artifacts import BaseArtifactService
@@ -102,13 +105,13 @@ async def prepare_file_part_for_publishing(
     Prepares a FilePart for publishing based on the artifact handling mode.
 
     - 'ignore': Returns None.
-    - 'embed': Returns the part as-is if it contains bytes.
-    - 'reference': Saves the bytes to the artifact service and returns a new
-                   FilePart with an artifact URI.
+    - 'embed': Ensures the part contains bytes, resolving a URI if necessary.
+    - 'reference': Ensures the part contains a URI, saving bytes if necessary.
+    - 'passthrough': Returns the part as-is.
 
     Args:
-        part: The input FilePart, which may contain raw bytes.
-        mode: The artifact handling mode ('ignore', 'embed', 'reference').
+        part: The input FilePart, which may contain raw bytes or a URI.
+        mode: The artifact handling mode ('ignore', 'embed', 'reference', 'passthrough').
         artifact_service: The ADK artifact service instance.
         user_id: The user ID for the artifact context.
         session_id: The session ID for the artifact context.
@@ -124,61 +127,74 @@ async def prepare_file_part_for_publishing(
         log.debug("%s Mode is 'ignore', filtering out FilePart.", log_id)
         return None
 
-    if not isinstance(part.file, FileWithBytes):
-        # If it's already a URI or something else, pass it through
+    if mode == "passthrough":
+        log.debug("%s Mode is 'passthrough', returning original FilePart.", log_id)
         return part
 
     if mode == "embed":
-        return part
+        if isinstance(part.file, FileWithUri):
+            log.debug("%s Mode is 'embed', resolving URI for FilePart.", log_id)
+            return await resolve_file_part_uri(part, artifact_service, log_identifier)
+        return part  # It's already bytes, so it's embedded.
 
     if mode == "reference":
-        if not artifact_service:
-            log.warning(
-                "%s Mode is 'reference' but no artifact_service is configured. Ignoring FilePart '%s'.",
-                log_id,
-                part.file.name,
-            )
-            return None
+        if isinstance(part.file, FileWithBytes):
+            if not artifact_service:
+                log.warning(
+                    "%s Mode is 'reference' but no artifact_service is configured. Ignoring FilePart '%s'.",
+                    log_id,
+                    part.file.name,
+                )
+                return None
 
-        try:
-            filename = part.file.name or f"upload-{uuid.uuid4().hex}"
-            content_bytes = base64.b64decode(part.file.bytes)
-            mime_type = part.file.mime_type or "application/octet-stream"
+            try:
+                filename = part.file.name or f"upload-{uuid.uuid4().hex}"
+                content_bytes = base64.b64decode(part.file.bytes)
+                mime_type = part.file.mime_type or "application/octet-stream"
 
-            adk_part_to_save = adk_types.Part(
-                inline_data=adk_types.Blob(mime_type=mime_type, data=content_bytes)
-            )
+                adk_part_to_save = adk_types.Part(
+                    inline_data=adk_types.Blob(
+                        mime_type=mime_type, data=content_bytes
+                    )
+                )
 
-            saved_version = await artifact_service.save_artifact(
-                app_name=target_agent_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename,
-                part=adk_part_to_save,
-            )
+                saved_version = await artifact_service.save_artifact(
+                    app_name=target_agent_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    filename=filename,
+                    part=adk_part_to_save,
+                )
 
-            artifact_uri = f"artifact://{target_agent_name}/{user_id}/{session_id}/{filename}?version={saved_version}"
-            ref_part = a2a.create_file_part_from_uri(
-                uri=artifact_uri,
-                name=filename,
-                mime_type=mime_type,
-                metadata=part.metadata,
-            )
-            log.info(
-                "%s Converted embedded file '%s' to reference: %s",
-                log_id,
-                filename,
-                artifact_uri,
-            )
-            return ref_part
+                artifact_uri = format_artifact_uri(
+                    app_name=target_agent_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    filename=filename,
+                    version=saved_version,
+                )
+                ref_part = a2a.create_file_part_from_uri(
+                    uri=artifact_uri,
+                    name=filename,
+                    mime_type=mime_type,
+                    metadata=part.metadata,
+                )
+                log.info(
+                    "%s Converted embedded file '%s' to reference: %s",
+                    log_id,
+                    filename,
+                    artifact_uri,
+                )
+                return ref_part
 
-        except Exception as e:
-            log.exception(
-                "%s Failed to save artifact for reference mode: %s. Skipping FilePart.",
-                log_id,
-                e,
-            )
-            return None
+            except Exception as e:
+                log.exception(
+                    "%s Failed to save artifact for reference mode: %s. Skipping FilePart.",
+                    log_id,
+                    e,
+                )
+                return None
+        return part  # It's already a reference (URI)
 
     # Default case if mode is unrecognized
     log.warning(

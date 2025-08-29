@@ -68,9 +68,14 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "name": "artifact_handling_mode",
             "required": False,
             "type": "string",
-            "default": "embed",
-            "description": "How to represent artifacts sent to agents: 'ignore', 'embed' (base64), 'reference' (URI).",
-            "enum": ["ignore", "embed", "reference"],
+            "default": "reference",
+            "description": (
+                "How the gateway handles file parts from clients. "
+                "'reference': Save inline file bytes to the artifact store and replace with a URI. "
+                "'embed': Resolve file URIs and embed content as bytes. "
+                "'passthrough': Send file parts to the agent as-is."
+            ),
+            "enum": ["reference", "embed", "passthrough"],
         },
         {
             "name": "gateway_max_message_size_bytes",
@@ -216,7 +221,7 @@ class BaseGatewayApp(App):
             "gateway_recursive_embed_depth", 12
         )
         self.artifact_handling_mode: str = resolved_app_config_block.get(
-            "artifact_handling_mode", "embed"
+            "artifact_handling_mode", "reference"
         )
         self.gateway_max_message_size_bytes: int = resolved_app_config_block.get(
             "gateway_max_message_size_bytes", 10_000_000

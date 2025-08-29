@@ -4,15 +4,15 @@ This checklist tracks the implementation tasks for the artifact handling refacto
 
 ## Part 1: Foundational Backend Utilities & Configuration
 
-- [ ] **1. Create Artifact URI Utilities:**
+- [x] **1. Create Artifact URI Utilities:**
     -   **File:** `src/solace_agent_mesh/agent/utils/artifact_helpers.py`
     -   **Task:** Add `format_artifact_uri` and `parse_artifact_uri` functions.
 
-- [ ] **2. Update Gateway Configuration:**
+- [x] **2. Update Gateway Configuration:**
     -   **File:** `src/solace_agent_mesh/gateway/base/app.py`
     -   **Task:** Update the `artifact_handling_mode` parameter to include `passthrough` and set the default to `reference`.
 
-- [ ] **3. Enhance `FilePart` Preparation Utility:**
+- [x] **3. Enhance `FilePart` Preparation Utility:**
     -   **File:** `src/solace_agent_mesh/common/a2a/artifact.py`
     -   **Task:** Add logic to `prepare_file_part_for_publishing` to handle the `embed` mode by resolving URIs to bytes.
 
