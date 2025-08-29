@@ -668,7 +668,6 @@ async def upload_artifact(
         log_prefix,
         upload_file.filename,
         upload_file.content_type,
-        f"Metadata provided: {bool(metadata_json)}",
     )
 
     if artifact_service is None:

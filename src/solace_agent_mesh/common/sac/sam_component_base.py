@@ -10,8 +10,8 @@ from typing import Any, Dict, Optional
 from solace_ai_connector.components.component_base import ComponentBase
 from solace_ai_connector.common.log import log
 
-from ...common.utils.message_utils import validate_message_size
-from ...common.exceptions import MessageSizeExceededError
+from ..utils.message_utils import validate_message_size
+from ..exceptions import MessageSizeExceededError
 
 
 class SamComponentBase(ComponentBase, abc.ABC):
