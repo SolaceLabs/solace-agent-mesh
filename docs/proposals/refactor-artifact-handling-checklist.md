@@ -18,11 +18,11 @@ This checklist tracks the implementation tasks for the artifact handling refacto
 
 ## Part 2: Gateway and Endpoint Logic
 
-- [ ] **4. Update Artifact Upload Endpoint:**
+- [x] **4. Update Artifact Upload Endpoint:**
     -   **File:** `src/solace_agent_mesh/gateway/http_sse/routers/artifacts.py`
     -   **Task:** Modify the `upload_artifact` function to return a standard `artifact://` URI in its JSON response.
 
-- [ ] **5. Simplify HTTP SSE Gateway Input Handling:**
+- [x] **5. Simplify HTTP SSE Gateway Input Handling:**
     -   **File:** `src/solace_agent_mesh/gateway/http_sse/component.py`
     -   **Task:** Refactor `_translate_external_input` to remove file-saving logic and pass `FilePart` objects through to the base component.
 

@@ -1355,8 +1355,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         a2a_parts: List[ContentPart] = []
 
-        if files and self.shared_artifact_service:
-            file_metadata_summary_parts = []
+        if files:
             for upload_file in files:
                 try:
                     content_bytes = await upload_file.read()
@@ -1367,52 +1366,21 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             upload_file.filename,
                         )
                         continue
-                    save_result = await save_artifact_with_metadata(
-                        artifact_service=self.shared_artifact_service,
-                        app_name=self.gateway_id,
-                        user_id=client_id,
-                        session_id=a2a_session_id,
-                        filename=upload_file.filename,
-                        content_bytes=content_bytes,
-                        mime_type=upload_file.content_type
-                        or "application/octet-stream",
-                        metadata_dict={
-                            "source": "webui_gateway_upload",
-                            "original_filename": upload_file.filename,
-                            "upload_timestamp_utc": datetime.now(
-                                timezone.utc
-                            ).isoformat(),
-                            "gateway_id": self.gateway_id,
-                            "web_client_id": client_id,
-                            "a2a_session_id": a2a_session_id,
-                        },
-                        timestamp=datetime.now(timezone.utc),
-                    )
 
-                    if save_result["status"] in ["success", "partial_success"]:
-                        data_version = save_result.get("data_version", 0)
-                        artifact_uri = f"artifact://{self.gateway_id}/{client_id}/{a2a_session_id}/{upload_file.filename}?version={data_version}"
-                        file_part = a2a.create_file_part_from_uri(
-                            uri=artifact_uri,
-                            name=upload_file.filename,
-                            mime_type=upload_file.content_type,
-                        )
-                        a2a_parts.append(file_part)
-                        file_metadata_summary_parts.append(
-                            f"- {upload_file.filename} ({upload_file.content_type}, {len(content_bytes)} bytes, URI: {artifact_uri})"
-                        )
-                        log.info(
-                            "%s Processed and created URI for uploaded file: %s",
-                            log_id_prefix,
-                            artifact_uri,
-                        )
-                    else:
-                        log.error(
-                            "%s Failed to save artifact %s: %s",
-                            log_id_prefix,
-                            upload_file.filename,
-                            save_result.get("message"),
-                        )
+                    # The BaseGatewayComponent will handle normalization based on policy.
+                    # Here, we just create the FilePart with inline bytes.
+                    file_part = a2a.create_file_part_from_bytes(
+                        content_bytes=content_bytes,
+                        name=upload_file.filename,
+                        mime_type=upload_file.content_type,
+                    )
+                    a2a_parts.append(file_part)
+                    log.info(
+                        "%s Created inline FilePart for uploaded file: %s (%d bytes)",
+                        log_id_prefix,
+                        upload_file.filename,
+                        len(content_bytes),
+                    )
 
                 except Exception as e:
                     log.exception(
@@ -1423,13 +1391,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     )
                 finally:
                     await upload_file.close()
-
-            if file_metadata_summary_parts:
-                user_message = (
-                    "The user uploaded the following file(s):\n"
-                    + "\n".join(file_metadata_summary_parts)
-                    + f"\n\nUser message: {user_message}"
-                )
 
         if user_message:
             a2a_parts.append(a2a.create_text_part(text=user_message))

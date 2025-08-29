@@ -56,6 +56,7 @@ from ....agent.utils.artifact_helpers import (
     save_artifact_with_metadata,
     load_artifact_content_or_metadata,
     DEFAULT_SCHEMA_MAX_KEYS,
+    format_artifact_uri,
 )
 
 router = APIRouter()
@@ -731,14 +732,28 @@ async def upload_artifact(
                 save_result.get("metadata_version"),
                 save_result.get("message"),
             )
+            saved_version = save_result.get("data_version")
+            artifact_uri = format_artifact_uri(
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+                version=saved_version,
+            )
+            log.info(
+                "%s Successfully saved artifact. Returning URI: %s",
+                log_prefix,
+                artifact_uri,
+            )
             return {
                 "filename": filename,
-                "data_version": save_result.get("data_version"),
+                "data_version": saved_version,
                 "metadata_version": save_result.get("metadata_version"),
                 "mime_type": mime_type,
                 "size": len(content_bytes),
                 "message": save_result.get("message"),
                 "status": save_result["status"],
+                "uri": artifact_uri,
             }
         else:
             log.error(
