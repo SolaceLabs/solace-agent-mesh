@@ -185,10 +185,7 @@ export const ChatInputArea: React.FC<{ agents: AgentInfo[], scrollToBottom?: () 
                 {isResponding && !isCancelling ? (
                     <Button
                         className="ml-auto gap-1.5"
-                        onClick={() => {
-                            console.log("// DEBUG-CANCEL: Cancel button clicked.");
-                            handleCancel();
-                        }}
+                        onClick={handleCancel}
                         variant="outline"
                         disabled={isCancelling}
                         tooltip="Cancel"

@@ -23,10 +23,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const currentEventSource = useRef<EventSource | null>(null);
     const [selectedAgentName, setSelectedAgentName] = useState<string>("");
     const [isCancelling, setIsCancelling] = useState<boolean>(false); // New state for cancellation
-    // DEBUG-CANCEL: Add a ref to track the latest value of isCancelling to avoid stale closures in callbacks.
     const isCancellingRef = useRef(isCancelling);
     useEffect(() => {
-        console.log(`// DEBUG-CANCEL: isCancelling state changed to: ${isCancelling}`);
         isCancellingRef.current = isCancelling;
     }, [isCancelling]);
     const [taskIdInSidePanel, setTaskIdInSidePanel] = useState<string | null>(null);
@@ -287,12 +285,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, []);
 
     const closeCurrentEventSource = useCallback(() => {
-        console.log("// DEBUG-CANCEL: closeCurrentEventSource called. This function will NO LONGER reset isCancelling state.");
         if (cancelTimeoutRef.current) {
             clearTimeout(cancelTimeoutRef.current);
             cancelTimeoutRef.current = null;
         }
-        // setIsCancelling(false); // DO NOT set state here. This was causing a re-render loop.
 
         if (currentEventSource.current) {
             // Listeners are now removed in the useEffect cleanup
@@ -304,7 +300,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const handleSseMessage = useCallback(
         (event: MessageEvent) => {
-            console.log("// DEBUG-CANCEL: handleSseMessage received event:", event.data);
             sseEventSequenceRef.current += 1;
             const currentEventSequence = sseEventSequenceRef.current;
             let rpcResponse: SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
@@ -536,9 +531,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Finalization logic
             if (isFinalEvent) {
-                console.log(`// DEBUG-CANCEL: Final event received. isCancellingRef.current is: ${isCancellingRef.current}`);
                 if (isCancellingRef.current) {
-                    console.log("// DEBUG-CANCEL: Final event is a CANCELLATION. Resetting state now.");
                     addNotification("Task successfully cancelled.");
                     if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
                     setIsCancelling(false);
@@ -697,18 +690,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, configWelcomeMessage, addNotification, artifactsRefetch, sessionId]);
 
     const handleCancel = useCallback(async () => {
-        console.log("// DEBUG-CANCEL: handleCancel called.");
         if ((!isResponding && !isCancelling) || !currentTaskId) {
             addNotification("No active task to cancel.");
             return;
         }
         if (isCancelling) {
-            console.log("// DEBUG-CANCEL: handleCancel - Cancellation already in progress.");
             addNotification("Cancellation already in progress.");
             return;
         }
 
-        console.log(`// DEBUG-CANCEL: handleCancel - Requesting cancellation for task ${currentTaskId}.`);
         addNotification(`Requesting cancellation for task ${currentTaskId}...`);
         setIsCancelling(true);
 
@@ -729,10 +719,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             });
 
             if (response.status === 202) {
-                console.log("// DEBUG-CANCEL: handleCancel - Cancellation request accepted (202). Setting 15s timeout.");
                 if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
                 cancelTimeoutRef.current = setTimeout(() => {
-                    console.log(`// DEBUG-CANCEL: handleCancel - 15s TIMEOUT FIRED for task ${currentTaskId}.`);
                     addNotification(`Cancellation for task ${currentTaskId} timed out. Allowing new input.`);
                     setIsCancelling(false);
                     setIsResponding(false);
@@ -744,34 +732,27 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }, 15000);
             } else {
                 const errorData = await response.json().catch(() => ({ detail: "Unknown cancellation error" }));
-                console.error("// DEBUG-CANCEL: handleCancel - Failed to request cancellation:", errorData.detail);
                 addNotification(`Failed to request cancellation: ${errorData.detail || response.statusText}`);
                 setIsCancelling(false);
             }
         } catch (error) {
-            console.error("// DEBUG-CANCEL: handleCancel - Error sending cancellation request:", error);
             addNotification(`Error sending cancellation request: ${error instanceof Error ? error.message : "Network error"}`);
             setIsCancelling(false);
         }
     }, [isResponding, isCancelling, currentTaskId, apiPrefix, addNotification, closeCurrentEventSource]);
 
     const handleSseOpen = useCallback(() => {
-        console.log("// DEBUG-CANCEL: handleSseOpen - SSE connection opened.");
         /* console.log for SSE open */
     }, []);
     const handleSseError = useCallback(() => {
-        console.log(`// DEBUG-CANCEL: handleSseError called. isResponding: ${isResponding}, isFinalizing: ${isFinalizing.current}, isCancellingRef.current: ${isCancellingRef.current}`);
         if (isResponding && !isFinalizing.current && !isCancellingRef.current) {
             addNotification("Connection error with agent updates.");
         }
         if (!isFinalizing.current) {
             setIsResponding(false);
             if (!isCancellingRef.current) {
-                console.log("// DEBUG-CANCEL: handleSseError - Not cancelling, so closing event source now.");
                 closeCurrentEventSource();
                 setCurrentTaskId(null);
-            } else {
-                console.log("// DEBUG-CANCEL: handleSseError - Cancellation is in progress, NOT closing event source yet.");
             }
             latestStatusText.current = null;
         }
@@ -915,7 +896,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     useEffect(() => {
         if (currentTaskId && apiPrefix) {
-            console.log(`// DEBUG-CANCEL: useEffect[currentTaskId] - Task ID is now ${currentTaskId}. Setting up EventSource.`);
+            console.log(`ChatProvider Effect: currentTaskId is ${currentTaskId}. Setting up EventSource.`);
             const accessToken = getAccessToken();
             const eventSourceUrl = `${apiPrefix}/sse/subscribe/${currentTaskId}${accessToken ? `?token=${accessToken}` : ""}`;
             const eventSource = new EventSource(eventSourceUrl, { withCredentials: true });
@@ -929,7 +910,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             eventSource.addEventListener("error", handleSseMessage);
 
             return () => {
-                console.log(`// DEBUG-CANCEL: useEffect[currentTaskId] cleanup - Task ID was ${currentTaskId}. Closing EventSource.`);
+                console.log(`ChatProvider Effect Cleanup: currentTaskId was ${currentTaskId}. Closing EventSource.`);
                 // Explicitly remove listeners before closing
                 eventSource.removeEventListener("status_update", handleSseMessage);
                 eventSource.removeEventListener("artifact_update", handleSseMessage);
@@ -938,7 +919,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 closeCurrentEventSource();
             };
         } else {
-            console.log(`// DEBUG-CANCEL: useEffect[currentTaskId] - Task ID is now null. Ensuring EventSource is closed.`);
+            console.log(`ChatProvider Effect: currentTaskId is null or apiPrefix missing. Ensuring EventSource is closed.`);
             closeCurrentEventSource();
         }
     }, [currentTaskId, apiPrefix, handleSseMessage, handleSseOpen, handleSseError, closeCurrentEventSource]);
