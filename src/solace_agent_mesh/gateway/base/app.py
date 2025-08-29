@@ -64,6 +64,13 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "default": 12,
             "description": "Maximum depth for recursively resolving 'artifact_content' embeds within files.",
         },
+        {
+            "name": "gateway_max_message_size_bytes",
+            "required": False,
+            "type": "integer",
+            "default": 10_000_000,  # 10MB
+            "description": "Maximum allowed message size in bytes for messages published by the gateway.",
+        },
         # --- Default User Identity Configuration ---
         {
             "name": "default_user_identity",
@@ -199,6 +206,9 @@ class BaseGatewayApp(App):
 
         self.gateway_recursive_embed_depth: int = resolved_app_config_block.get(
             "gateway_recursive_embed_depth", 12
+        )
+        self.gateway_max_message_size_bytes: int = resolved_app_config_block.get(
+            "gateway_max_message_size_bytes", 10_000_000
         )
 
         modified_app_info = app_info.copy()

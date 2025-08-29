@@ -8,9 +8,9 @@
     -   [x] Implement the async lifecycle methods: `run`, `cleanup`, `_run_async_operations`, `get_async_loop`.
     -   [x] Define the abstract methods: `_async_setup_and_run` and `_pre_async_cleanup`.
 
-2.  [ ] **Update Gateway Configuration**
-    -   [ ] In `src/solace_agent_mesh/gateway/base/app.py`, add `gateway_max_message_size_bytes` to `BASE_GATEWAY_APP_SCHEMA`.
-    -   [ ] In `src/solace_agent_mesh/gateway/base/app.py`, update `__init__` to read the new configuration value.
+2.  [x] **Update Gateway Configuration**
+    -   [x] In `src/solace_agent_mesh/gateway/base/app.py`, add `gateway_max_message_size_bytes` to `BASE_GATEWAY_APP_SCHEMA`.
+    -   [x] In `src/solace_agent_mesh/gateway/base/app.py`, update `__init__` to read the new configuration value.
 
 3.  [ ] **Refactor `BaseGatewayComponent`**
     -   [ ] In `src/solace_agent_mesh/gateway/base/component.py`, change inheritance to `SamComponentBase`.
