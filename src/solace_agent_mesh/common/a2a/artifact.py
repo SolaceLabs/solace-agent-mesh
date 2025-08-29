@@ -4,6 +4,7 @@ Helpers for creating and consuming A2A Artifact objects.
 
 import uuid
 import base64
+from datetime import datetime, timezone
 from typing import Any, List, Optional, TYPE_CHECKING
 from urllib.parse import urlparse, parse_qs
 
@@ -23,6 +24,7 @@ from .. import a2a
 from ...agent.utils.artifact_helpers import (
     load_artifact_content_or_metadata,
     format_artifact_uri,
+    save_artifact_with_metadata,
 )
 
 if TYPE_CHECKING:
@@ -152,40 +154,54 @@ async def prepare_file_part_for_publishing(
                 content_bytes = base64.b64decode(part.file.bytes)
                 mime_type = part.file.mime_type or "application/octet-stream"
 
-                adk_part_to_save = adk_types.Part(
-                    inline_data=adk_types.Blob(
-                        mime_type=mime_type, data=content_bytes
-                    )
-                )
+                # Create a concise and accurate metadata dictionary.
+                metadata_to_save = {
+                    "source": log_identifier,
+                    "description": "This artifact was uploaded via the gateway",
+                }
 
-                saved_version = await artifact_service.save_artifact(
+                # Call the helper with the new, simpler metadata.
+                save_result = await save_artifact_with_metadata(
+                    artifact_service=artifact_service,
                     app_name=target_agent_name,
                     user_id=user_id,
                     session_id=session_id,
                     filename=filename,
-                    part=adk_part_to_save,
-                )
-
-                artifact_uri = format_artifact_uri(
-                    app_name=target_agent_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=filename,
-                    version=saved_version,
-                )
-                ref_part = a2a.create_file_part_from_uri(
-                    uri=artifact_uri,
-                    name=filename,
+                    content_bytes=content_bytes,
                     mime_type=mime_type,
-                    metadata=part.metadata,
+                    metadata_dict=metadata_to_save,
+                    timestamp=datetime.now(timezone.utc),
                 )
-                log.info(
-                    "%s Converted embedded file '%s' to reference: %s",
-                    log_id,
-                    filename,
-                    artifact_uri,
-                )
-                return ref_part
+
+                if save_result["status"] in ["success", "partial_success"]:
+                    saved_version = save_result.get("data_version")
+                    artifact_uri = format_artifact_uri(
+                        app_name=target_agent_name,
+                        user_id=user_id,
+                        session_id=session_id,
+                        filename=filename,
+                        version=saved_version,
+                    )
+                    ref_part = a2a.create_file_part_from_uri(
+                        uri=artifact_uri,
+                        name=filename,
+                        mime_type=mime_type,
+                        metadata=part.metadata,
+                    )
+                    log.info(
+                        "%s Converted embedded file '%s' to reference: %s",
+                        log_id,
+                        filename,
+                        artifact_uri,
+                    )
+                    return ref_part
+                else:
+                    log.error(
+                        "%s Failed to save artifact via helper: %s. Skipping FilePart.",
+                        log_id,
+                        save_result.get("message"),
+                    )
+                    return None
 
             except Exception as e:
                 log.exception(
