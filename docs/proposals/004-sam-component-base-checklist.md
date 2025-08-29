@@ -18,12 +18,12 @@
     -   [x] Implement the abstract method `_async_setup_and_run`.
     -   [x] Implement the abstract method `_pre_async_cleanup`.
 
-4.  [ ] **Refactor `SamAgentComponent`**
-    -   [ ] In `src/solace_agent_mesh/agent/sac/component.py`, change inheritance to `SamComponentBase`.
-    -   [ ] Remove the duplicated methods: `_start_async_loop`, `_publish_a2a_message`, and async logic from `cleanup`.
-    -   [ ] Replace all internal calls from `_publish_a2a_message` to `publish_a2a_message`.
-    -   [ ] Implement the abstract method `_async_setup_and_run`.
-    -   [ ] Implement the abstract method `_pre_async_cleanup`.
+4.  [x] **Refactor `SamAgentComponent`**
+    -   [x] In `src/solace_agent_mesh/agent/sac/component.py`, change inheritance to `SamComponentBase`.
+    -   [x] Remove the duplicated methods: `_start_async_loop`, `_publish_a2a_message`, and async logic from `cleanup`.
+    -   [x] Replace all internal calls from `_publish_a2a_message` to `publish_a2a_message`.
+    -   [x] Implement the abstract method `_async_setup_and_run`.
+    -   [x] Implement the abstract method `_pre_async_cleanup`.
 
 5.  [ ] **Add `update_artifact_parts` Utility**
     -   [ ] In `src/solace_agent_mesh/common/a2a/artifact.py`, add the `update_artifact_parts` function.

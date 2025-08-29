@@ -12,7 +12,7 @@ import fnmatch
 import base64
 from datetime import datetime, timezone
 import json
-from solace_ai_connector.components.component_base import ComponentBase
+import json
 from solace_ai_connector.common.message import (
     Message as SolaceMessage,
 )
@@ -84,6 +84,7 @@ from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...agent.tools.registry import tool_registry
 from ...common.utils.message_utils import validate_message_size
 from ...common.exceptions import MessageSizeExceededError
+from ...common.sac.sam_component_base import SamComponentBase
 
 if TYPE_CHECKING:
     from .task_execution_context import TaskExecutionContext
@@ -111,7 +112,7 @@ info = {
 InstructionProvider = Callable[[ReadonlyContext], str]
 
 
-class SamAgentComponent(ComponentBase):
+class SamAgentComponent(SamComponentBase):
     """
     A Solace AI Connector component that hosts a Google ADK agent,
     communicating via the A2A protocol over Solace.
@@ -245,8 +246,6 @@ class SamAgentComponent(ComponentBase):
         self.agent_card_tool_manifest: List[Dict[str, Any]] = []
         self.peer_agents: Dict[str, Any] = {}
         self._card_publish_timer_id: str = f"publish_card_{self.agent_name}"
-        self._async_loop = None
-        self._async_thread = None
         self._async_init_future = None
         self.peer_response_queues: Dict[str, asyncio.Queue] = {}
         self.peer_response_queue_lock = threading.Lock()
@@ -404,40 +403,11 @@ class SamAgentComponent(ComponentBase):
                 raise RuntimeError(
                     f"Failed to initialize synchronous ADK services: {service_err}"
                 ) from service_err
-            log.info(
-                "%s Starting dedicated async thread for MCP/ADK initialization...",
-                self.log_identifier,
-            )
-            self._async_loop = asyncio.new_event_loop()
+
+            # Async init is now handled by the base class `run` method.
+            # We still need a future to signal completion from the async thread.
             self._async_init_future = concurrent.futures.Future()
-            self._async_thread = threading.Thread(
-                target=self._start_async_loop, daemon=True
-            )
-            self._async_thread.start()
-            init_coro_future = asyncio.run_coroutine_threadsafe(
-                self._perform_async_init(), self._async_loop
-            )
-            log.info(
-                "%s Waiting for async initialization to complete...",
-                self.log_identifier,
-            )
-            try:
-                init_coro_future.result(timeout=60)
-                self._async_init_future.result(timeout=1)
-                log.info(
-                    "%s Async initialization completed successfully.",
-                    self.log_identifier,
-                )
-            except Exception as init_err:
-                log.error(
-                    "%s Async initialization failed during __init__: %s",
-                    self.log_identifier,
-                    init_err,
-                )
-                self.cleanup()
-                raise RuntimeError(
-                    f"Failed to initialize component asynchronously: {init_err}"
-                ) from init_err
+
             publish_interval_sec = self.agent_card_publishing_config.get(
                 "interval_seconds"
             )
@@ -791,7 +761,7 @@ class SamAgentComponent(ComponentBase):
                 )
                 user_props = {"clientId": self.agent_name}
                 peer_topic = self._get_agent_request_topic(peer_agent_name)
-                self._publish_a2a_message(
+                self.publish_a2a_message(
                     payload=cancel_request.model_dump(exclude_none=True),
                     topic=peer_topic,
                     user_properties=user_props,
@@ -2855,63 +2825,6 @@ class SamAgentComponent(ComponentBase):
         """Returns the client response topic using helper."""
         return a2a.get_client_response_topic(self.namespace, client_id)
 
-    def _publish_a2a_message(
-        self, payload: Dict, topic: str, user_properties: Optional[Dict] = None
-    ):
-        """Helper to publish A2A messages via the SAC App."""
-        try:
-            max_size_bytes = self.max_message_size_bytes
-
-            # Validate message size
-            is_valid, actual_size = validate_message_size(
-                payload, max_size_bytes, self.log_identifier
-            )
-
-            if not is_valid:
-                error_msg = (
-                    f"Message size validation failed: payload size ({actual_size} bytes) "
-                    f"exceeds maximum allowed size ({max_size_bytes} bytes)"
-                )
-                log.error("%s %s", self.log_identifier, error_msg)
-                raise MessageSizeExceededError(actual_size, max_size_bytes, error_msg)
-
-            # Debug logging to show message size when publishing
-            log.debug(
-                "%s Publishing message to topic %s (size: %d bytes)",
-                self.log_identifier,
-                topic,
-                actual_size,
-            )
-
-            app = self.get_app()
-            if app:
-                if self.invocation_monitor:
-                    self.invocation_monitor.log_message_event(
-                        direction="PUBLISHED",
-                        topic=topic,
-                        payload=payload,
-                        component_identifier=self.log_identifier,
-                    )
-                app.send_message(
-                    payload=payload, topic=topic, user_properties=user_properties
-                )
-            else:
-                log.error(
-                    "%s Cannot publish message: Not running within a SAC App context.",
-                    self.log_identifier,
-                )
-        except MessageSizeExceededError:
-            # Re-raise MessageSizeExceededError without wrapping
-            raise
-        except Exception as e:
-            log.exception(
-                "%s Failed to publish A2A message to topic %s: %s",
-                self.log_identifier,
-                topic,
-                e,
-            )
-            raise
-
     def _publish_a2a_event(
         self,
         payload: Dict,
@@ -2978,7 +2891,7 @@ class SamAgentComponent(ComponentBase):
         if isinstance(user_config, dict):
             user_properties["a2aUserConfig"] = user_config
 
-        self._publish_a2a_message(
+        self.publish_a2a_message(
             payload=a2a_request.model_dump(by_alias=True, exclude_none=True),
             topic=peer_request_topic,
             user_properties=user_properties,
@@ -3025,24 +2938,6 @@ class SamAgentComponent(ComponentBase):
                 exc_info=e,
             )
 
-    def _start_async_loop(self):
-        """Target method for the dedicated async thread."""
-        log.info("%s Dedicated async thread started.", self.log_identifier)
-        try:
-            asyncio.set_event_loop(self._async_loop)
-            self._async_loop.run_forever()
-        except Exception as e:
-            log.exception(
-                "%s Exception in dedicated async thread loop: %s",
-                self.log_identifier,
-                e,
-            )
-            if self._async_init_future and not self._async_init_future.done():
-                self._async_init_future.set_exception(e)
-        finally:
-            log.info("%s Dedicated async thread loop finishing.", self.log_identifier)
-            if self._async_loop.is_running():
-                self._async_loop.call_soon_threadsafe(self._async_loop.stop)
 
     async def _perform_async_init(self):
         """Coroutine executed on the dedicated loop to perform async initialization."""
@@ -3202,58 +3097,8 @@ class SamAgentComponent(ComponentBase):
                     im_clean_e,
                 )
 
-        if self._async_loop and self._async_loop.is_running():
-            log.info(
-                "%s Performing async cleanup via dedicated thread...",
-                self.log_identifier,
-            )
-
-            async def _perform_async_cleanup():
-                log.debug("%s Entering async cleanup coroutine...", self.log_identifier)
-                pass
-
-            try:
-                cleanup_future = asyncio.run_coroutine_threadsafe(
-                    _perform_async_cleanup(), self._async_loop
-                )
-                cleanup_future.result(timeout=30)
-                log.info("%s Async cleanup completed.", self.log_identifier)
-            except Exception as e:
-                log.exception(
-                    "%s Error during async cleanup: %s", self.log_identifier, e
-                )
-            finally:
-                if self._async_loop and self._async_loop.is_running():
-                    log.info(
-                        "%s Cleanup: Stopping dedicated async loop...",
-                        self.log_identifier,
-                    )
-                    self._async_loop.call_soon_threadsafe(self._async_loop.stop)
-                else:
-                    log.info(
-                        "%s Cleanup: Dedicated async loop is None or not running, no need to stop.",
-                        self.log_identifier,
-                    )
-                if self._async_thread and self._async_thread.is_alive():
-                    log.info(
-                        "%s Cleanup: Joining dedicated async thread...",
-                        self.log_identifier,
-                    )
-                    self._async_thread.join(timeout=5)
-                    if self._async_thread.is_alive():
-                        log.warning(
-                            "%s Dedicated async thread did not exit cleanly.",
-                            self.log_identifier,
-                        )
-                log.info(
-                    "%s Dedicated async thread stopped and joined.", self.log_identifier
-                )
-        else:
-            log.info(
-                "%s Dedicated async loop not running, skipping async cleanup.",
-                self.log_identifier,
-            )
-
+        # The base class cleanup() will handle stopping the async loop and joining the thread.
+        # We just need to cancel any active tasks before that happens.
         with self.active_tasks_lock:
             if self._async_loop and self._async_loop.is_running():
                 for task_context in self.active_tasks.values():
@@ -3411,3 +3256,17 @@ class SamAgentComponent(ComponentBase):
                 "%s Error during embed resolution: %s", method_context_log_identifier, e
             )
             return raw_text, [], ""
+
+    async def _async_setup_and_run(self) -> None:
+        """
+        Main async logic for the agent component.
+        This is called by the base class's `_run_async_operations`.
+        """
+        await self._perform_async_init()
+
+    def _pre_async_cleanup(self) -> None:
+        """
+        Pre-cleanup actions for the agent component.
+        Called by the base class before stopping the async loop.
+        """
+        pass
