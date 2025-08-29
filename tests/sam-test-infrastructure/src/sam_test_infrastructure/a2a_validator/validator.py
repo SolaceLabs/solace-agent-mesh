@@ -219,8 +219,23 @@ class A2AMessageValidator:
                     # Fallback to generic request if specific one not found
                     schema_to_use = self.schema["definitions"]["JSONRPCRequest"]
             else:
-                # For responses, we validate against the generic response schema
-                schema_to_use = self.schema["definitions"]["JSONRPCResponse"]
+                # For responses, try to find a specific schema based on the result 'kind'.
+                schema_to_use = self.schema["definitions"]["JSONRPCResponse"]  # Default
+                result = payload.get("result")
+                if isinstance(result, dict):
+                    kind = result.get("kind")
+                    if kind == "task":
+                        schema_to_use = self.schema["definitions"][
+                            "GetTaskSuccessResponse"
+                        ]
+                    elif kind == "message":
+                        schema_to_use = self.schema["definitions"][
+                            "SendMessageSuccessResponse"
+                        ]
+                    elif kind in ["status-update", "artifact-update"]:
+                        schema_to_use = self.schema["definitions"][
+                            "SendStreamingMessageSuccessResponse"
+                        ]
 
             self.validator.check_schema(schema_to_use)
             self.validator.validate(payload, schema_to_use)
