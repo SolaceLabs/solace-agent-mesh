@@ -595,7 +595,10 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 )
 
             adk_content = translate_a2a_to_adk_content(
-                a2a_message_for_adk, component.log_identifier
+                a2a_message=a2a_message_for_adk,
+                component=component,
+                user_id=user_id,
+                session_id=effective_session_id,
             )
 
             adk_session = await component.session_service.get_session(
