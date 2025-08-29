@@ -13,6 +13,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, configServerUrl } = useConfigContext();
     const apiPrefix = `${configServerUrl}/api/v1`;
 
+    const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
+
+    const fileToBase64 = (file: File): Promise<string> =>
+        new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve((reader.result as string).split(",")[1]);
+            reader.onerror = error => reject(error);
+        });
+
     // State Variables from useChat
     const [sessionId, setSessionId] = useState<string>(() => `web-session-${Date.now()}`);
     const [messages, setMessages] = useState<MessageFE[]>([]);
@@ -791,29 +801,41 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setMessages(prev => [...prev, userMsg]);
             setUserInput("");
             try {
-                // 1. Upload files if they exist and create FileParts
-                const uploadedFileParts: FilePart[] = [];
-                if (currentFiles.length > 0) {
-                    addNotification(`Uploading ${currentFiles.length} file(s)...`);
-                    const uploadPromises = currentFiles.map(file => uploadArtifactFile(file));
-                    const uris = await Promise.all(uploadPromises);
-
-                    uris.forEach((uri, index) => {
+                // 1. Process files using hybrid approach
+                const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
+                    if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
+                        // Small file: send inline as base64
+                        const base64Content = await fileToBase64(file);
+                        return {
+                            kind: "file",
+                            file: {
+                                bytes: base64Content,
+                                name: file.name,
+                                mimeType: file.type,
+                            },
+                        };
+                    } else {
+                        // Large file: upload and get URI
+                        const uri = await uploadArtifactFile(file);
                         if (uri) {
-                            uploadedFileParts.push({
+                            return {
                                 kind: "file",
                                 file: {
                                     uri: uri,
-                                    name: currentFiles[index].name,
-                                    mimeType: currentFiles[index].type,
+                                    name: file.name,
+                                    mimeType: file.type,
                                 },
-                            });
+                            };
                         } else {
-                            // Handle upload failure for a specific file
-                            addNotification(`Failed to upload ${currentFiles[index].name}. It will not be included in the message.`, "error");
+                            addNotification(`Failed to upload large file: ${file.name}`, "error");
+                            return null;
                         }
-                    });
-                }
+                    }
+                });
+
+                const uploadedFileParts = (await Promise.all(filePartsPromises)).filter(
+                    (p): p is FilePart => p !== null
+                );
 
                 // 2. Construct message parts
                 const messageParts: Part[] = [];
