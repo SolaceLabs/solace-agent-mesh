@@ -28,7 +28,7 @@ This checklist tracks the implementation tasks for the artifact handling refacto
 
 ## Part 3: Agent-Side Processing
 
-- [ ] **6. Update A2A-to-ADK Translation:**
+- [x] **6. Update A2A-to-ADK Translation:**
     -   **File:** `src/solace_agent_mesh/common/a2a/translation.py`
     -   **Task:** Update `translate_a2a_to_adk_content` to correctly process `FilePart` objects that contain inline `bytes`.
 

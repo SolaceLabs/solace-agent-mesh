@@ -43,16 +43,25 @@ def translate_a2a_to_adk_content(
             if isinstance(part, TextPart):
                 adk_parts.append(adk_types.Part(text=part.text))
             elif isinstance(part, FilePart):
-                file_info = f"Received file: name='{part.file.name}', mimeType='{part.file.mime_type}'"
                 if hasattr(part.file, "uri") and part.file.uri:
-                    file_info += f", uri='{part.file.uri}'"
+                    adk_parts.append(
+                        adk_types.Part.from_uri(
+                            uri=part.file.uri, mime_type=part.file.mime_type
+                        )
+                    )
                 elif hasattr(part.file, "bytes") and part.file.bytes:
-                    try:
-                        byte_len = len(base64.b64decode(part.file.bytes))
-                        file_info += f", size={byte_len} bytes (base64 encoded)"
-                    except Exception:
-                        file_info += ", size=unknown (base64 encoded)"
-                adk_parts.append(adk_types.Part(text=file_info))
+                    decoded_bytes = base64.b64decode(part.file.bytes)
+                    adk_parts.append(
+                        adk_types.Part.from_data(
+                            data=decoded_bytes, mime_type=part.file.mime_type
+                        )
+                    )
+                else:
+                    log.warning(
+                        "%s FilePart received without 'uri' or 'bytes'. Ignoring. File: %s",
+                        log_identifier,
+                        part.file.name,
+                    )
             elif isinstance(part, DataPart):
                 try:
                     data_str = json.dumps(part.data, indent=2)
