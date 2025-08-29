@@ -36,6 +36,6 @@
     -   [x] Add `artifact_handling_mode` to gateway configuration.
     -   [x] Create `prepare_file_part_for_publishing` utility in `common/a2a/artifact.py`.
     -   [x] Create `resolve_file_part_uri` utility in `common/a2a/artifact.py`.
-    -   [ ] Refactor `BaseGatewayComponent` to use the new utilities for sending and receiving artifacts.
-    -   [ ] Update `a2a` `__init__.py` to export new functions.
+    -   [x] Refactor `BaseGatewayComponent` to use the new utilities for sending and receiving artifacts.
+    -   [x] Update `a2a` `__init__.py` to export new functions.
     -   [ ] Update developer documentation for new `a2a` functions.
