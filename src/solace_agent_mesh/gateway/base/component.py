@@ -108,10 +108,11 @@ class BaseGatewayComponent(SamComponentBase):
         self.resolve_artifact_uris_in_gateway = resolve_artifact_uris_in_gateway
         log.info("%s Initializing Base Gateway Component...", self.log_identifier)
 
-        # Note: self.namespace and self.max_message_size_bytes are initialized in SamComponentBase
-        self.gateway_id: str = self.get_config("gateway_id")
-        if not self.gateway_id:
-            raise ValueError("Gateway ID must be configured in the app_config.")
+        try:
+            # Note: self.namespace and self.max_message_size_bytes are initialized in SamComponentBase
+            self.gateway_id: str = self.get_config("gateway_id")
+            if not self.gateway_id:
+                raise ValueError("Gateway ID must be configured in the app_config.")
 
             self.enable_embed_resolution: bool = self.get_config(
                 "enable_embed_resolution", True
