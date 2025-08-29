@@ -19,6 +19,8 @@ from ...gateway.http_sse.services.people_service import PeopleService
 from ...gateway.http_sse.services.task_service import TaskService
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
+from .business.services.in_memory_session_service import InMemorySessionService
+from .business.services.session_service import SessionService
 from .database.persistence_service import PersistenceService
 
 try:
@@ -34,6 +36,7 @@ if TYPE_CHECKING:
 
 sac_component_instance: "WebUIBackendComponent" = None
 persistence_service_instance: "PersistenceService" = None
+in_memory_session_service_instance: "InMemorySessionService" = None
 
 api_config: dict[str, Any] | None = None
 
@@ -354,3 +357,31 @@ def get_task_service(
         task_context_lock=task_context_manager._lock,
         app_name=app_name,
     )
+
+
+def get_session_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> SessionService | InMemorySessionService:
+    """
+    FastAPI dependency for getting the session service.
+
+    Returns either a database-backed session service or an in-memory fallback
+    depending on whether a database is configured in the component.
+    """
+    global in_memory_session_service_instance
+    log.debug("[Dependencies] get_session_service called")
+
+    # Check if component has a persistence service (database-backed)
+    if (
+        hasattr(component, "persistence_service")
+        and component.persistence_service is not None
+    ):
+        log.debug("Using database-backed session service")
+        return SessionService(db_service=component.persistence_service.database_service)
+    else:
+        log.debug("No database configured - using in-memory session service")
+        # Create singleton instance for in-memory service to persist sessions across requests
+        if in_memory_session_service_instance is None:
+            in_memory_session_service_instance = InMemorySessionService()
+            log.info("Created singleton in-memory session service instance")
+        return in_memory_session_service_instance

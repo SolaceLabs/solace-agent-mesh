@@ -222,15 +222,6 @@ export function ChatPage() {
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
                         <ResizablePanel defaultSize={chatPanelSizes.default} minSize={chatPanelSizes.min} maxSize={chatPanelSizes.max} id="chat-panel">
                             <div className="flex h-full w-full flex-col py-6">
-                                {config && config.persistenceEnabled === false && (
-                                    <div className="mx-4 mb-4 rounded-md bg-yellow-50 border border-yellow-200 p-3 text-sm text-yellow-800 dark:bg-yellow-900/20 dark:border-yellow-700/50 dark:text-yellow-200">
-                                        <div className="flex">
-                                            <div className="flex-1">
-                                                <strong>Compatibility Mode:</strong> Session history is not persisted across restarts. Chat messages will be lost when the server restarts.
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
                                 <ChatMessageList className="text-base" ref={chatMessageListRef}>
                                     {messages.map((message, index) => {
                                         const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
