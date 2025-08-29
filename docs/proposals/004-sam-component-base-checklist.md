@@ -12,11 +12,11 @@
     -   [x] In `src/solace_agent_mesh/gateway/base/app.py`, add `gateway_max_message_size_bytes` to `BASE_GATEWAY_APP_SCHEMA`.
     -   [x] In `src/solace_agent_mesh/gateway/base/app.py`, update `__init__` to read the new configuration value.
 
-3.  [ ] **Refactor `BaseGatewayComponent`**
-    -   [ ] In `src/solace_agent_mesh/gateway/base/component.py`, change inheritance to `SamComponentBase`.
-    -   [ ] Remove the duplicated methods: `run`, `cleanup`, `_run_async_operations`, `publish_a2a_message`.
-    -   [ ] Implement the abstract method `_async_setup_and_run`.
-    -   [ ] Implement the abstract method `_pre_async_cleanup`.
+3.  [x] **Refactor `BaseGatewayComponent`**
+    -   [x] In `src/solace_agent_mesh/gateway/base/component.py`, change inheritance to `SamComponentBase`.
+    -   [x] Remove the duplicated methods: `run`, `cleanup`, `_run_async_operations`, `publish_a2a_message`.
+    -   [x] Implement the abstract method `_async_setup_and_run`.
+    -   [x] Implement the abstract method `_pre_async_cleanup`.
 
 4.  [ ] **Refactor `SamAgentComponent`**
     -   [ ] In `src/solace_agent_mesh/agent/sac/component.py`, change inheritance to `SamComponentBase`.

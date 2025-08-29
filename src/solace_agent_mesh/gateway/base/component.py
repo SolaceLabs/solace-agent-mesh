@@ -5,18 +5,17 @@ Base Component class for Gateway implementations in the Solace AI Connector.
 import asyncio
 import queue
 import re
-import threading
 import base64
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, List, Tuple, Union
 from urllib.parse import urlparse, parse_qs
 
-from solace_ai_connector.components.component_base import ComponentBase
 from solace_ai_connector.common.log import log
 from google.adk.artifacts import BaseArtifactService
 
 from ...common.agent_registry import AgentRegistry
+from ...common.sac.sam_component_base import SamComponentBase
 from ...core_a2a.service import CoreA2AService
 from ...agent.adk.services import initialize_artifact_service
 from ...common.services.identity_service import (
@@ -81,7 +80,7 @@ info = {
 }
 
 
-class BaseGatewayComponent(ComponentBase):
+class BaseGatewayComponent(SamComponentBase):
     """
     Abstract base class for Gateway components.
 
@@ -109,13 +108,10 @@ class BaseGatewayComponent(ComponentBase):
         self.resolve_artifact_uris_in_gateway = resolve_artifact_uris_in_gateway
         log.info("%s Initializing Base Gateway Component...", self.log_identifier)
 
-        try:
-            self.namespace: str = self.get_config("namespace")
-            self.gateway_id: str = self.get_config("gateway_id")
-            if not self.namespace or not self.gateway_id:
-                raise ValueError(
-                    "Namespace and Gateway ID must be configured in the app_config."
-                )
+        # Note: self.namespace and self.max_message_size_bytes are initialized in SamComponentBase
+        self.gateway_id: str = self.get_config("gateway_id")
+        if not self.gateway_id:
+            raise ValueError("Gateway ID must be configured in the app_config.")
 
             self.enable_embed_resolution: bool = self.get_config(
                 "enable_embed_resolution", True
@@ -156,9 +152,6 @@ class BaseGatewayComponent(ComponentBase):
 
         self.task_context_manager: TaskContextManager = TaskContextManager()
         self.internal_event_queue: queue.Queue = queue.Queue()
-        self.message_processor_thread: Optional[threading.Thread] = None
-        self.async_loop: Optional[asyncio.AbstractEventLoop] = None
-        self.async_thread: Optional[threading.Thread] = None
 
         identity_service_config = self.get_config("identity_service")
         self.identity_service: Optional[BaseIdentityService] = create_identity_service(
@@ -174,40 +167,6 @@ class BaseGatewayComponent(ComponentBase):
         log.info(
             "%s Base Gateway Component initialized successfully.", self.log_identifier
         )
-
-    def publish_a2a_message(
-        self, topic: str, payload: Dict, user_properties: Optional[Dict] = None
-    ) -> None:
-        log.debug(
-            "%s Publishing A2A message to topic: %s via App", self.log_identifier, topic
-        )
-        try:
-            app = self.get_app()
-            if app:
-                app.send_message(
-                    payload=payload, topic=topic, user_properties=user_properties
-                )
-                log.debug(
-                    "%s Successfully published message to %s via App",
-                    self.log_identifier,
-                    topic,
-                )
-            else:
-                log.error(
-                    "%s Cannot publish message: Not running within a SAC App context.",
-                    self.log_identifier,
-                )
-                raise RuntimeError(
-                    "Cannot publish message: Not running within a SAC App context."
-                )
-        except Exception as e:
-            log.exception(
-                "%s Failed to publish A2A message to topic %s via App: %s",
-                self.log_identifier,
-                topic,
-                e,
-            )
-            raise
 
     async def authenticate_and_enrich_user(
         self, external_event_data: Any
@@ -387,7 +346,7 @@ class BaseGatewayComponent(ComponentBase):
         log.info("%s Stored external context for task_id: %s", log_id_prefix, task_id)
 
         self.publish_a2a_message(
-            topic=target_topic, payload=payload, user_properties=user_properties
+            payload=payload, topic=target_topic, user_properties=user_properties
         )
         log.info(
             "%s Submitted A2A task %s to agent %s. Streaming: %s",
@@ -1207,9 +1166,28 @@ class BaseGatewayComponent(ComponentBase):
             )
             return False
 
+    async def _async_setup_and_run(self) -> None:
+        """Main async logic for the gateway component."""
+        log.info(
+            "%s Starting _start_listener() to initiate external platform connection.",
+            self.log_identifier,
+        )
+        self._start_listener()
+
+        log.info(
+            "%s Starting _message_processor_loop as an asyncio task.",
+            self.log_identifier,
+        )
+        await self._message_processor_loop()
+
+    def _pre_async_cleanup(self) -> None:
+        """Pre-cleanup actions for the gateway component."""
+        log.info("%s Calling _stop_listener()...", self.log_identifier)
+        self._stop_listener()
+
     async def _message_processor_loop(self):
         log.info("%s Starting message processor loop...", self.log_identifier)
-        loop = asyncio.get_running_loop()
+        loop = self.get_async_loop()
 
         while not self.stop_signal.is_set():
             original_broker_message: Optional[SolaceMessage] = None
@@ -1322,145 +1300,6 @@ class BaseGatewayComponent(ComponentBase):
                     self.internal_event_queue.task_done()
 
         log.info("%s Message processor loop finished.", self.log_identifier)
-
-    def _run_async_operations(self):
-        log.info(
-            "%s Initializing asyncio event loop in dedicated thread...",
-            self.log_identifier,
-        )
-        self.async_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.async_loop)
-
-        processor_task = None
-        try:
-            log.info(
-                "%s Starting _message_processor_loop as an asyncio task.",
-                self.log_identifier,
-            )
-            processor_task = self.async_loop.create_task(self._message_processor_loop())
-
-            log.info(
-                "%s Calling _start_listener() to initiate external platform connection.",
-                self.log_identifier,
-            )
-            self._start_listener()
-
-            log.info(
-                "%s Running asyncio event loop forever (or until stop_signal).",
-                self.log_identifier,
-            )
-            self.async_loop.run_forever()
-
-        except Exception as e:
-            log.exception(
-                "%s Unhandled exception in _run_async_operations: %s",
-                self.log_identifier,
-                e,
-            )
-            self.stop_signal.set()
-        finally:
-            if processor_task and not processor_task.done():
-                log.info(
-                    "%s Cancelling _message_processor_loop task.", self.log_identifier
-                )
-                processor_task.cancel()
-                try:
-                    self.async_loop.run_until_complete(
-                        asyncio.gather(processor_task, return_exceptions=True)
-                    )
-                except RuntimeError as loop_err:
-                    log.warning(
-                        "%s Error awaiting processor task during cleanup (loop closed?): %s",
-                        self.log_identifier,
-                        loop_err,
-                    )
-
-            if self.async_loop.is_running():
-                log.info(
-                    "%s Stopping asyncio event loop from _run_async_operations finally block.",
-                    self.log_identifier,
-                )
-                self.async_loop.stop()
-            log.info(
-                "%s Async operations loop finished in dedicated thread.",
-                self.log_identifier,
-            )
-
-    def run(self):
-        log.info("%s Starting BaseGatewayComponent run method.", self.log_identifier)
-        if not self.async_thread or not self.async_thread.is_alive():
-            self.async_thread = threading.Thread(
-                target=self._run_async_operations,
-                name=f"{self.name}_AsyncOpsThread",
-                daemon=True,
-            )
-            self.async_thread.start()
-            log.info("%s Async operations thread started.", self.log_identifier)
-        else:
-            log.warning(
-                "%s Async operations thread already running.", self.log_identifier
-            )
-
-        super().run()
-        log.info("%s BaseGatewayComponent run method finished.", self.log_identifier)
-
-    def cleanup(self):
-        log.info("%s Starting cleanup for BaseGatewayComponent...", self.log_identifier)
-
-        log.info("%s Calling _stop_listener()...", self.log_identifier)
-        try:
-            if (
-                self.async_loop
-                and not self.async_loop.is_running()
-                and self.async_thread
-                and self.async_thread.is_alive()
-            ):
-                log.warning(
-                    "%s Async loop not running during cleanup, _stop_listener might face issues if it needs the loop.",
-                    self.log_identifier,
-                )
-            self._stop_listener()
-        except Exception as e:
-            log.exception(
-                "%s Error during _stop_listener(): %s", self.log_identifier, e
-            )
-
-        if self.internal_event_queue:
-            log.info(
-                "%s Signaling _message_processor_loop to stop...", self.log_identifier
-            )
-            self.internal_event_queue.put(None)
-
-        if self.async_loop and self.async_loop.is_running():
-            log.info("%s Requesting asyncio loop to stop...", self.log_identifier)
-            self.async_loop.call_soon_threadsafe(self.async_loop.stop)
-
-        if self.async_thread and self.async_thread.is_alive():
-            log.info(
-                "%s Joining async operations thread (timeout 10s)...",
-                self.log_identifier,
-            )
-            self.async_thread.join(timeout=10)
-            if self.async_thread.is_alive():
-                log.warning(
-                    "%s Async operations thread did not join cleanly.",
-                    self.log_identifier,
-                )
-
-        if self.async_loop and not self.async_loop.is_closed():
-            if self.async_loop.is_running():
-                self.async_loop.call_soon_threadsafe(self.async_loop.stop)
-            log.info(
-                "%s Closing asyncio event loop (if not already closed by its thread).",
-                self.log_identifier,
-            )
-            if not self.async_loop.is_running():
-                self.async_loop.close()
-            else:
-                self.async_loop.call_soon_threadsafe(self.async_loop.close)
-
-        super().cleanup()
-        log.info("%s BaseGatewayComponent cleanup finished.", self.log_identifier)
 
     @abstractmethod
     async def _extract_initial_claims(
