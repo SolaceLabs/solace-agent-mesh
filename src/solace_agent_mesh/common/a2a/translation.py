@@ -174,58 +174,73 @@ async def _prepare_a2a_filepart_for_adk(
 
 
 def translate_a2a_to_adk_content(
-    a2a_message: A2AMessage, log_identifier: str
+    a2a_message: A2AMessage,
+    component: "SamAgentComponent",
+    user_id: str,
+    session_id: str,
 ) -> adk_types.Content:
-    """Translates an A2A Message object to ADK Content."""
+    """
+    Translates an A2A Message object to ADK Content.
+    FileParts are converted to textual metadata summaries.
+    """
     adk_parts: List[adk_types.Part] = []
     unwrapped_parts = a2a.get_parts_from_message(a2a_message)
-    for part in unwrapped_parts:
-        try:
-            if isinstance(part, TextPart):
-                adk_parts.append(adk_types.Part(text=a2a.get_text_from_text_part(part)))
-            elif isinstance(part, FilePart):
-                file = a2a.get_file_from_file_part(part)
-                if hasattr(file, "uri") and a2a.get_uri_from_file_part(part):
+    log_identifier = component.log_identifier
+
+    # Use an inner async function to allow awaiting the helper
+    async def process_parts():
+        for part in unwrapped_parts:
+            try:
+                if isinstance(part, TextPart):
                     adk_parts.append(
-                        adk_types.Part.from_uri(
-                            file_uri=a2a.get_uri_from_file_part(part),
-                            mime_type=a2a.get_mimetype_from_file_part(part),
-                        )
+                        adk_types.Part(text=a2a.get_text_from_text_part(part))
                     )
-                elif hasattr(file, "bytes") and a2a.get_bytes_from_file_part(part):
-                    decoded_bytes = base64.b64decode(a2a.get_bytes_from_file_part(part))
-                    adk_parts.append(
-                        adk_types.Part.from_data(
-                            data=decoded_bytes,
-                            mime_type=a2a.get_mimetype_from_file_part(part),
-                        )
+                elif isinstance(part, FilePart):
+                    adk_part = await _prepare_a2a_filepart_for_adk(
+                        part, component, user_id, session_id
                     )
+                    if adk_part:
+                        adk_parts.append(adk_part)
+                elif isinstance(part, DataPart):
+                    try:
+                        data_str = json.dumps(
+                            a2a.get_data_from_data_part(part), indent=2
+                        )
+                        adk_parts.append(
+                            adk_types.Part(
+                                text=f"Received data:\n```json\n{data_str}\n```"
+                            )
+                        )
+                    except Exception as e:
+                        log.warning(
+                            "%s Could not serialize DataPart for ADK: %s",
+                            log_identifier,
+                            e,
+                        )
+                        adk_parts.append(
+                            adk_types.Part(
+                                text="Received unserializable structured data."
+                            )
+                        )
                 else:
                     log.warning(
-                        "%s FilePart received without 'uri' or 'bytes'. Ignoring. File: %s",
-                        log_identifier,
-                        a2a.get_filename_from_file_part(part),
+                        "%s Unsupported A2A part type: %s", log_identifier, type(part)
                     )
-            elif isinstance(part, DataPart):
-                try:
-                    data_str = json.dumps(a2a.get_data_from_data_part(part), indent=2)
-                    adk_parts.append(
-                        adk_types.Part(text=f"Received data:\n```json\n{data_str}\n```")
-                    )
-                except Exception as e:
-                    log.warning(
-                        "%s Could not serialize DataPart for ADK: %s", log_identifier, e
-                    )
-                    adk_parts.append(
-                        adk_types.Part(text="Received unserializable structured data.")
-                    )
-            else:
-                log.warning(
-                    "%s Unsupported A2A part type: %s", log_identifier, type(part)
+            except Exception as e:
+                log.exception("%s Error translating A2A part: %s", log_identifier, e)
+                adk_parts.append(
+                    adk_types.Part(text="[Error processing received part]")
                 )
-        except Exception as e:
-            log.exception("%s Error translating A2A part: %s", log_identifier, e)
-            adk_parts.append(adk_types.Part(text="[Error processing received part]"))
+
+    # Run the async part processing
+    # This is a bit of a workaround to call async code from a sync function.
+    # It's acceptable here because this is only called from within the agent's
+    # async context.
+    try:
+        loop = asyncio.get_running_loop()
+        loop.run_until_complete(process_parts())
+    except RuntimeError:  # No running loop
+        asyncio.run(process_parts())
 
     adk_role = "user" if a2a_message.role == "user" else "model"
     return adk_types.Content(role=adk_role, parts=adk_parts)
