@@ -75,6 +75,45 @@ def translate_a2a_to_adk_content(
     return adk_types.Content(role=adk_role, parts=adk_parts)
 
 
+def translate_adk_function_response_to_a2a_parts(
+    adk_part: adk_types.Part,
+) -> List[a2a.ContentPart]:
+    """
+    Translates an ADK Part containing a function_response into a list of A2A Parts.
+    - If the response is a dict, it becomes a DataPart.
+    - Otherwise, it becomes a TextPart.
+    """
+    if not adk_part.function_response:
+        return []
+
+    a2a_parts: List[a2a.ContentPart] = []
+    try:
+        response_data = adk_part.function_response.response
+        tool_name = adk_part.function_response.name
+        if isinstance(response_data, dict):
+            a2a_parts.append(
+                a2a.create_data_part(
+                    data=response_data,
+                    metadata={"tool_name": tool_name},
+                )
+            )
+        else:
+            a2a_parts.append(
+                a2a.create_text_part(
+                    text=f"Tool {tool_name} result: {str(response_data)}"
+                )
+            )
+    except Exception:
+        # Ensure tool_name is available even if accessing .response fails
+        tool_name = "unknown_tool"
+        if hasattr(adk_part.function_response, "name"):
+            tool_name = adk_part.function_response.name
+        a2a_parts.append(
+            a2a.create_text_part(text=f"[Tool {tool_name} result omitted]")
+        )
+    return a2a_parts
+
+
 def _extract_text_from_parts(parts: List[a2a.ContentPart]) -> str:
     """
     Extracts and combines text/file info from a list of A2A parts

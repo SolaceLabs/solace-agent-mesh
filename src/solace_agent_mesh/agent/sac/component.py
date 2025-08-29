@@ -2070,29 +2070,9 @@ class SamAgentComponent(ComponentBase):
                 for part in last_event.content.parts:
                     if part.text is None:
                         if part.function_response:
-                            try:
-                                response_data = part.function_response.response
-                                if isinstance(response_data, dict):
-                                    a2a_parts.append(
-                                        a2a.create_data_part(
-                                            data=response_data,
-                                            metadata={
-                                                "tool_name": part.function_response.name
-                                            },
-                                        )
-                                    )
-                                else:
-                                    a2a_parts.append(
-                                        a2a.create_text_part(
-                                            text=f"Tool {part.function_response.name} result: {str(response_data)}"
-                                        )
-                                    )
-                            except Exception:
-                                a2a_parts.append(
-                                    a2a.create_text_part(
-                                        text=f"[Tool {part.function_response.name} result omitted]"
-                                    )
-                                )
+                            a2a_parts.extend(
+                                a2a.translate_adk_function_response_to_a2a_parts(part)
+                            )
         else:
             # Original logic
             if last_event and last_event.content and last_event.content.parts:
@@ -2100,29 +2080,9 @@ class SamAgentComponent(ComponentBase):
                     if part.text:
                         a2a_parts.append(a2a.create_text_part(text=part.text))
                     elif part.function_response:
-                        try:
-                            response_data = part.function_response.response
-                            if isinstance(response_data, dict):
-                                a2a_parts.append(
-                                    a2a.create_data_part(
-                                        data=response_data,
-                                        metadata={
-                                            "tool_name": part.function_response.name
-                                        },
-                                    )
-                                )
-                            else:
-                                a2a_parts.append(
-                                    a2a.create_text_part(
-                                        text=f"Tool {part.function_response.name} result: {str(response_data)}"
-                                    )
-                                )
-                        except Exception:
-                            a2a_parts.append(
-                                a2a.create_text_part(
-                                    text=f"[Tool {part.function_response.name} result omitted]"
-                                )
-                            )
+                        a2a_parts.extend(
+                            a2a.translate_adk_function_response_to_a2a_parts(part)
+                        )
 
         if last_event and last_event.actions:
             if last_event.actions.requested_auth_configs:

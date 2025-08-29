@@ -98,7 +98,11 @@ from .task import (
     get_task_metadata,
     get_task_status,
 )
-from .translation import format_adk_event_as_a2a, translate_a2a_to_adk_content
+from .translation import (
+    format_adk_event_as_a2a,
+    translate_a2a_to_adk_content,
+    translate_adk_function_response_to_a2a_parts,
+)
 
 __all__ = [
     # types.py
@@ -191,4 +195,5 @@ __all__ = [
     # translation.py
     "format_adk_event_as_a2a",
     "translate_a2a_to_adk_content",
+    "translate_adk_function_response_to_a2a_parts",
 ]
