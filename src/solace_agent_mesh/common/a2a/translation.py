@@ -7,6 +7,9 @@ from typing import Any, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
 import json
 import base64
 import uuid
+import asyncio
+from datetime import datetime, timezone
+from urllib.parse import urlparse, parse_qs
 from solace_ai_connector.common.log import log
 from google.genai import types as adk_types
 from google.adk.events import Event as ADKEvent
@@ -24,11 +27,150 @@ from a2a.types import (
 
 if TYPE_CHECKING:
     from google.adk.artifacts import BaseArtifactService
+    from ...agent.sac.component import SamAgentComponent
 
 from .. import a2a
+from ...agent.utils.artifact_helpers import (
+    save_artifact_with_metadata,
+    load_artifact_content_or_metadata,
+    format_metadata_for_llm,
+)
+from ...common.utils.mime_helpers import is_text_based_file
 
 A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY = "temp:llm_stream_chunks_processed"
 A2A_STATUS_SIGNAL_STORAGE_KEY = "temp:a2a_status_signals_collected"
+
+
+async def _prepare_a2a_filepart_for_adk(
+    part: FilePart,
+    component: "SamAgentComponent",
+    user_id: str,
+    session_id: str,
+) -> Optional[adk_types.Part]:
+    """
+    Prepares an incoming A2A FilePart for the ADK by converting it into a
+    textual summary of its metadata and an optional content preview.
+
+    - If the part has bytes, it saves it to the artifact store first.
+    - If the part has a URI, it loads metadata from the store.
+    - It then formats this information into a text string for the LLM.
+    """
+    log_id = f"{component.log_identifier}[PrepareFilePartForADK]"
+    app_name = component.get_config("agent_name")
+    artifact_service = component.artifact_service
+    preview_max_chars = component.get_config("text_artifact_preview_max_chars", 0)
+
+    if not artifact_service:
+        log.error("%s Artifact service is not configured. Cannot process FilePart.", log_id)
+        return adk_types.Part(
+            text="[System Note: File part ignored due to missing artifact service.]"
+        )
+
+    filename = None
+    version = None
+    mime_type = None
+
+    try:
+        if isinstance(part.file, FileWithBytes):
+            log.debug("%s FilePart contains bytes. Saving to artifact store.", log_id)
+            filename = part.file.name or f"upload-{uuid.uuid4().hex}"
+            mime_type = part.file.mime_type or "application/octet-stream"
+            content_bytes = base64.b64decode(part.file.bytes)
+
+            save_result = await save_artifact_with_metadata(
+                artifact_service=artifact_service,
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+                content_bytes=content_bytes,
+                mime_type=mime_type,
+                metadata_dict={"source": "a2a_filepart_upload"},
+                timestamp=datetime.now(timezone.utc),
+            )
+            if save_result["status"] in ["success", "partial_success"]:
+                version = save_result["data_version"]
+                log.info(
+                    "%s Saved incoming file '%s' as version %d.",
+                    log_id,
+                    filename,
+                    version,
+                )
+            else:
+                raise IOError(f"Failed to save artifact: {save_result['message']}")
+
+        elif isinstance(part.file, FileWithUri):
+            log.debug("%s FilePart contains URI. Loading metadata.", log_id)
+            uri = part.file.uri
+            parsed_uri = urlparse(uri)
+            path_parts = parsed_uri.path.strip("/").split("/")
+            if len(path_parts) < 3:
+                raise ValueError(f"Invalid artifact URI format: {uri}")
+            filename = path_parts[-1]
+            version_str = parse_qs(parsed_uri.query).get("version", [None])[0]
+            version = int(version_str) if version_str else None
+            mime_type = part.file.mime_type
+
+        else:
+            raise TypeError("FilePart contains neither bytes nor a valid URI.")
+
+        # At this point, we must have filename and version to proceed
+        if filename is None or version is None:
+            raise ValueError("Could not determine filename and version for artifact.")
+
+        # Fetch metadata and optional content preview
+        load_result = await load_artifact_content_or_metadata(
+            artifact_service=artifact_service,
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
+            version=version,
+            return_raw_bytes=is_text_based_file(mime_type)
+            and preview_max_chars > 0,
+        )
+
+        if load_result["status"] != "success":
+            raise RuntimeError(f"Failed to load metadata: {load_result['message']}")
+
+        metadata_dict = load_result.get("metadata", {})
+        metadata_dict["filename"] = filename
+        metadata_dict["version"] = version
+
+        # Add content preview if available and applicable
+        preview_content = None
+        if "raw_bytes" in load_result and load_result["raw_bytes"]:
+            try:
+                preview_text = load_result["raw_bytes"].decode("utf-8")
+                if len(preview_text) > preview_max_chars:
+                    preview_content = (
+                        f"{preview_text[:preview_max_chars]}... [truncated]"
+                    )
+                else:
+                    preview_content = preview_text
+            except UnicodeDecodeError:
+                log.warning(
+                    "%s Could not decode supposed text file for preview: %s",
+                    log_id,
+                    filename,
+                )
+
+        # Format the final text for the LLM
+        formatted_summary = format_metadata_for_llm(metadata_dict, preview_content)
+        final_text = (
+            "The user has provided the following file as context for your task. "
+            "Use the information contained within its metadata and content preview to complete your objective. "
+            "You can access the full content using your tools if necessary.\n\n"
+            f"{formatted_summary}"
+        )
+        return adk_types.Part(text=final_text)
+
+    except Exception as e:
+        log.exception("%s Error processing FilePart for ADK: %s", log_id, e)
+        failed_filename = filename or (part.file.name if part.file else "unknown file")
+        return adk_types.Part(
+            text=f"[System Note: The file '{failed_filename}' could not be processed. Error: {e}]"
+        )
 
 
 def translate_a2a_to_adk_content(
