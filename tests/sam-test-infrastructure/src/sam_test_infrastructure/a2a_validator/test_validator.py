@@ -82,7 +82,14 @@ def test_invalid_request_missing_jsonrpc(validator: A2AMessageValidator):
     payload = {
         "id": "req-1",
         "method": "message/send",
-        "params": {},
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": "msg-1",
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Hello"}],
+            }
+        },
     }
     with pytest.raises(pytest.fail.Exception, match="'jsonrpc' is a required property"):
         validator.validate_message(payload, "a2a/v1/agent/request/TestAgent")
