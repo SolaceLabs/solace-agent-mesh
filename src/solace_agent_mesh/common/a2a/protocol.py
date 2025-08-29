@@ -483,3 +483,29 @@ def create_send_streaming_message_success_response(
         A new `SendStreamingMessageSuccessResponse` object.
     """
     return SendStreamingMessageSuccessResponse(id=request_id, result=result)
+
+
+def extract_task_id_from_topic(
+    topic: str, subscription_pattern: str, log_identifier: str
+) -> Optional[str]:
+    """Extracts the task ID from the end of a topic string based on the subscription."""
+    base_regex_str = subscription_to_regex(subscription_pattern).replace(r".*", "")
+    match = re.match(base_regex_str, topic)
+    if match:
+        task_id_part = topic[match.end() :]
+        task_id = task_id_part.lstrip("/")
+        if task_id:
+            log.debug(
+                "%s Extracted Task ID '%s' from topic '%s'",
+                log_identifier,
+                task_id,
+                topic,
+            )
+            return task_id
+    log.warning(
+        "%s Could not extract Task ID from topic '%s' using pattern '%s'",
+        log_identifier,
+        topic,
+        subscription_pattern,
+    )
+    return None

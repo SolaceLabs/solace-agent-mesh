@@ -55,9 +55,6 @@ from ...common import a2a
 from ...common.data_parts import AgentProgressUpdateData
 from ...common.a2a.translation import format_and_route_adk_event
 from ...agent.utils.config_parser import resolve_instruction_provider
-from ...agent.utils.artifact_helpers import (
-    get_latest_artifact_version,
-)
 from ...agent.adk.services import (
     initialize_session_service,
     initialize_artifact_service,
@@ -1499,120 +1496,6 @@ class SamAgentComponent(SamComponentBase):
             )
             raise
 
-    async def _translate_adk_part_to_a2a_filepart(
-        self,
-        adk_part: adk_types.Part,
-        filename: str,
-        a2a_context: Dict,
-        version: Optional[int] = None,
-    ) -> Optional[FilePart]:
-        """
-        Translates a loaded ADK Part (with inline_data) to an A2A FilePart
-        based on the configured artifact_handling_mode.
-        If version is not provided, it will be resolved to the latest.
-        """
-        if self.artifact_handling_mode == "ignore":
-            log.debug(
-                "%s Artifact handling mode is 'ignore'. Skipping translation for '%s'.",
-                self.log_identifier,
-                filename,
-            )
-            return None
-
-        if not adk_part or not adk_part.inline_data:
-            log.warning(
-                "%s Cannot translate artifact '%s': ADK Part is missing or has no inline_data.",
-                self.log_identifier,
-                filename,
-            )
-            return None
-
-        resolved_version = version
-        if resolved_version is None:
-            try:
-                resolved_version = await get_latest_artifact_version(
-                    artifact_service=self.artifact_service,
-                    app_name=self.get_config("agent_name"),
-                    user_id=a2a_context.get("user_id"),
-                    session_id=a2a_context.get("session_id"),
-                    filename=filename,
-                )
-                if resolved_version is None:
-                    log.error(
-                        "%s Could not resolve latest version for artifact '%s'.",
-                        self.log_identifier,
-                        filename,
-                    )
-                    return None
-            except Exception as e:
-                log.exception(
-                    "%s Failed to resolve latest version for artifact '%s': %s",
-                    self.log_identifier,
-                    filename,
-                    e,
-                )
-                return None
-
-        mime_type = adk_part.inline_data.mime_type
-        data_bytes = adk_part.inline_data.data
-        file_content: Optional[Union[FileWithBytes, FileWithUri]] = None
-
-        try:
-            if self.artifact_handling_mode == "embed":
-                encoded_bytes = base64.b64encode(data_bytes).decode("utf-8")
-                file_content = FileWithBytes(
-                    name=filename, mime_type=mime_type, bytes=encoded_bytes
-                )
-                log.debug(
-                    "%s Embedding artifact '%s' (size: %d bytes) for A2A message.",
-                    self.log_identifier,
-                    filename,
-                    len(data_bytes),
-                )
-
-            elif self.artifact_handling_mode == "reference":
-                adk_app_name = self.get_config("agent_name")
-                user_id = a2a_context.get("user_id")
-                original_session_id = a2a_context.get("session_id")
-
-                if not all([adk_app_name, user_id, original_session_id]):
-                    log.error(
-                        "%s Cannot create artifact reference URI: missing context (app_name, user_id, or session_id).",
-                        self.log_identifier,
-                    )
-                    return None
-
-                artifact_uri = f"artifact://{adk_app_name}/{user_id}/{original_session_id}/{filename}?version={resolved_version}"
-
-                log.info(
-                    "%s Creating reference URI for artifact: %s",
-                    self.log_identifier,
-                    artifact_uri,
-                )
-                file_content = FileWithUri(
-                    name=filename, mime_type=mime_type, uri=artifact_uri
-                )
-
-            if file_content:
-                return FilePart(file=file_content)
-            else:
-                log.warning(
-                    "%s No FileContent created for artifact '%s' despite mode '%s'.",
-                    self.log_identifier,
-                    filename,
-                    self.artifact_handling_mode,
-                )
-                return None
-
-        except Exception as e:
-            log.exception(
-                "%s Error translating artifact '%s' to A2A FilePart (mode: %s): %s",
-                self.log_identifier,
-                filename,
-                self.artifact_handling_mode,
-                e,
-            )
-            return None
 
     async def _filter_text_from_final_streaming_event(
         self, adk_event: ADKEvent, a2a_context: Dict
@@ -1970,8 +1853,15 @@ class SamAgentComponent(SamComponentBase):
                     )
                     continue
 
-                a2a_file_part = await self._translate_adk_part_to_a2a_filepart(
-                    loaded_adk_part, filename, a2a_context, version=version
+                a2a_file_part = await a2a.translate_adk_part_to_a2a_filepart(
+                    adk_part=loaded_adk_part,
+                    filename=filename,
+                    a2a_context=a2a_context,
+                    artifact_service=self.artifact_service,
+                    artifact_handling_mode=self.artifact_handling_mode,
+                    adk_app_name=self.get_config("agent_name"),
+                    log_identifier=self.log_identifier,
+                    version=version,
                 )
 
                 if a2a_file_part:

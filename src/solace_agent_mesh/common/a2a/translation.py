@@ -3,7 +3,7 @@ Helpers for translating between A2A protocol objects and other domains,
 such as the Google ADK.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
 import json
 import base64
 import uuid
@@ -20,6 +20,9 @@ from a2a.types import (
     JSONRPCResponse,
     InternalError,
 )
+
+if TYPE_CHECKING:
+    from google.adk.artifacts import BaseArtifactService
 
 from .. import a2a
 
@@ -395,3 +398,124 @@ async def format_and_route_adk_event(
                 inner_e,
             )
             return None, None, None, []
+
+
+async def translate_adk_part_to_a2a_filepart(
+    adk_part: adk_types.Part,
+    filename: str,
+    a2a_context: Dict,
+    artifact_service: "BaseArtifactService",
+    artifact_handling_mode: str,
+    adk_app_name: str,
+    log_identifier: str,
+    version: Optional[int] = None,
+) -> Optional[FilePart]:
+    """
+    Translates a loaded ADK Part (with inline_data) to an A2A FilePart
+    based on the configured artifact_handling_mode.
+    If version is not provided, it will be resolved to the latest.
+    """
+    from ...common.utils.artifact_utils import get_latest_artifact_version
+    from a2a.types import FilePart, FileWithBytes, FileWithUri
+
+    if artifact_handling_mode == "ignore":
+        log.debug(
+            "%s Artifact handling mode is 'ignore'. Skipping translation for '%s'.",
+            log_identifier,
+            filename,
+        )
+        return None
+
+    if not adk_part or not adk_part.inline_data:
+        log.warning(
+            "%s Cannot translate artifact '%s': ADK Part is missing or has no inline_data.",
+            log_identifier,
+            filename,
+        )
+        return None
+
+    resolved_version = version
+    if resolved_version is None:
+        try:
+            resolved_version = await get_latest_artifact_version(
+                artifact_service=artifact_service,
+                app_name=adk_app_name,
+                user_id=a2a_context.get("user_id"),
+                session_id=a2a_context.get("session_id"),
+                filename=filename,
+            )
+            if resolved_version is None:
+                log.error(
+                    "%s Could not resolve latest version for artifact '%s'.",
+                    log_identifier,
+                    filename,
+                )
+                return None
+        except Exception as e:
+            log.exception(
+                "%s Failed to resolve latest version for artifact '%s': %s",
+                log_identifier,
+                filename,
+                e,
+            )
+            return None
+
+    mime_type = adk_part.inline_data.mime_type
+    data_bytes = adk_part.inline_data.data
+    file_content: Optional[Union[FileWithBytes, FileWithUri]] = None
+
+    try:
+        if artifact_handling_mode == "embed":
+            encoded_bytes = base64.b64encode(data_bytes).decode("utf-8")
+            file_content = FileWithBytes(
+                name=filename, mime_type=mime_type, bytes=encoded_bytes
+            )
+            log.debug(
+                "%s Embedding artifact '%s' (size: %d bytes) for A2A message.",
+                log_identifier,
+                filename,
+                len(data_bytes),
+            )
+
+        elif artifact_handling_mode == "reference":
+            user_id = a2a_context.get("user_id")
+            original_session_id = a2a_context.get("session_id")
+
+            if not all([adk_app_name, user_id, original_session_id]):
+                log.error(
+                    "%s Cannot create artifact reference URI: missing context (app_name, user_id, or session_id).",
+                    log_identifier,
+                )
+                return None
+
+            artifact_uri = f"artifact://{adk_app_name}/{user_id}/{original_session_id}/{filename}?version={resolved_version}"
+
+            log.info(
+                "%s Creating reference URI for artifact: %s",
+                log_identifier,
+                artifact_uri,
+            )
+            file_content = FileWithUri(
+                name=filename, mime_type=mime_type, uri=artifact_uri
+            )
+
+        if file_content:
+            return FilePart(file=file_content)
+        else:
+            log.warning(
+                "%s No FileContent created for artifact '%s' despite mode '%s'.",
+                log_identifier,
+                filename,
+                artifact_handling_mode,
+            )
+            return None
+
+    except Exception as e:
+        log.exception(
+            "%s Error translating artifact '%s' to A2A FilePart (mode: %s): %s",
+            log_identifier,
+            filename,
+            artifact_handling_mode,
+            e,
+        )
+        return None

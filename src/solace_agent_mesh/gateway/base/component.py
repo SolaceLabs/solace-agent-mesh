@@ -605,32 +605,6 @@ class BaseGatewayComponent(SamComponentBase):
             )
             return False
 
-    def _extract_task_id_from_topic(
-        self, topic: str, subscription_pattern: str
-    ) -> Optional[str]:
-        """Extracts the task ID from the end of a topic string based on the subscription."""
-        base_regex_str = a2a.subscription_to_regex(subscription_pattern).replace(
-            r".*", ""
-        )
-        match = re.match(base_regex_str, topic)
-        if match:
-            task_id_part = topic[match.end() :]
-            task_id = task_id_part.lstrip("/")
-            if task_id:
-                log.debug(
-                    "%s Extracted Task ID '%s' from topic '%s'",
-                    self.log_identifier,
-                    task_id,
-                    topic,
-                )
-                return task_id
-        log.warning(
-            "%s Could not extract Task ID from topic '%s' using pattern '%s'",
-            self.log_identifier,
-            topic,
-            subscription_pattern,
-        )
-        return None
 
     async def _resolve_embeds_and_handle_signals(
         self,
@@ -1245,12 +1219,12 @@ class BaseGatewayComponent(SamComponentBase):
                     )
 
                     if a2a.topic_matches_subscription(topic, response_sub):
-                        task_id_from_topic = self._extract_task_id_from_topic(
-                            topic, response_sub
+                        task_id_from_topic = a2a.extract_task_id_from_topic(
+                            topic, response_sub, self.log_identifier
                         )
                     elif a2a.topic_matches_subscription(topic, status_sub):
-                        task_id_from_topic = self._extract_task_id_from_topic(
-                            topic, status_sub
+                        task_id_from_topic = a2a.extract_task_id_from_topic(
+                            topic, status_sub, self.log_identifier
                         )
 
                     if task_id_from_topic:

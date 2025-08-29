@@ -85,6 +85,7 @@ from .protocol import (
     get_response_id,
     get_response_result,
     get_task_id_from_cancel_request,
+    extract_task_id_from_topic,
     subscription_to_regex,
     topic_matches_subscription,
 )
@@ -103,6 +104,7 @@ from .translation import (
     format_adk_event_as_a2a,
     translate_a2a_to_adk_content,
     translate_adk_function_response_to_a2a_parts,
+    translate_adk_part_to_a2a_filepart,
 )
 
 __all__ = [
@@ -182,6 +184,7 @@ __all__ = [
     "get_response_id",
     "get_response_result",
     "get_task_id_from_cancel_request",
+    "extract_task_id_from_topic",
     "subscription_to_regex",
     "topic_matches_subscription",
     # task.py
@@ -198,4 +201,5 @@ __all__ = [
     "format_adk_event_as_a2a",
     "translate_a2a_to_adk_content",
     "translate_adk_function_response_to_a2a_parts",
+    "translate_adk_part_to_a2a_filepart",
 ]

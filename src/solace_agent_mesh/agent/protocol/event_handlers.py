@@ -814,18 +814,25 @@ async def handle_a2a_response(component, message: SolaceMessage):
 
     try:
         topic = message.get_topic()
-        topic_parts = topic.split("/")
-        if len(topic_parts) > 0:
-            sub_task_id = topic_parts[-1]
-            if not sub_task_id.startswith(component.CORRELATION_DATA_PREFIX):
-                log.warning(
-                    "%s Topic %s does not end with expected sub-task ID format. Ignoring.",
-                    component.log_identifier,
-                    topic,
-                )
-                message.call_acknowledgements()
-                return
+        agent_response_sub = a2a.get_agent_response_subscription_topic(
+            component.namespace, component.agent_name
+        )
+        agent_status_sub = a2a.get_agent_status_subscription_topic(
+            component.namespace, component.agent_name
+        )
+
+        if a2a.topic_matches_subscription(topic, agent_response_sub):
+            sub_task_id = a2a.extract_task_id_from_topic(
+                topic, agent_response_sub, component.log_identifier
+            )
+        elif a2a.topic_matches_subscription(topic, agent_status_sub):
+            sub_task_id = a2a.extract_task_id_from_topic(
+                topic, agent_status_sub, component.log_identifier
+            )
         else:
+            sub_task_id = None
+
+        if not sub_task_id:
             log.error(
                 "%s Could not extract sub-task ID from topic: %s",
                 component.log_identifier,
