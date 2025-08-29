@@ -13,6 +13,7 @@ from urllib.parse import urlparse, parse_qs
 
 from solace_ai_connector.common.log import log
 from google.adk.artifacts import BaseArtifactService
+from google.genai import types as adk_types
 
 from ...common.agent_registry import AgentRegistry
 from ...common.sac.sam_component_base import SamComponentBase
@@ -123,8 +124,8 @@ class BaseGatewayComponent(SamComponentBase):
             self.gateway_recursive_embed_depth: int = self.get_config(
                 "gateway_recursive_embed_depth"
             )
-            self.gateway_artifact_content_limit_bytes: int = self.get_config(
-                "gateway_artifact_content_limit_bytes"
+            self.artifact_handling_mode: str = self.get_config(
+                "artifact_handling_mode", "embed"
             )
             _ = self.get_config("artifact_service")
 
@@ -310,8 +311,15 @@ class BaseGatewayComponent(SamComponentBase):
         # This correlation ID is used by the gateway to track the task
         task_id = f"gdk-task-{uuid.uuid4().hex}"
 
-        a2a_message = a2a.create_user_message(
+        prepared_a2a_parts = await self._prepare_parts_for_publishing(
             parts=a2a_parts,
+            user_id=user_id_for_a2a,
+            session_id=a2a_session_id,
+            target_agent_name=target_agent_name,
+        )
+
+        a2a_message = a2a.create_user_message(
+            parts=prepared_a2a_parts,
             metadata=a2a_metadata,
             context_id=a2a_session_id,
         )
@@ -483,72 +491,13 @@ class BaseGatewayComponent(SamComponentBase):
     async def _resolve_uri_in_file_part(self, file_part: FilePart):
         """
         Checks if a FilePart has a resolvable URI and, if so,
-        resolves it and mutates the part in-place.
+        resolves it and mutates the part in-place by calling the common utility.
         """
-        if not (
-            isinstance(file_part.file, FileWithUri)
-            and file_part.file.uri
-            and file_part.file.uri.startswith("artifact://")
-        ):
-            return
-
-        if not self.shared_artifact_service:
-            log.warning(
-                "%s Cannot resolve artifact URI, shared_artifact_service is not configured.",
-                self.log_identifier,
-            )
-            return
-
-        uri = file_part.file.uri
-        log_id_prefix = f"{self.log_identifier}[ResolveURI]"
-        try:
-            log.info("%s Found artifact URI to resolve: %s", log_id_prefix, uri)
-            parsed_uri = urlparse(uri)
-            app_name = parsed_uri.netloc
-            path_parts = parsed_uri.path.strip("/").split("/")
-
-            if not app_name or len(path_parts) != 3:
-                raise ValueError(
-                    "Invalid URI structure. Expected artifact://app_name/user_id/session_id/filename"
-                )
-
-            user_id, session_id, filename = path_parts
-            version = int(parse_qs(parsed_uri.query).get("version", [None])[0])
-
-            loaded_artifact = await load_artifact_content_or_metadata(
-                artifact_service=self.shared_artifact_service,
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename,
-                version=version,
-                return_raw_bytes=True,
-            )
-
-            if loaded_artifact.get("status") == "success":
-                content_bytes = loaded_artifact.get("raw_bytes")
-                new_file_content = FileWithBytes(
-                    bytes=base64.b64encode(content_bytes).decode("utf-8"),
-                    mime_type=file_part.file.mime_type,
-                    name=file_part.file.name,
-                )
-                file_part.file = new_file_content
-                log.info(
-                    "%s Successfully resolved and embedded artifact: %s",
-                    log_id_prefix,
-                    uri,
-                )
-            else:
-                log.error(
-                    "%s Failed to resolve artifact URI '%s': %s",
-                    log_id_prefix,
-                    uri,
-                    loaded_artifact.get("message"),
-                )
-        except Exception as e:
-            log.exception(
-                "%s Error resolving artifact URI '%s': %s", log_id_prefix, uri, e
-            )
+        await a2a.resolve_file_part_uri(
+            part=file_part,
+            artifact_service=self.shared_artifact_service,
+            log_identifier=self.log_identifier,
+        )
 
     async def _resolve_uris_in_parts_list(self, parts: List[ContentPart]):
         """Iterates over a list of part objects and resolves any FilePart URIs."""
@@ -605,6 +554,34 @@ class BaseGatewayComponent(SamComponentBase):
             )
             return False
 
+    async def _prepare_parts_for_publishing(
+        self,
+        parts: List[ContentPart],
+        user_id: str,
+        session_id: str,
+        target_agent_name: str,
+    ) -> List[ContentPart]:
+        """
+        Prepares message parts for publishing according to the configured artifact_handling_mode
+        by calling the common utility function.
+        """
+        processed_parts: List[ContentPart] = []
+        for part in parts:
+            if isinstance(part, FilePart):
+                processed_part = await a2a.prepare_file_part_for_publishing(
+                    part=part,
+                    mode=self.artifact_handling_mode,
+                    artifact_service=self.shared_artifact_service,
+                    user_id=user_id,
+                    session_id=session_id,
+                    target_agent_name=target_agent_name,
+                    log_identifier=self.log_identifier,
+                )
+                if processed_part:
+                    processed_parts.append(processed_part)
+            else:
+                processed_parts.append(part)
+        return processed_parts
 
     async def _resolve_embeds_and_handle_signals(
         self,

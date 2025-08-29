@@ -65,6 +65,14 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "description": "Maximum depth for recursively resolving 'artifact_content' embeds within files.",
         },
         {
+            "name": "artifact_handling_mode",
+            "required": False,
+            "type": "string",
+            "default": "embed",
+            "description": "How to represent artifacts sent to agents: 'ignore', 'embed' (base64), 'reference' (URI).",
+            "enum": ["ignore", "embed", "reference"],
+        },
+        {
             "name": "gateway_max_message_size_bytes",
             "required": False,
             "type": "integer",
@@ -206,6 +214,9 @@ class BaseGatewayApp(App):
 
         self.gateway_recursive_embed_depth: int = resolved_app_config_block.get(
             "gateway_recursive_embed_depth", 12
+        )
+        self.artifact_handling_mode: str = resolved_app_config_block.get(
+            "artifact_handling_mode", "embed"
         )
         self.gateway_max_message_size_bytes: int = resolved_app_config_block.get(
             "gateway_max_message_size_bytes", 10_000_000

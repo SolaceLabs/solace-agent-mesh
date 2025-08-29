@@ -15,6 +15,8 @@ from .artifact import (
     get_artifact_name,
     get_parts_from_artifact,
     update_artifact_parts,
+    prepare_file_part_for_publishing,
+    resolve_file_part_uri,
 )
 from .events import (
     create_artifact_update,
@@ -117,6 +119,8 @@ __all__ = [
     "get_artifact_name",
     "get_parts_from_artifact",
     "update_artifact_parts",
+    "prepare_file_part_for_publishing",
+    "resolve_file_part_uri",
     # events.py
     "create_artifact_update",
     "create_data_signal_event",

@@ -3,15 +3,27 @@ Helpers for creating and consuming A2A Artifact objects.
 """
 
 import uuid
-from typing import Any, List, Optional
+import base64
+from typing import Any, List, Optional, TYPE_CHECKING
+from urllib.parse import urlparse, parse_qs
 
 from .types import ContentPart
 from a2a.types import (
     Artifact,
     DataPart,
+    FilePart,
+    FileWithBytes,
+    FileWithUri,
     Part,
     TextPart,
 )
+from google.genai import types as adk_types
+from solace_ai_connector.common.log import log
+from .. import a2a
+from ..utils.artifact_helpers import load_artifact_content_or_metadata
+
+if TYPE_CHECKING:
+    from google.adk.artifacts import BaseArtifactService
 
 
 # --- Creation Helpers ---
@@ -75,6 +87,189 @@ def update_artifact_parts(artifact: Artifact, new_parts: List[ContentPart]) -> A
     """Returns a new Artifact with its parts replaced."""
     wrapped_parts = [Part(root=p) for p in new_parts]
     return artifact.model_copy(update={"parts": wrapped_parts})
+
+
+async def prepare_file_part_for_publishing(
+    part: FilePart,
+    mode: str,
+    artifact_service: "BaseArtifactService",
+    user_id: str,
+    session_id: str,
+    target_agent_name: str,
+    log_identifier: str,
+) -> Optional[FilePart]:
+    """
+    Prepares a FilePart for publishing based on the artifact handling mode.
+
+    - 'ignore': Returns None.
+    - 'embed': Returns the part as-is if it contains bytes.
+    - 'reference': Saves the bytes to the artifact service and returns a new
+                   FilePart with an artifact URI.
+
+    Args:
+        part: The input FilePart, which may contain raw bytes.
+        mode: The artifact handling mode ('ignore', 'embed', 'reference').
+        artifact_service: The ADK artifact service instance.
+        user_id: The user ID for the artifact context.
+        session_id: The session ID for the artifact context.
+        target_agent_name: The name of the agent the artifact will be associated with.
+        log_identifier: The logging identifier for log messages.
+
+    Returns:
+        The processed FilePart, or None if ignored.
+    """
+    log_id = f"{log_identifier}[PrepareFilePart]"
+
+    if mode == "ignore":
+        log.debug("%s Mode is 'ignore', filtering out FilePart.", log_id)
+        return None
+
+    if not isinstance(part.file, FileWithBytes):
+        # If it's already a URI or something else, pass it through
+        return part
+
+    if mode == "embed":
+        return part
+
+    if mode == "reference":
+        if not artifact_service:
+            log.warning(
+                "%s Mode is 'reference' but no artifact_service is configured. Ignoring FilePart '%s'.",
+                log_id,
+                part.file.name,
+            )
+            return None
+
+        try:
+            filename = part.file.name or f"upload-{uuid.uuid4().hex}"
+            content_bytes = base64.b64decode(part.file.bytes)
+            mime_type = part.file.mime_type or "application/octet-stream"
+
+            adk_part_to_save = adk_types.Part(
+                inline_data=adk_types.Blob(mime_type=mime_type, data=content_bytes)
+            )
+
+            saved_version = await artifact_service.save_artifact(
+                app_name=target_agent_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+                part=adk_part_to_save,
+            )
+
+            artifact_uri = f"artifact://{target_agent_name}/{user_id}/{session_id}/{filename}?version={saved_version}"
+            ref_part = a2a.create_file_part_from_uri(
+                uri=artifact_uri,
+                name=filename,
+                mime_type=mime_type,
+                metadata=part.metadata,
+            )
+            log.info(
+                "%s Converted embedded file '%s' to reference: %s",
+                log_id,
+                filename,
+                artifact_uri,
+            )
+            return ref_part
+
+        except Exception as e:
+            log.exception(
+                "%s Failed to save artifact for reference mode: %s. Skipping FilePart.",
+                log_id,
+                e,
+            )
+            return None
+
+    # Default case if mode is unrecognized
+    log.warning(
+        "%s Unrecognized artifact_handling_mode '%s'. Ignoring FilePart.", log_id, mode
+    )
+    return None
+
+
+async def resolve_file_part_uri(
+    part: FilePart, artifact_service: "BaseArtifactService", log_identifier: str
+) -> FilePart:
+    """
+    Resolves an artifact URI within a FilePart into embedded bytes.
+
+    If the FilePart does not contain a resolvable `artifact://` URI, it is
+    returned unchanged.
+
+    Args:
+        part: The FilePart to resolve.
+        artifact_service: The ADK artifact service instance.
+        log_identifier: The logging identifier for log messages.
+
+    Returns:
+        A FilePart, either with embedded bytes if resolved, or the original part.
+    """
+    if not (
+        isinstance(part.file, FileWithUri)
+        and part.file.uri
+        and part.file.uri.startswith("artifact://")
+    ):
+        return part
+
+    if not artifact_service:
+        log.warning(
+            "%s Cannot resolve artifact URI, artifact_service is not configured.",
+            log_identifier,
+        )
+        return part
+
+    uri = part.file.uri
+    log_id_prefix = f"{log_identifier}[ResolveURI]"
+    try:
+        log.info("%s Found artifact URI to resolve: %s", log_id_prefix, uri)
+        parsed_uri = urlparse(uri)
+        app_name = parsed_uri.netloc
+        path_parts = parsed_uri.path.strip("/").split("/")
+
+        if not app_name or len(path_parts) != 3:
+            raise ValueError(
+                "Invalid URI structure. Expected artifact://app_name/user_id/session_id/filename"
+            )
+
+        user_id, session_id, filename = path_parts
+        version_str = parse_qs(parsed_uri.query).get("version", [None])[0]
+        version = int(version_str) if version_str else None
+
+        loaded_artifact = await load_artifact_content_or_metadata(
+            artifact_service=artifact_service,
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
+            version=version,
+            return_raw_bytes=True,
+        )
+
+        if loaded_artifact.get("status") == "success":
+            content_bytes = loaded_artifact.get("raw_bytes")
+            new_file_content = FileWithBytes(
+                bytes=base64.b64encode(content_bytes).decode("utf-8"),
+                mime_type=part.file.mime_type,
+                name=part.file.name,
+            )
+            part.file = new_file_content
+            log.info(
+                "%s Successfully resolved and embedded artifact: %s",
+                log_id_prefix,
+                uri,
+            )
+        else:
+            log.error(
+                "%s Failed to resolve artifact URI '%s': %s",
+                log_id_prefix,
+                uri,
+                loaded_artifact.get("message"),
+            )
+    except Exception as e:
+        log.exception(
+            "%s Error resolving artifact URI '%s': %s", log_id_prefix, uri, e
+        )
+    return part
 
 
 # --- Consumption Helpers ---

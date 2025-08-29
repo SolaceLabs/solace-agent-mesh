@@ -29,6 +29,8 @@ This file re-exports all public functions from the other modules, allowing devel
 - `create_text_artifact(name: str, text: str, description: str = "", artifact_id: Optional[str] = None) -> Artifact` - Creates a new Artifact containing a single TextPart
 - `create_data_artifact(name: str, data: dict[str, Any], description: str = "", artifact_id: Optional[str] = None) -> Artifact` - Creates a new Artifact containing a single DataPart
 - `update_artifact_parts(artifact: Artifact, new_parts: List[ContentPart]) -> Artifact` - Returns a new Artifact with replaced parts
+- `prepare_file_part_for_publishing(part: FilePart, mode: str, artifact_service: "BaseArtifactService", user_id: str, session_id: str, target_agent_name: str, log_identifier: str) -> Optional[FilePart]` - Prepares a FilePart for publishing based on the artifact handling mode.
+- `resolve_file_part_uri(part: FilePart, artifact_service: "BaseArtifactService", log_identifier: str) -> FilePart` - Resolves an artifact URI within a FilePart into embedded bytes.
 - `get_artifact_id(artifact: Artifact) -> str` - Safely retrieves the ID from an Artifact
 - `get_artifact_name(artifact: Artifact) -> Optional[str]` - Safely retrieves the name from an Artifact
 - `get_parts_from_artifact(artifact: Artifact) -> List[ContentPart]` - Extracts unwrapped content parts from an Artifact
