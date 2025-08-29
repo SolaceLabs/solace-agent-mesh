@@ -314,7 +314,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                                 peer_cancel_user_props = {
                                     "clientId": component.agent_name
                                 }
-                                component._publish_a2a_message(
+                                component.publish_a2a_message(
                                     payload=peer_cancel_request.model_dump(
                                         exclude_none=True
                                     ),
@@ -696,7 +696,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
             get_client_response_topic(namespace, client_id) if client_id else None
         )
         if target_topic:
-            component._publish_a2a_message(
+            component.publish_a2a_message(
                 error_response.model_dump(exclude_none=True),
                 target_topic,
             )
@@ -730,7 +730,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
             get_client_response_topic(namespace, client_id) if client_id else None
         )
         if target_topic:
-            component._publish_a2a_message(
+            component.publish_a2a_message(
                 error_response.model_dump(exclude_none=True),
                 target_topic,
             )
@@ -1007,7 +1007,7 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                     )
 
                                     try:
-                                        component._publish_a2a_message(
+                                        component.publish_a2a_message(
                                             payload_to_publish,
                                             target_topic_for_forward,
                                         )
@@ -1512,7 +1512,7 @@ def publish_agent_card(component):
 
         discovery_topic = get_discovery_topic(namespace)
 
-        component._publish_a2a_message(
+        component.publish_a2a_message(
             agent_card.model_dump(exclude_none=True), discovery_topic
         )
         log.debug(

@@ -164,7 +164,7 @@ async def run_adk_async_task_thread_wrapper(
                     peer_request_topic = component._get_agent_request_topic(
                         target_peer_agent_name
                     )
-                    component._publish_a2a_message(
+                    component.publish_a2a_message(
                         payload=peer_cancel_request.model_dump(exclude_none=True),
                         topic=peer_request_topic,
                         user_properties=peer_cancel_user_props,
