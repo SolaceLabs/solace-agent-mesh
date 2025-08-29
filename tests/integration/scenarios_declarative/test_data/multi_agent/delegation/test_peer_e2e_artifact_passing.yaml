@@ -1,7 +1,7 @@
 # Test Case 3: End-to-end flow of passing an artifact to a peer and receiving one back.
 test_case_id: "peer_e2e_artifact_passing_001"
 description: "End-to-end test combining request and response artifact passing."
-tags: ["all","agent","tools","delegation"]
+tags: ["all", "agent", "tools", "delegation"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:
@@ -86,11 +86,20 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    task_state: "completed"
-    content_parts:
-      - type: "text"
-        text_contains: "summary has been created"
+    kind: task
+    id: '*'
+    contextId: "e2e_artifact_passing_session"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
 
+              - "summary has been created"
 expected_artifacts:
   - filename: "summary.md"
     version: 0

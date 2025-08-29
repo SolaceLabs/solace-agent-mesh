@@ -81,10 +81,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "The pixel in 'supported_image.png' is transparent."
-    task_state: "completed"
+    kind: "task"
+    id: "*"
+    contextId: "session_extract_supported_binary_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_exact: "The pixel in 'supported_image.png' is transparent."
 
 assert_artifact_state: # Original artifact should be unchanged
   - filename: "supported_image.png"

@@ -2,6 +2,8 @@
 
 import type { LucideIcon } from "lucide-react";
 
+import type { AgentCard, AgentSkill, Part } from "./be";
+
 export interface A2AEventSSEPayload {
     event_type: "a2a_message" | string;
     timestamp: string; // ISO 8601
@@ -33,16 +35,6 @@ export interface TaskStoreState {
 }
 
 /**
- * Represents a file attachment returned by the agent.
- */
-export interface FileAttachment {
-    name: string;
-    content?: string; // Base64 encoded content - Made optional for Artifact Panel preview
-    mime_type?: string; // Optional MIME type
-    last_modified?: string; // ISO 8601 timestamp string
-}
-
-/**
  * Represents a tool event in the chat conversation.
  */
 export interface ToolEvent {
@@ -50,12 +42,60 @@ export interface ToolEvent {
     data: unknown; // The result data from the tool
 }
 
+
+/**
+ * A UI-specific interface that extends the official A2A AgentCard with additional
+ * properties needed for rendering, like a display_name.
+ */
+export interface AgentInfo extends AgentCard {
+    display_name?: string;
+    last_seen?: string;
+    peer_agents?: string[];
+    tools?: AgentSkill[];
+}
+
+// This is a UI-specific type for managing artifacts in the side panel.
+// It is distinct from the A2A `Artifact` type.
+export interface ArtifactInfo {
+    filename: string;
+    mime_type: string;
+    size: number; // in bytes
+    last_modified: string; // ISO 8601 timestamp
+    uri?: string; // Optional but recommended artifact URI
+    version?: number; // Optional: Represents the latest version number when listing
+    versionCount?: number; // Optional: Total number of available versions
+    description?: string | null; // Optional: Description of the artifact
+    schema?: string | null | object; // Optional: Schema for the structure artifact
+}
+
+/**
+ * Represents a file attached to a message, primarily for UI rendering.
+ * This is distinct from the A2A `FilePart` but can be derived from it.
+ */
+export interface FileAttachment {
+    name: string;
+    content?: string; // Base64 encoded content
+    mime_type?: string;
+    last_modified?: string; // ISO 8601 timestamp
+    size?: number;
+    uri?: string;
+}
+
+/**
+ * Represents a UI notification (toast).
+ */
+export interface Notification {
+    id: string;
+    message: string;
+    type?: "success" | "info" | "error";
+}
+
 /**
  * Represents a single message in the chat conversation.
  */
 export interface MessageFE {
     taskId?: string; // The ID of the task that generated this message
-    text?: string;
+    role?: "user" | "agent";
     isStatusBubble?: boolean; // Added to indicate a temporary status message
     isUser: boolean; // True if the message is from the user, false if from the agent/system
     isStatusMessage?: boolean; // True if this is a temporary status message (e.g., "Agent is thinking")
@@ -76,12 +116,7 @@ export interface MessageFE {
         sessionId?: string; // The A2A session ID associated with this message exchange
         lastProcessedEventSequence?: number; // Sequence number of the last SSE event processed for this bubble
     };
-}
-
-export interface Notification {
-    id: string; // Unique ID for transition key
-    message: string;
-    type?: "success" | "info" | "error";
+    parts: Part[];
 }
 
 // Layout Types

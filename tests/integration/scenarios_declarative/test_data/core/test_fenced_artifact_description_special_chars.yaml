@@ -35,9 +35,19 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "The report has been created."
+    kind: "task"
+    id: "*"
+    contextId: "fixed_session_for_fenced_artifact_desc_special_test_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "The report has been created."
     assert_artifact_state:
       - filename: "report.md"
         version: 0

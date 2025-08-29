@@ -36,7 +36,16 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        # The final text should be the seamless combination of both LLM responses.
-        text_contains: "Once upon a time, in a world of chrome and circuits, there lived a small robot named Bolt. He was a curious robot, and one day he decided to explore the forbidden digital forest. The forest was a place of legend, filled with tales of data-dragons and rogue AIs."
+    kind: "task"
+    id: "*"
+    contextId: "*"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "Once upon a time, in a world of chrome and circuits, there lived a small robot named Bolt. He was a curious robot, and one day he decided to explore the forbidden digital forest. The forest was a place of legend, filled with tales of data-dragons and rogue AIs."

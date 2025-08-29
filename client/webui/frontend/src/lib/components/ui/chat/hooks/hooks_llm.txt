@@ -1,0 +1,97 @@
+# DEVELOPER GUIDE: hooks
+
+## Quick Summary
+This directory contains React custom hooks for UI components, specifically providing auto-scrolling functionality for chat interfaces and other scrollable content areas.
+
+## Files Overview
+- `useAutoScroll.tsx` - Custom React hook for managing automatic scrolling behavior in chat-like interfaces
+
+## Developer API Reference
+
+### useAutoScroll.tsx
+**Purpose:** Provides automatic scrolling functionality for chat interfaces, maintaining scroll position at bottom for new content while allowing users to scroll up to view history.
+
+**Import:** `import { useAutoScroll } from 'lib/components/ui/chat/hooks/useAutoScroll'`
+
+**Interfaces:**
+- `ScrollState` - Internal state interface
+  - `isAtBottom: boolean` - Whether scroll is at bottom
+  - `autoScrollEnabled: boolean` - Whether auto-scroll is active
+
+- `UseAutoScrollOptions` - Configuration options
+  - `offset?: number` - Distance from bottom to consider "at bottom" (default: 20)
+  - `smooth?: boolean` - Use smooth scrolling animation (default: false)
+  - `content?: React.ReactNode` - Content to monitor for changes
+  - `autoScrollOnNewContent?: boolean` - Force scroll on new content (default: false)
+
+**Functions:**
+- `useAutoScroll(options?: UseAutoScrollOptions) -> AutoScrollReturn` - Main hook for auto-scroll functionality
+
+**Return Object Properties:**
+- `scrollRef: React.RefObject<HTMLDivElement>` - Ref to attach to scrollable container
+- `isAtBottom: boolean` - Current scroll position state
+- `autoScrollEnabled: boolean` - Whether auto-scroll is currently enabled
+- `scrollToBottom: () => void` - Manually scroll to bottom
+- `disableAutoScroll: () => void` - Disable auto-scroll when user scrolls up
+- `userHasScrolled: boolean` - Whether user has manually scrolled
+
+**Usage Examples:**
+```tsx
+import { useAutoScroll } from 'lib/components/ui/chat/hooks/useAutoScroll';
+
+// Basic usage
+function ChatContainer({ messages }) {
+  const { scrollRef, isAtBottom, scrollToBottom } = useAutoScroll({
+    content: messages,
+    smooth: true,
+    offset: 50
+  });
+
+  return (
+    <div>
+      <div ref={scrollRef} className="chat-messages">
+        {messages.map(msg => <div key={msg.id}>{msg.text}</div>)}
+      </div>
+      {!isAtBottom && (
+        <button onClick={scrollToBottom}>
+          Scroll to bottom
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Advanced usage with auto-scroll control
+function AdvancedChat({ messages }) {
+  const { 
+    scrollRef, 
+    isAtBottom, 
+    autoScrollEnabled, 
+    scrollToBottom, 
+    disableAutoScroll 
+  } = useAutoScroll({
+    content: messages,
+    autoScrollOnNewContent: true,
+    smooth: true
+  });
+
+  return (
+    <div>
+      <div 
+        ref={scrollRef} 
+        className="overflow-y-auto h-96"
+        onWheel={disableAutoScroll} // Disable on manual scroll
+      >
+        {messages.map(msg => <div key={msg.id}>{msg.text}</div>)}
+      </div>
+      
+      <div className="flex justify-between">
+        <span>Auto-scroll: {autoScrollEnabled ? 'ON' : 'OFF'}</span>
+        <button onClick={scrollToBottom}>↓ Bottom</button>
+      </div>
+    </div>
+  );
+}
+```
+
+# content_hash: f318b3f9e5773c3a1c5098af04bfec2ce1968224e666f89395e19f4f1726f8e9

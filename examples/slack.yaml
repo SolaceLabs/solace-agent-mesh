@@ -1,0 +1,66 @@
+# Plugin Metadata:
+# Name: sam-slack
+# Version: 0.1.0
+# Description: Solace-agent-mesh gateway interface for Slack
+# Author: SolaceLabs <solacelabs@solace.com>
+#
+# Required Environment Variables:
+# - SLACK_BOT_TOKEN: Your Slack Bot Token (starts with 'xoxb-').
+# - SLACK_APP_TOKEN: Your Slack App Token for Socket Mode (starts with 'xapp-').
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: slack.log
+
+# To use the `shared_config.yaml` file, uncomment the following line and remove the `shared_config` section below.
+!include shared_config.yaml
+
+
+apps:
+  # --- App Definition ---
+  - name: slack_app # Unique name for this gateway app instance
+    app_module: sam_slack.app 
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: "${NAMESPACE}" 
+      gateway_id: slack-gw-01 # Auto-generated if omitted
+      default_agent_name: "OrchestratorAgent" # Agent to use if no mention specifies one
+
+      artifact_service: *default_artifact_service
+
+      # --- Embed Resolution Config ---
+      enable_embed_resolution: true
+      gateway_artifact_content_limit_bytes: 10000000 # 10MB example
+      gateway_recursive_embed_depth: 3
+      
+      # --- Slack Behavior ---
+      slack_bot_token: ${SLACK_BOT_TOKEN}
+      slack_app_token: ${SLACK_APP_TOKEN}
+      slack_initial_status_message: ":thinking_face: Thinking..." # Set empty "" to disable
+      correct_markdown_formatting: true
+      slack_email_cache_ttl_seconds: 0 # Set to 0 for immediate testing of email identity
+      
+      # --- Optional Feedback Config ---
+      # feedback_enabled: true
+      # feedback_post_url: "http://your-feedback-service.example.com/feedback"
+      # feedback_post_headers:
+      #   Authorization: "Bearer your_feedback_token"
+      #   Content-Type: "application/json"
+      
+      authorization_service:
+        type: "none" # Or "default_rbac"
+
+      system_purpose: >
+            The system is an AI Chatbot with agentic capabilities.
+            It will use the agents available to provide information,
+            reasoning and general assistance for the users in this system.
+            **Always return useful artifacts and files that you create to the user.**
+            Provide a status update before each tool call.
+            Your external name is Agent Mesh.
+
+      response_format: >
+            Responses should be clear, concise, and professionally toned.
+            Format responses to the user in Markdown using appropriate formatting.

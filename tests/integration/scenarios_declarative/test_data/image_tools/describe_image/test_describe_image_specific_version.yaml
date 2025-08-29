@@ -1,7 +1,7 @@
 # tests/integration/scenarios_declarative/test_data/image_tools/describe_image/test_describe_image_specific_version.yaml
 test_case_id: "describe_image_specific_version"
 description: "Tests the ability to describe a specific, older version of an image artifact."
-tags: ["all","agent","tools","image_tools"]
+tags: ["all", "agent", "tools", "image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -70,11 +70,28 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "status_update"
+    kind: task
+    id: '*'
+    contextId: session_describe_image_specific_version
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
     event_purpose: "tool_invocation_start"
     expected_tool_name: "describe_image"
-
   - type: "final_response"
-    task_state: "completed"
-    content_parts:
-      - type: "text"
-        text_contains: "is a single red pixel"
+    kind: task
+    id: '*'
+    contextId: session_describe_image_specific_version
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "is a single red pixel"

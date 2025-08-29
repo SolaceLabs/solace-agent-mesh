@@ -1,6 +1,6 @@
 test_case_id: test_mermaid_basic_success
 description: "Tests basic successful generation of a Mermaid diagram with a specified filename."
-tags: ["all","agent","tools","general_agent_tools"]
+tags: ["all", "agent", "tools", "general_agent_tools"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -38,6 +38,15 @@ llm_interactions:
 
 expected_gateway_output:
   - type: status_update
+    kind: task
+    id: '*'
+    contextId: "session_mermaid_basic_success"
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
     event_purpose: tool_invocation_start
     expected_tool_name: "mermaid_diagram_generator"
     expected_tool_args_contain:
@@ -45,9 +54,18 @@ expected_gateway_output:
       output_filename: "my-diagram.png"
 
   - type: final_response
-    content_parts:
-      - type: text
-        text_exact: "I have created the flowchart and saved it as 'my-diagram.png'."
+    kind: task
+    id: '*'
+    contextId: "session_mermaid_basic_success"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: text
+            text_exact: "I have created the flowchart and saved it as 'my-diagram.png'."
 
 expected_artifacts:
   - filename: "my-diagram.png"

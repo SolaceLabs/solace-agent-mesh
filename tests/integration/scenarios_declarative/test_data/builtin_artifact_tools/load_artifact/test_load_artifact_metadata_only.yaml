@@ -75,11 +75,20 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "Loaded metadata for 'doc_for_metadata.pdf' (v0)."
-        text_contains: "Description: Document for metadata loading test."
-    task_state: "completed"
+    kind: "task"
+    id: "*"
+    contextId: "session_load_metadata_artifact_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "Loaded metadata for 'doc_for_metadata.pdf' (v0)."
+              - "Description: Document for metadata loading test."
     # Verify the setup artifact's own .metadata.json file was as expected
     assert_artifact_state:
       - filename: "doc_for_metadata.pdf.metadata.json" # Checking the metadata file itself

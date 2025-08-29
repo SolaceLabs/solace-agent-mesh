@@ -4,28 +4,65 @@ Patches message publishing methods to intercept and validate A2A messages.
 """
 
 import functools
+import json
+import importlib.resources
 from typing import Any, Dict, List
 from unittest.mock import patch
-import pytest
 
-from solace_agent_mesh.common.types import (
-    JSONRPCResponse,
-    Task,
-    TaskStatusUpdateEvent,
-    TaskArtifactUpdateEvent,
-    JSONRPCError,
-    InternalError,
-)
+import pytest
+from jsonschema import Draft7Validator, RefResolver, ValidationError
+
+
+
+METHOD_TO_SCHEMA_MAP = {
+    "message/send": "SendMessageRequest",
+    "message/stream": "SendStreamingMessageRequest",
+    "tasks/get": "GetTaskRequest",
+    "tasks/cancel": "CancelTaskRequest",
+    "tasks/pushNotificationConfig/set": "SetTaskPushNotificationConfigRequest",
+    "tasks/pushNotificationConfig/get": "GetTaskPushNotificationConfigRequest",
+    "tasks/pushNotificationConfig/list": "ListTaskPushNotificationConfigRequest",
+    "tasks/pushNotificationConfig/delete": "DeleteTaskPushNotificationConfigRequest",
+    "tasks/resubscribe": "TaskResubscriptionRequest",
+    "agent/getAuthenticatedExtendedCard": "GetAuthenticatedExtendedCardRequest",
+}
 
 
 class A2AMessageValidator:
     """
-    Intercepts and validates A2A messages published by SAM components.
+    Intercepts and validates A2A messages published by SAM components against the
+    official a2a.json schema.
     """
 
     def __init__(self):
         self._patched_targets: List[Dict[str, Any]] = []
         self.active = False
+        self.schema = self._load_schema()
+        self.validator = self._create_validator(self.schema)
+
+    def _load_schema(self) -> Dict[str, Any]:
+        """Loads the A2A JSON schema from the installed package."""
+        try:
+            # Use importlib.resources to find the schema file within the package.
+            # This works whether the package is installed or in editable mode.
+            with importlib.resources.path(
+                "solace_agent_mesh.common.a2a_spec", "a2a.json"
+            ) as schema_path:
+                with open(schema_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except (ModuleNotFoundError, FileNotFoundError):
+            pytest.fail(
+                "A2A Validator: Schema file 'a2a.json' not found in package "
+                "'solace_agent_mesh.common.a2a_spec'. "
+                "Ensure the package is installed correctly or run 'scripts/sync_a2a_schema.py'."
+            )
+        except json.JSONDecodeError as e:
+            pytest.fail(f"A2A Validator: Failed to parse schema file: {e}")
+
+    def _create_validator(self, schema: Dict[str, Any]) -> Draft7Validator:
+        """Creates a jsonschema validator with a resolver for local $refs."""
+        resolver = RefResolver.from_schema(schema)
+        return Draft7Validator(schema, resolver=resolver)
 
     def activate(self, components_to_patch: List[Any]):
         """
@@ -163,113 +200,70 @@ class A2AMessageValidator:
         self, payload: Dict, topic: str, source_info: str = "Unknown source"
     ):
         """
-        Validates a single A2A message payload and topic.
+        Validates a single A2A message payload against the official a2a.json schema.
         Fails the test immediately using pytest.fail() if validation errors occur.
         """
         if "/discovery/agentcards" in topic:
             return
 
+        schema_to_use = None
+        is_request = "method" in payload
+
         try:
-            if not isinstance(payload, dict):
-                pytest.fail(
-                    f"A2A Validation Error (JSON-RPC - Payload Type) from {source_info} on topic '{topic}': Payload is not a dict (type: {type(payload)}).\nPayload: {payload}"
-                )
-
-            jsonrpc_version = payload.get("jsonrpc")
-            if jsonrpc_version != "2.0":
-                pytest.fail(
-                    f"A2A Validation Error (JSON-RPC - Version) from {source_info} on topic '{topic}': jsonrpc version is '{jsonrpc_version}', expected '2.0'.\nPayload: {payload}"
-                )
-
-            if "id" not in payload:
-                pytest.fail(
-                    f"A2A Validation Error (JSON-RPC - ID) from {source_info} on topic '{topic}': 'id' field is missing.\nPayload: {payload}"
-                )
-
-            has_result = "result" in payload and payload["result"] is not None
-            has_error = "error" in payload and payload["error"] is not None
-            has_method = "method" in payload and payload["method"] is not None
-
-            if has_method:
-                if has_result or has_error:
-                    pytest.fail(
-                        f"A2A Validation Error (JSON-RPC - Request Structure) from {source_info} on topic '{topic}': Request payload must not contain 'result' or 'error'.\nPayload: {payload}"
-                    )
-                if "params" not in payload:
-                    pass
-            elif has_result or has_error:
-                if not (has_result ^ has_error):
-                    err_msg = (
-                        "must have either 'result' or 'error', but not both or neither"
-                    )
-                    if has_result and has_error:
-                        err_msg = "must not have both 'result' and 'error'"
-                    elif not has_result and not has_error:
-                        err_msg = "must have either 'result' or 'error'"
-                    pytest.fail(
-                        f"A2A Validation Error (JSON-RPC - Response Structure) from {source_info} on topic '{topic}': Response payload {err_msg}.\nPayload: {payload}"
-                    )
-                JSONRPCResponse(**payload)
+            if is_request:
+                method = payload.get("method")
+                schema_name = METHOD_TO_SCHEMA_MAP.get(method)
+                if schema_name and schema_name in self.schema["definitions"]:
+                    schema_to_use = self.schema["definitions"][schema_name]
+                else:
+                    # Fallback to generic request if specific one not found
+                    schema_to_use = self.schema["definitions"]["JSONRPCRequest"]
             else:
-                pytest.fail(
-                    f"A2A Validation Error (JSON-RPC - Unknown Structure) from {source_info} on topic '{topic}': Payload must contain 'method' (for requests) or 'result'/'error' (for responses).\nPayload: {payload}"
+                # For responses, try to find a specific schema based on the result 'kind'.
+                schema_to_use = self.schema["definitions"]["JSONRPCResponse"]  # Default
+                result = payload.get("result")
+                if isinstance(result, dict):
+                    kind = result.get("kind")
+                    if kind == "task":
+                        schema_to_use = self.schema["definitions"][
+                            "GetTaskSuccessResponse"
+                        ]
+                    elif kind == "message":
+                        schema_to_use = self.schema["definitions"][
+                            "SendMessageSuccessResponse"
+                        ]
+                    elif kind in ["status-update", "artifact-update"]:
+                        schema_to_use = self.schema["definitions"][
+                            "SendStreamingMessageSuccessResponse"
+                        ]
+
+            self.validator.check_schema(schema_to_use)
+            self.validator.validate(payload, schema_to_use)
+
+            # The JSON-RPC spec states that 'result' and 'error' MUST NOT coexist.
+            # The generated schema might use 'anyOf' which doesn't enforce this.
+            # We add an explicit check here to ensure compliance.
+            if not is_request and "result" in payload and "error" in payload:
+                raise ValidationError(
+                    "'result' and 'error' are mutually exclusive and cannot be present in the same response.",
+                    validator="dependencies",
+                    validator_value={"result": ["error"], "error": ["result"]},
+                    instance=payload,
+                    schema=schema_to_use,
                 )
 
-        except Exception as e:
+        except ValidationError as e:
             pytest.fail(
-                f"A2A Validation Error (JSON-RPC Structure) from {source_info} on topic '{topic}': {e}\nPayload: {str(payload)[:500]}..."
+                f"A2A Schema Validation Error from {source_info} on topic '{topic}':\n"
+                f"Message: {e.message}\n"
+                f"Path: {list(e.path)}\n"
+                f"Validator: {e.validator} = {e.validator_value}\n"
+                f"Payload: {json.dumps(payload, indent=2)}"
             )
-
-        if payload.get("result"):
-            result_data = payload["result"]
-            if not isinstance(result_data, dict):
-                pytest.fail(
-                    f"A2A Validation Error (Result Type) from {source_info} on topic '{topic}': 'result' field is not a dictionary.\nResult: {result_data}"
-                )
-
-            possible_event_models = [
-                Task,
-                TaskStatusUpdateEvent,
-                TaskArtifactUpdateEvent,
-            ]
-            validated_model = False
-            for model_class in possible_event_models:
-                try:
-                    model_class(**result_data)
-                    validated_model = True
-                    break
-                except Exception:
-                    pass
-
-            if not validated_model:
-                pytest.fail(
-                    f"A2A Validation Error (Result Model) from {source_info} on topic '{topic}': Result data does not match any known A2A event model (Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent).\nResult: {str(result_data)[:500]}..."
-                )
-
-        elif payload.get("error"):
-            error_data = payload["error"]
-            if not isinstance(error_data, dict):
-                pytest.fail(
-                    f"A2A Validation Error (Error Type) from {source_info} on topic '{topic}': 'error' field is not a dictionary.\nError: {error_data}"
-                )
-            try:
-                try:
-                    InternalError(**error_data)
-                except Exception:
-                    JSONRPCError(**error_data)
-            except Exception as e:
-                pytest.fail(
-                    f"A2A Validation Error (Error Model) from {source_info} on topic '{topic}': Error data does not match JSONRPCError or InternalError model. Error: {e}\nError Data: {str(error_data)[:500]}..."
-                )
-
-        try:
-            if not (isinstance(topic, str) and topic.strip()):
-                pytest.fail(
-                    f"A2A Validation Error (Topic - Empty/Type) from {source_info} for payload (id: {payload.get('id')}): Topic is not a non-empty string (got: '{topic}')."
-                )
         except Exception as e:
             pytest.fail(
-                f"A2A Validation Error (Topic Structure) from {source_info} for payload (id: {payload.get('id')}): {e}\nTopic: {topic}"
+                f"A2A Validation Error (Structure) from {source_info} on topic '{topic}': {e}\n"
+                f"Payload: {json.dumps(payload, indent=2)}"
             )
 
         print(

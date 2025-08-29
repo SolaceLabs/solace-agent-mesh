@@ -1,34 +1,39 @@
-Here is the comprehensive developer guide for the `common` directory.
+# DEVELOPER GUIDE: common
 
 ## Quick Summary
-The `common` directory provides the foundational infrastructure for Agent-to-Agent (A2A) communication within the Solace AI Connector. It establishes the core protocol, data types, and message translation logic that underpins all interactions between AI agents and gateways.
+The `common` directory provides the foundational infrastructure for Agent-to-Agent (A2A) communication within the Solace Agent Mesh. It establishes the core protocol, data types, and message translation logic that underpins all interactions between AI agents and gateways.
 
 The architecture is designed for clarity and extensibility. Core, low-level definitions are located in **direct files**:
-*   `types.py` defines the canonical data structures (e.g., `Message`, `Task`, `AgentCard`).
-*   `a2a_protocol.py` handles the construction of Solace topics and the translation between A2A and Google ADK message formats.
-*   `agent_registry.py` provides a simple, thread-safe mechanism for discovering and tracking available agents.
+- `types.py` defines the canonical data structures (e.g., `Message`, `Task`, `AgentCard`).
+- `a2a_protocol.py` handles the construction of Solace topics and the translation between A2A and Google ADK message formats.
+- `agent_registry.py` provides a simple, thread-safe mechanism for discovering and tracking available agents.
 
 This foundation is then leveraged by specialized **subdirectories**, which provide higher-level, ready-to-use components:
-*   `client/`: A complete client library for discovering and interacting with remote agents.
-*   `server/`: A stand-alone server implementation for building A2A-compliant agents.
-*   `middleware/`: A pluggable framework for customizing configuration and feature access.
-*   `services/`: A factory-based system for integrating identity and other external data sources.
-*   `utils/`: A collection of cross-cutting utilities for caching, logging, and dynamic content processing.
+- `client/`: A complete client library for discovering and interacting with remote agents.
+- `server/`: A stand-alone server implementation for building A2A-compliant agents.
+- `middleware/`: A pluggable framework for customizing configuration and feature access.
+- `services/`: A factory-based system for integrating identity and other external data sources.
+- `utils/`: A collection of cross-cutting utilities for caching, logging, and dynamic content processing.
 
 Together, these components form a cohesive ecosystem, enabling developers to either build new agents from scratch using the `server` components or interact with existing agents using the `client` library, all while relying on the same underlying protocol and types.
 
 ## Files and Subdirectories Overview
 - **Direct files:**
-    - `__init__.py`: Package initialization file.
-    - `a2a_protocol.py`: Handles A2A topic construction and translation between A2A and ADK message formats.
-    - `agent_registry.py`: A thread-safe registry for managing discovered agent cards.
-    - `types.py`: Contains all Pydantic models for A2A protocol messages, tasks, and data structures.
+  - `__init__.py`: Package initialization file.
+  - `a2a_protocol.py`: Handles A2A topic construction and translation between A2A and ADK message formats.
+  - `agent_registry.py`: A thread-safe registry for managing discovered agent cards.
+  - `constants.py`: Common constants used across the system.
+  - `data_parts.py`: Pydantic models for structured data payloads used in A2A DataPart objects.
+  - `exceptions.py`: Custom exceptions for Solace Agent Mesh.
+  - `types.py`: Contains all Pydantic models for A2A protocol messages, tasks, and data structures.
 - **Subdirectories:**
-    - `client/`: Provides a high-level client for discovering and communicating with remote A2A agents.
-    - `middleware/`: A pluggable framework for configuration resolution and system extensibility.
-    - `server/`: A complete A2A server implementation with JSON-RPC support and task management.
-    - `services/`: Provides shared services like identity management using a factory pattern.
-    - `utils/`: Contains common utility functions and an embedded expression processing system.
+  - `a2a/`: Comprehensive abstraction layer providing helper functions for creating, consuming, and translating A2A protocol objects.
+  - `a2a_spec/`: Complete JSON Schema specification for the A2A protocol.
+  - `client/`: Provides a high-level client for discovering and communicating with remote A2A agents.
+  - `middleware/`: A pluggable framework for configuration resolution and system extensibility.
+  - `server/`: A complete A2A server implementation with JSON-RPC support and task management.
+  - `services/`: Provides shared services like identity management using a factory pattern.
+  - `utils/`: Contains common utility functions and an embedded expression processing system.
 
 ## Developer API Reference
 
@@ -36,66 +41,132 @@ Together, these components form a cohesive ecosystem, enabling developers to eit
 
 #### a2a_protocol.py
 **Purpose:** Provides the core functions for constructing Solace topics according to the A2A specification and for translating messages between the A2A format and the Google ADK format.
-**Import:** `from common.a2a_protocol import get_agent_request_topic, translate_a2a_to_adk_content`
+**Import:** `from solace_agent_mesh.common.a2a_protocol import get_agent_request_topic, translate_a2a_to_adk_content`
 
 **Classes/Functions/Constants:**
-*   **Constants**:
-    *   `A2A_VERSION: str`: The current version of the A2A protocol (e.g., "v1").
-    *   `A2A_BASE_PATH: str`: The base path used in all A2A topics (e.g., "a2a/v1").
-*   **Topic Construction Functions**:
-    *   `get_a2a_base_topic(namespace: str) -> str`: Returns the base topic prefix for all A2A communication.
-    *   `get_discovery_topic(namespace: str) -> str`: Returns the topic for agent card discovery.
-    *   `get_agent_request_topic(namespace: str, agent_name: str) -> str`: Returns the topic for sending requests to a specific agent.
-    *   `get_gateway_status_topic(namespace: str, gateway_id: str, task_id: str) -> str`: Returns the topic for an agent to publish status updates to a gateway.
-    *   `get_gateway_response_topic(namespace: str, gateway_id: str, task_id: str) -> str`: Returns the topic for an agent to publish final responses to a gateway.
-    *   `get_client_response_topic(namespace: str, client_id: str) -> str`: Returns the topic for publishing final responses to a specific client.
-    *   `get_client_status_topic(namespace: str, client_id: str, task_id: str) -> str`: Returns the topic for publishing status updates to a specific client.
-    *   ... and various functions for subscription topics (e.g., `get_gateway_status_subscription_topic`).
-*   **Message Translation Functions**:
-    *   `translate_a2a_to_adk_content(a2a_message: A2AMessage, log_identifier: str) -> adk_types.Content`: Translates an A2A `Message` object into the Google ADK `Content` format.
-    *   `format_adk_event_as_a2a(...) -> Tuple[Optional[JSONRPCResponse], ...]`: Translates an ADK `Event` into an A2A `JSONRPCResponse` containing a `TaskStatusUpdateEvent`.
-    *   `format_and_route_adk_event(...) -> Tuple[Optional[Dict], Optional[str], ...]`: A higher-level wrapper that formats an ADK event and determines the correct Solace topic to publish it to.
+- **Constants**:
+  - `A2A_VERSION: str`: The current version of the A2A protocol (e.g., "v1").
+  - `A2A_BASE_PATH: str`: The base path used in all A2A topics (e.g., "a2a/v1").
+- **Topic Construction Functions**:
+  - `get_a2a_base_topic(namespace: str) -> str`: Returns the base topic prefix for all A2A communication.
+  - `get_discovery_topic(namespace: str) -> str`: Returns the topic for agent card discovery.
+  - `get_agent_request_topic(namespace: str, agent_name: str) -> str`: Returns the topic for sending requests to a specific agent.
+  - `get_gateway_status_topic(namespace: str, gateway_id: str, task_id: str) -> str`: Returns the topic for an agent to publish status updates to a gateway.
+  - `get_gateway_response_topic(namespace: str, gateway_id: str, task_id: str) -> str`: Returns the topic for an agent to publish final responses to a gateway.
+  - `get_client_response_topic(namespace: str, client_id: str) -> str`: Returns the topic for publishing final responses to a specific client.
+  - `get_client_status_topic(namespace: str, client_id: str, task_id: str) -> str`: Returns the topic for publishing status updates to a specific client.
+- **Message Translation Functions**:
+  - `translate_a2a_to_adk_content(a2a_message: A2AMessage, log_identifier: str) -> adk_types.Content`: Translates an A2A `Message` object into the Google ADK `Content` format.
+  - `format_adk_event_as_a2a(...) -> Tuple[Optional[JSONRPCResponse], ...]`: Translates an ADK `Event` into an A2A `JSONRPCResponse` containing a `TaskStatusUpdateEvent`.
+  - `format_and_route_adk_event(...) -> Tuple[Optional[Dict], Optional[str], ...]`: A higher-level wrapper that formats an ADK event and determines the correct Solace topic to publish it to.
 
 #### agent_registry.py
 **Purpose:** Provides a simple, thread-safe, in-memory store for discovered `AgentCard` objects. This is useful for components that need to keep track of available agents in the network.
-**Import:** `from common.agent_registry import AgentRegistry`
+**Import:** `from solace_agent_mesh.common.agent_registry import AgentRegistry`
 
 **Classes/Functions/Constants:**
-*   **`AgentRegistry`**: A thread-safe class for storing and managing agent cards.
-    *   `add_or_update_agent(self, agent_card: AgentCard)`: Adds a new agent or updates an existing one.
-    *   `get_agent(self, agent_name: str) -> Optional[AgentCard]`: Retrieves an agent card by its unique name.
-    *   `get_agent_names(self) -> List[str]`: Returns a sorted list of all discovered agent names.
-    *   `clear(self)`: Clears all agents from the registry.
+- **`AgentRegistry`**: A thread-safe class for storing and managing agent cards.
+  - `add_or_update_agent(self, agent_card: AgentCard)`: Adds a new agent or updates an existing one.
+  - `get_agent(self, agent_name: str) -> Optional[AgentCard]`: Retrieves an agent card by its unique name.
+  - `get_agent_names(self) -> List[str]`: Returns a sorted list of all discovered agent names.
+  - `clear(self)`: Clears all agents from the registry.
+
+#### constants.py
+**Purpose:** Defines common constants used throughout the Solace Agent Mesh system.
+**Import:** `from solace_agent_mesh.common.constants import DEFAULT_COMMUNICATION_TIMEOUT`
+
+**Classes/Functions/Constants:**
+- `DEFAULT_COMMUNICATION_TIMEOUT: int`: Default timeout for communication operations (600 seconds / 10 minutes).
+
+#### data_parts.py
+**Purpose:** Defines Pydantic models for structured data payloads used in A2A DataPart objects, corresponding to JSON schemas for agent communication signals.
+**Import:** `from solace_agent_mesh.common.data_parts import ToolInvocationStartData, LlmInvocationData`
+
+**Classes/Functions/Constants:**
+- **`ToolInvocationStartData`**: Data model for tool invocation start signals.
+  - `type: Literal["tool_invocation_start"]`: The constant type identifier.
+  - `tool_name: str`: The name of the tool being called.
+  - `tool_args: Dict[str, Any]`: The arguments passed to the tool.
+  - `function_call_id: str`: The ID from the LLM's function call.
+- **`LlmInvocationData`**: Data model for LLM invocation signals.
+  - `type: Literal["llm_invocation"]`: The constant type identifier.
+  - `request: Dict[str, Any]`: A sanitized representation of the LlmRequest object.
+- **`AgentProgressUpdateData`**: Data model for agent progress update signals.
+  - `type: Literal["agent_progress_update"]`: The constant type identifier.
+  - `status_text: str`: A human-readable progress message.
+- **`ArtifactCreationProgressData`**: Data model for artifact creation progress signals.
+  - `type: Literal["artifact_creation_progress"]`: The constant type identifier.
+  - `filename: str`: The name of the artifact being created.
+  - `bytes_saved: int`: The number of bytes saved so far.
+  - `artifact_chunk: str`: The chunk of artifact data that was saved in this progress update.
+- **`ToolResultData`**: Data model for tool execution result signals.
+  - `type: Literal["tool_result"]`: The constant type identifier.
+  - `tool_name: str`: The name of the tool that was called.
+  - `result_data: Any`: The data returned by the tool.
+  - `function_call_id: str`: The ID from the LLM's function call.
+
+#### exceptions.py
+**Purpose:** Defines custom exceptions specific to the Solace Agent Mesh system.
+**Import:** `from solace_agent_mesh.common.exceptions import MessageSizeExceededError`
+
+**Classes/Functions/Constants:**
+- **`MessageSizeExceededError(Exception)`**: Raised when a message exceeds the maximum allowed size.
+  - `__init__(self, actual_size: int, max_size: int, message: str = None)`: Initialize with size information.
+  - `actual_size: int`: The actual size of the message in bytes.
+  - `max_size: int`: The maximum allowed size in bytes.
 
 #### types.py
 **Purpose:** Defines all the Pydantic data models that constitute the A2A protocol. These types ensure data consistency and provide validation across all components.
-**Import:** `from common.types import Message, Task, AgentCard, JSONRPCRequest, TaskState`
+**Import:** `from solace_agent_mesh.common.types import Message, Task, AgentCard, JSONRPCRequest, TaskState`
 
 **Classes/Functions/Constants:**
-*   **Core Data Structures**:
-    *   `Message`: Represents a message from a user or agent, containing a list of `Part` objects.
-    *   `Part`: A discriminated union of `TextPart`, `FilePart`, and `DataPart`.
-    *   `Task`: The central object representing a complete task, including its ID, status, history, and artifacts.
-    *   `TaskStatus`: Describes the current state of a task (e.g., `WORKING`, `COMPLETED`).
-    *   `TaskState(Enum)`: An enumeration of all possible task states.
-    *   `AgentCard`: A comprehensive description of an agent's identity, capabilities, and skills.
-    *   `Artifact`: Represents a task output, such as a generated file or structured data.
-*   **JSON-RPC Structures**:
-    *   `JSONRPCRequest`: The base model for all JSON-RPC requests.
-    *   `JSONRPCResponse`: The base model for all JSON-RPC responses.
-    *   `SendTaskRequest`, `GetTaskRequest`, etc.: Specific request types inheriting from `JSONRPCRequest`.
-*   **Error Structures**:
-    *   `JSONRPCError`: The base model for errors.
-    *   `InternalError`, `TaskNotFoundError`, etc.: Specific error types inheriting from `JSONRPCError`.
+- **Core Data Structures**:
+  - `Message`: Represents a message from a user or agent, containing a list of `Part` objects.
+  - `Part`: A discriminated union of `TextPart`, `FilePart`, and `DataPart`.
+  - `Task`: The central object representing a complete task, including its ID, status, history, and artifacts.
+  - `TaskStatus`: Describes the current state of a task (e.g., `WORKING`, `COMPLETED`).
+  - `TaskState(Enum)`: An enumeration of all possible task states.
+  - `AgentCard`: A comprehensive description of an agent's identity, capabilities, and skills.
+  - `Artifact`: Represents a task output, such as a generated file or structured data.
+- **JSON-RPC Structures**:
+  - `JSONRPCRequest`: The base model for all JSON-RPC requests.
+  - `JSONRPCResponse`: The base model for all JSON-RPC responses.
+  - `SendTaskRequest`, `GetTaskRequest`, etc.: Specific request types inheriting from `JSONRPCRequest`.
+- **Error Structures**:
+  - `JSONRPCError`: The base model for errors.
+  - `InternalError`, `TaskNotFoundError`, etc.: Specific error types inheriting from `JSONRPCError`.
 
 ### Subdirectory APIs
+
+#### a2a/
+**Purpose:** Comprehensive abstraction layer providing helper functions for creating, consuming, and translating A2A protocol objects
+**Key Exports:** Helper functions for messages, tasks, artifacts, events, and protocol operations
+**Import Examples:**
+```python
+from solace_agent_mesh.common.a2a import create_agent_text_message, create_initial_task, translate_a2a_to_adk_content
+from solace_agent_mesh.common.a2a.message import create_text_part, get_text_from_message
+from solace_agent_mesh.common.a2a.protocol import get_agent_request_topic, create_send_message_request
+```
+
+#### a2a_spec/
+**Purpose:** Contains the complete Agent-to-Agent (A2A) communication specification including JSON schema definitions
+**Key Exports:** JSON Schema specifications for A2A protocol and agent communication signals
+**Import Examples:**
+```python
+import json
+from jsonschema import validate
+
+# Load main A2A schema
+with open('solace_agent_mesh/common/a2a_spec/a2a.json') as f:
+    a2a_schema = json.load(f)
+```
 
 #### client/
 **Purpose:** Provides a high-level, asynchronous client library for discovering and interacting with remote A2A agents.
 **Key Exports:** `A2AClient`, `A2ACardResolver`
 **Import Examples:**
 ```python
-from common.client import A2AClient, A2ACardResolver
+from solace_agent_mesh.common.client import A2AClient, A2ACardResolver
 ```
 
 #### middleware/
@@ -103,7 +174,7 @@ from common.client import A2AClient, A2ACardResolver
 **Key Exports:** `ConfigResolver`, `MiddlewareRegistry`
 **Import Examples:**
 ```python
-from common.middleware import ConfigResolver, MiddlewareRegistry
+from solace_agent_mesh.common.middleware import ConfigResolver, MiddlewareRegistry
 ```
 
 #### server/
@@ -111,7 +182,7 @@ from common.middleware import ConfigResolver, MiddlewareRegistry
 **Key Exports:** `A2AServer`, `TaskManager`, `InMemoryTaskManager`
 **Import Examples:**
 ```python
-from common.server import A2AServer, TaskManager, InMemoryTaskManager
+from solace_agent_mesh.common.server import A2AServer, TaskManager, InMemoryTaskManager
 ```
 
 #### services/
@@ -119,7 +190,7 @@ from common.server import A2AServer, TaskManager, InMemoryTaskManager
 **Key Exports:** `BaseIdentityService`, `create_identity_service`
 **Import Examples:**
 ```python
-from common.services.identity_service import create_identity_service, BaseIdentityService
+from solace_agent_mesh.common.services.identity_service import create_identity_service, BaseIdentityService
 ```
 
 #### utils/
@@ -127,18 +198,69 @@ from common.services.identity_service import create_identity_service, BaseIdenti
 **Key Exports:** `InMemoryCache`, `is_text_based_mime_type`, `resolve_embeds_in_string`
 **Import Examples:**
 ```python
-from common.utils.in_memory_cache import InMemoryCache
-from common.utils import is_text_based_mime_type
-from common.utils.embeds import resolve_embeds_in_string
+from solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache
+from solace_agent_mesh.common.utils import is_text_based_mime_type
+from solace_agent_mesh.common.utils.embeds import resolve_embeds_recursively_in_string
 ```
 
 ## Complete Usage Guide
-These examples demonstrate how to use the components from the `common` directory to build and interact with A2A agents.
 
-### 1. How to import and use classes from direct files
-This example shows basic usage of the protocol, types, and agent registry, which form the foundation of any A2A component.
+### 1. Basic A2A Protocol Usage
+This example shows how to use the core protocol functions and types to build A2A communication.
 
 ```python
 import uuid
-from common.a2a_protocol import get_agent_request_topic, get_gateway_status_topic
-from common.types import AgentCard,
+from datetime import datetime, timezone
+from solace_agent_mesh.common.a2a_protocol import (
+    get_agent_request_topic, 
+    get_gateway_status_topic,
+    translate_a2a_to_adk_content
+)
+from solace_agent_mesh.common.types import (
+    Message, 
+    TextPart, 
+    Task, 
+    TaskStatus, 
+    TaskState,
+    AgentCard
+)
+from solace_agent_mesh.common.agent_registry import AgentRegistry
+
+# Create a message
+message = Message(
+    role="user",
+    parts=[TextPart(text="Hello, can you help me analyze this document?")]
+)
+
+# Translate to ADK format for processing
+adk_content = translate_a2a_to_adk_content(message, "[Example]")
+print(f"ADK Content: {adk_content}")
+
+# Generate topic names for communication
+namespace = "my-company/ai-agents"
+agent_name = "document-analyzer"
+gateway_id = "gateway-001"
+task_id = str(uuid.uuid4())
+
+request_topic = get_agent_request_topic(namespace, agent_name)
+status_topic = get_gateway_status_topic(namespace, gateway_id, task_id)
+
+print(f"Request Topic: {request_topic}")
+print(f"Status Topic: {status_topic}")
+
+# Use agent registry to track discovered agents
+registry = AgentRegistry()
+agent_card = AgentCard(
+    name="document-analyzer",
+    display_name="Document Analyzer",
+    description="Analyzes and extracts information from documents",
+    url="https://agents.company.com/document-analyzer",
+    version="1.0.0",
+    capabilities={"streaming": True, "pushNotifications": False},
+    skills=[],
+    peer_agents={}
+)
+
+registry.add_or_update_agent(agent_
+
+# content_hash: 1e02a8692a4f781b66ebf5b56ec8adedbbcfec3a02cc8f1cd02a22b95e057b14

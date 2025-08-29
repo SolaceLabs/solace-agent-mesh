@@ -45,9 +45,19 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "I have created two versions of 'versioned_report.txt'."
+    kind: "task"
+    id: "*"
+    contextId: "fixed_session_for_fenced_artifact_versioning_test_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "I have created two versions of 'versioned_report.txt'."
     assert_artifact_state:
       - filename: "versioned_report.txt"
         version: 0

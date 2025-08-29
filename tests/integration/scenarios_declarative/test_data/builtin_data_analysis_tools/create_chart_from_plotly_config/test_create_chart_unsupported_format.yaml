@@ -4,9 +4,11 @@ tags: ["all","agent","tools","builtin_data_analysis_tools"]
 skip_intermediate_events: true
 
 gateway_input:
-  request_text: "Create a chart in an unsupported format."
   target_agent_name: "TestAgent"
   user_identity: "chart_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Create a chart in an unsupported format."
   external_context:
     a2a_session_id: "chart_creation_session_unsupported"
 
@@ -33,20 +35,19 @@ llm_interactions:
             content: "I'm sorry, I cannot create a chart in the 'gif' format. Please choose a supported format like 'png', 'jpg', 'svg', or 'pdf'."
 
 expected_gateway_output:
-  - type: "status_update"
-    event_purpose: "llm_invocation"
-  - type: "status_update"
-    event_purpose: "llm_response"
-  - type: "status_update"
-    event_purpose: "tool_invocation_start"
-  - type: "status_update"
-    event_purpose: "llm_invocation"
-  - type: "status_update"
-    event_purpose: "llm_response"
   - type: "final_response"
-    task_state: "completed"
-    content_parts:
-      - type: "text"
-        text_contains: "cannot create a chart in the 'gif' format"
+    kind: "task"
+    id: "*"
+    contextId: "chart_creation_session_unsupported"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "I'm sorry, I cannot create a chart in the 'gif' format. Please choose a supported format like 'png', 'jpg', 'svg', or 'pdf'."
 
 expected_artifacts: []

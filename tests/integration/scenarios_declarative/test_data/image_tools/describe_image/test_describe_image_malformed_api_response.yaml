@@ -1,7 +1,7 @@
 # tests/integration/scenarios_declarative/test_data/image_tools/describe_image/test_describe_image_malformed_api_response.yaml
 test_case_id: "describe_image_malformed_api_response"
 description: "Tests robustness when the vision API returns a 200 OK but with a malformed choice object."
-tags: ["all","agent","tools","image_tools"]
+tags: ["all", "agent", "tools", "image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -36,7 +36,7 @@ llm_interactions:
         - message:
             role: "assistant"
             # This message is malformed because it has no 'content' or 'tool_calls'
-            content: null
+            content:
           finish_reason: "stop"
 
   # Third LLM call: Agent processes the tool's error output
@@ -54,7 +54,16 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    task_state: "completed"
-    content_parts:
-      - type: "text"
-        text_contains: "The API response was invalid."
+    kind: task
+    id: '*'
+    contextId: session_describe_image_malformed_api_response
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "The API response was invalid."

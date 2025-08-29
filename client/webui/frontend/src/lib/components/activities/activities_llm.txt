@@ -1,0 +1,394 @@
+# DEVELOPER GUIDE: activities
+
+## Quick Summary
+The activities directory provides a comprehensive React-based visualization system for agent workflow activities. It combines flow chart visualization with detailed step tracking, offering both high-level flow diagrams and granular step-by-step analysis. The architecture consists of direct files for main components (FlowChartDetails, FlowChartPanel, VisualizerStepCard) and a FlowChart subdirectory containing specialized React Flow components for creating interactive workflow diagrams with custom nodes and edges.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `FlowChartDetails.tsx` - Component displaying task status and user request information
+  - `FlowChartPanel.tsx` - Main flow chart visualization panel with React Flow integration
+  - `VisualizerStepCard.tsx` - Individual step card component for detailed step information
+- **Subdirectories:**
+  - `FlowChart/` - Custom React Flow components including specialized nodes and edges for workflow visualization
+
+## Developer API Reference
+
+### Direct Files
+
+#### FlowChartDetails.tsx
+**Purpose:** Displays task overview information including user request and current status
+**Import:** `import { FlowChartDetails } from '@/lib/components/activities/FlowChartDetails'`
+
+**Components:**
+- `FlowChartDetails: React.FC<{ task: VisualizedTask }>` - Main component displaying task details with status badges and loading states
+
+#### FlowChartPanel.tsx
+**Purpose:** Main flow chart visualization component with React Flow integration, animations, and interactive features
+**Import:** `import { FlowChartPanel } from '@/lib/components/activities/FlowChartPanel'`
+
+**Components:**
+- `FlowChartPanel: React.FC<FlowChartPanelProps>` - Main flow chart panel with React Flow provider
+- `FlowRenderer: React.FC<FlowChartPanelProps>` - Internal component handling React Flow logic
+
+**Interfaces:**
+- `FlowChartPanelProps` - Props interface with processedSteps, isRightPanelVisible, and isSidePanelTransitioning
+
+#### VisualizerStepCard.tsx
+**Purpose:** Individual step card component for displaying detailed step information with expandable content
+**Import:** `import { VisualizerStepCard } from '@/lib/components/activities/VisualizerStepCard'`
+
+**Components:**
+- `VisualizerStepCard: React.FC<VisualizerStepCardProps>` - Step card with icons, timestamps, and detailed data display
+
+**Interfaces:**
+- `VisualizerStepCardProps` - Props interface with step, isHighlighted, onClick, and variant options
+
+### Subdirectory APIs
+
+#### FlowChart/
+**Purpose:** Provides specialized React Flow components for workflow visualization with custom nodes and edges
+**Key Exports:** Custom node components (GenericAgentNode, LLMNode, OrchestratorAgentNode, UserNode, GenericToolNode) and custom edge components (GenericFlowEdge)
+**Import Examples:**
+```typescript
+import GenericAgentNode from '@/lib/components/activities/FlowChart/customNodes/GenericAgentNode'
+import GenericFlowEdge from '@/lib/components/activities/FlowChart/customEdges/GenericFlowEdge'
+```
+
+## Complete Usage Guide
+
+### 1. Basic Flow Chart Setup
+
+```typescript
+import React from 'react';
+import { FlowChartPanel } from '@/lib/components/activities/FlowChartPanel';
+import { FlowChartDetails } from '@/lib/components/activities/FlowChartDetails';
+import type { VisualizerStep, VisualizedTask } from '@/lib/types';
+
+// Basic usage with processed steps
+const ActivityVisualization: React.FC = () => {
+  const processedSteps: VisualizerStep[] = [
+    {
+      id: 'step-1',
+      type: 'USER_REQUEST',
+      timestamp: new Date().toISOString(),
+      title: 'User Request',
+      data: { text: 'Process this document' },
+      nestingLevel: 0
+    },
+    {
+      id: 'step-2',
+      type: 'AGENT_LLM_CALL',
+      timestamp: new Date().toISOString(),
+      title: 'LLM Processing',
+      data: {
+        llmCall: {
+          model_name: 'gpt-4',
+          prompt_preview: 'Analyze the following document...'
+        }
+      },
+      nestingLevel: 1
+    }
+  ];
+
+  const task: VisualizedTask = {
+    id: 'task-1',
+    status: 'working',
+    initialRequestText: 'Process this document'
+  };
+
+  return (
+    <div className="h-screen flex flex-col">
+      {/* Task details header */}
+      <FlowChartDetails task={task} />
+      
+      {/* Main flow chart */}
+      <div className="flex-1">
+        <FlowChartPanel 
+          processedSteps={processedSteps}
+          isRightPanelVisible={false}
+          isSidePanelTransitioning={false}
+        />
+      </div>
+    </div>
+  );
+};
+```
+
+### 2. Step Card Usage with Different Variants
+
+```typescript
+import React from 'react';
+import { VisualizerStepCard } from '@/lib/components/activities/VisualizerStepCard';
+import type { VisualizerStep } from '@/lib/types';
+
+const StepVisualization: React.FC = () => {
+  const [highlightedStepId, setHighlightedStepId] = React.useState<string | null>(null);
+
+  const steps: VisualizerStep[] = [
+    {
+      id: 'step-1',
+      type: 'USER_REQUEST',
+      timestamp: new Date().toISOString(),
+      title: 'Initial Request',
+      data: { text: 'Analyze this data set' },
+      nestingLevel: 0
+    },
+    {
+      id: 'step-2',
+      type: 'AGENT_LLM_RESPONSE_TOOL_DECISION',
+      timestamp: new Date().toISOString(),
+      title: 'Tool Decision',
+      data: {
+        toolDecision: {
+          is_parallel: false,
+          decisions: [{
+            function_call_id: 'call-1',
+            tool_name: 'data_analyzer',
+            is_peer_delegation: false
+          }]
+        }
+      },
+      nestingLevel: 1,
+      delegationInfo: [{
+        function_call_id: 'call-1',
+        peer_agent_name: 'DataAnalyzer',
+        sub_task_id: 'subtask-123'
+      }]
+    },
+    {
+      id: 'step-3',
+      type: 'TASK_COMPLETED',
+      timestamp: new Date().toISOString(),
+      title: 'Task Completed',
+      data: { finalMessage: 'Analysis complete with 95% confidence' },
+      nestingLevel: 0
+    }
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* List variant with highlighting */}
+      <div className="space-y-2">
+        <h3>Step Timeline (List View)</h3>
+        {steps.map(step => (
+          <VisualizerStepCard
+            key={step.id}
+            step={step}
+            variant="list"
+            isHighlighted={highlightedStepId === step.id}
+            onClick={() => setHighlightedStepId(step.id)}
+          />
+        ))}
+      </div>
+
+      {/* Popover variant for detailed view */}
+      {highlightedStepId && (
+        <div className="border rounded-lg p-4">
+          <h3>Detailed View (Popover Style)</h3>
+          <VisualizerStepCard
+            step={steps.find(s => s.id === highlightedStepId)!}
+            variant="popover"
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+```
+
+### 3. Complete Activity Dashboard
+
+```typescript
+import React from 'react';
+import { FlowChartPanel } from '@/lib/components/activities/FlowChartPanel';
+import { FlowChartDetails } from '@/lib/components/activities/FlowChartDetails';
+import { VisualizerStepCard } from '@/lib/components/activities/VisualizerStepCard';
+import { useTaskContext, useChatContext } from '@/lib/hooks';
+import type { VisualizerStep, VisualizedTask } from '@/lib/types';
+
+const ActivityDashboard: React.FC = () => {
+  const { highlightedStepId, setHighlightedStepId } = useTaskContext();
+  const { taskIdInSidePanel } = useChatContext();
+  const [isRightPanelVisible, setIsRightPanelVisible] = React.useState(true);
+  const [isSidePanelTransitioning, setIsSidePanelTransitioning] = React.useState(false);
+
+  // Mock data - replace with actual data from your context/API
+  const processedSteps: VisualizerStep[] = [
+    {
+      id: 'step-1',
+      type: 'USER_REQUEST',
+      timestamp: new Date(Date.now() - 5000).toISOString(),
+      title: 'User Request',
+      data: { text: 'Create a comprehensive report on market trends' },
+      nestingLevel: 0
+    },
+    {
+      id: 'step-2',
+      type: 'AGENT_LLM_CALL',
+      timestamp: new Date(Date.now() - 4000).toISOString(),
+      title: 'Planning Analysis',
+      data: {
+        llmCall: {
+          model_name: 'gpt-4-turbo',
+          prompt_preview: 'Plan the market analysis approach...'
+        }
+      },
+      nestingLevel: 1
+    },
+    {
+      id: 'step-3',
+      type: 'AGENT_TOOL_INVOCATION_START',
+      timestamp: new Date(Date.now() - 3000).toISOString(),
+      title: 'Data Collection',
+      data: {
+        toolInvocationStart: {
+          tool_name: 'market_data_collector',
+          tool_args: { timeframe: '1year', sectors: ['tech', 'finance'] },
+          is_peer_invocation: false
+        }
+      },
+      nestingLevel: 2
+    },
+    {
+      id: 'step-4',
+      type: 'AGENT_TOOL_EXECUTION_RESULT',
+      timestamp: new Date(Date.now() - 2000).toISOString(),
+      title: 'Data Retrieved',
+      data: {
+        toolResult: {
+          tool_name: 'market_data_collector',
+          result_data: { records: 1250, sectors_analyzed: 2 }
+        }
+      },
+      nestingLevel: 2
+    },
+    {
+      id: 'step-5',
+      type: 'TASK_COMPLETED',
+      timestamp: new Date().toISOString(),
+      title: 'Report Generated',
+      data: { finalMessage: 'Market analysis report has been generated successfully' },
+      nestingLevel: 0
+    }
+  ];
+
+  const currentTask: VisualizedTask = {
+    id: taskIdInSidePanel || 'current-task',
+    status: 'completed',
+    initialRequestText: 'Create a comprehensive report on market trends'
+  };
+
+  const handleStepClick = (stepId: string) => {
+    setHighlightedStepId(stepId === highlightedStepId ? null : stepId);
+  };
+
+  const toggleRightPanel = () => {
+    setIsSidePanelTransitioning(true);
+    setIsRightPanelVisible(!isRightPanelVisible);
+    
+    // Simulate transition completion
+    setTimeout(() => {
+      setIsSidePanelTransitioning(false);
+    }, 300);
+  };
+
+  return (
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+      {/* Header with task details */}
+      <div className="border-b bg-white dark:bg-gray-800">
+        <FlowChartDetails task={currentTask} />
+      </div>
+
+      {/* Main content area */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Flow chart panel */}
+        <div className={`transition-all duration-300 ${isRightPanelVisible ? 'flex-1' : 'w-full'}`}>
+          <FlowChartPanel
+            processedSteps={processedSteps}
+            isRightPanelVisible={isRightPanelVisible}
+            isSidePanelTransitioning={isSidePanelTransitioning}
+          />
+        </div>
+
+        {/* Right panel with step details */}
+        {isRightPanelVisible && (
+          <div className="w-96 border-l bg-white dark:bg-gray-800 overflow-y-auto">
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Step Details</h3>
+                <button
+                  onClick={toggleRightPanel}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="space-y-2">
+                {processedSteps.map(step => (
+                  <VisualizerStepCard
+                    key={step.id}
+                    step={step}
+                    variant="list"
+                    isHighlighted={highlightedStepId === step.id}
+                    onClick={() => handleStepClick(step.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Toggle button when panel is hidden */}
+        {!isRightPanelVisible && (
+          <button
+            onClick={toggleRightPanel}
+            className="absolute top-4 right-4 bg-white dark:bg-gray-800 border rounded-lg p-2 shadow-lg hover:shadow-xl transition-shadow"
+          >
+            📋
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ActivityDashboard;
+```
+
+### 4. Integration with Custom Flow Chart Components
+
+```typescript
+import React from 'react';
+import { ReactFlow, ReactFlowProvider } from '@xyflow/react';
+import { FlowChartPanel } from '@/lib/components/activities/FlowChartPanel';
+
+// Import custom nodes and edges from FlowChart subdirectory
+import GenericAgentNode from '@/lib/components/activities/FlowChart/customNodes/GenericAgentNode';
+import LLMNode from '@/lib/components/activities/FlowChart/customNodes/LLMNode';
+import GenericFlowEdge from '@/lib/components/activities/FlowChart/customEdges/GenericFlowEdge';
+
+const CustomFlowIntegration: React.FC = () => {
+  // Custom node types for specialized workflows
+  const customNodeTypes = {
+    genericAgentNode: GenericAgentNode,
+    llmNode: LLMNode,
+    // Add other custom nodes as needed
+  };
+
+  const customEdgeTypes = {
+    defaultFlowEdge: GenericFlowEdge,
+  };
+
+  const processedSteps = [
+    // Your processed steps data
+  ];
+
+  return (
+    <ReactFlowProvider>
+      <div className="h-screen">
+        <FlowChartPanel
+          processedSteps={processedSteps}
+          isRightPanelVisible={true}
+
+# content_hash: 8471669377ff9f87e4816f24c5c863fefeb4df36e12dabca7428eb79baffdbfd

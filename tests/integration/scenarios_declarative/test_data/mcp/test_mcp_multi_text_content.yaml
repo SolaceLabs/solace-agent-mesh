@@ -1,6 +1,7 @@
 test_case_id: "mcp_multi_text_content_001"
-description: "Tests that a single MCP response with multiple text items of different formats (JSON and CSV) creates two distinct artifacts."
-tags: ["all","agent","mcp"]
+description: "Tests that a single MCP response with multiple text items of different
+  formats (JSON and CSV) creates two distinct artifacts."
+tags: ["all", "agent", "mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:
@@ -27,18 +28,15 @@ llm_interactions:
                 function:
                   name: "get_data_stdio"
                   # The MCP test server will now correctly handle a list of content blocks
-                  arguments: >
-                    {"response_to_return": {"content": [
-                      {"type": "text", "text": "{\"user_id\": \"user123\", \"name\": \"Alice\"}"},
-                      {"type": "text", "text": "id,product\\n1,widget\\n2,gadget"}
-                    ]}}
+                  arguments: '{"response_to_return": {"content": [{"type": "text", "text": "{\"user_id\": \"user123\", \"name\": \"Alice\"}"}, {"type": "text", "text": "id,product\\n1,widget\\n2,gadget"}]}}'
 
   - expected_request:
       expected_tool_responses_in_llm_messages:
         - tool_name: "get_data_stdio"
           response_json_matches:
             status: "processed_and_saved"
-            message_to_llm_matches_regex: "The full response has been saved as 2 artifacts, starting with 'get_data_stdio_json_0_.*\\.json' \\(version 0\\)\\."
+            message_to_llm_matches_regex: "The full response has been saved as 2 artifacts,
+              starting with 'get_data_stdio_json_0_.*\\.json' \\(version 0\\)\\."
             saved_mcp_response_artifact_details:
               status: "success"
               artifacts_saved:
@@ -51,13 +49,24 @@ llm_interactions:
       choices:
         - message:
             role: "assistant"
-            content: "I have received the JSON and CSV data. Both have been saved as artifacts."
+            content: "I have received the JSON and CSV data. Both have been saved
+              as artifacts."
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "I have received the JSON and CSV data. Both have been saved as artifacts."
+    kind: task
+    id: '*'
+    contextId: "session_mcp_multi_text_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I have received the JSON and CSV data. Both have been saved
+              as artifacts."
     assert_artifact_state:
       # Assert the JSON artifact (index 0)
       - filename_matches_regex: "get_data_stdio_json_0_.*[^a]\\.json$"

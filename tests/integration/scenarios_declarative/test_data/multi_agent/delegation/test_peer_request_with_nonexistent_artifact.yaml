@@ -1,7 +1,7 @@
 # Test Case 4: Verify graceful handling when referencing a non-existent artifact.
 test_case_id: "peer_request_with_nonexistent_artifact_001"
 description: "Verify graceful handling of non-existent artifact references in peer calls."
-tags: ["all","agent","tools","delegation"]
+tags: ["all", "agent", "tools", "delegation"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:
@@ -56,7 +56,16 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    task_state: "completed"
-    content_parts:
-      - type: "text"
-        text_contains: "cannot find the artifact 'ghost_file.txt'"
+    kind: task
+    id: '*'
+    contextId: session_peer_request_with_nonexistent_artifact_001
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "cannot find the artifact 'ghost_file.txt'"

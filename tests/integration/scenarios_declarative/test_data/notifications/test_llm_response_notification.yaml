@@ -1,6 +1,6 @@
 test_case_id: "notification_llm_response_001"
 description: "Tests that an llm_response notification is sent."
-tags: ["all","agent","common","notification"]
+tags: ["all", "agent", "common", "notification"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -21,18 +21,44 @@ llm_interactions:
       usage: {prompt_tokens: 5, completion_tokens: 7, total_tokens: 12}
 expected_gateway_output:
   - type: "status_update"
+    kind: task
+    id: '*'
+    contextId: session_notification_llm_response_001
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
     event_purpose: "llm_invocation"
     final_flag: false
   - type: "status_update"
+    kind: task
+    id: '*'
+    contextId: session_notification_llm_response_001
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
     event_purpose: "llm_response"
     expected_llm_data_contains:
       content:
         role: "model"
         parts:
           - text: "This is the LLM's direct response."
-    final_flag: true
+    final_flag: false
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "This is the LLM's direct response."
-    task_state: "completed"
+    kind: task
+    id: '*'
+    contextId: session_notification_llm_response_001
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "This is the LLM's direct response."

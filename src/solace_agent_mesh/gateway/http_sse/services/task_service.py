@@ -8,10 +8,7 @@ from typing import Callable, Dict, Optional
 
 from solace_ai_connector.common.log import log
 
-from ....common.types import (
-    InternalError,
-)
-
+from ....common import a2a
 from ....gateway.http_sse.sse_manager import SSEManager
 from ....core_a2a.service import CoreA2AService
 
@@ -116,6 +113,6 @@ class TaskService:
 
         except Exception as e:
             log.exception("%sFailed to publish cancellation request: %s", log_prefix, e)
-            raise InternalError(
+            raise a2a.create_internal_error(
                 message="Failed to publish cancellation request: %s" % e
             ) from e

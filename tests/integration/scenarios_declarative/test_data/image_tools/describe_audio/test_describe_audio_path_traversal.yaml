@@ -1,6 +1,6 @@
 test_case_id: describe_audio_path_traversal
 description: "Tests for path traversal vulnerabilities in describe_audio."
-tags: ["all","agent","tools","image_tools"]
+tags: ["all", "agent", "tools", "image_tools"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -29,8 +29,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "Audio artifact '../../secret.wav' not found."
+    kind: task
+    id: '*'
+    contextId: "session_path_traversal"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
 
+              - "Audio artifact '../../secret.wav' not found."
 expected_artifacts: []

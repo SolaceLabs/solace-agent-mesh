@@ -6,7 +6,7 @@ Consolidated from src/tools/common/agent_registry.py and src/tools/a2a_cli_clien
 import threading
 from typing import Dict, List, Optional
 
-from ..common.types import AgentCard
+from a2a.types import AgentCard
 
 
 class AgentRegistry:

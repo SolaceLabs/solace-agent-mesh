@@ -1,124 +1,220 @@
-Here is the developer guide for the `embeds` directory.
+# DEVELOPER GUIDE: embeds
 
 ## Quick Summary
-The `embeds` directory provides a system for finding, parsing, and resolving embedded expressions within strings. These expressions, denoted by `«...»`, can represent dynamic values like mathematical calculations, datetimes, or content from stored artifacts. The system supports multi-step data transformation pipelines on artifact content, recursive embed resolution, and safety features like depth and size limits. It is a core component for dynamic content generation and data processing.
+The `embeds` directory provides a comprehensive system for finding, parsing, and resolving embedded expressions within strings. These expressions use `«...»` syntax and can represent dynamic values like mathematical calculations, datetimes, UUIDs, or content from stored artifacts. The system supports multi-step data transformation pipelines, recursive embed resolution, and includes safety features like depth and size limits. It's designed as a core component for dynamic content generation and data processing in agent workflows.
 
 ## Files Overview
-- `__init__.py`: Exports the primary public functions and constants for easy access.
-- `constants.py`: Defines the syntax (delimiters, separators), regular expressions, and type classifications for embeds.
-- `converter.py`: Provides functions for converting data between different formats (e.g., bytes, string, JSON) and for serializing data into a final string representation.
-- `evaluators.py`: Contains the specific logic for evaluating simple embed types like `math`, `datetime`, and `uuid`.
-- `modifiers.py`: Implements a library of data transformation functions (e.g., `jsonpath`, `slice_rows`, `grep`) that can be chained together.
-- `resolver.py`: The core engine that orchestrates the entire embed resolution process, including handling modifier chains and recursion.
-- `types.py`: Defines the `DataFormat` enum used to track data types during transformations.
+- `__init__.py` - Main public entry point exporting key functions and constants
+- `constants.py` - Defines embed syntax (delimiters, separators), regex patterns, and type classifications
+- `converter.py` - Data format conversion and serialization functions
+- `evaluators.py` - Specific evaluation logic for simple embed types (math, datetime, uuid, etc.)
+- `modifiers.py` - Data transformation functions that can be chained together (jsonpath, slice, grep, etc.)
+- `resolver.py` - Core orchestration engine handling embed resolution, modifier chains, and recursion
+- `types.py` - DataFormat enum for tracking data types during transformations
 
 ## Developer API Reference
 
 ### __init__.py
-**Purpose:** This module serves as the main public entry point for the `embeds` package, exporting the most commonly used functions and constants from the other modules. Developers should typically import from here.
+**Purpose:** Main public entry point that exports the most commonly used functions and constants from other modules.
 
-**Import:** `from src.solace_agent_mesh.common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed, EMBED_REGEX`
-
-*(Note: Detailed documentation is available under each source file's section.)*
-
-**Classes:**
-- None
+**Import:** `from solace_agent_mesh.common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed, EMBED_REGEX`
 
 **Functions:**
-- `evaluate_embed(...)`: Evaluates a single, parsed embed expression.
-- `resolve_embeds_in_string(...)`: Resolves embeds in a string for a single pass (non-recursive).
-- `resolve_embeds_recursively_in_string(...)`: Recursively finds and resolves all embeds in a string, respecting depth and size limits.
+- `evaluate_embed(embed_type: str, expression: str, format_spec: Optional[str], context: Dict[str, Any], log_identifier: str, config: Optional[Dict] = None, current_depth: int = 0, visited_artifacts: Optional[Set[Tuple[str, int]]] = None) -> Union[Tuple[str, Optional[str], int], Tuple[None, str, Any]]` - Evaluates a single parsed embed expression
+- `resolve_embeds_in_string(text: str, context: Any, resolver_func: Callable, types_to_resolve: Set[str], log_identifier: str = "[EmbedUtil]", config: Optional[Dict[str, Any]] = None) -> Tuple[str, int, List[Tuple[int, Any]]]` - Resolves embeds in a string for a single pass (non-recursive)
+- `resolve_embeds_recursively_in_string(text: str, context: Any, resolver_func: Callable, types_to_resolve: Set[str], log_identifier: str, config: Optional[Dict], max_depth: int, current_depth: int = 0, visited_artifacts: Optional[Set[Tuple[str, int]]] = None, accumulated_size: int = 0, max_total_size: int = -1) -> str` - Recursively resolves all embeds in a string with depth and size limits
 
 **Constants/Variables:**
-- `EMBED_DELIMITER_OPEN: str`: The opening delimiter for an embed (`«`).
-- `EMBED_DELIMITER_CLOSE: str`: The closing delimiter for an embed (`»`).
-- `EMBED_TYPE_SEPARATOR: str`: The separator between an embed's type and its expression (`:`).
-- `EMBED_FORMAT_SEPARATOR: str`: The separator for an optional format specifier (`|`).
-- `EMBED_CHAIN_DELIMITER: str`: The separator for modifier steps in an `artifact_content` chain (`>>>`).
-- `EMBED_REGEX: re.Pattern`: The compiled regular expression used to find embeds.
-- `EARLY_EMBED_TYPES: Set[str]`: A set of embed types that are resolved in an initial pass.
-- `LATE_EMBED_TYPES: Set[str]`: A set of embed types (like `artifact_content`) resolved in a subsequent pass.
-
----
-### constants.py
-**Purpose:** This file defines all the static constants that govern the syntax and classification of embeds. This includes delimiters, separators, the master regular expression for parsing, and sets that categorize embed types for phased resolution.
-
-**Import:** `from src.solace_agent_mesh.common.utils.embeds.constants import EMBED_REGEX, EARLY_EMBED_TYPES`
-
-**Classes:**
-- None
-
-**Functions:**
-- None
-
-**Constants/Variables:**
-- `EMBED_DELIMITER_OPEN: str`: The character that marks the beginning of an embed (`«`).
-- `EMBED_DELIMITER_CLOSE: str`: The character that marks the end of an embed (`»`).
-- `EMBED_TYPE_SEPARATOR: str`: The character separating the embed type from its expression (`:`).
-- `EMBED_FORMAT_SEPARATOR: str`: The character separating an expression from its optional format specifier (`|`).
-- `EMBED_CHAIN_DELIMITER: str`: The string separating transformation steps in an `artifact_content` embed (`>>>`).
-- `EMBED_REGEX: re.Pattern`: A compiled regular expression to find and capture the `type`, `expression`, and optional `format` from an embed string.
-- `EARLY_EMBED_TYPES: Set[str]`: A set of embed types (`math`, `datetime`, etc.) that are resolved first, as they are generally simple, self-contained, and do not involve recursion.
-- `LATE_EMBED_TYPES: Set[str]`: A set of embed types (`artifact_content`) that are resolved later, as they can be complex, involve I/O, and may contain further embeds that require recursive resolution.
-- `TEXT_CONTAINER_MIME_TYPES: Set[str]`: A set of MIME types that are considered to contain text and can be safely decoded to a string.
+- `EMBED_DELIMITER_OPEN: str` - Opening delimiter (`«`)
+- `EMBED_DELIMITER_CLOSE: str` - Closing delimiter (`»`)
+- `EMBED_TYPE_SEPARATOR: str` - Type/expression separator (`:`)
+- `EMBED_FORMAT_SEPARATOR: str` - Format specifier separator (`|`)
+- `EMBED_CHAIN_DELIMITER: str` - Modifier chain separator (`>>>`)
+- `EMBED_REGEX: re.Pattern` - Compiled regex for finding embeds
+- `EARLY_EMBED_TYPES: Set[str]` - Types resolved in initial pass
+- `LATE_EMBED_TYPES: Set[str]` - Types resolved in subsequent pass
 
 **Usage Examples:**
 ```python
-import re
-from src.solace_agent_mesh.common.utils.embeds.constants import EMBED_REGEX
+from solace_agent_mesh.common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed, EMBED_REGEX
 
-text = "The price is «math:10 * 1.15 | .2f» and the ID is «uuid:new»."
+# Basic embed resolution
+context = {
+    "artifact_service": my_artifact_service,
+    "session_context": {"app_name": "myapp", "user_id": "user123", "session_id": "sess456"}
+}
 
-for match in EMBED_REGEX.finditer(text):
-    embed_type = match.group(1)
-    expression = match.group(2)
-    format_spec = match.group(3) # This will be None if not present
-    print(f"Type: {embed_type}, Expression: '{expression}', Format: '{format_spec}'")
-
-# Expected Output:
-# Type: math, Expression: '10 * 1.15 ', Format: ' .2f'
-# Type: uuid, Expression: 'new', Format: 'None'
+text = "The result is «math:10 * 1.15 | .2f» and ID is «uuid:new»"
+resolved = await resolve_embeds_recursively_in_string(
+    text=text,
+    context=context,
+    resolver_func=evaluate_embed,
+    types_to_resolve={"math", "uuid"},
+    log_identifier="[MyApp]",
+    config={},
+    max_depth=5
+)
 ```
 
----
-### converter.py
-**Purpose:** This file provides the core logic for data conversion and serialization. It can transform data between different `DataFormat` representations (e.g., `BYTES` to `STRING`, `STRING` to `LIST_OF_DICTS`) and serialize any format into a final string representation (e.g., `json`, `csv`, `datauri`).
+### constants.py
+**Purpose:** Defines all static constants governing embed syntax and classification.
 
-**Import:** `from src.solace_agent_mesh.common.utils.embeds.converter import convert_data, serialize_data`
-
-**Classes:**
-- None
-
-**Functions:**
-- `convert_data(current_data: Any, current_format: Optional[DataFormat], target_format: DataFormat, log_id: str = "[Converter]", original_mime_type: Optional[str] = None) -> Tuple[Any, DataFormat, Optional[str]]`: Converts data from a source format to a target format. It uses `original_mime_type` as a hint for parsing (e.g., knowing that a string is JSON or CSV). Returns a tuple of `(converted_data, resulting_format, error_message)`.
-- `serialize_data(data: Any, data_format: Optional[DataFormat], target_string_format: Optional[str], original_mime_type: Optional[str], log_id: str = "[Serializer]") -> Tuple[str, Optional[str]]`: Serializes data from any `DataFormat` into a final string. `target_string_format` can be a keyword like `"json"`, `"csv"`, `"datauri"`, or a Python format specifier for numbers (e.g., `".2f"`). Returns a tuple of `(serialized_string, error_message)`.
+**Import:** `from solace_agent_mesh.common.utils.embeds.constants import EMBED_REGEX, EARLY_EMBED_TYPES`
 
 **Constants/Variables:**
-- None
+- `EMBED_DELIMITER_OPEN: str` - Opening delimiter (`«`)
+- `EMBED_DELIMITER_CLOSE: str` - Closing delimiter (`»`)
+- `EMBED_TYPE_SEPARATOR: str` - Type/expression separator (`:`)
+- `EMBED_FORMAT_SEPARATOR: str` - Format specifier separator (`|`)
+- `EMBED_CHAIN_DELIMITER: str` - Modifier chain separator (`>>>`)
+- `EMBED_REGEX: re.Pattern` - Compiled regex with capture groups for type, expression, and format
+- `EARLY_EMBED_TYPES: Set[str]` - Simple embed types resolved first (`math`, `datetime`, `uuid`, `artifact_meta`, `status_update`)
+- `LATE_EMBED_TYPES: Set[str]` - Complex embed types resolved later (`artifact_content`)
+- `TEXT_CONTAINER_MIME_TYPES: Set[str]` - MIME types considered text-based
 
 **Usage Examples:**
 ```python
-from src.solace_agent_mesh.common.utils.embeds.converter import convert_data, serialize_data
-from src.solace_agent_mesh.common.utils.embeds.types import DataFormat
+from solace_agent_mesh.common.utils.embeds.constants import EMBED_REGEX
 
-# Example 1: Convert CSV bytes to a list of dictionaries
+text = "Price: «math:10 * 1.15 | .2f» ID: «uuid:new»"
+for match in EMBED_REGEX.finditer(text):
+    embed_type = match.group(1)      # "math" or "uuid"
+    expression = match.group(2)      # "10 * 1.15 " or "new"
+    format_spec = match.group(3)     # " .2f" or None
+    print(f"Type: {embed_type}, Expr: '{expression}', Format: '{format_spec}'")
+```
+
+### converter.py
+**Purpose:** Provides data conversion between different formats and serialization to final string representations.
+
+**Import:** `from solace_agent_mesh.common.utils.embeds.converter import convert_data, serialize_data`
+
+**Functions:**
+- `convert_data(current_data: Any, current_format: Optional[DataFormat], target_format: DataFormat, log_id: str = "[Converter]", original_mime_type: Optional[str] = None) -> Tuple[Any, DataFormat, Optional[str]]` - Converts data between DataFormat types using MIME type hints
+- `serialize_data(data: Any, data_format: Optional[DataFormat], target_string_format: Optional[str], original_mime_type: Optional[str], log_id: str = "[Serializer]") -> Tuple[str, Optional[str]]` - Serializes data to final string format (text, json, csv, datauri, or Python format specs)
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds.converter import convert_data, serialize_data
+from solace_agent_mesh.common.utils.embeds.types import DataFormat
+
+# Convert CSV bytes to list of dictionaries
 csv_bytes = b"id,name\n1,Alice\n2,Bob"
-list_of_dicts, new_format, err = convert_data(
+list_data, new_format, err = convert_data(
     current_data=csv_bytes,
     current_format=DataFormat.BYTES,
     target_format=DataFormat.LIST_OF_DICTS,
     original_mime_type="text/csv"
 )
-if not err:
-    print(f"Converted data: {list_of_dicts}")
-    # Converted data: [{'id': '1', 'name': 'Alice'}, {'id': '2', 'name': 'Bob'}]
 
-# Example 2: Serialize the list of dictionaries back to a pretty JSON string
-json_string, err = serialize_data(
-    data=list_of_dicts,
+# Serialize to pretty JSON
+json_str, err = serialize_data(
+    data=list_data,
     data_format=DataFormat.LIST_OF_DICTS,
     target_string_format="json_pretty",
     original_mime_type=None
 )
-if not err:
-    print(f"Serialized JSON:\n{json_string}")
+```
+
+### evaluators.py
+**Purpose:** Contains evaluation logic for simple embed types and the evaluator registry.
+
+**Import:** `from solace_agent_mesh.common.utils.embeds.evaluators import EMBED_EVALUATORS`
+
+**Functions:**
+- `_evaluate_math_embed(expression: str, context: Any, log_identifier: str, format_spec: Optional[str] = None) -> Tuple[str, Optional[str], int]` - Evaluates mathematical expressions using asteval
+- `_evaluate_datetime_embed(expression: str, context: Any, log_identifier: str, format_spec: Optional[str] = None) -> Tuple[str, Optional[str], int]` - Formats current datetime
+- `_evaluate_uuid_embed(expression: str, context: Any, log_identifier: str, format_spec: Optional[str] = None) -> Tuple[str, Optional[str], int]` - Generates UUID4 strings
+- `_evaluate_artifact_meta_embed(expression: str, context: Dict[str, Any], log_identifier: str, format_spec: Optional[str] = None) -> Tuple[str, Optional[str], int]` - Loads and formats artifact metadata
+- `_evaluate_artifact_content_embed(expression: str, context: Any, log_identifier: str, config: Optional[Dict] = None) -> Tuple[Optional[bytes], Optional[str], Optional[str]]` - Loads raw artifact content
+
+**Constants/Variables:**
+- `EMBED_EVALUATORS: Dict[str, Callable]` - Registry mapping embed types to evaluator functions
+- `MATH_SAFE_SYMBOLS: Dict[str, Any]` - Safe mathematical functions and constants for math embeds
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds.evaluators import EMBED_EVALUATORS
+
+# Math evaluation
+result, error, size = EMBED_EVALUATORS["math"]("2 + 3 * 4", {}, "[Test]", ".2f")
+# result: "14.00", error: None, size: 5
+
+# DateTime formatting  
+result, error, size = EMBED_EVALUATORS["datetime"]("%Y-%m-%d", {}, "[Test]")
+# result: "2024-01-15", error: None, size: 10
+```
+
+### modifiers.py
+**Purpose:** Implements data transformation functions that can be chained together in artifact_content embeds.
+
+**Import:** `from solace_agent_mesh.common.utils.embeds.modifiers import MODIFIER_DEFINITIONS, _parse_modifier_chain`
+
+**Functions:**
+- `_apply_jsonpath(current_data: Any, expression: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Applies JSONPath expressions to JSON data
+- `_apply_select_cols(current_data: List[Dict], cols_str: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Selects specific columns from tabular data
+- `_apply_filter_rows_eq(current_data: List[Dict], filter_spec: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Filters rows by column value equality
+- `_apply_slice_rows(current_data: List[Dict], slice_spec: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Slices rows using Python slice notation
+- `_apply_slice_lines(current_data: str, slice_spec: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Slices text lines
+- `_apply_grep(current_data: str, pattern: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Filters lines matching regex pattern
+- `_apply_head(current_data: str, n_str: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Returns first N lines
+- `_apply_tail(current_data: str, n_str: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Returns last N lines
+- `_apply_template(current_data: Any, template_spec: str, mime_type: Optional[str], log_id: str, context: Any) -> Tuple[Any, Optional[str], Optional[str]]` - Applies Mustache templates from artifacts
+- `_parse_modifier_chain(expression: str) -> Tuple[str, List[Tuple[str, str]], Optional[str]]` - Parses artifact_content expression into components
+
+**Constants/Variables:**
+- `MODIFIER_IMPLEMENTATIONS: Dict[str, Callable]` - Registry of modifier functions
+- `MODIFIER_DEFINITIONS: Dict[str, Dict[str, Any]]` - Modifier metadata including accepted/produced formats
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds.modifiers import _parse_modifier_chain
+
+# Parse a complex artifact_content expression
+expression = "data.csv:1 >>> select_cols:name,age >>> filter_rows_eq:age:25 >>> format:json"
+artifact_spec, modifiers, output_format = _parse_modifier_chain(expression)
+# artifact_spec: "data.csv:1"
+# modifiers: [("select_cols", "name,age"), ("filter_rows_eq", "age:25")]
+# output_format: "json"
+```
+
+### resolver.py
+**Purpose:** Core orchestration engine that handles the complete embed resolution process including modifier chains and recursion.
+
+**Import:** `from solace_agent_mesh.common.utils.embeds.resolver import resolve_embeds_in_string, evaluate_embed`
+
+**Functions:**
+- `resolve_embeds_in_string(text: str, context: Any, resolver_func: Callable, types_to_resolve: Set[str], log_identifier: str = "[EmbedUtil]", config: Optional[Dict[str, Any]] = None) -> Tuple[str, int, List[Tuple[int, Any]]]` - Single-pass embed resolution with buffering support
+- `resolve_embeds_recursively_in_string(text: str, context: Any, resolver_func: Callable, types_to_resolve: Set[str], log_identifier: str, config: Optional[Dict], max_depth: int, current_depth: int = 0, visited_artifacts: Optional[Set[Tuple[str, int]]] = None, accumulated_size: int = 0, max_total_size: int = -1) -> str` - Recursive embed resolution with safety limits
+- `evaluate_embed(embed_type: str, expression: str, format_spec: Optional[str], context: Dict[str, Any], log_identifier: str, config: Optional[Dict] = None, current_depth: int = 0, visited_artifacts: Optional[Set[Tuple[str, int]]] = None) -> Union[Tuple[str, Optional[str], int], Tuple[None, str, Any]]` - Main embed evaluation dispatcher
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds.resolver import resolve_embeds_in_string, evaluate_embed
+
+# Single-pass resolution
+text = "Result: «math:2+3» and «uuid:new»"
+context = {"artifact_service": service, "session_context": session_ctx}
+
+resolved_text, processed_index, signals = await resolve_embeds_in_string(
+    text=text,
+    context=context,
+    resolver_func=evaluate_embed,
+    types_to_resolve={"math", "uuid"},
+    log_identifier="[MyApp]",
+    config={}
+)
+
+# Complex artifact content with modifiers
+result, error, size = await evaluate_embed(
+    embed_type="artifact_content",
+    expression="sales.csv >>> select_cols:product,revenue >>> format:json",
+    format_spec=None,
+    context=context,
+    log_identifier="[Sales]"
+)
+```
+
+### types.py
+
+# content_hash: cbca48790a6e817c5bf49ddd8212cbbc663e920e9dd4dbece95bcf57d79c1837

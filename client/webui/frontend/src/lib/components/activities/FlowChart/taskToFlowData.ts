@@ -204,8 +204,9 @@ function handleLLMResponseToAgent(step: VisualizerStep, manager: TimelineLayoutM
     // Find the most recent LLM instance within the correct context
     const context = subflow || currentPhase;
 
-    // Use enhanced tool finder with function call ID matching
-    const llmInstance = findToolInstanceByNameEnhanced(context.toolInstances, "LLM", nodes, step.functionCallId);
+    // Find the most recent LLM node in this context that doesn't have an outgoing edge yet.
+    const llmNodeCandidates = context.toolInstances.filter(instance => nodes.find(n => n.id === instance.id)?.type === "llmNode");
+    const llmInstance = llmNodeCandidates.reverse().find(instance => !edges.some(edge => edge.source === instance.id));
 
     if (llmInstance) {
         llmNodeId = llmInstance.id;

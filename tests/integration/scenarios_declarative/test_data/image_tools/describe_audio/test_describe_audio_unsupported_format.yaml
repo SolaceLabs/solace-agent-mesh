@@ -1,6 +1,6 @@
 test_case_id: describe_audio_unsupported_format
 description: "Tests describe_audio tool with an unsupported audio format."
-tags: ["all","agent","tools","image_tools"]
+tags: ["all", "agent", "tools", "image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -34,8 +34,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "Unsupported audio format. Supported formats: .wav, .mp3"
+    kind: task
+    id: '*'
+    contextId: "session_unsupported_format"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
 
+              - "Unsupported audio format. Supported formats: .wav, .mp3"
 expected_artifacts: []

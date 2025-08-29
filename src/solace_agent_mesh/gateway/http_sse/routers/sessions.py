@@ -8,7 +8,8 @@ from typing import TYPE_CHECKING
 from solace_ai_connector.common.log import log
 from ....gateway.http_sse.session_manager import SessionManager
 from ....gateway.http_sse.dependencies import get_session_manager
-from ....common.types import JSONRPCResponse, InternalError
+from a2a.types import JSONRPCSuccessResponse
+from ....common import a2a
 
 if TYPE_CHECKING:
     from ....gateway.http_sse.component import WebUIBackendComponent
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
 router = APIRouter()
 
 
-@router.post("/new", response_model=JSONRPCResponse)
+@router.post("/new", response_model=JSONRPCSuccessResponse)
 async def create_new_session(
     request: FastAPIRequest,
     session_manager: SessionManager = Depends(get_session_manager),
@@ -33,7 +34,7 @@ async def create_new_session(
 
         log.info("%sCreated new A2A session: %s", log_prefix, new_session_id)
 
-        return JSONRPCResponse(
+        return a2a.create_generic_success_response(
             result={
                 "sessionId": new_session_id,
                 "message": "New A2A session created successfully",
@@ -42,14 +43,16 @@ async def create_new_session(
 
     except Exception as e:
         log.exception("%sError creating new session: %s", log_prefix, e)
-        error_resp = InternalError(message=f"Failed to create new session: {e}")
+        error_resp = a2a.create_internal_error(
+            message=f"Failed to create new session: {e}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_resp.model_dump(exclude_none=True),
         )
 
 
-@router.get("/current", response_model=JSONRPCResponse)
+@router.get("/current", response_model=JSONRPCSuccessResponse)
 async def get_current_session(
     request: FastAPIRequest,
     session_manager: SessionManager = Depends(get_session_manager),
@@ -63,7 +66,7 @@ async def get_current_session(
         client_id = session_manager.get_a2a_client_id(request)
         session_id = session_manager.get_a2a_session_id(request)
 
-        return JSONRPCResponse(
+        return a2a.create_generic_success_response(
             result={
                 "clientId": client_id,
                 "sessionId": session_id,
@@ -73,7 +76,9 @@ async def get_current_session(
 
     except Exception as e:
         log.exception("%sError getting current session info: %s", log_prefix, e)
-        error_resp = InternalError(message=f"Failed to get session info: {e}")
+        error_resp = a2a.create_internal_error(
+            message=f"Failed to get session info: {e}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_resp.model_dump(exclude_none=True),

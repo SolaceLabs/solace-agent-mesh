@@ -1,6 +1,6 @@
 test_case_id: describe_audio_happy_path_mp3
 description: "Tests the happy path for the describe_audio tool with an MP3 file."
-tags: ["all","agent","tools","image_tools"]
+tags: ["all", "agent", "tools", "image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -39,8 +39,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "The audio was described successfully."
+    kind: task
+    id: '*'
+    contextId: "session_happy_path_mp3"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
 
+              - "The audio was described successfully."
 expected_artifacts: []

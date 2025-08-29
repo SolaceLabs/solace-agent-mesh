@@ -1,6 +1,6 @@
 test_case_id: "embed_math_sinh_zero_001"
 description: "Tests «math:sinh(0)»."
-tags: ["all","common","embeds"]
+tags: ["all", "common", "embeds"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -9,9 +9,19 @@ gateway_input:
   parts: [{type: "text", text: "Calculate sinh(0)"}]
 llm_interactions:
   - static_response:
-      choices: [{message: {role: "assistant", content: "Value is «math:sinh(0)»."}}]
+      choices: [message: {role: "assistant", content: "Value is «math:sinh(0)»."}]
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "Value is 0.0."
+    kind: task
+    id: '*'
+    contextId: session_embed_math_sinh_zero_001
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "Value is 0.0."

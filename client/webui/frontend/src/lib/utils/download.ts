@@ -1,4 +1,22 @@
-import type { FileAttachment } from "../types";
+import type { FileAttachment } from "@/lib/types";
+import { authenticatedFetch } from "./api";
+
+// Helper function to parse the custom artifact URI
+const parseArtifactUri = (uri: string): { filename: string; version: string | null } | null => {
+    try {
+        const url = new URL(uri);
+        if (url.protocol !== "artifact:") {
+            return null;
+        }
+        const pathParts = url.pathname.split("/").filter(p => p);
+        const filename = pathParts[pathParts.length - 1];
+        const version = url.searchParams.get("version");
+        return { filename, version };
+    } catch (e) {
+        console.error("Invalid artifact URI:", e);
+        return null;
+    }
+};
 
 export const downloadBlob = (blob: Blob, filename?: string) => {
     try {
@@ -18,21 +36,45 @@ export const downloadBlob = (blob: Blob, filename?: string) => {
     }
 };
 
-export const downloadFile = (file: FileAttachment) => {
+export const downloadFile = async (file: FileAttachment) => {
     try {
-        // Decode base64 content
-        const byteCharacters = atob(file.content as string);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        let blob: Blob;
+        let filename = file.name;
+
+        if (file.content) {
+            // Handle inline base64 content
+            const byteCharacters = atob(file.content);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            blob = new Blob([byteArray], { type: file.mime_type || "application/octet-stream" });
+        } else if (file.uri) {
+            // Handle URI content by fetching it from the backend
+            const parsedUri = parseArtifactUri(file.uri);
+            if (!parsedUri) {
+                throw new Error(`Invalid or unhandled URI format: ${file.uri}`);
+            }
+
+            filename = parsedUri.filename;
+            const version = parsedUri.version || "latest";
+
+            // Construct the API URL to fetch the artifact content
+            const apiUrl = `/api/v1/artifacts/${encodeURIComponent(filename)}/versions/${version}`;
+
+            const response = await authenticatedFetch(apiUrl, { credentials: "include" });
+            if (!response.ok) {
+                throw new Error(`Failed to download file: ${response.statusText}`);
+            }
+            blob = await response.blob();
+        } else {
+            throw new Error("File has no content or URI to download.");
         }
-        const byteArray = new Uint8Array(byteNumbers);
 
-        // Create Blob
-        const blob = new Blob([byteArray], { type: file.mime_type ?? "application/octet-stream" });
-
-        downloadBlob(blob, file.name);
+        downloadBlob(blob, filename);
     } catch (error) {
         console.error("Error creating download link:", error);
+        // You could add a user-facing notification here if desired
     }
 };

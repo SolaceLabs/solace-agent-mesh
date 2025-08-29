@@ -5,7 +5,7 @@ Defines the ADKToolWrapper, a consolidated wrapper for ADK tools.
 import asyncio
 import functools
 import inspect
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Literal
 
 from solace_ai_connector.common.log import log
 
@@ -34,13 +34,20 @@ class ADKToolWrapper:
         tool_name: str,
         origin: str,
         raw_string_args: Optional[List[str]] = None,
+        resolution_type: Literal["early", "all"] = "all",
     ):
         self._original_func = original_func
         self._tool_config = tool_config or {}
         self._tool_name = tool_name
+        self._resolution_type = resolution_type
         self.origin = origin
         self._raw_string_args = set(raw_string_args) if raw_string_args else set()
         self._is_async = inspect.iscoroutinefunction(original_func)
+
+        self._types_to_resolve = EARLY_EMBED_TYPES
+
+        if self._resolution_type == "all":
+            self._types_to_resolve = EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES)
 
         # Ensure __name__ attribute is always set before functools.update_wrapper
         self.__name__ = tool_name
@@ -94,7 +101,7 @@ class ADKToolWrapper:
                         text=arg,
                         context=context_for_embeds,
                         resolver_func=evaluate_embed,
-                        types_to_resolve=EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES),
+                        types_to_resolve=self._types_to_resolve,
                         log_identifier=log_identifier,
                         config=self._tool_config,
                     )
@@ -115,7 +122,7 @@ class ADKToolWrapper:
                         text=value,
                         context=context_for_embeds,
                         resolver_func=evaluate_embed,
-                        types_to_resolve=EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES),
+                        types_to_resolve=self._types_to_resolve,
                         log_identifier=log_identifier,
                         config=self._tool_config,
                     )

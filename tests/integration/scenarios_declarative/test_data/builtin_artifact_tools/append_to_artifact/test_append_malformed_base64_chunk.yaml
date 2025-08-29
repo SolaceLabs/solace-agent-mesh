@@ -3,7 +3,7 @@ description: |
   Tests appending a chunk that is declared as a binary MIME type (e.g., image/png)
   but whose content is not valid base64. Expects decode_and_get_bytes to fall back
   to treating the chunk as text/plain.
-tags: ["all","agent","tools","builtin_artifact_tools"]
+tags: ["all", "agent", "tools", "builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -64,10 +64,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "Okay, I have appended the data to 'target_malformed_append.dat'. The chunk was treated as text. It is now version 1 and has a total size of 31 bytes."
-    task_state: "completed"
+    kind: task
+    id: '*'
+    contextId: "session_malformed_append_test_001"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "Okay, I have appended the data to 'target_malformed_append.dat'. The chunk was treated as text. It is now version 1 and has a total size of 31 bytes."
     assert_artifact_state:
       # Check the initial artifact (version 0)
       - filename: "target_malformed_append.dat"

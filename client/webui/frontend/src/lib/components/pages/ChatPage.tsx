@@ -5,6 +5,7 @@ import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
 import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/chat";
+import type { TextPart } from "@/lib/types";
 import { Button, ChatMessageList, CHAT_STYLES } from "@/lib/components/ui";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 import { useChatContext, useSessionPreview, useTaskContext } from "@/lib/hooks";
@@ -34,7 +35,7 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
-    const { agents, sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel } = useChatContext();
+    const { agents, sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
 
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
@@ -129,7 +130,10 @@ export function ChatPage() {
                 return [
                     ...filteredMessages,
                     {
-                        text: displayedText,
+                        role: "agent",
+                        kind: "message",
+                        messageId: `welcome-${Date.now()}`,
+                        parts: [{ kind: "text", text: displayedText }],
                         isUser: false,
                         isComplete: true,
                         metadata: { sessionId, lastProcessedEventSequence: 0 },
@@ -152,6 +156,12 @@ export function ChatPage() {
     const loadingMessage = useMemo(() => {
         return messages.find(message => message.isStatusBubble);
     }, [messages]);
+
+    const backendStatusText = useMemo(() => {
+        if (!loadingMessage || !loadingMessage.parts) return null;
+        const textPart = loadingMessage.parts.find(p => p.kind === "text") as TextPart | undefined;
+        return textPart?.text || null;
+    }, [loadingMessage]);
 
     const handleViewProgressClick = useMemo(() => {
         if (!loadingMessage?.taskId) return undefined;
@@ -214,7 +224,7 @@ export function ChatPage() {
                                     })}
                                 </ChatMessageList>
                                 <div style={CHAT_STYLES}>
-                                    {loadingMessage && <LoadingMessageRow statusText={loadingMessage.text} onViewWorkflow={handleViewProgressClick} />}
+                                    {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
                                     <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                                 </div>
                             </div>

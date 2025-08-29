@@ -7,6 +7,7 @@ import asyncio
 import functools
 import threading
 import concurrent.futures
+import uuid
 import fnmatch
 import base64
 from datetime import datetime, timezone
@@ -37,35 +38,22 @@ from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from google.genai import types as adk_types
 from google.adk.tools.mcp_tool import MCPToolset
-from ...common.types import (
+from a2a.types import (
     AgentCard,
-    Task,
-    TaskStatus,
-    TaskState,
-    Message as A2AMessage,
-    TextPart,
-    FilePart,
-    DataPart,
-    FileContent,
     Artifact as A2AArtifact,
-    JSONRPCResponse,
-    InternalError,
+    FilePart,
+    FileWithBytes,
+    FileWithUri,
+    Message as A2AMessage,
+    MessageSendParams,
+    SendMessageRequest,
+    TaskState,
+    TaskStatus,
     TaskStatusUpdateEvent,
-    TaskArtifactUpdateEvent,
-    SendTaskRequest,
-    CancelTaskRequest,
-    TaskIdParams,
 )
-from ...common.a2a_protocol import (
-    get_a2a_base_topic,
-    get_discovery_topic,
-    get_agent_request_topic,
-    get_agent_response_topic,
-    get_client_response_topic,
-    get_peer_agent_status_topic,
-    format_and_route_adk_event,
-    get_gateway_status_topic,
-)
+from ...common import a2a
+from ...common.data_parts import AgentProgressUpdateData
+from ...common.a2a.translation import format_and_route_adk_event
 from ...agent.utils.config_parser import resolve_instruction_provider
 from ...agent.utils.artifact_helpers import (
     get_latest_artifact_version,
@@ -798,8 +786,9 @@ class SamAgentComponent(ComponentBase):
                     sub_task_id,
                 )
                 task_id_for_peer = sub_task_id.replace(CORRELATION_DATA_PREFIX, "", 1)
-                cancel_params = TaskIdParams(id=task_id_for_peer)
-                cancel_request = CancelTaskRequest(params=cancel_params)
+                cancel_request = a2a.create_cancel_task_request(
+                    task_id=task_id_for_peer
+                )
                 user_props = {"clientId": self.agent_name}
                 peer_topic = self._get_agent_request_topic(peer_agent_name)
                 self._publish_a2a_message(
@@ -1286,17 +1275,17 @@ class SamAgentComponent(ComponentBase):
             return
 
         try:
-            a2a_message = A2AMessage(role="agent", parts=[TextPart(text=text_content)])
-            task_status = TaskStatus(
-                state=TaskState.WORKING,
-                message=a2a_message,
-                timestamp=datetime.now(timezone.utc),
+            a2a_message = a2a.create_agent_text_message(
+                text=text_content,
+                task_id=logical_task_id,
+                context_id=a2a_context.get("contextId"),
             )
             event_metadata = {"agent_name": self.agent_name}
-            status_update_event = TaskStatusUpdateEvent(
-                id=logical_task_id,
-                status=task_status,
-                final=is_stream_terminating_content,
+            status_update_event = a2a.create_status_update(
+                task_id=logical_task_id,
+                context_id=a2a_context.get("contextId"),
+                message=a2a_message,
+                is_final=is_stream_terminating_content,
                 metadata=event_metadata,
             )
 
@@ -1339,25 +1328,13 @@ class SamAgentComponent(ComponentBase):
             return
 
         try:
-            signal_data_part = DataPart(
-                data={
-                    "a2a_signal_type": "agent_status_message",
-                    "text": status_text,
-                },
-                metadata={"source_embed_type": "status_update"},
-            )
-            a2a_message = A2AMessage(role="agent", parts=[signal_data_part])
-            task_status = TaskStatus(
-                state=TaskState.WORKING,
-                message=a2a_message,
-                timestamp=datetime.now(timezone.utc),
-            )
-            event_metadata = {"agent_name": self.agent_name}
-            status_update_event = TaskStatusUpdateEvent(
-                id=logical_task_id,
-                status=task_status,
-                final=False,
-                metadata=event_metadata,
+            progress_data = AgentProgressUpdateData(status_text=status_text)
+            status_update_event = a2a.create_data_signal_event(
+                task_id=logical_task_id,
+                context_id=a2a_context.get("contextId"),
+                signal_data=progress_data,
+                agent_name=self.agent_name,
+                part_metadata={"source_embed_type": "status_update"},
             )
 
             await self._publish_status_update_with_buffer_flush(
@@ -1514,16 +1491,27 @@ class SamAgentComponent(ComponentBase):
                 )
 
         try:
-            rpc_response = JSONRPCResponse(
-                id=jsonrpc_request_id, result=status_update_event
+            rpc_response = a2a.create_success_response(
+                result=status_update_event, request_id=jsonrpc_request_id
             )
             payload_to_publish = rpc_response.model_dump(exclude_none=True)
 
-            target_topic = a2a_context.get("statusTopic") or get_gateway_status_topic(
+            target_topic = a2a_context.get(
+                "statusTopic"
+            ) or a2a.get_gateway_status_topic(
                 self.namespace, self.get_gateway_id(), logical_task_id
             )
 
-            self._publish_a2a_event(payload_to_publish, target_topic, a2a_context)
+            # Construct user_properties to ensure ownership can be determined by gateways
+            user_properties = {
+                "a2aUserConfig": a2a_context.get("a2a_user_config"),
+                "clientId": a2a_context.get("client_id"),
+                "delegating_agent_name": self.get_config("agent_name"),
+            }
+
+            self._publish_a2a_event(
+                payload_to_publish, target_topic, a2a_context, user_properties
+            )
 
             log.info(
                 "%s Published %s status update to %s.",
@@ -1597,13 +1585,13 @@ class SamAgentComponent(ComponentBase):
 
         mime_type = adk_part.inline_data.mime_type
         data_bytes = adk_part.inline_data.data
-        file_content: Optional[FileContent] = None
+        file_content: Optional[Union[FileWithBytes, FileWithUri]] = None
 
         try:
             if self.artifact_handling_mode == "embed":
                 encoded_bytes = base64.b64encode(data_bytes).decode("utf-8")
-                file_content = FileContent(
-                    name=filename, mimeType=mime_type, bytes=encoded_bytes
+                file_content = FileWithBytes(
+                    name=filename, mime_type=mime_type, bytes=encoded_bytes
                 )
                 log.debug(
                     "%s Embedding artifact '%s' (size: %d bytes) for A2A message.",
@@ -1631,8 +1619,8 @@ class SamAgentComponent(ComponentBase):
                     self.log_identifier,
                     artifact_uri,
                 )
-                file_content = FileContent(
-                    name=filename, mimeType=mime_type, uri=artifact_uri
+                file_content = FileWithUri(
+                    name=filename, mime_type=mime_type, uri=artifact_uri
                 )
 
             if file_content:
@@ -1972,7 +1960,7 @@ class SamAgentComponent(ComponentBase):
         namespace = self.get_config("namespace")
         gateway_id = self.get_gateway_id()
 
-        artifact_topic = peer_status_topic or get_gateway_status_topic(
+        artifact_topic = peer_status_topic or a2a.get_gateway_status_topic(
             namespace, gateway_id, logical_task_id
         )
 
@@ -2017,13 +2005,24 @@ class SamAgentComponent(ComponentBase):
                 )
 
                 if a2a_file_part:
-                    a2a_artifact = A2AArtifact(name=filename, parts=[a2a_file_part])
-                    artifact_update_event = TaskArtifactUpdateEvent(
-                        id=logical_task_id, artifact=a2a_artifact
+                    a2a_message = a2a.create_agent_parts_message(
+                        parts=[a2a_file_part],
+                        task_id=logical_task_id,
+                        context_id=original_session_id,
                     )
-                    artifact_payload = JSONRPCResponse(
-                        id=a2a_context.get("jsonrpc_request_id"),
-                        result=artifact_update_event,
+                    task_status = a2a.create_task_status(
+                        state=TaskState.working, message=a2a_message
+                    )
+                    status_update_event = TaskStatusUpdateEvent(
+                        task_id=logical_task_id,
+                        context_id=original_session_id,
+                        status=task_status,
+                        final=False,
+                        kind="status-update",
+                    )
+                    artifact_payload = a2a.create_success_response(
+                        result=status_update_event,
+                        request_id=a2a_context.get("jsonrpc_request_id"),
                     ).model_dump(exclude_none=True)
 
                     self._publish_a2a_event(
@@ -2031,7 +2030,7 @@ class SamAgentComponent(ComponentBase):
                     )
 
                     log.info(
-                        "%s Published TaskArtifactUpdateEvent for '%s' to %s",
+                        "%s Published TaskStatusUpdateEvent with FilePart for '%s' to %s",
                         log_id,
                         filename,
                         artifact_topic,
@@ -2052,53 +2051,51 @@ class SamAgentComponent(ComponentBase):
                     e,
                 )
 
-    def _format_final_task_status(self, last_event: ADKEvent) -> TaskStatus:
+    def _format_final_task_status(
+        self, last_event: Optional[ADKEvent], override_text: Optional[str] = None
+    ) -> TaskStatus:
         """Helper to format the final TaskStatus based on the last ADK event."""
         log.debug(
             "%s Formatting final task status from last ADK event %s",
             self.log_identifier,
-            last_event.id,
+            last_event.id if last_event else "None",
         )
-        a2a_state = TaskState.COMPLETED
+        a2a_state = TaskState.completed
         a2a_parts = []
 
-        if last_event.content and last_event.content.parts:
-            for part in last_event.content.parts:
-                if part.text:
-                    a2a_parts.append(TextPart(text=part.text))
-                elif part.function_response:
-                    try:
-                        response_data = part.function_response.response
-                        if isinstance(response_data, dict):
-                            a2a_parts.append(
-                                DataPart(
-                                    data=response_data,
-                                    metadata={"tool_name": part.function_response.name},
-                                )
+        if override_text is not None:
+            a2a_parts.append(a2a.create_text_part(text=override_text))
+            # Add non-text parts from the last event
+            if last_event and last_event.content and last_event.content.parts:
+                for part in last_event.content.parts:
+                    if part.text is None:
+                        if part.function_response:
+                            a2a_parts.extend(
+                                a2a.translate_adk_function_response_to_a2a_parts(part)
                             )
-                        else:
-                            a2a_parts.append(
-                                TextPart(
-                                    text=f"Tool {part.function_response.name} result: {str(response_data)}"
-                                )
-                            )
-                    except Exception:
-                        a2a_parts.append(
-                            TextPart(
-                                text=f"[Tool {part.function_response.name} result omitted]"
-                            )
+        else:
+            # Original logic
+            if last_event and last_event.content and last_event.content.parts:
+                for part in last_event.content.parts:
+                    if part.text:
+                        a2a_parts.append(a2a.create_text_part(text=part.text))
+                    elif part.function_response:
+                        a2a_parts.extend(
+                            a2a.translate_adk_function_response_to_a2a_parts(part)
                         )
 
-        elif last_event.actions:
+        if last_event and last_event.actions:
             if last_event.actions.requested_auth_configs:
-                a2a_state = TaskState.INPUT_REQUIRED
-                a2a_parts.append(TextPart(text="[Agent requires input/authentication]"))
+                a2a_state = TaskState.input_required
+                a2a_parts.append(
+                    a2a.create_text_part(text="[Agent requires input/authentication]")
+                )
 
         if not a2a_parts:
-            a2a_parts.append(TextPart(text=""))
-
-        a2a_message = A2AMessage(role="agent", parts=a2a_parts)
-        return TaskStatus(state=a2a_state, message=a2a_message)
+            a2a_message = a2a.create_agent_text_message(text="")
+        else:
+            a2a_message = a2a.create_agent_parts_message(parts=a2a_parts)
+        return a2a.create_task_status(state=a2a_state, message=a2a_message)
 
     async def finalize_task_success(self, a2a_context: Dict):
         """
@@ -2156,55 +2153,16 @@ class SamAgentComponent(ComponentBase):
                         logical_task_id,
                         len(aggregated_text.encode("utf-8")),
                     )
-
-                final_a2a_parts = []
-                if aggregated_text:
-                    final_a2a_parts.append(TextPart(text=aggregated_text))
-
-                if last_event and last_event.content and last_event.content.parts:
-                    for part in last_event.content.parts:
-                        if part.text is None:
-                            if part.function_response:
-                                try:
-                                    response_data = part.function_response.response
-                                    if isinstance(response_data, dict):
-                                        final_a2a_parts.append(
-                                            DataPart(
-                                                data=response_data,
-                                                metadata={
-                                                    "tool_name": part.function_response.name
-                                                },
-                                            )
-                                        )
-                                    else:
-                                        final_a2a_parts.append(
-                                            TextPart(
-                                                text=f"Tool {part.function_response.name} result: {str(response_data)}"
-                                            )
-                                        )
-                                except Exception:
-                                    final_a2a_parts.append(
-                                        TextPart(
-                                            text=f"[Tool {part.function_response.name} result omitted]"
-                                        )
-                                    )
-
-                if not final_a2a_parts:
-                    final_a2a_parts.append(TextPart(text=""))
-
-                final_status = TaskStatus(
-                    state=TaskState.COMPLETED,
-                    message=A2AMessage(role="agent", parts=final_a2a_parts),
+                final_status = self._format_final_task_status(
+                    last_event, override_text=aggregated_text
                 )
             else:
                 if last_event:
                     final_status = self._format_final_task_status(last_event)
                 else:
-                    final_status = TaskStatus(
-                        state=TaskState.COMPLETED,
-                        message=A2AMessage(
-                            role="agent", parts=[TextPart(text="Task completed.")]
-                        ),
+                    final_status = a2a.create_task_status(
+                        state=TaskState.completed,
+                        message=a2a.create_agent_text_message(text="Task completed."),
                     )
 
             final_a2a_artifacts: List[A2AArtifact] = []
@@ -2224,16 +2182,18 @@ class SamAgentComponent(ComponentBase):
                     len(task_context.produced_artifacts),
                 )
 
-            final_task = Task(
-                id=logical_task_id,
-                sessionId=original_session_id,
-                status=final_status,
+            final_task = a2a.create_final_task(
+                task_id=logical_task_id,
+                context_id=original_session_id,
+                final_status=final_status,
                 artifacts=(final_a2a_artifacts if final_a2a_artifacts else None),
                 metadata=final_task_metadata,
             )
-            final_response = JSONRPCResponse(id=jsonrpc_request_id, result=final_task)
+            final_response = a2a.create_success_response(
+                result=final_task, request_id=jsonrpc_request_id
+            )
             a2a_payload = final_response.model_dump(exclude_none=True)
-            target_topic = peer_reply_topic or get_client_response_topic(
+            target_topic = peer_reply_topic or a2a.get_client_response_topic(
                 namespace, client_id
             )
 
@@ -2300,14 +2260,12 @@ class SamAgentComponent(ComponentBase):
                 client_id = a2a_context.get("client_id")
                 peer_reply_topic = a2a_context.get("replyToTopic")
                 namespace = self.get_config("namespace")
-                error_response = JSONRPCResponse(
-                    id=jsonrpc_request_id,
-                    error=InternalError(
-                        message=f"Failed to finalize successful task: {e}",
-                        data={"taskId": logical_task_id},
-                    ),
+                error_response = a2a.create_internal_error_response(
+                    message=f"Failed to finalize successful task: {e}",
+                    request_id=jsonrpc_request_id,
+                    data={"taskId": logical_task_id},
                 )
-                target_topic = peer_reply_topic or get_client_response_topic(
+                target_topic = peer_reply_topic or a2a.get_client_response_topic(
                     namespace, client_id
                 )
                 self._publish_a2a_message(
@@ -2340,23 +2298,24 @@ class SamAgentComponent(ComponentBase):
             peer_reply_topic = a2a_context.get("replyToTopic")
             namespace = self.get_config("namespace")
 
-            canceled_status = TaskStatus(
-                state=TaskState.CANCELED,
-                message=A2AMessage(
-                    role="agent",
-                    parts=[TextPart(text="Task cancelled by request.")],
+            canceled_status = a2a.create_task_status(
+                state=TaskState.canceled,
+                message=a2a.create_agent_text_message(
+                    text="Task cancelled by request."
                 ),
             )
             agent_name = self.get_config("agent_name")
-            final_task = Task(
-                id=logical_task_id,
-                sessionId=a2a_context.get("session_id"),
-                status=canceled_status,
+            final_task = a2a.create_final_task(
+                task_id=logical_task_id,
+                context_id=a2a_context.get("contextId"),
+                final_status=canceled_status,
                 metadata={"agent_name": agent_name},
             )
-            final_response = JSONRPCResponse(id=jsonrpc_request_id, result=final_task)
+            final_response = a2a.create_success_response(
+                result=final_task, request_id=jsonrpc_request_id
+            )
             a2a_payload = final_response.model_dump(exclude_none=True)
-            target_topic = peer_reply_topic or get_client_response_topic(
+            target_topic = peer_reply_topic or a2a.get_client_response_topic(
                 namespace, client_id
             )
 
@@ -2416,7 +2375,7 @@ class SamAgentComponent(ComponentBase):
         )
         try:
             # Create the status update event
-            tool_error_data_part = DataPart(
+            tool_error_data_part = a2a.create_data_part(
                 data={
                     "a2a_signal_type": "tool_execution_error",
                     "error_message": str(exception),
@@ -2424,17 +2383,16 @@ class SamAgentComponent(ComponentBase):
                 }
             )
 
-            status_message = A2AMessage(role="agent", parts=[tool_error_data_part])
-            intermediate_status = TaskStatus(
-                state=TaskState.WORKING,
-                message=status_message,
-                timestamp=datetime.now(timezone.utc),
+            status_message = a2a.create_agent_parts_message(
+                parts=[tool_error_data_part],
+                task_id=logical_task_id,
+                context_id=a2a_context.get("contextId"),
             )
-
-            status_update_event = TaskStatusUpdateEvent(
-                id=logical_task_id,
-                status=intermediate_status,
-                final=False,
+            status_update_event = a2a.create_status_update(
+                task_id=logical_task_id,
+                context_id=a2a_context.get("contextId"),
+                message=status_message,
+                is_final=False,
                 metadata={"agent_name": self.get_config("agent_name")},
             )
 
@@ -2554,15 +2512,14 @@ class SamAgentComponent(ComponentBase):
                 "Otherwise, you can start a new topic."
             )
 
-            error_payload = InternalError(
+            final_response = a2a.create_internal_error_response(
                 message=limit_message_text,
+                request_id=jsonrpc_request_id,
                 data={"taskId": logical_task_id, "reason": "llm_call_limit_reached"},
             )
-
-            final_response = JSONRPCResponse(id=jsonrpc_request_id, error=error_payload)
             a2a_payload = final_response.model_dump(exclude_none=True)
 
-            target_topic = peer_reply_topic or get_client_response_topic(
+            target_topic = peer_reply_topic or a2a.get_client_response_topic(
                 namespace, client_id
             )
 
@@ -2631,28 +2588,25 @@ class SamAgentComponent(ComponentBase):
             peer_reply_topic = a2a_context.get("replyToTopic")
             namespace = self.get_config("namespace")
 
-            failed_status = TaskStatus(
-                state=TaskState.FAILED,
-                message=A2AMessage(
-                    role="agent",
-                    parts=[
-                        TextPart(
-                            text="An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
-                        )
-                    ],
+            failed_status = a2a.create_task_status(
+                state=TaskState.failed,
+                message=a2a.create_agent_text_message(
+                    text="An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
                 ),
             )
 
-            final_task = Task(
-                id=logical_task_id,
-                sessionId=a2a_context.get("session_id"),
-                status=failed_status,
+            final_task = a2a.create_final_task(
+                task_id=logical_task_id,
+                context_id=a2a_context.get("contextId"),
+                final_status=failed_status,
                 metadata={"agent_name": self.get_config("agent_name")},
             )
 
-            final_response = JSONRPCResponse(id=jsonrpc_request_id, result=final_task)
+            final_response = a2a.create_success_response(
+                result=final_task, request_id=jsonrpc_request_id
+            )
             a2a_payload = final_response.model_dump(exclude_none=True)
-            target_topic = peer_reply_topic or get_client_response_topic(
+            target_topic = peer_reply_topic or a2a.get_client_response_topic(
                 namespace, client_id
             )
 
@@ -2871,21 +2825,21 @@ class SamAgentComponent(ComponentBase):
 
     def _get_a2a_base_topic(self) -> str:
         """Returns the base topic prefix using helper."""
-        return get_a2a_base_topic(self.namespace)
+        return a2a.get_a2a_base_topic(self.namespace)
 
     def _get_discovery_topic(self) -> str:
         """Returns the discovery topic using helper."""
-        return get_discovery_topic(self.namespace)
+        return a2a.get_discovery_topic(self.namespace)
 
     def _get_agent_request_topic(self, agent_id: str) -> str:
         """Returns the agent request topic using helper."""
-        return get_agent_request_topic(self.namespace, agent_id)
+        return a2a.get_agent_request_topic(self.namespace, agent_id)
 
     def _get_agent_response_topic(
         self, delegating_agent_name: str, sub_task_id: str
     ) -> str:
         """Returns the agent response topic using helper."""
-        return get_agent_response_topic(
+        return a2a.get_agent_response_topic(
             self.namespace, delegating_agent_name, sub_task_id
         )
 
@@ -2893,13 +2847,13 @@ class SamAgentComponent(ComponentBase):
         self, delegating_agent_name: str, sub_task_id: str
     ) -> str:
         """Returns the peer agent status topic using helper."""
-        return get_peer_agent_status_topic(
+        return a2a.get_peer_agent_status_topic(
             self.namespace, delegating_agent_name, sub_task_id
         )
 
     def _get_client_response_topic(self, client_id: str) -> str:
         """Returns the client response topic using helper."""
-        return get_client_response_topic(self.namespace, client_id)
+        return a2a.get_client_response_topic(self.namespace, client_id)
 
     def _publish_a2a_message(
         self, payload: Dict, topic: str, user_properties: Optional[Dict] = None
@@ -2958,14 +2912,23 @@ class SamAgentComponent(ComponentBase):
             )
             raise
 
-    def _publish_a2a_event(self, payload: Dict, topic: str, a2a_context: Dict):
+    def _publish_a2a_event(
+        self,
+        payload: Dict,
+        topic: str,
+        a2a_context: Dict,
+        user_properties_override: Optional[Dict] = None,
+    ):
         """
         Centralized helper to publish an A2A event, ensuring user properties
-        are consistently attached from the a2a_context.
+        are consistently attached from the a2a_context or an override.
         """
-        user_properties = {}
-        if a2a_context.get("a2a_user_config"):
-            user_properties["a2aUserConfig"] = a2a_context["a2a_user_config"]
+        if user_properties_override is not None:
+            user_properties = user_properties_override
+        else:
+            user_properties = {}
+            if a2a_context.get("a2a_user_config"):
+                user_properties["a2aUserConfig"] = a2a_context["a2a_user_config"]
 
         self._publish_a2a_message(payload, topic, user_properties)
 
@@ -2973,12 +2936,9 @@ class SamAgentComponent(ComponentBase):
         self,
         target_agent_name: str,
         a2a_message: A2AMessage,
-        original_session_id: str,
-        main_logical_task_id: str,
         user_id: str,
         user_config: Dict[str, Any],
         sub_task_id: str,
-        function_call_id: Optional[str] = None,
     ) -> str:
         """
         Submits a task to a peer agent in a non-blocking way.
@@ -2987,25 +2947,18 @@ class SamAgentComponent(ComponentBase):
         log_identifier_helper = (
             f"{self.log_identifier}[SubmitA2ATask:{target_agent_name}]"
         )
+        main_task_id = a2a_message.metadata.get("parentTaskId", "unknown_parent")
         log.debug(
             "%s Submitting non-blocking task for main task %s",
             log_identifier_helper,
-            main_logical_task_id,
+            main_task_id,
         )
 
         peer_request_topic = self._get_agent_request_topic(target_agent_name)
 
-        a2a_request_params = {
-            "id": sub_task_id,
-            "sessionId": original_session_id,
-            "message": a2a_message.model_dump(exclude_none=True),
-            "metadata": {
-                "sessionBehavior": "RUN_BASED",
-                "parentTaskId": main_logical_task_id,
-                "function_call_id": function_call_id,
-            },
-        }
-        a2a_request = SendTaskRequest(params=a2a_request_params)
+        # Create a compliant SendMessageRequest
+        send_params = MessageSendParams(message=a2a_message)
+        a2a_request = SendMessageRequest(id=sub_task_id, params=send_params)
 
         delegating_agent_name = self.get_config("agent_name")
         reply_to_topic = self._get_agent_response_topic(
@@ -3026,7 +2979,7 @@ class SamAgentComponent(ComponentBase):
             user_properties["a2aUserConfig"] = user_config
 
         self._publish_a2a_message(
-            payload=a2a_request.model_dump(exclude_none=True),
+            payload=a2a_request.model_dump(by_alias=True, exclude_none=True),
             topic=peer_request_topic,
             user_properties=user_properties,
         )
