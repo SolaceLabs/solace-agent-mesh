@@ -1,7 +1,8 @@
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, TypeVar, Union
 
 from ...business.services.session_service import SessionService
+from ...business.services.in_memory_session_service import InMemorySessionService
 from ...data.persistence import database_service as db_service_module
 from ...data.persistence.database_service import DatabaseService
 
@@ -56,21 +57,28 @@ class DIContainer:
 class ApplicationContainer:
     """Application-specific dependency injection container."""
 
-    def __init__(self, database_url: str):
+    def __init__(self, database_url: str | None = None):
         self.container = DIContainer()
         self.database_url = database_url
+        self.has_database = database_url is not None
         self._setup_dependencies()
 
     def _setup_dependencies(self) -> None:
         """Setup all application dependencies."""
 
-        # Database service (singleton)
-        database_service = DatabaseService(self.database_url)
-        self.container.register_singleton(DatabaseService, database_service)
+        if self.has_database:
+            # Database service (singleton)
+            database_service = DatabaseService(self.database_url)
+            self.container.register_singleton(DatabaseService, database_service)
+            db_service_module.database_service = database_service
+        else:
+            # No database available - will use in-memory fallback
+            pass
 
-        db_service_module.database_service = database_service
-
-    def get_database_service(self) -> DatabaseService:
+    def get_database_service(self) -> DatabaseService | None:
+        """Get database service if available."""
+        if not self.has_database:
+            return None
         return self.container.get(DatabaseService)
 
 
@@ -78,12 +86,15 @@ class ApplicationContainer:
 _container: ApplicationContainer | None = None
 
 
-def initialize_container(database_url: str) -> ApplicationContainer:
+def initialize_container(database_url: str | None = None) -> ApplicationContainer:
     global _container
     _container = ApplicationContainer(database_url)
 
-    database_service = _container.get_database_service()
-    database_service.create_tables()
+    # Only create tables if database is available
+    if _container.has_database:
+        database_service = _container.get_database_service()
+        if database_service:
+            database_service.create_tables()
 
     return _container
 
@@ -97,13 +108,21 @@ def get_container() -> ApplicationContainer:
 
 
 # FastAPI dependency functions
-def get_session_service() -> SessionService:
+def get_session_service() -> Union[SessionService, InMemorySessionService]:
     """
     FastAPI dependency for getting the session service.
-
-    Returns the session service that handles its own transactions internally.
+    
+    Returns either a database-backed session service or an in-memory fallback
+    depending on whether a database is configured.
     """
+    from solace_ai_connector.common.log import log
+    
     container = get_container()
-    database_service = container.get_database_service()
-
-    return SessionService(db_service=database_service)
+    
+    if container.has_database:
+        database_service = container.get_database_service()
+        log.debug("Using database-backed session service")
+        return SessionService(db_service=database_service)
+    else:
+        log.info("No database configured - using in-memory session service (data not persisted across restarts)")
+        return InMemorySessionService()

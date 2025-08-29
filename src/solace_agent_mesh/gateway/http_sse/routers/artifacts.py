@@ -144,6 +144,12 @@ async def list_artifact_versions(
     summary="List Artifact Information",
     description="Retrieves detailed information for artifacts available for the current user session.",
 )
+@router.get(
+    "/",
+    response_model=List[ArtifactInfo],
+    summary="List Artifact Information",
+    description="Retrieves detailed information for artifacts available for the current user session.",
+)
 async def list_artifacts(
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),

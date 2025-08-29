@@ -11,6 +11,7 @@ interface BackendConfig {
     frontend_redirect_url: string;
     frontend_collect_feedback: boolean;
     frontend_bot_name: string;
+    persistence_enabled?: boolean;
 }
 
 interface ConfigProviderProps {
@@ -94,6 +95,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     configCollectFeedback: data.frontend_collect_feedback,
                     configBotName: data.frontend_bot_name,
                     frontend_use_authorization: data.frontend_use_authorization,
+                    persistenceEnabled: data.persistence_enabled ?? true,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;

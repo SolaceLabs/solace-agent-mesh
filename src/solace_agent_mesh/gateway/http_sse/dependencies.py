@@ -61,12 +61,12 @@ def set_persistence_service(persistence_service: "PersistenceService"):
 def get_persistence_service() -> "PersistenceService":
     """FastAPI dependency to get the PersistenceService instance."""
     if persistence_service_instance is None:
-        log.critical(
-            "[Dependencies] PersistenceService instance accessed before it was set!"
+        log.warning(
+            "[Dependencies] PersistenceService not available - running in compatibility mode"
         )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Persistence service not yet initialized.",
+            detail="Persistence service not available in compatibility mode.",
         )
     return persistence_service_instance
 

@@ -145,11 +145,63 @@ def create_webui_gateway_config(
         is_bool=True,
     )
 
+    # Session service configuration for WebUI (default to SQL for new projects)
+    session_type = ask_if_not_provided(
+        options,
+        "webui_session_service_type",
+        "Enter WebUI session service type",
+        "sql",
+        skip_interactive,
+        choices=["sql", "memory"],
+    )
+
+    session_behavior = ask_if_not_provided(
+        options,
+        "webui_session_service_behavior",
+        "Enter WebUI session service behavior",
+        "PERSISTENT",
+        skip_interactive,
+        choices=["PERSISTENT", "RUN_BASED"],
+    )
+
     click.echo("Creating Web UI Gateway configuration file...")
     destination_path = project_root / "configs" / "gateways" / "webui.yaml"
 
     try:
         template_content = load_template("webui.yaml")
+        
+        # Generate session service configuration for WebUI
+        if session_type == "sql":
+            session_service_lines = [
+                f'type: "{session_type}"',
+                f'database_url: "${{WEB_UI_GATEWAY_DATABASE_URL}}"',
+                f'default_behavior: "{session_behavior}"',
+            ]
+            session_service_block = "\n" + "\n".join(
+                [f"        {line}" for line in session_service_lines]
+            )
+            
+            # Generate database URL for WebUI
+            data_dir = project_root / "data"
+            data_dir.mkdir(exist_ok=True)
+            webui_db_file = data_dir / "webui_gateway.db"
+            webui_database_url = f"sqlite:///{webui_db_file.resolve()}"
+            
+            # Add to .env file
+            try:
+                env_path = project_root / ".env"
+                with open(env_path, "a", encoding="utf-8") as f:
+                    f.write(f'\nWEB_UI_GATEWAY_DATABASE_URL="{webui_database_url}"\n')
+                click.echo(f"  Added WEB_UI_GATEWAY_DATABASE_URL to .env: {webui_database_url}")
+            except Exception as e:
+                click.echo(
+                    click.style(f"Warning: Could not add WEB_UI_GATEWAY_DATABASE_URL to .env: {e}", fg="yellow"),
+                    err=True,
+                )
+        else:
+            # Use shared default for memory
+            session_service_block = "*default_session_service"
+        
         replacements = {
             "__FRONTEND_WELCOME_MESSAGE__": str(
                 options.get("webui_frontend_welcome_message", "")
@@ -160,6 +212,7 @@ def create_webui_gateway_config(
             "__FRONTEND_COLLECT_FEEDBACK__": str(
                 options.get("webui_frontend_collect_feedback", False)
             ).lower(),
+            "__SESSION_SERVICE__": session_service_block,
         }
 
         modified_content = template_content

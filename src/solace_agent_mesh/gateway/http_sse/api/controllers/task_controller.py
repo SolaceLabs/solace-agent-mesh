@@ -1,24 +1,14 @@
-"""
-Task API controller using 3-tiered architecture.
-Note: This controller maintains the existing task submission logic
-while using the new architectural patterns.
-"""
-
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException
 from fastapi import Request as FastAPIRequest
+from fastapi import UploadFile, status
 from solace_ai_connector.common.log import log
 
 from .....common.types import InternalError, InvalidRequestError, JSONRPCResponse
+from ...business.services.in_memory_session_service import InMemorySessionService
 from ...business.services.session_service import SessionService
-from ...database.persistence_service import PersistenceService
-from ...dependencies import (
-    get_persistence_service,
-    get_sac_component,
-    get_session_manager,
-    get_user_id,
-)
+from ...dependencies import get_sac_component, get_session_manager, get_user_id
 from ...infrastructure.dependency_injection import get_session_service
 from ...session_manager import SessionManager
 from ...shared.enums import SenderType
@@ -135,8 +125,9 @@ async def subscribe_task_from_agent(
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     user_id: str = Depends(get_user_id),
-    persistence_service: PersistenceService = Depends(get_persistence_service),
-    session_service: SessionService = Depends(get_session_service),
+    session_service: SessionService | InMemorySessionService = Depends(
+        get_session_service
+    ),
 ):
     """
     Submits a streaming task request (`tasks/sendSubscribe`) to the specified agent.
@@ -171,7 +162,7 @@ async def subscribe_task_from_agent(
             log.info("%sNo session_id provided, creating a new one.", log_prefix)
             session_id = session_manager.start_new_a2a_session(request)
 
-        # Store message using the new session service
+        # Store message using the session service (database-backed or in-memory)
         try:
             message_domain = session_service.add_message_to_session(
                 session_id=session_id,
@@ -191,20 +182,10 @@ async def subscribe_task_from_agent(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
             )
         except Exception as e:
-            log.warning(
-                "Failed to store message in new service, falling back to persistence service: %s",
-                e,
-            )
-            # Fallback to existing persistence service
-            persistence_service.store_chat_message(
-                session_id=session_id,
-                message={
-                    "message": message,
-                    "sender_type": "user",
-                    "sender_name": user_id,
-                },
-                user_id=user_id,
-                agent_id=agent_name,
+            log.error("Failed to store message in session service: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to store message",
             )
 
         log.info(

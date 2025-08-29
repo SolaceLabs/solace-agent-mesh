@@ -56,11 +56,10 @@ def _write_agent_yaml_from_data(
 
     try:
         modified_content = load_template("agent_template.yaml")
+        # Generate session service configuration for this agent
         session_service_type_opt = config_options.get("session_service_type")
-        if (
-            session_service_type_opt
-            and session_service_type_opt != USE_DEFAULT_SHARED_SESSION
-        ):
+        if session_service_type_opt and session_service_type_opt != "memory":
+            # Generate override config for non-memory types
             type_val = session_service_type_opt
             behavior_val = config_options.get(
                 "session_service_behavior", AGENT_DEFAULTS["session_service_behavior"]
@@ -83,6 +82,7 @@ def _write_agent_yaml_from_data(
                 [f"        {line}" for line in session_service_lines]
             )
         else:
+            # Use shared default for memory (or when no preference specified)
             session_service_block = "*default_session_service"
         artifact_service_type_opt = config_options.get("artifact_service_type")
         if (
@@ -391,7 +391,7 @@ def create_agent_config(
         "Session service type",
         AGENT_DEFAULTS["session_service_type"],
         skip_interactive,
-        choices=[USE_DEFAULT_SHARED_SESSION, "sql", "memory", "vertex_rag"],
+        choices=["sql", "memory", "vertex_rag"],
     )
 
     if collected_options.get("session_service_type") == "sql":
@@ -451,8 +451,7 @@ def create_agent_config(
             )
             return False
 
-    if collected_options.get("session_service_type") != USE_DEFAULT_SHARED_SESSION:
-        collected_options["session_service_behavior"] = ask_if_not_provided(
+    collected_options["session_service_behavior"] = ask_if_not_provided(
             collected_options,
             "session_service_behavior",
             "Session service behavior",

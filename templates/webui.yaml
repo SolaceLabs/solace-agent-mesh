@@ -20,11 +20,8 @@ apps:
       namespace: ${NAMESPACE}
       session_secret_key: ${SESSION_SECRET_KEY}
 
-      artifact_service: *default_artifact_service 
-      session_service:
-        type: sql
-        database_url: ${WEB_UI_GATEWAY_DATABASE_URL}
-        default_behavior: "PERSISTENT"
+      artifact_service: *default_artifact_service
+      session_service: __SESSION_SERVICE__
       gateway_id: ${WEBUI_GATEWAY_ID}
       fastapi_host: ${FASTAPI_HOST}
       fastapi_port: ${FASTAPI_PORT}

@@ -1,14 +1,3 @@
-"""
-FastAPI application using the 3-tiered architecture pattern.
-
-This application implements clean separation of concerns with:
-- Presentation Layer: Controllers handle HTTP requests/responses
-- Business Layer: Services contain business logic
-- Data Layer: Repositories handle data access
-
-All API endpoints maintain backward compatibility while using modern architecture patterns.
-"""
-
 import os
 from pathlib import Path
 
@@ -54,61 +43,80 @@ if TYPE_CHECKING:
 app = FastAPI(
     title="A2A Web UI Backend",
     version="1.0.0",  # Updated to reflect simplified architecture
-    description="Backend API and SSE server for the A2A Web UI using 3-tiered architecture, hosted by Solace AI Connector.",
+    description="Backend API and SSE server for the A2A Web UI, hosted by Solace AI Connector.",
 )
 
 
-def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
+def setup_dependencies(component: "WebUIBackendComponent", persistence_service=None):
     """
-    Setup function using 3-tiered architecture with dependency injection.
-
     This function initializes the modern architecture while maintaining full
     backward compatibility with existing API contracts.
-    """
-    log.info("Setting up FastAPI dependencies with 3-tiered architecture...")
 
-    database_url = persistence_service.engine.url.__str__()
-    global database_service
-    database_service = DatabaseService(database_url)
-    log.info("Database service initialized")
+    If persistence_service is None, runs in compatibility mode with in-memory sessions.
+    """
+
+    if persistence_service:
+        database_url = persistence_service.engine.url.__str__()
+        global database_service
+        database_service = DatabaseService(database_url)
+        log.info("Database service initialized")
+
+        from .infrastructure.dependency_injection.container import initialize_container
+
+        initialize_container(database_url)
+        log.info("Persistence enabled - sessions will be stored in database")
+    else:
+        from .infrastructure.dependency_injection.container import initialize_container
+
+        initialize_container()
+        log.warning(
+            "No persistence service provided - using in-memory session storage (data not persisted across restarts)"
+        )
+        log.info("This maintains backward compatibility for existing SAM installations")
 
     dependencies.set_component_instance(component)
 
-    # Run database migrations (only if needed)
-    log.info("Checking database migrations...")
-    try:
-        # Check if tables already exist (common in test environments)
-        inspector = sa.inspect(persistence_service.engine)
-        existing_tables = inspector.get_table_names()
-
-        if not existing_tables or "sessions" not in existing_tables:
-            # Tables don't exist, run migrations
-            log.info("Running database migrations...")
-            alembic_cfg = Config()
-            alembic_cfg.set_main_option(
-                "script_location",
-                os.path.join(os.path.dirname(__file__), "alembic"),
-            )
-            alembic_cfg.set_main_option("sqlalchemy.url", database_url)
-            command.upgrade(alembic_cfg, "head")
-            log.info("Database migrations complete.")
-        else:
-            log.info("Database tables already exist, skipping migrations.")
-    except Exception as e:
-        log.warning(f"Migration check failed, attempting to run migrations anyway: {e}")
+    # Run database migrations (only if persistence is available)
+    if persistence_service:
+        log.info("Checking database migrations...")
         try:
-            alembic_cfg = Config()
-            alembic_cfg.set_main_option(
-                "script_location",
-                os.path.join(os.path.dirname(__file__), "alembic"),
-            )
-            alembic_cfg.set_main_option("sqlalchemy.url", database_url)
-            command.upgrade(alembic_cfg, "head")
-            log.info("Database migrations complete.")
-        except Exception as migration_error:
-            log.warning(f"Migration failed but continuing: {migration_error}")
+            # Check if tables already exist (common in test environments)
+            inspector = sa.inspect(persistence_service.engine)
+            existing_tables = inspector.get_table_names()
 
-    dependencies.set_persistence_service(persistence_service)
+            if not existing_tables or "sessions" not in existing_tables:
+                # Tables don't exist, run migrations
+                log.info("Running database migrations...")
+                alembic_cfg = Config()
+                alembic_cfg.set_main_option(
+                    "script_location",
+                    os.path.join(os.path.dirname(__file__), "alembic"),
+                )
+                alembic_cfg.set_main_option("sqlalchemy.url", database_url)
+                command.upgrade(alembic_cfg, "head")
+                log.info("Database migrations complete.")
+            else:
+                log.info("Database tables already exist, skipping migrations.")
+        except Exception as e:
+            log.warning(
+                f"Migration check failed, attempting to run migrations anyway: {e}"
+            )
+            try:
+                alembic_cfg = Config()
+                alembic_cfg.set_main_option(
+                    "script_location",
+                    os.path.join(os.path.dirname(__file__), "alembic"),
+                )
+                alembic_cfg.set_main_option("sqlalchemy.url", database_url)
+                command.upgrade(alembic_cfg, "head")
+                log.info("Database migrations complete.")
+            except Exception as migration_error:
+                log.warning(f"Migration failed but continuing: {migration_error}")
+
+        dependencies.set_persistence_service(persistence_service)
+    else:
+        log.info("Skipping database migrations - no persistence service configured")
+        # Don't set persistence service in dependencies since it's None
 
     # Extract and set API configuration
     webui_app = component.get_app()
@@ -135,6 +143,7 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
         "frontend_redirect_url": app_config.get(
             "frontend_redirect_url", "http://localhost:3000"
         ),
+        "persistence_enabled": persistence_service is not None,
     }
 
     dependencies.set_api_config(api_config_dict)
@@ -485,11 +494,9 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
     # Mount API routers
     api_prefix = "/api/v1"
 
-    # Mount new 3-tiered architecture controllers
     app.include_router(session_router, prefix=api_prefix, tags=["Sessions"])
     app.include_router(user_router, prefix=f"{api_prefix}/users", tags=["Users"])
     app.include_router(task_router, prefix=f"{api_prefix}/tasks", tags=["Tasks"])
-    log.info("3-tiered architecture controllers mounted")
 
     # Mount remaining routers that haven't been migrated yet
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
@@ -532,8 +539,6 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
                 static_files_dir,
                 static_mount_err,
             )
-
-    log.info("FastAPI application setup complete with 3-tiered architecture")
 
 
 @app.exception_handler(HTTPException)
@@ -671,7 +676,4 @@ async def generic_exception_handler(request: FastAPIRequest, exc: Exception):
 async def read_root():
     """Basic health check endpoint."""
     log.debug("Health check endpoint '/health' called")
-    return {"status": "A2A Web UI Backend is running with 3-tiered architecture"}
-
-
-log.info("FastAPI application instance created with 3-tiered architecture.")
+    return {"status": "A2A Web UI Backend is running"}

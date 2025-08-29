@@ -28,7 +28,7 @@ export const useArtifacts = (): UseArtifactsReturn => {
         setIsLoading(true);
         setError(null);
         try {
-            const response = await authenticatedFetch(`${apiPrefix}/artifacts/`, { credentials: "include" });
+            const response = await authenticatedFetch(`${apiPrefix}/artifacts`, { credentials: "include" });
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ message: `Failed to fetch artifacts. ${response.statusText}` }));
                 throw new Error(errorData.message || `Failed to fetch artifacts. ${response.statusText}`);
