@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
 import json
 import base64
 import uuid
-import re
 from solace_ai_connector.common.log import log
 from google.genai import types as adk_types
 from google.adk.events import Event as ADKEvent
@@ -16,6 +15,8 @@ from a2a.types import (
     Message as A2AMessage,
     TextPart,
     FilePart,
+    FileWithBytes,
+    FileWithUri,
     DataPart,
     JSONRPCResponse,
     InternalError,
@@ -30,8 +31,6 @@ A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY = "temp:llm_stream_chunks_processed"
 A2A_STATUS_SIGNAL_STORAGE_KEY = "temp:a2a_status_signals_collected"
 
 
-
-
 def translate_a2a_to_adk_content(
     a2a_message: A2AMessage, log_identifier: str
 ) -> adk_types.Content:
@@ -41,30 +40,33 @@ def translate_a2a_to_adk_content(
     for part in unwrapped_parts:
         try:
             if isinstance(part, TextPart):
-                adk_parts.append(adk_types.Part(text=part.text))
+                adk_parts.append(adk_types.Part(text=a2a.get_text_from_text_part(part)))
             elif isinstance(part, FilePart):
-                if hasattr(part.file, "uri") and part.file.uri:
+                file = a2a.get_file_from_file_part(part)
+                if hasattr(file, "uri") and a2a.get_uri_from_file_part(part):
                     adk_parts.append(
                         adk_types.Part.from_uri(
-                            uri=part.file.uri, mime_type=part.file.mime_type
+                            file_uri=a2a.get_uri_from_file_part(part),
+                            mime_type=a2a.get_mimetype_from_file_part(part),
                         )
                     )
-                elif hasattr(part.file, "bytes") and part.file.bytes:
-                    decoded_bytes = base64.b64decode(part.file.bytes)
+                elif hasattr(file, "bytes") and a2a.get_bytes_from_file_part(part):
+                    decoded_bytes = base64.b64decode(a2a.get_bytes_from_file_part(part))
                     adk_parts.append(
                         adk_types.Part.from_data(
-                            data=decoded_bytes, mime_type=part.file.mime_type
+                            data=decoded_bytes,
+                            mime_type=a2a.get_mimetype_from_file_part(part),
                         )
                     )
                 else:
                     log.warning(
                         "%s FilePart received without 'uri' or 'bytes'. Ignoring. File: %s",
                         log_identifier,
-                        part.file.name,
+                        a2a.get_filename_from_file_part(part),
                     )
             elif isinstance(part, DataPart):
                 try:
-                    data_str = json.dumps(part.data, indent=2)
+                    data_str = json.dumps(a2a.get_data_from_data_part(part), indent=2)
                     adk_parts.append(
                         adk_types.Part(text=f"Received data:\n```json\n{data_str}\n```")
                     )
@@ -136,20 +138,21 @@ def _extract_text_from_parts(parts: List[a2a.ContentPart]) -> str:
     output_parts = []
     for part in parts:
         if isinstance(part, TextPart):
-            output_parts.append(part.text)
+            output_parts.append(a2a.get_text_from_text_part(part))
         elif isinstance(part, DataPart):
             log.debug("Skipping DataPart in _extract_text_from_parts")
             continue
         elif isinstance(part, FilePart):
+            file = a2a.get_file_from_file_part(part)
             file_info = "File: '%s' (%s)" % (
-                part.file.name or "unknown",
-                part.file.mime_type or "unknown",
+                a2a.get_filename_from_file_part(part) or "unknown",
+                a2a.get_mimetype_from_file_part(part) or "unknown",
             )
-            if hasattr(part.file, "uri") and part.file.uri:
-                file_info += " URI: %s" % part.file.uri
-            elif hasattr(part.file, "bytes") and part.file.bytes:
+            if isinstance(file, FileWithUri) and a2a.get_uri_from_file_part(part):
+                file_info += " URI: %s" % a2a.get_uri_from_file_part(part)
+            elif isinstance(file, FileWithBytes) and a2a.get_bytes_from_file_part(part):
                 try:
-                    size = len(base64.b64decode(part.file.bytes))
+                    size = len(base64.b64decode(a2a.get_bytes_from_file_part(part)))
                     file_info += " (Size: %d bytes)" % size
                 except Exception:
                     file_info += " (Encoded Bytes)"
