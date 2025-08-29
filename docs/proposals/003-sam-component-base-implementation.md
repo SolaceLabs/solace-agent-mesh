@@ -67,6 +67,3 @@ This document outlines the step-by-step plan to implement the `SamComponentBase`
 -   **Action:** Modify `docs/proposals/002-sam-component-base-design.md`.
 -   **Details:**
     -   In section 2.5, change the method name from `publish_a2a_message(self, payload: Dict, topic: str, user_properties: Optional[Dict] = None)` to reflect its new public status and correct signature.
--   **Action:** Modify `src/solace_agent_mesh/common/a2a/a2a_llm.txt`.
--   **Details:**
-    -   In the `artifact.py` section, add documentation for the new `update_artifact_parts` function.
