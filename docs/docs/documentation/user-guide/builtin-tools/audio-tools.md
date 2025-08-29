@@ -5,16 +5,16 @@ sidebar_position: 30
 
 # Using Text-to-Speech (TTS) Tools
 
-This guide provides technical documentation for the text-to-speech (TTS) tools available in the Solace Agent Mesh (SAM).
+This guide provides technical documentation for the text-to-speech (TTS) tools available in Solace Agent Mesh (SAM).
 
-## 1. Overview
+## Overview
 
 The `audio` tool group provides two primary TTS tools for generating high-quality audio artifacts:
 
 1.  **`text_to_speech`**: Converts a string of text to speech using a single voice, featuring intelligent tone selection.
 2.  **`multi_speaker_text_to_speech`**: Converts a conversational script, delineated by speaker, into a multi-speaker audio file.
 
-## 2. Setup and Configuration
+## Setup and Configuration
 
 ### Prerequisites
 - **API Key**: A valid Google Gemini API key with access to the TTS model is required.
@@ -32,7 +32,7 @@ The `audio` tool group provides two primary TTS tools for generating high-qualit
         group_name: "audio"
     ```
 
-## 3. Advanced Configuration
+## Advanced Configuration
 
 You can exercise more granular control over the TTS tools by providing a `tool_config` block for each tool in your `app_config.yml`.
 
@@ -82,7 +82,7 @@ This example defines default voice configurations for up to five speakers.
     # The voice_tone_mapping can also be included here
 ```
 
-## 4. Features
+## Features
 
 ### Intelligent Tone Selection
 The system supports tone-based voice selection, allowing for dynamic voice choice based on desired emotional or stylistic output, rather than explicit voice names.
@@ -99,7 +99,7 @@ The system supports tone-based voice selection, allowing for dynamic voice choic
 ### Multi-Language Support
 The tools support over 25 languages, specified via BCP-47 language codes (for example, `en-US`, `fr-FR`, `es-US`, `ja-JP`).
 
-## 5. Usage Examples
+## Usage Examples
 
 ### Single-Voice Text-to-Speech (`text_to_speech`)
 
@@ -133,7 +133,7 @@ Speaker1: Good morning, this is the daily security briefing.
 Speaker2: Hi everyone, let's review the agenda for today's session.
 ```
 
-## 6. Tool Reference
+## Tool Reference
 
 ### `text_to_speech`
 | Parameter         | Type   | Description                   |
@@ -152,7 +152,7 @@ Speaker2: Hi everyone, let's review the agenda for today's session.
 | `speaker_configs`   | array | (Optional) An array to configure tones for specific speakers.  |
 | `language`          | string| (Optional) The BCP-47 language code.          |
 
-## 7. Output and Metadata
+## Output and Metadata
 
 Both tools generate an MP3 audio artifact that includes a rich set of metadata:
 - The source text (or a truncated version for long inputs)
@@ -160,7 +160,7 @@ Both tools generate an MP3 audio artifact that includes a rich set of metadata:
 - The generation timestamp and the specific tool invoked
 - The requested tone and any speaker-specific configurations
 
-## 8. Troubleshooting
+## Troubleshooting
 
 - **`Error: GEMINI_API_KEY is required`**: This indicates that the `GEMINI_API_KEY` environment variable has not been set correctly.
 - **`Warning: Unknown tone 'xyz'`**: The specified tone is not recognized. Refer to the list of supported tones. The system will fall back to a default voice.

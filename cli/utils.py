@@ -3,6 +3,8 @@ from pathlib import Path
 import importlib
 import click
 import re
+import requests
+from time import sleep
 
 
 def ask_yes_no_question(question: str, default=False) -> bool:
@@ -91,21 +93,30 @@ def load_template(name, parser=None, *args):
 
 
 def get_formatted_names(name: str):
-    # Normalize the name
-    parts = [
-        segment
-        for segment in re.split(
-            r"[\s_-]", re.sub(r"(?<!^)(?=[A-Z])", "_", name.strip()).lower()
-        )
-        if segment
+    # Normalize separators
+    normalized = re.sub(r'[\s\-_]+', '_', name.strip())
+
+    camel_case_split = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', normalized)      # fooBar -> foo_Bar
+    acronym_split = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', camel_case_split)        # APIKey -> API_Key
+
+    raw_parts = [p for p in acronym_split.split('_') if p]
+
+    parts = [p.lower() for p in raw_parts]
+
+    # Spaced capitalized name:
+    #   - If original was all caps, keep it all caps (API -> API)
+    #   - Else capitalize normally
+    spaced_capitalized_parts = [
+        p if p.isupper() else p.capitalize() for p in raw_parts
     ]
+
     return {
-        "KEBAB_CASE_NAME": "-".join([word.lower() for word in parts]),
-        "PASCAL_CASE_NAME": "".join([word.capitalize() for word in parts]),
-        "SNAKE_CASE_NAME": "_".join([word.lower() for word in parts]),
-        "SNAKE_UPPER_CASE_NAME": "_".join([word.upper() for word in parts]),
+        "KEBAB_CASE_NAME": "-".join(parts),
+        "PASCAL_CASE_NAME": "".join(word.capitalize() for word in parts),
+        "SNAKE_CASE_NAME": "_".join(parts),
+        "SNAKE_UPPER_CASE_NAME": "_".join(word.upper() for word in parts),
         "SPACED_NAME": " ".join(parts),
-        "SPACED_CAPITALIZED_NAME": " ".join([word.capitalize() for word in parts]),
+        "SPACED_CAPITALIZED_NAME": " ".join(spaced_capitalized_parts),
     }
 
 
@@ -180,3 +191,16 @@ def indent_multiline_string(
         )
     else:
         return "\n".join(indentation + line for line in text.splitlines()).lstrip()
+
+def wait_for_server(url, timeout=30):
+    start = 0
+    while start < timeout:
+        try:
+            r = requests.get(url)
+            if r.status_code == 200:
+                return True
+        except Exception:
+            pass
+        sleep(0.5)
+        start += 0.5
+    return False

@@ -124,9 +124,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         self.sse_manager = SSEManager(max_queue_size=sse_max_queue_size)
 
-        self.persistence_service = DatabasePersistenceService(
-            db_url=self.get_config("session_service", {}).get("database_url")
-        )
+        session_config = self._resolve_session_config()
+        if session_config.get("type") == "sql":
+            self.persistence_service = DatabasePersistenceService(
+                db_url=session_config.get("database_url")
+            )
+        else:
+            self.persistence_service = None
 
         component_config = self.get_config("component_config", {})
         app_config = component_config.get("app_config", {})
@@ -311,6 +315,38 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self._visualization_internal_app = None
             self._visualization_broker_input = None
             raise
+
+    def _resolve_session_config(self) -> dict:
+        """
+        Resolve session service configuration with backward compatibility.
+        
+        Priority order:
+        1. Component-specific session_service config (new approach)
+        2. Shared default_session_service config (deprecated, with warning)
+        3. Hardcoded default (SQLite for Web UI)
+        """
+        # Check component-specific session_service config first
+        component_session_config = self.get_config("session_service")
+        if component_session_config:
+            log.debug("Using component-specific session_service configuration")
+            return component_session_config
+        
+        # Backward compatibility: check shared config
+        shared_session_config = self.get_config("default_session_service") 
+        if shared_session_config:
+            log.warning(
+                "Using session_service from shared config is deprecated. "
+                "Move to component-specific configuration in app_config.session_service"
+            )
+            return shared_session_config
+        
+        # Default configuration for Web UI (backward compatibility)
+        default_config = {
+            "type": "memory",
+            "default_behavior": "PERSISTENT"
+        }
+        log.info("Using default memory session configuration for Web UI (backward compatibility)")
+        return default_config
 
     async def _visualization_message_processor_loop(self) -> None:
         """

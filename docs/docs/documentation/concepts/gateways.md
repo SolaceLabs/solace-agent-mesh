@@ -22,7 +22,7 @@ Gateways are the external interfaces that connect various systems to the A2A age
 
 2. **Authentication & Authorization**: Common authentication and user enrichment flow across all gateway types, with pluggable identity providers.
 
-3. **Configurable System Purpose**: Each gateway has a configurable system purpose that sets the context for all stimuli entering the Solace Agent Mesh through that gateway. This design allows for tailored processing based on the specific use case or domain.
+3. **Configurable System Purpose**: Each gateway has a configurable system purpose that sets the context for all stimuli entering Solace Agent Mesh through that gateway. This design allows for tailored processing based on the specific use case or domain.
 
 4. **Customizable Output Formatting**: Gateways have a configurable output description that controls how stimuli responses are formatted when sent back to the outside world. This configurable output description ensures that the output meets the requirements of the receiving system or user interface.
 

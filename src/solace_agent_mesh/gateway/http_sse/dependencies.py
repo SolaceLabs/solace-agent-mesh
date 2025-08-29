@@ -3,29 +3,22 @@ Defines FastAPI dependency injectors to access shared resources
 managed by the WebUIBackendComponent.
 """
 
-from fastapi import Depends, HTTPException, status, Request
-from typing import (
-    TYPE_CHECKING,
-    Callable,
-    Dict,
-    Optional,
-    Any,
-)
-import os
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
+from fastapi import Depends, HTTPException, Request, status
 from solace_ai_connector.common.log import log
-from ...gateway.http_sse.sse_manager import SSEManager
-from ...gateway.http_sse.session_manager import SessionManager
+
 from ...common.agent_registry import AgentRegistry
-
-from ...gateway.http_sse.services.agent_service import AgentService
-from ...gateway.http_sse.services.task_service import TaskService
-from ...gateway.http_sse.services.people_service import PeopleService
-from ...gateway.base.task_context import TaskContextManager
-
-from ...core_a2a.service import CoreA2AService
-from ...common.services.identity_service import BaseIdentityService
 from ...common.middleware.config_resolver import ConfigResolver
+from ...common.services.identity_service import BaseIdentityService
+from ...core_a2a.service import CoreA2AService
+from ...gateway.base.task_context import TaskContextManager
+from ...gateway.http_sse.services.agent_service import AgentService
+from ...gateway.http_sse.services.people_service import PeopleService
+from ...gateway.http_sse.services.task_service import TaskService
+from ...gateway.http_sse.session_manager import SessionManager
+from ...gateway.http_sse.sse_manager import SSEManager
 from .database.persistence_service import PersistenceService
 
 try:
@@ -42,7 +35,7 @@ if TYPE_CHECKING:
 sac_component_instance: "WebUIBackendComponent" = None
 persistence_service_instance: "PersistenceService" = None
 
-api_config: Optional[Dict[str, Any]] = None
+api_config: dict[str, Any] | None = None
 
 
 def set_component_instance(component: "WebUIBackendComponent"):
@@ -68,17 +61,17 @@ def set_persistence_service(persistence_service: "PersistenceService"):
 def get_persistence_service() -> "PersistenceService":
     """FastAPI dependency to get the PersistenceService instance."""
     if persistence_service_instance is None:
-        log.critical(
-            "[Dependencies] PersistenceService instance accessed before it was set!"
+        log.warning(
+            "[Dependencies] PersistenceService not available - running in compatibility mode"
         )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Persistence service not yet initialized.",
+            detail="Persistence service not available in compatibility mode.",
         )
     return persistence_service_instance
 
 
-def set_api_config(config: Dict[str, Any]):
+def set_api_config(config: dict[str, Any]):
     """Called during startup to provide API configuration."""
     global api_config
     if api_config is None:
@@ -101,7 +94,7 @@ def get_sac_component() -> "WebUIBackendComponent":
     return sac_component_instance
 
 
-def get_api_config() -> Dict[str, Any]:
+def get_api_config() -> dict[str, Any]:
     """FastAPI dependency to get the API configuration."""
     if api_config is None:
         log.critical("[Dependencies] API configuration accessed before it was set!")
@@ -158,26 +151,43 @@ def get_user_id(
 ) -> str:
     """
     FastAPI dependency that returns the user's identity.
-    It prioritizes the authenticated user from `request.state.user` (set by AuthMiddleware)
-    and falls back to the SessionManager for non-authenticated or legacy scenarios.
+    When FRONTEND_USE_AUTHORIZATION is true: Fully relies on OAuth - user must be authenticated by AuthMiddleware.
+    When FRONTEND_USE_AUTHORIZATION is false: Uses development fallback user.
     """
     log.debug("[Dependencies] Resolving user_id string")
 
+    # AuthMiddleware should always set user state for both auth enabled/disabled cases
     if hasattr(request.state, "user") and request.state.user:
         user_id = request.state.user.get("id")
         if user_id:
             log.debug(f"[Dependencies] Using user ID from AuthMiddleware: {user_id}")
             return user_id
         else:
-            log.warning(
-                "[Dependencies] request.state.user exists but has no 'id' field. Falling back."
+            log.error(
+                "[Dependencies] request.state.user exists but has no 'id' field: %s. This indicates a bug in AuthMiddleware.",
+                request.state.user,
             )
 
-    log.debug("[Dependencies] Falling back to SessionManager for user_id")
-    try:
-        return session_manager.get_a2a_client_id(request)
-    except AssertionError:
-        return f"anonymous_user:{os.urandom(8).hex()}"
+    # If we reach here, AuthMiddleware didn't set user state properly
+    use_authorization = session_manager.use_authorization
+
+    if use_authorization:
+        # When OAuth is enabled, we should never reach here - AuthMiddleware should have handled authentication
+        log.error(
+            "[Dependencies] OAuth is enabled but no authenticated user found. This indicates an authentication failure or middleware bug."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required but user not found",
+        )
+    else:
+        # When auth is disabled, use development fallback user
+        fallback_id = "sam_dev_user"
+        log.info(
+            "[Dependencies] Authorization disabled and no user in request state, using fallback user: %s",
+            fallback_id,
+        )
+        return fallback_id
 
 
 def ensure_session_id(
@@ -191,21 +201,21 @@ def ensure_session_id(
 
 def get_identity_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> Optional[BaseIdentityService]:
+) -> BaseIdentityService | None:
     """FastAPI dependency to get the configured IdentityService instance."""
     log.debug("[Dependencies] get_identity_service called")
     return component.identity_service
 
 
 def get_people_service(
-    identity_service: Optional[BaseIdentityService] = Depends(get_identity_service),
+    identity_service: BaseIdentityService | None = Depends(get_identity_service),
 ) -> PeopleService:
     """FastAPI dependency to get an instance of PeopleService."""
     log.debug("[Dependencies] get_people_service called")
     return PeopleService(identity_service=identity_service)
 
 
-PublishFunc = Callable[[str, Dict, Optional[Dict]], None]
+PublishFunc = Callable[[str, dict, dict | None], None]
 
 
 def get_publish_a2a_func(
@@ -219,7 +229,7 @@ def get_publish_a2a_func(
 def get_namespace(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> str:
-    """FastAPI dependency to get the A2A namespace."""
+    """FastAPI dependency to get the namespace."""
     log.debug("[Dependencies] get_namespace called")
     return component.get_namespace()
 
@@ -242,7 +252,7 @@ def get_config_resolver(
 
 def get_app_config(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     FastAPI dependency to safely get the application configuration dictionary.
     """
@@ -255,8 +265,8 @@ async def get_user_config(
     user_id: str = Depends(get_user_id),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    app_config: Dict[str, Any] = Depends(get_app_config),
-) -> Dict[str, Any]:
+    app_config: dict[str, Any] = Depends(get_app_config),
+) -> dict[str, Any]:
     """
     FastAPI dependency to get the user-specific configuration.
     """
@@ -273,7 +283,7 @@ async def get_user_config(
 
 def get_shared_artifact_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> Optional[BaseArtifactService]:
+) -> BaseArtifactService | None:
     """FastAPI dependency to get the shared ArtifactService."""
     log.debug("[Dependencies] get_shared_artifact_service called")
     return component.get_shared_artifact_service()
@@ -281,7 +291,7 @@ def get_shared_artifact_service(
 
 def get_embed_config(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """FastAPI dependency to get embed-related configuration."""
     log.debug("[Dependencies] get_embed_config called")
     return component.get_embed_config()

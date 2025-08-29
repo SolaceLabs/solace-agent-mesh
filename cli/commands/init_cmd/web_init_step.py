@@ -1,9 +1,9 @@
 import click
 import multiprocessing
-from time import sleep
 import sys
 import webbrowser
-import requests
+from ...utils import wait_for_server
+
 
 try:
     from config_portal.backend.server import run_flask
@@ -18,19 +18,6 @@ except ImportError as e:
     click.echo(click.style("Aborting web-based initialization.", fg="red"), err=True)
     sys.exit(1)
 
-
-def wait_for_server(url, timeout=30):
-    start = 0
-    while start < timeout:
-        try:
-            r = requests.get(url)
-            if r.status_code == 200:
-                return True
-        except Exception:
-            pass
-        sleep(0.5)
-        start += 0.5
-    return False
 
 
 def perform_web_init(current_cli_params: dict) -> dict:

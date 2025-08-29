@@ -16,7 +16,6 @@ ORCHESTRATOR_DEFAULTS = {
     "enable_artifact_content_instruction": True,
     "enable_builtin_artifact_tools": {"enabled": True},
     "enable_builtin_data_tools": {"enabled": True},
-    "session_service": {"type": "sql", "default_behavior": "PERSISTENT"},
     "artifact_service": {
         "type": "filesystem",
         "base_path": "/tmp/samv2",
@@ -88,19 +87,16 @@ def create_orchestrator_config(
         options,
         "session_service_type",
         "Enter session service type",
-        ORCHESTRATOR_DEFAULTS["session_service"]["type"],
+        "memory",
         skip_interactive,
         choices=["sql", "memory", "vertex_rag"],
     )
-
-    if session_type == "sql":
-        options["use_orchestrator_db"] = True
 
     session_behavior = ask_if_not_provided(
         options,
         "session_service_behavior",
         "Enter session service behavior",
-        ORCHESTRATOR_DEFAULTS["session_service"]["default_behavior"],
+        "PERSISTENT",
         skip_interactive,
         choices=["PERSISTENT", "RUN_BASED"],
     )
@@ -118,7 +114,7 @@ def create_orchestrator_config(
     s3_bucket_name = None
     s3_endpoint_url = None
     s3_region = None
-    
+
     if artifact_type == "filesystem":
         artifact_base_path = ask_if_not_provided(
             options,
@@ -135,7 +131,7 @@ def create_orchestrator_config(
             options["s3_endpoint_url"] = options["artifact_service_endpoint_url"]
         if options.get("artifact_service_region"):
             options["s3_region"] = options["artifact_service_region"]
-            
+
         s3_bucket_name = ask_if_not_provided(
             options,
             "s3_bucket_name",
@@ -312,16 +308,13 @@ def create_orchestrator_config(
         if artifact_type == "filesystem":
             artifact_base_path_line = f'base_path: "{artifact_base_path}"'
         elif artifact_type == "s3":
-            s3_config_lines = [f'bucket_name: "{s3_bucket_name}"']
-            if s3_endpoint_url:
-                s3_config_lines.append(f'endpoint_url: "{s3_endpoint_url}"')
-            if s3_region:
-                s3_config_lines.append(f'region: "{s3_region}"')
+            s3_config_lines = ["bucket_name: ${S3_BUCKET_NAME}"]
+            # Only include endpoint_url if it's for non-AWS S3 (S3_ENDPOINT_URL will be empty for AWS)
+            s3_config_lines.append("endpoint_url: ${S3_ENDPOINT_URL:-}")
+            s3_config_lines.append("region: ${S3_REGION}")
             artifact_base_path_line = "\n      ".join(s3_config_lines)
 
         shared_replacements = {
-            "__DEFAULT_SESSION_SERVICE_TYPE__": session_type,
-            "__DEFAULT_SESSION_SERVICE_BEHAVIOR__": session_behavior,
             "__DEFAULT_ARTIFACT_SERVICE_TYPE__": artifact_type,
             "__DEFAULT_ARTIFACT_SERVICE_BASE_PATH_LINE__": artifact_base_path_line,
             "__DEFAULT_ARTIFACT_SERVICE_SCOPE__": artifact_scope,
@@ -409,15 +402,46 @@ def create_orchestrator_config(
         - You must then review the list of artifacts and return the ones that are important for the user by using the `signal_artifact_for_return` tool.
         - Provide regular progress updates using `status_update` embed directives, especially before initiating any tool call."""
 
+        # Generate session service configuration for orchestrator
+        if session_type == "sql":
+            session_service_lines = [
+                f'type: "{session_type}"',
+                f'database_url: "${{ORCHESTRATOR_DATABASE_URL}}"',
+                f'default_behavior: "{session_behavior}"',
+            ]
+            session_service_block = "\n" + "\n".join(
+                [f"        {line}" for line in session_service_lines]
+            )
+            
+            # Generate database URL for orchestrator
+            data_dir = project_root / "data"
+            data_dir.mkdir(exist_ok=True)
+            orchestrator_db_file = data_dir / "orchestrator.db"
+            orchestrator_database_url = f"sqlite:///{orchestrator_db_file.resolve()}"
+            
+            # Add to .env file
+            try:
+                env_path = project_root / ".env"
+                with open(env_path, "a", encoding="utf-8") as f:
+                    f.write(f'\nORCHESTRATOR_DATABASE_URL="{orchestrator_database_url}"\n')
+                click.echo(f"  Added ORCHESTRATOR_DATABASE_URL to .env: {orchestrator_database_url}")
+            except Exception as e:
+                click.echo(
+                    click.style(f"Warning: Could not add ORCHESTRATOR_DATABASE_URL to .env: {e}", fg="yellow"),
+                    err=True,
+                )
+        else:
+            # Use shared default for memory
+            session_service_block = "*default_session_service"
+
         orchestrator_replacements = {
-            "__SESSION_SERVICE_TYPE__": session_type,
-            "__SESSION_SERVICE_BEHAVIOR__": session_behavior,
             "__NAMESPACE__": "${NAMESPACE}",
             "__APP_NAME__": f"{kebab_case_name}_app",
             "__SUPPORTS_STREAMING__": str(options["supports_streaming"]).lower(),
             "__AGENT_NAME__": options["agent_name"],
             "__LOG_FILE_NAME__": f"{kebab_case_name}.log",
             "__INSTRUCTION__": default_instruction,
+            "__SESSION_SERVICE__": session_service_block,
             "__ARTIFACT_SERVICE__": "*default_artifact_service",
             "__ARTIFACT_HANDLING_MODE__": artifact_handling_mode,
             "__ENABLE_EMBED_RESOLUTION__": str(enable_embed_resolution).lower(),
@@ -453,18 +477,6 @@ def create_orchestrator_config(
                 placeholder, str(value)
             )
 
-        if options.get("use_orchestrator_db"):
-            modified_orchestrator_content = modified_orchestrator_content.replace(
-                "__SESSION_DB_URL_LINE__",
-                "database_url: ${ORCHESTRATOR_DATABASE_URL}",
-            )
-        else:
-            modified_orchestrator_content = re.sub(
-                r"^\s*__SESSION_DB_URL_LINE__\n?$",
-                "",
-                modified_orchestrator_content,
-                flags=re.MULTILINE,
-            )
 
         if deny_list:
             modified_orchestrator_content = modified_orchestrator_content.replace(

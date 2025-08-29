@@ -20,10 +20,8 @@ def _get_flat_orchestrator_defaults():
     flat_defaults = {}
     flat_defaults["agent_name"] = O_DEFAULTS["agent_name"]
     flat_defaults["supports_streaming"] = O_DEFAULTS["supports_streaming"]
-    flat_defaults["session_service_type"] = O_DEFAULTS["session_service"]["type"]
-    flat_defaults["session_service_behavior"] = O_DEFAULTS["session_service"][
-        "default_behavior"
-    ]
+    flat_defaults["session_service_type"] = "sql"
+    flat_defaults["session_service_behavior"] = "PERSISTENT"
     flat_defaults["artifact_service_type"] = O_DEFAULTS["artifact_service"]["type"]
     flat_defaults["artifact_service_base_path"] = O_DEFAULTS["artifact_service"][
         "base_path"

@@ -7,7 +7,7 @@ sidebar_position: 20
 
 Solace Agent Mesh (SAM) includes a suite of optional built-in tools that enable agents to perform data analysis tasks directly on artifacts. These tools provide functionality for SQL querying, JQ transformations, and Plotly chart generation.
 
-## 1. Setup and Configuration
+## Setup and Configuration
 
 Enable the data analysis tool group in the agent's `app_config.yml` file.
 
@@ -24,7 +24,7 @@ data_tools_config:
   max_result_preview_bytes: 4096
 ```
 
-## 2. Available Tools
+## Available Tools
 
 ### `query_data_with_sql`
 :::info[Enterprise Only]
@@ -80,7 +80,7 @@ Generates a static chart image (for example, PNG, JPG, SVG) from a Plotly config
     - `output_format` (str, optional): The desired image format (`'png'`, `'jpeg'`, `'svg'`, etc.). Defaults to `'png'`.
 - **Returns**: A dictionary confirming the chart's creation and providing its `output_filename`.
 
-## 3. Example Workflow: Querying a Large CSV
+## Example Workflow: Querying a Large CSV
 
 The following workflow demonstrates an efficient method for analyzing a large CSV file:
 
@@ -94,7 +94,7 @@ The following workflow demonstrates an efficient method for analyzing a large CS
 8.  **User Request**: "Now, find the average amount for the 'Marketing' category."
 9.  **Agent Call 3**: The agent calls `query_data_with_sql` again on the **same `queryable_data.sqlite` artifact**, avoiding the overhead of reprocessing the original CSV file.
 
-## 4. Technical Considerations
+## Technical Considerations
 
 ### Result Handling
 - **Previews**: For `query_data_with_sql` and `transform_data_with_jq`, the tools return a truncated preview of the result directly to the LLM for immediate context.

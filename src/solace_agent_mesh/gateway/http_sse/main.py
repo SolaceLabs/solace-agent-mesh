@@ -1,21 +1,11 @@
-"""
-FastAPI application using the 3-tiered architecture pattern.
-
-This application implements clean separation of concerns with:
-- Presentation Layer: Controllers handle HTTP requests/responses
-- Business Layer: Services contain business logic
-- Data Layer: Repositories handle data access
-
-All API endpoints maintain backward compatibility while using modern architecture patterns.
-"""
-
 import os
 from pathlib import Path
 
 import httpx
 import sqlalchemy as sa
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException
 from fastapi import Request as FastAPIRequest
+from fastapi import status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -53,61 +43,80 @@ if TYPE_CHECKING:
 app = FastAPI(
     title="A2A Web UI Backend",
     version="1.0.0",  # Updated to reflect simplified architecture
-    description="Backend API and SSE server for the A2A Web UI using 3-tiered architecture, hosted by Solace AI Connector.",
+    description="Backend API and SSE server for the A2A Web UI, hosted by Solace AI Connector.",
 )
 
 
-def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
+def setup_dependencies(component: "WebUIBackendComponent", persistence_service=None):
     """
-    Setup function using 3-tiered architecture with dependency injection.
-
     This function initializes the modern architecture while maintaining full
     backward compatibility with existing API contracts.
-    """
-    log.info("Setting up FastAPI dependencies with 3-tiered architecture...")
 
-    database_url = persistence_service.engine.url.__str__()
-    global database_service
-    database_service = DatabaseService(database_url)
-    log.info("Database service initialized")
+    If persistence_service is None, runs in compatibility mode with in-memory sessions.
+    """
+
+    if persistence_service:
+        database_url = persistence_service.engine.url.__str__()
+        global database_service
+        database_service = DatabaseService(database_url)
+        log.info("Database service initialized")
+
+        from .infrastructure.dependency_injection.container import initialize_container
+
+        initialize_container(database_url)
+        log.info("Persistence enabled - sessions will be stored in database")
+    else:
+        from .infrastructure.dependency_injection.container import initialize_container
+
+        initialize_container()
+        log.warning(
+            "No persistence service provided - using in-memory session storage (data not persisted across restarts)"
+        )
+        log.info("This maintains backward compatibility for existing SAM installations")
 
     dependencies.set_component_instance(component)
 
-    # Run database migrations (only if needed)
-    log.info("Checking database migrations...")
-    try:
-        # Check if tables already exist (common in test environments)
-        inspector = sa.inspect(persistence_service.engine)
-        existing_tables = inspector.get_table_names()
-
-        if not existing_tables or "sessions" not in existing_tables:
-            # Tables don't exist, run migrations
-            log.info("Running database migrations...")
-            alembic_cfg = Config()
-            alembic_cfg.set_main_option(
-                "script_location",
-                os.path.join(os.path.dirname(__file__), "alembic"),
-            )
-            alembic_cfg.set_main_option("sqlalchemy.url", database_url)
-            command.upgrade(alembic_cfg, "head")
-            log.info("Database migrations complete.")
-        else:
-            log.info("Database tables already exist, skipping migrations.")
-    except Exception as e:
-        log.warning(f"Migration check failed, attempting to run migrations anyway: {e}")
+    # Run database migrations (only if persistence is available)
+    if persistence_service:
+        log.info("Checking database migrations...")
         try:
-            alembic_cfg = Config()
-            alembic_cfg.set_main_option(
-                "script_location",
-                os.path.join(os.path.dirname(__file__), "alembic"),
-            )
-            alembic_cfg.set_main_option("sqlalchemy.url", database_url)
-            command.upgrade(alembic_cfg, "head")
-            log.info("Database migrations complete.")
-        except Exception as migration_error:
-            log.warning(f"Migration failed but continuing: {migration_error}")
+            # Check if tables already exist (common in test environments)
+            inspector = sa.inspect(persistence_service.engine)
+            existing_tables = inspector.get_table_names()
 
-    dependencies.set_persistence_service(persistence_service)
+            if not existing_tables or "sessions" not in existing_tables:
+                # Tables don't exist, run migrations
+                log.info("Running database migrations...")
+                alembic_cfg = Config()
+                alembic_cfg.set_main_option(
+                    "script_location",
+                    os.path.join(os.path.dirname(__file__), "alembic"),
+                )
+                alembic_cfg.set_main_option("sqlalchemy.url", database_url)
+                command.upgrade(alembic_cfg, "head")
+                log.info("Database migrations complete.")
+            else:
+                log.info("Database tables already exist, skipping migrations.")
+        except Exception as e:
+            log.warning(
+                f"Migration check failed, attempting to run migrations anyway: {e}"
+            )
+            try:
+                alembic_cfg = Config()
+                alembic_cfg.set_main_option(
+                    "script_location",
+                    os.path.join(os.path.dirname(__file__), "alembic"),
+                )
+                alembic_cfg.set_main_option("sqlalchemy.url", database_url)
+                command.upgrade(alembic_cfg, "head")
+                log.info("Database migrations complete.")
+            except Exception as migration_error:
+                log.warning(f"Migration failed but continuing: {migration_error}")
+
+        dependencies.set_persistence_service(persistence_service)
+    else:
+        log.info("Skipping database migrations - no persistence service configured")
+        # Don't set persistence service in dependencies since it's None
 
     # Extract and set API configuration
     webui_app = component.get_app()
@@ -134,6 +143,7 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
         "frontend_redirect_url": app_config.get(
             "frontend_redirect_url", "http://localhost:3000"
         ),
+        "persistence_enabled": persistence_service is not None,
     }
 
     dependencies.set_api_config(api_config_dict)
@@ -266,17 +276,89 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
                         return
 
                     user_info = userinfo_response.json()
-                    email_from_auth = user_info.get("email")
+                    log.info(
+                        "AuthMiddleware: Raw user info from OAuth provider: %s",
+                        user_info,
+                    )
 
-                    if not email_from_auth:
+                    # Extract user identifier with support for multiple IDPs
+                    # Different IDPs use different claims for the primary user identifier:
+                    # - Standard OIDC: 'sub' (subject identifier)
+                    # - Azure AD: 'oid' (object id) or 'preferred_username' or 'upn' (user principal name)
+                    # - Auth0/Okta: 'sub' or 'email'
+                    # - Keycloak: 'sub' or 'preferred_username'
+                    # - Mini IDP: 'client_id' or 'sub'
+                    # - Google: 'sub' or 'email'
+
+                    # Priority order for user identifier (most specific to least specific)
+                    user_identifier = (
+                        user_info.get("sub")  # Standard OIDC subject claim
+                        or user_info.get("client_id")  # Mini IDP and some custom IDPs
+                        or user_info.get("username")  # Mini IDP returns username field
+                        or user_info.get("oid")  # Azure AD object ID
+                        or user_info.get(
+                            "preferred_username"
+                        )  # Common in enterprise IDPs
+                        or user_info.get("upn")  # Azure AD User Principal Name
+                        or user_info.get("unique_name")  # Some Azure configurations
+                        or user_info.get("email")  # Fallback to email
+                        or user_info.get("name")  # Last resort
+                        or user_info.get("azp")  # Authorized party (rare but possible)
+                    )
+
+                    # IMPORTANT: If the extracted identifier is "Unknown", it means the IDP
+                    # didn't properly authenticate or is misconfigured. Use a fallback.
+                    if user_identifier and user_identifier.lower() == "unknown":
+                        log.warning(
+                            "AuthMiddleware: IDP returned 'Unknown' as user identifier. This indicates misconfiguration. Using fallback."
+                        )
+                        # In development mode with mini IDP, default to sam_dev_user
+                        # This is a workaround for the OAuth2 proxy service returning "Unknown"
+                        user_identifier = "sam_dev_user"  # Fallback for development
+                        log.info(
+                            "AuthMiddleware: Using development fallback user: sam_dev_user"
+                        )
+
+                    # Extract email separately (may be different from user identifier)
+                    email_from_auth = (
+                        user_info.get("email")
+                        or user_info.get("preferred_username")
+                        or user_info.get("upn")
+                        or user_identifier
+                    )
+
+                    # Extract display name
+                    display_name = (
+                        user_info.get("name")
+                        or user_info.get("given_name", "")
+                        + " "
+                        + user_info.get("family_name", "")
+                        or user_info.get("preferred_username")
+                        or user_identifier
+                    ).strip()
+
+                    log.info(
+                        "AuthMiddleware: Extracted user identifier: %s, email: %s, name: %s",
+                        user_identifier,
+                        email_from_auth,
+                        display_name,
+                    )
+
+                    if not user_identifier or user_identifier.lower() in [
+                        "null",
+                        "none",
+                        "",
+                    ]:
                         log.error(
-                            "AuthMiddleware: Email not found in user info from external auth provider."
+                            "AuthMiddleware: No valid user identifier from OAuth provider. Full user info: %s. Expected valid user identifier.",
+                            user_info,
                         )
                         response = JSONResponse(
                             status_code=status.HTTP_401_UNAUTHORIZED,
                             content={
-                                "detail": "User email not provided by auth provider",
-                                "error_type": "email_missing",
+                                "detail": "OAuth provider returned no valid user identifier. Provider must return at least one of: sub, username, client_id, preferred_username, email, or name field.",
+                                "error_type": "invalid_user_identifier_from_provider",
+                                "received_user_info": user_info,
                             },
                         )
                         await response(scope, receive, send)
@@ -284,24 +366,51 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
 
                     identity_service = self.component.identity_service
                     if not identity_service:
+                        # Make absolutely sure we have a valid user ID - never "Unknown"
+                        final_user_id = (
+                            user_identifier or email_from_auth or "sam_dev_user"
+                        )
+                        if not final_user_id or final_user_id.lower() in [
+                            "unknown",
+                            "null",
+                            "none",
+                            "",
+                        ]:
+                            final_user_id = "sam_dev_user"
+                            log.warning(
+                                "AuthMiddleware: Had to use fallback user ID due to invalid identifier: %s",
+                                user_identifier,
+                            )
+
                         log.error(
-                            "AuthMiddleware: Internal IdentityService not configured on component. Falling back to using email as ID."
+                            "AuthMiddleware: Internal IdentityService not configured on component. Using user ID: %s",
+                            final_user_id,
                         )
                         request.state.user = {
-                            "id": email_from_auth,
-                            "email": email_from_auth,
-                            "name": user_info.get("name", email_from_auth),
+                            "id": final_user_id,
+                            "email": email_from_auth or final_user_id,
+                            "name": display_name or final_user_id,
                             "authenticated": True,
                             "auth_method": "oidc",
                         }
+                        log.info(
+                            "AuthMiddleware: Set fallback user state with id: %s",
+                            final_user_id,
+                        )
                     else:
+                        # Try to look up user profile using the email or user identifier
+                        lookup_value = (
+                            email_from_auth
+                            if "@" in email_from_auth
+                            else user_identifier
+                        )
                         user_profile = await identity_service.get_user_profile(
-                            {identity_service.lookup_key: email_from_auth}
+                            {identity_service.lookup_key: lookup_value}
                         )
                         if not user_profile:
                             log.error(
                                 "AuthMiddleware: User '%s' authenticated but not found in internal IdentityService.",
-                                email_from_auth,
+                                lookup_value,
                             )
                             response = JSONResponse(
                                 status_code=status.HTTP_403_FORBIDDEN,
@@ -314,10 +423,18 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
                             return
 
                         request.state.user = user_profile.copy()
+                        # Ensure the ID is set from the OAuth provider if not present in the profile
+                        if not request.state.user.get("id"):
+                            request.state.user["id"] = user_identifier
+                        # Also ensure email and name are set if not in profile
+                        if not request.state.user.get("email"):
+                            request.state.user["email"] = email_from_auth
+                        if not request.state.user.get("name"):
+                            request.state.user["name"] = display_name
                         request.state.user["authenticated"] = True
                         request.state.user["auth_method"] = "oidc"
-                        log.debug(
-                            "AuthMiddleware: Enriched and stored user profile for id: %s",
+                        log.info(
+                            "AuthMiddleware: Set enriched user profile with id: %s",
                             request.state.user.get("id"),
                         )
 
@@ -350,6 +467,9 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
                     "authenticated": True,
                     "auth_method": "development",
                 }
+                log.debug(
+                    "AuthMiddleware: Set development user state with id: sam_dev_user"
+                )
 
             await self.app(scope, receive, send)
 
@@ -374,11 +494,9 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
     # Mount API routers
     api_prefix = "/api/v1"
 
-    # Mount new 3-tiered architecture controllers
     app.include_router(session_router, prefix=api_prefix, tags=["Sessions"])
     app.include_router(user_router, prefix=f"{api_prefix}/users", tags=["Users"])
     app.include_router(task_router, prefix=f"{api_prefix}/tasks", tags=["Tasks"])
-    log.info("3-tiered architecture controllers mounted")
 
     # Mount remaining routers that haven't been migrated yet
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
@@ -421,8 +539,6 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service):
                 static_files_dir,
                 static_mount_err,
             )
-
-    log.info("FastAPI application setup complete with 3-tiered architecture")
 
 
 @app.exception_handler(HTTPException)
@@ -560,7 +676,4 @@ async def generic_exception_handler(request: FastAPIRequest, exc: Exception):
 async def read_root():
     """Basic health check endpoint."""
     log.debug("Health check endpoint '/health' called")
-    return {"status": "A2A Web UI Backend is running with 3-tiered architecture"}
-
-
-log.info("FastAPI application instance created with 3-tiered architecture.")
+    return {"status": "A2A Web UI Backend is running"}

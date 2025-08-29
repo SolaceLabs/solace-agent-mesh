@@ -92,6 +92,51 @@ Solace Agent Mesh comes with a comprehensive set of built-in tools that agents c
 - **Audio Tools**: Process and analyze audio content
 - **Image Tools**: Handle image processing and analysis
 
+For a complete list of all built-in tools and how to use them, see the [Built-In Tools](../user-guide/builtin-tools/builtin-tools.md).
+
+## Agent Card
+
+The Agent Card is a public-facing profile that describes an agent's identity, capabilities, and how to interact with it. It functions like a digital business card, allowing other agents and clients within Solace Agent Mesh to discover what an agent can do. This information is published by the agent and is crucial for dynamic discovery and interoperability.
+
+The Agent Card is defined in the agent's YAML configuration file under the `agent_card` section.
+
+### Key Fields
+
+You can configure the following fields in the `agent card`:
+
+-   **`description`**: A summary of the agent's purpose and capabilities.
+-   **`defaultInputModes`**: A list of supported MIME types for input (e.g., `["text/plain", "application/json", "file"]`).
+-   **`defaultOutputModes`**: A list of supported MIME types for output.
+-   **`skills`**: A list of specific skills the agent possesses. Each skill corresponds to a capability, often backed by a tool.
+
+### Skills
+
+A skill describes a specific function the agent can perform. It provides granular detail about the agent's abilities.
+
+Key attributes of a skill include:
+
+-   **`id`**: A unique identifier for the skill, which should match the `tool_name` if the skill is directly mapped to a tool.
+-   **`name`**: A human-readable name for the skill.
+-   **`description`**: A clear explanation of what the skill does, which helps the LLM (and other agents) decide when to use it.
+
+### Example Configuration
+
+Here is an example of an `agent_card` configuration for a "Mermaid Diagram Generator" agent:
+
+```yaml
+# ... inside app_config ...
+agent_card:
+  description: "An agent that generates PNG images from Mermaid diagram syntax."
+  defaultInputModes: ["text"] # Expects Mermaid syntax as text
+  defaultOutputModes: ["text", "file"] # Confirms with text, outputs file artifact
+  skills:
+  - id: "mermaid_diagram_generator"
+    name: "Mermaid Diagram Generator"
+    description: "Generates a PNG image from Mermaid diagram syntax. Input: mermaid_syntax (string), output_filename (string, optional)."
+```
+
+This card clearly communicates that the agent can take text (the Mermaid syntax) and produce a file (the PNG image), and it details the specific "mermaid_diagram_generator" skill it offers. For more details on creating agents and configuring their cards, see [Creating Custom Agents](../user-guide/create-agents.md).
+
 ## User-Defined Agents
 
 Using Solace Agent Mesh and the SAM CLI, you can create your own agents. Agents are configured through YAML files that specify:

@@ -5,6 +5,7 @@ from pathlib import Path
 import click
 import yaml
 from sqlalchemy import create_engine
+
 from config_portal.backend.common import (
     AGENT_DEFAULTS,
     USE_DEFAULT_SHARED_ARTIFACT,
@@ -55,11 +56,10 @@ def _write_agent_yaml_from_data(
 
     try:
         modified_content = load_template("agent_template.yaml")
+        # Generate session service configuration for this agent
         session_service_type_opt = config_options.get("session_service_type")
-        if (
-            session_service_type_opt
-            and session_service_type_opt != USE_DEFAULT_SHARED_SESSION
-        ):
+        if session_service_type_opt and session_service_type_opt != "memory":
+            # Generate override config for non-memory types
             type_val = session_service_type_opt
             behavior_val = config_options.get(
                 "session_service_behavior", AGENT_DEFAULTS["session_service_behavior"]
@@ -82,6 +82,7 @@ def _write_agent_yaml_from_data(
                 [f"        {line}" for line in session_service_lines]
             )
         else:
+            # Use shared default for memory (or when no preference specified)
             session_service_block = "*default_session_service"
         artifact_service_type_opt = config_options.get("artifact_service_type")
         if (
@@ -100,25 +101,10 @@ def _write_agent_yaml_from_data(
                 )
                 custom_artifact_lines.append(f'base_path: "{base_path_val}"')
             elif type_val == "s3":
-                bucket_name_val = config_options.get(
-                    "artifact_service_bucket_name",
-                    AGENT_DEFAULTS.get("artifact_service_bucket_name", ""),
-                )
-                custom_artifact_lines.append(f'bucket_name: "{bucket_name_val}"')
-
-                endpoint_url_val = config_options.get(
-                    "artifact_service_endpoint_url",
-                    AGENT_DEFAULTS.get("artifact_service_endpoint_url", ""),
-                )
-                if endpoint_url_val:
-                    custom_artifact_lines.append(f'endpoint_url: "{endpoint_url_val}"')
-
-                region_val = config_options.get(
-                    "artifact_service_region",
-                    AGENT_DEFAULTS.get("artifact_service_region", "us-east-1"),
-                )
-                if region_val:
-                    custom_artifact_lines.append(f'region: "{region_val}"')
+                custom_artifact_lines.append("bucket_name: ${S3_BUCKET_NAME}")
+                # Only include endpoint_url if it's for non-AWS S3 (S3_ENDPOINT_URL will be empty for AWS)
+                custom_artifact_lines.append("endpoint_url: ${S3_ENDPOINT_URL:-}")
+                custom_artifact_lines.append("region: ${S3_REGION}")
             custom_artifact_lines.append(f"artifact_scope: {scope_val}")
             artifact_service_block = "\n" + "\n".join(
                 [f"        {line}" for line in custom_artifact_lines]
@@ -217,6 +203,7 @@ def _write_agent_yaml_from_data(
 
         replacements = {
             "__AGENT_NAME__": agent_name_camel,
+            "__AGENT_SPACED_NAME__": get_formatted_names(agent_name_camel).get("SPACED_CAPITALIZED_NAME"),
             "__NAMESPACE__": config_options.get(
                 "namespace", AGENT_DEFAULTS["namespace"]
             ),
@@ -361,7 +348,7 @@ def create_agent_config(
     collected_options["namespace"] = ask_if_not_provided(
         collected_options,
         "namespace",
-        "Enter A2A namespace (e.g., myorg/dev, or leave for ${NAMESPACE})",
+        "Enter namespace (e.g., myorg/dev, or leave for ${NAMESPACE})",
         AGENT_DEFAULTS["namespace"],
         skip_interactive,
     )
@@ -405,7 +392,7 @@ def create_agent_config(
         "Session service type",
         AGENT_DEFAULTS["session_service_type"],
         skip_interactive,
-        choices=[USE_DEFAULT_SHARED_SESSION, "sql", "memory", "vertex_rag"],
+        choices=["sql", "memory", "vertex_rag"],
     )
 
     if collected_options.get("session_service_type") == "sql":
@@ -465,8 +452,7 @@ def create_agent_config(
             )
             return False
 
-    if collected_options.get("session_service_type") != USE_DEFAULT_SHARED_SESSION:
-        collected_options["session_service_behavior"] = ask_if_not_provided(
+    collected_options["session_service_behavior"] = ask_if_not_provided(
             collected_options,
             "session_service_behavior",
             "Session service behavior",
@@ -682,7 +668,7 @@ def create_agent_config(
     is_flag=True,
     help="Skip interactive prompts and use defaults (CLI mode only).",
 )
-@click.option("--namespace", help="A2A namespace (e.g., myorg/dev).")
+@click.option("--namespace", help="namespace (e.g., myorg/dev).")
 @click.option("--supports-streaming", type=bool, help="Enable streaming support.")
 @click.option(
     "--model-type",

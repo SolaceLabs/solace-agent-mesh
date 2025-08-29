@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 # Solace Agent Mesh CLI
 
-Solace Agent Mesh comes with a comprehensive CLI tool that you can use to create, and run an instance of Solace Agent Mesh, which is referred to as a Solace Agent Mesh (SAM) application. The Solace Agent Mesh (SAM) CLI also allows you to add agents and gateways, manage plugins, help you debug, and much more.
+Solace Agent Mesh comes with a comprehensive CLI tool that you can use to create, and run an instance of Solace Agent Mesh, which is referred to as a Solace Agent Mesh (SAM) application. Solace Agent Mesh (SAM) CLI also allows you to add agents and gateways, manage plugins, help you debug, and much more.
 
 ## Installation
 
@@ -106,7 +106,7 @@ sam add agent [OPTIONS] [NAME]
 
 - `--gui` – Launch the browser-based configuration interface for agent setup. (Recommended way to configure agents)
 - `--skip` – Skip interactive prompts and use defaults (SAM CLI mode only).
-- `--namespace TEXT` – A2A namespace (for example, myorg/dev).
+- `--namespace TEXT` – namespace (for example, myorg/dev).
 - `--supports-streaming BOOLEAN` – Enable streaming support.
 - `--model-type TEXT` – Model type for the agent. Options: planning, general, image_gen, report_gen, multimodal, gemini_pro.
 - `--instruction TEXT` – Custom instruction for the agent.
@@ -144,7 +144,7 @@ sam add gateway [OPTIONS] [NAME]
 
 - `--gui` – Launch the browser-based configuration interface for gateway setup. (Recommended way to configure gateways)
 - `--skip` – Skip interactive prompts and use defaults (SAM CLI mode only).
-- `--namespace TEXT` – A2A namespace for the gateway (for example, myorg/dev).
+- `--namespace TEXT` – namespace for the gateway (for example, myorg/dev).
 - `--gateway-id TEXT` – Custom Gateway ID for the gateway.
 - `--artifact-service-type TEXT` – Artifact service type for the gateway. Options: memory, filesystem, gcs.
 - `--artifact-service-base-path TEXT` – Base path for filesystem artifact service (if type is 'filesystem').
