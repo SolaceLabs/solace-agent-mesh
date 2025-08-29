@@ -25,9 +25,9 @@
     -   [x] Implement the abstract method `_async_setup_and_run`.
     -   [x] Implement the abstract method `_pre_async_cleanup`.
 
-5.  [ ] **Add `update_artifact_parts` Utility**
-    -   [ ] In `src/solace_agent_mesh/common/a2a/artifact.py`, add the `update_artifact_parts` function.
-    -   [ ] In `src/solace_agent_mesh/common/a2a/__init__.py`, export the new function in `__all__`.
+5.  [x] **Add `update_artifact_parts` Utility**
+    -   [x] In `src/solace_agent_mesh/common/a2a/artifact.py`, add the `update_artifact_parts` function.
+    -   [x] In `src/solace_agent_mesh/common/a2a/__init__.py`, export the new function in `__all__`.
 
-6.  [ ] **Update Design Document**
-    -   [ ] In `docs/proposals/002-sam-component-base-design.md`, update the signature of `publish_a2a_message` to reflect its public status.
+6.  [x] **Update Design Document**
+    -   [x] In `docs/proposals/002-sam-component-base-design.md`, update the signature of `publish_a2a_message` to reflect its public status.
