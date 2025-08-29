@@ -14,9 +14,10 @@ interface UseArtifactsReturn {
 
 /**
  * Custom hook to fetch and manage artifact data
+ * @param sessionId - The session ID to fetch artifacts for
  * @returns Object containing artifacts data, loading state, error state, and refetch function
  */
-export const useArtifacts = (): UseArtifactsReturn => {
+export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
     const { configServerUrl } = useConfigContext();
     const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -25,10 +26,16 @@ export const useArtifacts = (): UseArtifactsReturn => {
     const apiPrefix = `${configServerUrl}/api/v1`;
 
     const fetchArtifacts = useCallback(async () => {
+        if (!sessionId) {
+            setArtifacts([]);
+            setIsLoading(false);
+            return;
+        }
+
         setIsLoading(true);
         setError(null);
         try {
-            const response = await authenticatedFetch(`${apiPrefix}/artifacts/`, { credentials: "include" });
+            const response = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}`, { credentials: "include" });
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ message: `Failed to fetch artifacts. ${response.statusText}` }));
                 throw new Error(errorData.message || `Failed to fetch artifacts. ${response.statusText}`);
@@ -42,7 +49,7 @@ export const useArtifacts = (): UseArtifactsReturn => {
         } finally {
             setIsLoading(false);
         }
-    }, [apiPrefix]);
+    }, [apiPrefix, sessionId]);
 
     useEffect(() => {
         fetchArtifacts();
