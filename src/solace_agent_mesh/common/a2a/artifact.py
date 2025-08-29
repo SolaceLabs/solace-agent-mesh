@@ -20,7 +20,7 @@ from a2a.types import (
 from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
 from .. import a2a
-from ..utils.artifact_helpers import load_artifact_content_or_metadata
+from ...agent.utils.artifact_helpers import load_artifact_content_or_metadata
 
 if TYPE_CHECKING:
     from google.adk.artifacts import BaseArtifactService
@@ -266,9 +266,7 @@ async def resolve_file_part_uri(
                 loaded_artifact.get("message"),
             )
     except Exception as e:
-        log.exception(
-            "%s Error resolving artifact URI '%s': %s", log_id_prefix, uri, e
-        )
+        log.exception("%s Error resolving artifact URI '%s': %s", log_id_prefix, uri, e)
     return part
 
 
