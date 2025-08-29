@@ -2238,7 +2238,7 @@ class SamAgentComponent(SamComponentBase):
                 target_topic = peer_reply_topic or a2a.get_client_response_topic(
                     namespace, client_id
                 )
-                self._publish_a2a_message(
+                self.publish_a2a_message(
                     error_response.model_dump(exclude_none=True), target_topic
                 )
             except Exception as report_err:
@@ -2843,7 +2843,7 @@ class SamAgentComponent(SamComponentBase):
             if a2a_context.get("a2a_user_config"):
                 user_properties["a2aUserConfig"] = a2a_context["a2a_user_config"]
 
-        self._publish_a2a_message(payload, topic, user_properties)
+        self.publish_a2a_message(payload, topic, user_properties)
 
     def submit_a2a_task(
         self,
