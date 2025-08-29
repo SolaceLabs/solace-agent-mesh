@@ -944,7 +944,7 @@ class BaseGatewayComponent(SamComponentBase):
                         },
                     }
                     embed_eval_config = {
-                        "gateway_artifact_content_limit_bytes": self.gateway_artifact_content_limit_bytes,
+                        "gateway_max_artifact_resolve_size_bytes": self.gateway_max_artifact_resolve_size_bytes,
                         "gateway_recursive_embed_depth": self.gateway_recursive_embed_depth,
                     }
                     resolved_remaining_text, _, signals = (
