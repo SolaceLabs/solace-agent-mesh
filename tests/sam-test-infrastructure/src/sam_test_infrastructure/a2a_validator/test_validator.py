@@ -112,10 +112,15 @@ def test_invalid_response_both_result_and_error(validator: A2AMessageValidator):
     payload = {
         "jsonrpc": "2.0",
         "id": "req-1",
-        "result": {"id": "task-1"},
+        "result": {
+            "id": "task-1",
+            "contextId": "session-1",
+            "kind": "task",
+            "status": {"state": "completed"},
+        },
         "error": {"code": -32000, "message": "An error"},
     }
-    with pytest.raises(pytest.fail.Exception):
+    with pytest.raises(pytest.fail.Exception, match="is valid under each of"):
         validator.validate_message(payload, "a2a/v1/gateway/response/gw-1/task-1")
 
 
