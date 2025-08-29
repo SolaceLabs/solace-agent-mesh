@@ -1,12 +1,12 @@
 # Implementation Checklist: `SamComponentBase` Refactoring
 
-1.  [ ] **Create `SamComponentBase` Class**
-    -   [ ] Create the file `src/solace_agent_mesh/common/sac/sam_component_base.py`.
-    -   [ ] Implement the `SamComponentBase` class with inheritance from `ComponentBase` and `abc.ABC`.
-    -   [ ] Implement `__init__` to handle shared configuration (`namespace`, `max_message_size_bytes`).
-    -   [ ] Implement the shared `publish_a2a_message` method with size validation.
-    -   [ ] Implement the async lifecycle methods: `run`, `cleanup`, `_run_async_operations`, `get_async_loop`.
-    -   [ ] Define the abstract methods: `_async_setup_and_run` and `_pre_async_cleanup`.
+1.  [x] **Create `SamComponentBase` Class**
+    -   [x] Create the file `src/solace_agent_mesh/common/sac/sam_component_base.py`.
+    -   [x] Implement the `SamComponentBase` class with inheritance from `ComponentBase` and `abc.ABC`.
+    -   [x] Implement `__init__` to handle shared configuration (`namespace`, `max_message_size_bytes`).
+    -   [x] Implement the shared `publish_a2a_message` method with size validation.
+    -   [x] Implement the async lifecycle methods: `run`, `cleanup`, `_run_async_operations`, `get_async_loop`.
+    -   [x] Define the abstract methods: `_async_setup_and_run` and `_pre_async_cleanup`.
 
 2.  [ ] **Update Gateway Configuration**
     -   [ ] In `src/solace_agent_mesh/gateway/base/app.py`, add `gateway_max_message_size_bytes` to `BASE_GATEWAY_APP_SCHEMA`.
