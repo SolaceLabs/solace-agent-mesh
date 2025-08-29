@@ -287,12 +287,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, []);
 
     const closeCurrentEventSource = useCallback(() => {
-        console.log("// DEBUG-CANCEL: closeCurrentEventSource called.");
+        console.log("// DEBUG-CANCEL: closeCurrentEventSource called. This function will NO LONGER reset isCancelling state.");
         if (cancelTimeoutRef.current) {
             clearTimeout(cancelTimeoutRef.current);
             cancelTimeoutRef.current = null;
         }
-        setIsCancelling(false);
+        // setIsCancelling(false); // DO NOT set state here. This was causing a re-render loop.
 
         if (currentEventSource.current) {
             // Listeners are now removed in the useEffect cleanup
@@ -536,8 +536,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Finalization logic
             if (isFinalEvent) {
-                console.log(`// DEBUG-CANCEL: Final event received. isCancelling is: ${isCancelling}`);
-                if (isCancelling) {
+                console.log(`// DEBUG-CANCEL: Final event received. isCancellingRef.current is: ${isCancellingRef.current}`);
+                if (isCancellingRef.current) {
+                    console.log("// DEBUG-CANCEL: Final event is a CANCELLATION. Resetting state now.");
                     addNotification("Task successfully cancelled.");
                     if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
                     setIsCancelling(false);
@@ -552,7 +553,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }, 100);
             }
         },
-        [addNotification, isCancelling, closeCurrentEventSource, artifactsRefetch]
+        [addNotification, closeCurrentEventSource, artifactsRefetch]
     );
 
     const handleNewSession = useCallback(async () => {
