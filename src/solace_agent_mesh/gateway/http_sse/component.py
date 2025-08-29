@@ -30,7 +30,7 @@ from .database.database_persistence_service import DatabasePersistenceService
 try:
     from google.adk.artifacts import BaseArtifactService
 except ImportError:
-    # Mock BaseArtifactService for environments without Google ADK
+    
     class BaseArtifactService:
         pass
 

@@ -6,8 +6,7 @@ shared_config:
       broker_password: ${SOLACE_BROKER_PASSWORD, default}
       broker_vpn: ${SOLACE_BROKER_VPN, default}
       temporary_queue: ${USE_TEMPORARY_QUEUES, true}
-      # Ensure high enough limits if many agents are running
-      # max_connection_retries: -1 # Retry forever
+      
 
   - models:
     planning: &planning_model

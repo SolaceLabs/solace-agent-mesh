@@ -114,7 +114,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [apiPrefix, addNotification, artifactsRefetch]
     );
 
-    // State Variables from useChat (excluding TaskMonitor parts)
     const [sessionId, setSessionId] = useState<string>("");
     const [sessionName, setSessionName] = useState<string | null>(null);
     const [messages, setMessages] = useState<MessageFE[]>([]);
@@ -130,7 +129,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const latestStatusText = useRef<string | null>(null);
     const sseEventSequenceRef = useRef<number>(0);
 
-    // Session to delete state
     const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
 
     const deleteArtifactInternal = useCallback(

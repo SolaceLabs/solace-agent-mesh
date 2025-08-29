@@ -13,7 +13,7 @@ try:
     from google.genai import types as adk_types
     from google.adk.events import Event as ADKEvent
 except ImportError:
-    # Mock Google ADK types for environments without Google ADK
+    
     class MockADKTypes:
         class Part:
             pass

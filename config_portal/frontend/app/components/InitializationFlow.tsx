@@ -9,7 +9,6 @@ import WebUIGatewaySetup from "./steps/init/WebUIGatewaySetup";
 import CompletionStep from "./steps/init/CompletionStep";
 import SuccessScreen from "./steps/InitSuccessScreen/SuccessScreen";
 
-// Use a common props interface for all step components
 export interface StepComponentProps {
   data: Partial<Record<string, unknown>>;
   updateData: (newData: Partial<Record<string, unknown>>) => void;

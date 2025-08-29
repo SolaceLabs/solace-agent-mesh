@@ -12,10 +12,7 @@ interface UseArtifactsReturn {
     refetch: () => Promise<void>;
 }
 
-/**
- * Custom hook to fetch and manage artifact data
- * @returns Object containing artifacts data, loading state, error state, and refetch function
- */
+
 export const useArtifacts = (): UseArtifactsReturn => {
     const { configServerUrl } = useConfigContext();
     const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);

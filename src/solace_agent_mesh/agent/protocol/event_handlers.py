@@ -203,7 +203,6 @@ async def handle_mop_request(component: "SamAgentComponent", message: SolaceMess
         if not isinstance(payload, dict):
             raise ValueError("MOP payload is not a dictionary.")
 
-        # Extract required fields from payload
         session_id = payload.get("session_id")
         user_id = payload.get("user_id")
         agent_name = component.get_config("agent_name")
@@ -221,7 +220,6 @@ async def handle_mop_request(component: "SamAgentComponent", message: SolaceMess
             user_id,
         )
 
-        # Use the ADK session service to delete the session
         if component.session_service:
             await component.session_service.delete_session(
                 app_name=agent_name, user_id=user_id, session_id=session_id
@@ -432,7 +430,6 @@ async def handle_a2a_request(component, message: SolaceMessage):
             is_run_based_session = False
             temporary_run_session_id_for_cleanup = None
 
-            # New logic to extract session_id from DataPart
             session_id_from_data = None
             if a2a_request.params.message and a2a_request.params.message.parts:
                 for part in a2a_request.params.message.parts:

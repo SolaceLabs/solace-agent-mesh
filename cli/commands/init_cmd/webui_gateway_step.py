@@ -145,7 +145,6 @@ def create_webui_gateway_config(
         is_bool=True,
     )
 
-    # Session service configuration for WebUI (default to SQL for new projects)
     session_type = ask_if_not_provided(
         options,
         "webui_session_service_type",
@@ -170,7 +169,6 @@ def create_webui_gateway_config(
     try:
         template_content = load_template("webui.yaml")
         
-        # Generate session service configuration for WebUI
         if session_type == "sql":
             session_service_lines = [
                 f'type: "{session_type}"',
@@ -181,13 +179,11 @@ def create_webui_gateway_config(
                 [f"        {line}" for line in session_service_lines]
             )
             
-            # Generate database URL for WebUI
             data_dir = project_root / "data"
             data_dir.mkdir(exist_ok=True)
             webui_db_file = data_dir / "webui_gateway.db"
             webui_database_url = f"sqlite:///{webui_db_file.resolve()}"
             
-            # Add to .env file
             try:
                 env_path = project_root / ".env"
                 with open(env_path, "a", encoding="utf-8") as f:
@@ -199,7 +195,6 @@ def create_webui_gateway_config(
                     err=True,
                 )
         else:
-            # Use shared default for memory
             session_service_block = "*default_session_service"
         
         replacements = {

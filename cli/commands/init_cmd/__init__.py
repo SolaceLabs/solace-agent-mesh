@@ -129,11 +129,7 @@ def run_init_flow(skip_interactive: bool, use_web_based_init_flag: bool, **cli_o
     if actual_use_web_init:
         if skip_interactive:
             click.echo(
-                click.style(
-                    "Web-based init (--gui) is not compatible with --skip. Proceeding with CLI-based init using provided options or defaults.",
-                    fg="yellow",
-                )
-            )
+                click.style("Web-based init (--gui) is not compatible with --skip. Proceeding with CLI-based init using provided options or defaults.", fg="yellow")
         else:
             options = perform_web_init(options)
             skip_interactive = True

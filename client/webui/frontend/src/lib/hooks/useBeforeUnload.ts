@@ -2,11 +2,7 @@ import { useEffect, useCallback } from "react";
 import { useChatContext } from "./useChatContext";
 import { useConfigContext } from "./useConfigContext";
 
-/**
- * Custom hook to handle beforeunload warning when chat data is present
- * Only displays warning when persistence is disabled (in-memory mode)
- * When persistence is enabled, sessions are saved so no warning is needed
- */
+
 export function useBeforeUnload() {
     const { messages } = useChatContext();
     const config = useConfigContext();
@@ -17,7 +13,6 @@ export function useBeforeUnload() {
      */
     const handleBeforeUnload = useCallback(
         (event: BeforeUnloadEvent): string | void => {
-            // Only show warning if persistence is disabled (in-memory mode)
             if (config?.persistenceEnabled !== false) {
                 return;
             }
@@ -28,7 +23,6 @@ export function useBeforeUnload() {
 
             event.preventDefault();
 
-            // Some browsers use the return value as the dialog message
             return "Are you sure you want to leave? Your chat history will be lost.";
         },
         [messages.length, config?.persistenceEnabled]

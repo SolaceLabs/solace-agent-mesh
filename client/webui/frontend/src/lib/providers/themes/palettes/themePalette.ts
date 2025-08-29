@@ -1,6 +1,4 @@
-/**
- * The colour palette for Solace theming
- */
+
 export type ThemePalette = {
     brand: {
         wMain: string;

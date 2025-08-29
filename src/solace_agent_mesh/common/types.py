@@ -150,7 +150,7 @@ class ParallelToolCallInfo(TypedDict):
     results: List[Dict[str, Any]]
 
 
-## RPC Messages
+
 
 
 class JSONRPCMessage(BaseModel):
@@ -270,7 +270,7 @@ A2ARequest = TypeAdapter(
     ]
 )
 
-## Error types
+
 
 
 class JSONParseError(JSONRPCError):
