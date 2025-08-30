@@ -724,7 +724,7 @@ async def upload_artifact(
             ),
         )
 
-        if save_result["status"] in ["success", "partial_success"]:
+        if save_result["status"] == "success":
             log.info(
                 "%s Artifact and metadata processing completed. Data version: %s, Metadata version: %s. Message: %s",
                 log_prefix,

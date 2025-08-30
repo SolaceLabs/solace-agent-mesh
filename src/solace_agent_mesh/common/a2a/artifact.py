@@ -173,7 +173,7 @@ async def prepare_file_part_for_publishing(
                     timestamp=datetime.now(timezone.utc),
                 )
 
-                if save_result["status"] in ["success", "partial_success"]:
+                if save_result["status"] == "success":
                     saved_version = save_result.get("data_version")
                     artifact_uri = format_artifact_uri(
                         app_name=target_agent_name,
