@@ -6,6 +6,8 @@ skip_intermediate_events: true
 gateway_input:
   target_agent_name: "TestAgent"
   user_identity: "noname_user@test.com"
+  external_context:
+    a2a_session_id: "inline_no_name_session_001"
   a2a_parts:
     - type: "text"
       text: "Process this unnamed file."
