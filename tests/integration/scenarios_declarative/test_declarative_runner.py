@@ -358,10 +358,20 @@ async def _assert_llm_interactions(
                 assert (
                     last_message.role == "user"
                 ), f"Expected last message to be from user, but was {last_message.role}"
-                actual_prompt_text = last_message.content
-                assert isinstance(
-                    actual_prompt_text, str
-                ), f"Expected last message content to be a string, but was {type(actual_prompt_text)}"
+
+                actual_prompt_text = ""
+                if isinstance(last_message.content, str):
+                    actual_prompt_text = last_message.content
+                elif isinstance(last_message.content, list):
+                    # Handle multi-part content by concatenating text parts
+                    for part in last_message.content:
+                        if isinstance(part, dict) and part.get("type") == "text":
+                            actual_prompt_text += part.get("text", "") + "\n"
+                    actual_prompt_text = actual_prompt_text.strip()
+                else:
+                    pytest.fail(
+                        f"Scenario {scenario_id}: LLM call {i+1} - Last message content is neither a string nor a list of parts. Got type: {type(last_message.content)}"
+                    )
 
                 await _assert_summary_in_text(
                     text_to_search=actual_prompt_text,
