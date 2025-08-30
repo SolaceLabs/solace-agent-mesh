@@ -49,7 +49,7 @@ async def _prepare_a2a_filepart_for_adk(
 ) -> Optional[adk_types.Part]:
     """
     Prepares an incoming A2A FilePart for the ADK by converting it into a
-    textual summary of its metadata and an optional content preview.
+    textual summary of its metadata.
 
     - If the part has bytes, it saves it to the artifact store first.
     - If the part has a URI, it loads metadata from the store.
@@ -58,7 +58,6 @@ async def _prepare_a2a_filepart_for_adk(
     log_id = f"{component.log_identifier}[PrepareFilePartForADK]"
     app_name = component.get_config("agent_name")
     artifact_service = component.artifact_service
-    preview_max_chars = component.get_config("text_artifact_preview_max_chars", 0)
 
     if not artifact_service:
         log.error(
@@ -120,7 +119,7 @@ async def _prepare_a2a_filepart_for_adk(
         if filename is None or version is None:
             raise ValueError("Could not determine filename and version for artifact.")
 
-        # Fetch metadata and optional content preview
+        # Fetch metadata only.
         load_result = await load_artifact_content_or_metadata(
             artifact_service=artifact_service,
             app_name=app_name,
@@ -128,8 +127,7 @@ async def _prepare_a2a_filepart_for_adk(
             session_id=session_id,
             filename=filename,
             version=version,
-            return_raw_bytes=is_text_based_file(mime_type) and preview_max_chars > 0,
-            max_content_length=preview_max_chars or 0,
+            load_metadata_only=True,
         )
 
         if load_result["status"] != "success":
@@ -139,33 +137,13 @@ async def _prepare_a2a_filepart_for_adk(
         metadata_dict["filename"] = filename
         metadata_dict["version"] = version
 
-        # Add content preview if available and applicable
-        preview_content = None
-        content = load_result.get("content", load_result.get("raw_bytes"))
-        if content:
-            try:
-                preview_text = load_result["content"].decode("utf-8")
-                if len(preview_text) >= preview_max_chars:
-                    preview_content = (
-                        f"{preview_text[:preview_max_chars]}... [truncated]"
-                    )
-                else:
-                    preview_content = preview_text
-            except UnicodeDecodeError:
-                log.warning(
-                    "%s Could not decode supposed text file for preview: %s",
-                    log_id,
-                    filename,
-                )
-
         # Format the final text for the LLM
         formatted_summary = format_metadata_for_llm(metadata_dict)
         final_text = (
             "The user has provided the following file as context for your task. "
-            "Use the information contained within its metadata and content preview to complete your objective. "
+            "Use the information contained within its metadata to complete your objective. "
             "You can access the full content using your tools if necessary.\n\n"
-            f"{formatted_summary}\n\n"
-            f"<preview>\n{preview_content}\n</preview>\n"
+            f"{formatted_summary}"
         )
         return adk_types.Part(text=final_text)
 
