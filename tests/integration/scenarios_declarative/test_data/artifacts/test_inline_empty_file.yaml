@@ -20,7 +20,7 @@ llm_interactions:
       prompt_contains:
         - "This message has an empty file attached."
     static_response:
-      choices: [{message: {content: "I see the text, but no file."}}]
+      choices: [{message: {role: "assistant", content: "I see the text, but no file."}}]
 
 expected_gateway_output:
   - type: "final_response"

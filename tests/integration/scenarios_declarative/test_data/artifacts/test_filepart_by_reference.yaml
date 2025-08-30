@@ -26,6 +26,7 @@ llm_interactions:
     static_response:
       choices:
         - message:
+            role: "assistant"
             content: "The file is a company profile."
 
 expected_gateway_output:

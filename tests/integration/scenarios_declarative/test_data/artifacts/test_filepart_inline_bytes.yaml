@@ -22,6 +22,7 @@ llm_interactions:
     static_response:
       choices:
         - message:
+            role: "assistant"
             content: "The file 'report.txt' contains a greeting."
 
 expected_artifacts:

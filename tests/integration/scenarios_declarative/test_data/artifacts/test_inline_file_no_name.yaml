@@ -18,7 +18,7 @@ llm_interactions:
       prompt_contains_artifact_summary_for:
         - filename_matches_regex: "^upload-.*\\.txt$"
     static_response:
-      choices: [{message: {content: "I have processed the unnamed file."}}]
+      choices: [{message: {role: "assistant", content: "I have processed the unnamed file."}}]
 
 expected_artifacts:
   - filename_matches_regex: "^upload-.*\\.txt$"

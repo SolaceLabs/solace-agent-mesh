@@ -16,7 +16,7 @@ llm_interactions:
       prompt_contains:
         - "[System Note: The file 'ghost_file.txt' could not be processed. Error: Failed to load metadata"
     static_response:
-      choices: [{message: {content: "I'm sorry, I could not find the file you referenced."}}]
+      choices: [{message: {role: "assistant", content: "I'm sorry, I could not find the file you referenced."}}]
 
 expected_gateway_output:
   - type: "final_response"
