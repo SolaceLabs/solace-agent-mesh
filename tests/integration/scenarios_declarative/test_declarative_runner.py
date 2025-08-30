@@ -251,9 +251,14 @@ async def _assert_summary_in_text(
         resolved_version = metadata_result.get("version")
 
         # Spot-check key fields
-        expected_header = f"Artifact: '{filename}' (version: {resolved_version})"
-        assert expected_header in text_to_search, (
-            f"Scenario {scenario_id}: {context_str} - Expected artifact header '{expected_header}' not found in text:\n"
+        # The agent can produce two different headers depending on the context.
+        header_format_1 = f"--- Metadata for artifact '{filename}' (v{resolved_version}) ---"
+        header_format_2 = f"Artifact: '{filename}' (version: {resolved_version})"
+
+        assert (
+            header_format_1 in text_to_search or header_format_2 in text_to_search
+        ), (
+            f"Scenario {scenario_id}: {context_str} - Expected artifact header not found for '{filename}' v{resolved_version} in text:\n"
             f"---\n{text_to_search}\n---"
         )
 
@@ -606,6 +611,11 @@ async def _assert_llm_interactions(
                             if artifact_scope == "namespace"
                             else peer_agent_name
                         )
+                        assert header_text in actual_result_text, (
+                            f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Expected header '{header_text}' not found in text:\n"
+                            f"---\n{actual_result_text}\n---"
+                        )
+
                         await _assert_summary_in_text(
                             text_to_search=actual_result_text,
                             artifact_identifiers=artifact_identifiers,
@@ -613,7 +623,6 @@ async def _assert_llm_interactions(
                             user_id=user_id,
                             session_id=session_id,
                             app_name=app_name_for_summary,
-                            header_text=header_text,
                             scenario_id=scenario_id,
                             context_str=f"LLM call {i+1}, Tool Response {j+1}",
                         )
