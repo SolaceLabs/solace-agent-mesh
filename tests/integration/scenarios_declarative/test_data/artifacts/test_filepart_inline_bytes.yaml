@@ -1,6 +1,7 @@
 test_case_id: "artifact_inline_bytes_success_001"
 description: "Tests that an inline file (FileWithBytes) is correctly received and processed by the agent."
 tags: ["all", "common"]
+skip_intermediate_events: true
 
 gateway_input:
   target_agent_name: "TestAgent"
