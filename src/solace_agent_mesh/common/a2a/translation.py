@@ -61,7 +61,9 @@ async def _prepare_a2a_filepart_for_adk(
     preview_max_chars = component.get_config("text_artifact_preview_max_chars", 0)
 
     if not artifact_service:
-        log.error("%s Artifact service is not configured. Cannot process FilePart.", log_id)
+        log.error(
+            "%s Artifact service is not configured. Cannot process FilePart.", log_id
+        )
         return adk_types.Part(
             text="[System Note: File part ignored due to missing artifact service.]"
         )
@@ -126,8 +128,8 @@ async def _prepare_a2a_filepart_for_adk(
             session_id=session_id,
             filename=filename,
             version=version,
-            return_raw_bytes=is_text_based_file(mime_type)
-            and preview_max_chars > 0,
+            return_raw_bytes=is_text_based_file(mime_type) and preview_max_chars > 0,
+            max_content_length=preview_max_chars or 0,
         )
 
         if load_result["status"] != "success":
@@ -139,10 +141,11 @@ async def _prepare_a2a_filepart_for_adk(
 
         # Add content preview if available and applicable
         preview_content = None
-        if "raw_bytes" in load_result and load_result["raw_bytes"]:
+        content = load_result.get("content", load_result.get("raw_bytes"))
+        if content:
             try:
-                preview_text = load_result["raw_bytes"].decode("utf-8")
-                if len(preview_text) > preview_max_chars:
+                preview_text = load_result["content"].decode("utf-8")
+                if len(preview_text) >= preview_max_chars:
                     preview_content = (
                         f"{preview_text[:preview_max_chars]}... [truncated]"
                     )
@@ -156,12 +159,13 @@ async def _prepare_a2a_filepart_for_adk(
                 )
 
         # Format the final text for the LLM
-        formatted_summary = format_metadata_for_llm(metadata_dict, preview_content)
+        formatted_summary = format_metadata_for_llm(metadata_dict)
         final_text = (
             "The user has provided the following file as context for your task. "
             "Use the information contained within its metadata and content preview to complete your objective. "
             "You can access the full content using your tools if necessary.\n\n"
-            f"{formatted_summary}"
+            f"{formatted_summary}\n\n"
+            f"<preview>\n{preview_content}\n</preview>\n"
         )
         return adk_types.Part(text=final_text)
 
@@ -190,9 +194,7 @@ async def translate_a2a_to_adk_content(
     for part in unwrapped_parts:
         try:
             if isinstance(part, TextPart):
-                adk_parts.append(
-                    adk_types.Part(text=a2a.get_text_from_text_part(part))
-                )
+                adk_parts.append(adk_types.Part(text=a2a.get_text_from_text_part(part)))
             elif isinstance(part, FilePart):
                 adk_part = await _prepare_a2a_filepart_for_adk(
                     part, component, user_id, session_id
@@ -201,13 +203,9 @@ async def translate_a2a_to_adk_content(
                     adk_parts.append(adk_part)
             elif isinstance(part, DataPart):
                 try:
-                    data_str = json.dumps(
-                        a2a.get_data_from_data_part(part), indent=2
-                    )
+                    data_str = json.dumps(a2a.get_data_from_data_part(part), indent=2)
                     adk_parts.append(
-                        adk_types.Part(
-                            text=f"Received data:\n```json\n{data_str}\n```"
-                        )
+                        adk_types.Part(text=f"Received data:\n```json\n{data_str}\n```")
                     )
                 except Exception as e:
                     log.warning(
