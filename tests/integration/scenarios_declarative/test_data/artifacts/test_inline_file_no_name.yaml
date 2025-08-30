@@ -1,6 +1,6 @@
 test_case_id: "artifact_inline_no_name_001"
 description: "Tests that an inline file with no name is handled gracefully."
-tags: ["all", "common", "artifacts"]
+tags: ["all", "common"]
 
 gateway_input:
   target_agent_name: "TestAgent"

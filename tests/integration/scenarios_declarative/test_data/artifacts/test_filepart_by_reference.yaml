@@ -1,6 +1,6 @@
 test_case_id: "artifact_by_reference_success_001"
 description: "Tests that a referenced file (FileWithUri) is correctly processed by the agent."
-tags: ["all", "common", "artifacts"]
+tags: ["all", "common"]
 
 setup_artifacts:
   - filename: "user:company_profile.txt"
