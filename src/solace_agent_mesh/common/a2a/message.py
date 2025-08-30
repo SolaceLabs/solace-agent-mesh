@@ -4,7 +4,7 @@ Helpers for creating and consuming A2A Message and Part objects.
 
 import base64
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from .types import ContentPart
 from a2a.types import (
@@ -258,6 +258,11 @@ def get_parts_from_message(message: Message) -> List[ContentPart]:
     return [part.root for part in message.parts]
 
 
+def get_text_from_text_part(part: TextPart) -> str:
+    """Safely retrieves the text from a TextPart object."""
+    return part.text
+
+
 def get_data_from_data_part(part: DataPart) -> Dict[str, Any]:
     """Safely retrieves the data dictionary from a DataPart object."""
     return part.data
@@ -266,6 +271,13 @@ def get_data_from_data_part(part: DataPart) -> Dict[str, Any]:
 def get_metadata_from_part(part: ContentPart) -> Optional[Dict[str, Any]]:
     """Safely retrieves the metadata from any Part object."""
     return part.metadata
+
+
+def get_file_from_file_part(
+    part: FilePart,
+) -> Optional[Union[FileWithUri, FileWithBytes]]:
+    """Safely retrieves the File object from a FilePart."""
+    return part.file
 
 
 def get_uri_from_file_part(part: FilePart) -> Optional[str]:

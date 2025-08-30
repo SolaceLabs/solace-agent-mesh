@@ -40,6 +40,7 @@ from .message import (
     get_context_id,
     get_data_from_data_part,
     get_data_parts_from_message,
+    get_file_from_file_part,
     get_filename_from_file_part,
     get_file_parts_from_message,
     get_message_id,
@@ -48,6 +49,7 @@ from .message import (
     get_parts_from_message,
     get_task_id as get_task_id_from_message,  # Alias to avoid name clash
     get_text_from_message,
+    get_text_from_text_part,
     get_uri_from_file_part,
 )
 from .protocol import (
@@ -147,10 +149,12 @@ __all__ = [
     "get_message_id",
     "get_metadata_from_part",
     "get_mimetype_from_file_part",
+    "get_file_from_file_part",
     "get_parts_from_message",
     "get_task_id_from_message",
     "get_text_from_message",
     "get_uri_from_file_part",
+    "get_text_from_text_part",
     # protocol.py
     "create_cancel_task_request",
     "create_error_response",
