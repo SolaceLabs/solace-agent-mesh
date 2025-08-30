@@ -221,15 +221,12 @@ async def _assert_summary_in_text(
     user_id: str,
     session_id: str,
     app_name: str,
-    header_text: str,
     scenario_id: str,
     context_str: str,
 ):
     """Asserts that key details of an artifact's metadata summary are present in text."""
-    assert header_text in text_to_search, (
-        f"Scenario {scenario_id}: {context_str} - Expected header '{header_text}' not found in text:\n"
-        f"---\n{text_to_search}\n---"
-    )
+    # The header check is now performed by the caller (_assert_llm_interactions)
+    # to handle multiple valid header formats.
 
     for artifact_ref in artifact_identifiers:
         filename = artifact_ref.get("filename")
@@ -347,11 +344,10 @@ async def _assert_llm_interactions(
 
                 sam_agent_component = calling_agent_component
 
-                # The agent code uses a standard header. We replicate it here.
-                header_text = (
-                    "The user has provided the following artifacts as context for your task. "
-                    "Use the information contained within their metadata to complete your objective."
-                )
+                # The agent code uses two possible headers depending on the input method.
+                # We will check for the presence of the common part.
+                header_for_filepart = "The user has provided the following file as context for your task."
+                header_for_invoked = "The user has provided the following artifacts as context for your task."
 
                 # The enriched prompt is the last message in the history.
                 last_message = actual_request_raw.messages[-1]
@@ -373,6 +369,14 @@ async def _assert_llm_interactions(
                         f"Scenario {scenario_id}: LLM call {i+1} - Last message content is neither a string nor a list of parts. Got type: {type(last_message.content)}"
                     )
 
+                assert (
+                    header_for_filepart in actual_prompt_text
+                    or header_for_invoked in actual_prompt_text
+                ), (
+                    f"Scenario {scenario_id}: LLM call {i+1} prompt - Expected an artifact summary header but none was found in text:\n"
+                    f"---\n{actual_prompt_text}\n---"
+                )
+
                 await _assert_summary_in_text(
                     text_to_search=actual_prompt_text,
                     artifact_identifiers=artifact_identifiers,
@@ -380,7 +384,6 @@ async def _assert_llm_interactions(
                     user_id=user_id,
                     session_id=session_id,
                     app_name=app_name_for_artifacts,
-                    header_text=header_text,
                     scenario_id=scenario_id,
                     context_str=f"LLM call {i+1} prompt",
                 )
