@@ -89,7 +89,7 @@ async def _prepare_a2a_filepart_for_adk(
                 metadata_dict={"source": "a2a_filepart_upload"},
                 timestamp=datetime.now(timezone.utc),
             )
-            if save_result["status"] in ["success", "partial_success"]:
+            if save_result["status"] == "success":
                 version = save_result["data_version"]
                 log.info(
                     "%s Saved incoming file '%s' as version %d.",
@@ -98,7 +98,9 @@ async def _prepare_a2a_filepart_for_adk(
                     version,
                 )
             else:
-                raise IOError(f"Failed to save artifact: {save_result['message']}")
+                raise IOError(
+                    f"Failed to save artifact and its metadata: {save_result['message']}"
+                )
 
         elif isinstance(part.file, FileWithUri):
             log.debug("%s FilePart contains URI. Loading metadata.", log_id)
