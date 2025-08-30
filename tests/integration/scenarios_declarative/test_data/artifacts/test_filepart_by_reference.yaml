@@ -6,6 +6,8 @@ setup_artifacts:
   - filename: "user:company_profile.txt"
     content: "This is the company profile."
     mime_type: "text/plain"
+    metadata:
+      source: "test_setup"
 
 gateway_input:
   target_agent_name: "TestAgent"
