@@ -111,7 +111,7 @@ class TestGatewayComponent(BaseGatewayComponent):
                     a2a_parts.append(
                         a2a.create_file_part_from_bytes(
                             content_bytes=content_bytes,
-                            name=part_data.get("name", "testfile.dat"),
+                            name=part_data.get("name", None),
                             mime_type=part_data.get(
                                 "mime_type", "application/octet-stream"
                             ),
@@ -285,9 +285,7 @@ class TestGatewayComponent(BaseGatewayComponent):
 
         # Pass the user_identity into the event data for translation
         test_input_data_for_translation = test_input_data.copy()
-        test_input_data_for_translation[
-            "_authenticated_user_identity"
-        ] = user_identity
+        test_input_data_for_translation["_authenticated_user_identity"] = user_identity
 
         target_agent_name, a2a_parts, external_request_context_for_storage = (
             await self._translate_external_input(test_input_data_for_translation)

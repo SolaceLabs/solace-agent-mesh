@@ -25,17 +25,18 @@ from a2a.types import (
     InternalError,
 )
 
-if TYPE_CHECKING:
-    from google.adk.artifacts import BaseArtifactService
-    from ...agent.sac.component import SamAgentComponent
-
 from .. import a2a
 from ...agent.utils.artifact_helpers import (
     save_artifact_with_metadata,
     load_artifact_content_or_metadata,
     format_metadata_for_llm,
 )
-from ...common.utils.mime_helpers import is_text_based_file
+from ...agent.utils.context_helpers import get_original_session_id
+
+if TYPE_CHECKING:
+    from google.adk.artifacts import BaseArtifactService
+    from ...agent.sac.component import SamAgentComponent
+
 
 A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY = "temp:llm_stream_chunks_processed"
 A2A_STATUS_SIGNAL_STORAGE_KEY = "temp:a2a_status_signals_collected"
@@ -126,7 +127,7 @@ async def _prepare_a2a_filepart_for_adk(
             artifact_service=artifact_service,
             app_name=app_name,
             user_id=user_id,
-            session_id=session_id,
+            session_id=get_original_session_id(session_id),
             filename=filename,
             version=version,
             load_metadata_only=True,

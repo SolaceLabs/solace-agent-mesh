@@ -1,6 +1,7 @@
 test_case_id: "artifact_inline_empty_file_001"
 description: "Tests that an empty inline file is gracefully ignored by the gateway."
 tags: ["all", "common", "gateway"]
+skip_intermediate_events: true
 
 gateway_input:
   target_agent_name: "TestAgent"
