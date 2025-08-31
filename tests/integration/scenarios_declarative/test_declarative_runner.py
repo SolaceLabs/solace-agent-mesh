@@ -230,7 +230,34 @@ async def _assert_summary_in_text(
 
     for artifact_ref in artifact_identifiers:
         filename = artifact_ref.get("filename")
+        filename_regex = artifact_ref.get("filename_matches_regex")
         version = artifact_ref.get("version", "latest")
+
+        if filename_regex:
+            # For regex, we can't load the artifact. We just check that a summary
+            # with a matching filename exists in the prompt.
+            header_regex = re.compile(
+                r"(?:--- Metadata for artifact '(.+?)' \(v\d+\) ---|Artifact: '(.+?)' \(version: \d+\))"
+            )
+            found_match = False
+            for line in text_to_search.splitlines():
+                match = header_regex.search(line)
+                if match:
+                    # The filename could be in group 1 or group 2
+                    extracted_filename = match.group(1) or match.group(2)
+                    if extracted_filename and re.match(
+                        filename_regex, extracted_filename
+                    ):
+                        found_match = True
+                        print(
+                            f"Scenario {scenario_id}: {context_str} - Found artifact summary header for filename '{extracted_filename}' which matches regex '{filename_regex}'."
+                        )
+                        break
+            assert found_match, (
+                f"Scenario {scenario_id}: {context_str} - Could not find an artifact summary header in the text "
+                f"with a filename matching the regex '{filename_regex}'.\nText searched:\n---\n{text_to_search}\n---"
+            )
+            continue  # Move to the next artifact identifier
 
         metadata_result = await load_artifact_content_or_metadata(
             artifact_service=component.artifact_service,
