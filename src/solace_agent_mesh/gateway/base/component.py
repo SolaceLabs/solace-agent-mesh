@@ -1137,6 +1137,14 @@ class BaseGatewayComponent(SamComponentBase):
         log.info("%s Calling _stop_listener()...", self.log_identifier)
         self._stop_listener()
 
+        if self.internal_event_queue:
+            log.info(
+                "%s Signaling _message_processor_loop to stop by putting sentinel on queue...",
+                self.log_identifier,
+            )
+            # This unblocks the `self.internal_event_queue.get()` call in the loop
+            self.internal_event_queue.put(None)
+
     async def _message_processor_loop(self):
         log.info("%s Starting message processor loop...", self.log_identifier)
         loop = self.get_async_loop()
