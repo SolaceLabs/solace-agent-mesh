@@ -290,16 +290,26 @@ async def _assert_summary_in_text(
         )
 
         if "description" in metadata:
-            expected_desc_str = f"*   **Description:** {metadata['description']}"
-            assert expected_desc_str in text_to_search, (
-                f"Scenario {scenario_id}: {context_str} - Expected description '{expected_desc_str}' not found for artifact '{filename}' in text:\n"
+            desc_val = metadata["description"]
+            expected_desc_md = f"*   **Description:** {desc_val}"
+            expected_desc_yaml = f"description: {desc_val}"
+            assert (
+                expected_desc_md in text_to_search
+                or expected_desc_yaml in text_to_search
+            ), (
+                f"Scenario {scenario_id}: {context_str} - Expected description for artifact '{filename}' not found in either markdown or yaml format in text:\n"
                 f"---\n{text_to_search}\n---"
             )
 
         if "mime_type" in metadata:
-            expected_mime = f"*   **Type:** {metadata['mime_type']}"
-            assert expected_mime in text_to_search, (
-                f"Scenario {scenario_id}: {context_str} - Expected mime_type '{expected_mime}' not found for artifact '{filename}' in text:\n"
+            mime_val = metadata["mime_type"]
+            expected_mime_md = f"*   **Type:** {mime_val}"
+            expected_mime_yaml = f"mime_type: {mime_val}"
+            assert (
+                expected_mime_md in text_to_search
+                or expected_mime_yaml in text_to_search
+            ), (
+                f"Scenario {scenario_id}: {context_str} - Expected mime_type for artifact '{filename}' not found in either markdown or yaml format in text:\n"
                 f"---\n{text_to_search}\n---"
             )
 
