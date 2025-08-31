@@ -263,15 +263,14 @@ async def _assert_summary_in_text(
         )
 
         if "description" in metadata:
-            # Use PyYAML's simple string representation for comparison
-            expected_desc_str = f"description: {metadata['description']}"
+            expected_desc_str = f"*   **Description:** {metadata['description']}"
             assert expected_desc_str in text_to_search, (
                 f"Scenario {scenario_id}: {context_str} - Expected description '{expected_desc_str}' not found for artifact '{filename}' in text:\n"
                 f"---\n{text_to_search}\n---"
             )
 
         if "mime_type" in metadata:
-            expected_mime = f"mime_type: {metadata['mime_type']}"
+            expected_mime = f"*   **Type:** {metadata['mime_type']}"
             assert expected_mime in text_to_search, (
                 f"Scenario {scenario_id}: {context_str} - Expected mime_type '{expected_mime}' not found for artifact '{filename}' in text:\n"
                 f"---\n{text_to_search}\n---"
