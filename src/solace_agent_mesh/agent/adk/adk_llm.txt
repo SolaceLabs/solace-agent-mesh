@@ -230,4 +230,4 @@ artifact_service = S3ArtifactService(bucket_name="my-artifacts-bucket")
 content = "Hello, world!"
 artifact = adk_types.Part.from_text(content
 
-# content_hash: 629ea64c24ef561214d3d053d3b8ecb94c0903034ab01354904f0b05ef06f235
+# content_hash: bdaeea265906dddb9e33e2ae4476cd77b2db58d735ff6afbc222b7815736f601

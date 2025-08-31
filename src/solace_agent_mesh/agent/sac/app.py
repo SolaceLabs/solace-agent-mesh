@@ -616,13 +616,6 @@ class SamAgentApp(App):
                 "default": 20,
                 "description": "Maximum number of LLM calls allowed for a single A2A task. A value of 0 or less means unlimited.",
             },
-            {
-                "name": "text_artifact_preview_max_chars",
-                "required": False,
-                "type": "integer",
-                "default": 1000,
-                "description": "Max characters of a text-based artifact to include as a preview in the LLM prompt. Set to 0 to disable.",
-            },
         ]
     }
 

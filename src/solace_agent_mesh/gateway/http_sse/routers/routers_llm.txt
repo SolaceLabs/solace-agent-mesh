@@ -260,4 +260,4 @@ targets = [SubscriptionTarget(type="current_namespace_a2a_messages")]
 request = VisualizationSubscribeRequest(subscription_targets=targets)
 ```
 
-# content_hash: 06355b3b169d52d43490f8937b9b15c25a298b29debe3daab4ee810c3131288a
+# content_hash: cd51f2d84ce27b9939390065e8505a44c131798ac8296e1ad69ae55133cab7d5

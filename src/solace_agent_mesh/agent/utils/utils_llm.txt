@@ -1,5 +1,3 @@
-# DEVELOPER GUIDE for utils
-
 ## Quick Summary
 The `utils` directory provides a collection of helper modules designed to support the core functionality of the agent. These utilities encapsulate common, reusable logic for tasks such as artifact management (saving, loading, schema inference), configuration parsing, and safe interaction with the ADK's invocation context.
 
@@ -18,6 +16,8 @@ The `utils` directory provides a collection of helper modules designed to suppor
 **Functions:**
 - `is_filename_safe(filename: str) -> bool` - Validates filename safety (no path traversal, separators, or reserved names)
 - `ensure_correct_extension(filename_from_llm: str, desired_extension: str) -> str` - Ensures filename has correct extension
+- `format_artifact_uri(app_name: str, user_id: str, session_id: str, filename: str, version: Union[int, str]) -> str` - Formats components into standard artifact:// URI
+- `parse_artifact_uri(uri: str) -> Dict[str, Any]` - Parses artifact:// URI into constituent parts
 - `save_artifact_with_metadata(artifact_service: BaseArtifactService, app_name: str, user_id: str, session_id: str, filename: str, content_bytes: bytes, mime_type: str, metadata_dict: Dict[str, Any], timestamp: datetime, explicit_schema: Optional[Dict] = None, schema_inference_depth: int = 2, schema_max_keys: int = 20, tool_context: Optional["ToolContext"] = None) -> Dict[str, Any]` - Saves artifact with auto-generated metadata and schema inference
 - `load_artifact_content_or_metadata(artifact_service: BaseArtifactService, app_name: str, user_id: str, session_id: str, filename: str, version: Union[int, str], load_metadata_only: bool = False, return_raw_bytes: bool = False, max_content_length: Optional[int] = None, component: Optional[Any] = None, log_identifier_prefix: str = "[ArtifactHelper:load]", encoding: str = "utf-8", error_handling: str = "strict") -> Dict[str, Any]` - Loads artifact content or metadata with flexible options
 - `get_artifact_info_list(artifact_service: BaseArtifactService, app_name: str, user_id: str, session_id: str) -> List[ArtifactInfo]` - Retrieves detailed info for all artifacts
@@ -38,7 +38,9 @@ from solace_agent_mesh.agent.utils.artifact_helpers import (
     save_artifact_with_metadata,
     load_artifact_content_or_metadata,
     get_artifact_info_list,
-    ensure_correct_extension
+    ensure_correct_extension,
+    format_artifact_uri,
+    parse_artifact_uri
 )
 
 async def artifact_example():
@@ -68,6 +70,13 @@ async def artifact_example():
         filename=safe_name,
         version="latest"
     )
+    
+    # Work with artifact URIs
+    uri = format_artifact_uri("my_app", "user123", "session456", "report.csv", 1)
+    # Returns: "artifact://my_app/user123/session456/report.csv?version=1"
+    
+    parsed = parse_artifact_uri(uri)
+    # Returns: {"app_name": "my_app", "user_id": "user123", ...}
     
     # List all artifacts
     artifacts = await get_artifact_info_list(
@@ -126,4 +135,4 @@ def my_tool(callback_context):
     # "session123:tool456" -> "session123"
 ```
 
-# content_hash: 1a5c75fb7c2f7fef4a6476d720c82bdf459656e39ff089be1fe5554bd089e173
+# content_hash: b3aa9a05daf2be266a8a43107328da63d05222408df1b57e46af1c75415d5b7d

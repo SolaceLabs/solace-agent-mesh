@@ -8,12 +8,8 @@ from fastapi import (
     HTTPException,
     Request as FastAPIRequest,
     status,
-    Form,
-    File,
-    UploadFile,
 )
-from pydantic import BaseModel, Field
-from typing import List, Union
+from typing import Union
 
 from solace_ai_connector.common.log import log
 
@@ -34,7 +30,6 @@ from ....gateway.http_sse.dependencies import (
     get_sac_component,
     get_task_service,
 )
-from ....gateway.http_sse.routers.users import get_current_user
 
 from typing import TYPE_CHECKING
 

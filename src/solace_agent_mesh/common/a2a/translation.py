@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
 import json
 import base64
 import uuid
-import asyncio
 from datetime import datetime, timezone
 from urllib.parse import urlparse, parse_qs
 from solace_ai_connector.common.log import log

@@ -41,9 +41,6 @@ from google.adk.tools.mcp_tool import MCPToolset
 from a2a.types import (
     AgentCard,
     Artifact as A2AArtifact,
-    FilePart,
-    FileWithBytes,
-    FileWithUri,
     Message as A2AMessage,
     MessageSendParams,
     SendMessageRequest,
@@ -79,8 +76,6 @@ from ...agent.adk.invocation_monitor import InvocationMonitor
 from ...common.middleware.registry import MiddlewareRegistry
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...agent.tools.registry import tool_registry
-from ...common.utils.message_utils import validate_message_size
-from ...common.exceptions import MessageSizeExceededError
 from ...common.sac.sam_component_base import SamComponentBase
 
 if TYPE_CHECKING:
@@ -1496,7 +1491,6 @@ class SamAgentComponent(SamComponentBase):
             )
             raise
 
-
     async def _filter_text_from_final_streaming_event(
         self, adk_event: ADKEvent, a2a_context: Dict
     ) -> ADKEvent:
@@ -2827,7 +2821,6 @@ class SamAgentComponent(SamComponentBase):
                 e,
                 exc_info=e,
             )
-
 
     async def _perform_async_init(self):
         """Coroutine executed on the dedicated loop to perform async initialization."""

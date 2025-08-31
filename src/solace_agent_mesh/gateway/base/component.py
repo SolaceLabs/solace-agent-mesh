@@ -4,16 +4,13 @@ Base Component class for Gateway implementations in the Solace AI Connector.
 
 import asyncio
 import queue
-import re
 import base64
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, List, Tuple, Union
-from urllib.parse import urlparse, parse_qs
 
 from solace_ai_connector.common.log import log
 from google.adk.artifacts import BaseArtifactService
-from google.genai import types as adk_types
 
 from ...common.agent_registry import AgentRegistry
 from ...common.sac.sam_component_base import SamComponentBase
@@ -36,12 +33,9 @@ from a2a.types import (
     TextPart,
     FilePart,
     FileWithBytes,
-    FileWithUri,
-    DataPart,
     Artifact as A2AArtifact,
 )
 from ...common import a2a
-from ...common.a2a import ContentPart
 from ...common.utils import is_text_based_mime_type
 from ...common.utils.embeds import (
     resolve_embeds_in_string,
@@ -58,9 +52,6 @@ from solace_ai_connector.common.event import Event, EventType
 from abc import abstractmethod
 
 from ...common.middleware.registry import MiddlewareRegistry
-from ...agent.utils.artifact_helpers import (
-    load_artifact_content_or_metadata,
-)
 
 info = {
     "class_name": "BaseGatewayComponent",

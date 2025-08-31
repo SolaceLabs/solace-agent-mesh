@@ -65,4 +65,4 @@ await handle_a2a_request(component, solace_message)
 - Integrates with Google ADK for task execution
 - Manages task contexts through `TaskExecutionContext`
 
-# content_hash: 7bb2b04b131e3e12275d860f347ad5830de20541f5bf1d5470c31bf7a38044a3
+# content_hash: 00fc98ca0832801776639518be8b53197c211ac407f79f9a40aa0dc35bf6b447
