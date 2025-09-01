@@ -44,7 +44,7 @@ SAM creates a standardized communication layer where AI agents can:
 SAM is built on top of the Solace AI Connector (SAC) which allows Solace Platform Event Brokers to connect to AI models and services and Google's Agent Development Kit (ADK) for AI logic and tool integrations.
 
 <p align="center">
-<img src="https://solacelabs.github.io/solace-agent-mesh/assets/images/Solace_AI_Framework_With_Broker-85f0a306a9bcdd20b390b7a949f6d862.png" width="800" />
+<img src="https://solacelabs.github.io/solace-agent-mesh/assets/images/Solace_AI_Framework_With_Broker-85f0a306a9bcdd20b390b7a949f6d862.png" width="640" />
 </p>
 
 
