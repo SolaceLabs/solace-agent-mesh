@@ -45,7 +45,7 @@ AGENT_DEFAULTS = {
     "agent_card_skills_str": "[]",
     "agent_card_publishing_interval": 10,
     "agent_discovery_enabled": True,
-    "inter_agent_communication_allow_list": ["*"],
+    "inter_agent_communication_allow_list": [],
     "inter_agent_communication_deny_list": [],
     "inter_agent_communication_timeout": DEFAULT_COMMUNICATION_TIMEOUT,
     "namespace": "${NAMESPACE}",

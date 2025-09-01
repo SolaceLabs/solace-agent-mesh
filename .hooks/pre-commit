@@ -1,0 +1,25 @@
+#!/bin/sh
+
+# Check if any files in the frontend directory have been staged
+FRONTEND_CHANGES=$(git diff --cached --name-only | grep "^client/webui/frontend/")
+
+# Only run the frontend pre-commit hook if frontend files have changed
+if [ -n "$FRONTEND_CHANGES" ]; then
+  echo "Frontend changes detected, running frontend pre-commit hook..."
+  
+  # Change to the frontend directory
+  cd "$(git rev-parse --show-toplevel)/client/webui/frontend" || exit 1
+  
+  # Run the npm script from the frontend directory
+  npm run precommit
+  
+  # Exit with the status of the npm script
+  EXIT_CODE=$?
+  if [ $EXIT_CODE -ne 0 ]; then
+    echo "Frontend pre-commit hook failed"
+    exit $EXIT_CODE
+  fi
+fi
+
+# If we get here, all hooks passed
+exit 0

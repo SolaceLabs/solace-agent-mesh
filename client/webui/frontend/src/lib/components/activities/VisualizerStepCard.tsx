@@ -1,6 +1,6 @@
 import React from "react";
 
-import { FiCheckCircle, FiFileText, FiHardDrive, FiLink, FiMessageSquare, FiShare2, FiTerminal, FiUser, FiXCircle, FiZap } from "react-icons/fi";
+import { CheckCircle, FileText, HardDrive, Link, MessageSquare, Share2, Terminal, User, XCircle, Zap } from "lucide-react";
 
 import { JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
 import type { ArtifactNotificationData, LLMCallData, LLMResponseToAgentData, ToolDecisionData, ToolInvocationStartData, ToolResultData, VisualizerStep } from "@/lib/types";
@@ -16,31 +16,31 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
     const getStepIcon = () => {
         switch (step.type) {
             case "USER_REQUEST":
-                return <FiUser className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
+                return <User className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
             case "AGENT_RESPONSE_TEXT":
-                return <FiZap className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
+                return <Zap className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
             case "TASK_COMPLETED":
-                return <FiCheckCircle className="mr-2 text-green-500 dark:text-green-400" size={18} />;
+                return <CheckCircle className="mr-2 text-green-500 dark:text-green-400" size={18} />;
             case "TASK_FAILED":
-                return <FiXCircle className="mr-2 text-red-500 dark:text-red-400" size={18} />;
+                return <XCircle className="mr-2 text-red-500 dark:text-red-400" size={18} />;
             case "AGENT_LLM_CALL":
-                return <FiZap className="mr-2 text-purple-500 dark:text-purple-400" size={18} />;
+                return <Zap className="mr-2 text-purple-500 dark:text-purple-400" size={18} />;
             case "AGENT_LLM_RESPONSE_TO_AGENT":
-                return <FiZap className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
+                return <Zap className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
             case "AGENT_LLM_RESPONSE_TOOL_DECISION": {
                 const firstDecision = step.data.toolDecision?.decisions?.[0];
                 const isPeer = firstDecision?.isPeerDelegation;
 
-                return isPeer ? <FiShare2 className="mr-2 text-orange-500 dark:text-orange-400" size={18} /> : <FiTerminal className="mr-2 text-orange-500 dark:text-orange-400" size={18} />;
+                return isPeer ? <Share2 className="mr-2 text-orange-500 dark:text-orange-400" size={18} /> : <Terminal className="mr-2 text-orange-500 dark:text-orange-400" size={18} />;
             }
             case "AGENT_TOOL_INVOCATION_START":
-                return step.data.toolInvocationStart?.isPeerInvocation ? <FiShare2 className="mr-2 text-cyan-500 dark:text-cyan-400" size={18} /> : <FiTerminal className="mr-2 text-cyan-500 dark:text-cyan-400" size={18} />;
+                return step.data.toolInvocationStart?.isPeerInvocation ? <Share2 className="mr-2 text-cyan-500 dark:text-cyan-400" size={18} /> : <Terminal className="mr-2 text-cyan-500 dark:text-cyan-400" size={18} />;
             case "AGENT_TOOL_EXECUTION_RESULT":
-                return <FiHardDrive className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
+                return <HardDrive className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
             case "AGENT_ARTIFACT_NOTIFICATION":
-                return <FiFileText className="mr-2 text-indigo-500 dark:text-indigo-400" size={18} />;
+                return <FileText className="mr-2 text-indigo-500 dark:text-indigo-400" size={18} />;
             default:
-                return <FiMessageSquare className="mr-2 text-gray-500 dark:text-gray-400" size={18} />;
+                return <MessageSquare className="mr-2 text-gray-500 dark:text-gray-400" size={18} />;
         }
     };
 
@@ -221,7 +221,7 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
                     {step.delegationInfo.map(info => (
                         <div key={info.functionCallId}>
                             <div className="flex items-center font-semibold text-blue-700 dark:text-blue-300">
-                                <FiLink className="mr-2 h-4 w-4 flex-shrink-0" />
+                                <Link className="mr-2 h-4 w-4 flex-shrink-0" />
                                 <span>
                                     {getDelegationText()}
                                     {info.peerAgentName}
