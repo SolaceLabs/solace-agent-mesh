@@ -1344,7 +1344,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
         """Returns the instance of the ConfigResolver."""
         return self._config_resolver
 
-    async def _resolve_embeds_for_storage(
+    async def _resolve_embeds_for_persistence(
         self,
         message_content: str,
         session_id: str,
@@ -1642,7 +1642,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
                 if agent_message_content:
                     # Resolve embeds before saving to preserve time-sensitive values
-                    processed_agent_message = await self._resolve_embeds_for_storage(
+                    processed_agent_message = await self._resolve_embeds_for_persistence(
                         message_content=agent_message_content,
                         session_id=task_data.sessionId,
                         user_id=external_request_context.get("user_id_for_a2a"),
