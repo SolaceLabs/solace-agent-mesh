@@ -1347,7 +1347,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
     ) -> str:
         """
         Resolves embeds in a message for database storage.
-        Returns the resolved text, ignoring signals and partial processing.
+        Returns the resolved text.
         
         Args:
             message_content: The message text that may contain embeds
@@ -1362,11 +1362,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
             from ...common.utils.embeds import (
                 resolve_embeds_in_string,
                 evaluate_embed,
-                EARLY_EMBED_TYPES,
-                LATE_EMBED_TYPES,
+                EARLY_EMBED_TYPES
             )
             
-            # Build the context structure expected by the embed resolver
             embed_context = {
                 "artifact_service": self.shared_artifact_service,
                 "session_context": {
@@ -1377,14 +1375,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "config": self.get_embed_config(),
             }
             
-            # Resolve all embed types
-            types_to_resolve = EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES)
-            
             resolved_text, _, _ = await resolve_embeds_in_string(
                 text=message_content,
                 context=embed_context,
                 resolver_func=evaluate_embed,
-                types_to_resolve=types_to_resolve,
+                types_to_resolve=EARLY_EMBED_TYPES,
                 log_identifier=log_identifier,
                 config=embed_context["config"],
             )
