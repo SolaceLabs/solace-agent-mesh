@@ -1338,6 +1338,67 @@ class WebUIBackendComponent(BaseGatewayComponent):
         """Returns the instance of the ConfigResolver."""
         return self._config_resolver
 
+    async def _resolve_embeds_for_storage(
+        self,
+        message_content: str,
+        session_id: str,
+        user_id: str,
+        log_identifier: str
+    ) -> str:
+        """
+        Resolves embeds in a message for database storage.
+        Returns the resolved text, ignoring signals and partial processing.
+        
+        Args:
+            message_content: The message text that may contain embeds
+            session_id: The A2A session ID
+            user_id: The user ID
+            log_identifier: Logging identifier
+            
+        Returns:
+            The message with embeds resolved (or original if resolution fails)
+        """
+        try:
+            from ...common.utils.embeds import (
+                resolve_embeds_in_string,
+                evaluate_embed,
+                EARLY_EMBED_TYPES,
+                LATE_EMBED_TYPES,
+            )
+            
+            # Build the context structure expected by the embed resolver
+            embed_context = {
+                "artifact_service": self.shared_artifact_service,
+                "session_context": {
+                    "app_name": self.gateway_id,
+                    "user_id": user_id,
+                    "session_id": session_id,
+                },
+                "config": self.get_embed_config(),
+            }
+            
+            # Resolve all embed types
+            types_to_resolve = EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES)
+            
+            resolved_text, _, _ = await resolve_embeds_in_string(
+                text=message_content,
+                context=embed_context,
+                resolver_func=evaluate_embed,
+                types_to_resolve=types_to_resolve,
+                log_identifier=log_identifier,
+                config=embed_context["config"],
+            )
+            
+            return resolved_text
+            
+        except Exception as e:
+            log.warning(
+                "%s Error resolving embeds for storage: %s. Using original message.",
+                log_identifier,
+                e
+            )
+            return message_content
+
     def _start_listener(self) -> None:
         """
         GDK Hook: Starts the FastAPI/Uvicorn server.
@@ -1585,36 +1646,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             break
 
                 if agent_message_content:
-                    # Resolve embeds in agent message before saving to preserve time-sensitive values
-                    processed_agent_message = agent_message_content
-                    try:
-                        from ...common.utils.embeds.resolver import resolve_embeds_in_string, evaluate_embed
-                        from ...common.utils.embeds.constants import EARLY_EMBED_TYPES, LATE_EMBED_TYPES
-                        
-                        context = {
-                            "session_id": task_data.sessionId,
-                            "user_id": external_request_context.get("user_id_for_a2a"),
-                            "agent_id": task_data.metadata.get("agent_name"),
-                        }
-                        types_to_resolve = EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES)
-                        
-                        resolved_text, _, signals = await resolve_embeds_in_string(
-                            text=agent_message_content,
-                            context=context,
-                            resolver_func=evaluate_embed,
-                            types_to_resolve=types_to_resolve,
-                            log_identifier=f"{log_id_prefix}[EmbedResolve]",
-                            config={}
-                        )
-                        processed_agent_message = resolved_text
-                        
-                    except Exception as e:
-                        log.warning(
-                            "%s Error processing embeds in agent message for session %s: %s. Saving original message.",
-                            log_id_prefix,
-                            task_data.sessionId,
-                            e
-                        )
+                    # Resolve embeds before saving to preserve time-sensitive values
+                    processed_agent_message = await self._resolve_embeds_for_storage(
+                        message_content=agent_message_content,
+                        session_id=task_data.sessionId,
+                        user_id=external_request_context.get("user_id_for_a2a"),
+                        log_identifier=f"{log_id_prefix}[EmbedResolve]"
+                    )
                     
                     self.persistence_service.store_chat_message(
                         session_id=task_data.sessionId,
