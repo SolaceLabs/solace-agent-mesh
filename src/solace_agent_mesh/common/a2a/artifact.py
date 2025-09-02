@@ -20,11 +20,6 @@ from a2a.types import (
 )
 from solace_ai_connector.common.log import log
 from .. import a2a
-from ...agent.utils.artifact_helpers import (
-    load_artifact_content_or_metadata,
-    format_artifact_uri,
-    save_artifact_with_metadata,
-)
 
 if TYPE_CHECKING:
     from google.adk.artifacts import BaseArtifactService
@@ -160,6 +155,8 @@ async def prepare_file_part_for_publishing(
                 }
 
                 # Call the helper with the new, simpler metadata.
+                from ...agent.utils.artifact_helpers import save_artifact_with_metadata
+
                 save_result = await save_artifact_with_metadata(
                     artifact_service=artifact_service,
                     app_name=target_agent_name,
@@ -174,6 +171,8 @@ async def prepare_file_part_for_publishing(
 
                 if save_result["status"] == "success":
                     saved_version = save_result.get("data_version")
+                    from ...agent.utils.artifact_helpers import format_artifact_uri
+
                     artifact_uri = format_artifact_uri(
                         app_name=target_agent_name,
                         user_id=user_id,
@@ -265,6 +264,8 @@ async def resolve_file_part_uri(
         user_id, session_id, filename = path_parts
         version_str = parse_qs(parsed_uri.query).get("version", [None])[0]
         version = int(version_str) if version_str else None
+
+        from ...agent.utils.artifact_helpers import load_artifact_content_or_metadata
 
         loaded_artifact = await load_artifact_content_or_metadata(
             artifact_service=artifact_service,

@@ -25,11 +25,6 @@ from a2a.types import (
 )
 
 from .. import a2a
-from ...agent.utils.artifact_helpers import (
-    save_artifact_with_metadata,
-    load_artifact_content_or_metadata,
-    format_metadata_for_llm,
-)
 from ...agent.utils.context_helpers import get_original_session_id
 
 if TYPE_CHECKING:
@@ -55,6 +50,12 @@ async def _prepare_a2a_filepart_for_adk(
     - If the part has a URI, it loads metadata from the store.
     - It then formats this information into a text string for the LLM.
     """
+    from ...agent.utils.artifact_helpers import (
+        save_artifact_with_metadata,
+        load_artifact_content_or_metadata,
+        format_metadata_for_llm,
+    )
+
     log_id = f"{component.log_identifier}[PrepareFilePartForADK]"
     app_name = component.get_config("agent_name")
     artifact_service = component.artifact_service
