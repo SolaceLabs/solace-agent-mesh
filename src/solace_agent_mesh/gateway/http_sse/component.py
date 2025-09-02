@@ -1585,10 +1585,41 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             break
 
                 if agent_message_content:
+                    # Resolve embeds in agent message before saving to preserve time-sensitive values
+                    processed_agent_message = agent_message_content
+                    try:
+                        from ...common.utils.embeds.resolver import resolve_embeds_in_string, evaluate_embed
+                        from ...common.utils.embeds.constants import EARLY_EMBED_TYPES, LATE_EMBED_TYPES
+                        
+                        context = {
+                            "session_id": task_data.sessionId,
+                            "user_id": external_request_context.get("user_id_for_a2a"),
+                            "agent_id": task_data.metadata.get("agent_name"),
+                        }
+                        types_to_resolve = EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES)
+                        
+                        resolved_text, _, signals = await resolve_embeds_in_string(
+                            text=agent_message_content,
+                            context=context,
+                            resolver_func=evaluate_embed,
+                            types_to_resolve=types_to_resolve,
+                            log_identifier=f"{log_id_prefix}[EmbedResolve]",
+                            config={}
+                        )
+                        processed_agent_message = resolved_text
+                        
+                    except Exception as e:
+                        log.warning(
+                            "%s Error processing embeds in agent message for session %s: %s. Saving original message.",
+                            log_id_prefix,
+                            task_data.sessionId,
+                            e
+                        )
+                    
                     self.persistence_service.store_chat_message(
                         session_id=task_data.sessionId,
                         message={
-                            "message": agent_message_content,
+                            "message": processed_agent_message,
                             "sender_type": "agent",
                             "sender_name": task_data.metadata.get("agent_name"),
                         },
