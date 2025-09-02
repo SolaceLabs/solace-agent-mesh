@@ -193,33 +193,11 @@ async def handle_a2a_request(component, message: SolaceMessage):
         component.log_identifier,
         message.get_topic(),
     )
-    a2a_context = {}
-    adk_session = None
-    jsonrpc_request_id = None
-    logical_task_id = None
-    client_id = message.get_user_properties().get("clientId", "default_client")
-    status_topic_from_peer = message.get_user_properties().get("a2aStatusTopic")
-    reply_topic_from_peer = message.get_user_properties().get("replyTo")
-    namespace = component.get_config("namespace")
-    a2a_user_config = message.get_user_properties().get("a2aUserConfig", {})
-    if not isinstance(a2a_user_config, dict):
-        log.warning(
-            "%s 'a2aUserConfig' user property is not a dictionary, received: %s. Defaulting to empty dict.",
-            component.log_identifier,
-            type(a2a_user_config),
-        )
-        a2a_user_config = {}
-    log.debug(
-        "%s Extracted 'a2aUserConfig': %s",
-        component.log_identifier,
-        a2a_user_config,
-    )
     try:
         payload_dict = message.get_payload()
         if not isinstance(payload_dict, dict):
             raise ValueError("Payload is not a dictionary.")
 
-        # Check for control messages first
         if "control" in payload_dict:
             control_info = payload_dict.get("control", {})
             action = control_info.get("action")
@@ -271,6 +249,27 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 )
                 message.call_acknowledgements()
                 return
+
+        a2a_context = {}
+        adk_session = None
+        logical_task_id = None
+        client_id = message.get_user_properties().get("clientId", "default_client")
+        status_topic_from_peer = message.get_user_properties().get("a2aStatusTopic")
+        reply_topic_from_peer = message.get_user_properties().get("replyTo")
+        namespace = component.get_config("namespace")
+        a2a_user_config = message.get_user_properties().get("a2aUserConfig", {})
+        if not isinstance(a2a_user_config, dict):
+            log.warning(
+                "%s 'a2aUserConfig' user property is not a dictionary, received: %s. Defaulting to empty dict.",
+                component.log_identifier,
+                type(a2a_user_config),
+            )
+            a2a_user_config = {}
+        log.debug(
+            "%s Extracted 'a2aUserConfig': %s",
+            component.log_identifier,
+            a2a_user_config,
+        )
 
         jsonrpc_request_id = payload_dict.get("id")
         a2a_request: (

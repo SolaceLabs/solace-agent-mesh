@@ -7,7 +7,7 @@ import logging
 from collections.abc import Generator
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..models import Base
@@ -33,9 +33,14 @@ class DatabaseService:
                 echo=False,
                 connect_args={
                     "check_same_thread": False,
-                    "sqlite_pragma": {"foreign_keys": "ON"},
                 },
             )
+
+            @event.listens_for(self.engine, "connect")
+            def set_sqlite_pragma(dbapi_connection, connection_record):
+                cursor = dbapi_connection.cursor()
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.close()
         else:
             self.engine = create_engine(
                 database_url,

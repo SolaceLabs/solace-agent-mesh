@@ -6,7 +6,7 @@ from time import sleep
 
 import click
 import requests
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 
 
 def ask_yes_no_question(question: str, default=False) -> bool:
@@ -229,15 +229,16 @@ def create_and_validate_database(database_url: str, db_name: str = "database") -
             db_file_path = Path(db_file_path_str)
             db_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Create SQLite engine with foreign key constraints enabled
-            engine = create_engine(
-                database_url, connect_args={"sqlite_pragma": {"foreign_keys": "ON"}}
-            )
-        else:
-            # Create engine for other database types
             engine = create_engine(database_url)
 
-        # Test the connection
+            @event.listens_for(engine, "connect")
+            def set_sqlite_pragma(dbapi_connection, connection_record):
+                cursor = dbapi_connection.cursor()
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.close()
+        else:
+            engine = create_engine(database_url)
+
         with engine.connect() as connection:
             pass
 

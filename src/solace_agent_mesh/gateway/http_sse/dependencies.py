@@ -377,7 +377,7 @@ def get_session_service(
         and component.persistence_service is not None
     ):
         log.debug("Using database-backed session service")
-        return SessionService(db_service=component.persistence_service.database_service)
+        return SessionService(db_service=component.persistence_service.db_service)
     else:
         log.debug("No database configured - using in-memory session service")
         # Create singleton instance for in-memory service to persist sessions across requests
