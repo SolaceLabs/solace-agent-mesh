@@ -3,41 +3,44 @@ Handles A2A topic construction and translation between A2A and ADK message forma
 Consolidated from src/a2a_adk_host/a2a_protocol.py and src/tools/common/a2a_protocol.py.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
-import json
 import base64
+import json
 import re
 from datetime import datetime, timezone
+from typing import Any
+
 from solace_ai_connector.common.log import log
+
 try:
-    from google.genai import types as adk_types
     from google.adk.events import Event as ADKEvent
+    from google.genai import types as adk_types
 except ImportError:
-    
+
     class MockADKTypes:
         class Part:
             pass
+
         class Content:
             parts = []
-    
+
     class MockADKEvent:
         pass
-    
+
     adk_types = MockADKTypes()
     ADKEvent = MockADKEvent
 
 from .types import (
-    Message as A2AMessage,
-    TextPart,
-    FilePart,
     DataPart,
-    Part as A2APart,
-    JSONRPCResponse,
+    FilePart,
     InternalError,
-    TaskStatus,
+    JSONRPCResponse,
     TaskState,
+    TaskStatus,
     TaskStatusUpdateEvent,
+    TextPart,
 )
+from .types import Message as A2AMessage
+from .types import Part as A2APart
 
 A2A_VERSION = "v1"
 A2A_BASE_PATH = f"a2a/{A2A_VERSION}"
@@ -184,13 +187,14 @@ def get_client_status_subscription_topic(namespace: str, client_id: str) -> str:
     return f"{get_a2a_base_topic(namespace)}/client/status/{client_id}/>"
 
 
-def get_mop_subscription_topic(namespace: str, agent_name: str) -> str:
-    """
-    Returns the wildcard topic for an agent to subscribe to MOP (Message Operations Protocol) messages.
-    """
-    if not agent_name:
-        raise ValueError("Agent name cannot be empty.")
-    return f"{get_a2a_base_topic(namespace)}/{agent_name}/mop/>"
+# MOP protocol removed - using control messages via existing messaging instead
+# def get_mop_subscription_topic(namespace: str, agent_name: str) -> str:
+#     """
+#     Returns the wildcard topic for an agent to subscribe to MOP messages.
+#     """
+#     if not agent_name:
+#         raise ValueError("Agent name cannot be empty.")
+#     return f"{get_a2a_base_topic(namespace)}/{agent_name}/mop/>"
 
 
 def _subscription_to_regex(subscription: str) -> str:
@@ -215,7 +219,7 @@ def translate_a2a_to_adk_content(
     a2a_message: A2AMessage, log_identifier: str
 ) -> adk_types.Content:
     """Translates an A2A Message object to ADK Content."""
-    adk_parts: List[adk_types.Part] = []
+    adk_parts: list[adk_types.Part] = []
     for part in a2a_message.parts:
         try:
             if isinstance(part, TextPart):
@@ -256,7 +260,7 @@ def translate_a2a_to_adk_content(
     return adk_types.Content(role=adk_role, parts=adk_parts)
 
 
-def _extract_text_from_parts(parts: List[A2APart]) -> str:
+def _extract_text_from_parts(parts: list[A2APart]) -> str:
     """
     Extracts and combines text/file info from a list of A2A parts
     into a single string for display or logging.
@@ -319,9 +323,9 @@ def _extract_text_from_parts(parts: List[A2APart]) -> str:
 
 def format_adk_event_as_a2a(
     adk_event: ADKEvent,
-    a2a_context: Dict,
+    a2a_context: dict,
     log_identifier: str,
-) -> Tuple[Optional[JSONRPCResponse], List[Tuple[int, Any]]]:
+) -> tuple[JSONRPCResponse | None, list[tuple[int, Any]]]:
     """
     Translates an intermediate ADK Event (containing content or errors during the run)
     into an A2A JSON-RPC message payload (TaskStatusUpdateEvent or InternalError).
@@ -347,7 +351,7 @@ def format_adk_event_as_a2a(
         )
         return JSONRPCResponse(id=jsonrpc_request_id, error=a2a_error), []
 
-    signals_to_forward: List[Tuple[int, Any]] = []
+    signals_to_forward: list[tuple[int, Any]] = []
     is_final_adk_event = (
         # We have a different definition of final for ADK events:
         # For now, the only long running tool IDs are peer agent tasks, which we
@@ -359,7 +363,7 @@ def format_adk_event_as_a2a(
         )
     )
 
-    a2a_parts: List[A2APart] = []
+    a2a_parts: list[A2APart] = []
     if adk_event.content and adk_event.content.parts:
         for part in adk_event.content.parts:
             try:
@@ -495,9 +499,9 @@ def format_adk_event_as_a2a(
 
 async def format_and_route_adk_event(
     adk_event: ADKEvent,
-    a2a_context: Dict,
+    a2a_context: dict,
     component,
-) -> Tuple[Optional[Dict], Optional[str], Optional[Dict], List[Tuple[int, Any]]]:
+) -> tuple[dict | None, str | None, dict | None, list[tuple[int, Any]]]:
     """
     Formats an intermediate ADK event (content or error) to an A2A payload dict,
     and determines the target status topic.
@@ -505,7 +509,7 @@ async def format_and_route_adk_event(
     Signal extraction from state_delta is REMOVED as it's handled upstream by SamAgentComponent.
     Final responses and artifact updates are handled elsewhere.
     """
-    signals_found: List[Tuple[int, Any]] = []
+    signals_found: list[tuple[int, Any]] = []
     try:
         a2a_response_obj, _ = format_adk_event_as_a2a(
             adk_event, a2a_context, component.log_identifier

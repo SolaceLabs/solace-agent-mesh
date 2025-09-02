@@ -4,17 +4,13 @@ from pathlib import Path
 
 import click
 import yaml
-from sqlalchemy import create_engine
 
-from config_portal.backend.common import (
-    AGENT_DEFAULTS,
-    USE_DEFAULT_SHARED_ARTIFACT,
-    USE_DEFAULT_SHARED_SESSION,
-)
+from config_portal.backend.common import AGENT_DEFAULTS, USE_DEFAULT_SHARED_ARTIFACT
 
 from ...utils import (
     ask_if_not_provided,
     ask_yes_no_question,
+    create_and_validate_database,
     get_formatted_names,
     indent_multiline_string,
     load_template,
@@ -199,7 +195,9 @@ def _write_agent_yaml_from_data(
 
         replacements = {
             "__AGENT_NAME__": agent_name_camel,
-            "__AGENT_SPACED_NAME__": get_formatted_names(agent_name_camel).get("SPACED_CAPITALIZED_NAME"),
+            "__AGENT_SPACED_NAME__": get_formatted_names(agent_name_camel).get(
+                "SPACED_CAPITALIZED_NAME"
+            ),
             "__NAMESPACE__": config_options.get(
                 "namespace", AGENT_DEFAULTS["namespace"]
             ),
@@ -428,16 +426,10 @@ def create_agent_config(
                 )
                 raise ValueError(error_msg)
 
-            if db_url.startswith("sqlite:///"):
-                db_file_path = Path(db_url.replace("sqlite:///", ""))
-                db_file_path.parent.mkdir(parents=True, exist_ok=True)
-
             click.echo(f"  Validating database: {db_url}")
-            engine = create_engine(db_url)
-            with engine.connect() as connection:
-                pass
-            engine.dispose()
-            click.echo(click.style("  Database validation successful.", fg="green"))
+            create_and_validate_database(
+                db_url, f"{agent_name_camel_case} agent database"
+            )
         except Exception as e:
             click.echo(
                 click.style(
@@ -449,13 +441,13 @@ def create_agent_config(
             return False
 
     collected_options["session_service_behavior"] = ask_if_not_provided(
-            collected_options,
-            "session_service_behavior",
-            "Session service behavior",
-            AGENT_DEFAULTS["session_service_behavior"],
-            skip_interactive,
-            choices=["PERSISTENT", "RUN_BASED"],
-        )
+        collected_options,
+        "session_service_behavior",
+        "Session service behavior",
+        AGENT_DEFAULTS["session_service_behavior"],
+        skip_interactive,
+        choices=["PERSISTENT", "RUN_BASED"],
+    )
 
     collected_options["artifact_service_type"] = ask_if_not_provided(
         collected_options,

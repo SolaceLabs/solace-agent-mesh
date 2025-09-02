@@ -1,9 +1,12 @@
 from pathlib import Path
 
 import click
-from sqlalchemy import create_engine
 
-from ...utils import ask_if_not_provided, ask_yes_no_question
+from ...utils import (
+    ask_if_not_provided,
+    ask_yes_no_question,
+    create_and_validate_database,
+)
 
 
 def prompt_for_db_credentials(
@@ -59,16 +62,8 @@ def database_setup_step(
 
         options[url_key] = database_url
 
-        if database_url.startswith("sqlite://"):
-            db_file_path_str = database_url.replace("sqlite:///", "")
-            db_file_path = Path(db_file_path_str)
-            db_file_path.parent.mkdir(parents=True, exist_ok=True)
-            if not db_file_path.exists():
-                click.echo(f"  Creating database file: {db_file_path}")
-                engine = create_engine(database_url)
-                with engine.connect() as connection:
-                    pass
-                engine.dispose()
+        # Create and validate database connection
+        create_and_validate_database(database_url, f"{url_key} database")
 
     click.echo("  Database setup complete.")
     return True

@@ -40,8 +40,8 @@ class ChatMessage(Base):
     )
     message = Column(Text, nullable=False)
     created_at = Column(DateTime, default=func.now())
-    sender_type = Column(String)  # 'user' or 'llm'
-    sender_name = Column(String)
+    sender_type = Column(String(50))  # 'user' or 'llm'
+    sender_name = Column(String(255))
     session = relationship("Session", back_populates="messages")
 
     def to_dict(self):
