@@ -28,10 +28,6 @@ apps:
         type: "default_rbac"
         role_definitions_path: "examples/auth/dev-roles.yaml"
         user_assignments_path: "examples/auth/dev-users.yaml"
-      session_service:
-        type: sql
-        database_url: ${WEB_UI_GATEWAY_DATABASE_URL}
-        default_behavior: "PERSISTENT"
 
       # --- Development User Identity Configuration (WARNING: Only for development!) ---
       # Force all user identities to sam_dev_user (overrides web-client-xxxxx)
