@@ -1,6 +1,6 @@
 {
   "name": "@SolaceLabs/solace-agent-mesh-ui",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Solace Agent Mesh UI components - React library for building agent communication interfaces",
   "author": "SolaceLabs <solacelabs@solace.com>",
   "license": "Apache-2.0",
@@ -47,6 +47,7 @@
     "build-types": "tsc --emitDeclarationOnly --outDir dist --project tsconfig.lib.json",
     "build-package": "npm run build-lib && npm run build-types",
     "lint": "eslint .",
+    "precommit": "eslint . && tsc -b",
     "preview": "vite preview"
   },
   "dependencies": {

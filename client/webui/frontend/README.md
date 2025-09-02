@@ -19,15 +19,19 @@ Frontend interface for Solace Agent Mesh (SAM) platform. This React application 
 ### Installation
 ```bash
 cd client/webui/frontend
-npm install
+```
+```bash
+npm ci
 ```
 
 ### Available Scripts
-```bash
-# Start development server
-npm run dev
 
-# Run linting
+Start development server
+```bash
+npm run dev
+```
+Run lint
+```bash
 npm run lint
 ```
 
@@ -54,11 +58,6 @@ The frontend is organized into reusable modules under `src/lib/`:
 - Display of agent cards discovered from backend
 - Display agent graph with flow chart if configured
 
-### Activities Page *(Enterprise only)*
-- View comprehensive list of all tasks and their subtasks
-- Interactive flowchart visualization of task relationships
-- Detailed message history and communication flows
-
 ## Integration
 
 The frontend connects to the backend via:
@@ -78,4 +77,4 @@ The frontend connects to the backend via:
 1. Follow the existing code style and TypeScript conventions
 2. Use Tailwind CSS for styling
 3. Test components across different screen sizes
-4. Run `npm run lint` before submitting changes
+4. The precommit hook must pass on each commit
