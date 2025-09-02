@@ -22,6 +22,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const apiPrefix = `${configServerUrl}/api/v1`;
 
     const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [sessionId, setSessionId] = useState<string>("");
 
     // Agents State
     const {
@@ -114,7 +115,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [apiPrefix, addNotification, artifactsRefetch]
     );
 
-    const [sessionId, setSessionId] = useState<string>("");
     const [sessionName, setSessionName] = useState<string | null>(null);
     const [messages, setMessages] = useState<MessageFE[]>([]);
     const [userInput, setUserInput] = useState<string>("");
