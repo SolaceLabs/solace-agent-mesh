@@ -3,7 +3,7 @@ Custom MCPToolset that resolves embeds in tool parameters before calling MCP too
 """
 
 import asyncio
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple, Type
 
 from google.adk.tools.mcp_tool import MCPToolset, MCPTool
 from google.adk.tools.mcp_tool.mcp_session_manager import (
@@ -22,6 +22,25 @@ from ...common.utils.embeds import (
     LATE_EMBED_TYPES,
     EMBED_DELIMITER_OPEN,
 )
+
+
+def _get_optimal_mcp_toolset_class() -> Tuple[Type[MCPToolset], bool]:
+    """
+    Factory function to get the optimal MCP toolset class.
+    
+    Tries to import McpToolsetWithManifest from solace_agent_mesh_enterprise.common
+    and returns it if available. Falls back to base MCPToolset if not available.
+    
+    Returns:
+        Tuple of (class, supports_tool_config_flag) where:
+        - class: The MCPToolset class to use
+        - supports_tool_config_flag: Whether the class supports tool_config parameter
+    """
+    try:
+        from solace_agent_mesh_enterprise.common import McpToolsetWithManifest
+        return (McpToolsetWithManifest, True)
+    except ImportError:
+        return (MCPToolset, False)
 
 
 class EmbedResolvingMCPTool(MCPTool):
@@ -257,9 +276,14 @@ class EmbedResolvingMCPTool(MCPTool):
         )
 
 
-class EmbedResolvingMCPToolset(MCPToolset):
+# Get the optimal toolset class to use as base class
+_OptimalToolsetClass, _supports_tool_config = _get_optimal_mcp_toolset_class()
+
+
+class EmbedResolvingMCPToolset(_OptimalToolsetClass):
     """
     Custom MCPToolset that creates EmbedResolvingMCPTool instances for embed resolution.
+    Uses factory pattern to conditionally inherit from McpToolsetWithManifest when available.
     """
 
     def __init__(
@@ -270,13 +294,27 @@ class EmbedResolvingMCPToolset(MCPToolset):
         auth_credential=None,
         tool_config: Optional[Dict] = None,
     ):
-        super().__init__(
-            connection_params=connection_params,
-            tool_filter=tool_filter,
-            auth_scheme=auth_scheme,
-            auth_credential=auth_credential,
-        )
+        # Store tool_config for later use
         self._tool_config = tool_config or {}
+        
+        # Initialize parent class with appropriate parameters
+        if _supports_tool_config:
+            # McpToolsetWithManifest supports tool_config parameter
+            super().__init__(
+                connection_params=connection_params,
+                tool_filter=tool_filter,
+                auth_scheme=auth_scheme,
+                auth_credential=auth_credential,
+                tool_config=tool_config,
+            )
+        else:
+            # Base MCPToolset doesn't support tool_config parameter
+            super().__init__(
+                connection_params=connection_params,
+                tool_filter=tool_filter,
+                auth_scheme=auth_scheme,
+                auth_credential=auth_credential,
+            )
 
     async def get_tools(self, readonly_context=None) -> List[MCPTool]:
         """
