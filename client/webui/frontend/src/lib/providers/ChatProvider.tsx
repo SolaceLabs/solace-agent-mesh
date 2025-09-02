@@ -22,8 +22,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const apiPrefix = `${configServerUrl}/api/v1`;
 
     const [notifications, setNotifications] = useState<Notification[]>([]);
-
-    // State Variables from useChat (excluding TaskMonitor parts) - moved up to avoid reference errors
     const [sessionId, setSessionId] = useState<string>("");
 
     // Agents State
@@ -116,8 +114,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         },
         [apiPrefix, addNotification, artifactsRefetch]
     );
-
-    // Rest of state variables from useChat (excluding TaskMonitor parts)
+     
     const [sessionName, setSessionName] = useState<string | null>(null);
     const [messages, setMessages] = useState<MessageFE[]>([]);
     const [userInput, setUserInput] = useState<string>("");

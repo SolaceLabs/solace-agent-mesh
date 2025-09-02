@@ -55,6 +55,12 @@ from ...common.a2a_protocol import (
 from ...agent.utils.artifact_helpers import save_artifact_with_metadata
 from ...common.middleware.config_resolver import ConfigResolver
 
+from ...common.utils.embeds import (
+                resolve_embeds_in_string,
+                evaluate_embed,
+                EARLY_EMBED_TYPES
+            )
+
 
 info = {
     "class_name": "WebUIBackendComponent",
@@ -1359,12 +1365,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
             The message with embeds resolved (or original if resolution fails)
         """
         try:
-            from ...common.utils.embeds import (
-                resolve_embeds_in_string,
-                evaluate_embed,
-                EARLY_EMBED_TYPES
-            )
-            
             embed_context = {
                 "artifact_service": self.shared_artifact_service,
                 "session_context": {
