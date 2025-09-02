@@ -83,7 +83,7 @@ export class EdgeAnimationService {
         return stepsToCheck.some(step => {
             const stepTimestamp = new Date(step.timestamp).getTime();
 
-            if (stepTimestamp < callTimestamp) return false;
+            if (stepTimestamp <= callTimestamp) return false;
 
             // Check for direct LLM responses to the agent
             const isDirectLLMResponse = (step.type === "AGENT_LLM_RESPONSE_TOOL_DECISION" || step.type === "AGENT_LLM_RESPONSE_TO_AGENT") && step.target === callingAgent;
@@ -106,7 +106,7 @@ export class EdgeAnimationService {
         return stepsToCheck.some(step => {
             const stepTimestamp = new Date(step.timestamp).getTime();
 
-            if (stepTimestamp < callTimestamp) return false;
+            if (stepTimestamp <= callTimestamp) return false;
 
             return step.type === "AGENT_TOOL_EXECUTION_RESULT" && step.source === toolName && step.target === callingAgent;
         });

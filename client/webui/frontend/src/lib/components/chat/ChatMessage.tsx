@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import type { ReactNode } from "react";
 
-import { AlertCircle } from "lucide-react";
-import { FiFileText } from "react-icons/fi";
+import { AlertCircle, FileText } from "lucide-react";
 
 import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner } from "@/lib/components";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
@@ -126,7 +125,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                 {textContent && <MessageContent message={message} />}
                 {message.artifactNotification && (
                     <div className="flex items-center p-2 my-1 bg-blue-100 dark:bg-blue-900/50 rounded-md">
-                        <FiFileText className="mr-2 text-blue-500 dark:text-blue-400" />
+                        <FileText className="mr-2 text-blue-500 dark:text-blue-400" />
                         <span className="text-sm">
                             Artifact created: <strong>{message.artifactNotification.name}</strong>
                             {message.artifactNotification.version && ` (v${message.artifactNotification.version})`}
