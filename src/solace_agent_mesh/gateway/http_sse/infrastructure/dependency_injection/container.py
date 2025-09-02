@@ -106,23 +106,3 @@ def get_container() -> ApplicationContainer:
         )
     return _container
 
-
-# FastAPI dependency functions
-def get_session_service() -> Union[SessionService, InMemorySessionService]:
-    """
-    FastAPI dependency for getting the session service.
-    
-    Returns either a database-backed session service or an in-memory fallback
-    depending on whether a database is configured.
-    """
-    from solace_ai_connector.common.log import log
-    
-    container = get_container()
-    
-    if container.has_database:
-        database_service = container.get_database_service()
-        log.debug("Using database-backed session service")
-        return SessionService(db_service=database_service)
-    else:
-        log.info("No database configured - using in-memory session service (data not persisted across restarts)")
-        return InMemorySessionService()

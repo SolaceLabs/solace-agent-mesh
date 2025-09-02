@@ -39,9 +39,9 @@ from ..dependencies import (
     get_user_id,
     get_config_resolver,
     get_user_config,
+    get_session_service
 )
 from ..business.services.session_service import SessionService
-from ..infrastructure.dependency_injection import get_session_service
 
 from solace_ai_connector.common.log import log
 
