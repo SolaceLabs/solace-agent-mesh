@@ -3,7 +3,12 @@ from solace_ai_connector.common.log import log
 
 from ...business.services.in_memory_session_service import InMemorySessionService
 from ...business.services.session_service import SessionService
-from ...dependencies import get_session_service
+from ...dependencies import (
+    PublishFunc,
+    get_namespace,
+    get_publish_a2a_func,
+    get_session_service,
+)
 from ...shared.auth_utils import get_current_user
 from ..dto.requests.session_requests import (
     DeleteSessionRequest,
@@ -114,7 +119,12 @@ async def get_session(
     except HTTPException:
         raise
     except Exception as e:
-        log.error("Error fetching session %s for user %s: %s", session_id, user_id, e)
+        log.error(
+            "Error fetching session %s for user %s: %s",
+            session_id,
+            user_id,
+            e,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve session",
@@ -252,7 +262,12 @@ async def update_session_name(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
         )
     except Exception as e:
-        log.error("Error updating session %s for user %s: %s", session_id, user_id, e)
+        log.error(
+            "Error updating session %s for user %s: %s",
+            session_id,
+            user_id,
+            e,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update session",
@@ -266,6 +281,8 @@ async def delete_session(
     session_service: SessionService | InMemorySessionService = Depends(
         get_session_service
     ),
+    publish_func: PublishFunc = Depends(get_publish_a2a_func),
+    namespace: str = Depends(get_namespace),
 ):
     user_id = user.get("id")
     log.info("User %s attempting to delete session %s", user_id, session_id)
@@ -282,6 +299,15 @@ async def delete_session(
 
         request_dto = DeleteSessionRequest(session_id=session_id, user_id=user_id)
 
+        # Get session details before deletion to find the agent_id
+        session = session_service.get_session(session_id=session_id, user_id=user_id)
+        if not session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+            )
+
+        agent_id = session.agent_id
+
         deleted = session_service.delete_session(
             session_id=request_dto.session_id, user_id=request_dto.user_id
         )
@@ -293,13 +319,45 @@ async def delete_session(
 
         log.info("Session %s deleted successfully", session_id)
 
-        # TODO: Add agent notification logic to a separate service/manager
-        # This would handle the A2A messaging part
+        if agent_id:
+            try:
+                from ....common.a2a_protocol import get_agent_request_topic
+
+                control_message = {
+                    "control": {
+                        "action": "delete_session",
+                        "session_id": session_id,
+                        "user_id": user_id,
+                    }
+                }
+
+                target_topic = get_agent_request_topic(namespace, agent_id)
+
+                log.info(
+                    "Sending session deletion notification to agent %s for session %s",
+                    agent_id,
+                    session_id,
+                )
+
+                publish_func(target_topic, control_message, None)
+
+            except Exception as e:
+                log.warning(
+                    "Failed to notify agent %s about session %s deletion: %s",
+                    agent_id,
+                    session_id,
+                    e,
+                )
 
     except HTTPException:
         raise
     except Exception as e:
-        log.error("Error deleting session %s for user %s: %s", session_id, user_id, e)
+        log.error(
+            "Error deleting session %s for user %s: %s",
+            session_id,
+            user_id,
+            e,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete session",

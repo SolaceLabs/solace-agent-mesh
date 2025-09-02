@@ -1,18 +1,17 @@
-import click
 from pathlib import Path
 
+import click
+
 from ...utils import ask_yes_no_question
-from .web_init_step import perform_web_init
-from .directory_step import create_project_directories
-from .project_files_step import create_project_files
-from .env_step import create_env_file, ENV_DEFAULTS
 from .broker_step import broker_setup_step
 from .database_step import database_setup_step
-from .orchestrator_step import (
-    create_orchestrator_config,
-    ORCHESTRATOR_DEFAULTS as O_DEFAULTS,
-)
-from .webui_gateway_step import create_webui_gateway_config, WEBUI_GATEWAY_DEFAULTS
+from .directory_step import create_project_directories
+from .env_step import ENV_DEFAULTS, create_env_file
+from .orchestrator_step import ORCHESTRATOR_DEFAULTS as O_DEFAULTS
+from .orchestrator_step import create_orchestrator_config
+from .project_files_step import create_project_files
+from .web_init_step import perform_web_init
+from .webui_gateway_step import WEBUI_GATEWAY_DEFAULTS, create_webui_gateway_config
 
 
 def _get_flat_orchestrator_defaults():
@@ -29,9 +28,15 @@ def _get_flat_orchestrator_defaults():
     flat_defaults["artifact_service_scope"] = O_DEFAULTS["artifact_service"][
         "artifact_scope"
     ]
-    flat_defaults["artifact_service_bucket_name"] = O_DEFAULTS["artifact_service"].get("bucket_name", "")
-    flat_defaults["artifact_service_endpoint_url"] = O_DEFAULTS["artifact_service"].get("endpoint_url", "")
-    flat_defaults["artifact_service_region"] = O_DEFAULTS["artifact_service"].get("region", "us-east-1")
+    flat_defaults["artifact_service_bucket_name"] = O_DEFAULTS["artifact_service"].get(
+        "bucket_name", ""
+    )
+    flat_defaults["artifact_service_endpoint_url"] = O_DEFAULTS["artifact_service"].get(
+        "endpoint_url", ""
+    )
+    flat_defaults["artifact_service_region"] = O_DEFAULTS["artifact_service"].get(
+        "region", "us-east-1"
+    )
     flat_defaults["artifact_handling_mode"] = O_DEFAULTS["artifact_handling_mode"]
     flat_defaults["enable_embed_resolution"] = O_DEFAULTS["enable_embed_resolution"]
     flat_defaults["enable_artifact_content_instruction"] = O_DEFAULTS[
@@ -129,7 +134,11 @@ def run_init_flow(skip_interactive: bool, use_web_based_init_flag: bool, **cli_o
     if actual_use_web_init:
         if skip_interactive:
             click.echo(
-                click.style("Web-based init (--gui) is not compatible with --skip. Proceeding with CLI-based init using provided options or defaults.", fg="yellow")
+                click.style(
+                    "Web-based init (--gui) is not compatible with --skip. Proceeding with CLI-based init using provided options or defaults.",
+                    fg="yellow",
+                )
+            )
         else:
             options = perform_web_init(options)
             skip_interactive = True

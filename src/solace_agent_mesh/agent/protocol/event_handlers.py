@@ -2,64 +2,58 @@
 Contains event handling logic for the A2A_ADK_HostComponent.
 """
 
-import json
-import yaml
 import asyncio
-from typing import Union, TYPE_CHECKING, List, Dict, Any
 import fnmatch
+import json
+from typing import TYPE_CHECKING
+
+from google.adk.agents import RunConfig
+from solace_ai_connector.common.event import Event, EventType
 from solace_ai_connector.common.log import log
 from solace_ai_connector.common.message import Message as SolaceMessage
-from solace_ai_connector.common.event import Event, EventType
-from ...common.types import (
-    Message as A2AMessage,
-    SendTaskRequest,
-    SendTaskStreamingRequest,
-    CancelTaskRequest,
-    GetTaskRequest,
-    SetTaskPushNotificationRequest,
-    GetTaskPushNotificationRequest,
-    TaskResubscriptionRequest,
-    TaskIdParams,
-    JSONParseError,
-    InvalidRequestError,
-    InternalError,
-    JSONRPCResponse,
-    AgentCard,
-    AgentCapabilities,
-    Task,
-    TaskStatusUpdateEvent,
-    TaskArtifactUpdateEvent,
-    TaskStatus,
-    TaskState,
-    DataPart,
-    TextPart,
-    A2ARequest,
-)
+
+from ...agent.adk.runner import run_adk_async_task_thread_wrapper
+from ...agent.utils.artifact_helpers import generate_artifact_metadata_summary
 from ...common.a2a_protocol import (
+    _extract_text_from_parts,
     get_agent_request_topic,
-    get_discovery_topic,
-    translate_a2a_to_adk_content,
-    get_client_response_topic,
     get_agent_response_subscription_topic,
     get_agent_status_subscription_topic,
-    get_mop_subscription_topic,
-    _extract_text_from_parts,
+    get_client_response_topic,
+    get_discovery_topic,
+    translate_a2a_to_adk_content,
 )
-from ...agent.utils.artifact_helpers import (
-    generate_artifact_metadata_summary,
-    load_artifact_content_or_metadata,
+from ...common.types import (
+    A2ARequest,
+    AgentCapabilities,
+    AgentCard,
+    CancelTaskRequest,
+    DataPart,
+    GetTaskPushNotificationRequest,
+    GetTaskRequest,
+    InternalError,
+    InvalidRequestError,
+    JSONParseError,
+    JSONRPCResponse,
+    SendTaskRequest,
+    SendTaskStreamingRequest,
+    SetTaskPushNotificationRequest,
+    Task,
+    TaskArtifactUpdateEvent,
+    TaskIdParams,
+    TaskResubscriptionRequest,
+    TaskState,
+    TaskStatus,
+    TaskStatusUpdateEvent,
+    TextPart,
 )
-from ...agent.adk.runner import run_adk_async_task_thread_wrapper
+from ...common.types import Message as A2AMessage
 from ..sac.task_execution_context import TaskExecutionContext
-from google.adk.agents import RunConfig
 
 if TYPE_CHECKING:
-    from ..sac.component import SamAgentComponent
+    pass
+
 from google.adk.agents.run_config import StreamingMode
-from google.adk.events import Event as ADKEvent
-from google.genai import types as adk_types
-
-
 
 
 def _register_peer_artifacts_in_parent_context(
@@ -132,9 +126,6 @@ async def process_event(component, event: Event):
             agent_status_sub_prefix = (
                 get_agent_status_subscription_topic(namespace, agent_name)[:-2] + "/"
             )
-            mop_sub_prefix = (
-                get_mop_subscription_topic(namespace, agent_name)[:-2] + "/"
-            )
             if topic == agent_request_topic:
                 await handle_a2a_request(component, message)
             elif topic == discovery_topic:
@@ -147,8 +138,6 @@ async def process_event(component, event: Event):
                 agent_status_sub_prefix
             ):
                 await handle_a2a_response(component, message)
-            elif topic.startswith(mop_sub_prefix):
-                await handle_mop_request(component, message)
             else:
                 log.warning(
                     "%s Received message on unhandled topic: %s",
@@ -192,63 +181,6 @@ async def process_event(component, event: Event):
         component.handle_error(e, event)
 
 
-async def handle_mop_request(component: "SamAgentComponent", message: SolaceMessage):
-    """Handles an incoming MOP request message."""
-    log_identifier = f"{component.log_identifier}[MOPHandler]"
-    log.info(
-        "%s Received MOP request on topic: %s", log_identifier, message.get_topic()
-    )
-    try:
-        payload = message.get_payload()
-        if not isinstance(payload, dict):
-            raise ValueError("MOP payload is not a dictionary.")
-
-        session_id = payload.get("session_id")
-        user_id = payload.get("user_id")
-        agent_name = component.get_config("agent_name")
-
-        if not all([session_id, user_id, agent_name]):
-            raise ValueError(
-                f"Missing required fields for session deletion. "
-                f"session_id: {session_id}, user_id: {user_id}, agent_name: {agent_name}"
-            )
-
-        log.info(
-            "%s Processing MOP session delete for session_id: %s, user_id: %s",
-            log_identifier,
-            session_id,
-            user_id,
-        )
-
-        if component.session_service:
-            await component.session_service.delete_session(
-                app_name=agent_name, user_id=user_id, session_id=session_id
-            )
-            log.info(
-                "%s Successfully deleted ADK session %s for user %s.",
-                log_identifier,
-                session_id,
-                user_id,
-            )
-        else:
-            log.error(
-                "%s Session service is not initialized. Cannot delete session.",
-                log_identifier,
-            )
-            raise RuntimeError("Session service not available.")
-
-        message.call_acknowledgements()
-
-    except Exception as e:
-        log.exception("%s Error processing MOP request: %s", log_identifier, e)
-        try:
-            message.call_negative_acknowledgements()
-        except Exception as nack_e:
-            log.error(
-                "%s Failed to NACK MOP message after error: %s", log_identifier, nack_e
-            )
-
-
 async def handle_a2a_request(component, message: SolaceMessage):
     """
     Handles an incoming A2A request message.
@@ -286,16 +218,70 @@ async def handle_a2a_request(component, message: SolaceMessage):
         payload_dict = message.get_payload()
         if not isinstance(payload_dict, dict):
             raise ValueError("Payload is not a dictionary.")
+
+        # Check for control messages first
+        if "control" in payload_dict:
+            control_info = payload_dict.get("control", {})
+            action = control_info.get("action")
+
+            if action == "delete_session":
+                session_id = control_info.get("session_id")
+                user_id = control_info.get("user_id")
+                agent_name = component.get_config("agent_name")
+
+                log.info(
+                    "%s Received control message to delete session %s for user %s",
+                    component.log_identifier,
+                    session_id,
+                    user_id,
+                )
+
+                if component.session_service and session_id and user_id and agent_name:
+                    try:
+                        await component.session_service.delete_session(
+                            app_name=agent_name, user_id=user_id, session_id=session_id
+                        )
+                        log.info(
+                            "%s Successfully deleted session %s for user %s via control message",
+                            component.log_identifier,
+                            session_id,
+                            user_id,
+                        )
+                    except Exception as e:
+                        log.warning(
+                            "%s Failed to delete session %s: %s",
+                            component.log_identifier,
+                            session_id,
+                            e,
+                        )
+                else:
+                    log.warning(
+                        "%s Cannot delete session - missing required info or session service",
+                        component.log_identifier,
+                    )
+
+                # Acknowledge the control message
+                message.call_acknowledgements()
+                return
+            else:
+                log.warning(
+                    "%s Received unknown control action: %s",
+                    component.log_identifier,
+                    action,
+                )
+                message.call_acknowledgements()
+                return
+
         jsonrpc_request_id = payload_dict.get("id")
-        a2a_request: Union[
-            SendTaskRequest,
-            SendTaskStreamingRequest,
-            CancelTaskRequest,
-            GetTaskRequest,
-            SetTaskPushNotificationRequest,
-            GetTaskPushNotificationRequest,
-            TaskResubscriptionRequest,
-        ] = A2ARequest.validate_python(payload_dict)
+        a2a_request: (
+            SendTaskRequest
+            | SendTaskStreamingRequest
+            | CancelTaskRequest
+            | GetTaskRequest
+            | SetTaskPushNotificationRequest
+            | GetTaskPushNotificationRequest
+            | TaskResubscriptionRequest
+        ) = A2ARequest.validate_python(payload_dict)
         jsonrpc_request_id = a2a_request.id
         logical_task_id = a2a_request.params.id
         if isinstance(a2a_request, CancelTaskRequest):
@@ -611,9 +597,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     header_text=header_text,
                 )
 
-                task_description = _extract_text_from_parts(
-                    a2a_message_for_adk.parts
-                )
+                task_description = _extract_text_from_parts(a2a_message_for_adk.parts)
                 final_prompt = f"{task_description}\n\n{artifact_summary}"
 
                 a2a_message_for_adk = A2AMessage(

@@ -1,31 +1,31 @@
-import sys
 import os
+import sys
 
 sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 )
 
 from common.utils.asyncio_macos_fix import ensure_asyncio_compatibility
-from .patch_adk import patch_adk
 from solace_ai_connector.common.log import log
+
+from .patch_adk import patch_adk
 
 ensure_asyncio_compatibility()
 patch_adk()
 
-from typing import Any, Dict
-from solace_ai_connector.flow.app import App
-from solace_ai_connector.common.log import log
+from typing import Any
 
-from ...common.a2a_protocol import (
-    get_agent_request_topic,
-    get_discovery_topic,
-    get_agent_response_subscription_topic,
-    get_agent_status_subscription_topic,
-    get_mop_subscription_topic,
-)
-from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
+from solace_ai_connector.flow.app import App
+
 from ...agent.sac.component import SamAgentComponent
 from ...agent.utils.artifact_helpers import DEFAULT_SCHEMA_MAX_KEYS
+from ...common.a2a_protocol import (
+    get_agent_request_topic,
+    get_agent_response_subscription_topic,
+    get_agent_status_subscription_topic,
+    get_discovery_topic,
+)
+from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 
 info = {
     "class_name": "SamAgentApp",
@@ -634,7 +634,7 @@ class SamAgentApp(App):
         ]
     }
 
-    def __init__(self, app_info: Dict[str, Any], **kwargs):
+    def __init__(self, app_info: dict[str, Any], **kwargs):
         log.debug("Initializing A2A_ADK_App...")
 
         app_config = app_info.get("app_config", {})
@@ -699,7 +699,6 @@ class SamAgentApp(App):
             get_discovery_topic(namespace),
             get_agent_response_subscription_topic(namespace, agent_name),
             get_agent_status_subscription_topic(namespace, agent_name),
-            get_mop_subscription_topic(namespace, agent_name),
         ]
         generated_subs = [{"topic": topic} for topic in required_topics]
         log.info(

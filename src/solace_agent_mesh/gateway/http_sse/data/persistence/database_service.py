@@ -27,17 +27,16 @@ class DatabaseService:
         self.database_url = database_url
         self.logger = logging.getLogger(__name__)
 
-        # Industry-standard connection pool configuration
         if database_url.startswith("sqlite"):
-            # SQLite: Optimized for testing and development
             self.engine = create_engine(
                 database_url,
                 echo=False,
-                # SQLite-specific optimizations
-                connect_args={"check_same_thread": False},
+                connect_args={
+                    "check_same_thread": False,
+                    "sqlite_pragma": {"foreign_keys": "ON"},
+                },
             )
         else:
-            # Production databases: PostgreSQL, MySQL, etc.
             self.engine = create_engine(
                 database_url,
                 pool_size=10,
@@ -103,7 +102,6 @@ class DatabaseService:
             session.close()
 
 
-# Global database service instance - will be initialized in dependency injection
 database_service: DatabaseService = None
 
 
