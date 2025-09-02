@@ -18,7 +18,6 @@ from a2a.types import (
     Part,
     TextPart,
 )
-from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
 from .. import a2a
 from ...agent.utils.artifact_helpers import (
