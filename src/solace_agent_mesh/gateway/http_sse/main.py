@@ -16,7 +16,7 @@ from starlette.staticfiles import StaticFiles
 from .api.controllers import session_router, task_router, user_router
 from .data.persistence.database_service import DatabaseService
 
-# Global database service instance
+
 database_service: DatabaseService = None
 
 from typing import TYPE_CHECKING
@@ -76,16 +76,16 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service=N
 
     dependencies.set_component_instance(component)
 
-    # Run database migrations (only if persistence is available)
+    
     if persistence_service:
         log.info("Checking database migrations...")
         try:
-            # Check if tables already exist (common in test environments)
+            
             inspector = sa.inspect(persistence_service.engine)
             existing_tables = inspector.get_table_names()
 
             if not existing_tables or "sessions" not in existing_tables:
-                # Tables don't exist, run migrations
+                
                 log.info("Running database migrations...")
                 alembic_cfg = Config()
                 alembic_cfg.set_main_option(
@@ -116,9 +116,9 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service=N
         dependencies.set_persistence_service(persistence_service)
     else:
         log.info("Skipping database migrations - no persistence service configured")
-        # Don't set persistence service in dependencies since it's None
+        
 
-    # Extract and set API configuration
+    
     webui_app = component.get_app()
     app_config = {}
     if webui_app:
@@ -149,7 +149,7 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service=N
     dependencies.set_api_config(api_config_dict)
     log.info("API configuration extracted and stored.")
 
-    # Authentication middleware
+    
     class AuthMiddleware:
         def __init__(self, app, component):
             self.app = app
@@ -281,14 +281,7 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service=N
                         user_info,
                     )
 
-                    # Extract user identifier with support for multiple IDPs
-                    # Different IDPs use different claims for the primary user identifier:
-                    # - Standard OIDC: 'sub' (subject identifier)
-                    # - Azure AD: 'oid' (object id) or 'preferred_username' or 'upn' (user principal name)
-                    # - Auth0/Okta: 'sub' or 'email'
-                    # - Keycloak: 'sub' or 'preferred_username'
-                    # - Mini IDP: 'client_id' or 'sub'
-                    # - Google: 'sub' or 'email'
+                    
 
                     # Priority order for user identifier (most specific to least specific)
                     user_identifier = (

@@ -25,7 +25,7 @@ from fastapi.responses import StreamingResponse, Response
 try:
     from google.adk.artifacts import BaseArtifactService
 except ImportError:
-    # Mock BaseArtifactService for environments without Google ADK
+    
     class BaseArtifactService:
         pass
 import io

@@ -3,56 +3,40 @@ Custom Solace AI Connector Component to host the FastAPI backend for the Web UI.
 """
 
 import asyncio
-import queue
-import uuid
 import json
+import queue
 import re
 import threading
-from typing import Any, Dict, Optional, List, Tuple, Union, Set
+import uuid
 from datetime import datetime, timezone
-from fastapi import UploadFile, Request as FastAPIRequest
+from typing import Any
 
 import uvicorn
 from fastapi import FastAPI
-
+from fastapi import Request as FastAPIRequest
+from fastapi import UploadFile
 from solace_ai_connector.common.log import log
+from solace_ai_connector.components.inputs_outputs.broker_input import BrokerInput
 from solace_ai_connector.flow.app import App as SACApp
-from solace_ai_connector.components.inputs_outputs.broker_input import (
-    BrokerInput,
-)
-from .database.database_persistence_service import DatabasePersistenceService
 
-from ...gateway.http_sse.sse_manager import SSEManager
-
-from .components import VisualizationForwarderComponent
-from ...gateway.http_sse.session_manager import SessionManager
-from ...gateway.base.component import BaseGatewayComponent
 from ...common.agent_registry import AgentRegistry
 from ...core_a2a.service import CoreA2AService
+from ...gateway.base.component import BaseGatewayComponent
+from ...gateway.http_sse.session_manager import SessionManager
+from ...gateway.http_sse.sse_manager import SSEManager
+from .components import VisualizationForwarderComponent
+from .database.database_persistence_service import DatabasePersistenceService
+
 try:
     from google.adk.artifacts import BaseArtifactService
 except ImportError:
-    # Mock BaseArtifactService for environments without Google ADK
+    
     class BaseArtifactService:
         pass
 
-from ...common.types import (
-    AgentCard,
-    Part as A2APart,
-    Task,
-    TaskStatusUpdateEvent,
-    TaskArtifactUpdateEvent,
-    JSONRPCError,
-    JSONRPCResponse,
-    TextPart,
-    FilePart,
-    FileContent,
-)
-from ...common.a2a_protocol import (
-    _topic_matches_subscription,
-)
 
 from ...agent.utils.artifact_helpers import save_artifact_with_metadata
+from ...common.a2a_protocol import _topic_matches_subscription
 from ...common.middleware.config_resolver import ConfigResolver
 
 from ...common.utils.embeds import (
@@ -61,6 +45,20 @@ from ...common.utils.embeds import (
                 EARLY_EMBED_TYPES
             )
 
+from ...common.types import (
+    AgentCard,
+    FileContent,
+    FilePart,
+    JSONRPCError,
+    JSONRPCResponse,
+)
+from ...common.types import Part as A2APart
+from ...common.types import (
+    Task,
+    TaskArtifactUpdateEvent,
+    TaskStatusUpdateEvent,
+    TextPart,
+)
 
 info = {
     "class_name": "WebUIBackendComponent",
@@ -132,10 +130,16 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         session_config = self._resolve_session_config()
         if session_config.get("type") == "sql":
-            self.persistence_service = DatabasePersistenceService(
-                db_url=session_config.get("database_url")
-            )
+            # SQL type explicitly configured - database_url is required
+            database_url = session_config.get("database_url")
+            if not database_url:
+                raise ValueError(
+                    f"{self.log_identifier} Session service type is 'sql' but no database_url provided. "
+                    "Please provide a database_url in the session_service configuration or use type 'memory'."
+                )
+            self.persistence_service = DatabasePersistenceService(db_url=database_url)
         else:
+            # Memory storage or no explicit configuration - no persistence service needed
             self.persistence_service = None
 
         component_config = self.get_config("component_config", {})
@@ -147,19 +151,19 @@ class WebUIBackendComponent(BaseGatewayComponent):
             persistence_service=self.persistence_service,
         )
 
-        self.fastapi_app: Optional[FastAPI] = None
-        self.uvicorn_server: Optional[uvicorn.Server] = None
-        self.fastapi_thread: Optional[threading.Thread] = None
-        self.fastapi_event_loop: Optional[asyncio.AbstractEventLoop] = None
+        self.fastapi_app: FastAPI | None = None
+        self.uvicorn_server: uvicorn.Server | None = None
+        self.fastapi_thread: threading.Thread | None = None
+        self.fastapi_event_loop: asyncio.AbstractEventLoop | None = None
 
-        self._visualization_internal_app: Optional[SACApp] = None
-        self._visualization_broker_input: Optional[BrokerInput] = None
+        self._visualization_internal_app: SACApp | None = None
+        self._visualization_broker_input: BrokerInput | None = None
         self._visualization_message_queue: queue.Queue = queue.Queue(maxsize=200)
-        self._active_visualization_streams: Dict[str, Dict[str, Any]] = {}
-        self._visualization_locks: Dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
+        self._active_visualization_streams: dict[str, dict[str, Any]] = {}
+        self._visualization_locks: dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
         self._visualization_locks_lock = threading.Lock()
-        self._global_visualization_subscriptions: Dict[str, int] = {}
-        self._visualization_processor_task: Optional[asyncio.Task] = None
+        self._global_visualization_subscriptions: dict[str, int] = {}
+        self._visualization_processor_task: asyncio.Task | None = None
 
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
 
@@ -325,7 +329,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
     def _resolve_session_config(self) -> dict:
         """
         Resolve session service configuration with backward compatibility.
-        
+
         Priority order:
         1. Component-specific session_service config (new approach)
         2. Shared default_session_service config (deprecated, with warning)
@@ -336,22 +340,21 @@ class WebUIBackendComponent(BaseGatewayComponent):
         if component_session_config:
             log.debug("Using component-specific session_service configuration")
             return component_session_config
-        
+
         # Backward compatibility: check shared config
-        shared_session_config = self.get_config("default_session_service") 
+        shared_session_config = self.get_config("default_session_service")
         if shared_session_config:
             log.warning(
                 "Using session_service from shared config is deprecated. "
                 "Move to component-specific configuration in app_config.session_service"
             )
             return shared_session_config
-        
+
         # Default configuration for Web UI (backward compatibility)
-        default_config = {
-            "type": "memory",
-            "default_behavior": "PERSISTENT"
-        }
-        log.info("Using default memory session configuration for Web UI (backward compatibility)")
+        default_config = {"type": "memory", "default_behavior": "PERSISTENT"}
+        log.info(
+            "Using default memory session configuration for Web UI (backward compatibility)"
+        )
         return default_config
 
     async def _visualization_message_processor_loop(self) -> None:
@@ -620,7 +623,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     if not hasattr(
                         self._visualization_broker_input, "add_subscription"
                     ) or not callable(
-                        getattr(self._visualization_broker_input, "add_subscription")
+                        self._visualization_broker_input.add_subscription
                     ):
                         log.error(
                             "%s Visualization BrokerInput does not support dynamic 'add_subscription'. "
@@ -735,9 +738,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             try:
                 if not hasattr(
                     self._visualization_broker_input, "remove_subscription"
-                ) or not callable(
-                    getattr(self._visualization_broker_input, "remove_subscription")
-                ):
+                ) or not callable(self._visualization_broker_input.remove_subscription):
                     log.error(
                         "%s Visualization BrokerInput does not support dynamic 'remove_subscription'. "
                         "Please upgrade the 'solace-ai-connector' module. Cannot remove subscription '%s'.",
@@ -824,7 +825,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
     async def _extract_initial_claims(
         self, external_event_data: Any
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Extracts initial identity claims from the incoming external event.
         For the WebUI, this means inspecting the FastAPIRequest.
@@ -880,12 +881,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
             return
 
         try:
-            from ...gateway.http_sse.main import (
-                app as fastapi_app_instance,
-            )
-            from ...gateway.http_sse.main import (
-                setup_dependencies,
-            )
+            from ...gateway.http_sse.main import app as fastapi_app_instance
+            from ...gateway.http_sse.main import setup_dependencies
 
             self.fastapi_app = fastapi_app_instance
 
@@ -992,7 +989,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             raise
 
     def publish_a2a(
-        self, topic: str, payload: Dict, user_properties: Optional[Dict] = None
+        self, topic: str, payload: dict, user_properties: dict | None = None
     ):
         """
         Publishes an A2A message using the SAC App's send_message method.
@@ -1050,8 +1047,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
         log.info("%s Visualization resources cleaned up.", self.log_identifier)
 
     def _infer_visualization_event_details(
-        self, topic: str, payload: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, topic: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Infers details for the visualization SSE payload from the Solace topic and A2A message.
         """
@@ -1190,12 +1187,12 @@ class WebUIBackendComponent(BaseGatewayComponent):
         return details
 
     def _extract_involved_agents_for_viz(
-        self, topic: str, payload_dict: Dict[str, Any]
-    ) -> Set[str]:
+        self, topic: str, payload_dict: dict[str, Any]
+    ) -> set[str]:
         """
         Extracts agent names involved in a message from its topic and payload.
         """
-        agents: Set[str] = set()
+        agents: set[str] = set()
         log_id_prefix = f"{self.log_identifier}[ExtractAgentsViz]"
 
         topic_agent_match = re.match(
@@ -1322,13 +1319,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
         """Returns the unique identifier for this gateway instance."""
         return self.gateway_id
 
-    def get_cors_origins(self) -> List[str]:
+    def get_cors_origins(self) -> list[str]:
         return self.cors_allowed_origins
 
-    def get_shared_artifact_service(self) -> Optional[BaseArtifactService]:
+    def get_shared_artifact_service(self) -> BaseArtifactService | None:
         return self.shared_artifact_service
 
-    def get_embed_config(self) -> Dict[str, Any]:
+    def get_embed_config(self) -> dict[str, Any]:
         """Returns embed-related configuration needed by dependencies."""
         return {
             "enable_embed_resolution": self.enable_embed_resolution,
@@ -1415,8 +1412,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
         pass
 
     async def _translate_external_input(
-        self, external_event_data: Dict[str, Any]
-    ) -> Tuple[str, List[A2APart], Dict[str, Any]]:
+        self, external_event_data: dict[str, Any]
+    ) -> tuple[str, list[A2APart], dict[str, Any]]:
         """
         Translates raw HTTP request data (from FastAPI form) into A2A task parameters.
 
@@ -1440,7 +1437,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         target_agent_name: str = external_event_data.get("agent_name")
         user_message: str = external_event_data.get("message", "")
-        files: Optional[List[UploadFile]] = external_event_data.get("files")
+        files: list[UploadFile] | None = external_event_data.get("files")
         client_id: str = external_event_data.get("client_id")
         a2a_session_id: str = external_event_data.get("a2a_session_id")
         if not target_agent_name:
@@ -1450,7 +1447,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "Client ID or A2A Session ID is missing in external_event_data."
             )
 
-        a2a_parts: List[A2APart] = []
+        a2a_parts: list[A2APart] = []
 
         if files and self.shared_artifact_service:
             file_metadata_summary_parts = []
@@ -1549,8 +1546,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
     async def _send_update_to_external(
         self,
-        external_request_context: Dict[str, Any],
-        event_data: Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent],
+        external_request_context: dict[str, Any],
+        event_data: TaskStatusUpdateEvent | TaskArtifactUpdateEvent,
         is_final_chunk_of_update: bool,
     ) -> None:
         """
@@ -1604,7 +1601,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
 
     async def _send_final_response_to_external(
-        self, external_request_context: Dict[str, Any], task_data: Task
+        self, external_request_context: dict[str, Any], task_data: Task
     ) -> None:
         """
         Sends the final A2A Task result to the external platform (Web UI via SSE).
@@ -1640,15 +1637,16 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             agent_message_content = part.text
                             break
 
-                if agent_message_content:
-                    # Resolve embeds before saving to preserve time-sensitive values
+                if agent_message_content and self.persistence_service is not None:
+
+                    # Resolve embeds before saving
                     processed_agent_message = await self._resolve_embeds_for_persistence(
                         message_content=agent_message_content,
                         session_id=task_data.sessionId,
                         user_id=external_request_context.get("user_id_for_a2a"),
                         log_identifier=f"{log_id_prefix}[EmbedResolve]"
                     )
-                    
+
                     self.persistence_service.store_chat_message(
                         session_id=task_data.sessionId,
                         message={
@@ -1695,7 +1693,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
 
     async def _send_error_to_external(
-        self, external_request_context: Dict[str, Any], error_data: JSONRPCError
+        self, external_request_context: dict[str, Any], error_data: JSONRPCError
     ) -> None:
         """
         Sends an error notification to the external platform (Web UI via SSE).

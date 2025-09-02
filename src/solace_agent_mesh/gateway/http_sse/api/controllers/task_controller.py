@@ -8,8 +8,12 @@ from solace_ai_connector.common.log import log
 from .....common.types import InternalError, InvalidRequestError, JSONRPCResponse
 from ...business.services.in_memory_session_service import InMemorySessionService
 from ...business.services.session_service import SessionService
-from ...dependencies import get_sac_component, get_session_manager, get_user_id
-from ...infrastructure.dependency_injection import get_session_service
+from ...dependencies import (
+    get_sac_component,
+    get_session_manager,
+    get_session_service,
+    get_user_id,
+)
 from ...session_manager import SessionManager
 from ...shared.enums import SenderType
 from ..dto.requests.task_requests import (

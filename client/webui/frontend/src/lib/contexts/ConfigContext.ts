@@ -13,10 +13,7 @@ export interface ConfigContextValue {
      * @deprecated Consider using configUseAuthorization instead as this may be redundant
      */
     frontend_use_authorization: boolean;
-    /**
-     * Indicates if session persistence is enabled on the backend
-     * When false, sessions are stored in-memory only (not persisted across restarts)
-     */
+    
     persistenceEnabled?: boolean;
 }
 

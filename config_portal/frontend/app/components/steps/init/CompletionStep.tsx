@@ -235,7 +235,7 @@ export default function CompletionStep({
       delete cleanedData.llm_provider;
     }
     if (data.broker_type === "container") {
-      // Broker is already created, so we can just connect to it
+      
       data.broker_type = "solace";
     }
     return cleanedData;

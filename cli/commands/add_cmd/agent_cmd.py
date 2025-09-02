@@ -56,10 +56,8 @@ def _write_agent_yaml_from_data(
 
     try:
         modified_content = load_template("agent_template.yaml")
-        # Generate session service configuration for this agent
         session_service_type_opt = config_options.get("session_service_type")
         if session_service_type_opt and session_service_type_opt != "memory":
-            # Generate override config for non-memory types
             type_val = session_service_type_opt
             behavior_val = config_options.get(
                 "session_service_behavior", AGENT_DEFAULTS["session_service_behavior"]
@@ -82,7 +80,6 @@ def _write_agent_yaml_from_data(
                 [f"        {line}" for line in session_service_lines]
             )
         else:
-            # Use shared default for memory (or when no preference specified)
             session_service_block = "*default_session_service"
         artifact_service_type_opt = config_options.get("artifact_service_type")
         if (
@@ -102,7 +99,6 @@ def _write_agent_yaml_from_data(
                 custom_artifact_lines.append(f'base_path: "{base_path_val}"')
             elif type_val == "s3":
                 custom_artifact_lines.append("bucket_name: ${S3_BUCKET_NAME}")
-                # Only include endpoint_url if it's for non-AWS S3 (S3_ENDPOINT_URL will be empty for AWS)
                 custom_artifact_lines.append("endpoint_url: ${S3_ENDPOINT_URL:-}")
                 custom_artifact_lines.append("region: ${S3_REGION}")
             custom_artifact_lines.append(f"artifact_scope: {scope_val}")
@@ -439,7 +435,7 @@ def create_agent_config(
             click.echo(f"  Validating database: {db_url}")
             engine = create_engine(db_url)
             with engine.connect() as connection:
-                pass  # Test connection
+                pass
             engine.dispose()
             click.echo(click.style("  Database validation successful.", fg="green"))
         except Exception as e:

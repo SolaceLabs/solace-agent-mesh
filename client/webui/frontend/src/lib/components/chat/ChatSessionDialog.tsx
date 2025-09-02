@@ -16,10 +16,10 @@ export const ChatSessionDialog: React.FC<ChatSessionDialogProps> = ({ isOpen, on
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle className="flex flex-row gap-1 max-w-[400px]">
-						New Chat Session?
+						Start New Chat Session?
                     </DialogTitle>
                     <DialogDescription className="flex flex-col gap-2">
-                        Starting a new chat session will clear the current chat history and files. Are you sure you want to proceed?
+                        This will create a new chat session. Your current chat will be saved in the sessions panel.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex justify-end gap-2">

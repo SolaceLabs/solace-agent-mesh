@@ -309,7 +309,6 @@ def create_orchestrator_config(
             artifact_base_path_line = f'base_path: "{artifact_base_path}"'
         elif artifact_type == "s3":
             s3_config_lines = ["bucket_name: ${S3_BUCKET_NAME}"]
-            # Only include endpoint_url if it's for non-AWS S3 (S3_ENDPOINT_URL will be empty for AWS)
             s3_config_lines.append("endpoint_url: ${S3_ENDPOINT_URL:-}")
             s3_config_lines.append("region: ${S3_REGION}")
             artifact_base_path_line = "\n      ".join(s3_config_lines)
@@ -402,7 +401,6 @@ def create_orchestrator_config(
         - You must then review the list of artifacts and return the ones that are important for the user by using the `signal_artifact_for_return` tool.
         - Provide regular progress updates using `status_update` embed directives, especially before initiating any tool call."""
 
-        # Generate session service configuration for orchestrator
         if session_type == "sql":
             session_service_lines = [
                 f'type: "{session_type}"',
@@ -413,13 +411,11 @@ def create_orchestrator_config(
                 [f"        {line}" for line in session_service_lines]
             )
             
-            # Generate database URL for orchestrator
             data_dir = project_root / "data"
             data_dir.mkdir(exist_ok=True)
             orchestrator_db_file = data_dir / "orchestrator.db"
             orchestrator_database_url = f"sqlite:///{orchestrator_db_file.resolve()}"
             
-            # Add to .env file
             try:
                 env_path = project_root / ".env"
                 with open(env_path, "a", encoding="utf-8") as f:
@@ -431,7 +427,6 @@ def create_orchestrator_config(
                     err=True,
                 )
         else:
-            # Use shared default for memory
             session_service_block = "*default_session_service"
 
         orchestrator_replacements = {

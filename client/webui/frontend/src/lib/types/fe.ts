@@ -32,9 +32,7 @@ export interface TaskStoreState {
     taskOrder: string[]; // Array of taskIds to maintain insertion order or sorted order
 }
 
-/**
- * Represents a file attachment returned by the agent.
- */
+
 export interface FileAttachment {
     name: string;
     content?: string; // Base64 encoded content - Made optional for Artifact Panel preview

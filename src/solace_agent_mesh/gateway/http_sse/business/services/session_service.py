@@ -97,7 +97,7 @@ class SessionService:
                     message=msg_model.message,
                     sender_type=SenderType(msg_model.sender_type),
                     sender_name=msg_model.sender_name,
-                    message_type=MessageType.TEXT,  # Default for now
+                    message_type=MessageType.TEXT,
                     created_at=msg_model.created_at,
                 )
                 messages.append(message_domain)
@@ -111,7 +111,6 @@ class SessionService:
     def create_session(
         self, user_id: UserId, name: str | None = None, agent_id: str | None = None
     ) -> SessionDomain:
-        # Validate user_id is not None/empty to prevent NULL database entries
         if not user_id or user_id.strip() == "":
             raise ValueError(f"user_id cannot be None or empty. Received: {user_id}")
 
@@ -195,12 +194,10 @@ class SessionService:
         Note: If session doesn't exist, generates a new session ID to prevent
         reusing deleted session IDs and avoid orphaned data issues.
         """
-        # Validate user_id is not None/empty to prevent NULL database entries
         if not user_id or user_id.strip() == "":
             raise ValueError(f"user_id cannot be None or empty. Received: {user_id}")
 
         with self.db_service.session_scope() as db_session:
-            # Check if session exists
             session_model = (
                 db_session.query(SessionModel)
                 .filter(SessionModel.id == session_id, SessionModel.user_id == user_id)

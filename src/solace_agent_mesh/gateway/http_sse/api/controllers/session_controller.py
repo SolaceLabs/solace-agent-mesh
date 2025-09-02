@@ -3,7 +3,7 @@ from solace_ai_connector.common.log import log
 
 from ...business.services.in_memory_session_service import InMemorySessionService
 from ...business.services.session_service import SessionService
-from ...infrastructure.dependency_injection import get_session_service
+from ...dependencies import get_session_service
 from ...shared.auth_utils import get_current_user
 from ..dto.requests.session_requests import (
     DeleteSessionRequest,
