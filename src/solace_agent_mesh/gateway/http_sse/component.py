@@ -1624,29 +1624,29 @@ class WebUIBackendComponent(BaseGatewayComponent):
             sse_task_id,
         )
 
-        if self.persistence_service:
-            try:
-                agent_message_content = None
-                if (
-                    task_data.status
-                    and task_data.status.message
-                    and task_data.status.message.parts
-                ):
-                    for part in task_data.status.message.parts:
-                        if part.type == "text":
-                            agent_message_content = part.text
-                            break
+        # Store agent message in persistence (SQL) or in-memory session
+        try:
+            agent_message_content = None
+            if (
+                task_data.status
+                and task_data.status.message
+                and task_data.status.message.parts
+            ):
+                for part in task_data.status.message.parts:
+                    if part.type == "text":
+                        agent_message_content = part.text
+                        break
 
-                if agent_message_content and self.persistence_service is not None:
-
-                    # Resolve embeds before saving
+            if agent_message_content:
+                if self.persistence_service:
+                    # SQL persistence - resolve embeds before saving
                     processed_agent_message = await self._resolve_embeds_for_persistence(
                         message_content=agent_message_content,
                         session_id=task_data.sessionId,
                         user_id=external_request_context.get("user_id_for_a2a"),
                         log_identifier=f"{log_id_prefix}[EmbedResolve]"
                     )
-
+                    
                     self.persistence_service.store_chat_message(
                         session_id=task_data.sessionId,
                         message={
@@ -1657,12 +1657,35 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         user_id=external_request_context.get("user_id_for_a2a"),
                         agent_id=task_data.metadata.get("agent_name"),
                     )
-            except Exception as e:
-                log.error(
-                    "%s Failed to store final agent response: %s",
-                    log_id_prefix,
-                    e,
-                )
+                else:
+                    # In-memory session fallback
+                    from .business.services.in_memory_session_service import InMemorySessionService
+                    from .shared.enums import SenderType
+                    from .dependencies import in_memory_session_service_instance
+                    
+                    if in_memory_session_service_instance:
+                        user_id = external_request_context.get("user_id_for_a2a")
+                        agent_name = task_data.metadata.get("agent_name", "Agent")
+                        
+                        in_memory_session_service_instance.add_message_to_session(
+                            session_id=task_data.sessionId,
+                            user_id=user_id,
+                            message=agent_message_content,
+                            sender_type=SenderType.AGENT,
+                            sender_name=agent_name,
+                            agent_id=agent_name,
+                        )
+                        log.debug(
+                            "%s Stored agent response in in-memory session %s",
+                            log_id_prefix,
+                            task_data.sessionId,
+                        )
+        except Exception as e:
+            log.error(
+                "%s Failed to store final agent response: %s",
+                log_id_prefix,
+                e,
+            )
 
         sse_payload = JSONRPCResponse(id=a2a_task_id, result=task_data).model_dump(
             exclude_none=True

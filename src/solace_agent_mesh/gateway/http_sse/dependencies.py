@@ -61,6 +61,16 @@ def set_persistence_service(persistence_service: "PersistenceService"):
         log.warning("[Dependencies] Persistence Service instance already set.")
 
 
+def set_in_memory_session_service(session_service: "InMemorySessionService"):
+    """Called to set the in-memory session service singleton."""
+    global in_memory_session_service_instance
+    if in_memory_session_service_instance is None:
+        in_memory_session_service_instance = session_service
+        log.info("[Dependencies] In-memory session service instance provided.")
+    else:
+        log.warning("[Dependencies] In-memory session service instance already set.")
+
+
 def get_persistence_service() -> "PersistenceService":
     """FastAPI dependency to get the PersistenceService instance."""
     if persistence_service_instance is None:
