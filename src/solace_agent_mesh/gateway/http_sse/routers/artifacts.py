@@ -36,11 +36,12 @@ from urllib.parse import urlparse, parse_qs, quote
 from ..dependencies import (
     get_shared_artifact_service,
     get_sac_component,
-    ensure_session_id,
     get_user_id,
     get_config_resolver,
     get_user_config,
+    get_session_service
 )
+from ..business.services.session_service import SessionService
 
 from solace_ai_connector.common.log import log
 
@@ -67,16 +68,17 @@ router = APIRouter()
 
 
 @router.get(
-    "/{filename}/versions",
+    "/{session_id}/{filename}/versions",
     response_model=List[int],
     summary="List Artifact Versions",
     description="Retrieves a list of available version numbers for a specific artifact.",
 )
 async def list_artifact_versions(
+    session_id: str = Path(..., title="Session ID", description="The session ID to get artifacts from"),
     filename: str = Path(..., title="Filename", description="The name of the artifact"),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
-    session_id: str = Depends(ensure_session_id),
+    session_service: SessionService = Depends(get_session_service),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     user_config: dict = Depends(get_user_config),
@@ -94,6 +96,15 @@ async def list_artifact_versions(
 
     log_prefix = f"[ArtifactRouter:ListVersions:{filename}] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
+
+    # Validate session exists and belongs to user
+    session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
+    if not session_domain:
+        log.warning("%s Session not found or access denied.", log_prefix)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found or access denied."
+        )
 
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
@@ -139,10 +150,10 @@ async def list_artifact_versions(
 
 
 @router.get(
-    "",
+    "/{session_id}",
     response_model=List[ArtifactInfo],
     summary="List Artifact Information",
-    description="Retrieves detailed information for artifacts available for the current user session.",
+    description="Retrieves detailed information for artifacts available for the specified user session.",
 )
 @router.get(
     "/",
@@ -151,16 +162,17 @@ async def list_artifact_versions(
     description="Retrieves detailed information for artifacts available for the current user session.",
 )
 async def list_artifacts(
+    session_id: str = Path(..., title="Session ID", description="The session ID to list artifacts for"),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
-    session_id: str = Depends(ensure_session_id),
+    session_service: SessionService = Depends(get_session_service),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     user_config: dict = Depends(get_user_config),
 ):
     """
     Lists detailed information (filename, size, type, modified date, uri)
-    for all artifacts associated with the current user and session ID
+    for all artifacts associated with the specified user and session ID
     by calling the artifact helper function.
     """
     if not config_resolver.is_feature_enabled(
@@ -170,6 +182,15 @@ async def list_artifacts(
 
     log_prefix = f"[ArtifactRouter:ListInfo] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
+
+    # Validate session exists and belongs to user
+    session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
+    if not session_domain:
+        log.warning("%s Session not found or access denied.", log_prefix)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found or access denied."
+        )
 
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
@@ -204,15 +225,16 @@ async def list_artifacts(
 
 
 @router.get(
-    "/{filename}",
+    "/{session_id}/{filename}",
     summary="Get Latest Artifact Content",
     description="Retrieves the content of the latest version of a specific artifact.",
 )
 async def get_latest_artifact(
+    session_id: str = Path(..., title="Session ID", description="The session ID to get artifacts from"),
     filename: str = Path(..., title="Filename", description="The name of the artifact"),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
-    session_id: str = Depends(ensure_session_id),
+    session_service: SessionService = Depends(get_session_service),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     user_config: dict = Depends(get_user_config),
@@ -341,11 +363,12 @@ async def get_latest_artifact(
 
 
 @router.get(
-    "/{filename}/versions/{version}",
+    "/{session_id}/{filename}/versions/{version}",
     summary="Get Specific Artifact Version Content",
     description="Retrieves the content of a specific version of an artifact.",
 )
 async def get_specific_artifact_version(
+    session_id: str = Path(..., title="Session ID", description="The session ID to get artifacts from"),
     filename: str = Path(..., title="Filename", description="The name of the artifact"),
     version: Union[int, str] = Path(
         ...,
@@ -354,7 +377,7 @@ async def get_specific_artifact_version(
     ),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
-    session_id: str = Depends(ensure_session_id),
+    session_service: SessionService = Depends(get_session_service),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     user_config: dict = Depends(get_user_config),
@@ -371,6 +394,15 @@ async def get_specific_artifact_version(
         )
     log_prefix = f"[ArtifactRouter:GetVersion:{filename} v{version}] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
+
+    # Validate session exists and belongs to user
+    session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
+    if not session_domain:
+        log.warning("%s Session not found or access denied.", log_prefix)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found or access denied."
+        )
 
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
@@ -641,13 +673,14 @@ async def get_artifact_by_uri(
 
 
 @router.post(
-    "/{filename}",
+    "/{session_id}/{filename}",
     status_code=status.HTTP_201_CREATED,
     response_model=Dict[str, Any],
     summary="Upload Artifact (Create/Update Version with Metadata)",
     description="Uploads file content and optional metadata to create or update an artifact version.",
 )
 async def upload_artifact(
+    session_id: str = Path(..., title="Session ID", description="The session ID to upload artifacts to"),
     filename: str = Path(
         ..., title="Filename", description="The name of the artifact to create/update"
     ),
@@ -657,7 +690,7 @@ async def upload_artifact(
     ),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
-    session_id: str = Depends(ensure_session_id),
+    session_service: SessionService = Depends(get_session_service),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     user_config: dict = Depends(get_user_config),
@@ -674,12 +707,21 @@ async def upload_artifact(
         f"[ArtifactRouter:Post:{filename}] User={user_id}, Session={session_id} -"
     )
     log.info(
-        "%s Request received. Upload filename: '%s', content type: %s",
+        "%s Request received. Upload filename: '%s', content type: %s, Metadata provided: %s",
         log_prefix,
         upload_file.filename,
         upload_file.content_type,
-        f"Metadata provided: {bool(metadata_json)}",
+        bool(metadata_json),
     )
+
+    # Validate session exists and belongs to user
+    session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
+    if not session_domain:
+        log.warning("%s Session not found or access denied.", log_prefix)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found or access denied."
+        )
 
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
@@ -778,18 +820,19 @@ async def upload_artifact(
 
 
 @router.delete(
-    "/{filename}",
+    "/{session_id}/{filename}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete Artifact",
     description="Deletes an artifact and all its versions.",
 )
 async def delete_artifact(
+    session_id: str = Path(..., title="Session ID", description="The session ID to delete artifacts from"),
     filename: str = Path(
         ..., title="Filename", description="The name of the artifact to delete"
     ),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
-    session_id: str = Depends(ensure_session_id),
+    session_service: SessionService = Depends(get_session_service),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     user_config: dict = Depends(get_user_config),
@@ -806,6 +849,15 @@ async def delete_artifact(
         f"[ArtifactRouter:Delete:{filename}] User={user_id}, Session={session_id} -"
     )
     log.info("%s Request received.", log_prefix)
+
+    # Validate session exists and belongs to user
+    session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
+    if not session_domain:
+        log.warning("%s Session not found or access denied.", log_prefix)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found or access denied."
+        )
 
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
