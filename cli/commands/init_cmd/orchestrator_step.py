@@ -315,7 +315,6 @@ def create_orchestrator_config(
 
         shared_replacements = {
             "__DEFAULT_ARTIFACT_SERVICE_TYPE__": artifact_type,
-            "__DEFAULT_ARTIFACT_SERVICE_BASE_PATH_LINE__": artifact_base_path_line,
             "__DEFAULT_ARTIFACT_SERVICE_SCOPE__": artifact_scope,
         }
 
@@ -333,7 +332,8 @@ def create_orchestrator_config(
             )
         else:
             modified_shared_content = modified_shared_content.replace(
-                "# __DEFAULT_ARTIFACT_SERVICE_BASE_PATH_LINE__", artifact_base_path_line
+                "      # __DEFAULT_ARTIFACT_SERVICE_BASE_PATH_LINE__",
+                f"      {artifact_base_path_line}",
             )
 
         shared_config_dest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -404,26 +404,33 @@ def create_orchestrator_config(
         if session_type == "sql":
             session_service_lines = [
                 f'type: "{session_type}"',
-                f'database_url: "${{ORCHESTRATOR_DATABASE_URL}}"',
+                'database_url: "${ORCHESTRATOR_DATABASE_URL}"',
                 f'default_behavior: "{session_behavior}"',
             ]
             session_service_block = "\n" + "\n".join(
                 [f"        {line}" for line in session_service_lines]
             )
-            
+
             data_dir = project_root / "data"
             data_dir.mkdir(exist_ok=True)
             orchestrator_db_file = data_dir / "orchestrator.db"
             orchestrator_database_url = f"sqlite:///{orchestrator_db_file.resolve()}"
-            
+
             try:
                 env_path = project_root / ".env"
                 with open(env_path, "a", encoding="utf-8") as f:
-                    f.write(f'\nORCHESTRATOR_DATABASE_URL="{orchestrator_database_url}"\n')
-                click.echo(f"  Added ORCHESTRATOR_DATABASE_URL to .env: {orchestrator_database_url}")
+                    f.write(
+                        f'\nORCHESTRATOR_DATABASE_URL="{orchestrator_database_url}"\n'
+                    )
+                click.echo(
+                    f"  Added ORCHESTRATOR_DATABASE_URL to .env: {orchestrator_database_url}"
+                )
             except Exception as e:
                 click.echo(
-                    click.style(f"Warning: Could not add ORCHESTRATOR_DATABASE_URL to .env: {e}", fg="yellow"),
+                    click.style(
+                        f"Warning: Could not add ORCHESTRATOR_DATABASE_URL to .env: {e}",
+                        fg="yellow",
+                    ),
                     err=True,
                 )
         else:
@@ -471,7 +478,6 @@ def create_orchestrator_config(
             modified_orchestrator_content = modified_orchestrator_content.replace(
                 placeholder, str(value)
             )
-
 
         if deny_list:
             modified_orchestrator_content = modified_orchestrator_content.replace(
