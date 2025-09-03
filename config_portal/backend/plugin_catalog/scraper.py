@@ -461,32 +461,42 @@ class PluginScraper:
                 if plugin_info.source_registry_name
                 else Path(plugin_info.source_registry_location).name.replace(".git", "")
             )
-            # Sanitize the repo identifier for filesystem use
-            repo_identifier = _sanitize_name_for_filesystem(raw_repo_identifier)
-            repo_temp_path = self.temp_base_dir / repo_identifier
-
-            try:
-                temp_registry_for_git_op = Registry(
-                    id="temp_install_op_id",
-                    path_or_url=plugin_info.source_registry_location,
-                    name=plugin_info.source_registry_name,
-                    type="git",
-                    is_default=(
-                        plugin_info.source_registry_location
-                        == DEFAULT_OFFICIAL_REGISTRY_URL
-                    ),
-                    is_official_source=plugin_info.is_official,
-                )
-                self._scrape_git_registry(temp_registry_for_git_op)
-            except Exception as e_reg_create:
-                logger.error(
-                    "Could not prepare temporary registry for Git operation during install: %s",
-                    e_reg_create,
-                )
-                return (
-                    False,
-                    f"Internal error preparing for Git operation: {e_reg_create}",
-                )
+            
+            # Try both sanitized and original names for backward compatibility
+            sanitized_repo_identifier = _sanitize_name_for_filesystem(raw_repo_identifier)
+            repo_temp_path_sanitized = self.temp_base_dir / sanitized_repo_identifier
+            repo_temp_path_original = self.temp_base_dir / raw_repo_identifier
+            
+            # Determine which path exists (prioritize sanitized for new repos)
+            if repo_temp_path_sanitized.exists():
+                repo_temp_path = repo_temp_path_sanitized
+            elif repo_temp_path_original.exists():
+                repo_temp_path = repo_temp_path_original
+            else:
+                # Neither exists, prepare by cloning to sanitized path
+                repo_temp_path = repo_temp_path_sanitized
+                try:
+                    temp_registry_for_git_op = Registry(
+                        id="temp_install_op_id",
+                        path_or_url=plugin_info.source_registry_location,
+                        name=plugin_info.source_registry_name,
+                        type="git",
+                        is_default=(
+                            plugin_info.source_registry_location
+                            == DEFAULT_OFFICIAL_REGISTRY_URL
+                        ),
+                        is_official_source=plugin_info.is_official,
+                    )
+                    self._scrape_git_registry(temp_registry_for_git_op)
+                except Exception as e_reg_create:
+                    logger.error(
+                        "Could not prepare temporary registry for Git operation during install: %s",
+                        e_reg_create,
+                    )
+                    return (
+                        False,
+                        f"Internal error preparing for Git operation: {e_reg_create}",
+                    )
 
             plugin_local_fs_path = repo_temp_path / plugin_info.plugin_subpath
 
