@@ -28,7 +28,6 @@ from a2a.types import (
     DataPart,
     FilePart,
     FileWithBytes,
-    FileWithUri,
     Message,
     Part,
     SendMessageRequest,
