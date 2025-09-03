@@ -6,7 +6,7 @@ import { AlertCircle, FileText } from "lucide-react";
 import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner } from "@/lib/components";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
-import type { MessageFE, TextPart } from "@/lib/types";
+import type { FileAttachment, MessageFE, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
 
 import { FileAttachmentMessage, FileMessage } from "./file/FileMessage";
@@ -51,11 +51,26 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
     embeddedContent.forEach((item: ExtractedContent, index: number) => {
         modifiedText = modifiedText.replace(item.originalMatch, "");
 
-        contentElements.push(
-            <div key={`embedded-${index}`} className="my-2 h-auto w-md max-w-md overflow-hidden">
-                <ContentRenderer content={item.content} rendererType={item.type} mime_type={item.mimeType} setRenderError={setRenderError} />
-            </div>
-        );
+        if (item.type === "file") {
+            // This is our new case for non-renderable data URIs
+            const fileAttachment: FileAttachment = {
+                name: item.filename || "downloaded_file",
+                content: item.content,
+                mime_type: item.mimeType,
+            };
+            contentElements.push(
+                <div key={`embedded-file-${index}`} className="my-2">
+                    <FileAttachmentMessage fileAttachment={fileAttachment} isEmbedded={true} />
+                </div>
+            );
+        } else {
+            // Existing logic for renderable content
+            contentElements.push(
+                <div key={`embedded-${index}`} className="my-2 h-auto w-md max-w-md overflow-hidden">
+                    <ContentRenderer content={item.content} rendererType={item.type} mime_type={item.mimeType} setRenderError={setRenderError} />
+                </div>
+            );
+        }
     });
 
     return (
@@ -76,7 +91,7 @@ const getUploadedFiles = (message: MessageFE) => {
         return (
             <MessageWrapper message={message} className="flex flex-wrap justify-end gap-2">
                 {message.uploadedFiles.map((file, fileIdx) => (
-                    <FileMessage key={`uploaded-${message.metadata?.messageId}-${fileIdx}`} filename={file.name} />
+                    <FileMessage key={`uploaded-${message.metadata?.messageId}-${fileIdx}`} filename={file.name} mimeType={file.type} />
                 ))}
             </MessageWrapper>
         );
