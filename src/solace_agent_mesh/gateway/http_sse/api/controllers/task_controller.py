@@ -6,11 +6,9 @@ from fastapi import UploadFile, status
 from solace_ai_connector.common.log import log
 
 from .....common.types import InternalError, InvalidRequestError, JSONRPCResponse
-from ...business.services.session_service import SessionService
 from ...dependencies import (
     get_sac_component,
     get_session_manager,
-    get_session_service,
     get_user_id,
 )
 from ...session_manager import SessionManager
@@ -128,9 +126,6 @@ async def subscribe_task_from_agent(
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     user_id: str = Depends(get_user_id),
-    session_service: SessionService = Depends(
-        get_session_service
-    ),
 ):
     """
     Submits a streaming task request (`tasks/sendSubscribe`) to the specified agent.
@@ -165,31 +160,36 @@ async def subscribe_task_from_agent(
             log.info("%sNo session_id provided, creating a new one.", log_prefix)
             session_id = session_manager.start_new_a2a_session(request)
 
-        # Store message using the session service (database-backed or in-memory)
-        try:
-            message_domain = session_service.add_message_to_session(
-                session_id=session_id,
-                user_id=user_id,
-                message=message,
-                sender_type=SenderType.USER,
-                sender_name=user_id,
-                agent_id=agent_name,
-            )
-            # Use the actual session ID from the message (may be different if session was recreated)
-            if message_domain:
-                session_id = message_domain.session_id
-        except ValueError as e:
-            # Handle business domain validation errors
-            log.warning("Validation error in session service: %s", e)
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
-            )
-        except Exception as e:
-            log.error("Failed to store message in session service: %s", e)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to store message",
-            )
+        # Store message only if persistence is available
+        if hasattr(component, "persistence_service") and component.persistence_service:
+            try:
+                from ...dependencies import get_session_service
+                session_service = get_session_service(component)
+                message_domain = session_service.add_message_to_session(
+                    session_id=session_id,
+                    user_id=user_id,
+                    message=message,
+                    sender_type=SenderType.USER,
+                    sender_name=user_id,
+                    agent_id=agent_name,
+                )
+                # Use the actual session ID from the message (may be different if session was recreated)
+                if message_domain:
+                    session_id = message_domain.session_id
+            except ValueError as e:
+                # Handle business domain validation errors
+                log.warning("Validation error in session service: %s", e)
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+                )
+            except Exception as e:
+                log.error("Failed to store message in session service: %s", e)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to store message",
+                )
+        else:
+            log.debug("%sNo persistence available - skipping message storage", log_prefix)
 
         log.info(
             "%sUsing ClientID: %s, SessionID: %s", log_prefix, client_id, session_id
