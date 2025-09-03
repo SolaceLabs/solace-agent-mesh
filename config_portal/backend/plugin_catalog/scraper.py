@@ -3,6 +3,7 @@ import toml
 import yaml
 import os
 import shutil
+import re
 from pathlib import Path
 from typing import List, Optional, Tuple
 import logging
@@ -25,6 +26,35 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
+
+
+def _sanitize_name_for_filesystem(name: str) -> str:
+    """
+    Converts a registry name to a filesystem-safe format.
+    Spaces and other problematic characters are converted to underscores,
+    then normalized to a safe filesystem identifier.
+    """
+    if not name or not name.strip():
+        return "unnamed_registry"
+    
+    # Normalize separators (spaces, hyphens, underscores) to underscores
+    normalized = re.sub(r'[\s\-_]+', '_', name.strip())
+    
+    # Handle camelCase by inserting underscores before capital letters
+    camel_case_split = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', normalized)
+    
+    # Handle acronyms by inserting underscores between them and following words
+    acronym_split = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', camel_case_split)
+    
+    # Split and clean up the parts
+    raw_parts = [p for p in acronym_split.split('_') if p]
+    parts = [p.lower() for p in raw_parts]
+    
+    # Join with underscores for a filesystem-safe name
+    result = "_".join(parts)
+    
+    # Ensure we have a valid result
+    return result if result else "unnamed_registry"
 
 
 class PluginScraper:
@@ -424,11 +454,13 @@ class PluginScraper:
         plugin_local_fs_path: Optional[Path] = None
 
         if plugin_info.source_type == "git":
-            repo_identifier = (
+            raw_repo_identifier = (
                 plugin_info.source_registry_name
                 if plugin_info.source_registry_name
                 else Path(plugin_info.source_registry_location).name.replace(".git", "")
             )
+            # Sanitize the repo identifier for filesystem use
+            repo_identifier = _sanitize_name_for_filesystem(raw_repo_identifier)
             repo_temp_path = self.temp_base_dir / repo_identifier
 
             try:
