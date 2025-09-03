@@ -320,7 +320,7 @@ async def delete_session(
 
         if agent_id:
             try:
-                from solace_agent_mesh.common.a2a_protocol import (
+                from solace_agent_mesh.common.a2a.protocol import (
                     get_agent_request_topic,
                 )
 

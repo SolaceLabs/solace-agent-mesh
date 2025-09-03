@@ -5,7 +5,8 @@ from fastapi import Request as FastAPIRequest
 from fastapi import UploadFile, status
 from solace_ai_connector.common.log import log
 
-from .....common.types import InternalError, InvalidRequestError, JSONRPCResponse
+from a2a.types import InternalError, InvalidRequestError, JSONRPCResponse
+from .....common import a2a
 from ...dependencies import (
     get_sac_component,
     get_session_manager,
@@ -109,7 +110,7 @@ async def send_task_to_agent(
         )
     except Exception as e:
         log.exception("%sUnexpected error processing task: %s", log_prefix, e)
-        error_resp = InternalError(message=f"Failed to process task: {e}")
+        error_resp = a2a.create_internal_error(message=f"Failed to process task: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_resp.model_dump(exclude_none=True),
@@ -239,7 +240,7 @@ async def subscribe_task_from_agent(
         raise
     except Exception as e:
         log.exception("%sUnexpected error processing task: %s", log_prefix, e)
-        error_resp = InternalError(message=f"Failed to process task: {e}")
+        error_resp = a2a.create_internal_error(message=f"Failed to process task: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_resp.model_dump(exclude_none=True),
@@ -271,7 +272,7 @@ async def cancel_agent_task(
         )
     except Exception as e:
         log.exception("%sUnexpected error sending cancellation: %s", log_prefix, e)
-        error_resp = InternalError(message="Unexpected server error: %s" % e)
+        error_resp = a2a.create_internal_error(message="Unexpected server error: %s" % e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_resp.model_dump(exclude_none=True),

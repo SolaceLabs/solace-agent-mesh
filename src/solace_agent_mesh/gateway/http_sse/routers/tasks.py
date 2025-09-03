@@ -82,13 +82,51 @@ async def _submit_task(
             "%sUsing ClientID: %s, SessionID: %s", log_prefix, client_id, session_id
         )
 
+        # Store message in persistence layer if available
+        user_id = user_identity.get("id")
+        if is_streaming and hasattr(component, "persistence_service") and component.persistence_service:
+            try:
+                from ....gateway.http_sse.dependencies import get_session_service
+                from ....gateway.http_sse.shared.enums import SenderType
+                
+                # Extract text content from the message for storage
+                message_text = ""
+                if payload.params and payload.params.message:
+                    parts = a2a.get_parts_from_message(payload.params.message)
+                    for part in parts:
+                        if hasattr(part, 'text'):
+                            message_text = part.text
+                            break
+                
+                session_service = get_session_service(component)
+                message_domain = session_service.add_message_to_session(
+                    session_id=session_id,
+                    user_id=user_id,
+                    message=message_text or "Task submitted",
+                    sender_type=SenderType.USER,
+                    sender_name=user_id or "user",
+                    agent_id=agent_name,
+                )
+                # Use the actual session ID from the message (may be different if session was recreated)
+                if message_domain:
+                    session_id = message_domain.session_id
+                    log.info("%sMessage stored in session %s", log_prefix, session_id)
+            except ValueError as e:
+                log.warning("%sValidation error in session service: %s", log_prefix, e)
+                # Don't fail the request, just log the warning
+            except Exception as e:
+                log.error("%sFailed to store message in session service: %s", log_prefix, e)
+                # Don't fail the request, just log the error
+        else:
+            log.debug("%sNo persistence available or non-streaming - skipping message storage", log_prefix)
+
         # Use the helper to get the unwrapped parts from the incoming message.
         a2a_parts = a2a.get_parts_from_message(payload.params.message)
 
         external_req_ctx = {
             "app_name_for_artifacts": component.gateway_id,
             "user_id_for_artifacts": client_id,
-            "a2a_session_id": session_id,
+            "a2a_session_id": session_id,  # This may have been updated by persistence layer
             "user_id_for_a2a": client_id,
             "target_agent_name": agent_name,
         }
@@ -110,6 +148,8 @@ async def _submit_task(
         )
 
         if is_streaming:
+            # Include session_id in the response for streaming requests
+            task_object["sessionId"] = session_id
             return a2a.create_send_streaming_message_success_response(
                 result=task_object, request_id=payload.id
             )

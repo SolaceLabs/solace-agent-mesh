@@ -25,8 +25,9 @@ from typing import TYPE_CHECKING
 from alembic import command
 from alembic.config import Config
 
-from ...common.types import InternalError, InvalidRequestError, JSONRPCError
-from ...common.types import JSONRPCResponse as A2AJSONRPCResponse
+from a2a.types import InternalError, InvalidRequestError, JSONRPCError
+from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
+from ...common import a2a
 from ...gateway.http_sse import dependencies
 from ...gateway.http_sse.routers import (
     agents,
@@ -35,8 +36,14 @@ from ...gateway.http_sse.routers import (
     config,
     people,
     sse,
+    tasks,
+    sessions,
     visualization,
 )
+# Import persistence-aware controllers
+from .api.controllers.session_controller import router as session_router
+from .api.controllers.task_controller import router as task_router
+from .api.controllers.user_controller import router as user_router
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
@@ -488,14 +495,18 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service=N
     # Mount API routers
     api_prefix = "/api/v1"
 
-    app.include_router(session_router, prefix=api_prefix, tags=["Sessions"])
-    app.include_router(user_router, prefix=f"{api_prefix}/users", tags=["Users"])
-    app.include_router(task_router, prefix=f"{api_prefix}/tasks", tags=["Tasks"])
-
-    # Mount remaining routers that haven't been migrated yet
+    # Mount persistence-aware controllers (your original controllers with full functionality)
+    # These provide the complete API surface with database persistence
+    app.include_router(session_router, prefix=api_prefix, tags=["Sessions"])  # Provides /api/v1/sessions/* endpoints
+    app.include_router(user_router, prefix=f"{api_prefix}/users", tags=["Users"])  # Provides /api/v1/users/me
+    app.include_router(task_router, prefix=f"{api_prefix}/tasks", tags=["Tasks"])  # Provides /api/v1/tasks/send, /subscribe, /cancel
+    
+    # Mount new A2A SDK routers with different paths to avoid conflicts
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
     app.include_router(agents.router, prefix=api_prefix, tags=["Agents"])
-    app.include_router(tasks.router, prefix=api_prefix, tags=["Tasks"])
+    # New A2A message endpoints (non-conflicting paths)
+    app.include_router(tasks.router, prefix=api_prefix, tags=["A2A Messages"])  # Provides /api/v1/message:send, /message:stream
+    # Skip mounting sessions.router as it conflicts with session_router and provides less functionality
     app.include_router(sse.router, prefix=f"{api_prefix}/sse", tags=["SSE"])
     app.include_router(
         artifacts.router, prefix=f"{api_prefix}/artifacts", tags=["Artifacts"]
@@ -590,19 +601,11 @@ async def http_exception_handler(request: FastAPIRequest, exc: HTTPException):
             error_response = {"detail": exc.detail}
         else:
             error_response = {"detail": str(exc.detail)}
-
-    elif isinstance(exc.detail, str):
-        if exc.status_code == status.HTTP_400_BAD_REQUEST:
-            error_code = -32600
-        elif exc.status_code == status.HTTP_404_NOT_FOUND:
-            error_code = -32601
-            error_message = "Resource not found"
-
-    error_obj = JSONRPCError(code=error_code, message=error_message, data=error_data)
-    response = a2a.create_error_response(error=error_obj, request_id=None)
-    return JSONResponse(
-        status_code=exc.status_code, content=response.model_dump(exclude_none=True)
-    )
+        
+        return JSONResponse(
+            status_code=exc.status_code, 
+            content=error_response
+        )
 
 
 @app.exception_handler(RequestValidationError)

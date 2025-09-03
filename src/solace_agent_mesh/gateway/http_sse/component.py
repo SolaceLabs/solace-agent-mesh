@@ -36,7 +36,7 @@ except ImportError:
 
 
 from ...agent.utils.artifact_helpers import save_artifact_with_metadata
-from ...common.a2a_protocol import _topic_matches_subscription
+from ...common.a2a.protocol import topic_matches_subscription
 from ...common.middleware.config_resolver import ConfigResolver
 
 from ...common.utils.embeds import (
@@ -1523,7 +1523,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
     ) -> None:
         """
         Sends an intermediate update (TaskStatusUpdateEvent or TaskArtifactUpdateEvent)
-        to the external platform (Web UI via SSE).
+        to the external platform (Web UI via SSE) and stores agent messages in the database.
         """
         log_id_prefix = f"{self.log_identifier}[SendUpdate]"
         sse_task_id = external_request_context.get("a2a_task_id_for_event")
@@ -1563,6 +1563,37 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 sse_event_type,
                 a2a_task_id,
             )
+            
+            # Store agent message in persistence layer if available
+            if isinstance(event_data, TaskStatusUpdateEvent) and hasattr(self, "persistence_service") and self.persistence_service:
+                try:
+                    session_id = external_request_context.get("a2a_session_id")
+                    user_id = external_request_context.get("user_id_for_a2a")
+                    agent_name = external_request_context.get("target_agent_name", "agent")
+                    
+                    # Extract message content from the status update
+                    message_text = ""
+                    if event_data.message:
+                        message_text = a2a.get_message_from_status_update(event_data)
+                    
+                    if message_text and session_id and user_id:
+                        from .dependencies import get_session_service
+                        from .shared.enums import SenderType
+                        
+                        session_service = get_session_service(self)
+                        session_service.add_message_to_session(
+                            session_id=session_id,
+                            user_id=user_id,
+                            message=message_text,
+                            sender_type=SenderType.AGENT,
+                            sender_name=agent_name,
+                            agent_id=agent_name,
+                        )
+                        log.debug("%s Agent message stored in session %s", log_id_prefix, session_id)
+                except Exception as storage_error:
+                    log.warning("%s Failed to store agent message: %s", log_id_prefix, storage_error)
+                    # Don't fail the SSE send if storage fails
+                    
         except Exception as e:
             log.exception(
                 "%s Failed to send %s via SSE for A2A Task ID %s: %s",
@@ -1610,6 +1641,42 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 log_id_prefix,
                 a2a_task_id,
             )
+            
+            # Store final agent response in persistence layer if available
+            if hasattr(self, "persistence_service") and self.persistence_service:
+                try:
+                    session_id = external_request_context.get("a2a_session_id")
+                    user_id = external_request_context.get("user_id_for_a2a")
+                    agent_name = external_request_context.get("target_agent_name", "agent")
+                    
+                    # Extract message content from the task result
+                    message_text = ""
+                    if task_data.result:
+                        parts = a2a.get_parts_from_task(task_data)
+                        for part in parts:
+                            if hasattr(part, 'text'):
+                                if message_text:
+                                    message_text += "\n"
+                                message_text += part.text
+                    
+                    if message_text and session_id and user_id:
+                        from .dependencies import get_session_service
+                        from .shared.enums import SenderType
+                        
+                        session_service = get_session_service(self)
+                        session_service.add_message_to_session(
+                            session_id=session_id,
+                            user_id=user_id,
+                            message=message_text,
+                            sender_type=SenderType.AGENT,
+                            sender_name=agent_name,
+                            agent_id=agent_name,
+                        )
+                        log.info("%s Final agent response stored in session %s", log_id_prefix, session_id)
+                except Exception as storage_error:
+                    log.warning("%s Failed to store final agent response: %s", log_id_prefix, storage_error)
+                    # Don't fail the SSE send if storage fails
+                    
         except Exception as e:
             log.exception(
                 "%s Failed to send final_response via SSE for A2A Task ID %s: %s",

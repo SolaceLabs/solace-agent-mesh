@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect, useRef, type FormEvent, type R
 import { useConfigContext, useArtifacts, useAgents } from "@/lib/hooks";
 import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
-import type { ArtifactInfo, CancelTaskRequest, FileAttachment, FilePart, JSONRPCErrorResponse, Message, MessageFE, Notification, Part, SendStreamingMessageRequest, SendStreamingMessageSuccessResponse, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart } from "@/lib/types";
+import type { ArtifactInfo, CancelTaskRequest, FileAttachment, FilePart, JSONRPCErrorResponse, Message, MessageFE, Notification, Part, SendStreamingMessageRequest, SendStreamingMessageSuccessResponse, Session, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart } from "@/lib/types";
 
 interface ChatProviderProps {
     children: ReactNode;
@@ -145,18 +145,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const [sessionName, setSessionName] = useState<string | null>(null);
-    const [messages, setMessages] = useState<MessageFE[]>([]);
-    const [userInput, setUserInput] = useState<string>("");
-    const [isResponding, setIsResponding] = useState<boolean>(false);
-    const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
-    const currentEventSource = useRef<EventSource | null>(null);
-    const [selectedAgentName, setSelectedAgentName] = useState<string>("");
-    const [isCancelling, setIsCancelling] = useState<boolean>(false);
-    const [taskIdInSidePanel, setTaskIdInSidePanel] = useState<string | null>(null);
-    const cancelTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const isFinalizing = useRef(false);
-    const latestStatusText = useRef<string | null>(null);
-    const sseEventSequenceRef = useRef<number>(0);
+    // Note: Other state variables are already declared above (lines 36-52)
 
     const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
 
@@ -592,7 +581,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [addNotification, closeCurrentEventSource, artifactsRefetch]
     );
 
-    const handleNewSession = useCallback(() => {
+    const handleNewSession = useCallback(async () => {
         const log_prefix = "ChatProvider.handleNewSession:";
         console.log(`${log_prefix} Starting new session process...`);
 
@@ -828,7 +817,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
                 addNotification('Session deleted successfully.');
-                if (sessionId === sessionId) {
+                if (sessionId === state.sessionId) {
                     handleNewSession();
                 }
             } catch (error) {
