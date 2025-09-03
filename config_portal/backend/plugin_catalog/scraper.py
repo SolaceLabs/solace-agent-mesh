@@ -1,26 +1,26 @@
+import logging
+import os
+import shutil
+from pathlib import Path
+
 import git
 import toml
 import yaml
-import os
-import shutil
-import re
-from pathlib import Path
-from typing import List, Optional, Tuple
-import logging
 
+from .constants import (
+    DEFAULT_OFFICIAL_REGISTRY_URL,
+    IGNORE_OFFICIAL_FLAG_REPOS,
+    PLUGIN_CATALOG_TEMP_DIR,
+)
 from .models import (
-    PluginScrapedInfo,
-    PyProjectDetails,
-    PyProjectAuthor,
     AgentCard,
     AgentCardSkill,
+    PluginScrapedInfo,
+    PyProjectAuthor,
+    PyProjectDetails,
     Registry,
 )
-from .constants import (
-    PLUGIN_CATALOG_TEMP_DIR,
-    IGNORE_OFFICIAL_FLAG_REPOS,
-    DEFAULT_OFFICIAL_REGISTRY_URL,
-)
+from .utils import sanitize_name_for_filesystem
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -28,43 +28,14 @@ logging.basicConfig(
 )
 
 
-def _sanitize_name_for_filesystem(name: str) -> str:
-    """
-    Converts a registry name to a filesystem-safe format.
-    Spaces and other problematic characters are converted to underscores,
-    then normalized to a safe filesystem identifier.
-    """
-    if not name or not name.strip():
-        return "unnamed_registry"
-    
-    # Normalize separators (spaces, hyphens, underscores) to underscores
-    normalized = re.sub(r'[\s\-_]+', '_', name.strip())
-    
-    # Handle camelCase by inserting underscores before capital letters
-    camel_case_split = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', normalized)
-    
-    # Handle acronyms by inserting underscores between them and following words
-    acronym_split = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', camel_case_split)
-    
-    # Split and clean up the parts
-    raw_parts = [p for p in acronym_split.split('_') if p]
-    parts = [p.lower() for p in raw_parts]
-    
-    # Join with underscores for a filesystem-safe name
-    result = "_".join(parts)
-    
-    # Ensure we have a valid result
-    return result if result else "unnamed_registry"
-
-
 class PluginScraper:
     def __init__(self):
         self.temp_base_dir = Path(os.path.expanduser(PLUGIN_CATALOG_TEMP_DIR))
         self.temp_base_dir.mkdir(parents=True, exist_ok=True)
-        self.plugin_cache: List[PluginScrapedInfo] = []
+        self.plugin_cache: list[PluginScrapedInfo] = []
         self.is_cache_populated = False
 
-    def _clear_temp_dir(self, specific_repo_dir: Optional[Path] = None):
+    def _clear_temp_dir(self, specific_repo_dir: Path | None = None):
         """Clears a specific repository's temporary directory."""
         if (
             specific_repo_dir
@@ -84,7 +55,7 @@ class PluginScraper:
                 specific_repo_dir,
             )
 
-    def _parse_pyproject(self, plugin_dir: Path) -> Optional[PyProjectDetails]:
+    def _parse_pyproject(self, plugin_dir: Path) -> PyProjectDetails | None:
         pyproject_path = plugin_dir / "pyproject.toml"
         if not pyproject_path.exists():
             logger.debug("pyproject.toml not found in %s", plugin_dir)
@@ -94,7 +65,7 @@ class PluginScraper:
             project_data = data.get("project", {})
 
             authors_data = project_data.get("authors", [])
-            authors_list: List[PyProjectAuthor] = []
+            authors_list: list[PyProjectAuthor] = []
             if isinstance(authors_data, list):
                 for author_entry in authors_data:
                     if isinstance(author_entry, dict):
@@ -170,13 +141,13 @@ class PluginScraper:
             logger.error("Error parsing %s: %s", pyproject_path, e)
             return None
 
-    def _parse_config_yaml(self, plugin_dir: Path) -> Optional[AgentCard]:
+    def _parse_config_yaml(self, plugin_dir: Path) -> AgentCard | None:
         config_yaml_path = plugin_dir / "config.yaml"
         if not config_yaml_path.exists():
             logger.debug("config.yaml not found in %s", plugin_dir)
             return None
         try:
-            with open(config_yaml_path, "r", encoding="utf-8") as f:
+            with open(config_yaml_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
 
             if not data or not isinstance(data, dict):
@@ -207,7 +178,7 @@ class PluginScraper:
             skills_data_raw = agent_card_data.get(
                 "skills", agent_card_data.get("Skill", [])
             )
-            skills_list: List[AgentCardSkill] = []
+            skills_list: list[AgentCardSkill] = []
             if isinstance(skills_data_raw, list):
                 for skill_item in skills_data_raw:
                     if isinstance(skill_item, dict):
@@ -243,7 +214,7 @@ class PluginScraper:
             logger.error("Error processing %s: %s", config_yaml_path, e)
             return None
 
-    def _read_readme(self, plugin_dir: Path) -> Optional[str]:
+    def _read_readme(self, plugin_dir: Path) -> str | None:
         readme_path = plugin_dir / "README.md"
         if readme_path.exists():
             try:
@@ -253,16 +224,13 @@ class PluginScraper:
         logger.debug("README.md not found in %s", plugin_dir)
         return None
 
-    def _scrape_git_registry(self, registry: Registry) -> List[PluginScrapedInfo]:
-        raw_repo_identifier = (
-            registry.name
-            if registry.name
-            else Path(registry.path_or_url).name.replace(".git", "")
+    def _scrape_git_registry(self, registry: Registry) -> list[PluginScrapedInfo]:
+        # Use the filesystem-safe name for directory operations
+        repo_identifier = registry.filesystem_name or sanitize_name_for_filesystem(
+            registry.name or Path(registry.path_or_url).name.replace(".git", "")
         )
-        # Sanitize the repo identifier for filesystem use
-        repo_identifier = _sanitize_name_for_filesystem(raw_repo_identifier)
         repo_local_path = self.temp_base_dir / repo_identifier
-        plugins_found: List[PluginScrapedInfo] = []
+        plugins_found: list[PluginScrapedInfo] = []
 
         try:
             if repo_local_path.exists():
@@ -344,9 +312,9 @@ class PluginScraper:
             )
         return plugins_found
 
-    def _scrape_local_registry(self, registry: Registry) -> List[PluginScrapedInfo]:
+    def _scrape_local_registry(self, registry: Registry) -> list[PluginScrapedInfo]:
         registry_path = Path(registry.path_or_url)
-        plugins_found: List[PluginScrapedInfo] = []
+        plugins_found: list[PluginScrapedInfo] = []
         logger.info(
             "Scraping local registry: %s (Name: %s)", registry_path, registry.name
         )
@@ -413,8 +381,8 @@ class PluginScraper:
         return plugins_found
 
     def get_all_plugins(
-        self, registries: List[Registry], force_refresh: bool = False
-    ) -> List[PluginScrapedInfo]:
+        self, registries: list[Registry], force_refresh: bool = False
+    ) -> list[PluginScrapedInfo]:
         if not force_refresh and self.is_cache_populated:
             logger.info("Returning cached plugins.")
             return self.plugin_cache
@@ -439,7 +407,7 @@ class PluginScraper:
         )
         return self.plugin_cache
 
-    def get_plugin_details(self, plugin_id: str) -> Optional[PluginScrapedInfo]:
+    def get_plugin_details(self, plugin_id: str) -> PluginScrapedInfo | None:
         if not self.is_cache_populated:
             logger.warning(
                 "Plugin cache was not populated when trying to get details. This might indicate an issue or a fresh start."
@@ -452,34 +420,45 @@ class PluginScraper:
 
     def install_plugin_cli(
         self, plugin_info: PluginScrapedInfo, component_name: str
-    ) -> Tuple[bool, str]:
-        plugin_local_fs_path: Optional[Path] = None
+    ) -> tuple[bool, str]:
+        plugin_local_fs_path: Path | None = None
 
         if plugin_info.source_type == "git":
+            # Use the source registry name to determine the repo identifier
             raw_repo_identifier = (
                 plugin_info.source_registry_name
                 if plugin_info.source_registry_name
                 else Path(plugin_info.source_registry_location).name.replace(".git", "")
             )
-            
-            # Try both sanitized and original names for backward compatibility
-            sanitized_repo_identifier = _sanitize_name_for_filesystem(raw_repo_identifier)
-            repo_temp_path_sanitized = self.temp_base_dir / sanitized_repo_identifier
-            repo_temp_path_original = self.temp_base_dir / raw_repo_identifier
-            
-            # Determine which path exists (prioritize sanitized for new repos)
-            if repo_temp_path_sanitized.exists():
-                repo_temp_path = repo_temp_path_sanitized
-            elif repo_temp_path_original.exists():
-                repo_temp_path = repo_temp_path_original
+
+            # Try to find an existing registry first to use its filesystem_name
+            # This handles cases where we have the registry info vs just plugin info
+            from .registry_manager import RegistryManager
+            registry_manager = RegistryManager()
+            all_registries = registry_manager.get_all_registries()
+
+            registry_for_source = None
+            for reg in all_registries:
+                if reg.path_or_url == plugin_info.source_registry_location:
+                    registry_for_source = reg
+                    break
+
+            if registry_for_source and registry_for_source.filesystem_name:
+                repo_identifier = registry_for_source.filesystem_name
             else:
-                # Neither exists, prepare by cloning to sanitized path
-                repo_temp_path = repo_temp_path_sanitized
+                # Fallback to sanitizing the raw identifier
+                repo_identifier = sanitize_name_for_filesystem(raw_repo_identifier)
+
+            repo_temp_path = self.temp_base_dir / repo_identifier
+
+            # If the repository doesn't exist locally, clone it
+            if not repo_temp_path.exists():
                 try:
                     temp_registry_for_git_op = Registry(
                         id="temp_install_op_id",
                         path_or_url=plugin_info.source_registry_location,
                         name=plugin_info.source_registry_name,
+                        filesystem_name=repo_identifier,
                         type="git",
                         is_default=(
                             plugin_info.source_registry_location

@@ -1,16 +1,18 @@
+import hashlib
 import json
 import os
-import hashlib
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Any
+
 from pydantic import ValidationError
 
-from .models import Registry
 from .constants import (
     DEFAULT_OFFICIAL_REGISTRY_URL,
-    USER_REGISTRIES_PATH,
     OFFICIAL_REGISTRY_GIT_BRANCH,
+    USER_REGISTRIES_PATH,
 )
+from .models import Registry
+from .utils import sanitize_name_for_filesystem
 
 
 class RegistryManager:
@@ -22,12 +24,14 @@ class RegistryManager:
         """Generates a consistent ID for a registry based on its path or URL."""
         return hashlib.md5(path_or_url.encode("utf-8")).hexdigest()
 
-    def get_all_registries(self) -> List[Registry]:
+    def get_all_registries(self) -> list[Registry]:
         default_id = self._generate_registry_id(DEFAULT_OFFICIAL_REGISTRY_URL)
+        default_name = "official_sam_plugins"
         default_official_registry = Registry(
             id=default_id,
             path_or_url=DEFAULT_OFFICIAL_REGISTRY_URL,
-            name="official_sam_plugins",
+            name=default_name,
+            filesystem_name=sanitize_name_for_filesystem(default_name),
             type=(
                 "git"
                 if DEFAULT_OFFICIAL_REGISTRY_URL.startswith(
@@ -40,18 +44,22 @@ class RegistryManager:
             git_branch=OFFICIAL_REGISTRY_GIT_BRANCH,
         )
 
-        registries_map: Dict[str, Registry] = {
+        registries_map: dict[str, Registry] = {
             default_official_registry.id: default_official_registry
         }
 
         if self.user_registries_file.exists():
             try:
-                with open(self.user_registries_file, "r") as f:
+                with open(self.user_registries_file) as f:
                     loaded_data = json.load(f)
                     if isinstance(loaded_data, list):
                         for reg_dict in loaded_data:
                             if isinstance(reg_dict, dict):
                                 try:
+                                    # Handle backward compatibility: if filesystem_name is missing, generate it
+                                    if 'filesystem_name' not in reg_dict and 'name' in reg_dict:
+                                        reg_dict['filesystem_name'] = sanitize_name_for_filesystem(reg_dict['name'])
+
                                     registry_obj = Registry(**reg_dict)
                                     if registry_obj.id not in registries_map:
                                         registries_map[registry_obj.id] = registry_obj
@@ -82,7 +90,7 @@ class RegistryManager:
 
         return list(registries_map.values())
 
-    def add_registry(self, path_or_url: str, name: Optional[str] = None) -> bool:
+    def add_registry(self, path_or_url: str, name: str | None = None) -> bool:
         original_path_or_url = path_or_url
 
         if path_or_url.startswith(("http://", "https://", "git@")):
@@ -117,6 +125,7 @@ class RegistryManager:
                 id=registry_id,
                 path_or_url=path_or_url,
                 name=final_name,
+                filesystem_name=sanitize_name_for_filesystem(final_name),
                 type=registry_type,
                 is_default=False,
                 is_official_source=is_official_src,
@@ -125,10 +134,10 @@ class RegistryManager:
             print(f"Invalid registry data for '{path_or_url}': {ve}")
             return False
 
-        current_registries_data: List[Dict[str, Any]] = []
+        current_registries_data: list[dict[str, Any]] = []
         if self.user_registries_file.exists():
             try:
-                with open(self.user_registries_file, "r") as f:
+                with open(self.user_registries_file) as f:
                     loaded_data = json.load(f)
                     if isinstance(loaded_data, list):
                         current_registries_data = [
