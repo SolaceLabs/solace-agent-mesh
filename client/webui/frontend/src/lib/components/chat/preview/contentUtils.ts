@@ -22,6 +22,25 @@ const mimeTypeToExtension: Record<string, string> = {
     "text/yaml": "yaml",
     "application/xml": "xml",
     "text/xml": "xml",
+    // Images
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/gif": "gif",
+    "image/svg+xml": "svg",
+    "image/webp": "webp",
+    "image/bmp": "bmp",
+    "image/tiff": "tiff",
+    // Audio
+    "audio/mpeg": "mp3",
+    "audio/wav": "wav",
+    "audio/ogg": "ogg",
+    "audio/aac": "aac",
+    "audio/flac": "flac",
+    "audio/x-m4a": "m4a",
+    // Video
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "video/ogg": "ogv",
 };
 
 function generateFilenameFromMimeType(mimeType: string, index: number): string {

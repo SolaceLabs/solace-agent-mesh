@@ -74,7 +74,13 @@ function isCsvFile(fileName?: string, mimeType?: string): boolean {
  * @param fileName The name of the file.
  * @returns True if the file extension is a common image format (case-insensitive).
  */
-function isImageFile(fileName?: string): boolean {
+function isImageFile(fileName?: string, mimeType?: string): boolean {
+    if (mimeType) {
+        const lowerMime = mimeType.toLowerCase();
+        if (lowerMime.startsWith("image/")) {
+            return true;
+        }
+    }
     if (!fileName) return false;
     const lowerCaseFileName = fileName.toLowerCase();
     return (
@@ -174,7 +180,7 @@ export function getRenderType(fileName?: string, mimeType?: string): string | nu
         return "mermaid";
     }
 
-    if (isImageFile(fileName)) {
+    if (isImageFile(fileName, mimeType)) {
         return "image";
     }
 
