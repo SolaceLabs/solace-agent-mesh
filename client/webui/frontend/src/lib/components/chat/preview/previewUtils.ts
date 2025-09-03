@@ -137,7 +137,7 @@ function isYamlFile(fileName?: string, mimeType?: string): boolean {
 function isMarkdownFile(fileName?: string, mimeType?: string): boolean {
     if (mimeType) {
         const lowerMime = mimeType.toLowerCase();
-        if (lowerMime === "text/markdown" || lowerMime === "application/markdown") {
+        if (lowerMime === "text/markdown" || lowerMime === "application/markdown" || lowerMime === "text/x-markdown") {
             return true;
         }
     }

@@ -17,6 +17,8 @@ const mimeTypeToExtension: Record<string, string> = {
     "text/plain": "txt",
     "text/csv": "csv",
     "text/html": "html",
+    "text/markdown": "md",
+    "text/x-markdown": "md",
     "application/json": "json",
     "application/yaml": "yaml",
     "text/yaml": "yaml",
@@ -41,6 +43,11 @@ const mimeTypeToExtension: Record<string, string> = {
     "video/mp4": "mp4",
     "video/webm": "webm",
     "video/ogg": "ogv",
+    // Other common types
+    "application/javascript": "js",
+    "application/gzip": "gz",
+    "application/x-tar": "tar",
+    "application/rtf": "rtf",
 };
 
 function generateFilenameFromMimeType(mimeType: string, index: number): string {
