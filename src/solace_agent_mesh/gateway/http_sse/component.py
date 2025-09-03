@@ -36,7 +36,7 @@ except ImportError:
 
 
 from ...agent.utils.artifact_helpers import save_artifact_with_metadata
-from ...common.a2a_protocol import _topic_matches_subscription
+from ...common.a2a import topic_matches_subscription
 from ...common.middleware.config_resolver import ConfigResolver
 
 from ...common.utils.embeds import (
@@ -484,7 +484,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                     "solace_topics", set()
                                 )
                                 if any(
-                                    a2a.topic_matches_subscription(topic, pattern)
+                                    topic_matches_subscription(topic, pattern)
                                     for pattern in subscribed_topics_for_stream
                                 ):
                                     is_permitted = True
