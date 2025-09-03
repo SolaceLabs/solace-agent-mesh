@@ -459,7 +459,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         ...lastMessage,
                         parts: [...lastMessage.parts],
                         files: lastMessage.files ? [...lastMessage.files] : [],
-                        isComplete: isFinalEvent,
+                        isComplete: isFinalEvent || newFileAttachments.length > 0,
                         metadata: {
                             ...lastMessage.metadata,
                             lastProcessedEventSequence: currentEventSequence,
@@ -494,7 +494,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             files: newFileAttachments.length > 0 ? newFileAttachments : undefined,
                             taskId: (result as TaskStatusUpdateEvent).taskId,
                             isUser: false,
-                            isComplete: isFinalEvent,
+                            isComplete: isFinalEvent || newFileAttachments.length > 0,
                             metadata: {
                                 messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
                                 sessionId: (result as TaskStatusUpdateEvent).contextId,
