@@ -20,27 +20,30 @@ from solace_ai_connector.components.component_base import ComponentBase
 
 from ....common.a2a_protocol import get_agent_request_topic, get_discovery_topic
 from ....common.agent_registry import AgentRegistry
-from ....common.types import JSONRPCError as LegacyJSONRPCError, JSONRPCResponse
+from pydantic import TypeAdapter, ValidationError
+
+from ....common import a2a
+from ....common.a2a.message import get_file_parts_from_message, update_message_parts
+from ....common.a2a.protocol import (
+    create_error_response,
+    create_success_response,
+    get_message_from_send_request,
+    get_request_id,
+    get_task_id_from_cancel_request,
+)
 from a2a.types import (
     A2ARequest,
     AgentCard,
     CancelTaskRequest,
     InternalError,
     InvalidRequestError,
-    JSONParseError,
     SendMessageRequest,
     SendStreamingMessageRequest,
     Task,
     TaskArtifactUpdateEvent,
     TaskStatusUpdateEvent,
 )
-from pydantic import ValidationError
 from ...adk.services import initialize_artifact_service
-from ..a2a.translation import (
-    translate_modern_card_to_sam_card,
-    translate_modern_to_sam_response,
-    translate_sam_to_modern_request,
-)
 
 if TYPE_CHECKING:
     from google.adk.artifacts import BaseArtifactService
@@ -163,7 +166,11 @@ class BaseProxyComponent(ComponentBase, ABC):
             if not isinstance(payload, dict):
                 raise ValueError("Payload is not a dictionary.")
 
-            jsonrpc_request_id = payload.get("id")
+            # Directly validate the payload against the modern A2A spec
+            adapter = TypeAdapter(A2ARequest)
+            a2a_request = adapter.validate_python(payload)
+
+            jsonrpc_request_id = get_request_id(a2a_request)
 
             # Get agent name from topic
             topic = message.get_topic()
@@ -171,36 +178,24 @@ class BaseProxyComponent(ComponentBase, ABC):
                 raise ValueError("Message has no topic.")
             target_agent_name = topic.split("/")[-1]
 
-            # Determine if this is a new task
-            is_new_task = False
-            if payload.get("method") in ["tasks/send", "tasks/sendSubscribe"]:
-                legacy_params = payload.get("params", {})
-                legacy_task_id = legacy_params.get("id")
-                if legacy_task_id:
-                    with self.active_tasks_lock:
-                        if legacy_task_id not in self.active_tasks:
-                            is_new_task = True
-
-            # 4.2.2: Call inbound translator
-            a2a_request = translate_sam_to_modern_request(payload, is_new_task=is_new_task)
-
-            # The modern request might have task_id=None, but we need the original ID for tracking.
-            legacy_params = payload.get("params", {})
-            logical_task_id = legacy_params.get("id")
-            if not logical_task_id:
-                raise ValueError("Legacy request is missing 'id' in params.")
-
-            # 4.2.3: Pass modern request to forwarder
             if isinstance(
-                a2a_request, (SendMessageRequest, SendStreamingMessageRequest)
+                a2a_request.root, (SendMessageRequest, SendStreamingMessageRequest)
             ):
                 from .proxy_task_context import ProxyTaskContext
+
+                logical_task_id = jsonrpc_request_id
+
+                # Resolve inbound artifacts before forwarding
+                resolved_message = await self._resolve_inbound_artifacts(a2a_request)
+                a2a_request.root.params.message = resolved_message
 
                 a2a_context = {
                     "jsonrpc_request_id": jsonrpc_request_id,
                     "logical_task_id": logical_task_id,
-                    "sessionId": legacy_params.get("sessionId"),
-                    "userId": message.get_user_properties().get("userId", "default_user"),
+                    "sessionId": a2a.get_context_id(resolved_message),
+                    "userId": message.get_user_properties().get(
+                        "userId", "default_user"
+                    ),
                     "statusTopic": message.get_user_properties().get("a2aStatusTopic"),
                     "replyToTopic": message.get_user_properties().get("replyTo"),
                 }
@@ -217,10 +212,11 @@ class BaseProxyComponent(ComponentBase, ABC):
                     target_agent_name,
                 )
                 await self._forward_request(
-                    task_context, a2a_request, target_agent_name
+                    task_context, a2a_request.root, target_agent_name
                 )
 
-            elif isinstance(a2a_request, CancelTaskRequest):
+            elif isinstance(a2a_request.root, CancelTaskRequest):
+                logical_task_id = get_task_id_from_cancel_request(a2a_request)
                 with self.active_tasks_lock:
                     task_context = self.active_tasks.get(logical_task_id)
                 if task_context:
@@ -234,15 +230,14 @@ class BaseProxyComponent(ComponentBase, ABC):
                 log.warning(
                     "%s Received unhandled A2A request type: %s",
                     self.log_identifier,
-                    type(a2a_request).__name__,
+                    type(a2a_request.root).__name__,
                 )
 
             message.call_acknowledgements()
 
-        # 4.2.4: Update except block
         except (ValueError, TypeError, ValidationError) as e:
             log.error(
-                "%s Failed to parse, translate, or validate A2A request: %s",
+                "%s Failed to parse or validate A2A request: %s",
                 self.log_identifier,
                 e,
             )

@@ -10,11 +10,11 @@
 
 *File: `src/solace_agent_mesh/agent/proxies/base/component.py`*
 
-- [ ] 4. **Update Imports:** Remove `translation` imports and add `common.a2a` helpers and `pydantic.TypeAdapter`.
-- [ ] 5. **Refactor `_handle_a2a_request`:**
-    - [ ] 5a. Replace translation with `TypeAdapter(A2ARequest).validate_python(payload)`.
-    - [ ] 5b. Use `a2a.get_request_id` and `a2a.get_message_from_send_request` helpers.
-    - [ ] 5c. Add a call to the new `_resolve_inbound_artifacts` method.
+- [x] 4. **Update Imports:** Remove `translation` imports and add `common.a2a` helpers and `pydantic.TypeAdapter`.
+- [x] 5. **Refactor `_handle_a2a_request`:**
+    - [x] 5a. Replace translation with `TypeAdapter(A2ARequest).validate_python(payload)`.
+    - [x] 5b. Use `a2a.get_request_id` and `a2a.get_message_from_send_request` helpers.
+    - [x] 5c. Add a call to the new `_resolve_inbound_artifacts` method.
 - [ ] 6. **Create `_resolve_inbound_artifacts` Method:** Implement the new private method to resolve `artifact://` URIs into bytes using `a2a.resolve_file_part_uri`.
 - [ ] 7. **Refactor Publishing Methods:**
     - [ ] 7a. In `_publish_status_update`, `_publish_final_response`, and `_publish_artifact_update`, replace translation logic with `a2a.create_success_response`.
