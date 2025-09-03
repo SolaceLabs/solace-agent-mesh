@@ -254,11 +254,13 @@ class PluginScraper:
         return None
 
     def _scrape_git_registry(self, registry: Registry) -> List[PluginScrapedInfo]:
-        repo_identifier = (
+        raw_repo_identifier = (
             registry.name
             if registry.name
             else Path(registry.path_or_url).name.replace(".git", "")
         )
+        # Sanitize the repo identifier for filesystem use
+        repo_identifier = _sanitize_name_for_filesystem(raw_repo_identifier)
         repo_local_path = self.temp_base_dir / repo_identifier
         plugins_found: List[PluginScrapedInfo] = []
 
