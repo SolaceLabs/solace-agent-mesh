@@ -85,6 +85,15 @@ export function extractDataUris(text: string): ExtractedContent[] {
     while ((match = dataUriRegex.exec(text)) !== null) {
         const [fullMatch, mimeType, base64Data] = match;
 
+        // Check if the data URI is enclosed in quotes
+        const charBefore = text[match.index - 1];
+        const charAfter = text[match.index + fullMatch.length];
+
+        if ((charBefore === '"' && charAfter === '"') || (charBefore === "'" && charAfter === "'")) {
+            // It's quoted, likely part of an HTML attribute. Skip it.
+            continue;
+        }
+
         if (base64Data && base64Data.length > 10) {
             const renderType = getRenderType(undefined, mimeType);
 
