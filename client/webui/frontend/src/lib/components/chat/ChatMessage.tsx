@@ -12,7 +12,10 @@ import type { ChatContextValue } from "@/lib/contexts";
 import { FileAttachmentMessage, FileMessage } from "./file/FileMessage";
 import { ContentRenderer } from "./preview/ContentRenderer";
 import { extractEmbeddedContent } from "./preview/contentUtils";
+import { decodeBase64Content } from "./preview/previewUtils";
 import type { ExtractedContent } from "./preview/contentUtils";
+
+const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
 
 const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
@@ -65,9 +68,20 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
             );
         } else {
             // Existing logic for renderable content
+            let finalContent = item.content;
+            if (!RENDER_TYPES_WITH_RAW_CONTENT.includes(item.type)) {
+                try {
+                    finalContent = decodeBase64Content(item.content);
+                } catch (e) {
+                    console.error("Failed to decode base64 content for embedded item:", e);
+                    setRenderError("Failed to decode content for preview.");
+                    // maybe skip this item
+                    return;
+                }
+            }
             contentElements.push(
                 <div key={`embedded-${index}`} className="my-2 h-auto w-md max-w-md overflow-hidden">
-                    <ContentRenderer content={item.content} rendererType={item.type} mime_type={item.mimeType} setRenderError={setRenderError} />
+                    <ContentRenderer content={finalContent} rendererType={item.type} mime_type={item.mimeType} setRenderError={setRenderError} />
                 </div>
             );
         }

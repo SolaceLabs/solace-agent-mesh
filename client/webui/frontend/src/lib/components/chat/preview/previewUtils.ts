@@ -222,7 +222,7 @@ export function getRenderType(fileName?: string, mimeType?: string): string | nu
  * @returns The decoded string.
  * @throws Error if base64 decoding itself fails.
  */
-function decodeBase64Content(content: string): string {
+export function decodeBase64Content(content: string): string {
     try {
 
         const bytes = Uint8Array.from(atob(content), c => c.charCodeAt(0));
