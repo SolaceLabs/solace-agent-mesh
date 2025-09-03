@@ -27,8 +27,10 @@ from a2a.types import (
     Artifact as ModernArtifact,
     DataPart,
     FilePart,
+    FileWithBytes,
     FileWithUri,
     Message,
+    Part,
     SendMessageRequest,
     SendMessageResponse,
     SendStreamingMessageRequest,
@@ -40,6 +42,9 @@ from a2a.types import (
     TaskStatusUpdateEvent,
     TextPart,
 )
+
+from ....common import a2a
+from ....agent.utils.artifact_helpers import format_artifact_uri
 from ..base.component import BaseProxyComponent
 
 if TYPE_CHECKING:
@@ -242,13 +247,15 @@ class A2AProxyComponent(BaseProxyComponent):
                 ]
             )
 
-            for part in artifact.parts:
+            for i, part_container in enumerate(artifact.parts):
+                part = part_container.root
                 if (
-                    isinstance(part.root, FilePart)
-                    and part.root.file
-                    and part.root.file.bytes
+                    isinstance(part, FilePart)
+                    and part.file
+                    and isinstance(part.file, FileWithBytes)
+                    and part.file.bytes
                 ):
-                    file_part = part.root
+                    file_part = part
                     file_content = file_part.file
                     log.info(
                         "%s Found outbound artifact '%s' with byte content. Saving...",
@@ -284,13 +291,21 @@ class A2AProxyComponent(BaseProxyComponent):
 
                     if save_result.get("status") in ["success", "partial_success"]:
                         data_version = save_result.get("data_version")
-                        saved_uri = f"artifact://{agent_name}/{user_id}/{session_id}/{file_content.name}?version={data_version}"
-
-                        file_part.file = FileWithUri(
-                            uri=saved_uri,
-                            mime_type=file_content.mime_type,
-                            name=file_content.name,
+                        saved_uri = format_artifact_uri(
+                            app_name=agent_name,
+                            user_id=user_id,
+                            session_id=session_id,
+                            filename=file_content.name,
+                            version=data_version,
                         )
+
+                        new_file_part = a2a.create_file_part_from_uri(
+                            uri=saved_uri,
+                            name=file_content.name,
+                            mime_type=file_content.mime_type,
+                            metadata=file_part.metadata,
+                        )
+                        artifact.parts[i] = Part(root=new_file_part)
 
                         saved_artifacts_manifest.append(
                             {"filename": file_content.name, "version": data_version}
@@ -415,7 +430,7 @@ class A2AProxyComponent(BaseProxyComponent):
         if isinstance(event_payload, (Task, TaskStatusUpdateEvent)):
             if isinstance(event_payload, Task):
                 await self._publish_final_response(
-                    event_payload, task_context.a2a_context, produced_artifacts
+                    event_payload, task_context.a2a_context
                 )
             else:
                 await self._publish_status_update(
@@ -433,9 +448,7 @@ class A2AProxyComponent(BaseProxyComponent):
                 context_id=task_context.a2a_context.get("sessionId"),
                 status=TaskStatus(state=TaskState.completed, message=event_payload),
             )
-            await self._publish_final_response(
-                final_task, task_context.a2a_context, produced_artifacts
-            )
+            await self._publish_final_response(final_task, task_context.a2a_context)
         else:
             log.warning(
                 f"Received unhandled response payload type: {type(event_payload)}"

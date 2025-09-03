@@ -25,8 +25,8 @@
 
 *File: `src/solace_agent_mesh/agent/proxies/a2a/component.py`*
 
-- [ ] 9. **Update `_process_downstream_response`:** Remove the `produced_artifacts` parameter from all calls to `_publish_final_response`.
-- [ ] 10. **Update `_handle_outbound_artifacts`:** Refactor the URI creation to use `a2a.create_file_part_from_uri` for consistency after saving an artifact.
+- [x] 9. **Update `_process_downstream_response`:** Remove the `produced_artifacts` parameter from all calls to `_publish_final_response`.
+- [x] 10. **Update `_handle_outbound_artifacts`:** Refactor the URI creation to use `a2a.create_file_part_from_uri` for consistency after saving an artifact.
 
 ## Phase 4: Update Test Infrastructure
 
