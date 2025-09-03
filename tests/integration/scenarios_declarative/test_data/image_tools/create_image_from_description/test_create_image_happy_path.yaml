@@ -1,6 +1,6 @@
 test_case_id: "create_image_happy_path_001"
 description: "Verifies the basic happy path of creating an image with a specified filename."
-tags: ["all","agent","tools","image_tools"]
+tags: ["all", "agent", "tools", "image_tools"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -33,9 +33,19 @@ primed_image_generation_responses:
     status_code: 200
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "I have created the image `blue_bird.png`"
+    kind: task
+    id: '*'
+    contextId: "fixed_session_for_create_image_happy_path_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "I have created the image `blue_bird.png`"
     assert_artifact_state:
       - session_id: "fixed_session_for_create_image_happy_path_001"
         user_id: "happy_path_tester@example.com"

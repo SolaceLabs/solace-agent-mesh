@@ -16,13 +16,15 @@ import yaml
 from asteval import Interpreter
 from google.genai import types as adk_types  # Add this import
 from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
-from sam_test_infrastructure.artifact_service.service import TestInMemoryArtifactService
-from sam_test_infrastructure.gateway_interface.component import TestGatewayComponent
-from sam_test_infrastructure.llm_server.server import (
-    ChatCompletionRequest,
-    TestLLMServer,
+from a2a.types import (
+    TextPart,
+    DataPart,
+    Task,
+    TaskStatusUpdateEvent,
+    TaskArtifactUpdateEvent,
+    JSONRPCError,
 )
-
+from a2a.utils.message import get_data_parts, get_message_text
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.agent.testing.debug_utils import pretty_print_event_history
@@ -91,7 +93,7 @@ async def _setup_scenario_environment(
                     f"Scenario {scenario_id}: Error parsing LLM static_response: {e}\nResponse data: {interaction['static_response']}"
                 )
         else:
-            pytest.fail(
+            raise AssertionError(
                 f"Scenario {scenario_id}: 'static_response' missing in llm_interaction: {interaction}"
             )
     test_llm_server.prime_responses(primed_llm_responses)
@@ -131,7 +133,7 @@ async def _setup_scenario_environment(
             elif content_base64 is not None:
                 content_bytes = base64.b64decode(content_base64)
             else:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: Artifact spec for '{filename}' must have 'content' or 'content_base64'."
                 )
 
@@ -216,19 +218,43 @@ async def _assert_summary_in_text(
     user_id: str,
     session_id: str,
     app_name: str,
-    header_text: str,
     scenario_id: str,
     context_str: str,
 ):
     """Asserts that key details of an artifact's metadata summary are present in text."""
-    assert header_text in text_to_search, (
-        f"Scenario {scenario_id}: {context_str} - Expected header '{header_text}' not found in text:\n"
-        f"---\n{text_to_search}\n---"
-    )
+    # The header check is now performed by the caller (_assert_llm_interactions)
+    # to handle multiple valid header formats.
 
     for artifact_ref in artifact_identifiers:
         filename = artifact_ref.get("filename")
+        filename_regex = artifact_ref.get("filename_matches_regex")
         version = artifact_ref.get("version", "latest")
+
+        if filename_regex:
+            # For regex, we can't load the artifact. We just check that a summary
+            # with a matching filename exists in the prompt.
+            header_regex = re.compile(
+                r"(?:--- Metadata for artifact '(.+?)' \(v\d+\) ---|Artifact: '(.+?)' \(version: \d+\))"
+            )
+            found_match = False
+            for line in text_to_search.splitlines():
+                match = header_regex.search(line)
+                if match:
+                    # The filename could be in group 1 or group 2
+                    extracted_filename = match.group(1) or match.group(2)
+                    if extracted_filename and re.match(
+                        filename_regex, extracted_filename
+                    ):
+                        found_match = True
+                        print(
+                            f"Scenario {scenario_id}: {context_str} - Found artifact summary header for filename '{extracted_filename}' which matches regex '{filename_regex}'."
+                        )
+                        break
+            assert found_match, (
+                f"Scenario {scenario_id}: {context_str} - Could not find an artifact summary header in the text "
+                f"with a filename matching the regex '{filename_regex}'.\nText searched:\n---\n{text_to_search}\n---"
+            )
+            continue  # Move to the next artifact identifier
 
         metadata_result = await load_artifact_content_or_metadata(
             artifact_service=component.artifact_service,
@@ -249,24 +275,38 @@ async def _assert_summary_in_text(
         resolved_version = metadata_result.get("version")
 
         # Spot-check key fields
-        expected_header = f"Artifact: '{filename}' (version: {resolved_version})"
-        assert expected_header in text_to_search, (
-            f"Scenario {scenario_id}: {context_str} - Expected artifact header '{expected_header}' not found in text:\n"
+        # The agent can produce two different headers depending on the context.
+        header_format_1 = f"--- Metadata for artifact '{filename}' (v{resolved_version}) ---"
+        header_format_2 = f"Artifact: '{filename}' (version: {resolved_version})"
+
+        assert (
+            header_format_1 in text_to_search or header_format_2 in text_to_search
+        ), (
+            f"Scenario {scenario_id}: {context_str} - Expected artifact header not found for '{filename}' v{resolved_version} in text:\n"
             f"---\n{text_to_search}\n---"
         )
 
         if "description" in metadata:
-            # Use PyYAML's simple string representation for comparison
-            expected_desc_str = f"description: {metadata['description']}"
-            assert expected_desc_str in text_to_search, (
-                f"Scenario {scenario_id}: {context_str} - Expected description '{expected_desc_str}' not found for artifact '{filename}' in text:\n"
+            desc_val = metadata["description"]
+            expected_desc_md = f"*   **Description:** {desc_val}"
+            expected_desc_yaml = f"description: {desc_val}"
+            assert (
+                expected_desc_md in text_to_search
+                or expected_desc_yaml in text_to_search
+            ), (
+                f"Scenario {scenario_id}: {context_str} - Expected description for artifact '{filename}' not found in either markdown or yaml format in text:\n"
                 f"---\n{text_to_search}\n---"
             )
 
         if "mime_type" in metadata:
-            expected_mime = f"mime_type: {metadata['mime_type']}"
-            assert expected_mime in text_to_search, (
-                f"Scenario {scenario_id}: {context_str} - Expected mime_type '{expected_mime}' not found for artifact '{filename}' in text:\n"
+            mime_val = metadata["mime_type"]
+            expected_mime_md = f"*   **Type:** {mime_val}"
+            expected_mime_yaml = f"mime_type: {mime_val}"
+            assert (
+                expected_mime_md in text_to_search
+                or expected_mime_yaml in text_to_search
+            ), (
+                f"Scenario {scenario_id}: {context_str} - Expected mime_type for artifact '{filename}' not found in either markdown or yaml format in text:\n"
                 f"---\n{text_to_search}\n---"
             )
 
@@ -342,20 +382,37 @@ async def _assert_llm_interactions(
 
                 sam_agent_component = calling_agent_component
 
-                # The agent code uses a standard header. We replicate it here.
-                header_text = (
-                    "The user has provided the following artifacts as context for your task. "
-                    "Use the information contained within their metadata to complete your objective."
-                )
+                # The agent code uses two possible headers depending on the input method.
+                # We will check for the presence of the common part.
+                header_for_filepart = "The user has provided the following file as context for your task."
+                header_for_invoked = "The user has provided the following artifacts as context for your task."
 
                 # The enriched prompt is the last message in the history.
                 last_message = actual_request_raw.messages[-1]
-                assert last_message.role == "user", (
-                    f"Expected last message to be from user, but was {last_message.role}"
-                )
-                actual_prompt_text = last_message.content
-                assert isinstance(actual_prompt_text, str), (
-                    f"Expected last message content to be a string, but was {type(actual_prompt_text)}"
+                assert (
+                    last_message.role == "user"
+                ), f"Expected last message to be from user, but was {last_message.role}"
+
+                actual_prompt_text = ""
+                if isinstance(last_message.content, str):
+                    actual_prompt_text = last_message.content
+                elif isinstance(last_message.content, list):
+                    # Handle multi-part content by concatenating text parts
+                    for part in last_message.content:
+                        if isinstance(part, dict) and part.get("type") == "text":
+                            actual_prompt_text += part.get("text", "") + "\n"
+                    actual_prompt_text = actual_prompt_text.strip()
+                else:
+                    pytest.fail(
+                        f"Scenario {scenario_id}: LLM call {i+1} - Last message content is neither a string nor a list of parts. Got type: {type(last_message.content)}"
+                    )
+
+                assert (
+                    header_for_filepart in actual_prompt_text
+                    or header_for_invoked in actual_prompt_text
+                ), (
+                    f"Scenario {scenario_id}: LLM call {i+1} prompt - Expected an artifact summary header but none was found in text:\n"
+                    f"---\n{actual_prompt_text}\n---"
                 )
 
                 await _assert_summary_in_text(
@@ -365,7 +422,6 @@ async def _assert_llm_interactions(
                     user_id=user_id,
                     session_id=session_id,
                     app_name=app_name_for_artifacts,
-                    header_text=header_text,
                     scenario_id=scenario_id,
                     context_str=f"LLM call {i + 1} prompt",
                 )
@@ -436,8 +492,8 @@ async def _assert_llm_interactions(
                             actual_tool_resp_msg.tool_call_id
                         )
                         if not actual_tool_call_id_from_response:
-                            pytest.fail(
-                                f"Scenario {scenario_id}: LLM call {i + 1}, Tool Response {j + 1} - Actual tool response message is missing a tool_call_id."
+                            raise AssertionError(
+                                f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Actual tool response message is missing a tool_call_id."
                             )
 
                         originating_llm_interaction_yaml_idx = -1
@@ -477,8 +533,8 @@ async def _assert_llm_interactions(
                                     break
 
                         if originating_llm_interaction_yaml_idx == -1:
-                            pytest.fail(
-                                f"Scenario {scenario_id}: LLM call {i + 1}, Tool Response {j + 1} - Could not find an originating LLM interaction in the YAML's 'llm_interactions' (index 0 to {i - 1}) that produced tool_call_id '{actual_tool_call_id_from_response}'."
+                            raise AssertionError(
+                                f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Could not find an originating LLM interaction in the YAML's 'llm_interactions' (index 0 to {i-1}) that produced tool_call_id '{actual_tool_call_id_from_response}'."
                             )
 
                         originating_static_response_yaml = expected_llm_interactions[
@@ -504,8 +560,8 @@ async def _assert_llm_interactions(
                             <= expected_tool_call_idx_within_origin
                             < len(originating_tool_calls_array_in_yaml)
                         ):
-                            pytest.fail(
-                                f"Scenario {scenario_id}: LLM call {i + 1}, Tool Response {j + 1} - 'tool_call_id_matches_prior_request_index' ({expected_tool_call_idx_within_origin}) "
+                            raise AssertionError(
+                                f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - 'tool_call_id_matches_prior_request_index' ({expected_tool_call_idx_within_origin}) "
                                 f"is out of bounds for the tool_calls (count: {len(originating_tool_calls_array_in_yaml)}) of the identified originating LLM interaction (YAML index {originating_llm_interaction_yaml_idx})."
                             )
 
@@ -588,6 +644,11 @@ async def _assert_llm_interactions(
                             if artifact_scope == "namespace"
                             else peer_agent_name
                         )
+                        assert header_text in actual_result_text, (
+                            f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Expected header '{header_text}' not found in text:\n"
+                            f"---\n{actual_result_text}\n---"
+                        )
+
                         await _assert_summary_in_text(
                             text_to_search=actual_result_text,
                             artifact_identifiers=artifact_identifiers,
@@ -595,21 +656,25 @@ async def _assert_llm_interactions(
                             user_id=user_id,
                             session_id=session_id,
                             app_name=app_name_for_summary,
-                            header_text=header_text,
                             scenario_id=scenario_id,
                             context_str=f"LLM call {i + 1}, Tool Response {j + 1}",
                         )
 
                     if "response_contains" in expected_tool_resp_spec:
-                        assert isinstance(actual_tool_resp_msg.content, str), (
-                            f"Scenario {scenario_id}: LLM call {i + 1}, Tool Response {j + 1} - Expected string content for tool response, got {type(actual_tool_resp_msg.content)}"
-                        )
-                        assert (
-                            expected_tool_resp_spec["response_contains"]
-                            in actual_tool_resp_msg.content
-                        ), (
-                            f"Scenario {scenario_id}: LLM call {i + 1}, Tool Response {j + 1} - Content mismatch. Expected to contain '{expected_tool_resp_spec['response_contains']}', Got '{actual_tool_resp_msg.content}'"
-                        )
+                        assert isinstance(
+                            actual_tool_resp_msg.content, str
+                        ), f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Expected string content for tool response, got {type(actual_tool_resp_msg.content)}"
+
+                        expected_content = expected_tool_resp_spec["response_contains"]
+                        if isinstance(expected_content, list):
+                            for substring in expected_content:
+                                assert (
+                                    substring in actual_tool_resp_msg.content
+                                ), f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Content mismatch. Expected to contain '{substring}', Got '{actual_tool_resp_msg.content}'"
+                        else:
+                            assert (
+                                expected_content in actual_tool_resp_msg.content
+                            ), f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Content mismatch. Expected to contain '{expected_content}', Got '{actual_tool_resp_msg.content}'"
 
                     if "response_exact_match" in expected_tool_resp_spec:
                         expected_content = expected_tool_resp_spec[
@@ -646,8 +711,8 @@ async def _assert_llm_interactions(
                                 context_path=f"LLM call {i + 1} Tool Response {j + 1} JSON content",
                             )
                         except json.JSONDecodeError:
-                            pytest.fail(
-                                f"Scenario {scenario_id}: LLM call {i + 1}, Tool Response {j + 1} - Tool response content was not valid JSON: '{actual_tool_resp_msg.content}'"
+                            raise AssertionError(
+                                f"Scenario {scenario_id}: LLM call {i+1}, Tool Response {j+1} - Tool response content was not valid JSON: '{actual_tool_resp_msg.content}'"
                             )
 
 
@@ -675,7 +740,7 @@ async def _assert_gateway_event_sequence(
 
     while expected_event_idx < len(expected_event_specs_list):
         if actual_event_cursor >= len(actual_events_list):
-            pytest.fail(
+            raise AssertionError(
                 f"Scenario {scenario_id}: Ran out of actual events while looking for expected event "
                 f"{expected_event_idx + 1} (Type: '{expected_event_specs_list[expected_event_idx].get('type')}', "
                 f"Purpose: '{expected_event_specs_list[expected_event_idx].get('event_purpose', 'N/A')}'). "
@@ -725,7 +790,7 @@ async def _assert_gateway_event_sequence(
                     break
 
             if last_consumed_actual_event_for_aggregation is None:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: Expected an aggregated generic_text_update (event {expected_event_idx + 1}), "
                     f"but no generic_text_update events found at or after actual event index {initial_actual_cursor_for_aggregation}."
                 )
@@ -785,7 +850,7 @@ async def _assert_gateway_event_sequence(
                 )
                 actual_event_cursor += 1
             else:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: Event {expected_event_idx + 1} mismatch. "
                     f"Expected type '{current_expected_spec.get('type')}' (Purpose: '{current_expected_spec.get('event_purpose', 'N/A')}') "
                     f"but got actual type '{type(current_actual_event).__name__}' "
@@ -794,7 +859,7 @@ async def _assert_gateway_event_sequence(
                 )
 
     if not skip_intermediate_events and actual_event_cursor < len(actual_events_list):
-        pytest.fail(
+        raise AssertionError(
             f"Scenario {scenario_id}: Extra unexpected events found after matching all expected events. "
             f"Expected {len(expected_event_specs_list)} events, but got {len(actual_events_list)}. "
             f"Next unexpected event at index {actual_event_cursor}: {type(actual_events_list[actual_event_cursor]).__name__}"
@@ -802,7 +867,7 @@ async def _assert_gateway_event_sequence(
     elif skip_intermediate_events and expected_event_idx < len(
         expected_event_specs_list
     ):
-        pytest.fail(
+        raise AssertionError(
             f"Scenario {scenario_id}: Not all expected events were found, even with skipping enabled. "
             f"Found {expected_event_idx} out of {len(expected_event_specs_list)} expected events. "
             f"Next expected was Type: '{expected_event_specs_list[expected_event_idx].get('type')}', "
@@ -838,11 +903,11 @@ async def _assert_artifact_state(
         filename_regex = spec.get("filename_matches_regex")
 
         if filename and filename_regex:
-            pytest.fail(
+            raise AssertionError(
                 f"Scenario {scenario_id}: '{context_path}' - Cannot specify both 'filename' and 'filename_matches_regex'."
             )
         if not filename and not filename_regex:
-            pytest.fail(
+            raise AssertionError(
                 f"Scenario {scenario_id}: '{context_path}' - Must specify either 'filename' or 'filename_matches_regex'."
             )
         user_id = spec.get("user_id") or gateway_input_data.get("user_identity")
@@ -907,7 +972,7 @@ async def _assert_artifact_state(
         has_bytes_spec = "expected_content_bytes_base64" in spec
 
         if has_text_spec and has_bytes_spec:
-            pytest.fail(
+            raise AssertionError(
                 f"Scenario {scenario_id}: '{context_path}' - Cannot specify both 'expected_content_text' and 'expected_content_bytes_base64'."
             )
 
@@ -919,7 +984,7 @@ async def _assert_artifact_state(
                     f"Scenario {scenario_id}: '{context_path}' - Text content mismatch for '{filename_for_lookup}'. Expected '{expected_text}', Got '{actual_text}'"
                 )
             except UnicodeDecodeError:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: '{context_path}' - Artifact '{filename_for_lookup}' content could not be decoded as UTF-8 for text comparison."
                 )
 
@@ -971,7 +1036,7 @@ async def _assert_artifact_state(
                     )
 
             except (json.JSONDecodeError, UnicodeDecodeError) as e:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: '{context_path}' - Failed to decode metadata for '{filename_for_lookup}': {e}"
                 )
 
@@ -1021,11 +1086,11 @@ async def _assert_generated_artifacts(
         filename_regex_from_spec = expected_artifact_spec.get("filename_matches_regex")
 
         if filename_from_spec and filename_regex_from_spec:
-            pytest.fail(
+            raise AssertionError(
                 f"Scenario {scenario_id}: '{context_path}' - Cannot specify both 'filename' and 'filename_matches_regex'."
             )
         if not filename_from_spec and not filename_regex_from_spec:
-            pytest.fail(
+            raise AssertionError(
                 f"Scenario {scenario_id}: '{context_path}' - Must specify either 'filename' or 'filename_matches_regex'."
             )
 
@@ -1094,7 +1159,7 @@ async def _assert_generated_artifacts(
                     f"Scenario {scenario_id}: Artifact '{filename_to_process}' content mismatch. Expected to contain '{expected_artifact_spec['content_contains']}', Got '{content_str[:200]}...'"
                 )
             except UnicodeDecodeError:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: Artifact '{filename_to_process}' content could not be decoded as UTF-8 for 'content_contains' check. Consider a bytes-based assertion if it's binary."
                 )
         if "text_exact" in expected_artifact_spec:
@@ -1104,7 +1169,7 @@ async def _assert_generated_artifacts(
                     f"Scenario {scenario_id}: Artifact '{filename_to_process}' content exact match failed. Expected '{expected_artifact_spec['text_exact']}', Got '{content_str}'"
                 )
             except UnicodeDecodeError:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: Artifact '{filename_to_process}' content could not be decoded as UTF-8 for 'text_exact' check."
                 )
         if "content_base64_exact" in expected_artifact_spec:
@@ -1152,11 +1217,11 @@ async def _assert_generated_artifacts(
                     context_path=f"Artifact '{filename_to_process}' metadata",
                 )
             except json.JSONDecodeError:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: Metadata for artifact '{filename_to_process}' was not valid JSON."
                 )
             except UnicodeDecodeError:
-                pytest.fail(
+                raise AssertionError(
                     f"Scenario {scenario_id}: Metadata for artifact '{filename_to_process}' could not be decoded as UTF-8."
                 )
 
@@ -1418,14 +1483,8 @@ async def test_declarative_scenario(
 
 
 def _extract_text_from_generic_update(event: TaskStatusUpdateEvent) -> str:
-    if event.status and event.status.message and event.status.message.parts:
-        return "".join(
-            [
-                p.text
-                for p in event.status.message.parts
-                if isinstance(p, TextPart) and p.text
-            ]
-        )
+    if event.status and event.status.message:
+        return get_message_text(event.status.message, delimiter="")
     return ""
 
 
@@ -1434,6 +1493,28 @@ def _get_actual_event_purpose(
 ) -> str | None:
     """Determines the 'purpose' of a TaskStatusUpdateEvent for matching against expected_spec."""
     if isinstance(actual_event, TaskStatusUpdateEvent):
+        if actual_event.status and actual_event.status.message:
+            data_payloads = get_data_parts(actual_event.status.message.parts)
+            for data in data_payloads:
+                # New, preferred way of signaling
+                signal_type = data.get("type")
+                if signal_type in [
+                    "tool_invocation_start",
+                    "llm_invocation",
+                    "llm_response",
+                    "agent_progress_update",
+                    "artifact_creation_progress",
+                ]:
+                    return signal_type
+                # Legacy check for older signals
+                if (
+                    data.get("a2a_signal_type") == "agent_status_message"
+                    or data.get("type") == "agent_progress"
+                    or data.get("type") == "agent_status"
+                ):
+                    return "agent_progress_update"
+
+        # Legacy check for metadata-based signals
         if (
             actual_event.status
             and actual_event.status.message
@@ -1442,17 +1523,7 @@ def _get_actual_event_purpose(
             meta_type = actual_event.status.message.metadata.get("type")
             if meta_type in ["tool_invocation_start", "llm_invocation", "llm_response"]:
                 return meta_type
-        if (
-            actual_event.status
-            and actual_event.status.message
-            and actual_event.status.message.parts
-        ):
-            for part in actual_event.status.message.parts:
-                if isinstance(part, DataPart) and (
-                    part.data.get("a2a_signal_type") == "agent_status_message"
-                    or part.data.get("type") == "agent_status"
-                ):
-                    return "embedded_status_update"
+
         return "generic_text_update"
     return None
 
@@ -1538,22 +1609,19 @@ async def _assert_event_details(
                 print(
                     f"Scenario {scenario_id}: Event {event_index + 1} [SINGLE EVENT ASSERTION] Using event text: '{text_to_assert_against}'"
                 )
-        elif actual_event_purpose == "embedded_status_update":
-            if (
-                actual_event.status
-                and actual_event.status.message
-                and actual_event.status.message.parts
-            ):
-                for part in actual_event.status.message.parts:
-                    if isinstance(part, DataPart) and (
-                        part.data.get("a2a_signal_type") == "agent_status_message"
-                        or part.data.get("type") == "agent_status"
+        elif actual_event_purpose == "agent_progress_update":
+            if actual_event.status and actual_event.status.message:
+                data_parts = get_data_parts(actual_event.status.message.parts)
+                for data in data_parts:
+                    if (
+                        data.get("a2a_signal_type") == "agent_status_message"
+                        or data.get("type") == "agent_status"
                     ):
-                        text_to_assert_against = part.data.get("text", "")
+                        text_to_assert_against = data.get("text", "")
                         break
 
         if "content_parts" in expected_spec and (
-            actual_event_purpose == "embedded_status_update"
+            actual_event_purpose == "agent_progress_update"
             or actual_event_purpose == "generic_text_update"
         ):
             for part_spec in expected_spec["content_parts"]:
@@ -1565,39 +1633,35 @@ async def _assert_event_details(
                         event_index=event_index,
                     )
                 elif part_spec["type"] == "data":
-                    actual_data_part = next(
-                        (
-                            p
-                            for p in actual_event.status.message.parts
-                            if isinstance(p, DataPart)
-                        ),
-                        None,
-                    )
-                    assert actual_data_part is not None, (
-                        f"Scenario {scenario_id}: Event {event_index + 1} - Expected a DataPart but none was found."
-                    )
+                    data_parts = get_data_parts(actual_event.status.message.parts)
+                    assert (
+                        data_parts
+                    ), f"Scenario {scenario_id}: Event {event_index+1} - Expected a DataPart but none was found."
+                    actual_data_part_content = data_parts[0]
 
                     if "data_contains" in part_spec:
                         _assert_dict_subset(
                             expected_subset=part_spec["data_contains"],
-                            actual_superset=actual_data_part.data,
+                            actual_superset=actual_data_part_content,
                             scenario_id=scenario_id,
                             event_index=event_index,
                             context_path="DataPart content",
                         )
 
         if actual_event_purpose == "tool_invocation_start":
-            metadata_data = actual_event.status.message.metadata.get("data", {})
+            data_parts = get_data_parts(actual_event.status.message.parts)
+            assert (
+                data_parts
+            ), f"Scenario {scenario_id}: Event {event_index+1} - Expected a DataPart for tool_invocation_start event, but none was found."
+            tool_data = data_parts[0]
+
             if "expected_tool_name" in expected_spec:
                 assert (
-                    metadata_data.get("tool_name")
-                    == expected_spec["expected_tool_name"]
-                ), (
-                    f"Scenario {scenario_id}: Event {event_index + 1} - Tool name mismatch. Expected '{expected_spec['expected_tool_name']}', Got '{metadata_data.get('tool_name')}'"
-                )
+                    tool_data.get("tool_name") == expected_spec["expected_tool_name"]
+                ), f"Scenario {scenario_id}: Event {event_index+1} - Tool name mismatch. Expected '{expected_spec['expected_tool_name']}', Got '{tool_data.get('tool_name')}'"
             if "expected_tool_args_contain" in expected_spec:
                 expected_args_subset = expected_spec["expected_tool_args_contain"]
-                actual_args = metadata_data.get("tool_args", {})
+                actual_args = tool_data.get("tool_args", {})
                 if isinstance(actual_args, str):
                     try:
                         actual_args = json.loads(actual_args)
@@ -1618,46 +1682,58 @@ async def _assert_event_details(
                     )
 
         if actual_event_purpose in ["llm_invocation", "llm_response"]:
-            metadata_data = actual_event.status.message.metadata.get("data", {})
+            data_parts = get_data_parts(actual_event.status.message.parts)
+            assert (
+                data_parts
+            ), f"Scenario {scenario_id}: Event {event_index+1} - Expected a DataPart for {actual_event_purpose} event, but none was found."
+            llm_data = data_parts[0]
+
             if "expected_llm_data_contains" in expected_spec:
                 expected_subset = expected_spec["expected_llm_data_contains"]
+
+                data_to_check = llm_data
+                if actual_event_purpose == "llm_invocation":
+                    data_to_check = llm_data.get("request", {})
+                elif actual_event_purpose == "llm_response":
+                    data_to_check = llm_data.get("data", {})
+
                 for k, v_expected in expected_subset.items():
-                    assert k in metadata_data, (
-                        f"Scenario {scenario_id}: Event {event_index + 1} - Expected key '{k}' not in LLM data {metadata_data}"
-                    )
+                    assert (
+                        k in data_to_check
+                    ), f"Scenario {scenario_id}: Event {event_index+1} - Expected key '{k}' not in LLM data {data_to_check}"
                     if (
                         k == "model"
                         and isinstance(v_expected, str)
                         and v_expected.endswith("...")
                     ):
-                        assert metadata_data[k].startswith(v_expected[:-3]), (
-                            f"Scenario {scenario_id}: Event {event_index + 1} - Value for LLM data key '{k}' start mismatch. Expected to start with '{v_expected[:-3]}', Got '{metadata_data[k]}'"
-                        )
+                        assert data_to_check[k].startswith(
+                            v_expected[:-3]
+                        ), f"Scenario {scenario_id}: Event {event_index+1} - Value for LLM data key '{k}' start mismatch. Expected to start with '{v_expected[:-3]}', Got '{data_to_check[k]}'"
                     else:
                         if isinstance(v_expected, dict) and isinstance(
-                            metadata_data.get(k), dict
+                            data_to_check.get(k), dict
                         ):
                             _assert_dict_subset(
                                 expected_subset=v_expected,
-                                actual_superset=metadata_data.get(k, {}),
+                                actual_superset=data_to_check.get(k, {}),
                                 scenario_id=scenario_id,
                                 event_index=event_index,
                                 context_path=f"LLM data key '{k}'",
                             )
                         elif isinstance(v_expected, list) and isinstance(
-                            metadata_data.get(k), list
+                            data_to_check.get(k), list
                         ):
                             _assert_list_subset(
                                 expected_list_subset=v_expected,
-                                actual_list_superset=metadata_data.get(k, []),
+                                actual_list_superset=data_to_check.get(k, []),
                                 scenario_id=scenario_id,
                                 event_index=event_index,
                                 context_path=f"LLM data key '{k}'",
                             )
                         else:
-                            assert metadata_data.get(k) == v_expected, (
-                                f"Scenario {scenario_id}: Event {event_index + 1} - Value for LLM data key '{k}' mismatch. Expected '{v_expected}', Got '{metadata_data.get(k)}'"
-                            )
+                            assert (
+                                data_to_check.get(k) == v_expected
+                            ), f"Scenario {scenario_id}: Event {event_index+1} - Value for LLM data key '{k}' mismatch. Expected '{v_expected}', Got '{data_to_check.get(k)}'"
 
         if "final_flag" in expected_spec:
             assert actual_event.final == expected_spec["final_flag"], (
@@ -1903,8 +1979,8 @@ def _assert_text_content(
                 evaluated_value = aeval.eval(expression_to_eval)
                 final_resolved_substring += str(evaluated_value)
             except Exception as e:
-                pytest.fail(
-                    f"Scenario {scenario_id}: Event {event_index + 1} - Failed to dynamically evaluate math expression '{expression_to_eval}' in test: {e}"
+                raise AssertionError(
+                    f"Scenario {scenario_id}: Event {event_index+1} - Failed to dynamically evaluate math expression '{expression_to_eval}' in test: {e}"
                 )
             last_end = eval_match.end()
         final_resolved_substring += expected_substring_template[last_end:]
@@ -1946,8 +2022,8 @@ def _assert_text_content(
                 evaluated_value_not = aeval_not.eval(expression_to_eval_not)
                 final_resolved_unexpected_substring += str(evaluated_value_not)
             except Exception as e_not:
-                pytest.fail(
-                    f"Scenario {scenario_id}: Event {event_index + 1} - Failed to dynamically evaluate math expression '{expression_to_eval_not}' in text_not_contains: {e_not}"
+                raise AssertionError(
+                    f"Scenario {scenario_id}: Event {event_index+1} - Failed to dynamically evaluate math expression '{expression_to_eval_not}' in text_not_contains: {e_not}"
                 )
             last_end_not = eval_match_not.end()
         final_resolved_unexpected_substring += unexpected_substring_template[

@@ -10,14 +10,14 @@ from google.genai import types as adk_types
 from pydantic import BaseModel, Field
 from solace_ai_connector.common.log import log
 
-from ...common.types import (
-    Message as A2AMessage,
-    TextPart,
-    FilePart,
+from ...common.a2a.types import ContentPart
+from a2a.types import (
     AgentCard,
 )
+from ...common import a2a
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...common.exceptions import MessageSizeExceededError
+
 
 class ArtifactIdentifier(BaseModel):
     """Identifies a specific version of an artifact."""
@@ -140,7 +140,7 @@ class PeerAgentTool(BaseTool):
 
     def _prepare_a2a_parts(
         self, args: Dict[str, Any], tool_context: ToolContext
-    ) -> List[TextPart]:
+    ) -> List[ContentPart]:
         """
         Prepares the A2A message parts from tool arguments.
         """
@@ -159,7 +159,7 @@ class PeerAgentTool(BaseTool):
             f"Now please execute this task that was given to you:\n\n{task_description}"
         )
 
-        return [TextPart(text=context_message)]
+        return [a2a.create_text_part(text=context_message)]
 
     async def run_async(
         self, *, args: Dict[str, Any], tool_context: ToolContext
@@ -231,8 +231,15 @@ class PeerAgentTool(BaseTool):
                         e,
                     )
 
-            a2a_message = A2AMessage(
-                role="user", parts=a2a_message_parts, metadata=a2a_metadata
+            a2a_metadata["sessionBehavior"] = "RUN_BASED"
+            a2a_metadata["parentTaskId"] = main_logical_task_id
+            a2a_metadata["function_call_id"] = tool_context.function_call_id
+            a2a_metadata["agent_name"] = self.target_agent_name
+
+            a2a_message = a2a.create_user_message(
+                parts=a2a_message_parts,
+                metadata=a2a_metadata,
+                context_id=original_task_context.get("contextId"),
             )
 
             correlation_data = {
@@ -259,12 +266,9 @@ class PeerAgentTool(BaseTool):
                 self.host_component.submit_a2a_task(
                     target_agent_name=self.target_agent_name,
                     a2a_message=a2a_message,
-                    original_session_id=original_session_id,
-                    main_logical_task_id=main_logical_task_id,
                     user_id=user_id,
                     user_config=user_config,
                     sub_task_id=sub_task_id,
-                    function_call_id=tool_context.function_call_id,
                 )
             except MessageSizeExceededError as e:
                 log.error(

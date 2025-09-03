@@ -8,7 +8,7 @@ from typing import List
 from solace_ai_connector.common.log import log
 
 from ....common.agent_registry import AgentRegistry
-from ....common.types import AgentCard
+from a2a.types import AgentCard
 from ....gateway.http_sse.dependencies import get_agent_registry
 
 router = APIRouter()

@@ -1,6 +1,6 @@
 {
   "name": "@SolaceLabs/solace-agent-mesh-ui",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Solace Agent Mesh UI components - React library for building agent communication interfaces",
   "author": "SolaceLabs <solacelabs@solace.com>",
   "license": "Apache-2.0",
@@ -86,6 +86,7 @@
     "react-dom": ">=19.0.0"
   },
   "devDependencies": {
+    "@a2a-js/sdk": "^0.3.2",
     "@eslint/js": "^9.25.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/js-yaml": "^4.0.9",

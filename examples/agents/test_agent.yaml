@@ -1,0 +1,103 @@
+# This file defines a test agent for the Solace Agent Mesh (SAM).
+# It's used for verifying system functionality, including agent-to-agent
+# communication and the correct behavior of built-in tools.
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG # Use DEBUG for development
+  log_file: test_agent.log
+
+# Includes a shared configuration, likely containing common broker connection
+# details and model definitions (e.g., *planning_model).
+!include ../shared_config.yaml
+
+# Defines the list of applications to run. In this case, it's a single agent.
+apps:
+  - name: test_agent_app
+    # Specifies the base path for resolving other module paths.
+    app_base_path: .
+    # The Python module that contains the main application entry point for an agent.
+    app_module: src.solace_agent_mesh.agent.sac.app
+    # Inherits broker connection settings from the shared_config.yaml file.
+    broker:
+      <<: *broker_connection
+
+    # Configuration specific to this agent application.
+    app_config:
+      # The namespace for this agent, used for topic hierarchy and resource isolation.
+      namespace: ${NAMESPACE}
+      # Whether the agent supports streaming responses back to the client.
+      supports_streaming: true
+      # The unique name of the agent within the mesh.
+      agent_name: "TestAgent"
+      # A user-friendly name for display purposes.
+      display_name: "Test"
+      # The alias for the LLM model configuration to use (defined in shared_config.yaml).
+      model: *planning_model
+      # The core instructions that define the agent's persona and primary goal.
+      instruction: |
+        You are an agent that helps test the system. You will do as asked to ensure that
+        all aspects of agent to agent communication are working. You will also output
+        very frequent and verbose status updates.
+
+
+      # The list of tools available to this agent.
+      tools:
+        # A simple tool that waits for a specified duration.
+        - tool_type: builtin
+          tool_name: "time_delay"
+        # A tool designed to always return an error, for testing failure scenarios.
+        - tool_type: builtin
+          tool_name: "always_fail_tool"
+        # A tool for testing how the system handles tool calls that don't complete.
+        - tool_type: builtin
+          tool_name: "dangling_tool_call_test_tool"
+        # A group of built-in tools for managing files (e.g., save, load, list).
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+        # A group of built-in tools for data analysis (e.g., jq, sql).
+        - tool_type: builtin-group
+          group_name: "data_analysis"
+
+      # Configuration for the service that manages conversation history.
+      session_service:
+        type: "memory" # Stores session history in memory.
+        default_behavior: "PERSISTENT" # Retains history across multiple tasks.
+
+      # Configuration for the service that manages file artifacts.
+      artifact_service:
+        type: "filesystem" # Stores artifacts on the local filesystem.
+        base_path: "/tmp/samv2" # The directory where artifacts will be saved.
+        artifact_scope: namespace # Artifacts are shared across all agents in the same namespace.
+      
+      # How the agent should handle artifacts in its context. "reference" means it will see metadata, not full content.
+      artifact_handling_mode: "reference"
+      # Enables the agent to resolve dynamic {{embeds}} in its responses.
+      enable_embed_resolution: true
+      # Allows the content of artifacts to be automatically included in the LLM prompt.
+      enable_artifact_content_instruction: true
+
+      # The agent's "business card" for discovery by other agents.
+      agent_card:
+        description: |
+          Use this agent to test the system. It can do basic artifact management and will
+          generate lots of status updates. 
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        # A list of specific skills the agent possesses.
+        skills: 
+          - id: time_delay
+            name: Time Delay
+            description: "Delays for a specified number of seconds."
+            examples:
+              - "Delay for 5 seconds."
+              - "Wait for 10 seconds."
+
+      # How often (in seconds) the agent publishes its agent_card for discovery.
+      agent_card_publishing: { interval_seconds: 10 }
+      # Enables this agent to be discovered by other agents.
+      agent_discovery: { enabled: true }
+      # Configuration for communication with other agents.
+      inter_agent_communication:
+        allow_list: ["*"] # Allows this agent to communicate with any other agent.
+        request_timeout_seconds: 120 # How long to wait for a response from a peer agent.

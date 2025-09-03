@@ -1,104 +1,269 @@
+# DEVELOPER GUIDE for tools
+
 ## Quick Summary
-The `tools` directory contains the complete set of built-in tools available to the agent. It follows a declarative, registry-based pattern where each tool module defines its functions and registers them with a central `tool_registry`. This allows for automatic discovery and dynamic availability of tools based on configuration and agent capabilities. The tools cover a wide range of functionalities including artifact management, audio/image processing, data analysis, web requests, and inter-agent communication.
+The `tools` directory contains the built-in tool system for the Solace Agent Mesh. It provides a declarative registry-based architecture for ADK tools including artifact management, audio processing, data analysis, image generation, web scraping, and peer agent communication. Tools follow a registry-based pattern where each module defines its functions and registers them with a central `tool_registry` for automatic discovery and dynamic availability.
 
 ## Files Overview
-- `__init__.py`: Imports all tool modules, triggering their registration with the central registry.
-- `audio_tools.py`: Provides tools for text-to-speech (TTS), multi-speaker TTS, audio concatenation, and transcription.
-- `builtin_artifact_tools.py`: Contains core tools for creating, listing, loading, modifying, and deleting artifacts.
-- `builtin_data_analysis_tools.py`: Offers tools for generating charts from Plotly configurations.
-- `general_agent_tools.py`: Includes general-purpose utilities like file-to-markdown conversion and Mermaid diagram generation.
-- `image_tools.py`: Provides tools for image generation, editing, and vision-based description of images and audio.
-- `peer_agent_tool.py`: Defines the `PeerAgentTool` class for delegating tasks to other agents.
-- `registry.py`: Implements the singleton `tool_registry` for managing all tool definitions.
-- `test_tools.py`: Contains tools specifically for testing agent behavior, such as delays and failures.
-- `tool_definition.py`: Defines the `BuiltinTool` Pydantic model used for declaring tools.
-- `web_tools.py`: Contains a tool for making HTTP requests to external web resources.
+- `__init__.py` - Imports all tool modules to trigger declarative registration
+- `audio_tools.py` - Text-to-speech, voice selection, audio concatenation and transcription tools
+- `builtin_artifact_tools.py` - Artifact CRUD operations, content extraction, and embed processing
+- `builtin_data_analysis_tools.py` - Plotly chart generation from JSON/YAML configs
+- `general_agent_tools.py` - File conversion (MarkItDown), Mermaid diagram generation
+- `image_tools.py` - Image generation, description, editing with various APIs
+- `peer_agent_tool.py` - Dynamic tool for delegating tasks to peer agents
+- `registry.py` - Singleton registry for tool discovery and management
+- `test_tools.py` - Testing utilities (delays, failures, dangling calls)
+- `tool_definition.py` - Pydantic model for tool definitions
+- `web_tools.py` - Web scraping and content extraction tools
 
 ## Developer API Reference
 
 ### __init__.py
-**Purpose:** This file ensures that all built-in tool modules are imported when the `tools` package is loaded. This is crucial for the declarative tool registration pattern, as it triggers the `tool_registry.register()` calls within each tool module.
-**Import:** `import src.solace_agent_mesh.agent.tools`
+**Purpose:** Ensures all tool modules are imported to trigger declarative registration
+**Import:** `from solace_agent_mesh.agent.tools import *` or `import solace_agent_mesh.agent.tools`
 
 **Usage Examples:**
 ```python
-# Importing the tools package is sufficient to register all built-in tools.
-import src.solace_agent_mesh.agent.tools
+# Import triggers registration of all tools
+from solace_agent_mesh.agent.tools import *
 
-# You can then access the registry to see all registered tools.
-from src.solace_agent_mesh.agent.tools.registry import tool_registry
+# Or import the package to register all tools
+import solace_agent_mesh.agent.tools
+
+# Access the registry to see all registered tools
+from solace_agent_mesh.agent.tools.registry import tool_registry
 all_tools = tool_registry.get_all_tools()
-print(f"Registered {len(all_tools)} tools.")
+print(f"Registered {len(all_tools)} tools")
 ```
 
 ### audio_tools.py
-**Purpose:** This file provides a collection of tools for audio processing, including text-to-speech (TTS) generation, audio concatenation, and transcription.
-**Import:** `from src.solace_agent_mesh.agent.tools.audio_tools import select_voice, text_to_speech, multi_speaker_text_to_speech, concatenate_audio, transcribe_audio`
+**Purpose:** Audio processing tools for TTS, voice selection, and transcription
+**Import:** `from solace_agent_mesh.agent.tools.audio_tools import select_voice, text_to_speech, multi_speaker_text_to_speech, concatenate_audio, transcribe_audio`
 
 **Functions:**
-- `select_voice(gender: Optional[str] = None, tone: Optional[str] = None, exclude_voices: Optional[List[str]] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Selects a suitable voice name based on criteria like gender and tone. Use this to get a consistent voice name that can be passed to the `text_to_speech` tool for multiple calls.
-- `text_to_speech(text: str, output_filename: Optional[str] = None, voice_name: Optional[str] = None, gender: Optional[str] = None, tone: Optional[str] = None, language: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Converts text to speech using Gemini TTS API and saves as an MP3 artifact.
-- `multi_speaker_text_to_speech(conversation_text: str, output_filename: Optional[str] = None, speaker_configs: Optional[List[Dict[str, str]]] = None, language: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Converts conversation text with speaker labels to speech using multiple voices.
-- `concatenate_audio(clips_to_join: List[Dict[str, Any]], output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Combines multiple audio artifacts in a specified order into a single audio file, with optional pauses.
-- `transcribe_audio(audio_filename: str, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Transcribes an audio recording using an OpenAI-compatible audio transcription API.
+- `select_voice(gender: Optional[str] = None, tone: Optional[str] = None, exclude_voices: Optional[List[str]] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Selects a voice based on gender/tone criteria
+- `text_to_speech(text: str, output_filename: Optional[str] = None, voice_name: Optional[str] = None, gender: Optional[str] = None, tone: Optional[str] = None, language: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Converts text to speech using Gemini TTS
+- `multi_speaker_text_to_speech(conversation_text: str, output_filename: Optional[str] = None, speaker_configs: Optional[List[Dict[str, str]]] = None, language: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Multi-speaker TTS for conversations
+- `concatenate_audio(clips_to_join: List[Dict[str, Any]], output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Combines multiple audio clips with custom pauses
+- `transcribe_audio(audio_filename: str, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Transcribes audio using OpenAI-compatible API
 
 **Constants/Variables:**
-- `ALL_AVAILABLE_VOICES: List[str]` - A list of all available voice names for TTS.
-- `SUPPORTED_LANGUAGES: Dict[str, str]` - A mapping of common language names to their BCP-47 codes.
-- `VOICE_TONE_MAPPING: Dict[str, List[str]]` - A dictionary mapping descriptive tones to lists of voice names.
-- `GENDER_TO_VOICE_MAPPING: Dict[str, List[str]]` - A dictionary mapping genders ('male', 'female', 'neutral') to lists of voice names.
+- `VOICE_TONE_MAPPING: Dict[str, List[str]]` - Maps tones to available voices
+- `GENDER_TO_VOICE_MAPPING: Dict[str, List[str]]` - Maps genders to available voices
+- `ALL_AVAILABLE_VOICES: List[str]` - Complete list of available voice names
+- `SUPPORTED_LANGUAGES: Dict[str, str]` - Maps language names to BCP-47 codes
+- `DEFAULT_VOICE: str` - Default voice name ("Kore")
 
 **Usage Examples:**
 ```python
-# Assume 'tool_context' is a valid ToolContext object.
+from google.adk.tools import ToolContext
+from solace_agent_mesh.agent.tools.audio_tools import text_to_speech, select_voice
 
-# 1. Generate a simple audio file
-tts_result = await text_to_speech(
-    text="Welcome to the developer guide.",
-    output_filename="welcome.mp3",
+# Select a voice with specific criteria
+voice_result = await select_voice(
     gender="female",
     tone="friendly",
+    tool_context=context
+)
+
+# Convert text to speech
+result = await text_to_speech(
+    text="Hello world",
+    voice_name="Kore",
     language="en-US",
-    tool_context=tool_context
+    tool_context=context,
+    tool_config={"gemini_api_key": "your_key"}
 )
-print(tts_result)
-
-# 2. Generate a multi-speaker conversation
-convo_result = await multi_speaker_text_to_speech(
-    conversation_text="SpeakerA: How are you?\nSpeakerB: I am fine, thank you.",
-    speaker_configs=[
-        {"name": "SpeakerA", "gender": "male", "tone": "warm"},
-        {"name": "SpeakerB", "gender": "female", "tone": "bright"}
-    ],
-    output_filename="dialogue.mp3",
-    tool_context=tool_context
-)
-print(convo_result)
-
-# 3. Concatenate the generated audio files
-concat_result = await concatenate_audio(
-    clips_to_join=[
-        {"filename": "welcome.mp3:1", "pause_after_ms": 500},
-        {"filename": "dialogue.mp3:1"}
-    ],
-    output_filename="combined_audio.mp3",
-    tool_context=tool_context
-)
-print(concat_result)
-
-# 4. Transcribe the combined audio
-transcribe_result = await transcribe_audio(
-    audio_filename="combined_audio.mp3:1",
-    tool_context=tool_context
-)
-print(transcribe_result)
 ```
 
 ### builtin_artifact_tools.py
-**Purpose:** This file provides the core tools for artifact management, allowing the agent to create, read, list, update, and delete data artifacts within the current session.
-**Import:** `from src.solace_agent_mesh.agent.tools.builtin_artifact_tools import list_artifacts, load_artifact, signal_artifact_for_return, append_to_artifact, apply_embed_and_create_artifact, extract_content_from_artifact, delete_artifact`
+**Purpose:** Comprehensive artifact management and content processing tools
+**Import:** `from solace_agent_mesh.agent.tools.builtin_artifact_tools import list_artifacts, load_artifact, signal_artifact_for_return, apply_embed_and_create_artifact, extract_content_from_artifact, append_to_artifact, delete_artifact`
 
 **Functions:**
-- `list_artifacts(tool_context: ToolContext = None) -> Dict[str, Any]` - Lists all available data artifact filenames and their versions for the current session.
-- `load_artifact(filename: str, version: int, load_metadata_only: bool = False, max_content_length: Optional[int] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Loads the content or metadata of a specific artifact version.
-- `signal_artifact_for_return(filename: str, version: int, tool_context: ToolContext = None
+- `list_artifacts(tool_context: ToolContext = None) -> Dict[str, Any]` - Lists all artifacts with metadata summaries
+- `load_artifact(filename: str, version: int, load_metadata_only: bool = False, max_content_length: Optional[int] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Loads artifact content or metadata
+- `signal_artifact_for_return(filename: str, version: int, tool_context: ToolContext = None) -> Dict[str, Any]` - Signals artifact for return to caller
+- `apply_embed_and_create_artifact(output_filename: str, embed_directive: str, output_metadata: Optional[Dict[str, Any]] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Resolves embeds and creates new artifacts
+- `extract_content_from_artifact(filename: str, extraction_goal: str, version: Optional[str] = "latest", output_filename_base: Optional[str] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Uses LLM to extract/transform artifact content
+- `append_to_artifact(filename: str, content_chunk: str, mime_type: str, tool_context: ToolContext = None) -> Dict[str, Any]` - Appends content to existing artifacts
+- `delete_artifact(filename: str, version: Optional[int] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Deletes artifact versions
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.tools.builtin_artifact_tools import load_artifact, list_artifacts
+
+# List all artifacts
+artifacts = await list_artifacts(tool_context=context)
+
+# Load latest version of an artifact
+result = await load_artifact(
+    filename="data.csv",
+    version=1,
+    load_metadata_only=False,
+    tool_context=context
+)
+
+# Extract content using LLM
+extracted = await extract_content_from_artifact(
+    filename="document.pdf",
+    extraction_goal="Extract all email addresses",
+    tool_context=context
+)
+```
+
+### builtin_data_analysis_tools.py
+**Purpose:** Data visualization and chart generation tools
+**Import:** `from solace_agent_mesh.agent.tools.builtin_data_analysis_tools import create_chart_from_plotly_config`
+
+**Functions:**
+- `create_chart_from_plotly_config(config_content: str, config_format: Literal["json", "yaml"], output_filename: str, output_format: Optional[str] = "png", tool_context: ToolContext = None) -> Dict[str, Any]` - Generates charts from Plotly configurations
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.tools.builtin_data_analysis_tools import create_chart_from_plotly_config
+
+# Create chart from JSON config
+result = await create_chart_from_plotly_config(
+    config_content='{"data": [{"x": [1,2,3], "y": [4,5,6], "type": "scatter"}]}',
+    config_format="json",
+    output_filename="chart.png",
+    tool_context=context
+)
+```
+
+### general_agent_tools.py
+**Purpose:** General utility tools for file conversion and diagram generation
+**Import:** `from solace_agent_mesh.agent.tools.general_agent_tools import convert_file_to_markdown, mermaid_diagram_generator`
+
+**Functions:**
+- `convert_file_to_markdown(input_filename: str, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Converts files to Markdown using MarkItDown
+- `mermaid_diagram_generator(mermaid_syntax: str, output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Generates PNG diagrams from Mermaid syntax
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.tools.general_agent_tools import mermaid_diagram_generator, convert_file_to_markdown
+
+# Convert PDF to Markdown
+markdown_result = await convert_file_to_markdown(
+    input_filename="document.pdf",
+    tool_context=context
+)
+
+# Generate diagram from Mermaid syntax
+result = await mermaid_diagram_generator(
+    mermaid_syntax="graph TD; A-->B; B-->C;",
+    output_filename="diagram.png",
+    tool_context=context
+)
+```
+
+### image_tools.py
+**Purpose:** Image generation, description, and editing capabilities
+**Import:** `from solace_agent_mesh.agent.tools.image_tools import create_image_from_description, describe_image, describe_audio, edit_image_with_gemini`
+
+**Functions:**
+- `create_image_from_description(image_description: str, output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Generates images from text descriptions
+- `describe_image(image_filename: str, prompt: str = "What is in this image?", tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Describes images using vision APIs
+- `describe_audio(audio_filename: str, prompt: str = "What is in this recording?", tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Describes audio using multimodal APIs
+- `edit_image_with_gemini(image_filename: str, edit_prompt: str, output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Edits images using Gemini
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.tools.image_tools import create_image_from_description, describe_image
+
+# Generate image from description
+result = await create_image_from_description(
+    image_description="A sunset over mountains",
+    output_filename="sunset.png",
+    tool_context=context,
+    tool_config={"model": "dall-e-3", "api_key": "key", "api_base": "url"}
+)
+
+# Describe an image
+description = await describe_image(
+    image_filename="photo.jpg",
+    prompt="What objects are in this image?",
+    tool_context=context,
+    tool_config={"model": "gpt-4-vision", "api_key": "key", "api_base": "url"}
+)
+```
+
+### peer_agent_tool.py
+**Purpose:** Dynamic tool for delegating tasks to peer agents
+**Import:** `from solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool, ArtifactIdentifier`
+
+**Classes:**
+- `ArtifactIdentifier(filename: str, version: Union[str, int] = "latest")` - Identifies specific artifact versions
+- `PeerAgentTool(target_agent_name: str, host_component)` - Tool for delegating to specific peer agents
+  - `run_async(args: Dict[str, Any], tool_context: ToolContext) -> Any` - Executes peer delegation
+  - `is_long_running: bool` - Always True for async delegation
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool, ArtifactIdentifier
+
+# Create tool for specific peer agent (typically done automatically)
+peer_tool = PeerAgentTool("data_analyst", host_component)
+
+# Use in agent tool registry
+result = await peer_tool.run_async(
+    args={"task_description": "Analyze this data", "artifacts": [{"filename": "data.csv"}]},
+    tool_context=context
+)
+
+# Artifact identifier usage
+artifact_id = ArtifactIdentifier("report.pdf", version=2)
+```
+
+### registry.py
+**Purpose:** Singleton registry for tool discovery and management
+**Import:** `from solace_agent_mesh.agent.tools.registry import tool_registry`
+
+**Classes:**
+- `_ToolRegistry()` - Singleton registry for built-in tools
+  - `register(tool: BuiltinTool) -> None` - Registers a tool definition
+  - `get_tool_by_name(name: str) -> Optional[BuiltinTool]` - Retrieves tool by name
+  - `get_tools_by_category(category_name: str) -> List[BuiltinTool]` - Gets tools by category
+  - `get_all_tools() -> List[BuiltinTool]` - Returns all registered tools
+  - `clear() -> None` - Clears registry (testing only)
+
+**Constants/Variables:**
+- `tool_registry: _ToolRegistry` - Global singleton instance
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.tools.registry import tool_registry
+from solace_agent_mesh.agent.tools.tool_definition import BuiltinTool
+
+# Get all registered tools
+all_tools = tool_registry.get_all_tools()
+print(f"Total tools: {len(all_tools)}")
+
+# Register a new tool
+tool_registry.register(my_tool_def)
+
+# Get tool by name
+tool = tool_registry.get_tool_by_name("my_tool")
+
+# Get all audio tools
+audio_tools = tool_registry.get_tools_by_category("audio")
+```
+
+### test_tools.py
+**Purpose:** Testing utilities for tool behavior validation
+**Import:** `from solace_agent_mesh.agent.tools.test_tools import time_delay, always_fail_tool, dangling_tool_call_test_tool`
+
+**Functions:**
+- `time_delay(seconds: float, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Pauses execution for testing
+- `always_fail_tool() -> dict` - Always raises exception for error testing
+- `dangling_tool_call_test_tool() -> None` - Returns None to test history repair
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.tools.test_tools import time_delay
+
+# Add delay for testing
+result = await time_delay(
+
+# content_hash: f7491febb2c839b6bcdea784c843205240da0fea5de565d830fef6a544524875

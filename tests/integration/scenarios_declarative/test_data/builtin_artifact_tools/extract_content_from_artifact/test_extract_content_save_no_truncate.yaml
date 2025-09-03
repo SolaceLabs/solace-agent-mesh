@@ -90,11 +90,20 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "I have extracted the summary: 'This is the detailed summary extracted from the original document. It is moderately sized. Length approx 100.'"
-        text_contains: "It has also been saved as a new file."
-    task_state: "completed"
+    kind: "task"
+    id: "*"
+    contextId: "session_extract_save_no_truncate_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "I have extracted the summary: 'This is the detailed summary extracted from the original document. It is moderately sized. Length approx 100.'"
+              - "It has also been saved as a new file."
 
 expected_artifacts: # Check the newly created artifact
   - filename_matches_regex: "^summary_snt_[a-f0-9]{8}\\.txt$"

@@ -1,90 +1,57 @@
 ## Quick Summary
-
-The `testing` directory provides a suite of utilities designed to facilitate the testing of the A2A (Agent-to-Agent) framework. Its primary function is to offer tools that simplify debugging and validation of agent interactions during test runs, particularly for declarative tests.
+The `testing` directory provides utilities for testing the A2A (Agent-to-Agent) framework, with a focus on debugging tools that help developers understand test failures by providing readable representations of agent event histories.
 
 ## Files Overview
-
--   `__init__.py`: Marks the directory as a Python package.
--   `debug_utils.py`: Provides helper functions for debugging test failures, most notably a pretty-printer for A2A event histories.
+- `__init__.py` - Package initialization file marking the directory as a Python module
+- `debug_utils.py` - Debugging utilities including pretty-printing for A2A event history
+- `testing_llm.txt` - Documentation file (not a code module)
 
 ## Developer API Reference
 
 ### debug_utils.py
-
-**Purpose:** This module contains utilities to help developers debug failing tests by providing human-readable representations of complex data structures, such as the event history from an A2A task.
-
-**Import:** `from agent.testing.debug_utils import pretty_print_event_history`
+**Purpose:** Provides debugging utilities for the declarative test framework, including a pretty-printer for A2A event history
+**Import:** `from solace_agent_mesh.agent.testing.debug_utils import pretty_print_event_history`
 
 **Functions:**
-
--   `pretty_print_event_history(event_history: List[Dict[str, Any]], max_string_length: int = 200) -> None`
-    Formats and prints a list of A2A event payloads to the console in a structured, readable format. It intelligently parses different event types (status updates, final responses, errors) and truncates long strings to keep the output concise. This is invaluable for quickly diagnosing why a test failed by inspecting the sequence of events leading up to the failure.
+- `pretty_print_event_history(event_history: List[Dict[str, Any]], max_string_length: int = 200) -> None` - Formats and prints a list of A2A event payloads for debugging, intelligently parsing different event types and truncating long strings for readability
 
 **Usage Examples:**
-
 ```python
-# Show how to import and use the main classes/functions
-from agent.testing.debug_utils import pretty_print_event_history
+# Import the debugging utility
+from solace_agent_mesh.agent.testing.debug_utils import pretty_print_event_history
 from typing import List, Dict, Any
 
-# Example event history captured during a test run
-sample_event_history: List[Dict[str, Any]] = [
+# Example: Debug a failed test by printing event history
+event_history: List[Dict[str, Any]] = [
     {
         "result": {
             "status": {
                 "state": "EXECUTING",
                 "message": {
                     "parts": [
-                        {"type": "text", "text": "Okay, I am starting the process to find the latest sales report."}
+                        {"type": "text", "text": "Processing your request..."}
                     ]
-                },
+                }
             },
-            "final": False,
-        }
-    },
-    {
-        "result": {
-            "artifact": {
-                "name": "sales_report_q4.pdf",
-                "parts": [
-                    {
-                        "type": "file",
-                        "file": {
-                            "name": "sales_report_q4.pdf",
-                            "mimeType": "application/pdf",
-                            "uri": "file://path/to/sales_report_q4.pdf"
-                        }
-                    }
-                ]
-            }
+            "final": False
         }
     },
     {
         "error": {
-            "code": "INTERNAL_ERROR",
-            "message": "Failed to access the database due to a connection timeout. The database server at db.example.com might be down or unreachable. Please check the server status and network connectivity."
-        }
-    },
-    {
-        "result": {
-            "status": {
-                "state": "FAILED",
-                "message": {
-                    "parts": [
-                        {"type": "text", "text": "I encountered an error and could not complete the task."}
-                    ]
-                }
-            },
-            "sessionId": "task-12345",
+            "code": "TIMEOUT_ERROR",
+            "message": "Request timed out after 30 seconds"
         }
     }
 ]
 
-# In a test's `tearDown` or `except` block, you can print the history.
-print("A test failed! Dumping the event history for review:")
-pretty_print_event_history(sample_event_history, max_string_length=100)
+# Print formatted event history for debugging
+pretty_print_event_history(event_history)
 
-# Example with no events
-print("\n--- Example with no events ---")
+# Print with custom string truncation length
+pretty_print_event_history(event_history, max_string_length=100)
+
+# Handle empty event history (when test fails before any events)
 pretty_print_event_history([])
 ```
+
+# content_hash: 890ba89aa47c5be30f5ec9cdbb4a05e9ee3bd022e56a56fcc4feea72aac653e8

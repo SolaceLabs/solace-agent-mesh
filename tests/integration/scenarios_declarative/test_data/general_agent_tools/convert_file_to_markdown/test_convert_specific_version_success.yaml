@@ -1,6 +1,6 @@
 test_case_id: convert_specific_version_success
 description: "Tests successful conversion of a specific version of a file to Markdown."
-tags: ["all","agent","tools","general_agent_tools"]
+tags: ["all", "agent", "tools", "general_agent_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -46,11 +46,20 @@ llm_interactions:
 
 expected_gateway_output:
   - type: final_response
-    task_state: "completed"
-    content_parts:
-      - type: text
-        text_contains: "I have converted version 1 of `versioned.txt` to `versioned.txt.md`."
+    kind: task
+    id: '*'
+    contextId: "session_convert_version_success"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: text
+            text_contains:
 
+              - "I have converted version 1 of `versioned.txt` to `versioned.txt.md`."
 expected_artifacts:
   - filename: "versioned_converted.md"
     mime_type: "text/markdown"

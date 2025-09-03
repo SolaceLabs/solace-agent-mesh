@@ -1,0 +1,322 @@
+# DEVELOPER GUIDE: FlowChart
+
+## Quick Summary
+The FlowChart directory provides a comprehensive React Flow-based visualization system for agent-based workflows. It consists of custom node components representing different entities (agents, tools, LLMs, orchestrators, users) and custom edge components with enhanced visual features. The architecture separates node types into the `customNodes` subdirectory and edge functionality into the `customEdges` subdirectory, creating a modular system for building interactive flow diagrams with status indicators, animations, and error handling.
+
+## Files and Subdirectories Overview
+- **Direct files:** None
+- **Subdirectories:** 
+  - `customEdges/` - Custom edge components with animations, hover states, and error visualization
+  - `customNodes/` - Custom node components for agents, tools, LLMs, orchestrators, and user interactions
+
+## Developer API Reference
+
+### Subdirectory APIs
+
+#### customEdges/
+**Purpose:** Provides enhanced edge components for React Flow with animation, selection, and error state support
+**Key Exports:** GenericFlowEdge component and AnimatedEdgeData interface
+**Import Examples:**
+```typescript
+import GenericFlowEdge, { type AnimatedEdgeData } from './FlowChart/customEdges/GenericFlowEdge'
+```
+
+#### customNodes/
+**Purpose:** Provides specialized node components for different workflow entities with status indicators and connection handles
+**Key Exports:** GenericAgentNode, GenericToolNode, LLMNode, OrchestratorAgentNode, UserNode components and their associated data types
+**Import Examples:**
+```typescript
+import GenericAgentNode, { GenericNodeData } from './FlowChart/customNodes/GenericAgentNode'
+import GenericToolNode, { GenericToolNodeType } from './FlowChart/customNodes/GenericToolNode'
+import LLMNode, { LLMNodeType } from './FlowChart/customNodes/LLMNode'
+import OrchestratorAgentNode, { OrchestratorAgentNodeType } from './FlowChart/customNodes/OrchestratorAgentNode'
+import UserNode, { UserNodeData, UserNodeType } from './FlowChart/customNodes/UserNode'
+```
+
+## Complete Usage Guide
+
+### 1. Setting Up a Complete Flow Chart
+
+```typescript
+import React from 'react';
+import { ReactFlow, Node, Edge, NodeTypes, EdgeTypes } from '@xyflow/react';
+
+// Import all custom nodes
+import GenericAgentNode, { GenericNodeData } from './FlowChart/customNodes/GenericAgentNode';
+import GenericToolNode, { GenericToolNodeType } from './FlowChart/customNodes/GenericToolNode';
+import LLMNode, { LLMNodeType } from './FlowChart/customNodes/LLMNode';
+import OrchestratorAgentNode, { OrchestratorAgentNodeType } from './FlowChart/customNodes/OrchestratorAgentNode';
+import UserNode, { UserNodeData, UserNodeType } from './FlowChart/customNodes/UserNode';
+
+// Import custom edge
+import GenericFlowEdge, { type AnimatedEdgeData } from './FlowChart/customEdges/GenericFlowEdge';
+
+// Register custom node and edge types
+const nodeTypes: NodeTypes = {
+  genericAgent: GenericAgentNode,
+  genericTool: GenericToolNode,
+  llm: LLMNode,
+  orchestrator: OrchestratorAgentNode,
+  user: UserNode,
+};
+
+const edgeTypes: EdgeTypes = {
+  generic: GenericFlowEdge,
+};
+```
+
+### 2. Creating Nodes with Different Types
+
+```typescript
+// Create a user input node (top of flow)
+const userInputNode: UserNodeType = {
+  id: 'user-input',
+  type: 'user',
+  position: { x: 250, y: 0 },
+  data: {
+    label: 'User Request',
+    isTopNode: true,
+    status: 'completed'
+  }
+};
+
+// Create an orchestrator node
+const orchestratorNode: OrchestratorAgentNodeType = {
+  id: 'orchestrator-1',
+  type: 'orchestrator',
+  position: { x: 200, y: 100 },
+  data: {
+    label: 'Main Orchestrator',
+    description: 'Coordinates workflow execution',
+    isInitial: true,
+    status: 'in-progress'
+  }
+};
+
+// Create agent nodes
+const agentNode: Node<GenericNodeData> = {
+  id: 'agent-1',
+  type: 'genericAgent',
+  position: { x: 100, y: 200 },
+  data: {
+    label: 'Processing Agent',
+    description: 'Handles data processing',
+    status: 'completed'
+  }
+};
+
+// Create tool nodes
+const toolNode: GenericToolNodeType = {
+  id: 'tool-1',
+  type: 'genericTool',
+  position: { x: 300, y: 200 },
+  data: {
+    label: 'Data Parser',
+    status: 'in-progress'
+  }
+};
+
+// Create LLM node
+const llmNode: LLMNodeType = {
+  id: 'llm-1',
+  type: 'llm',
+  position: { x: 200, y: 300 },
+  data: {
+    label: 'GPT-4',
+    status: 'idle'
+  }
+};
+
+// Create user output node (bottom of flow)
+const userOutputNode: UserNodeType = {
+  id: 'user-output',
+  type: 'user',
+  position: { x: 250, y: 400 },
+  data: {
+    label: 'User Response',
+    isBottomNode: true,
+    status: 'idle'
+  }
+};
+```
+
+### 3. Creating Enhanced Edges with Animations and States
+
+```typescript
+// Create animated edges with different states
+const edges: Edge[] = [
+  {
+    id: 'edge-1',
+    source: 'user-input',
+    target: 'orchestrator-1',
+    type: 'generic',
+    data: {
+      visualizerStepId: 'step-1',
+      isAnimated: true,
+      animationType: 'request',
+      isSelected: false,
+      isError: false
+    } as AnimatedEdgeData
+  },
+  {
+    id: 'edge-2',
+    source: 'orchestrator-1',
+    target: 'agent-1',
+    type: 'generic',
+    data: {
+      visualizerStepId: 'step-2',
+      isAnimated: true,
+      animationType: 'request',
+      isSelected: true, // This edge is currently selected
+      isError: false
+    } as AnimatedEdgeData
+  },
+  {
+    id: 'edge-3',
+    source: 'agent-1',
+    target: 'tool-1',
+    type: 'generic',
+    data: {
+      visualizerStepId: 'step-3',
+      isAnimated: false,
+      isError: true, // This edge shows an error state
+      errorMessage: 'Connection timeout'
+    } as AnimatedEdgeData
+  },
+  {
+    id: 'edge-4',
+    source: 'tool-1',
+    target: 'llm-1',
+    type: 'generic',
+    data: {
+      visualizerStepId: 'step-4',
+      isAnimated: true,
+      animationType: 'response'
+    } as AnimatedEdgeData
+  }
+];
+```
+
+### 4. Complete Flow Chart Component
+
+```typescript
+const FlowChartComponent: React.FC = () => {
+  const nodes = [
+    userInputNode,
+    orchestratorNode,
+    agentNode,
+    toolNode,
+    llmNode,
+    userOutputNode
+  ];
+
+  return (
+    <div style={{ width: '100%', height: '600px' }}>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        fitView
+        attributionPosition="top-right"
+      />
+    </div>
+  );
+};
+```
+
+### 5. Dynamic Status Updates
+
+```typescript
+// Function to update node status dynamically
+const updateNodeStatus = (nodeId: string, newStatus: string, nodes: Node[]) => {
+  return nodes.map(node => {
+    if (node.id === nodeId) {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          status: newStatus
+        }
+      };
+    }
+    return node;
+  });
+};
+
+// Function to update edge animation state
+const updateEdgeAnimation = (edgeId: string, isAnimated: boolean, edges: Edge[]) => {
+  return edges.map(edge => {
+    if (edge.id === edgeId) {
+      return {
+        ...edge,
+        data: {
+          ...edge.data,
+          isAnimated
+        } as AnimatedEdgeData
+      };
+    }
+    return edge;
+  });
+};
+```
+
+### 6. Common Usage Patterns
+
+```typescript
+// Pattern 1: Creating a workflow with user interaction points
+const createUserWorkflow = () => {
+  const topUserNode: UserNodeType = {
+    id: 'user-start',
+    type: 'user',
+    position: { x: 200, y: 0 },
+    data: { label: 'Start', isTopNode: true, status: 'completed' }
+  };
+
+  const bottomUserNode: UserNodeType = {
+    id: 'user-end',
+    type: 'user',
+    position: { x: 200, y: 500 },
+    data: { label: 'End', isBottomNode: true, status: 'idle' }
+  };
+
+  return [topUserNode, bottomUserNode];
+};
+
+// Pattern 2: Creating an orchestrated agent workflow
+const createAgentWorkflow = () => {
+  const orchestrator: OrchestratorAgentNodeType = {
+    id: 'main-orch',
+    type: 'orchestrator',
+    position: { x: 200, y: 100 },
+    data: { label: 'Main Controller', isInitial: true }
+  };
+
+  const agents = ['agent-1', 'agent-2'].map((id, index) => ({
+    id,
+    type: 'genericAgent' as const,
+    position: { x: 100 + index * 200, y: 200 },
+    data: { label: `Agent ${index + 1}` }
+  }));
+
+  return [orchestrator, ...agents];
+};
+
+// Pattern 3: Error handling in edges
+const createErrorEdge = (source: string, target: string, errorMsg: string): Edge => ({
+  id: `${source}-${target}-error`,
+  source,
+  target,
+  type: 'generic',
+  data: {
+    visualizerStepId: `error-${source}-${target}`,
+    isError: true,
+    errorMessage: errorMsg,
+    isAnimated: false
+  } as AnimatedEdgeData
+});
+```
+
+This comprehensive system allows developers to create rich, interactive flow diagrams with proper typing, status management, and visual feedback for agent-based workflows.
+
+# content_hash: 30d44c5adde8eaa07621ed12af37f7b82cc1a6477a8045fcdab5ea8b47b35a1e

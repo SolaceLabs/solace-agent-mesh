@@ -2,7 +2,7 @@ test_case_id: "builtin_apply_embed_jsonpath_modifier_001"
 description: |
   Tests 'apply_embed_and_create_artifact' with a JSON source and a
   'jsonpath' modifier to extract a specific field.
-tags: ["all","agent","tools","builtin_artifact_tools"]
+tags: ["all", "agent", "tools", "builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -63,10 +63,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "Extracted the name from 'source_for_jsonpath.json' and saved it as 'extracted_name.txt'."
-    task_state: "completed"
+    kind: task
+    id: '*'
+    contextId: "session_apply_embed_jsonpath_001"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "Extracted the name from 'source_for_jsonpath.json' and saved it as 'extracted_name.txt'."
     assert_artifact_state:
       # Check the newly created output artifact
       - filename: "extracted_name.txt"

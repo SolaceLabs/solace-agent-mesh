@@ -1,67 +1,348 @@
-Here is the comprehensive developer guide for the `utils` directory.
-
 ## Quick Summary
-The `utils` directory provides a collection of essential, cross-cutting utilities for the Solace AI Connector. Its purpose is to offer robust, reusable solutions for common application needs, including caching, platform compatibility, secure communication, logging, and dynamic content generation.
-
-The architecture consists of standalone utility files for specific tasks and a more complex, self-contained subdirectory for advanced functionality. Direct files provide services like a thread-safe in-memory cache (`in_memory_cache.py`), JWT-based authentication for push notifications (`push_notification_auth.py`), custom logging formatters (`log_formatters.py`), and a critical patch for asyncio on macOS (`asyncio_macos_fix.py`).
-
-The `embeds` subdirectory provides a powerful system for finding, parsing, and resolving dynamic expressions embedded within strings. These utilities are designed to work together. For instance, a request handler might use `mime_helpers` to validate content type, use the `embeds` system to process the content, and then store the result in the `InMemoryCache` to optimize future requests.
+The `utils` directory provides essential utility functions and tools for the Solace Agent Mesh system. It contains both direct utility files for common operations (MIME type handling, caching, message validation, authentication) and a sophisticated `embeds` subdirectory that implements a dynamic expression evaluation system. The utilities work together to provide platform compatibility, security features, data processing capabilities, and dynamic content generation for agent workflows.
 
 ## Files and Subdirectories Overview
-- **Direct files:**
-    - `__init__.py`: Exposes key utility functions from the package for convenient access.
-    - `asyncio_macos_fix.py`: Automatically applies a patch to fix asyncio subprocess issues on macOS.
-    - `in_memory_cache.py`: Implements a thread-safe, singleton in-memory cache with TTL support.
-    - `log_formatters.py`: Provides custom logging formatters, such as a Datadog-compatible JSON formatter.
-    - `mime_helpers.py`: Contains helper functions to classify and identify text-based MIME types.
-    - `push_notification_auth.py`: Implements JWT-based authentication for sending and receiving push notifications.
 
-- **Subdirectories:**
-    - `embeds/`: Provides a comprehensive system for processing embedded dynamic expressions (e.g., math, datetimes, artifact content).
+### Direct Files:
+- **`__init__.py`** - Main entry point exporting commonly used utilities like MIME type checking
+- **`artifact_utils.py`** - Utilities for working with ADK artifacts, including version resolution
+- **`asyncio_macos_fix.py`** - Automatic fix for asyncio subprocess issues on macOS
+- **`in_memory_cache.py`** - Thread-safe singleton cache with TTL support
+- **`initializer.py`** - Enterprise feature initialization and configuration loading
+- **`log_formatters.py`** - Custom logging formatters for platforms like Datadog
+- **`message_utils.py`** - Message size calculation and validation utilities
+- **`mime_helpers.py`** - MIME type classification and file extension utilities
+- **`push_notification_auth.py`** - JWT-based authentication for push notifications
+
+### Subdirectories:
+- **`embeds/`** - Dynamic expression evaluation system using `«...»` syntax for mathematical calculations, datetime formatting, UUID generation, and artifact content processing
 
 ## Developer API Reference
 
 ### Direct Files
 
 #### __init__.py
-**Purpose:** Serves as the main entry point for the `utils` package, exporting the most common utility functions for easy importing.
-**Import:** `from solace_ai_connector.common.utils import is_text_based_mime_type`
+**Purpose:** Main entry point for the utils package, exporting the most commonly used utility functions
+**Import:** `from solace_agent_mesh.common.utils import is_text_based_mime_type`
 
-**Classes/Functions/Constants:**
-*   `is_text_based_mime_type(mime_type: Optional[str]) -> bool`: Checks if a given MIME type is considered text-based.
+**Functions:**
+- `is_text_based_mime_type(mime_type: Optional[str]) -> bool` - Checks if a MIME type represents text-based content
+
+#### artifact_utils.py
+**Purpose:** Common utility functions for working with ADK artifacts
+**Import:** `from solace_agent_mesh.common.utils.artifact_utils import get_latest_artifact_version`
+
+**Functions:**
+- `get_latest_artifact_version(artifact_service: BaseArtifactService, app_name: str, user_id: str, session_id: str, filename: str) -> Optional[int]` - Resolves the latest version number for a given artifact
 
 #### asyncio_macos_fix.py
-**Purpose:** Provides a targeted, automatic fix for a `NotImplementedError` that occurs when creating subprocesses with asyncio on macOS. This module is imported for its side effects and should be loaded early in the application's lifecycle.
-**Import:** `from solace_ai_connector.common.utils import asyncio_macos_fix` (Importing the module is sufficient to apply the patch).
+**Purpose:** Automatic fix for asyncio subprocess creation issues on macOS (imported for side effects)
+**Import:** `from solace_agent_mesh.common.utils import asyncio_macos_fix`
 
-**Classes/Functions/Constants:**
-*   `ensure_asyncio_compatibility() -> bool`: The core function that applies the patch. It is called automatically when the module is first imported.
+**Functions:**
+- `apply_macos_asyncio_fix() -> bool` - Applies the asyncio fix for macOS subprocess support
+- `ensure_asyncio_compatibility() -> bool` - Ensures asyncio compatibility for subprocess creation
 
 #### in_memory_cache.py
-**Purpose:** Provides a simple, thread-safe, in-memory cache implemented as a singleton. It's useful for storing frequently accessed data with an optional time-to-live (TTL).
-**Import:** `from solace_ai_connector.common.utils.in_memory_cache import InMemoryCache`
+**Purpose:** Thread-safe singleton in-memory cache with TTL support
+**Import:** `from solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache`
 
-**Classes/Functions/Constants:**
-*   **`InMemoryCache`**: A singleton class for caching.
-    *   `set(self, key: str, value: Any, ttl: Optional[int] = None) -> None`: Sets a key-value pair with an optional TTL in seconds.
-    *   `get(self, key: str, default: Any = None) -> Any`: Retrieves a value by its key, returning a default if the key is not found or has expired.
-    *   `delete(self, key: str) -> bool`: Deletes a key-value pair from the cache.
-    *   `clear(self) -> bool`: Removes all items from the cache.
+**Classes:**
+- **`InMemoryCache`** - Singleton cache class
+  - `set(key: str, value: Any, ttl: Optional[int] = None) -> None` - Store value with optional TTL
+  - `get(key: str, default: Any = None) -> Any` - Retrieve value or default
+  - `delete(key: str) -> bool` - Delete specific key
+  - `clear() -> bool` - Clear all cached data
+
+#### initializer.py
+**Purpose:** Handles initialization of enterprise features if available
+**Import:** `from solace_agent_mesh.common.utils.initializer import initialize`
+
+**Functions:**
+- `initialize() -> None` - Initializes enterprise features using SAM_AUTHORIZATION_CONFIG environment variable
 
 #### log_formatters.py
-**Purpose:** Contains custom logging formatters to structure log output for specific platforms, such as Datadog.
-**Import:** `from solace_ai_connector.common.utils.log_formatters import DatadogJsonFormatter`
+**Purpose:** Custom logging formatters for structured output
+**Import:** `from solace_agent_mesh.common.utils.log_formatters import DatadogJsonFormatter`
 
-**Classes/Functions/Constants:**
-*   **`DatadogJsonFormatter(logging.Formatter)`**: A formatter that outputs log records as a JSON string, compatible with Datadog's standard log attributes. It automatically includes tracing information (`dd.trace_id`, `dd.span_id`) if available.
+**Classes:**
+- **`DatadogJsonFormatter(logging.Formatter)`** - JSON formatter with Datadog-compatible attributes including trace IDs
+
+#### message_utils.py
+**Purpose:** Message size calculation and validation utilities
+**Import:** `from solace_agent_mesh.common.utils.message_utils import calculate_message_size, validate_message_size`
+
+**Functions:**
+- `calculate_message_size(payload: Dict[str, Any]) -> int` - Calculate exact message size using JSON + UTF-8 encoding
+- `validate_message_size(payload: Dict[str, Any], max_size_bytes: int, component_identifier: str = "Unknown") -> Tuple[bool, int]` - Validate message doesn't exceed size limits
+
+**Constants:**
+- `MAX_UTF8_BYTES_PER_CHARACTER: int` - Maximum UTF-8 bytes per character (4)
 
 #### mime_helpers.py
-**Purpose:** Provides utilities for handling and classifying MIME types, with a focus on identifying which types represent text-based content.
-**Import:** `from solace_ai_connector.common.utils.mime_helpers import is_text_based_mime_type, TEXT_CONTAINER_MIME_TYPES`
+**Purpose:** MIME type classification and file extension utilities
+**Import:** `from solace_agent_mesh.common.utils.mime_helpers import is_text_based_mime_type, get_extension_for_mime_type, is_text_based_file`
 
-**Classes/Functions/Constants:**
-*   `is_text_based_mime_type(mime_type: Optional[str]) -> bool`: Returns `True` if the MIME type starts with `text/` or is in the list of known text-based application types (like `application/json`).
-*   `TEXT_CONTAINER_MIME_TYPES: Set[str]`: A set of non-`text/*` MIME types that are considered to contain text (e.g., `application/json`, `application/yaml`).
+**Functions:**
+- `is_text_based_mime_type(mime_type: Optional[str]) -> bool` - Check if MIME type is text-based
+- `is_text_based_file(mime_type: Optional[str], content_bytes: Optional[bytes] = None) -> bool` - Determine if file is text-based using MIME type and content analysis
+- `get_extension_for_mime_type(mime_type: Optional[str], default_extension: str = ".dat") -> str` - Get file extension for MIME type
+
+**Constants:**
+- `TEXT_CONTAINER_MIME_TYPES: Set[str]` - Set of non-text/* MIME types that contain text
 
 #### push_notification_auth.py
-**Purpose:**
+**Purpose:** JWT-based authentication for push notifications with request integrity verification
+**Import:** `from solace_agent_mesh.common.utils.push_notification_auth import PushNotificationSenderAuth, PushNotificationReceiverAuth`
+
+**Classes:**
+- **`PushNotificationSenderAuth`** - Handles sending authenticated notifications
+  - `generate_jwk() -> None` - Generate RSA key pair for signing
+  - `handle_jwks_endpoint(request: Request) -> JSONResponse` - Serve public keys endpoint
+  - `send_push_notification(url: str, data: dict[str, Any]) -> None` - Send authenticated notification
+  - `verify_push_notification_url(url: str) -> bool` - Verify notification URL
+- **`PushNotificationReceiverAuth`** - Handles receiving and verifying notifications
+  - `load_jwks(jwks_url: str) -> None` - Load public keys from JWKS endpoint
+  - `verify_push_notification(request: Request) -> bool` - Verify notification authenticity
+
+### Subdirectory APIs
+
+#### embeds/
+**Purpose:** Comprehensive dynamic expression evaluation system using `«...»` syntax for mathematical calculations, datetime formatting, UUID generation, and artifact content processing with transformation pipelines
+**Key Exports:** Main resolution functions, evaluator registry, modifier system, and type constants
+**Import Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed, EMBED_REGEX
+from solace_agent_mesh.common.utils.embeds.constants import EARLY_EMBED_TYPES, LATE_EMBED_TYPES
+from solace_agent_mesh.common.utils.embeds.types import DataFormat
+```
+
+## Complete Usage Guide
+
+### 1. Basic Utility Operations
+
+```python
+# Import commonly used utilities
+from solace_agent_mesh.common.utils import is_text_based_mime_type
+from solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache
+from solace_agent_mesh.common.utils.message_utils import validate_message_size, calculate_message_size
+from solace_agent_mesh.common.utils.mime_helpers import get_extension_for_mime_type, is_text_based_file
+
+# MIME type checking
+if is_text_based_mime_type("application/json"):
+    print("JSON is text-based")
+
+# File analysis with content
+with open("data.bin", "rb") as f:
+    content = f.read()
+if is_text_based_file("application/octet-stream", content):
+    print("File contains text despite binary MIME type")
+
+# Singleton cache usage
+cache = InMemoryCache()
+cache.set("user_session", {"user_id": "123", "role": "admin"}, ttl=3600)  # 1 hour TTL
+session_data = cache.get("user_session", {})
+
+# Message size validation
+payload = {"message": "Hello world", "data": [1, 2, 3], "metadata": {"timestamp": "2024-01-15"}}
+is_valid, size = validate_message_size(payload, max_size_bytes=1024, component_identifier="MessageProcessor")
+if not is_valid:
+    print(f"Message too large: {size} bytes exceeds 1024 byte limit")
+
+# Get appropriate file extension
+extension = get_extension_for_mime_type("image/png")  # Returns ".png"
+filename = f"image_{uuid.uuid4()}{extension}"
+```
+
+### 2. Platform Compatibility and System Initialization
+
+```python
+# Early in application startup - import for side effects
+from solace_agent_mesh.common.utils import asyncio_macos_fix  # Auto-applies macOS fix
+from solace_agent_mesh.common.utils.initializer import initialize
+
+# Initialize enterprise features if available
+try:
+    initialize()
+    print("Enterprise features initialized")
+except Exception as e:
+    print(f"Running in community mode: {e}")
+
+# Now asyncio subprocess creation works reliably on macOS
+import asyncio
+
+async def run_command(cmd: str):
+    process = await asyncio.create_subprocess_exec(
+        *cmd.split(),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await process.communicate()
+    return stdout.decode(), stderr.decode(), process.returncode
+
+# This will work on macOS without NotImplementedError
+result = await run_command("echo Hello World")
+```
+
+### 3. Structured Logging Setup
+
+```python
+import logging
+import os
+from solace_agent_mesh.common.utils.log_formatters import DatadogJsonFormatter
+
+# Configure structured JSON logging
+logger = logging.getLogger("my_application")
+handler = logging.StreamHandler()
+handler.setFormatter(DatadogJsonFormatter())
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+# Set service name for Datadog
+os.environ["SERVICE_NAME"] = "my_agent_service"
+
+# Log with structured data - automatically includes trace IDs if available
+logger.info("User action completed", extra={
+    "user_id": "user123",
+    "action": "file_upload",
+    "file_size": 1024,
+    "dd.trace_id": "abc123"  # Will be included in JSON output
+})
+
+# Output will be JSON with timestamp, level, service, code location, etc.
+```
+
+### 4. Secure Push Notification System
+
+```python
+from solace_agent_mesh.common.utils.push_notification_auth import (
+    PushNotificationSenderAuth, 
+    PushNotificationReceiverAuth
+)
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import Response, JSONResponse
+
+# Sender setup and usage
+sender_auth = PushNotificationSenderAuth()
+sender_auth.generate_jwk()  # Generate RSA key pair
+
+async def notify_clients(event_data: dict):
+    client_urls = ["https://client1.example.com/webhook", "https://client2.example.com/webhook"]
+    
+    for url in client_urls:
+        # Verify URL accepts notifications
+        if await sender_auth.verify_push_notification_url(url):
+            # Send authenticated notification
+            await sender_auth.send_push_notification(url, {
+                "event": "data_updated",
+                "timestamp": "2024-01-15T10:30:00Z",
+                "data": event_data
+            })
+        else:
+            print(f"Failed to verify URL: {url}")
+
+# Receiver setup
+app = Starlette()
+receiver_auth = PushNotificationReceiverAuth()
+
+# Load sender's public keys
+await receiver_auth.load_jwks("https://sender.example.com/.well-known/jwks.json")
+
+@app.route("/webhook", methods=["POST"])
+async def webhook_handler(request: Request):
+    try:
+        # Verify JWT signature and request integrity
+        if await receiver_auth.verify_push_notification(request):
+            data = await request.json()
+            # Process authenticated notification
+            print(f"Received verified notification: {data}")
+            return Response("OK")
+        else:
+            return Response("Unauthorized", status_code=401)
+    except Exception as e:
+        print(f"Verification failed: {e}")
+        return Response("Bad Request", status_code=400)
+
+# JWKS endpoint for sender
+@app.route("/.well-known/jwks.json")
+async def jwks_endpoint(request: Request):
+    return sender_auth.handle_jwks_endpoint(request)
+```
+
+### 5. Advanced Embed Processing
+
+```python
+from solace_agent_mesh.common.utils.embeds import (
+    resolve_embeds_recursively_in_string, 
+    evaluate_embed,
+    EARLY_EMBED_TYPES,
+    LATE_EMBED_TYPES
+)
+
+# Set up context for embed resolution
+context = {
+    "artifact_service": my_artifact_service,
+    "session_context": {
+        "app_name": "sales_analyzer",
+        "user_id": "user123", 
+        "session_id": "sess456"
+    }
+}
+
+# Simple embed resolution for dynamic content
+template = """
+Sales Report Generated: «datetime:%Y-%m-%d %H:%M:%S»
+Total Revenue: $«math:«artifact_content:sales.csv >>> jsonpath:$.total_revenue» * 1.08 | .2f»
+Report ID: «uuid:new»
+Tax Rate Applied: 8%
+"""
+
+# Resolve embeds recursively with safety limits
+resolved_content = await resolve_embeds_recursively_in_string(
+    text=template,
+    context=context,
+    resolver_func=evaluate_embed,
+    types_to_resolve=EARLY_EMBED_TYPES | LATE_EMBED_TYPES,
+    log_identifier="[SalesReport]",
+    config={"max_artifact_size": 1024*1024},  # 1MB limit
+    max_depth=5
+)
+
+# Complex data transformation pipeline
+data_analysis = """
+Product Analysis:
+«artifact_content:products.csv:latest >>> select_cols:name,category,price,sales >>> filter_rows_eq:category:electronics >>> slice_rows:0:10 >>> format:json_pretty»
+
+Summary Statistics:
+«artifact_content:summary.txt >>> head:5»
+
+Top Performers:
+«artifact_content:sales.json >>> jsonpath:$.top_products[*].name >>> format:text»
+"""
+
+analysis_result = await resolve_embeds_recursively_in_string(
+    text=data_analysis,
+    context=context,
+    resolver_func=evaluate_embed,
+    types_to_resolve=LATE_EMBED_TYPES,
+    log_identifier="[Analysis]",
+    config={},
+    max_depth=3
+)
+```
+
+### 6. Integrated Workflow Example
+
+```python
+from solace_agent_mesh.common.utils import is_text_based_mime_type
+from solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache
+from solace_agent_mesh.common.utils.message_utils import validate_message_size
+from solace_agent_mesh.common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed
+from solace_agent_mesh.common.utils.push_notification_auth import PushNotificationSenderAuth
+import hashlib
+
+async def process_and_notify_report(user_id: str, template: str, context: dict, notification_urls: list):
+    """Complete workflow integrating
+
+# content_hash: 0f48341a035bc4fbdb720885186fe04075f8fbca7ddeee6a151b00b4c667c47a

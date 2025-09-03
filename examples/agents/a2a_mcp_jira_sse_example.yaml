@@ -1,0 +1,77 @@
+# Solace AI Connector Example: A2A ADK Host Component with Jira MCP over SSE
+#
+# This file demonstrates how to configure the A2A_ADK_HostComponent to connect
+# to a remote Jira MCP server using Server-Sent Events (SSE).
+#
+# Required Environment Variables:
+# - SOLACE_BROKER_URL, SOLACE_BROKER_USERNAME, SOLACE_BROKER_PASSWORD, SOLACE_BROKER_VPN
+# - GOOGLE_API_KEY (or other LLM provider keys as per shared_config.yaml)
+# - NAMESPACE (e.g., "myorg/dev/a2a")
+# - JIRA_MCP_AUTH_TOKEN (The authentication token for the Jira MCP SSE service)
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: a2a_mcp_jira_sse_example.log
+
+# Shared SAM config (includes broker connection and model definitions)
+!include ../shared_config.yaml
+
+apps:
+  - name: jira_mcp_sse_agent_app
+    app_base_path: . # Assuming execution from the root of the project
+    app_module: src.solace_agent_mesh.agent.sac.app # Custom app class for A2A ADK Host
+    broker:
+      <<: *broker_connection # From shared_config.yaml
+
+    # --- App Level Config ---
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true # MCP tools generally don't stream responses, but agent can stream its own text
+      agent_name: "JiraSseAgent"
+      display_name: "Jira via SSE"
+      model: *planning_model # Using the planning model from shared_config.yaml
+
+      instruction: |
+        You are an AI assistant that can interact with Jira through an MCP server.
+        Use the available tools to search for issues, create issues, or update issues in Jira
+        based on the user's request.
+
+      tools:
+        - tool_type: mcp
+          # tool_name: "specific_jira_tool" # Optional: Uncomment if you only want one specific tool from the Jira MCP server
+          connection_params:
+            type: sse # Specify SSE connection type
+            url: "https://mcp.atlassian.com/v1/sse" # The Jira MCP SSE endpoint
+            headers:
+              Authorization: "Bearer ${JIRA_MCP_AUTH_TOKEN}" # Authentication token from environment variable
+            # Add other SseServerParams as needed, e.g., read_timeout_seconds
+            # read_timeout_seconds: 60
+            timeout: 300 # Timeout for the MCP server
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        type: "memory"
+        default_behavior: "PERSISTENT"
+      artifact_service:
+        type: "memory" # Or "filesystem" if you want to persist artifacts
+        # base_path: "/tmp/samv2_jira_sse" # Example if using filesystem
+        # artifact_scope: namespace
+
+      # --- Agent Card Definition ---
+      agent_card:
+        description: "An agent that interacts with Jira via a remote MCP server using SSE."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text"]
+        skills: [] # Define skills if specific Jira operations are exposed as tools
+
+      # --- Discovery & Communication ---
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true } # Enable discovery and peer delegation
+      inter_agent_communication:
+        allow_list: ["*"] # Allow delegation to any discovered agent
+        request_timeout_seconds: 60 # Timeout for requests to peer agents
+      
+      # --- LLM Call Limits ---
+      max_llm_calls_per_task: 15

@@ -63,7 +63,16 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "I couldn't signal version 99 of 'existing_doc_for_signal_version_test.txt' as that version was not found."
-    task_state: "completed"
+    kind: "task"
+    id: "*"
+    contextId: "session_signal_version_error_artifact_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_exact: "I couldn't signal version 99 of 'existing_doc_for_signal_version_test.txt' as that version was not found."
+    # No assert_artifact_state as no artifact should be involved or changed.

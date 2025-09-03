@@ -1,0 +1,482 @@
+# DEVELOPER GUIDE: src
+
+## Quick Summary
+The `src` directory serves as the main source code for a React-based agent management and chat application. It contains the root application components (`App.tsx`, `main.tsx`) that orchestrate the entire application, along with specialized subdirectories for authentication handling (`auth/`) and the core library (`lib/`). The architecture follows a provider-based pattern with React contexts for state management, a comprehensive component library, and a plugin system for extensibility. The application features real-time chat, workflow visualization, agent management, and OAuth authentication.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `App.tsx` - Main application component with routing, navigation, and provider setup
+  - `main.tsx` - Application entry point that renders the App component to the DOM
+
+- **Subdirectories:**
+  - `auth/` - OAuth authentication callback handling components
+  - `lib/` - Core library with components, providers, hooks, utilities, and plugin system
+
+## Developer API Reference
+
+### Direct Files
+
+#### App.tsx
+**Purpose:** Main application component that sets up the provider hierarchy, handles navigation, and renders different pages based on active navigation state
+**Import:** `import App from './App'`
+
+**Components:**
+- `App()` - Root component that wraps the application in all necessary providers
+  - Sets up provider hierarchy: ThemeProvider → CsrfProvider → ConfigProvider → AuthProvider → ChatProvider → TaskProvider → AppContent
+  - Returns the complete application wrapped in context providers
+
+- `AppContent()` - Internal component that handles the main application logic
+  - Manages navigation state between "chat" and "agentMesh" views
+  - Handles authentication flow with login button when not authenticated
+  - Renders NavigationSidebar and main content area
+  - Includes ToastContainer for notifications
+
+**State Management:**
+- `activeNavItem: string` - Controls which page/view is currently displayed
+- Uses `useAuthContext()` for authentication state
+- Uses `useBeforeUnload()` for preventing accidental page refresh
+
+#### main.tsx
+**Purpose:** Application entry point that renders the App component to the DOM root element
+**Import:** This file is typically the webpack entry point, not imported directly
+
+**Functions:**
+- Creates React root using `createRoot()` and renders `<App />` in StrictMode
+- Imports global CSS styles from `"./lib/index.css"`
+- Expects DOM element with id "root" to exist
+
+### Subdirectory APIs
+
+#### auth/
+**Purpose:** Handles OAuth authentication callbacks by processing tokens from URL fragments
+**Key Exports:** AuthCallback component for processing OAuth redirects
+**Import Examples:**
+```tsx
+import AuthCallback from "./auth/authCallback"
+```
+
+#### lib/
+**Purpose:** Core library providing React components, context providers, hooks, utilities, types, and plugin system
+**Key Exports:** Complete component library, state management providers, custom hooks, utility functions
+**Import Examples:**
+```tsx
+import { Button, Card, Dialog } from "@/lib/components/ui"
+import { ChatPage, AgentMeshPage } from "@/lib/components"
+import { AuthProvider, ChatProvider, ThemeProvider } from "@/lib/providers"
+import { useAuthContext, useBeforeUnload } from "@/lib/hooks"
+```
+
+## Complete Usage Guide
+
+### 1. Setting Up the Complete Application
+
+```tsx
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
+import './lib/index.css';
+
+// Basic setup - main.tsx
+createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+// The App component automatically sets up all providers:
+// ThemeProvider → CsrfProvider → ConfigProvider → AuthProvider → ChatProvider → TaskProvider
+```
+
+### 2. Creating a Custom Application Layout
+
+```tsx
+import React, { useState } from 'react';
+import { 
+  NavigationSidebar, 
+  ChatPage, 
+  AgentMeshPage,
+  ToastContainer,
+  Button 
+} from '@/lib/components';
+import { 
+  AuthProvider, 
+  ChatProvider, 
+  ConfigProvider, 
+  CsrfProvider, 
+  TaskProvider, 
+  ThemeProvider 
+} from '@/lib/providers';
+import { useAuthContext, useBeforeUnload } from '@/lib/hooks';
+
+// Custom navigation items
+const customTopNavItems = [
+  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { id: 'chat', label: 'Chat', icon: 'chat' },
+  { id: 'agents', label: 'Agents', icon: 'agents' }
+];
+
+const customBottomNavItems = [
+  { id: 'settings', label: 'Settings', icon: 'settings' }
+];
+
+function CustomApp() {
+  return (
+    <ThemeProvider>
+      <CsrfProvider>
+        <ConfigProvider>
+          <AuthProvider>
+            <ChatProvider>
+              <TaskProvider>
+                <CustomAppContent />
+              </TaskProvider>
+            </ChatProvider>
+          </AuthProvider>
+        </ConfigProvider>
+      </CsrfProvider>
+    </ThemeProvider>
+  );
+}
+
+function CustomAppContent() {
+  const [activeView, setActiveView] = useState('dashboard');
+  const { isAuthenticated, login, useAuthorization } = useAuthContext();
+  
+  // Enable beforeunload warning
+  useBeforeUnload();
+
+  // Handle authentication
+  if (useAuthorization && !isAuthenticated) {
+    return (
+      <div className="bg-background flex h-screen items-center justify-center">
+        <div className="text-center space-y-4">
+          <h1 className="text-2xl font-bold">Welcome</h1>
+          <p className="text-gray-600">Please log in to continue</p>
+          <Button onClick={login} size="lg">
+            Login with OAuth
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const handleNavigation = (itemId: string) => {
+    const topItem = customTopNavItems.find(item => item.id === itemId);
+    const bottomItem = customBottomNavItems.find(item => item.id === itemId);
+    
+    if (topItem?.onClick && itemId !== "settings") {
+      topItem.onClick();
+    } else if (bottomItem?.onClick && itemId !== "settings") {
+      bottomItem.onClick();
+    } else if (itemId !== "settings") {
+      setActiveView(itemId);
+    }
+  };
+
+  const renderContent = () => {
+    switch (activeView) {
+      case 'dashboard':
+        return <CustomDashboard />;
+      case 'chat':
+        return <ChatPage />;
+      case 'agents':
+        return <AgentMeshPage />;
+      default:
+        return <div>Page not found</div>;
+    }
+  };
+
+  return (
+    <div className="relative flex h-screen">
+      <NavigationSidebar
+        items={customTopNavItems}
+        bottomItems={customBottomNavItems}
+        activeItem={activeView}
+        onItemChange={handleNavigation}
+        onHeaderClick={() => setActiveView('dashboard')}
+      />
+      <main className="h-full w-full flex-1 overflow-auto">
+        {renderContent()}
+      </main>
+      <ToastContainer />
+    </div>
+  );
+}
+
+function CustomDashboard() {
+  return (
+    <div className="p-6">
+      <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Dashboard content */}
+      </div>
+    </div>
+  );
+}
+```
+
+### 3. Integrating OAuth Authentication
+
+```tsx
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import App from './App';
+import AuthCallback from './auth/authCallback';
+
+// Setup routing with OAuth callback
+function AppWithAuth() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/*" element={<App />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+// OAuth configuration
+const oauthConfig = {
+  clientId: 'your-oauth-client-id',
+  redirectUri: `${window.location.origin}/auth/callback`,
+  scope: 'read write',
+  responseType: 'token'
+};
+
+// Custom login function
+function initiateOAuthLogin() {
+  const params = new URLSearchParams({
+    client_id: oauthConfig.clientId,
+    redirect_uri: oauthConfig.redirectUri,
+    scope: oauthConfig.scope,
+    response_type: oauthConfig.responseType
+  });
+  
+  window.location.href = `https://your-oauth-provider.com/oauth/authorize?${params}`;
+}
+
+// Usage in a component
+function LoginButton() {
+  return (
+    <Button onClick={initiateOAuthLogin}>
+      Login with OAuth
+    </Button>
+  );
+}
+```
+
+### 4. Building a Multi-Page Application
+
+```tsx
+import React, { useState } from 'react';
+import { 
+  ChatPage, 
+  AgentMeshPage, 
+  NavigationSidebar,
+  Button,
+  Card,
+  CardContent 
+} from '@/lib/components';
+import { useAuthContext } from '@/lib/hooks';
+
+// Define custom pages
+function AnalyticsPage() {
+  return (
+    <div className="p-6">
+      <h1 className="text-3xl font-bold mb-6">Analytics</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="text-lg font-semibold mb-2">Total Messages</h3>
+            <p className="text-3xl font-bold text-blue-600">1,234</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="text-lg font-semibold mb-2">Active Agents</h3>
+            <p className="text-3xl font-bold text-green-600">12</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="text-lg font-semibold mb-2">Tasks Completed</h3>
+            <p className="text-3xl font-bold text-purple-600">567</p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function SettingsPage() {
+  return (
+    <div className="p-6">
+      <h1 className="text-3xl font-bold mb-6">Settings</h1>
+      <div className="max-w-2xl space-y-6">
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="text-lg font-semibold mb-4">Theme Settings</h3>
+            <div className="space-y-2">
+              <Button variant="outline" className="w-full justify-start">
+                Light Theme
+              </Button>
+              <Button variant="outline" className="w-full justify-start">
+                Dark Theme
+              </Button>
+              <Button variant="outline" className="w-full justify-start">
+                Auto Theme
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// Navigation configuration
+const navigationItems = [
+  { id: 'chat', label: 'Chat', icon: 'chat' },
+  { id: 'agents', label: 'Agents', icon: 'agents' },
+  { id: 'analytics', label: 'Analytics', icon: 'analytics' }
+];
+
+const bottomNavigationItems = [
+  { 
+    id: 'settings', 
+    label: 'Settings', 
+    icon: 'settings',
+    onClick: () => console.log('Settings clicked')
+  }
+];
+
+function MultiPageApp() {
+  const [currentPage, setCurrentPage] = useState('chat');
+  const { isAuthenticated } = useAuthContext();
+
+  const handleNavigation = (pageId: string) => {
+    const item = navigationItems.find(item => item.id === pageId) || 
+                 bottomNavigationItems.find(item => item.id === pageId);
+
+    if (item?.onClick && pageId !== "settings") {
+      item.onClick();
+    } else if (pageId !== "settings") {
+      setCurrentPage(pageId);
+    }
+  };
+
+  const renderPage = () => {
+    switch (currentPage) {
+      case 'chat':
+        return <ChatPage />;
+      case 'agents':
+        return <AgentMeshPage />;
+      case 'analytics':
+        return <AnalyticsPage />;
+      case 'settings':
+        return <SettingsPage />;
+      default:
+        return <ChatPage />;
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Button>Login Required</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative flex h-screen">
+      <NavigationSidebar
+        items={navigationItems}
+        bottomItems={bottomNavigationItems}
+        activeItem={currentPage}
+        onItemChange={handleNavigation}
+        onHeaderClick={() => setCurrentPage('chat')}
+      />
+      <main className="h-full w-full flex-1 overflow-auto">
+        {renderPage()}
+      </main>
+    </div>
+  );
+}
+```
+
+### 5. Common Integration Patterns
+
+```tsx
+// Pattern 1: Using all providers together
+import { 
+  ThemeProvider,
+  CsrfProvider, 
+  ConfigProvider,
+  AuthProvider,
+  ChatProvider,
+  TaskProvider 
+} from '@/lib/providers';
+
+function FullAppSetup({ children }) {
+  return (
+    <ThemeProvider>
+      <CsrfProvider>
+        <ConfigProvider>
+          <AuthProvider>
+            <ChatProvider>
+              <TaskProvider>
+                {children}
+              </TaskProvider>
+            </ChatProvider>
+          </AuthProvider>
+        </ConfigProvider>
+      </CsrfProvider>
+    </ThemeProvider>
+  );
+}
+
+// Pattern 2: Accessing context data
+import { useAuthContext, useBeforeUnload } from '@/lib/hooks';
+
+function MyComponent() {
+  const { isAuthenticated, login, logout, user } = useAuthContext();
+  
+  // Enable beforeunload protection
+  useBeforeUnload();
+  
+  return (
+    <div>
+      {isAuthenticated ? (
+        <div>Welcome, {user?.name}!</div>
+      ) : (
+        <Button onClick={login}>Login</Button>
+      )}
+    </div>
+  );
+}
+
+// Pattern 3: Building custom layouts
+import { NavigationSidebar, ToastContainer } from '@/lib/components';
+
+function CustomLayout({ children }) {
+  const [activeItem, setActiveItem] = useState('home');
+  
+  return (
+    <div className="flex h-screen">
+      <NavigationSidebar
+        items={myNavItems}
+        activeItem={activeItem}
+        onItemChange={setActiveItem}
+      />
+      <main className="flex-1 overflow-auto">
+        {children}
+      </main>
+      <ToastContainer />
+    </div>
+  );
+}
+```
+
+This comprehensive guide shows how to use the `src` directory components to build complete React applications with authentication, navigation, chat functionality, and agent management. The modular architecture allows for easy customization and extension while maintaining a consistent development experience.
+
+# content_hash: 1398a8d73766e869414cb70c9d7840836e6a2e29463509fed6579b9a352ee764

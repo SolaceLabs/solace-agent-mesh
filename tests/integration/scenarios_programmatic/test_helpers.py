@@ -11,13 +11,14 @@ from sam_test_infrastructure.llm_server.server import (
 from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )
-from solace_agent_mesh.common.types import (
+from a2a.types import (
     TextPart,
     Task,
     TaskStatusUpdateEvent,
     TaskArtifactUpdateEvent,
     JSONRPCError,
 )
+from a2a.utils.message import get_message_text
 import time
 import logging
 
@@ -99,13 +100,12 @@ def extract_outputs_from_event_list(
     terminal_event_obj: Optional[Union[Task, JSONRPCError]] = None
 
     for event in all_events:
-        if type(event).__name__ == "TaskStatusUpdateEvent":
-            if not event.final:
-                if event.status and event.status.message and event.status.message.parts:
-                    for part in event.status.message.parts:
-                        if type(part).__name__ == "TextPart" and part.text:
-                            aggregated_intermediate_stream_text += part.text
-        elif type(event).__name__ in ("Task", "JSONRPCError"):
+        if isinstance(event, TaskStatusUpdateEvent):
+            if not event.final and event.status and event.status.message:
+                aggregated_intermediate_stream_text += get_message_text(
+                    event.status.message, delimiter=""
+                )
+        elif isinstance(event, (Task, JSONRPCError)):
             terminal_event_obj = event
 
     if not terminal_event_obj:
@@ -113,22 +113,15 @@ def extract_outputs_from_event_list(
             f"Scenario {scenario_id}: Internal error - get_all_task_events did not provide a terminal event, but also did not fail the test."
         )
 
-    if type(terminal_event_obj).__name__ == "Task":
-        if (
-            terminal_event_obj.status
-            and terminal_event_obj.status.message
-            and terminal_event_obj.status.message.parts
-        ):
-            temp_task_text = ""
-            for part in terminal_event_obj.status.message.parts:
-                if type(part).__name__ == "TextPart" and part.text:
-                    temp_task_text += part.text
-            if temp_task_text:
-                text_from_terminal_event = temp_task_text
+    if isinstance(terminal_event_obj, Task):
+        if terminal_event_obj.status and terminal_event_obj.status.message:
+            text_from_terminal_event = get_message_text(
+                terminal_event_obj.status.message, delimiter=""
+            )
         print(
             f"TestHelper: Scenario {scenario_id}: Extracted text from terminal Task object (length: {len(text_from_terminal_event) if text_from_terminal_event else 0})."
         )
-    elif type(terminal_event_obj).__name__ == "JSONRPCError":
+    elif isinstance(terminal_event_obj, JSONRPCError):
         text_from_terminal_event = terminal_event_obj.message
 
     if not aggregated_intermediate_stream_text:
@@ -170,16 +163,13 @@ async def get_all_task_events(
             print(
                 f"TestHelper: Scenario {scenario_id_for_log}: Captured event {type(event).__name__} for task {task_id}."
             )
-            if type(event).__name__ in ("Task", "JSONRPCError"):
+            if isinstance(event, (Task, JSONRPCError)):
                 print(
                     f"TestHelper: Scenario {scenario_id_for_log}: Terminal event ({type(event).__name__}) received for task {task_id}."
                 )
                 return captured_events
 
-    if not captured_events or type(captured_events[-1]).__name__ not in (
-        "Task",
-        "JSONRPCError",
-    ):
+    if not captured_events or not isinstance(captured_events[-1], (Task, JSONRPCError)):
         pytest.fail(
             f"Scenario {scenario_id_for_log}: Timeout ({overall_timeout}s). "
             f"No terminal event (Task or JSONRPCError) received for task {task_id}. "
@@ -204,14 +194,9 @@ def _extract_text_from_event(event: Any) -> Optional[str]:
     """Helper to extract primary text content from various event types."""
     text_content = None
     if isinstance(event, (Task, TaskStatusUpdateEvent)):
-        if event.status and event.status.message and event.status.message.parts:
-            texts = [
-                part.text
-                for part in event.status.message.parts
-                if isinstance(part, TextPart) and part.text
-            ]
-            if texts:
-                text_content = "".join(texts)
+        if event.status and event.status.message:
+            # get_message_text returns an empty string if no text parts are found.
+            return get_message_text(event.status.message, delimiter="")
     elif isinstance(event, JSONRPCError):
         text_content = event.message
     return text_content
@@ -272,7 +257,7 @@ def assert_final_response_text_contains(
         )
 
     if (
-        type(terminal_event).__name__ == "JSONRPCError"
+        isinstance(terminal_event, JSONRPCError)
         and verification_content == terminal_event.message
     ):
         assert (

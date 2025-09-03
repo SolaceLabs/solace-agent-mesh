@@ -5,6 +5,7 @@ and captures A2A responses from the agent under test.
 """
 
 import asyncio
+import base64
 import threading
 from collections import defaultdict
 from typing import Any, Dict, List, Union, Optional, Tuple
@@ -12,12 +13,9 @@ from typing import Any, Dict, List, Union, Optional, Tuple
 from solace_ai_connector.common.log import log
 
 from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
-from solace_agent_mesh.common.types import (
-    Part as A2APart,
-    TextPart,
-    FilePart,
-    DataPart,
-    FileContent,
+from solace_agent_mesh.common.a2a.types import ContentPart
+from solace_agent_mesh.common import a2a
+from a2a.types import (
     TaskStatusUpdateEvent,
     TaskArtifactUpdateEvent,
     Task,
@@ -78,43 +76,68 @@ class TestGatewayComponent(BaseGatewayComponent):
         return {"id": user_identity_str, "source": "test_gateway"}
 
     async def _translate_external_input(
-        self,
-        external_event: Dict[str, Any],
-        authenticated_user_identity: Dict[str, Any],
-    ) -> Tuple[str, List[A2APart], Dict[str, Any]]:
+        self, external_event: dict[str, Any]
+    ) -> Tuple[str, List[ContentPart], dict[str, Any]]:
         """
         Translates a structured test input dictionary into A2A task components.
         The `external_event` is expected to have keys like:
         - 'target_agent_name': str
-        - 'a2a_parts': List[Dict] (where each dict defines an A2APart)
+        - 'a2a_parts': List[Dict] (where each dict defines a ContentPart)
         - 'external_context_override': Optional[Dict] (to be merged into the returned context)
+        - '_authenticated_user_identity': Dict (injected by the caller)
         """
         log_id = f"{self.log_identifier}[TranslateTestInput]"
         log.debug("%s Translating test input: %s", log_id, external_event)
+
+        authenticated_user_identity = external_event.get("_authenticated_user_identity")
+        if not authenticated_user_identity:
+            raise ValueError(
+                "Internal error: authenticated_user_identity not passed to _translate_external_input"
+            )
 
         target_agent_name = external_event.get("target_agent_name")
         if not target_agent_name:
             raise ValueError("Test input must specify 'target_agent_name'.")
 
         a2a_parts_data = external_event.get("a2a_parts", [])
-        a2a_parts: List[A2APart] = []
+        a2a_parts: List[ContentPart] = []
         for part_data in a2a_parts_data:
             part_type = part_data.get("type")
             if part_type == "text":
-                a2a_parts.append(TextPart(text=part_data.get("text", "")))
+                a2a_parts.append(a2a.create_text_part(text=part_data.get("text", "")))
             elif part_type == "file":
-                file_content = FileContent(
-                    name=part_data.get("name", "testfile.dat"),
-                    mimeType=part_data.get("mime_type", "application/octet-stream"),
-                    bytes=part_data.get("bytes_base64"),
-                    uri=part_data.get("uri"),
-                )
-                a2a_parts.append(
-                    FilePart(file=file_content, metadata=part_data.get("metadata"))
-                )
+                if "bytes_base64" in part_data and part_data["bytes_base64"]:
+                    content_bytes = base64.b64decode(part_data["bytes_base64"])
+                    a2a_parts.append(
+                        a2a.create_file_part_from_bytes(
+                            content_bytes=content_bytes,
+                            name=part_data.get("name", None),
+                            mime_type=part_data.get(
+                                "mime_type", "application/octet-stream"
+                            ),
+                            metadata=part_data.get("metadata"),
+                        )
+                    )
+                elif "uri" in part_data and part_data["uri"]:
+                    a2a_parts.append(
+                        a2a.create_file_part_from_uri(
+                            uri=part_data["uri"],
+                            name=part_data.get("name", "testfile.dat"),
+                            mime_type=part_data.get(
+                                "mime_type", "application/octet-stream"
+                            ),
+                            metadata=part_data.get("metadata"),
+                        )
+                    )
+                else:
+                    log.warning(
+                        "%s FilePart in test input is missing 'bytes_base64' or 'uri'. Skipping. Data: %s",
+                        log_id,
+                        part_data,
+                    )
             elif part_type == "data":
                 a2a_parts.append(
-                    DataPart(
+                    a2a.create_data_part(
                         data=part_data.get("data", {}),
                         metadata=part_data.get("metadata"),
                     )
@@ -182,7 +205,7 @@ class TestGatewayComponent(BaseGatewayComponent):
         event_data: Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent],
         is_final_chunk_of_update: bool,
     ):
-        task_id = event_data.id
+        task_id = event_data.task_id
         log.debug(
             "%s Capturing A2A update for task %s: %s",
             self.log_identifier,
@@ -237,7 +260,7 @@ class TestGatewayComponent(BaseGatewayComponent):
         )
         pass
 
-    async def send_test_input(self, test_input_data: Dict[str, Any]) -> str:
+    async def send_test_input(self, test_input_data: dict[str, Any]) -> str:
         """
         Primary method for tests to send input to this Test Gateway.
         It authenticates, translates, and submits the A2A task.
@@ -260,8 +283,12 @@ class TestGatewayComponent(BaseGatewayComponent):
         if user_identity is None:
             raise PermissionError("Test user authentication failed.")
 
+        # Pass the user_identity into the event data for translation
+        test_input_data_for_translation = test_input_data.copy()
+        test_input_data_for_translation["_authenticated_user_identity"] = user_identity
+
         target_agent_name, a2a_parts, external_request_context_for_storage = (
-            await self._translate_external_input(test_input_data, user_identity)
+            await self._translate_external_input(test_input_data_for_translation)
         )
 
         task_id = await self.submit_a2a_task(
@@ -368,14 +395,14 @@ class TestGatewayComponent(BaseGatewayComponent):
 
     async def get_all_captured_outputs(
         self, task_id: str, drain_timeout: float = 0.2
-    ) -> List[
+    ) -> list[
         Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent, Task, JSONRPCError]
     ]:
         """
         Retrieves all currently captured A2A outputs for a given task_id and empties the queue.
         Waits for `drain_timeout` for any final messages after the queue initially appears empty.
         """
-        outputs: List[
+        outputs: list[
             Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent, Task, JSONRPCError]
         ] = []
         queue = self._captured_outputs[task_id]

@@ -54,7 +54,15 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "No artifacts found in the current session."
-    task_state: "completed"
+    kind: "task"
+    id: "*"
+    contextId: "session_list_artifacts_empty_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_exact: "No artifacts found in the current session."

@@ -13,11 +13,12 @@ from solace_ai_connector.common.log import log
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 
-from .api.controllers import session_router, task_router, user_router
-from .data.persistence.database_service import DatabaseService
-
-
-database_service: DatabaseService = None
+from ...gateway.http_sse import dependencies
+from a2a.types import (
+    JSONRPCError,
+    InternalError,
+)
+from ...common import a2a
 
 from typing import TYPE_CHECKING
 
@@ -494,6 +495,7 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service=N
     # Mount remaining routers that haven't been migrated yet
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
     app.include_router(agents.router, prefix=api_prefix, tags=["Agents"])
+    app.include_router(tasks.router, prefix=api_prefix, tags=["Tasks"])
     app.include_router(sse.router, prefix=f"{api_prefix}/sse", tags=["SSE"])
     app.include_router(
         artifacts.router, prefix=f"{api_prefix}/artifacts", tags=["Artifacts"]
@@ -589,7 +591,18 @@ async def http_exception_handler(request: FastAPIRequest, exc: HTTPException):
         else:
             error_response = {"detail": str(exc.detail)}
 
-        return JSONResponse(status_code=exc.status_code, content=error_response)
+    elif isinstance(exc.detail, str):
+        if exc.status_code == status.HTTP_400_BAD_REQUEST:
+            error_code = -32600
+        elif exc.status_code == status.HTTP_404_NOT_FOUND:
+            error_code = -32601
+            error_message = "Resource not found"
+
+    error_obj = JSONRPCError(code=error_code, message=error_message, data=error_data)
+    response = a2a.create_error_response(error=error_obj, request_id=None)
+    return JSONResponse(
+        status_code=exc.status_code, content=response.model_dump(exclude_none=True)
+    )
 
 
 @app.exception_handler(RequestValidationError)
@@ -605,30 +618,13 @@ async def validation_exception_handler(
         request.method,
         request.url,
     )
-
-    # Check if this is a JSON-RPC endpoint
-    is_jsonrpc_endpoint = request.url.path.startswith(
-        "/api/v1/tasks"
-    ) or request.url.path.startswith("/api/v1/sse")
-
-    if is_jsonrpc_endpoint:
-        # Return JSON-RPC format for tasks/SSE endpoints with 422 for consistency
-        error_obj = InvalidRequestError(
-            message="Invalid request parameters", data=exc.errors()
-        )
-        response = A2AJSONRPCResponse(error=error_obj)
-        return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content=response.model_dump(exclude_none=True),
-        )
-    else:
-        # Return standard REST validation error format
-        error_response = {"detail": "Validation error", "errors": exc.errors()}
-
-        return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content=error_response,
-        )
+    response = a2a.create_invalid_request_error_response(
+        message="Invalid request parameters", data=exc.errors(), request_id=None
+    )
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content=response.model_dump(exclude_none=True),
+    )
 
 
 @app.exception_handler(Exception)
@@ -639,30 +635,14 @@ async def generic_exception_handler(request: FastAPIRequest, exc: Exception):
     log.exception(
         "Unhandled Exception: %s, Request: %s %s", exc, request.method, request.url
     )
-
-    # Check if this is a JSON-RPC endpoint
-    is_jsonrpc_endpoint = request.url.path.startswith(
-        "/api/v1/tasks"
-    ) or request.url.path.startswith("/api/v1/sse")
-
-    if is_jsonrpc_endpoint:
-        # Return JSON-RPC format for tasks/SSE endpoints
-        error_obj = InternalError(
-            message="An unexpected server error occurred: %s" % type(exc).__name__
-        )
-        response = A2AJSONRPCResponse(error=error_obj)
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=response.model_dump(exclude_none=True),
-        )
-    else:
-        # Return standard REST error format
-        error_response = {"detail": f"Internal server error: {type(exc).__name__}"}
-
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=error_response,
-        )
+    error_obj = a2a.create_internal_error(
+        message="An unexpected server error occurred: %s" % type(exc).__name__
+    )
+    response = a2a.create_error_response(error=error_obj, request_id=None)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content=response.model_dump(exclude_none=True),
+    )
 
 
 @app.get("/health", tags=["Health"])

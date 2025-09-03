@@ -1,0 +1,85 @@
+# DEVELOPER GUIDE: customEdges
+
+## Quick Summary
+The `customEdges` directory contains custom edge components for React Flow charts. It provides enhanced edge functionality with animations, hover states, selection indicators, and error visualization for flow diagrams.
+
+## Files Overview
+- `GenericFlowEdge.tsx` - A customizable React Flow edge component with animation, selection, error states, and hover interactions
+
+## Developer API Reference
+
+### GenericFlowEdge.tsx
+**Purpose:** Provides a feature-rich custom edge component for React Flow with support for animations, selections, errors, and interactive hover states
+
+**Import:** 
+```typescript
+import GenericFlowEdge, { type AnimatedEdgeData } from 'path/to/customEdges/GenericFlowEdge'
+```
+
+**Interfaces:**
+- `AnimatedEdgeData` - Configuration interface for edge data properties
+  - `visualizerStepId: string` - Unique identifier for the visualizer step
+  - `isAnimated?: boolean` - Whether the edge should display animation styling
+  - `animationType?: "request" | "response" | "static"` - Type of animation (currently for categorization)
+  - `isSelected?: boolean` - Whether the edge is currently selected
+  - `isError?: boolean` - Whether the edge represents an error state
+  - `errorMessage?: string` - Optional error message for error states
+
+**Components:**
+- `GenericFlowEdge(props: EdgeProps) -> React.FC` - Main edge component that renders customizable flow edges
+  - Accepts standard React Flow `EdgeProps` with enhanced `data` property of type `AnimatedEdgeData`
+  - Automatically handles hover states, selection highlighting, error visualization, and animation styling
+  - Renders both an invisible interaction path for easier clicking and a visible styled path
+
+**Usage Examples:**
+```typescript
+// Import the component and interface
+import GenericFlowEdge, { type AnimatedEdgeData } from 'path/to/customEdges/GenericFlowEdge'
+import { Edge } from '@xyflow/react'
+
+// Define edge data with custom properties
+const edgeData: AnimatedEdgeData = {
+  visualizerStepId: "step-1",
+  isAnimated: true,
+  animationType: "request",
+  isSelected: false,
+  isError: false
+}
+
+// Create an edge with custom data
+const customEdge: Edge = {
+  id: 'edge-1',
+  source: 'node-1',
+  target: 'node-2',
+  type: 'generic', // Register GenericFlowEdge as 'generic' type
+  data: edgeData
+}
+
+// Register the custom edge type in React Flow
+const edgeTypes = {
+  generic: GenericFlowEdge
+}
+
+// Use in React Flow component
+<ReactFlow
+  edges={[customEdge]}
+  edgeTypes={edgeTypes}
+  // ... other props
+/>
+
+// Example with error state
+const errorEdgeData: AnimatedEdgeData = {
+  visualizerStepId: "step-error",
+  isError: true,
+  errorMessage: "Connection failed"
+}
+
+// Example with selected state
+const selectedEdgeData: AnimatedEdgeData = {
+  visualizerStepId: "step-selected",
+  isSelected: true,
+  isAnimated: true
+}
+```
+
+# content_hash: 61facac9b5c26018ca57fe89a4f410016e3b8b2638b99badcafacb0d4a3e4523
