@@ -359,12 +359,12 @@ def get_task_service(
 
 def get_session_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> SessionService:
+) -> SessionService | None:
     """
     FastAPI dependency for getting the session service.
 
     Returns a database-backed session service if persistence is configured.
-    Raises an error if no database is configured.
+    Returns None if no database is configured (compatibility mode).
     """
     log.debug("[Dependencies] get_session_service called")
 
@@ -376,8 +376,5 @@ def get_session_service(
         log.debug("Using database-backed session service")
         return SessionService(db_service=component.persistence_service.db_service)
     else:
-        log.debug("No database configured - session persistence not available")
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Session management requires database configuration. Configure 'database_url' in your gateway configuration.",
-        )
+        log.debug("No database configured - running in compatibility mode without session persistence")
+        return None

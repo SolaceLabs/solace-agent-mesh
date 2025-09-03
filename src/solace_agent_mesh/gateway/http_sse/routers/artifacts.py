@@ -79,7 +79,7 @@ async def list_artifact_versions(
     filename: str = Path(..., title="Filename", description="The name of the artifact"),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
-    session_service: SessionService = Depends(get_session_service),
+    session_service: SessionService | None = Depends(get_session_service),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     user_config: dict = Depends(get_user_config),
@@ -98,14 +98,17 @@ async def list_artifact_versions(
     log_prefix = f"[ArtifactRouter:ListVersions:{filename}] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
 
-    # Validate session exists and belongs to user
-    session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
-    if not session_domain:
-        log.warning("%s Session not found or access denied.", log_prefix)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied."
-        )
+    # Validate session exists and belongs to user using session_service if persistence is enabled
+    if session_service is not None:
+        session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
+        if not session_domain:
+            log.warning("%s Session not found or access denied.", log_prefix)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found or access denied."
+            )
+    else:
+        log.debug("%s Running without persistence - skipping session validation.", log_prefix)
 
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
@@ -166,7 +169,7 @@ async def list_artifacts(
     session_id: str = Path(..., title="Session ID", description="The session ID to list artifacts for"),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
-    session_service: SessionService = Depends(get_session_service),
+    session_service: SessionService | None = Depends(get_session_service),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     user_config: dict = Depends(get_user_config),
@@ -184,14 +187,17 @@ async def list_artifacts(
     log_prefix = f"[ArtifactRouter:ListInfo] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
 
-    # Validate session exists and belongs to user
-    session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
-    if not session_domain:
-        log.warning("%s Session not found or access denied.", log_prefix)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied."
-        )
+    # Validate session exists and belongs to user using session_service if persistence is enabled
+    if session_service is not None:
+        session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
+        if not session_domain:
+            log.warning("%s Session not found or access denied.", log_prefix)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found or access denied."
+            )
+    else:
+        log.debug("%s Running without persistence - skipping session validation.", log_prefix)
 
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
@@ -235,7 +241,7 @@ async def get_latest_artifact(
     filename: str = Path(..., title="Filename", description="The name of the artifact"),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
-    session_service: SessionService = Depends(get_session_service),
+    session_service: SessionService | None = Depends(get_session_service),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     user_config: dict = Depends(get_user_config),
@@ -378,7 +384,7 @@ async def get_specific_artifact_version(
     ),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
-    session_service: SessionService = Depends(get_session_service),
+    session_service: SessionService | None = Depends(get_session_service),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     user_config: dict = Depends(get_user_config),
@@ -396,14 +402,17 @@ async def get_specific_artifact_version(
     log_prefix = f"[ArtifactRouter:GetVersion:{filename} v{version}] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
 
-    # Validate session exists and belongs to user
-    session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
-    if not session_domain:
-        log.warning("%s Session not found or access denied.", log_prefix)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied."
-        )
+    # Validate session exists and belongs to user using session_service if persistence is enabled
+    if session_service is not None:
+        session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
+        if not session_domain:
+            log.warning("%s Session not found or access denied.", log_prefix)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found or access denied."
+            )
+    else:
+        log.debug("%s Running without persistence - skipping session validation.", log_prefix)
 
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
@@ -691,7 +700,7 @@ async def upload_artifact(
     ),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
-    session_service: SessionService = Depends(get_session_service),
+    session_service: SessionService | None = Depends(get_session_service),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     user_config: dict = Depends(get_user_config),
@@ -714,14 +723,17 @@ async def upload_artifact(
         upload_file.content_type,
     )
 
-    # Validate session exists and belongs to user
-    session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
-    if not session_domain:
-        log.warning("%s Session not found or access denied.", log_prefix)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied."
-        )
+    # Validate session exists and belongs to user using session_service if persistence is enabled
+    if session_service is not None:
+        session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
+        if not session_domain:
+            log.warning("%s Session not found or access denied.", log_prefix)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found or access denied."
+            )
+    else:
+        log.debug("%s Running without persistence - skipping session validation.", log_prefix)
 
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
@@ -864,14 +876,17 @@ async def delete_artifact(
     )
     log.info("%s Request received.", log_prefix)
 
-    # Validate session exists and belongs to user
-    session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
-    if not session_domain:
-        log.warning("%s Session not found or access denied.", log_prefix)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied."
-        )
+    # Validate session exists and belongs to user using session_service if persistence is enabled
+    if session_service is not None:
+        session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
+        if not session_domain:
+            log.warning("%s Session not found or access denied.", log_prefix)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found or access denied."
+            )
+    else:
+        log.debug("%s Running without persistence - skipping session validation.", log_prefix)
 
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
