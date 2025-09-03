@@ -40,6 +40,16 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "Part 1 of the story is quite long and it goes on and on until it reaches the second part which is also very long and continues until the final conclusion where the robot saves the day."
+    kind: "task"
+    id: "*"
+    contextId: "*"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "Part 1 of the story is quite long and it goes on and on until it reaches the second part which is also very long and continues until the final conclusion where the robot saves the day."

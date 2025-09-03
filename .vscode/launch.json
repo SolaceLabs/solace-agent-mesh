@@ -10,8 +10,11 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml",
+            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_example.yaml",
             "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
         },
         {
             "name": "SAM (test)",
@@ -19,7 +22,19 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml examples/test_agent.yaml examples/a2a_multimodal.yaml",
+            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_example.yaml examples/agents/test_agent.yaml examples/agents/a2a_multimodal_example.yaml",
+            "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
+        },
+        {
+            "name": "SAM (test with event-mesh-gateway)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/slack.yaml examples/event-mesh-gateway.yaml examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml examples/test_agent.yaml examples/a2a_multimodal.yaml",
             "justMyCode": false,
         },
         {
@@ -28,8 +43,11 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_orchestrator.yaml examples/webui_backend.yaml examples/test_agent.yaml",
+            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/gateways/webui_example.yaml examples/agents/test_agent.yaml",
             "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
         },
         {
             "name": "SAM (with REST)",
@@ -37,17 +55,11 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml examples/rest_gateway_example.yaml examples/test_agent.yaml examples/a2a_multimodal.yaml",
+            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_example.yaml examples/gateways/rest_gateway_example.yaml examples/agents/test_agent.yaml examples/agents/a2a_multimodal_example.yaml",
             "justMyCode": false,
-        },
-        {
-            "name": "Employee",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "solace_ai_connector.main",
-            "console": "integratedTerminal",
-            "args": "--envfile .env examples/employee.yaml examples/webui_backend.yaml ",
-            "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
         },
         {
             "name": "Multimodal Agent (With UI)",
@@ -55,8 +67,11 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_multimodal.yaml examples/webui_backend.yaml ",
+            "args": "--envfile .env examples/agents/a2a_multimodal_example.yaml examples/gateways/webui_example.yaml ",
             "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
         },
         {
             "name": "Orchestrator",
@@ -64,8 +79,11 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_orchestrator.yaml",
+            "args": "--envfile .env examples/agents/orchestrator_example.yaml",
             "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
         },
         {
             "name": "Agents",
@@ -73,8 +91,11 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_agents.yaml",
+            "args": "--envfile .env examples/agents/a2a_agents_example.yaml",
             "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
         },
         {
             "name": "MCP examples",
@@ -82,8 +103,11 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_mcp_example.yaml",
+            "args": "--envfile .env examples/agents/a2a_mcp_example.yaml",
             "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
         },
         {
             "name": "Slack",
@@ -91,8 +115,11 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/slack_gateway_example.yaml",
+            "args": "--envfile .env examples/gateways/slack_gateway_example.yaml",
             "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
         },
         {
             "name": "Webhook Gateway",
@@ -100,8 +127,11 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/webhook_gateway_example.yaml",
+            "args": "--envfile .env examples/gateways/webhook_gateway_example.yaml",
             "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
         },
         {
             "name": "WebUI",
@@ -109,8 +139,11 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/webui_backend.yaml",
+            "args": "--envfile .env examples/gateways/webui_example.yaml",
             "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
         },
         {
             "name": "Full",
@@ -118,8 +151,11 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml",
+            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_example.yaml",
             "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
         },
         {
             "name": "Minimal",
@@ -127,8 +163,11 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_host_example.yaml examples/webui_backend.yaml",
+            "args": "--envfile .env examples/agents/a2a_host_example.yaml examples/gateways/webui_example.yaml",
             "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
         },
         {
             "name": "Playwrite",
@@ -136,8 +175,11 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/a2a_mcp_example.yaml examples/webui_backend.yaml",
+            "args": "--envfile .env examples/agents/a2a_mcp_example.yaml examples/gateways/webui_example.yaml",
             "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
         },
         {
             "name": "EM Gateway",
@@ -145,8 +187,11 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/sam_em_gateway.yaml examples/a2a_multimodal.yaml examples/a2a_orchestrator.yaml examples/webui_backend.yaml",
+            "args": "--envfile .env examples/gateways/sam_em_gateway.yaml examples/agents/a2a_multimodal_example.yaml examples/agents/orchestrator_example.yaml examples/gateways/webui_example.yaml",
             "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
         },
         {
             "name": "CLI",
@@ -156,6 +201,9 @@
             "console": "integratedTerminal",
             "args": "--env-file .env",
             "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
         },
         {
             "name": "Python: Debug Tests",

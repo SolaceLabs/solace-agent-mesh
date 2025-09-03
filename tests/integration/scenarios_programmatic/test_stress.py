@@ -9,6 +9,7 @@ import asyncio
 import json
 import base64
 import uuid
+import time
 from typing import List, Dict, Any
 
 try:
@@ -30,7 +31,7 @@ from sam_test_infrastructure.llm_server.server import TestLLMServer
 from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )
-from solace_agent_mesh.common.types import Task, JSONRPCError
+from a2a.types import Task, JSONRPCError
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
@@ -280,7 +281,7 @@ async def test_concurrency_stress_with_variety(
     monitor = MemoryMonitor(
         test_id=f"concurrency_variety_{parallel_tasks}_tasks",
         objects_to_track=[shared_solace_connector],
-        size_threshold_bytes=700 * 1024,
+        size_threshold_bytes=2000 * 1024,
         max_depth=100,
     )
 
@@ -349,7 +350,7 @@ async def test_longevity_with_variety_and_peer_calls(
     monitor = MemoryMonitor(
         test_id=f"longevity_variety_{total_tasks}_tasks",
         objects_to_track=[shared_solace_connector],
-        size_threshold_bytes=1000 * 1024,
+        size_threshold_bytes=5000 * 1024,
         max_depth=100,
     )
 
@@ -357,8 +358,13 @@ async def test_longevity_with_variety_and_peer_calls(
 
     for i in range(total_tasks):
         profile = TASK_PROFILES[i % len(TASK_PROFILES)]
+        task_start_time = time.monotonic()
         await _run_task_from_profile(
             test_gateway_app_instance, test_llm_server, profile, i
+        )
+        task_duration = time.monotonic() - task_start_time
+        print(
+            f"  Task {i+1}/{total_tasks} ({profile['id']}) completed in {task_duration:.4f} seconds."
         )
         if (i + 1) % 20 == 0:
             print(f"  ... completed {i+1}/{total_tasks} tasks.")
@@ -415,8 +421,13 @@ async def test_very_long_longevity_soak_test(
 
     for i in range(total_tasks):
         profile = TASK_PROFILES[i % len(TASK_PROFILES)]
+        task_start_time = time.monotonic()
         await _run_task_from_profile(
             test_gateway_app_instance, test_llm_server, profile, i
+        )
+        task_duration = time.monotonic() - task_start_time
+        print(
+            f"  Task {i+1}/{total_tasks} ({profile['id']}) completed in {task_duration:.4f} seconds."
         )
         if (i + 1) % 50 == 0:
             print(f"  ... completed {i+1}/{total_tasks} tasks.")

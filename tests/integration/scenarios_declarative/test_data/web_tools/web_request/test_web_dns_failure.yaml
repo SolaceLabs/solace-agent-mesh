@@ -1,6 +1,6 @@
 test_case_id: web_request_dns_failure
 description: "Test that web_request tool handles a URL with a hostname that cannot be resolved."
-tags: ["all","agent","tools","web_tools"]
+tags: ["all", "agent", "tools", "web_tools"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -45,9 +45,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: final_response
-    task_state: "completed"
-    content_parts:
-      - type: text
-        text_contains: "I am sorry, but I cannot fulfill that request as it is unsafe."
+    kind: task
+    id: '*'
+    contextId: "session-465"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: text
+            text_contains:
 
+              - "I am sorry, but I cannot fulfill that request as it is unsafe."
 expected_artifacts: []

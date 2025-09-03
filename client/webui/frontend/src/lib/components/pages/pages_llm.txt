@@ -1,0 +1,80 @@
+# DEVELOPER GUIDE: pages
+
+## Quick Summary
+The `pages` directory contains React page components that serve as top-level views in the application. These components orchestrate the layout and functionality for major application sections including agent management and chat interfaces.
+
+## Files Overview
+- `AgentMeshPage.tsx` - Main page component for displaying and managing agents in various layout formats
+- `ChatPage.tsx` - Complex chat interface page with resizable panels, session management, and real-time messaging
+
+## Developer API Reference
+
+### AgentMeshPage.tsx
+**Purpose:** Renders the main agents page with layout switching capabilities and plugin support
+**Import:** `import { AgentMeshPage } from "@/lib/components/pages/AgentMeshPage"`
+
+**Components:**
+- `AgentMeshPage()` - Main page component for agent management interface
+  - Handles loading and error states for agent data
+  - Provides layout switching between cards view and plugin-based layouts
+  - Integrates with plugin registry for extensible layout options
+
+**Usage Examples:**
+```tsx
+import { AgentMeshPage } from "@/lib/components/pages/AgentMeshPage";
+
+// Use as a route component
+function App() {
+  return (
+    <Routes>
+      <Route path="/agents" element={<AgentMeshPage />} />
+    </Routes>
+  );
+}
+```
+
+### ChatPage.tsx
+**Purpose:** Comprehensive chat interface with resizable panels, session management, and real-time task monitoring
+**Import:** `import { ChatPage } from "@/lib/components/pages/ChatPage"`
+
+**Components:**
+- `ChatPage()` - Main chat page component with advanced panel management
+  - Manages resizable chat and side panels with smooth transitions
+  - Handles session management with collapsible session panel
+  - Integrates real-time task monitoring and progress tracking
+  - Automatically selects default agent and displays welcome message
+  - Supports window focus reconnection for task monitoring
+
+**Constants:**
+- `COLLAPSED_SIZE: number` - Size (4) for collapsed side panel in icon-only mode
+- `PANEL_SIZES_CLOSED: object` - Panel size configurations when session panel is closed
+- `PANEL_SIZES_OPEN: object` - Panel size configurations when session panel is open
+
+**Usage Examples:**
+```tsx
+import { ChatPage } from "@/lib/components/pages/ChatPage";
+
+// Use as a route component
+function App() {
+  return (
+    <Routes>
+      <Route path="/chat" element={<ChatPage />} />
+    </Routes>
+  );
+}
+
+// The component automatically handles:
+// - Agent selection and welcome messages
+// - Panel resizing and state management
+// - Task monitoring reconnection
+// - Session management
+```
+
+**Key Features:**
+- **Panel Management:** Resizable chat and side panels with smooth animations
+- **Session Management:** Collapsible session panel with toggle controls
+- **Task Monitoring:** Real-time task progress tracking with auto-reconnection
+- **Agent Integration:** Automatic agent selection and welcome message display
+- **Responsive Layout:** Adaptive panel sizing based on session panel state
+
+# content_hash: 341a5659229183fbafcdddfcaf543d13a53f145bdd85ce202576cb7226f8c335

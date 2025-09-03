@@ -1,6 +1,6 @@
 test_case_id: "mcp_fallback_intelligent_disabled_001"
 description: "Verifies fallback to raw JSON save when intelligent processing is disabled."
-tags: ["all","agent","mcp"]
+tags: ["all", "agent", "mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:
@@ -29,14 +29,16 @@ llm_interactions:
                 function:
                   name: "get_data_stdio"
                   # This text would normally be saved as a .txt file
-                  arguments: '{"response_to_return": {"content": [{"type": "text", "text": "This is a simple text response."}]}}'
+                  arguments: '{"response_to_return": {"content": [{"type": "text",
+                    "text": "This is a simple text response."}]}}'
 
   - expected_request:
       expected_tool_responses_in_llm_messages:
         - tool_name: "get_data_stdio"
           response_json_matches:
             status: "processed_and_saved"
-            message_to_llm_matches_regex: "The full response has been saved as artifact '.*_get_data_stdio_raw_.*\\.json' \\(version 0\\)\\."
+            message_to_llm_matches_regex: "The full response has been saved as artifact
+              '.*_get_data_stdio_raw_.*\\.json' \\(version 0\\)\\."
             saved_mcp_response_artifact_details:
               status: "success"
               fallback_artifact:
@@ -46,13 +48,24 @@ llm_interactions:
       choices:
         - message:
             role: "assistant"
-            content: "I have retrieved the data and saved the raw response as a JSON artifact because intelligent processing was disabled."
+            content: "I have retrieved the data and saved the raw response as a JSON
+              artifact because intelligent processing was disabled."
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "I have retrieved the data and saved the raw response as a JSON artifact because intelligent processing was disabled."
+    kind: task
+    id: '*'
+    contextId: "session_mcp_fallback_intelligent_disabled_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I have retrieved the data and saved the raw response as a
+              JSON artifact because intelligent processing was disabled."
     assert_artifact_state:
       - filename_matches_regex: ".*_get_data_stdio_raw_.*[^a]\\.json$"
         version: 0

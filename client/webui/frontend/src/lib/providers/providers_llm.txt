@@ -1,0 +1,178 @@
+# DEVELOPER GUIDE: providers
+
+## Quick Summary
+The providers directory contains React context providers that manage global application state including authentication, chat functionality, configuration, CSRF tokens, task monitoring, and theming. These providers wrap the application to provide centralized state management and API integration.
+
+## Files Overview
+- `AuthProvider.tsx` - Manages user authentication state and login/logout functionality
+- `ChatProvider.tsx` - Handles chat messages, file uploads, SSE connections, and chat-related UI state
+- `ConfigProvider.tsx` - Fetches and provides application configuration from the backend
+- `CsrfProvider.tsx` - Manages CSRF token fetching and caching for secure requests
+- `TaskProvider.tsx` - Monitors task execution via SSE and provides task visualization data
+- `ThemeProvider.tsx` - Manages light/dark theme switching and applies CSS variables
+
+## Developer API Reference
+
+### AuthProvider.tsx
+**Purpose:** Provides authentication context and manages user login state
+**Import:** `import { AuthProvider } from "@/lib/providers/AuthProvider"`
+
+**Classes:**
+- `AuthProvider(props: AuthProviderProps)` - React component that provides authentication context
+  - `children: ReactNode` - Child components to wrap with auth context
+
+**Usage Examples:**
+```tsx
+import { AuthProvider } from "@/lib/providers/AuthProvider";
+
+function App() {
+  return (
+    <AuthProvider>
+      <YourAppComponents />
+    </AuthProvider>
+  );
+}
+```
+
+### ChatProvider.tsx
+**Purpose:** Manages chat state, messages, file uploads, and SSE connections
+**Import:** `import { ChatProvider } from "@/lib/providers/ChatProvider"`
+
+**Classes:**
+- `ChatProvider(props: ChatProviderProps)` - React component that provides chat functionality
+  - `children: ReactNode` - Child components to wrap with chat context
+
+**Usage Examples:**
+```tsx
+import { ChatProvider } from "@/lib/providers/ChatProvider";
+
+function App() {
+  return (
+    <ChatProvider>
+      <ChatInterface />
+    </ChatProvider>
+  );
+}
+```
+
+### ConfigProvider.tsx
+**Purpose:** Fetches and provides application configuration from backend
+**Import:** `import { ConfigProvider } from "@/lib/providers/ConfigProvider"`
+
+**Classes:**
+- `ConfigProvider(props: ConfigProviderProps)` - React component that provides config context
+  - `children: ReactNode` - Child components to wrap with config context
+
+**Constants/Variables:**
+- `RETAINED_CONFIG: ConfigContextValue | null` - Cached configuration to prevent re-fetching
+- `RETAINED_ERROR: string | null` - Cached error state
+
+**Usage Examples:**
+```tsx
+import { ConfigProvider } from "@/lib/providers/ConfigProvider";
+
+function App() {
+  return (
+    <ConfigProvider>
+      <YourAppComponents />
+    </ConfigProvider>
+  );
+}
+```
+
+### CsrfProvider.tsx
+**Purpose:** Manages CSRF token fetching and provides token access
+**Import:** `import { CsrfProvider } from "@/lib/providers/CsrfProvider"`
+
+**Classes:**
+- `CsrfProvider(props: CsrfProviderProps)` - React component that provides CSRF token management
+  - `children: ReactNode` - Child components to wrap with CSRF context
+
+**Functions:**
+- `getCsrfToken(retries?: number, delayMs?: number) -> Promise<string | null>` - Fetches CSRF token from backend with retry logic
+- `getCookie(name: string) -> string | null` - Utility to read cookies from document
+
+**Usage Examples:**
+```tsx
+import { CsrfProvider } from "@/lib/providers/CsrfProvider";
+
+function App() {
+  return (
+    <CsrfProvider>
+      <YourAppComponents />
+    </CsrfProvider>
+  );
+}
+```
+
+### TaskProvider.tsx
+**Purpose:** Monitors task execution via SSE and provides task visualization data
+**Import:** `import { TaskProvider } from "@/lib/providers/TaskProvider"`
+
+**Classes:**
+- `TaskProvider(props: TaskProviderProps)` - React component that provides task monitoring
+  - `children: ReactNode` - Child components to wrap with task context
+
+**Usage Examples:**
+```tsx
+import { TaskProvider } from "@/lib/providers/TaskProvider";
+
+function App() {
+  return (
+    <TaskProvider>
+      <TaskMonitoringComponents />
+    </TaskProvider>
+  );
+}
+```
+
+### ThemeProvider.tsx
+**Purpose:** Manages theme state and applies CSS variables for light/dark themes
+**Import:** `import { ThemeProvider } from "@/lib/providers/ThemeProvider"`
+
+**Classes:**
+- `ThemeProvider(props: ThemeProviderProps)` - React component that provides theme management
+  - `children: ReactNode` - Child components to wrap with theme context
+
+**Functions:**
+- `getInitialTheme() -> "light" | "dark"` - Determines initial theme from localStorage or system preference
+- `applyThemeToDOM(themePalette: ThemePalette, theme: "light" | "dark") -> void` - Applies theme CSS variables to document root
+- `generateCustomTheme(themePalette: ThemePalette, theme?: "light" | "dark") -> Record<string, string>` - Generates CSS variables from theme palette
+- `paletteToCSSVariables(themePalette: ThemePalette) -> Record<string, string>` - Converts theme palette to CSS custom properties
+
+**Constants/Variables:**
+- `LOCAL_STORAGE_KEY: string` - Key used to store theme preference in localStorage ("sam-theme")
+
+**Usage Examples:**
+```tsx
+import { ThemeProvider } from "@/lib/providers/ThemeProvider";
+
+function App() {
+  return (
+    <ThemeProvider>
+      <YourThemedComponents />
+    </ThemeProvider>
+  );
+}
+
+// Typical provider stack
+function AppWithProviders() {
+  return (
+    <ThemeProvider>
+      <CsrfProvider>
+        <ConfigProvider>
+          <AuthProvider>
+            <TaskProvider>
+              <ChatProvider>
+                <YourApp />
+              </ChatProvider>
+            </TaskProvider>
+          </AuthProvider>
+        </ConfigProvider>
+      </CsrfProvider>
+    </ThemeProvider>
+  );
+}
+```
+
+# content_hash: 60fa604eee760fc4d28aa0bb0816daae7f8b5cfb629370d304d6c2d4b53e02fa

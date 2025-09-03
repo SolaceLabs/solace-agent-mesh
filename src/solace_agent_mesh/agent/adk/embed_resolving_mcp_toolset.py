@@ -40,11 +40,6 @@ class EmbedResolvingMCPTool(MCPTool):
         self._original_mcp_tool = original_mcp_tool
         self._tool_config = tool_config or {}
 
-        log.info(
-            "Created EmbedResolvingMCPTool for '%s' with embed resolution capabilities",
-            self.name,
-        )
-
     async def _resolve_embeds_recursively(
         self,
         data: Any,
@@ -287,10 +282,6 @@ class EmbedResolvingMCPToolset(MCPToolset):
 
         # Wrap each tool with embed resolution capability
         embed_resolving_tools = []
-        log.info(
-            "EmbedResolvingMCPToolset: Wrapping %d MCP tools with embed resolution",
-            len(original_tools),
-        )
 
         for tool in original_tools:
             # Get tool-specific config
@@ -304,13 +295,4 @@ class EmbedResolvingMCPToolset(MCPToolset):
             )
             embed_resolving_tools.append(embed_resolving_tool)
 
-            log.info(
-                "EmbedResolvingMCPToolset: Successfully wrapped MCP tool '%s'",
-                tool.name,
-            )
-
-        log.info(
-            "EmbedResolvingMCPToolset: Completed wrapping %d MCP tools",
-            len(embed_resolving_tools),
-        )
         return embed_resolving_tools

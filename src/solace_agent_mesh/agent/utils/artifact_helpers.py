@@ -13,10 +13,11 @@ import yaml
 import traceback
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple, List, Union, TYPE_CHECKING
+from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
 from google.adk.artifacts import BaseArtifactService
 from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
-from ...common.types import ArtifactInfo
+from ...common.a2a.types import ArtifactInfo
 from ...common.utils.mime_helpers import is_text_based_mime_type, is_text_based_file
 from ...agent.utils.context_helpers import get_original_session_id
 
@@ -83,6 +84,39 @@ def ensure_correct_extension(filename_from_llm: str, desired_extension: str) -> 
         return filename_stripped
     else:
         return f"{base_name}.{desired_ext_clean}"
+
+
+def format_artifact_uri(
+    app_name: str, user_id: str, session_id: str, filename: str, version: Union[int, str]
+) -> str:
+    """Formats the components into a standard artifact:// URI."""
+    path = f"/{user_id}/{session_id}/{filename}"
+    query = urlencode({"version": str(version)})
+    return urlunparse(("artifact", app_name, path, "", query, ""))
+
+
+def parse_artifact_uri(uri: str) -> Dict[str, Any]:
+    """Parses an artifact:// URI into its constituent parts."""
+    parsed = urlparse(uri)
+    if parsed.scheme != "artifact":
+        raise ValueError("Invalid URI scheme, must be 'artifact'.")
+
+    path_parts = parsed.path.strip("/").split("/")
+    if len(path_parts) != 3:
+        raise ValueError("Invalid URI path. Expected /user_id/session_id/filename")
+
+    query_params = parse_qs(parsed.query)
+    version = query_params.get("version", [None])[0]
+    if not version:
+        raise ValueError("Version is missing from URI query parameters.")
+
+    return {
+        "app_name": parsed.netloc,
+        "user_id": path_parts[0],
+        "session_id": path_parts[1],
+        "filename": path_parts[2],
+        "version": int(version) if version.isdigit() else version,
+    }
 
 
 def _inspect_structure(

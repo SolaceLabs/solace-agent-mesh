@@ -1,6 +1,6 @@
 import React, { createContext, type FormEvent } from "react";
 
-import type { AgentCard, ArtifactInfo, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
+import type { AgentInfo, ArtifactInfo, FileAttachment, MessageFE, Notification } from "@/lib/types";
 
 export interface ChatState {
     sessionId: string;
@@ -12,8 +12,9 @@ export interface ChatState {
     selectedAgentName: string;
     notifications: Notification[];
     isCancelling: boolean;
+    latestStatusText: React.RefObject<string | null>;
     // Agents
-    agents: AgentCard[];
+    agents: AgentInfo[];
     agentsError: string | null;
     agentsLoading: boolean;
     agentsRefetch: () => Promise<void>;
@@ -52,8 +53,8 @@ export interface ChatActions {
     handleCancel: () => void;
     addNotification: (message: string, type?: "success" | "info" | "error") => void;
     setSelectedAgentName: React.Dispatch<React.SetStateAction<string>>;
-    uploadArtifactFile: (file: File) => Promise<void>;
-    
+    uploadArtifactFile: (file: File) => Promise<string | null>;
+    /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
     setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "workflow">>;
     openSidePanelTab: (tab: "files" | "workflow") => void;

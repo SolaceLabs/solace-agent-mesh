@@ -1,61 +1,59 @@
+# DEVELOPER GUIDE: components
+
 ## Quick Summary
 This directory contains components for the HTTP SSE (Server-Sent Events) gateway, designed to work within the Solace AI Connector (SAC) framework. The primary component forwards messages received from the Solace broker to an internal queue, enabling real-time visualization in a web-based user interface.
 
 ## Files Overview
-- `__init__.py`: Makes the `VisualizationForwarderComponent` class directly importable from the `components` package.
-- `visualization_forwarder_component.py`: Defines a component that forwards messages from a broker input to a Python `queue.Queue` for visualization.
+- `__init__.py` - Makes the `VisualizationForwarderComponent` class directly importable from the `components` package
+- `visualization_forwarder_component.py` - Defines a SAC component that forwards messages from a broker input to a Python `queue.Queue` for visualization
 
 ## Developer API Reference
 
 ### __init__.py
-**Purpose:** Exposes the public components of this directory for easy importing.
-**Import:** `from gateway.http_sse.components import VisualizationForwarderComponent`
+**Purpose:** Exposes the public components of this directory for easy importing
+**Import:** `from solace_agent_mesh.gateway.http_sse.components import VisualizationForwarderComponent`
 
 **Exports:**
-- `VisualizationForwarderComponent`: The main component class for forwarding messages to a visualization queue.
-
----
+- `VisualizationForwarderComponent` - The main component class for forwarding messages to a visualization queue
 
 ### visualization_forwarder_component.py
-**Purpose:** A Solace AI Connector (SAC) component that listens for messages from a `BrokerInput` and forwards them to a specified Python `queue.Queue`. This is primarily used to send data to the Web UI for real-time display.
-**Import:** `from gateway.http_sse.components.visualization_forwarder_component import VisualizationForwarderComponent`
+**Purpose:** A Solace AI Connector (SAC) component that listens for messages from a `BrokerInput` and forwards them to a specified Python `queue.Queue` for real-time visualization
+**Import:** `from solace_agent_mesh.gateway.http_sse.components.visualization_forwarder_component import VisualizationForwarderComponent`
 
 **Classes:**
-- `VisualizationForwarderComponent(**kwargs: Any)` - A component that forwards messages to a target queue. It is initialized with configuration parameters, most importantly `target_queue_ref`.
-  - `invoke(self, message: SolaceMessage, data: Dict[str, Any]) -> None` - The core method called by the SAC framework for each incoming message. It formats the data and places it onto the target queue. This method should not be called directly by developers; the framework handles its execution.
+- `VisualizationForwarderComponent(**kwargs: Any)` - A component that forwards messages to a target queue, initialized with configuration parameters including `target_queue_ref`
+  - `invoke(message: SolaceMessage, data: Dict[str, Any]) -> None` - Core method called by SAC framework for each incoming message; formats data and places it onto the target queue
+  - `target_queue: queue.Queue` - The queue instance where messages are forwarded
 
 **Constants/Variables:**
-- `info: Dict` - A metadata dictionary required by the SAC framework. It describes the component's configuration parameters, input schema, and purpose. This is for framework use and not for direct interaction.
+- `info: Dict` - Metadata dictionary required by SAC framework describing component configuration, input schema, and purpose
 
 **Usage Examples:**
 ```python
 import queue
-from gateway.http_sse.components import VisualizationForwarderComponent
+from solace_agent_mesh.gateway.http_sse.components import VisualizationForwarderComponent
 from solace_ai_connector.common.message import Message as SolaceMessage
 
-# 1. Create a target queue that will receive the forwarded messages.
-#    This queue is typically managed by another component, like a Web UI backend.
+# 1. Create a target queue that will receive the forwarded messages
 visualization_queue = queue.Queue()
 
-# 2. Instantiate the component, providing a reference to the target queue.
-#    This is usually done within a SAC flow configuration file.
+# 2. Instantiate the component with target queue reference
 forwarder = VisualizationForwarderComponent(
     name="my_forwarder",
     target_queue_ref=visualization_queue
 )
 
-# 3. The `invoke` method is called automatically by the SAC framework when a message
-#    arrives from a connected BrokerInput component.
+# 3. The invoke method is called automatically by SAC framework
+# when messages arrive from connected BrokerInput component
 
-# Example of what the consuming component would get from the queue:
-# A dictionary containing the message topic, payload, and other details.
-#
-# if not visualization_queue.empty():
-#     forwarded_data = visualization_queue.get()
-#     print(f"Received topic: {forwarded_data['topic']}")
-#     print(f"Received payload: {forwarded_data['payload']}")
-#
-# Expected structure of `forwarded_data`:
+# 4. Consume forwarded messages from the queue
+if not visualization_queue.empty():
+    forwarded_data = visualization_queue.get()
+    print(f"Topic: {forwarded_data['topic']}")
+    print(f"Payload: {forwarded_data['payload']}")
+    print(f"User Properties: {forwarded_data['user_properties']}")
+    
+# Expected structure of forwarded_data:
 # {
 #     "topic": "some/broker/topic",
 #     "payload": {"key": "value"},
@@ -63,3 +61,5 @@ forwarder = VisualizationForwarderComponent(
 #     "_original_broker_message": <SolaceMessage object>
 # }
 ```
+
+# content_hash: cee7f7b4ea7e87ab3f94f7e24d463f22fa045e50d54991c61b84fe95e8a7f77d

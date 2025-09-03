@@ -1,6 +1,7 @@
 test_case_id: "mcp_audio_processing_wav_001"
-description: "Tests that a base64-encoded WAV audio stream is correctly decoded and saved as a .wav file with an audio/wav MIME type."
-tags: ["all","agent","mcp"]
+description: "Tests that a base64-encoded WAV audio stream is correctly decoded and
+  saved as a .wav file with an audio/wav MIME type."
+tags: ["all", "agent", "mcp"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -23,13 +24,16 @@ llm_interactions:
                 function:
                   name: "get_data_stdio"
                   # A very short, silent WAV file
-                  arguments: '{"response_to_return": {"content": [{"type": "audio", "data": "UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABgAAABkYXRhAAAAAA==", "mimeType": "audio/wav"}]}}'
+                  arguments: '{"response_to_return": {"content": [{"type": "audio",
+                    "data": "UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABgAAABkYXRhAAAAAA==",
+                    "mimeType": "audio/wav"}]}}'
   - expected_request:
       expected_tool_responses_in_llm_messages:
         - tool_name: "get_data_stdio"
           response_json_matches:
             status: "processed_and_saved"
-            message_to_llm_matches_regex: "The full response has been saved as artifact 'get_data_stdio_audio_0_.*\\.wav' \\(version 0\\)\\."
+            message_to_llm_matches_regex: "The full response has been saved as artifact
+              'get_data_stdio_audio_0_.*\\.wav' \\(version 0\\)\\."
             saved_mcp_response_artifact_details:
               status: "success"
               artifacts_saved:
@@ -43,9 +47,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "I have retrieved the WAV audio and saved it as an artifact."
+    kind: task
+    id: '*'
+    contextId: "session_mcp_audio_processing_wav_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I have retrieved the WAV audio and saved it as an artifact."
     assert_artifact_state:
       - filename_matches_regex: "get_data_stdio_audio_0_.*\\.wav$"
         version: 0

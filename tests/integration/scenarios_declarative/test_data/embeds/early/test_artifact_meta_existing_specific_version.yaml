@@ -23,14 +23,21 @@ llm_interactions:
       choices: [{message: {role: "assistant", content: "Metadata: «artifact_meta:file1.txt:0»"}}]
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "--- Metadata for artifact 'file1.txt' (v0) ---"
-      - type: "text"
-        text_contains: "*   **Source:** initial_upload"
-      - type: "text"
-        text_contains: "*   **Type:** text/plain"
-      - type: "text"
-        text_contains: "*   **Schema Type:** text/plain"
-      - type: "text"
-        text_matches_regex: "\\*   size: \\d+" # Escaped asterisk for regex
+    kind: "task"
+    id: "*"
+    contextId: "fixed_session_for_artifact_meta_test_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "--- Metadata for artifact 'file1.txt' (v0) ---"
+              - "*   **Source:** initial_upload"
+              - "*   **Type:** text/plain"
+              - "*   **Schema Type:** text/plain"
+            text_matches_regex:
+              - "\\*   size: \\d+"

@@ -4,9 +4,11 @@ tags: ["all","agent","tools","builtin_data_analysis_tools"]
 skip_intermediate_events: true
 
 gateway_input:
-  request_text: "Create a JPG chart from the provided Plotly YAML config."
   target_agent_name: "TestAgent"
   user_identity: "chart_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Create a JPG chart from the provided Plotly YAML config."
   external_context:
     a2a_session_id: "chart_creation_session_jpg"
 
@@ -40,8 +42,20 @@ llm_interactions:
             content: "I have successfully created the chart and saved it as 'my_scatter_chart.jpeg'."
 
 expected_gateway_output:
-  - type: final_response
-    task_state: "completed"
+  - type: "final_response"
+    kind: "task"
+    id: "*"
+    contextId: "chart_creation_session_jpg"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "I have successfully created the chart and saved it as 'my_scatter_chart.jpeg'."
 
 expected_artifacts:
   - filename: "my_scatter_chart.jpeg"

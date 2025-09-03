@@ -1,6 +1,7 @@
 test_case_id: "mcp_no_fallback_on_error_001"
-description: "Verifies that if fallback_to_raw_on_error is false, a processing error results in no artifact and a clear failure message."
-tags: ["all","agent","mcp"]
+description: "Verifies that if fallback_to_raw_on_error is false, a processing error
+  results in no artifact and a clear failure message."
+tags: ["all", "agent", "mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:
@@ -35,7 +36,8 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "get_data_stdio"
-                  arguments: '{"response_to_return": {"content": [{"type": "text", "text": "This content will trigger a save that fails."}]}}'
+                  arguments: '{"response_to_return": {"content": [{"type": "text",
+                    "text": "This content will trigger a save that fails."}]}}'
 
   - expected_request:
       expected_tool_responses_in_llm_messages:
@@ -45,16 +47,28 @@ llm_interactions:
             message_to_llm: "Saving the full response as an artifact failed."
             saved_mcp_response_artifact_details:
               status: "error"
-              message: "Failed to save MCP response as artifact: Simulated intelligent save failure"
+              message: "Failed to save MCP response as artifact: Simulated intelligent
+                save failure"
     static_response:
       choices:
         - message:
             role: "assistant"
-            content: "I tried to process the data, but an error occurred and no artifact was saved because the fallback mechanism was disabled."
+            content: "I tried to process the data, but an error occurred and no artifact
+              was saved because the fallback mechanism was disabled."
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "I tried to process the data, but an error occurred and no artifact was saved because the fallback mechanism was disabled."
+    kind: task
+    id: '*'
+    contextId: "session_mcp_no_fallback_on_error_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I tried to process the data, but an error occurred and no
+              artifact was saved because the fallback mechanism was disabled."
     # No assert_artifact_state, as no artifact should be created.

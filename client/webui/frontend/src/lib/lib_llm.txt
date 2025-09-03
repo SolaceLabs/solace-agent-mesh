@@ -1,0 +1,439 @@
+# DEVELOPER GUIDE: lib
+
+## Quick Summary
+The `lib` directory serves as the core library for a React-based agent management and chat application. It provides a comprehensive architecture with React context providers for state management, a complete component library built on Radix UI, custom hooks for accessing context data, utility functions, type definitions, and a plugin system. The directory combines direct utility files with specialized subdirectories that work together to create a cohesive development framework for building modern web applications with features like real-time chat, workflow visualization, agent management, and theming.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `constants.ts` - Application-wide constants and configuration values
+  - `index.ts` - Main entry point with plugin interfaces and type exports
+  - `types.ts` - Core TypeScript type definitions and interfaces
+  - `utils.ts` - Utility functions for common operations
+
+- **Subdirectories:**
+  - `components/` - Complete React component library with UI elements and feature components
+  - `plugins/` - Plugin system for extending UI components with registry management
+  - `providers/` - React context providers for global state management
+
+## Developer API Reference
+
+### Direct Files
+
+#### constants.ts
+**Purpose:** Defines application-wide constants including plugin types and configuration values
+**Import:** `import { PLUGIN_TYPES, DEFAULT_VALUES } from '@/lib/constants'`
+
+**Constants/Variables:**
+- `PLUGIN_TYPES` - Object containing plugin type definitions for the plugin system
+- Configuration constants for default values and application settings
+
+#### index.ts
+**Purpose:** Main entry point that exports plugin interfaces and core types for the library
+**Import:** `import { PluginInterface, PluginManagerInterface } from '@/lib'`
+
+**Interfaces:**
+- `PluginInterface` - Defines the structure for plugins in the system
+- `PluginManagerInterface` - Interface for managing plugin registration and rendering
+
+#### types.ts
+**Purpose:** Core TypeScript type definitions for the entire application
+**Import:** `import { AgentCard, ChatMessage, TaskStep } from '@/lib/types'`
+
+**Types/Interfaces:**
+- Core data types for agents, chat messages, tasks, and UI components
+- Type definitions for API responses and application state
+
+#### utils.ts
+**Purpose:** Common utility functions used throughout the application
+**Import:** `import { formatDate, validateInput, apiRequest } from '@/lib/utils'`
+
+**Functions:**
+- Utility functions for data formatting, validation, and common operations
+- Helper functions for API requests and data manipulation
+
+### Subdirectory APIs
+
+#### components/
+**Purpose:** Complete React component library with UI elements, chat interface, agent management, and workflow visualization
+**Key Exports:** UI components, chat system, agent cards, workflow visualization, navigation, pages
+**Import Examples:**
+```tsx
+import { Button, Card, Dialog } from "@/lib/components/ui"
+import { ChatInputArea, ChatMessage } from '@/lib/components/chat'
+import { AgentDisplayCard } from "@/lib/components/agents/AgentDisplayCard"
+import { FlowChartPanel } from '@/lib/components/activities/FlowChartPanel'
+import { NavigationSidebar } from '@/lib/components/navigation'
+```
+
+#### plugins/
+**Purpose:** Plugin system for extending UI components with registration and rendering capabilities
+**Key Exports:** PluginRegistry class and plugin management functionality
+**Import Examples:**
+```tsx
+import { pluginRegistry } from "@/lib/plugins/PluginRegistry"
+```
+
+#### providers/
+**Purpose:** React context providers for global state management including auth, chat, config, CSRF, tasks, and theming
+**Key Exports:** AuthProvider, ChatProvider, ConfigProvider, CsrfProvider, TaskProvider, ThemeProvider
+**Import Examples:**
+```tsx
+import { AuthProvider } from "@/lib/providers/AuthProvider"
+import { ChatProvider } from "@/lib/providers/ChatProvider"
+import { ThemeProvider } from "@/lib/providers/ThemeProvider"
+```
+
+## Complete Usage Guide
+
+### 1. Setting Up the Complete Application Structure
+
+```tsx
+import React from 'react';
+import { 
+  ThemeProvider,
+  CsrfProvider,
+  ConfigProvider,
+  AuthProvider,
+  TaskProvider,
+  ChatProvider 
+} from '@/lib/providers';
+import { NavigationSidebar } from '@/lib/components/navigation';
+import { ChatPage } from '@/lib/components/pages/ChatPage';
+import { AgentMeshPage } from '@/lib/components/pages/AgentMeshPage';
+import { pluginRegistry } from '@/lib/plugins/PluginRegistry';
+import { PLUGIN_TYPES } from '@/lib/constants';
+
+// Register custom plugins
+pluginRegistry.registerPlugin({
+  type: PLUGIN_TYPES.LAYOUT,
+  id: "custom-grid",
+  label: "Custom Grid",
+  icon: Grid,
+  priority: 300,
+  render: (data) => <CustomGridLayout agents={data.agents} />
+});
+
+function App() {
+  return (
+    <ThemeProvider>
+      <CsrfProvider>
+        <ConfigProvider>
+          <AuthProvider>
+            <TaskProvider>
+              <ChatProvider>
+                <AppLayout />
+              </ChatProvider>
+            </TaskProvider>
+          </AuthProvider>
+        </ConfigProvider>
+      </CsrfProvider>
+    </ThemeProvider>
+  );
+}
+
+function AppLayout() {
+  const [activeView, setActiveView] = useState('chat');
+
+  return (
+    <div className="flex h-screen">
+      <NavigationSidebar
+        items={navigationItems}
+        activeItem={activeView}
+        onItemChange={setActiveView}
+      />
+      <main className="flex-1">
+        {activeView === 'chat' && <ChatPage />}
+        {activeView === 'agents' && <AgentMeshPage />}
+      </main>
+    </div>
+  );
+}
+```
+
+### 2. Building a Custom Chat Interface with Workflow Integration
+
+```tsx
+import React, { useState } from 'react';
+import { 
+  ChatInputArea, 
+  ChatMessage, 
+  ChatSidePanel 
+} from '@/lib/components/chat';
+import { FlowChartPanel } from '@/lib/components/activities/FlowChartPanel';
+import { Button, Card, CardContent } from '@/lib/components/ui';
+import { MessageBanner } from '@/lib/components/common/MessageBanner';
+import { useChatContext, useTaskContext } from '@/lib/hooks';
+import { formatDate } from '@/lib/utils';
+
+function CustomChatInterface() {
+  const { 
+    messages, 
+    agents, 
+    isResponding, 
+    sendMessage,
+    uploadFile 
+  } = useChatContext();
+  const { processedSteps, isTaskRunning } = useTaskContext();
+  const [showWorkflow, setShowWorkflow] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSendMessage = async (content: string, files?: File[]) => {
+    try {
+      await sendMessage(content, files);
+    } catch (err) {
+      setError('Failed to send message');
+    }
+  };
+
+  return (
+    <div className="h-screen flex flex-col">
+      {/* Error Banner */}
+      {error && (
+        <MessageBanner
+          variant="error"
+          message={error}
+          dismissible
+          onDismiss={() => setError(null)}
+        />
+      )}
+
+      <div className="flex-1 flex overflow-hidden">
+        {/* Main Chat Area */}
+        <div className="flex-1 flex flex-col">
+          {/* Message History */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {messages.map((message, index) => (
+              <ChatMessage
+                key={message.metadata?.messageId || index}
+                message={message}
+                isLastWithTaskId={index === messages.length - 1}
+              />
+            ))}
+            
+            {isResponding && (
+              <div className="flex items-center space-x-2 text-gray-500">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+                <span>Agent is responding...</span>
+              </div>
+            )}
+          </div>
+
+          {/* Input Area */}
+          <div className="border-t bg-white dark:bg-gray-800">
+            <ChatInputArea 
+              agents={agents}
+              onSendMessage={handleSendMessage}
+              disabled={isResponding}
+            />
+          </div>
+        </div>
+
+        {/* Workflow Visualization Panel */}
+        {showWorkflow && (
+          <div className="w-1/2 border-l bg-gray-50 dark:bg-gray-900">
+            <div className="h-full flex flex-col">
+              <div className="p-4 border-b bg-white dark:bg-gray-800">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Workflow Visualization</h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowWorkflow(false)}
+                  >
+                    ✕
+                  </Button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <FlowChartPanel
+                  processedSteps={processedSteps}
+                  isRightPanelVisible={true}
+                  isSidePanelTransitioning={false}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Chat Side Panel */}
+        <ChatSidePanel
+          isSidePanelCollapsed={false}
+          setIsSidePanelCollapsed={() => {}}
+          onCollapsedToggle={() => {}}
+          isSidePanelTransitioning={false}
+        />
+      </div>
+
+      {/* Floating Action Button */}
+      {!showWorkflow && processedSteps.length > 0 && (
+        <Button
+          className="fixed bottom-20 right-6 rounded-full shadow-lg"
+          onClick={() => setShowWorkflow(true)}
+        >
+          View Workflow ({processedSteps.length})
+        </Button>
+      )}
+    </div>
+  );
+}
+```
+
+### 3. Creating a Custom Agent Management Dashboard
+
+```tsx
+import React, { useState, useEffect } from 'react';
+import { AgentMeshCards, LayoutSelector } from '@/lib/components/agents';
+import { Header } from '@/lib/components/header/Header';
+import { JSONViewer } from '@/lib/components/jsonViewer/JSONViewer';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle,
+  Button,
+  Card,
+  CardContent,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent
+} from '@/lib/components/ui';
+import { pluginRegistry } from '@/lib/plugins/PluginRegistry';
+import { PLUGIN_TYPES } from '@/lib/constants';
+import type { AgentCard } from '@/lib/types';
+
+function AgentManagementDashboard() {
+  const [agents, setAgents] = useState<AgentCard[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<AgentCard | null>(null);
+  const [layout, setLayout] = useState('mesh');
+  const [activeTab, setActiveTab] = useState('overview');
+
+  // Get available layout plugins
+  const layoutPlugins = pluginRegistry.getPluginsByType(PLUGIN_TYPES.LAYOUT);
+
+  const tabs = [
+    { 
+      id: 'overview', 
+      label: 'Overview', 
+      isActive: activeTab === 'overview',
+      onClick: () => setActiveTab('overview')
+    },
+    { 
+      id: 'details', 
+      label: 'Details', 
+      isActive: activeTab === 'details',
+      onClick: () => setActiveTab('details')
+    }
+  ];
+
+  const headerButtons = [
+    <LayoutSelector
+      key="layout"
+      currentLayout={layout}
+      onLayoutChange={setLayout}
+      availableLayouts={layoutPlugins}
+    />,
+    <Button key="refresh" variant="outline" onClick={loadAgents}>
+      Refresh
+    </Button>,
+    <Button key="add" variant="default" onClick={() => setShowAddDialog(true)}>
+      Add Agent
+    </Button>
+  ];
+
+  const loadAgents = async () => {
+    try {
+      // Load agents from API
+      const response = await fetch('/api/agents');
+      const agentData = await response.json();
+      setAgents(agentData);
+    } catch (error) {
+      console.error('Failed to load agents:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadAgents();
+  }, []);
+
+  const renderAgentLayout = () => {
+    // Use plugin system to render layout
+    const renderedLayout = pluginRegistry.renderPlugin(layout, { agents });
+    
+    if (renderedLayout) {
+      return renderedLayout;
+    }
+
+    // Fallback to default mesh layout
+    return <AgentMeshCards agents={agents} onAgentSelect={setSelectedAgent} />;
+  };
+
+  return (
+    <div className="h-screen flex flex-col">
+      <Header
+        title="Agent Management"
+        tabs={tabs}
+        buttons={headerButtons}
+      />
+
+      <main className="flex-1 overflow-hidden">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+          <TabsContent value="overview" className="flex-1 overflow-hidden p-6">
+            <div className="h-full">
+              {renderAgentLayout()}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="details" className="flex-1 overflow-auto p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {agents.map((agent) => (
+                <Card key={agent.id} className="cursor-pointer hover:shadow-md transition-shadow">
+                  <CardContent className="p-4">
+                    <h3 className="font-semibold mb-2">{agent.display_name || agent.name}</h3>
+                    <p className="text-sm text-gray-600 mb-4">{agent.description}</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedAgent(agent)}
+                    >
+                      View Details
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+        </Tabs>
+      </main>
+
+      {/* Agent Details Dialog */}
+      <Dialog open={!!selectedAgent} onOpenChange={() => setSelectedAgent(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedAgent?.display_name || selectedAgent?.name}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedAgent && (
+            <Tabs defaultValue="config" className="w-full">
+              <TabsList>
+                <TabsTrigger value="config">Configuration</TabsTrigger>
+                <TabsTrigger value="status">Status</TabsTrigger>
+                <TabsTrigger value="logs">Logs</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="config" className="mt-4">
+                <JSONViewer data={selectedAgent} maxDepth={3} />
+              </TabsContent>
+
+              <TabsContent value="status" className="mt-4">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium">Status</label>
+                      <p className="text-green-600">Active</p>
+                    </div>
+                    <div>
+
+# content_hash: f82045d99b0388557e791d24e7717b45e2d45eafe955539989141cfb208be053

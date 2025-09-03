@@ -2,7 +2,7 @@ test_case_id: "builtin_apply_embed_source_not_found_001"
 description: |
   Tests 'apply_embed_and_create_artifact' when the source artifact specified
   in the 'embed_directive' does not exist. Expects an error from the tool.
-tags: ["all","agent","tools","builtin_artifact_tools"]
+tags: ["all", "agent", "tools", "builtin_artifact_tools"]
 skip_intermediate_events: true
 
 # No setup_artifacts for "non_existent_source.txt".
@@ -42,8 +42,9 @@ llm_interactions:
           response_json_matches:
             status: "error"
           # The message from the tool will be "Embed resolution failed: [Error: Artifact 'non_existent_source.txt' ... not found...]"
-          response_contains: "Embed resolution failed:"
-          response_contains: "Artifact 'non_existent_source.txt' not found (no versions available)" # More specific part of the underlying error
+          response_contains:
+            - "Embed resolution failed:"
+            - "Artifact 'non_existent_source.txt' not found (no versions available)"
     static_response:
       id: "chatcmpl-applyembed-sourcenotfound-2"
       object: "chat.completion"
@@ -56,8 +57,15 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "I encountered an error: The source artifact 'non_existent_source.txt' for the embed directive was not found."
-    task_state: "completed"
-    # No output artifact should be created
+    kind: task
+    id: '*'
+    contextId: "session_apply_embed_source_not_found_001"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I encountered an error: The source artifact 'non_existent_source.txt' for the embed directive was not found."

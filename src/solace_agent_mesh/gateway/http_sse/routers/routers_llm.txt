@@ -1,4 +1,4 @@
-Here is the DEVELOPER GUIDE for the `routers` directory.
+# DEVELOPER GUIDE for the routers directory
 
 ## Quick Summary
 The `routers` directory contains FastAPI `APIRouter` modules that define the REST API endpoints for the HTTP SSE Gateway. Each file groups endpoints by a specific domain of functionality, such as agent discovery, artifact management, user authentication, task submission, and real-time event streaming. These routers are the primary interface for frontend applications and other clients to interact with the gateway.
@@ -20,18 +20,244 @@ The `routers` directory contains FastAPI `APIRouter` modules that define the RES
 
 ### agents.py
 **Purpose:** Provides REST endpoints for agent discovery.
-**Import:** `from src.solace_agent_mesh.gateway.http_sse.routers.agents import router`
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.agents import router`
 
 **Functions:**
-- `get_discovered_agents() -> List[AgentCard]`: Retrieves a list of all currently discovered and available A2A agents. The `AgentCard` type contains details about each agent.
+- `get_discovered_agents() -> List[AgentCard]` - Retrieves a list of all currently discovered and available A2A agents.
 
 **Usage Examples:**
 ```python
 # To include this router in a FastAPI application
 from fastapi import FastAPI
-from src.solace_agent_mesh.gateway.http_sse.routers.agents import router
+from solace_agent_mesh.gateway.http_sse.routers.agents import router
 
 app = FastAPI()
 app.include_router(router, prefix="/api/v1")
 
 # A client would make a GET request to /api/v1/agents
+```
+
+### artifacts.py
+**Purpose:** Manages session-specific artifacts via REST endpoints (upload, download, list, delete).
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.artifacts import router`
+
+**Functions:**
+- `list_artifact_versions(filename: str) -> List[int]` - Lists available version numbers for a specific artifact.
+- `list_artifacts() -> List[ArtifactInfo]` - Retrieves detailed information for all artifacts in the current session.
+- `get_latest_artifact(filename: str) -> StreamingResponse` - Downloads the latest version of an artifact.
+- `get_specific_artifact_version(filename: str, version: Union[int, str]) -> StreamingResponse` - Downloads a specific version of an artifact.
+- `get_artifact_by_uri(uri: str) -> StreamingResponse` - Downloads an artifact using its formal artifact:// URI.
+- `upload_artifact(filename: str, upload_file: UploadFile, metadata_json: Optional[str]) -> Dict[str, Any]` - Uploads a new artifact version with optional metadata.
+- `delete_artifact(filename: str) -> Response` - Deletes an artifact and all its versions.
+
+**Usage Examples:**
+```python
+# Include in FastAPI app
+from fastapi import FastAPI
+from solace_agent_mesh.gateway.http_sse.routers.artifacts import router
+
+app = FastAPI()
+app.include_router(router, prefix="/api/v1/artifacts")
+
+# Client usage examples:
+# GET /api/v1/artifacts/ - List all artifacts
+# GET /api/v1/artifacts/myfile.txt - Download latest version
+# GET /api/v1/artifacts/myfile.txt/versions/1 - Download specific version
+# POST /api/v1/artifacts/myfile.txt - Upload new version
+# DELETE /api/v1/artifacts/myfile.txt - Delete artifact
+```
+
+### auth.py
+**Purpose:** Handles user authentication flow including login, callback, and token refresh.
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.auth import router`
+
+**Functions:**
+- `initiate_login(request: FastAPIRequest) -> RedirectResponse` - Initiates the login flow by redirecting to external auth service.
+- `get_csrf_token(response: Response) -> Dict[str, str]` - Generates and returns a CSRF token.
+- `auth_callback(request: FastAPIRequest) -> RedirectResponse` - Handles the callback from the OIDC provider.
+- `refresh_token(request: FastAPIRequest) -> Dict[str, str]` - Refreshes an access token using the external auth service.
+
+**Usage Examples:**
+```python
+# Include in FastAPI app
+from fastapi import FastAPI
+from solace_agent_mesh.gateway.http_sse.routers.auth import router
+
+app = FastAPI()
+app.include_router(router, prefix="/api/v1")
+
+# Client usage:
+# GET /api/v1/auth/login - Start login flow
+# GET /api/v1/csrf-token - Get CSRF token
+# GET /api/v1/auth/callback - OAuth callback endpoint
+# POST /api/v1/auth/refresh - Refresh access token
+```
+
+### config.py
+**Purpose:** Provides configuration settings needed by the frontend application.
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.config import router`
+
+**Functions:**
+- `get_app_config() -> Dict[str, Any]` - Returns frontend configuration settings including auth URLs, welcome messages, and feature flags.
+
+**Usage Examples:**
+```python
+# Include in FastAPI app
+from fastapi import FastAPI
+from solace_agent_mesh.gateway.http_sse.routers.config import router
+
+app = FastAPI()
+app.include_router(router, prefix="/api/v1")
+
+# Client usage:
+# GET /api/v1/config - Get frontend configuration
+```
+
+### people.py
+**Purpose:** Provides user search functionality for autocomplete features.
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.people import router`
+
+**Functions:**
+- `search_people(q: str, limit: int = 10) -> List[Dict[str, Any]]` - Searches for users to populate frontend autocomplete suggestions.
+
+**Usage Examples:**
+```python
+# Include in FastAPI app
+from fastapi import FastAPI
+from solace_agent_mesh.gateway.http_sse.routers.people import router
+
+app = FastAPI()
+app.include_router(router, prefix="/api/v1")
+
+# Client usage:
+# GET /api/v1/people/search?q=john&limit=5 - Search for users
+```
+
+### sessions.py
+**Purpose:** Manages user sessions including creation and retrieval of session information.
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.sessions import router`
+
+**Functions:**
+- `create_new_session(request: FastAPIRequest) -> JSONRPCSuccessResponse` - Forces creation of a new A2A session.
+- `get_current_session(request: FastAPIRequest) -> JSONRPCSuccessResponse` - Returns information about the current session.
+
+**Usage Examples:**
+```python
+# Include in FastAPI app
+from fastapi import FastAPI
+from solace_agent_mesh.gateway.http_sse.routers.sessions import router
+
+app = FastAPI()
+app.include_router(router, prefix="/api/v1/sessions")
+
+# Client usage:
+# POST /api/v1/sessions/new - Create new session
+# GET /api/v1/sessions/current - Get current session info
+```
+
+### sse.py
+**Purpose:** Provides Server-Sent Events (SSE) endpoint for streaming real-time task updates.
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.sse import router`
+
+**Functions:**
+- `subscribe_to_task_events(task_id: str, request: FastAPIRequest) -> EventSourceResponse` - Establishes an SSE connection for real-time task updates.
+
+**Usage Examples:**
+```python
+# Include in FastAPI app
+from fastapi import FastAPI
+from solace_agent_mesh.gateway.http_sse.routers.sse import router
+
+app = FastAPI()
+app.include_router(router, prefix="/api/v1/sse")
+
+# Client usage:
+# GET /api/v1/sse/subscribe/{task_id} - Subscribe to task events via SSE
+```
+
+### tasks.py
+**Purpose:** Handles task submission and management including cancellation.
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.tasks import router`
+
+**Functions:**
+- `send_task_to_agent(request: FastAPIRequest, payload: SendMessageRequest) -> SendMessageSuccessResponse` - Submits a non-streaming task request.
+- `subscribe_task_from_agent(request: FastAPIRequest, payload: SendStreamingMessageRequest) -> SendStreamingMessageSuccessResponse` - Submits a streaming task request.
+- `cancel_agent_task(request: FastAPIRequest, taskId: str, payload: CancelTaskRequest) -> Dict[str, str]` - Sends a cancellation request for a specific task.
+
+**Usage Examples:**
+```python
+# Include in FastAPI app
+from fastapi import FastAPI
+from solace_agent_mesh.gateway.http_sse.routers.tasks import router
+
+app = FastAPI()
+app.include_router(router, prefix="/api/v1/tasks")
+
+# Client usage:
+# POST /api/v1/tasks/message:send - Submit non-streaming task
+# POST /api/v1/tasks/message:stream - Submit streaming task
+# POST /api/v1/tasks/{taskId}:cancel - Cancel a task
+```
+
+### users.py
+**Purpose:** Provides information about the currently authenticated user.
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.users import router`
+
+**Functions:**
+- `get_current_user(request: FastAPIRequest) -> Dict[str, Any]` - Retrieves information about the currently authenticated user.
+
+**Usage Examples:**
+```python
+# Include in FastAPI app
+from fastapi import FastAPI
+from solace_agent_mesh.gateway.http_sse.routers.users import router
+
+app = FastAPI()
+app.include_router(router, prefix="/api/v1/users")
+
+# Client usage:
+# GET /api/v1/users/me - Get current user info
+```
+
+### visualization.py
+**Purpose:** Manages A2A message visualization streams for monitoring and debugging.
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.visualization import router, SubscriptionTarget, VisualizationSubscribeRequest`
+
+**Classes:**
+- `SubscriptionTarget(BaseModel)` - Defines an abstract target for A2A message visualization.
+  - `type: str` - Type of target to monitor
+  - `identifier: Optional[str]` - Identifier for the target
+- `VisualizationSubscribeRequest(BaseModel)` - Request body for initiating a visualization stream.
+  - `subscription_targets: Optional[List[SubscriptionTarget]]` - Targets to monitor
+  - `client_stream_id: Optional[str]` - Client-generated ID for idempotency
+- `VisualizationSubscribeResponse(BaseModel)` - Response for successful visualization subscription.
+- `VisualizationConfigUpdateRequest(BaseModel)` - Request for updating stream configuration.
+- `VisualizationConfigUpdateResponse(BaseModel)` - Response for configuration updates.
+
+**Functions:**
+- `subscribe_to_visualization_stream(request_data: VisualizationSubscribeRequest) -> VisualizationSubscribeResponse` - Initiates a new A2A message visualization stream.
+- `get_visualization_stream_events(stream_id: str) -> EventSourceResponse` - Establishes SSE connection for filtered A2A messages.
+- `update_visualization_stream_config(stream_id: str, update_request: VisualizationConfigUpdateRequest) -> VisualizationConfigUpdateResponse` - Modifies stream configuration.
+- `unsubscribe_from_visualization_stream(stream_id: str) -> Response` - Terminates an active visualization stream.
+
+**Usage Examples:**
+```python
+# Include in FastAPI app
+from fastapi import FastAPI
+from solace_agent_mesh.gateway.http_sse.routers.visualization import router, SubscriptionTarget, VisualizationSubscribeRequest
+
+app = FastAPI()
+app.include_router(router, prefix="/api/v1/visualization")
+
+# Client usage:
+# POST /api/v1/visualization/subscribe - Start visualization stream
+# GET /api/v1/visualization/{stream_id}/events - SSE endpoint for events
+# PUT /api/v1/visualization/{stream_id}/config - Update stream config
+# DELETE /api/v1/visualization/{stream_id}/unsubscribe - Stop stream
+
+# Example subscription request:
+targets = [SubscriptionTarget(type="current_namespace_a2a_messages")]
+request = VisualizationSubscribeRequest(subscription_targets=targets)
+```
+
+# content_hash: cd51f2d84ce27b9939390065e8505a44c131798ac8296e1ad69ae55133cab7d5

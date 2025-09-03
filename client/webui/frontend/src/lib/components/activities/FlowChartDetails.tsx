@@ -3,7 +3,7 @@ import { useMemo, type JSX } from "react";
 import { Badge } from "@/lib/components/ui";
 import { useChatContext } from "@/lib/hooks";
 
-import type { MessageFE, VisualizedTask } from "@/lib/types";
+import type { MessageFE, TextPart, VisualizedTask } from "@/lib/types";
 
 import { LoadingMessageRow } from "../chat";
 
@@ -18,12 +18,27 @@ const getStatusBadge = (status: string, type: "info" | "error" | "success") => {
 };
 
 const getTaskStatus = (task: VisualizedTask, loadingMessage: MessageFE | undefined): string | JSX.Element => {
+    // Prioritize the specific status text from the visualizer if available
+    if (task.currentStatusText) {
+        return (
+            <div title={task.currentStatusText}>
+                <LoadingMessageRow statusText={task.currentStatusText} />
+            </div>
+        );
+    }
+
+    const loadingMessageText = loadingMessage?.parts
+        ?.filter(p => p.kind === "text")
+        .map(p => (p as TextPart).text)
+        .join("");
+
+    // Fallback to the overall task status
     switch (task.status) {
         case "submitted":
         case "working":
             return (
-                <div title={loadingMessage?.text || task.status}>
-                    <LoadingMessageRow statusText={loadingMessage?.text || task.status} />
+                <div title={loadingMessageText || task.status}>
+                    <LoadingMessageRow statusText={loadingMessageText || task.status} />
                 </div>
             );
         case "input-required":

@@ -74,7 +74,13 @@ function isCsvFile(fileName?: string, mimeType?: string): boolean {
  * @param fileName The name of the file.
  * @returns True if the file extension is a common image format (case-insensitive).
  */
-function isImageFile(fileName?: string): boolean {
+function isImageFile(fileName?: string, mimeType?: string): boolean {
+    if (mimeType) {
+        const lowerMime = mimeType.toLowerCase();
+        if (lowerMime.startsWith("image/")) {
+            return true;
+        }
+    }
     if (!fileName) return false;
     const lowerCaseFileName = fileName.toLowerCase();
     return (
@@ -131,7 +137,7 @@ function isYamlFile(fileName?: string, mimeType?: string): boolean {
 function isMarkdownFile(fileName?: string, mimeType?: string): boolean {
     if (mimeType) {
         const lowerMime = mimeType.toLowerCase();
-        if (lowerMime === "text/markdown" || lowerMime === "application/markdown") {
+        if (lowerMime === "text/markdown" || lowerMime === "application/markdown" || lowerMime === "text/x-markdown") {
             return true;
         }
     }
@@ -174,7 +180,7 @@ export function getRenderType(fileName?: string, mimeType?: string): string | nu
         return "mermaid";
     }
 
-    if (isImageFile(fileName)) {
+    if (isImageFile(fileName, mimeType)) {
         return "image";
     }
 
@@ -216,7 +222,7 @@ export function getRenderType(fileName?: string, mimeType?: string): string | nu
  * @returns The decoded string.
  * @throws Error if base64 decoding itself fails.
  */
-function decodeBase64Content(content: string): string {
+export function decodeBase64Content(content: string): string {
     try {
 
         const bytes = Uint8Array.from(atob(content), c => c.charCodeAt(0));

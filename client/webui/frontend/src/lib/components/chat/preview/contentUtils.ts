@@ -1,48 +1,125 @@
+import { getRenderType } from "./previewUtils";
+
 /**
  * Utility functions for detecting and processing embedded content in message text.
- * This includes base64 encoded images, HTML content, audio data, Mermaid diagrams, and CSV content.
+ * This includes data URIs, HTML content, and Mermaid diagrams.
  */
 
-// Constants for content type detection
-const SUPPORTED_IMAGE_FORMATS = ["png", "jpeg", "jpg", "gif", "webp", "svg+xml", "bmp", "ico"];
-const SUPPORTED_AUDIO_FORMATS = ["mp3", "wav", "ogg", "aac", "flac", "m4a"];
+const mimeTypeToExtension: Record<string, string> = {
+    "application/pdf": "pdf",
+    "application/zip": "zip",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.ms-excel": "xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "application/vnd.ms-powerpoint": "ppt",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+    "text/plain": "txt",
+    "text/csv": "csv",
+    "text/html": "html",
+    "text/markdown": "md",
+    "text/x-markdown": "md",
+    "application/json": "json",
+    "application/yaml": "yaml",
+    "text/yaml": "yaml",
+    "application/xml": "xml",
+    "text/xml": "xml",
+    // Images
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/gif": "gif",
+    "image/svg+xml": "svg",
+    "image/webp": "webp",
+    "image/bmp": "bmp",
+    "image/tiff": "tiff",
+    // Audio
+    "audio/mpeg": "mp3",
+    "audio/wav": "wav",
+    "audio/ogg": "ogg",
+    "audio/aac": "aac",
+    "audio/flac": "flac",
+    "audio/x-m4a": "m4a",
+    // Video
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "video/ogg": "ogv",
+    // Other common types
+    "application/javascript": "js",
+    "application/gzip": "gz",
+    "application/x-tar": "tar",
+    "application/rtf": "rtf",
+};
+
+function generateFilenameFromMimeType(mimeType: string, index: number): string {
+    const extension = mimeTypeToExtension[mimeType] || "bin";
+    return `embedded_file_${index + 1}.${extension}`;
+}
 
 /**
  * Represents an extracted content item from a message
  */
 export interface ExtractedContent {
-    type: string; // The content type (image, audio, html)
+    type: string; // The content type (image, audio, html, file)
     content: string; // The actual content (base64 data or HTML)
     mimeType?: string; // Optional MIME type for the content
     originalMatch: string; // The original matched string in the text
+    filename?: string; // Optional: for downloadable files
 }
 
 /**
- * Detects if text contains base64 encoded image data
- * @param text The text to check
- * @returns True if the text contains base64 image data
+ * Extracts all data URIs from text and categorizes them as renderable or file.
+ * @param text The text to extract from
+ * @returns Array of extracted content
  */
-export function containsBase64Images(text: string): boolean {
+export function extractDataUris(text: string): ExtractedContent[] {
     if (!text || typeof text !== "string") {
-        return false;
+        return [];
     }
 
-    const base64ImageRegex = new RegExp(`data:image/(${SUPPORTED_IMAGE_FORMATS.join("|")});base64,[A-Za-z0-9+/=]+`, "i");
-    return base64ImageRegex.test(text);
-}
+    const results: ExtractedContent[] = [];
+    // Generic regex to capture any data URI with base64 encoding
+    const dataUriRegex = /data:([a-zA-Z0-9/.-]+);base64,([A-Za-z0-9+/=]+)/g;
 
-/**
- * Detects if text contains base64 encoded audio data
- * @param text The text to check
- * @returns True if the text contains base64 audio data
- */
-export function containsBase64Audio(text: string): boolean {
-    if (!text || typeof text !== "string") {
-        return false;
+    let match;
+    let fileCounter = 0;
+    while ((match = dataUriRegex.exec(text)) !== null) {
+        const [fullMatch, mimeType, base64Data] = match;
+
+        // Check if the data URI is enclosed in quotes
+        const charBefore = text[match.index - 1];
+        const charAfter = text[match.index + fullMatch.length];
+
+        if ((charBefore === '"' && charAfter === '"') || (charBefore === "'" && charAfter === "'")) {
+            // It's quoted, likely part of an HTML attribute. Skip it.
+            continue;
+        }
+
+        if (base64Data && base64Data.length > 10) {
+            const renderType = getRenderType(undefined, mimeType);
+
+            if (renderType) {
+                // It's a directly renderable type (image, audio, mermaid, etc.)
+                results.push({
+                    type: renderType,
+                    content: base64Data,
+                    mimeType: mimeType,
+                    originalMatch: fullMatch,
+                });
+            } else {
+                // It's not directly renderable, treat as a generic file
+                results.push({
+                    type: "file",
+                    content: base64Data,
+                    mimeType: mimeType,
+                    originalMatch: fullMatch,
+                    // Generate a filename for download
+                    filename: generateFilenameFromMimeType(mimeType, fileCounter++),
+                });
+            }
+        }
     }
 
-    const base64AudioRegex = new RegExp(`data:audio/(${SUPPORTED_AUDIO_FORMATS.join("|")});base64,[A-Za-z0-9+/=]+`, "i");
-    return base64AudioRegex.test(text);
+    return results;
 }
 
 /**
@@ -64,61 +141,6 @@ export function containsHtmlContent(text: string): boolean {
     return htmlRegex.test(text) && !isInCodeBlock;
 }
 
-/**
- * Processes base64 image data in text to markdown image syntax
- * @param text The text containing base64 image data
- * @returns Processed text with base64 images converted to markdown image syntax
- */
-export function processBase64Images(text: string): string {
-    if (!text || typeof text !== "string") {
-        return text || "";
-    }
-
-    const base64ImageRegex = new RegExp(`data:image/(${SUPPORTED_IMAGE_FORMATS.join("|")});base64,([A-Za-z0-9+/=]+)`, "g");
-
-    let imageCounter = 1;
-
-    return text.replace(base64ImageRegex, (match, _format, base64Data) => {
-        // Validate that we have actual base64 data
-        if (!base64Data || base64Data.length < 10) {
-            return match;
-        }
-
-        // Create markdown image syntax with the original data URL
-        const altText = `Image ${imageCounter}`;
-        const markdownImage = `![${altText}](${match})`;
-
-        imageCounter++;
-        return markdownImage;
-    });
-}
-
-/**
- * Processes base64 audio data in text to audio element syntax
- * @param text The text containing base64 audio data
- * @returns Processed text with base64 audio converted to audio elements
- */
-export function processBase64Audio(text: string): string {
-    if (!text || typeof text !== "string") {
-        return text || "";
-    }
-
-    const base64AudioRegex = new RegExp(`data:audio/(${SUPPORTED_AUDIO_FORMATS.join("|")});base64,([A-Za-z0-9+/=]+)`, "g");
-
-    let audioCounter = 1;
-
-    return text.replace(base64AudioRegex, (match, _format, base64Data) => {
-        // Validate that we have actual base64 data
-        if (!base64Data || base64Data.length < 10) {
-            return match;
-        }
-
-        const audioElement = `<audio controls src="${match}">Audio ${audioCounter}</audio>`;
-
-        audioCounter++;
-        return audioElement;
-    });
-}
 
 /**
  * Processes all embedded content in text
@@ -130,15 +152,11 @@ export function processEmbeddedContent(text: string): string {
         return text || "";
     }
 
-    let processedText = text;
+    const processedText = text;
 
-    if (containsBase64Images(processedText)) {
-        processedText = processBase64Images(processedText);
-    }
-
-    if (containsBase64Audio(processedText)) {
-        processedText = processBase64Audio(processedText);
-    }
+    // This function is now a placeholder as extraction handles rendering decisions.
+    // It could be used in the future for simple replacements like markdown images,
+    // but for now, we extract and render as components.
 
     return processedText;
 }
@@ -163,69 +181,8 @@ export function containsMermaidDiagram(text: string): boolean {
  * @returns True if the text contains any embedded content
  */
 export function containsEmbeddedContent(text: string): boolean {
-    return containsBase64Images(text) || containsBase64Audio(text) || containsHtmlContent(text) || containsMermaidDiagram(text);
-}
-
-/**
- * Extracts base64 image data from text
- * @param text The text to extract from
- * @returns Array of extracted image content
- */
-export function extractBase64Images(text: string): ExtractedContent[] {
-    if (!text || typeof text !== "string") {
-        return [];
-    }
-
-    const results: ExtractedContent[] = [];
-    const base64ImageRegex = new RegExp(`data:image/(${SUPPORTED_IMAGE_FORMATS.join("|")});base64,([A-Za-z0-9+/=]+)`, "g");
-
-    let match;
-    while ((match = base64ImageRegex.exec(text)) !== null) {
-        const [fullMatch, format, base64Data] = match;
-
-        // Validate that we have actual base64 data
-        if (base64Data && base64Data.length > 10) {
-            results.push({
-                type: "image",
-                content: base64Data,
-                mimeType: `image/${format}`,
-                originalMatch: fullMatch,
-            });
-        }
-    }
-
-    return results;
-}
-
-/**
- * Extracts base64 audio data from text
- * @param text The text to extract from
- * @returns Array of extracted audio content
- */
-export function extractBase64Audio(text: string): ExtractedContent[] {
-    if (!text || typeof text !== "string") {
-        return [];
-    }
-
-    const results: ExtractedContent[] = [];
-    const base64AudioRegex = new RegExp(`data:audio/(${SUPPORTED_AUDIO_FORMATS.join("|")});base64,([A-Za-z0-9+/=]+)`, "g");
-
-    let match;
-    while ((match = base64AudioRegex.exec(text)) !== null) {
-        const [fullMatch, format, base64Data] = match;
-
-        // Validate that we have actual base64 data
-        if (base64Data && base64Data.length > 10) {
-            results.push({
-                type: "audio",
-                content: base64Data,
-                mimeType: `audio/${format}`,
-                originalMatch: fullMatch,
-            });
-        }
-    }
-
-    return results;
+    const dataUriRegex = /data:([a-zA-Z0-9/.-]+);base64,([A-Za-z0-9+/=]+)/;
+    return dataUriRegex.test(text) || containsHtmlContent(text) || containsMermaidDiagram(text);
 }
 
 /**
@@ -291,5 +248,5 @@ export function extractEmbeddedContent(text: string): ExtractedContent[] {
         return [];
     }
 
-    return [...extractBase64Images(text), ...extractBase64Audio(text), ...extractHtmlContent(text), ...extractMermaidDiagrams(text)];
+    return [...extractDataUris(text), ...extractHtmlContent(text), ...extractMermaidDiagrams(text)];
 }

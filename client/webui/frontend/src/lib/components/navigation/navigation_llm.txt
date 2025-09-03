@@ -1,0 +1,178 @@
+# DEVELOPER GUIDE: navigation
+
+## Quick Summary
+The navigation directory provides a complete sidebar navigation system for React applications. It includes a main sidebar component with header, navigation buttons, theme toggle, and support for both main and bottom navigation items with tooltips and accessibility features.
+
+## Files Overview
+- `NavigationButton.tsx` - Individual navigation button component with tooltip and accessibility
+- `NavigationHeader.tsx` - Header component with logo/branding for the navigation sidebar
+- `NavigationList.tsx` - Container for organizing navigation items and bottom items
+- `NavigationSidebar.tsx` - Main sidebar component that combines all navigation elements
+- `ToggleThemeButton.tsx` - Theme toggle button with sun/moon icon
+
+## Developer API Reference
+
+### NavigationButton.tsx
+**Purpose:** Renders individual navigation buttons with icons, labels, tooltips, and click handling
+**Import:** `import { NavigationButton } from "@/lib/components/navigation"`
+
+**Interfaces:**
+- `NavigationItemProps` - Props for the NavigationButton component
+  - `item: NavigationItem` - Navigation item data with id, label, icon, and disabled state
+  - `isActive: boolean` - Whether this button represents the currently active page/section
+  - `onItemClick?: (itemId: string) => void` - Optional callback when button is clicked
+
+**Components:**
+- `NavigationButton: React.FC<NavigationItemProps>` - Navigation button with tooltip and accessibility features
+  - Handles click and keyboard events (Enter/Space)
+  - Shows active state with visual indicators
+  - Includes tooltip on hover
+  - Supports disabled state
+
+**Usage Examples:**
+```tsx
+import { NavigationButton } from "@/lib/components/navigation";
+import { Home } from "lucide-react";
+
+const navigationItem = {
+  id: "home",
+  label: "Home",
+  icon: Home,
+  disabled: false
+};
+
+<NavigationButton 
+  item={navigationItem}
+  isActive={true}
+  onItemClick={(itemId) => console.log(`Clicked: ${itemId}`)}
+/>
+```
+
+### NavigationHeader.tsx
+**Purpose:** Displays the header/logo section at the top of the navigation sidebar
+**Import:** `import { NavigationHeader } from "@/lib/components/navigation"`
+
+**Interfaces:**
+- `NavigationHeaderProps` - Props for the NavigationHeader component
+  - `onClick?: () => void` - Optional callback when header is clicked
+
+**Components:**
+- `NavigationHeader: React.FC<NavigationHeaderProps>` - Header component with logo SVG
+  - Fixed height of 80px
+  - Clickable with optional callback
+  - Contains branded logo SVG
+
+**Constants/Variables:**
+- `HEADER_ICON: JSX.Element` - SVG logo element with brand styling
+
+**Usage Examples:**
+```tsx
+import { NavigationHeader } from "@/lib/components/navigation";
+
+<NavigationHeader onClick={() => console.log("Header clicked")} />
+```
+
+### NavigationList.tsx
+**Purpose:** Organizes and renders lists of navigation items with support for main and bottom sections
+**Import:** `import { NavigationList } from "@/lib/components/navigation"`
+
+**Interfaces:**
+- `NavigationListProps` - Props for the NavigationList component
+  - `items: NavigationItem[]` - Main navigation items
+  - `bottomItems?: NavigationItem[]` - Optional bottom navigation items
+  - `activeItem: string | null` - ID of currently active item
+  - `onItemClick: (itemId: string) => void` - Callback when any item is clicked
+
+**Components:**
+- `NavigationList: React.FC<NavigationListProps>` - Navigation list container
+  - Renders main navigation items at top
+  - Renders bottom items at bottom with spacer
+  - Handles special "theme-toggle" item with ToggleThemeButton
+  - Supports dividers between items
+
+**Usage Examples:**
+```tsx
+import { NavigationList } from "@/lib/components/navigation";
+import { Home, Settings } from "lucide-react";
+
+const mainItems = [
+  { id: "home", label: "Home", icon: Home },
+  { id: "settings", label: "Settings", icon: Settings, showDividerAfter: true }
+];
+
+const bottomItems = [
+  { id: "theme-toggle", label: "Toggle Theme", icon: SunMoon }
+];
+
+<NavigationList 
+  items={mainItems}
+  bottomItems={bottomItems}
+  activeItem="home"
+  onItemClick={(itemId) => console.log(`Clicked: ${itemId}`)}
+/>
+```
+
+### NavigationSidebar.tsx
+**Purpose:** Main sidebar component that combines header, navigation list, and provides the complete navigation experience
+**Import:** `import { NavigationSidebar } from "@/lib/components/navigation"`
+
+**Interfaces:**
+- `NavigationSidebarProps` - Props for the NavigationSidebar component
+  - `items: NavigationItem[]` - Main navigation items
+  - `bottomItems?: NavigationItem[]` - Optional bottom navigation items
+  - `activeItem: string` - ID of currently active item
+  - `onItemChange: (itemId: string) => void` - Callback when active item changes
+  - `onHeaderClick?: () => void` - Optional callback when header is clicked
+
+**Components:**
+- `NavigationSidebar: React.FC<NavigationSidebarProps>` - Complete sidebar navigation
+  - Fixed width of 100px
+  - Full height (h-screen)
+  - Combines NavigationHeader and NavigationList
+  - Handles item change events
+
+**Usage Examples:**
+```tsx
+import { NavigationSidebar } from "@/lib/components/navigation";
+import { Home, Settings, User } from "lucide-react";
+
+const mainItems = [
+  { id: "home", label: "Home", icon: Home },
+  { id: "profile", label: "Profile", icon: User },
+  { id: "settings", label: "Settings", icon: Settings }
+];
+
+const bottomItems = [
+  { id: "theme-toggle", label: "Toggle Theme", icon: SunMoon }
+];
+
+<NavigationSidebar 
+  items={mainItems}
+  bottomItems={bottomItems}
+  activeItem="home"
+  onItemChange={(itemId) => setActiveItem(itemId)}
+  onHeaderClick={() => console.log("Header clicked")}
+/>
+```
+
+### ToggleThemeButton.tsx
+**Purpose:** Specialized button for toggling between light and dark themes
+**Import:** `import { ToggleThemeButton } from "@/lib/components/navigation"`
+
+**Components:**
+- `ToggleThemeButton: React.FC` - Theme toggle button component
+  - Uses `useThemeContext` hook for theme management
+  - Shows current theme in tooltip and aria-label
+  - Uses SunMoon icon from lucide-react
+  - Includes tooltip with current theme state
+
+**Usage Examples:**
+```tsx
+import { ToggleThemeButton } from "@/lib/components/navigation";
+
+// Used automatically in NavigationList when item.id === "theme-toggle"
+// Or can be used standalone:
+<ToggleThemeButton />
+```
+
+# content_hash: dcd0575fc59316e750a5c6319045413ed2d26be93343c1593d4d2fb25201d1f3

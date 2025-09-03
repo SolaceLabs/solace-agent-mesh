@@ -1,7 +1,7 @@
 # Test Case 1: Verify that an artifact referenced in a peer call enriches the peer's LLM prompt.
 test_case_id: "peer_request_with_artifact_001"
 description: "Verify peer agent's LLM prompt is enriched with artifact metadata."
-tags: ["all","agent","tools","delegation"]
+tags: ["all", "agent", "tools", "delegation"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:
@@ -68,7 +68,16 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    task_state: "completed"
-    content_parts:
-      - type: "text"
-        text_contains: "TestPeerAgentA reports: The sales data shows one sale for Widget A."
+    kind: task
+    id: '*'
+    contextId: "request_with_artifact_session"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "TestPeerAgentA reports: The sales data shows one sale for Widget A."

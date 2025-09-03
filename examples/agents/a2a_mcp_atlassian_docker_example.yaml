@@ -1,0 +1,106 @@
+# Solace AI Connector Example: A2A ADK Host Component with Atlassian MCP via Docker
+#
+# This file demonstrates how to configure the A2A_ADK_HostComponent to connect
+# to an Atlassian MCP server running in a Docker container using stdio.
+#
+# Required Environment Variables:
+# - SOLACE_BROKER_URL, SOLACE_BROKER_USERNAME, SOLACE_BROKER_PASSWORD, SOLACE_BROKER_VPN
+# - GOOGLE_API_KEY (or other LLM provider keys as per shared_config.yaml)
+# - NAMESPACE (e.g., "myorg/dev/a2a")
+# - CONFLUENCE_URL_ACTUAL (e.g., "https://your-company.atlassian.net/wiki")
+# - CONFLUENCE_USERNAME_ACTUAL (e.g., "your.email@company.com")
+# - CONFLUENCE_API_TOKEN_ACTUAL (Your Confluence API token)
+# - JIRA_URL_ACTUAL (e.g., "https://your-company.atlassian.net")
+# - JIRA_USERNAME_ACTUAL (e.g., "your.email@company.com")
+# - JIRA_API_TOKEN_ACTUAL (Your Jira API token)
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: a2a_mcp_atlassian_docker_example.log
+
+# Shared SAM config (includes broker connection and model definitions)
+!include ../shared_config.yaml
+
+apps:
+  - name: atlassian_mcp_docker_agent_app
+    app_base_path: . # Assuming execution from the root of the project
+    app_module: src.solace_agent_mesh.agent.sac.app # Custom app class for A2A ADK Host
+    broker:
+      <<: *broker_connection # From shared_config.yaml
+
+    # --- App Level Config ---
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true # MCP tools generally don't stream responses, but agent can stream its own text
+      agent_name: "AtlassianDockerAgent"
+      display_name: "Atlassian (Jira/Confluence via Docker)"
+      model: *planning_model # Using the planning model from shared_config.yaml
+
+      instruction: |
+        You are an AI assistant that can interact with Jira and Confluence through an MCP server running in Docker.
+        Use the available tools to search for issues/pages, create issues/pages, or update them
+        based on the user's request.
+
+      tools:
+        - tool_type: mcp
+          # tool_name: "specific_atlassian_tool" # Optional: Uncomment if you only want one specific tool
+          connection_params:
+            type: stdio # Specify stdio connection type for Docker
+            timeout: 300 # Timeout for the MCP server
+            command: "podman"
+            args:
+              - "run"
+              - "-i" # Keep STDIN open even if not attached
+              - "--rm" # Automatically remove the container when it exits
+              # Pass environment variable names into the container. Docker will pick up their values
+              # from the environment set for the 'docker run' command by the 'environment_variables' block below.
+              - "-e"
+              - "CONFLUENCE_URL"
+              - "-e"
+              - "CONFLUENCE_USERNAME"
+              - "-e"
+              - "CONFLUENCE_API_TOKEN"
+              - "-e"
+              - "JIRA_URL"
+              - "-e"
+              - "JIRA_USERNAME"
+              - "-e"
+              - "JIRA_API_TOKEN"
+              - "ghcr.io/sooperset/mcp-atlassian:latest" # The Docker image for Atlassian MCP
+          # These environment variables are set for the 'docker run' process itself.
+          # Their values are sourced from the host environment where SAC is running.
+          environment_variables:
+            CONFLUENCE_URL: ${CONFLUENCE_URL_ACTUAL}
+            CONFLUENCE_USERNAME: ${CONFLUENCE_USERNAME_ACTUAL}
+            CONFLUENCE_API_TOKEN: ${CONFLUENCE_API_TOKEN_ACTUAL}
+            JIRA_URL: ${JIRA_URL_ACTUAL}
+            JIRA_USERNAME: ${JIRA_USERNAME_ACTUAL}
+            JIRA_API_TOKEN: ${JIRA_API_TOKEN_ACTUAL}
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        type: "memory"
+        default_behavior: "PERSISTENT"
+      artifact_service:
+        type: "memory" # Or "filesystem" if you want to persist artifacts
+        # base_path: "/tmp/samv2_atlassian_docker" # Example if using filesystem
+        # artifact_scope: namespace
+
+      # --- Agent Card Definition ---
+      agent_card:
+        description: "An agent that interacts with Jira and Confluence via a Dockerized MCP server."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"] # Can output Jira/Confluence data
+        skills: [] # Define skills if specific Jira/Confluence operations are exposed as tools
+
+      # --- Discovery & Communication ---
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true } # Enable discovery and peer delegation
+      inter_agent_communication:
+        allow_list: ["*"] # Allow delegation to any discovered agent
+        request_timeout_seconds: 60 # Timeout for requests to peer agents, potentially longer for Atlassian APIs
+      
+      # --- LLM Call Limits ---
+      max_llm_calls_per_task: 15
