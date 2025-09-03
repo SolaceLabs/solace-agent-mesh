@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from solace_ai_connector.common.log import log
 
-from ...business.services.in_memory_session_service import InMemorySessionService
 from ...business.services.session_service import SessionService
 from ...dependencies import (
     PublishFunc,
@@ -29,7 +28,7 @@ router = APIRouter()
 @router.get("/sessions", response_model=SessionListResponse)
 async def get_all_sessions(
     user: dict = Depends(get_current_user),
-    session_service: SessionService | InMemorySessionService = Depends(
+    session_service: SessionService = Depends(
         get_session_service
     ),
 ):
@@ -75,7 +74,7 @@ async def get_all_sessions(
 async def get_session(
     session_id: str,
     user: dict = Depends(get_current_user),
-    session_service: SessionService | InMemorySessionService = Depends(
+    session_service: SessionService = Depends(
         get_session_service
     ),
 ):
@@ -135,7 +134,7 @@ async def get_session(
 async def get_session_history(
     session_id: str,
     user: dict = Depends(get_current_user),
-    session_service: SessionService | InMemorySessionService = Depends(
+    session_service: SessionService = Depends(
         get_session_service
     ),
 ):
@@ -209,7 +208,7 @@ async def update_session_name(
     session_id: str,
     name: str = Body(..., embed=True),
     user: dict = Depends(get_current_user),
-    session_service: SessionService | InMemorySessionService = Depends(
+    session_service: SessionService = Depends(
         get_session_service
     ),
 ):
@@ -278,7 +277,7 @@ async def update_session_name(
 async def delete_session(
     session_id: str,
     user: dict = Depends(get_current_user),
-    session_service: SessionService | InMemorySessionService = Depends(
+    session_service: SessionService = Depends(
         get_session_service
     ),
     publish_func: PublishFunc = Depends(get_publish_a2a_func),

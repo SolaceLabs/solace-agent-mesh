@@ -2,7 +2,6 @@ from collections.abc import Callable
 from typing import Any, TypeVar, Union
 
 from ...business.services.session_service import SessionService
-from ...business.services.in_memory_session_service import InMemorySessionService
 from ...data.persistence import database_service as db_service_module
 from ...data.persistence.database_service import DatabaseService
 
@@ -72,7 +71,7 @@ class ApplicationContainer:
             self.container.register_singleton(DatabaseService, database_service)
             db_service_module.database_service = database_service
         else:
-            # No database available - will use in-memory fallback
+            # No database available - session persistence not supported
             pass
 
     def get_database_service(self) -> DatabaseService | None:

@@ -6,7 +6,6 @@ from fastapi import UploadFile, status
 from solace_ai_connector.common.log import log
 
 from .....common.types import InternalError, InvalidRequestError, JSONRPCResponse
-from ...business.services.in_memory_session_service import InMemorySessionService
 from ...business.services.session_service import SessionService
 from ...dependencies import (
     get_sac_component,
@@ -129,7 +128,7 @@ async def subscribe_task_from_agent(
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     user_id: str = Depends(get_user_id),
-    session_service: SessionService | InMemorySessionService = Depends(
+    session_service: SessionService = Depends(
         get_session_service
     ),
 ):
