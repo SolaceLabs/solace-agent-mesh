@@ -18,11 +18,13 @@ interface HistoryMessage {
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
-    const { configWelcomeMessage, configServerUrl } = useConfigContext();
+    const { configWelcomeMessage, configServerUrl, persistenceEnabled } = useConfigContext();
     const apiPrefix = `${configServerUrl}/api/v1`;
 
     const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [sessionId, setSessionId] = useState<string>("");
+    const [sessionId, setSessionId] = useState<string>(() => 
+        persistenceEnabled === false ? `web-session-${Date.now()}` : ""
+    );
 
     // Agents State
     const {
@@ -616,9 +618,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }
         setIsCancelling(false);
 
-        setSessionId("");
+        // For no-persistence mode, generate a new session ID
+        const newSessionId = persistenceEnabled === false ? `web-session-${Date.now()}` : "";
+        setSessionId(newSessionId);
         setSessionName(null);
-        setMessages(configWelcomeMessage ? [{ text: configWelcomeMessage, isUser: false, isComplete: true, metadata: { sessionId: "", lastProcessedEventSequence: 0 } }] : []);
+        setMessages(configWelcomeMessage ? [{ text: configWelcomeMessage, isUser: false, isComplete: true, metadata: { sessionId: newSessionId, lastProcessedEventSequence: 0 } }] : []);
         setUserInput("");
         setIsResponding(false);
         setCurrentTaskId(null);
@@ -631,7 +635,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         if (typeof window !== "undefined") {
             window.dispatchEvent(new CustomEvent("new-chat-session"));
         }
-    }, [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, configWelcomeMessage, addNotification, sessionId]);
+    }, [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, configWelcomeMessage, addNotification, sessionId, persistenceEnabled]);
 
     const handleSwitchSession = useCallback(
         async (newSessionId: string) => {

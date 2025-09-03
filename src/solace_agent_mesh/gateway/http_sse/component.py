@@ -1658,28 +1658,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         agent_id=task_data.metadata.get("agent_name"),
                     )
                 else:
-                    # In-memory session fallback
-                    from .business.services.in_memory_session_service import InMemorySessionService
-                    from .shared.enums import SenderType
-                    from .dependencies import in_memory_session_service_instance
-                    
-                    if in_memory_session_service_instance:
-                        user_id = external_request_context.get("user_id_for_a2a")
-                        agent_name = task_data.metadata.get("agent_name", "Agent")
-                        
-                        in_memory_session_service_instance.add_message_to_session(
-                            session_id=task_data.sessionId,
-                            user_id=user_id,
-                            message=agent_message_content,
-                            sender_type=SenderType.AGENT,
-                            sender_name=agent_name,
-                            agent_id=agent_name,
-                        )
-                        log.debug(
-                            "%s Stored agent response in in-memory session %s",
-                            log_id_prefix,
-                            task_data.sessionId,
-                        )
+                    # No persistence available - skip storing messages
+                    log.debug(
+                        "%s Skipping message storage - no persistence configured",
+                        log_id_prefix,
+                    )
         except Exception as e:
             log.error(
                 "%s Failed to store final agent response: %s",
