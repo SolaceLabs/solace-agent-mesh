@@ -2,9 +2,9 @@
 
 ## Phase 1: Setup and Dependencies
 
-- [ ] 1. **Confirm File Deletion:** Verify that `src/solace_agent_mesh/agent/proxies/a2a/translation.py` is deleted.
-- [ ] 2. **Add Documentation:** Add `DESIGN.md` and `IMPLEMENTATION_PLAN.md` to the `src/solace_agent_mesh/agent/proxies/` directory.
-- [ ] 3. **Update Dependencies:** Add `"a2a-sdk[http-server]>=0.3.1"` to `pyproject.toml`.
+- [x] 1. **Confirm File Deletion:** Verify that `src/solace_agent_mesh/agent/proxies/a2a/translation.py` is deleted.
+- [x] 2. **Add Documentation:** Add `DESIGN.md` and `IMPLEMENTATION_PLAN.md` to the `src/solace_agent_mesh/agent/proxies/` directory.
+- [x] 3. **Update Dependencies:** Add `"a2a-sdk[http-server]>=0.3.1"` to `pyproject.toml`.
 
 ## Phase 2: Refactor `BaseProxyComponent`
 
