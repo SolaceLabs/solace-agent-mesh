@@ -1,44 +1,43 @@
-# Solace AI Connector Configuration for A2A Web UI Backend
+# Solace AI Connector Configuration for A2A Web UI
 
 log:
   stdout_log_level: INFO
   log_file_level: DEBUG # Use DEBUG for development
-  log_file: webui_backend.log
+  log_file: webui_example.log
 
 # Shared SAM config
-!include shared_config.yaml
+!include ../shared_config.yaml
 
 apps:
-  - name: a2a_webui_backend_app
+  - name: webui_example_app
     app_base_path: . # Assume running from project root where src/ is located
-    app_module: src.solace_agent_mesh.gateway.http_sse.app
+    app_module: solace_agent_mesh.gateway.http_sse.app
 
     # Broker settings for this app instance
     broker:
-      <<: *broker_connection
+      <<: *broker_connection # Points to shared_config.yaml
       # Queue name is generated automatically by WebUIBackendApp based on namespace/gateway_id
 
     # --- App Level Config (Validated by WebUIBackendApp.app_schema) ---
     app_config:
       # --- Required ---
-      namespace: ${NAMESPACE, a2a/dev} # Namespace for A2A communication
-      session_secret_key: ${SESSION_SECRET_KEY, please_change_me_in_production} # Secret for web sessions
-      # --- Authorization Service (Required for proper access control) ---
-      authorization_service:
-        type: "default_rbac"
-        role_definitions_path: "examples/auth/dev-roles.yaml"
-        user_assignments_path: "examples/auth/dev-users.yaml"
+      namespace: ${NAMESPACE} # Namespace for A2A communication
+      session_secret_key: ${SESSION_SECRET_KEY} # Secret for web sessions
 
-      # --- Development User Identity Configuration (WARNING: Only for development!) ---
-      # Force all user identities to sam_dev_user (overrides web-client-xxxxx)
-      force_user_identity: "sam_dev_user"
-      # Fallback for null identities (kept for completeness)
-      default_user_identity: "sam_dev_user"
+      # --- Authorization Service (Required for proper access control) ---
+      # authorization_service:
+      #   type: "default_rbac"
+      #   role_definitions_path: "examples/auth/dev-roles.yaml"
+      #   user_assignments_path: "examples/auth/dev-users.yaml"
+
+      # # --- Development User Identity Configuration (WARNING: Only for development!) ---
+      # # Force all user identities to sam_dev_user (overrides web-client-xxxxx)
+      # force_user_identity: "sam_dev_user"
+      # # Fallback for null identities (kept for completeness)
+      # default_user_identity: "sam_dev_user"
 
       # --- Artifact Service (Required) ---
-      artifact_service:
-        type: "filesystem"
-        base_path: "/tmp/samv2"
+      artifact_service: *default_artifact_service # Points to shared_config.yaml
 
       # --- Optional with Defaults ---
       gateway_id: ${WEBUI_GATEWAY_ID} # Optional: Unique ID for this instance. If omitted, one will be generated.
@@ -50,7 +49,7 @@ apps:
         # Add other origins as needed, or use ["*"] for wide open (less secure)
 
       # --- Embed Resolution Config ---
-      enable_embed_resolution: ${ENABLE_EMBED_RESOLUTION, true} # Enable late-stage resolution
+      enable_embed_resolution: ${ENABLE_EMBED_RESOLUTION} # Enable late-stage resolution
       gateway_artifact_content_limit_bytes: ${GATEWAY_ARTIFACT_LIMIT_BYTES, 10000000} # Max size for late-stage embeds
       sse_max_queue_size: ${SSE_MAX_QUEUE_SIZE, 200} # Max size of SSE connection queues
 
@@ -67,15 +66,7 @@ apps:
             Format responses to the user in Markdown using appropriate formatting.
 
       # --- Frontend Config Passthrough ---
-      # These are read by the component but defined here for validation
-      frontend_welcome_message: ${FRONTEND_WELCOME_MESSAGE, ""}
-      frontend_bot_name: ${FRONTEND_BOT_NAME, "Solace Agent Mesh"}
-      frontend_collect_feedback: ${FRONTEND_COLLECT_FEEDBACK, false}
-      # Auth-related (placeholders, functionality depends on backend implementation)
-      frontend_auth_login_url: ${FRONTEND_AUTH_LOGIN_URL, ""}
-      frontend_use_authorization: ${FRONTEND_USE_AUTHORIZATION, false}
-      frontend_redirect_url: ${FRONTEND_REDIRECT_URL, ""}
-
-      external_auth_callback_uri: http://${FASTAPI_HOST, localhost}:${FASTAPI_PORT, 8000}/api/v1/auth/callback
-      external_auth_service_url: ${EXTERNAL_AUTH_SERVICE_URL, http://localhost:8080}
-      external_auth_provider: ${EXTERNAL_AUTH_PROVIDER, azure}
+      frontend_welcome_message: >
+            __FRONTEND_WELCOME_MESSAGE__
+      frontend_bot_name: __FRONTEND_BOT_NAME__
+      frontend_collect_feedback: __FRONTEND_COLLECT_FEEDBACK__

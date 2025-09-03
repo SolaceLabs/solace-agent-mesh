@@ -17,7 +17,7 @@ log:
   log_file: s3_artifact_example.log
 
 # Shared SAM config
-!include shared_config.yaml
+!include ../shared_config.yaml
 
 apps:
   # Example 1: Basic S3 Artifact Storage (AWS S3)

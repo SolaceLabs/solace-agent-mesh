@@ -7,7 +7,7 @@ log:
   log_file: a2a_agents.log
 
 # Shared SAM config
-!include shared_config.yaml
+!include ../shared_config.yaml
 
 apps:
 # Playwright MCP Agent
@@ -69,7 +69,7 @@ apps:
 # ---  Markitdown Agent ---
   - name: markitdown_agent_app
     app_base_path: .
-    app_module: solace_agent_mesh.agent.sac.app
+    app_module: src.solace_agent_mesh.agent.sac.app
     broker:
       <<: *broker_connection
 
@@ -125,7 +125,7 @@ apps:
 # --- Mermaid Agent (Python Tool based) ---
   - name: mermaid_pytool_agent_app # New distinct app name
     app_base_path: .
-    app_module: solace_agent_mesh.agent.sac.app
+    app_module: src.solace_agent_mesh.agent.sac.app
     broker:
       <<: *broker_connection
 
@@ -178,7 +178,7 @@ apps:
 # --- Web Agent ---
   - name: web_agent_app
     app_base_path: .
-    app_module: solace_agent_mesh.agent.sac.app
+    app_module: src.solace_agent_mesh.agent.sac.app
     broker:
       <<: *broker_connection
 

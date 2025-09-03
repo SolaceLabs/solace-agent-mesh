@@ -1,5 +1,6 @@
 # Example Configuration for SAM Event Mesh Gateway Plugin
-# You'd need to install the `sam-slack` plugin first
+# You'd need to install the `sam-event-mesh-gateway` plugin first with:
+# 'pip install "sam-event-mesh-gateway @ git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-event-mesh-gateway"'
 # This file provides a template for configuring the Event Mesh Gateway.
 # It should be included or adapted into your main Solace Agent Mesh Host YAML file.
 
@@ -8,7 +9,7 @@ log:
   log_file_level: DEBUG # Changed from INFO to DEBUG to capture ADK INFO logs
   log_file: sam_em_gateway.log
 
-!include shared_config.yaml
+!include ../shared_config.yaml
 
 # --- App Definition (to be placed under the 'apps:' list in your main config) ---
 apps:
@@ -18,7 +19,7 @@ apps:
       <<: *broker_connection
 
     app_config:
-      namespace: ${NAMESPACE, a2a/dev} # Namespace for A2A communication
+      namespace: ${NAMESPACE} # Namespace for A2A communication
       gateway_id: "event-mesh-gw-01" # Unique ID for this gateway instance
       artifact_service: # Configuration for shared ADK Artifact Service
         type: "filesystem"

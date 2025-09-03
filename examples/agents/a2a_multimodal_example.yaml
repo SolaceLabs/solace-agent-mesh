@@ -11,7 +11,7 @@ log:
   log_file: a2a_multimodal.log
 
 # Shared SAM config
-!include shared_config.yaml
+!include ../shared_config.yaml
 
 apps:
   # Complete Multi-Modal Agent with All Capabilities

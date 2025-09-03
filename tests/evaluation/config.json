@@ -1,8 +1,8 @@
 {
     "agents": [
-        "../../examples/a2a_agents.yaml",
-        "../../examples/a2a_orchestrator.yaml",
-        "../../examples/a2a_mcp_example.yaml"
+        "../../examples/agents/a2a_agents_example.yaml",
+        "../../examples/agents/orchestrator_example.yaml",
+        "../../examples/agents/a2a_mcp_example.yaml"
     ],
     "llm_models": [
         {

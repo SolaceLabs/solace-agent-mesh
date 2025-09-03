@@ -5,18 +5,18 @@
 log:
   stdout_log_level: INFO
   log_file_level: DEBUG # Changed from INFO to DEBUG to capture ADK INFO logs
-  log_file: a2a_orchestrator_example.log
+  log_file: orchestrator_example.log
 
 # Shared SAM config
-!include shared_config.yaml
+!include ../shared_config.yaml
 
 apps:
   # Example 1: Custom OpenAI-Compatible LLM Agent
-  - name: custom_llm_agent_app
+  - name: orchestrator-agent_app
     app_base_path: .
     app_module: solace_agent_mesh.agent.sac.app # Use the custom App class in its new location
     broker:
-      <<: *broker_connection
+      <<: *broker_connection # Points to shared_config.yaml
 
     # App Level Config
     app_config:
@@ -25,8 +25,7 @@ apps:
       agent_name: "OrchestratorAgent"
       display_name: "Orchestrator"
 
-      model: *planning_model
-      #model: *multimodal_model
+      model: *planning_model # Points to shared_config.yaml
 
       instruction: | 
         You are the Orchestrator Agent within an AI agentic system. Your primary responsibilities are to:
@@ -37,21 +36,16 @@ apps:
            c. Direct Execution: If the task is not suitable for delegation (neither to a single agent nor a multi-agent sequence) and falls within your own capabilities, execute the task yourself.
 
         Artifact Management Guidelines:
-        - If the task requires creating an artifact (e.g., a file): create the artifact using the appropriate tools and make it immediately available to the user by using the signal_artifact_for_return tool.
-        - For file creation tasks: directly proceed with writing the file content using the appropriate tool without generating a preview of the content beforehand. This is to ensure efficiency.
-        - Be aware that once an artifact (like a file) is created and made available, the user will have mechanisms to access it.
-        - Throughout task execution, provide regular progress updates using `status_update` embed directives. It is crucial to issue a `status_update` immediately before initiating any tool call.
-        - Provide artifacts to the user by using the `signal_artifact_for_return` tool and not by embedding them in the response. Only embed them in the response if it is important to the flow of the conversation.
-      session_service:
-        type: "memory"
-        default_behavior: "PERSISTENT" # Or "RUN_BASED"
-      artifact_service:
-        type: "filesystem"
-        base_path: "/tmp/samv2"
-        artifact_scope: namespace # Default scope, shares artifacts within the NAMESPACE
+        - If an artifact was created during the task (either by yourself or a delegated agent), you must use the `list_artifacts` tool to get the details of the created artifacts.
+        - You must then review the list of artifacts and return the ones that are important for the user by using the `signal_artifact_for_return` tool.
+        - Provide regular progress updates using `status_update` embed directives, especially before initiating any tool call.
+
+      session_service: *default_session_service # Points to shared_config.yaml
+      artifact_service: *default_artifact_service # Points to shared_config.yaml
       artifact_handling_mode: "reference" # Embed artifacts created by *this* agent
       enable_embed_resolution: true # Enable embed feature and instruction injection
       enable_artifact_content_instruction: true # Enable instruction for late-stage embed
+
       tools:
         - tool_type: builtin-group
           group_name: "artifact_management"

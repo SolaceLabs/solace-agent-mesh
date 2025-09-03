@@ -1,17 +1,19 @@
 # Solace AI Connector Example: Slack Gateway Configuration
-# You'd need to install the `sam-slack` plugin first
+# You'd need to install the `sam-slack` plugin first with:
+# 'pip install "sam-slack @ git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-slack"'
 # This file demonstrates how to configure the Slack Gateway application.
-# It uses the custom SlackGatewayApp class defined in src.solace_agent_mesh.gateway.slack.app.
+# It uses the custom SlackGatewayApp class defined here:
+# https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/blob/main/sam-slack/src/sam_slack/app.py
+#
 #
 # Required Environment Variables:
-# - NAMESPACE: The A2A topic namespace (e.g., "myorg/dev").
+# - NAMESPACE: The A2A topic namespace (e.g., "myorg/dev"). 
 # - SOLACE_BROKER_URL: URL of the Solace broker (e.g., "ws://localhost:8080").
 # - SOLACE_BROKER_USERNAME: Username for the Solace broker.
 # - SOLACE_BROKER_PASSWORD: Password for the Solace broker.
 # - SOLACE_BROKER_VPN: VPN name for the Solace broker.
 # - SLACK_BOT_TOKEN: Your Slack Bot Token (starts with 'xoxb-').
 # - SLACK_APP_TOKEN: Your Slack App Token for Socket Mode (starts with 'xapp-').
-# - ARTIFACT_BASE_PATH: Base path for the filesystem artifact service (e.g., "/mnt/shared_artifacts" or "/tmp/a2a_artifacts").
 #
 # Optional Environment Variables for RBAC example:
 # - ROLE_DEFINITIONS_PATH
@@ -23,7 +25,7 @@ log:
   log_file: slack_gateway.log
 
 # Shared SAM config
-!include shared_config.yaml
+!include ../shared_config.yaml
 
 apps:
   - name: slack_gateway_app # Name for this specific SAC application instance
@@ -37,7 +39,7 @@ apps:
     # App Level Config - Validated by SlackGatewayApp.app_schema
     app_config:
       # --- Required ---
-      namespace: ${NAMESPACE, myorg/dev} 
+      namespace: ${NAMESPACE} 
       slack_bot_token: ${SLACK_BOT_TOKEN}
       slack_app_token: ${SLACK_APP_TOKEN}
 
@@ -47,7 +49,7 @@ apps:
       # (like ADK Hosts) configured with the same namespace and base_path.
       artifact_service:
         type: "filesystem"
-        base_path: ${ARTIFACT_BASE_PATH, /tmp/a2a_gateway_artifacts} 
+        base_path: "/tmp/samv2"
         artifact_scope: "namespace" # Or "app", or "custom" + artifact_scope_value
 
       # --- Optional with Defaults ---

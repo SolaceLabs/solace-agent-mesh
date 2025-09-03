@@ -15,7 +15,7 @@ log:
   log_file: a2a_mcp_jira_sse_example.log
 
 # Shared SAM config (includes broker connection and model definitions)
-!include shared_config.yaml
+!include ../shared_config.yaml
 
 apps:
   - name: jira_mcp_sse_agent_app

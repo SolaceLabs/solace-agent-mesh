@@ -20,7 +20,7 @@ log:
   log_file: a2a_mcp_atlassian_docker_example.log
 
 # Shared SAM config (includes broker connection and model definitions)
-!include shared_config.yaml
+!include ../shared_config.yaml
 
 apps:
   - name: atlassian_mcp_docker_agent_app

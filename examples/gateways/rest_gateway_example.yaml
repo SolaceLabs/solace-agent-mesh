@@ -1,7 +1,9 @@
 # Solace AI Connector Example: REST API Gateway Configuration
 #
 # This file demonstrates how to configure the REST API Gateway application.
-# It uses the custom RestGatewayApp class defined in src.solace_agent_mesh.gateway.rest.app.
+# It uses the custom RestGatewayApp class defined here: 
+# https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/blob/main/sam-rest-gateway/src/sam_rest_gateway/app.py
+# Import using 'pip install "sam-rest-gateway @ git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-rest-gateway"'
 #
 # Required Environment Variables:
 # - NAMESPACE: The A2A topic namespace (e.g., "myorg/dev").
@@ -9,7 +11,6 @@
 # - SOLACE_BROKER_USERNAME: Username for the Solace broker.
 # - SOLACE_BROKER_PASSWORD: Password for the Solace broker.
 # - SOLACE_BROKER_VPN: VPN name for the Solace broker.
-# - ARTIFACT_BASE_PATH: Base path for the filesystem artifact service (e.g., "/tmp/a2a_artifacts").
 # - EXTERNAL_AUTH_SERVICE_URL: URL of the external authentication service (if enforce_authentication is true).
 #
 # Optional Environment Variables:
@@ -24,12 +25,12 @@ log:
   log_file: rest_gateway.log
 
 # Include shared configuration for the Solace broker connection (A2A Control Plane)
-!include shared_config.yaml
+!include ../shared_config.yaml
 
 apps:
   - name: rest_gateway_app # A unique name for this SAC application instance
     app_base_path: . # Assumes running from the project root where src/ is located
-    app_module: src.solace_agent_mesh.gateway.rest.app # Use the custom App class for the REST Gateway
+    app_module: sam_rest_gateway.app # Use the custom App class for the REST Gateway
 
     # Broker settings for the A2A Control Plane
     broker:
@@ -39,15 +40,15 @@ apps:
     # App Level Config - Validated by RestGatewayApp.app_schema
     app_config:
       # --- Base Gateway Configuration (from BaseGatewayApp) ---
-      namespace: ${NAMESPACE, myorg/dev}
-      gateway_id: ${REST_GATEWAY_ID, rest-gateway-01} # Optional: Auto-generated if omitted
+      namespace: ${NAMESPACE}
+      gateway_id: ${REST_GATEWAY_ID} # Optional: Auto-generated if omitted
 
       # --- Artifact Service (Required for file uploads/downloads) ---
       # Scope 'namespace' allows artifacts to be shared with other components
       # (like ADK Hosts) configured with the same namespace and base_path.
       artifact_service:
         type: "filesystem"
-        base_path: ${ARTIFACT_BASE_PATH, /tmp/a2a_rest_artifacts}
+        base_path: "/tmp/samv2"
         artifact_scope: "namespace"
 
       # --- Identity Service (Optional, for enriching user profiles) ---

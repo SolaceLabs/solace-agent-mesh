@@ -13,7 +13,7 @@ log:
   log_file: a2a_host_example.log
 
 # Shared SAM config
-!include shared_config.yaml
+!include ../shared_config.yaml
 
 apps:
   # Example 1: Custom OpenAI-Compatible LLM Agent

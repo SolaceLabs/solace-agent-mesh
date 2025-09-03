@@ -13,13 +13,13 @@ log:
   log_file: a2a_mcp_example.log
 
 # Shared SAM config
-!include shared_config.yaml
+!include ../shared_config.yaml
 
 apps:
 # --- Example 1: Filesystem MCP Agent ---
   - name: filesystem_mcp_agent_app
     app_base_path: .
-    app_module: solace_agent_mesh.agent.sac.app
+    app_module: src.solace_agent_mesh.agent.sac.app
     broker:
       <<: *broker_connection
 

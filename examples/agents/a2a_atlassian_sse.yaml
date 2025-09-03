@@ -7,7 +7,7 @@ log:
   log_file: a2a_atlassian_sse.log
 
 # Shared SAM config
-!include shared_config.yaml
+!include ../shared_config.yaml
 
 apps:
 # --- Atlassian (Jira/Confluence) MCP Agent ---
@@ -40,6 +40,8 @@ apps:
           connection_params:
             type: sse
             url: "https://mcp.atlassian.com/v1/sse"
+            headers:
+              Authorization: "Bearer ${ATLASSIAN_API_TOKEN}"
         - tool_type: builtin-group
           group_name: "artifact_management"
 
