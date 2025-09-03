@@ -15,11 +15,11 @@
     - [x] 5a. Replace translation with `TypeAdapter(A2ARequest).validate_python(payload)`.
     - [x] 5b. Use `a2a.get_request_id` and `a2a.get_message_from_send_request` helpers.
     - [x] 5c. Add a call to the new `_resolve_inbound_artifacts` method.
-- [ ] 6. **Create `_resolve_inbound_artifacts` Method:** Implement the new private method to resolve `artifact://` URIs into bytes using `a2a.resolve_file_part_uri`.
-- [ ] 7. **Refactor Publishing Methods:**
-    - [ ] 7a. In `_publish_status_update`, `_publish_final_response`, and `_publish_artifact_update`, replace translation logic with `a2a.create_success_response`.
-    - [ ] 7b. In `_publish_error_response`, replace translation logic with `a2a.create_error_response`.
-- [ ] 8. **Refactor Discovery Methods:** In `_discover_and_publish_agents` and `_publish_discovered_cards`, remove calls to `translate_modern_card_to_sam_card` and publish the modern card directly.
+- [x] 6. **Create `_resolve_inbound_artifacts` Method:** Implement the new private method to resolve `artifact://` URIs into bytes using `a2a.resolve_file_part_uri`.
+- [x] 7. **Refactor Publishing Methods:**
+    - [x] 7a. In `_publish_status_update`, `_publish_final_response`, and `_publish_artifact_update`, replace translation logic with `a2a.create_success_response`.
+    - [x] 7b. In `_publish_error_response`, replace translation logic with `a2a.create_error_response`.
+- [x] 8. **Refactor Discovery Methods:** In `_discover_and_publish_agents` and `_publish_discovered_cards`, remove calls to `translate_modern_card_to_sam_card` and publish the modern card directly.
 
 ## Phase 3: Refactor `A2AProxyComponent`
 

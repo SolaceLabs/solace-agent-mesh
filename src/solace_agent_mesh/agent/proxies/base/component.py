@@ -258,6 +258,37 @@ class BaseProxyComponent(ComponentBase, ABC):
             await self._publish_error_response(jsonrpc_request_id, error, message)
             message.call_negative_acknowledgements()
 
+    async def _resolve_inbound_artifacts(self, request: A2ARequest) -> a2a.Message:
+        """
+        Resolves artifact URIs in an incoming message into byte content.
+        This is necessary before forwarding to a downstream agent that may not
+        share the same artifact store.
+        """
+        original_message = get_message_from_send_request(request)
+        if not original_message:
+            return None
+
+        file_parts = get_file_parts_from_message(original_message)
+        if not file_parts:
+            return original_message  # No files to resolve
+
+        log_id = f"{self.log_identifier}[ResolveInbound:{get_request_id(request)}]"
+        log.info("%s Found %d file parts to resolve.", log_id, len(file_parts))
+
+        resolved_parts = []
+        all_parts = a2a.get_parts_from_message(original_message)
+
+        for part in all_parts:
+            if isinstance(part, a2a.FilePart):
+                resolved_part = await a2a.resolve_file_part_uri(
+                    part, self.artifact_service, log_id
+                )
+                resolved_parts.append(resolved_part)
+            else:
+                resolved_parts.append(part)
+
+        return update_message_parts(original_message, resolved_parts)
+
     def _initial_discovery_sync(self):
         """
         Synchronously fetches agent cards to populate the registry at startup.
@@ -319,14 +350,14 @@ class BaseProxyComponent(ComponentBase, ABC):
                 card_for_proxy.name = agent_alias
                 self.agent_registry.add_or_update_agent(card_for_proxy)
 
-                # Translate to legacy SAM format before publishing
-                sam_card_to_publish = translate_modern_card_to_sam_card(card_for_proxy)
-                sam_card_to_publish.url = (
+                # Publish the modern card directly after updating its URL
+                card_to_publish = card_for_proxy.model_copy(deep=True)
+                card_to_publish.url = (
                     f"solace:{get_agent_request_topic(self.namespace, agent_alias)}"
                 )
                 discovery_topic = get_discovery_topic(self.namespace)
                 self._publish_a2a_message(
-                    sam_card_to_publish.model_dump(exclude_none=True), discovery_topic
+                    card_to_publish.model_dump(exclude_none=True), discovery_topic
                 )
                 log.info(
                     "%s Refreshed and published card for agent '%s'.",
@@ -354,18 +385,12 @@ class BaseProxyComponent(ComponentBase, ABC):
             )
             return
 
-        # 4.3.2: Call outbound translator
-        legacy_event_dict = translate_modern_to_sam_response(event)
-
-        # 4.3.3: Use translated dict as result
-        response = JSONRPCResponse(
-            id=a2a_context.get("jsonrpc_request_id"), result=legacy_event_dict
+        response = create_success_response(
+            result=event, request_id=a2a_context.get("jsonrpc_request_id")
         )
         self._publish_a2a_message(response.model_dump(exclude_none=True), target_topic)
 
-    async def _publish_final_response(
-        self, task: Task, a2a_context: Dict, produced_artifacts: Optional[List[Dict]] = None
-    ):
+    async def _publish_final_response(self, task: Task, a2a_context: Dict):
         """Publishes the final Task object to the appropriate Solace topic."""
         target_topic = a2a_context.get("replyToTopic")
         if not target_topic:
@@ -376,14 +401,8 @@ class BaseProxyComponent(ComponentBase, ABC):
             )
             return
 
-        # 4.4.2: Call outbound translator
-        legacy_task_dict = translate_modern_to_sam_response(
-            task, produced_artifacts=produced_artifacts
-        )
-
-        # 4.4.3: Use translated dict as result
-        response = JSONRPCResponse(
-            id=a2a_context.get("jsonrpc_request_id"), result=legacy_task_dict
+        response = create_success_response(
+            result=task, request_id=a2a_context.get("jsonrpc_request_id")
         )
         self._publish_a2a_message(response.model_dump(exclude_none=True), target_topic)
 
@@ -400,10 +419,8 @@ class BaseProxyComponent(ComponentBase, ABC):
             )
             return
 
-        legacy_event_dict = translate_modern_to_sam_response(event)
-
-        response = JSONRPCResponse(
-            id=a2a_context.get("jsonrpc_request_id"), result=legacy_event_dict
+        response = create_success_response(
+            result=event, request_id=a2a_context.get("jsonrpc_request_id")
         )
         self._publish_a2a_message(response.model_dump(exclude_none=True), target_topic)
 
@@ -422,12 +439,7 @@ class BaseProxyComponent(ComponentBase, ABC):
             )
             return
 
-        # Translate modern error to legacy error dict
-        legacy_error = LegacyJSONRPCError(
-            code=error.code, message=error.message, data=error.data
-        )
-
-        response = JSONRPCResponse(id=request_id, error=legacy_error)
+        response = create_error_response(error=error, request_id=request_id)
         self._publish_a2a_message(response.model_dump(exclude_none=True), target_topic)
 
     def _publish_a2a_message(
@@ -493,18 +505,16 @@ class BaseProxyComponent(ComponentBase, ABC):
         """Publishes all agent cards currently in the registry."""
         log.info("%s Publishing initially discovered agent cards...", self.log_identifier)
         for agent_alias in self.agent_registry.get_agent_names():
-            modern_card = self.agent_registry.get_agent(agent_alias)
-            if not modern_card:
+            card_to_publish = self.agent_registry.get_agent(agent_alias)
+            if not card_to_publish:
                 continue
 
-            # Translate to legacy SAM format before publishing
-            sam_card_to_publish = translate_modern_card_to_sam_card(modern_card)
-            sam_card_to_publish.url = (
+            card_to_publish.url = (
                 f"solace:{get_agent_request_topic(self.namespace, agent_alias)}"
             )
             discovery_topic = get_discovery_topic(self.namespace)
             self._publish_a2a_message(
-                sam_card_to_publish.model_dump(exclude_none=True), discovery_topic
+                card_to_publish.model_dump(exclude_none=True), discovery_topic
             )
             log.info(
                 "%s Published initially discovered card for agent '%s'.",
