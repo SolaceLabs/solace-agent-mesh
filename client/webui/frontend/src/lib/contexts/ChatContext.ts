@@ -1,6 +1,6 @@
 import React, { createContext, type FormEvent } from "react";
 
-import type { AgentInfo, ArtifactInfo, FileAttachment, MessageFE, Notification } from "@/lib/types";
+import type { AgentInfo, ArtifactInfo, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
 
 export interface ChatState {
     sessionId: string;
