@@ -21,10 +21,8 @@ from .converter import (
     _parse_string_to_list_of_dicts,
 )
 import uuid
-import re
 from .types import DataFormat, ResolutionMode
 from ..mime_helpers import is_text_based_mime_type
-from ...common.a2a.types import ContentPart
 
 try:
     import yaml
@@ -798,7 +796,6 @@ async def resolve_embeds_recursively_in_string(
 
     resolved_parts.append(text[last_end:])
     return "".join(resolved_parts)
-
 
 
 async def evaluate_embed(
