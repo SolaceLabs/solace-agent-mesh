@@ -135,25 +135,13 @@ export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps
                     <div style={rendererContainerStyle}>
                         <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileAttachment.mime_type} setRenderError={setRenderError} />
                     </div>
-                    <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-2 right-2 flex items-center gap-0.5 rounded-md bg-black/60 p-0.5 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
                         {artifact && (
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="bg-black/30 hover:bg-black/60 text-white"
-                                onClick={handlePreviewClick}
-                                tooltip="Preview"
-                            >
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20" onClick={handlePreviewClick} tooltip="Preview">
                                 <Eye className="h-4 w-4" />
                             </Button>
                         )}
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="bg-black/30 hover:bg-black/60 text-white"
-                            onClick={() => downloadFile(fileAttachment)}
-                            tooltip="Download"
-                        >
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20" onClick={() => downloadFile(fileAttachment)} tooltip="Download">
                             <Download className="h-4 w-4" />
                         </Button>
                     </div>
