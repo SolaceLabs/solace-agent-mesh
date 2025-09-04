@@ -113,13 +113,31 @@ const getUploadedFiles = (message: MessageFE) => {
     return null;
 };
 
-const getFileAttachments = (message: MessageFE) => {
+const getFileAttachments = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean) => {
+    const { openSidePanelTab, setTaskIdInSidePanel } = chatContext;
+
     if (message.files && message.files.length > 0) {
+        const textContent = message.parts?.some(p => p.kind === "text" && p.text.trim());
+        const isFileOnlyMessage = !textContent && !message.artifactNotification;
+        const showWorkflowButton = isFileOnlyMessage && !message.isUser && message.isComplete && !!message.taskId && isLastWithTaskId;
+
+        const handleViewWorkflowClick = () => {
+            if (message.taskId) {
+                setTaskIdInSidePanel(message.taskId);
+                openSidePanelTab("workflow");
+            }
+        };
+
         return (
             <MessageWrapper message={message}>
                 {message.files.map((file, fileIdx) => (
                     <FileAttachmentMessage key={`file-${message.metadata?.messageId}-${fileIdx}`} fileAttachment={file} />
                 ))}
+                {showWorkflowButton && (
+                    <div className="mt-3">
+                        <ViewWorkflowButton onClick={handleViewWorkflowClick} />
+                    </div>
+                )}
             </MessageWrapper>
         );
     }
@@ -179,7 +197,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
         <>
             {getChatBubble(message, chatContext, isLastWithTaskId)}
             {getUploadedFiles(message)}
-            {getFileAttachments(message)}
+            {getFileAttachments(message, chatContext, isLastWithTaskId)}
         </>
     );
 };
