@@ -47,20 +47,24 @@ llm_interactions:
             status: "success"
 
 expected_gateway_output:
-  # The final response from the agent to the user.
   - type: "final_response"
-    content_parts:
-      # The user-facing text from the first LLM response, plus the final response.
-      - type: "text"
-        text_contains: "Okay, I am creating the report for you."
-      - type: "text"
-        text_contains: "I have successfully created the artifact 'report.md' for you."
-
-    # We also assert the state of the artifact service at the end of the task.
+    kind: "task"
+    id: "*"
+    contextId: "fixed_session_for_fenced_artifact_test_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "Okay, I am creating the report for you."
+              - "I have successfully created the artifact 'report.md' for you."
     assert_artifact_state:
       - filename: "report.md"
         version: 0
-        # The session_id and user_id are taken from the gateway_input by the test runner.
         expected_content_text: |
           # Q1 Report
           This is the first quarter report.

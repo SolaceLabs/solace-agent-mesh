@@ -1,7 +1,7 @@
 # Test Case 2: Verify that an artifact created by a peer is reported back to the calling agent.
 test_case_id: "peer_response_with_artifact_001"
 description: "Verify calling agent's tool response is enriched with metadata of artifact created by peer."
-tags: ["all","agent","tools","delegation"]
+tags: ["all", "agent", "tools", "delegation"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:
@@ -78,11 +78,20 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    task_state: "completed"
-    content_parts:
-      - type: "text"
-        text_contains: "TestPeerAgentB has created the financial summary artifact."
+    kind: task
+    id: '*'
+    contextId: "response_with_artifact_session"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
 
+              - "TestPeerAgentB has created the financial summary artifact."
 expected_artifacts:
   - filename: "financial_summary.csv"
     version: 0

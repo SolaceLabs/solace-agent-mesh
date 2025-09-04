@@ -1,6 +1,6 @@
 test_case_id: "embed_ac_json_as_json_pretty_001"
 description: "Tests «artifact_content:data.json>>>format:json_pretty»."
-tags: ["all","common","embeds"]
+tags: ["all", "common", "embeds"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -13,17 +13,29 @@ gateway_input:
   parts: [{type: "text", text: "Get data.json pretty printed"}]
 llm_interactions:
   - static_response:
-      choices: [{message: {role: "assistant", content: "Pretty JSON:\n«artifact_content:data.json>>>format:json_pretty»"}}]
+      choices: [message: {role: "assistant", content: "Pretty JSON:\n«artifact_content:data.json>>>format:json_pretty»"}]
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
+    kind: task
+    id: '*'
+    contextId: session_embed_ac_json_as_json_pretty_001
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
         # Exact pretty print format can vary slightly by library, so check for key elements and structure.
         # Using text_contains for parts of the structure.
-        text_contains: "\"message\": \"hello pretty json\""
-      - type: "text"
-        text_contains: "\"value\": 123"
-      - type: "text"
+            text_contains:
+              - "\"message\": \"hello pretty json\""
+          - type: "text"
+            text_contains:
+              - "\"value\": 123"
+          - type: "text"
         # A more robust check might involve parsing the JSON in the test runner if needed.
         # For now, checking a snippet of the nested structure.
-        text_contains: "\"nested\": {\n    \"key\": \"val\"\n  }"
+            text_contains:
+              - "\"nested\": {\n    \"key\": \"val\"\n  }"

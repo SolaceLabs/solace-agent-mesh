@@ -5,11 +5,11 @@ import { Ban, Paperclip, Send } from "lucide-react";
 
 import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { useChatContext, useDragAndDrop, useDebounce } from "@/lib/hooks";
-import type { AgentCard } from "@/lib/types";
+import type { AgentInfo } from "@/lib/types";
 
 import { FileBadge } from "./file/FileBadge";
 
-export const ChatInputArea: React.FC<{ agents: AgentCard[], scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
+export const ChatInputArea: React.FC<{ agents: AgentInfo[], scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const { isResponding, isCancelling, userInput, selectedAgentName, setSelectedAgentName, setUserInput, handleSubmit, handleCancel } = useChatContext();
 
     // File selection support
@@ -183,7 +183,13 @@ export const ChatInputArea: React.FC<{ agents: AgentCard[], scrollToBottom?: () 
                 </Select>
 
                 {isResponding && !isCancelling ? (
-                    <Button className="ml-auto gap-1.5" onClick={handleCancel} variant="outline" disabled={isCancelling} tooltip="Cancel">
+                    <Button
+                        className="ml-auto gap-1.5"
+                        onClick={handleCancel}
+                        variant="outline"
+                        disabled={isCancelling}
+                        tooltip="Cancel"
+                    >
                         <Ban className="size-4" />
                         Stop
                     </Button>

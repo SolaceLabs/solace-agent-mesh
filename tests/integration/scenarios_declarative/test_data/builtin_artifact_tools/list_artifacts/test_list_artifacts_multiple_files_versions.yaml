@@ -102,8 +102,17 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "fileA.txt (versions 0, 1)"
-        text_contains: "fileB.jpg (version 0)"
-    task_state: "completed"
+    kind: "task"
+    id: "*"
+    contextId: "session_list_artifacts_multi_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "fileA.txt (versions 0, 1)"
+              - "fileB.jpg (version 0)"

@@ -16,7 +16,7 @@ from typing import Any, Dict
 from solace_ai_connector.flow.app import App
 from solace_ai_connector.common.log import log
 
-from ...common.a2a_protocol import (
+from ...common.a2a import (
     get_agent_request_topic,
     get_discovery_topic,
     get_agent_response_subscription_topic,

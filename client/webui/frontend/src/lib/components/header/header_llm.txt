@@ -1,0 +1,71 @@
+# DEVELOPER GUIDE: header
+
+## Quick Summary
+The header directory contains a reusable React header component that provides a consistent navigation bar with title, tabs, action buttons, and optional leading actions for the application interface.
+
+## Files Overview
+- `Header.tsx` - Main header component with tab navigation, title display, and action button support
+
+## Developer API Reference
+
+### Header.tsx
+**Purpose:** Provides a flexible header component with navigation tabs, title, and action buttons
+**Import:** `import { Header, HeaderProps, Tab } from "lib/components/header/Header"`
+
+**Interfaces:**
+- `Tab` - Configuration object for navigation tabs
+  - `id: string` - Unique identifier for the tab
+  - `label: string` - Display text for the tab
+  - `isActive: boolean` - Whether this tab is currently selected
+  - `onClick: () => void` - Callback function when tab is clicked
+
+- `HeaderProps` - Props interface for the Header component
+  - `title: string` - Main title text to display
+  - `tabs?: Tab[]` - Optional array of navigation tabs
+  - `buttons?: React.ReactNode[]` - Optional array of action buttons/elements
+  - `leadingAction?: React.ReactNode` - Optional leading element (e.g., back button)
+
+**Components:**
+- `Header: React.FC<HeaderProps>` - Main header component that renders a navigation bar with consistent styling and layout
+
+**Usage Examples:**
+```tsx
+import React from "react";
+import { Header, Tab } from "lib/components/header/Header";
+
+// Basic header with just title
+<Header title="Dashboard" />
+
+// Header with tabs
+const tabs: Tab[] = [
+  { id: "overview", label: "Overview", isActive: true, onClick: () => setActiveTab("overview") },
+  { id: "settings", label: "Settings", isActive: false, onClick: () => setActiveTab("settings") }
+];
+
+<Header 
+  title="Project Management" 
+  tabs={tabs}
+/>
+
+// Full header with all features
+<Header
+  title="User Profile"
+  leadingAction={<BackButton onClick={() => navigate(-1)} />}
+  tabs={tabs}
+  buttons={[
+    <Button variant="primary">Save</Button>,
+    <Button variant="secondary">Cancel</Button>
+  ]}
+/>
+
+// Header with action buttons only
+<Header
+  title="Reports"
+  buttons={[
+    <Button>Export</Button>,
+    <IconButton icon="settings" />
+  ]}
+/>
+```
+
+# content_hash: 52ae81bce480f3e268cef8fdd5e41c30128ea1702f278053073dfc8904e4bb72

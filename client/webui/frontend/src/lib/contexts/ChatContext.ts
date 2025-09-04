@@ -1,9 +1,10 @@
 import React, { createContext, type FormEvent } from "react";
 
-import type { AgentCard, ArtifactInfo, FileAttachment, MessageFE, Notification } from "@/lib/types";
+import type { AgentInfo, ArtifactInfo, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
 
 export interface ChatState {
     sessionId: string;
+    sessionName: string | null;
     messages: MessageFE[];
     userInput: string;
     isResponding: boolean;
@@ -11,8 +12,9 @@ export interface ChatState {
     selectedAgentName: string;
     notifications: Notification[];
     isCancelling: boolean;
+    latestStatusText: React.RefObject<string | null>;
     // Agents
-    agents: AgentCard[];
+    agents: AgentInfo[];
     agentsError: string | null;
     agentsLoading: boolean;
     agentsRefetch: () => Promise<void>;
@@ -27,6 +29,7 @@ export interface ChatState {
     // Delete Modal State
     isDeleteModalOpen: boolean;
     artifactToDelete: ArtifactInfo | null;
+    sessionToDelete: Session | null;
     // Artifact Edit Mode State
     isArtifactEditMode: boolean;
     selectedArtifactFilenames: Set<string>;
@@ -39,35 +42,44 @@ export interface ChatState {
 }
 
 export interface ChatActions {
+    setSessionId: React.Dispatch<React.SetStateAction<string>>;
+    setSessionName: React.Dispatch<React.SetStateAction<string | null>>;
     setMessages: React.Dispatch<React.SetStateAction<MessageFE[]>>;
     setUserInput: React.Dispatch<React.SetStateAction<string>>;
     setTaskIdInSidePanel: React.Dispatch<React.SetStateAction<string | null>>;
     handleNewSession: () => void;
+    handleSwitchSession: (sessionId: string) => Promise<void>;
     handleSubmit: (event: FormEvent, files?: File[] | null, message?: string | null) => Promise<void>;
     handleCancel: () => void;
     addNotification: (message: string, type?: "success" | "info" | "error") => void;
     setSelectedAgentName: React.Dispatch<React.SetStateAction<string>>;
-    uploadArtifactFile: (file: File) => Promise<void>;
+    uploadArtifactFile: (file: File) => Promise<string | null>;
     /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
     setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "workflow">>;
     openSidePanelTab: (tab: "files" | "workflow") => void;
-    /** Delete Modal Actions */
+    
     openDeleteModal: (artifact: ArtifactInfo) => void;
     closeDeleteModal: () => void;
     confirmDelete: () => Promise<void>;
-    /** Artifact Edit Mode Actions */
+    openSessionDeleteModal: (session: Session) => void;
+    closeSessionDeleteModal: () => void;
+    confirmSessionDelete: () => Promise<void>;
+    
     setIsArtifactEditMode: React.Dispatch<React.SetStateAction<boolean>>;
     setSelectedArtifactFilenames: React.Dispatch<React.SetStateAction<Set<string>>>;
     handleDeleteSelectedArtifacts: () => void;
     confirmBatchDeleteArtifacts: () => Promise<void>;
     setIsBatchDeleteModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
-    /** Versioning Preview Actions */
+    
     setPreviewArtifact: React.Dispatch<React.SetStateAction<ArtifactInfo | null>>;
     openArtifactForPreview: (artifactFilename: string, autoRun?: boolean) => Promise<FileAttachment | null>;
     navigateArtifactVersion: (artifactFilename: string, targetVersion: number) => Promise<FileAttachment | null>;
-    /** Message Attachment Preview Action */
+    
     openMessageAttachmentForPreview: (file: FileAttachment, autoRun?: boolean) => void;
+    /* Session Management Actions */
+    updateSessionName: (sessionId: string, newName: string) => Promise<void>;
+    deleteSession: (sessionId: string) => Promise<void>;
 }
 
 export type ChatContextValue = ChatState & ChatActions;

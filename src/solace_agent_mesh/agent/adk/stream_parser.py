@@ -2,6 +2,7 @@
 A stateful stream parser for identifying and extracting fenced artifact blocks
 from an LLM's text stream.
 """
+
 import re
 from enum import Enum, auto
 from dataclasses import dataclass, field
@@ -46,6 +47,7 @@ class BlockProgressedEvent(ParserEvent):
     """Emitted periodically while content is being buffered for a block."""
 
     buffered_size: int
+    chunk: str
 
 
 @dataclass
@@ -210,5 +212,10 @@ class FencedBlockStreamParser:
             if (
                 current_size - self._last_progress_update_size
             ) >= self._progress_update_interval:
-                events.append(BlockProgressedEvent(buffered_size=current_size))
+                new_chunk = self._artifact_buffer[
+                    self._last_progress_update_size : current_size
+                ]
+                events.append(
+                    BlockProgressedEvent(buffered_size=current_size, chunk=new_chunk)
+                )
                 self._last_progress_update_size = current_size

@@ -3,52 +3,55 @@ Custom Solace AI Connector Component to host the FastAPI backend for the Web UI.
 """
 
 import asyncio
-import queue
-import uuid
 import json
+import queue
 import re
 import threading
-from typing import Any, Dict, Optional, List, Tuple, Union, Set
+import uuid
 from datetime import datetime, timezone
-from fastapi import UploadFile, Request as FastAPIRequest
+from typing import Any
 
 import uvicorn
-from fastapi import FastAPI
-
+from fastapi import FastAPI, UploadFile
+from fastapi import Request as FastAPIRequest
 from solace_ai_connector.common.log import log
+from solace_ai_connector.components.inputs_outputs.broker_input import BrokerInput
 from solace_ai_connector.flow.app import App as SACApp
-from solace_ai_connector.components.inputs_outputs.broker_input import (
-    BrokerInput,
-)
 
-from ...gateway.http_sse.sse_manager import SSEManager
-
-from .components import VisualizationForwarderComponent
-from ...gateway.http_sse.session_manager import SessionManager
-from ...gateway.base.component import BaseGatewayComponent
 from ...common.agent_registry import AgentRegistry
 from ...core_a2a.service import CoreA2AService
-from google.adk.artifacts import BaseArtifactService
+from ...gateway.base.component import BaseGatewayComponent
+from ...gateway.http_sse.session_manager import SessionManager
+from ...gateway.http_sse.sse_manager import SSEManager
+from .components import VisualizationForwarderComponent
+from .infrastructure.persistence_service import PersistenceService
 
-from ...common.types import (
+try:
+    from google.adk.artifacts import BaseArtifactService
+except ImportError:
+
+    class BaseArtifactService:
+        pass
+
+
+from a2a.types import (
+    A2ARequest,
     AgentCard,
-    Part as A2APart,
-    Task,
-    TaskStatusUpdateEvent,
-    TaskArtifactUpdateEvent,
     JSONRPCError,
     JSONRPCResponse,
-    TextPart,
-    FilePart,
-    FileContent,
-)
-from ...common.a2a_protocol import (
-    _topic_matches_subscription,
+    Task,
+    TaskArtifactUpdateEvent,
+    TaskStatusUpdateEvent,
 )
 
-from ...agent.utils.artifact_helpers import save_artifact_with_metadata
+from ...common import a2a
+from ...common.a2a.types import ContentPart
 from ...common.middleware.config_resolver import ConfigResolver
-
+from ...common.utils.embeds import (
+    EARLY_EMBED_TYPES,
+    evaluate_embed,
+    resolve_embeds_in_string,
+)
 
 info = {
     "class_name": "WebUIBackendComponent",
@@ -82,7 +85,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
         """
         Initializes the WebUIBackendComponent, inheriting from BaseGatewayComponent.
         """
-        super().__init__(**kwargs)
+        component_config = kwargs.get("component_config", {})
+        app_config = component_config.get("app_config", {})
+        resolve_uris = app_config.get("resolve_artifact_uris_in_gateway", True)
+
+        super().__init__(resolve_artifact_uris_in_gateway=resolve_uris, **kwargs)
         log.info("%s Initializing Web UI Backend Component...", self.log_identifier)
 
         try:
@@ -97,9 +104,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.fastapi_https_port = self.get_config("fastapi_https_port", 8443)
             self.session_secret_key = self.get_config("session_secret_key")
             self.cors_allowed_origins = self.get_config("cors_allowed_origins", ["*"])
-            self.resolve_artifact_uris_in_gateway = self.get_config(
-                "resolve_artifact_uris_in_gateway", True
-            )
             self.ssl_keyfile = self.get_config("ssl_keyfile", "")
             self.ssl_certfile = self.get_config("ssl_certfile", "")
             self.ssl_keyfile_password = self.get_config("ssl_keyfile_password", "")
@@ -118,27 +122,42 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         self.sse_manager = SSEManager(max_queue_size=sse_max_queue_size)
 
+        session_config = self._resolve_session_config()
+        if session_config.get("type") == "sql":
+            # SQL type explicitly configured - database_url is required
+            database_url = session_config.get("database_url")
+            if not database_url:
+                raise ValueError(
+                    f"{self.log_identifier} Session service type is 'sql' but no database_url provided. "
+                    "Please provide a database_url in the session_service configuration or use type 'memory'."
+                )
+            self.persistence_service = PersistenceService(database_url)
+        else:
+            # Memory storage or no explicit configuration - no persistence service needed
+            self.persistence_service = None
+
         component_config = self.get_config("component_config", {})
         app_config = component_config.get("app_config", {})
 
         self.session_manager = SessionManager(
             secret_key=self.session_secret_key,
             app_config=app_config,
+            persistence_service=self.persistence_service,
         )
 
-        self.fastapi_app: Optional[FastAPI] = None
-        self.uvicorn_server: Optional[uvicorn.Server] = None
-        self.fastapi_thread: Optional[threading.Thread] = None
-        self.fastapi_event_loop: Optional[asyncio.AbstractEventLoop] = None
+        self.fastapi_app: FastAPI | None = None
+        self.uvicorn_server: uvicorn.Server | None = None
+        self.fastapi_thread: threading.Thread | None = None
+        self.fastapi_event_loop: asyncio.AbstractEventLoop | None = None
 
-        self._visualization_internal_app: Optional[SACApp] = None
-        self._visualization_broker_input: Optional[BrokerInput] = None
+        self._visualization_internal_app: SACApp | None = None
+        self._visualization_broker_input: BrokerInput | None = None
         self._visualization_message_queue: queue.Queue = queue.Queue(maxsize=200)
-        self._active_visualization_streams: Dict[str, Dict[str, Any]] = {}
-        self._visualization_locks: Dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
+        self._active_visualization_streams: dict[str, dict[str, Any]] = {}
+        self._visualization_locks: dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
         self._visualization_locks_lock = threading.Lock()
-        self._global_visualization_subscriptions: Dict[str, int] = {}
-        self._visualization_processor_task: Optional[asyncio.Task] = None
+        self._global_visualization_subscriptions: dict[str, int] = {}
+        self._visualization_processor_task: asyncio.Task | None = None
 
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
 
@@ -301,6 +320,37 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self._visualization_broker_input = None
             raise
 
+    def _resolve_session_config(self) -> dict:
+        """
+        Resolve session service configuration with backward compatibility.
+
+        Priority order:
+        1. Component-specific session_service config (new approach)
+        2. Shared default_session_service config (deprecated, with warning)
+        3. Hardcoded default (SQLite for Web UI)
+        """
+        # Check component-specific session_service config first
+        component_session_config = self.get_config("session_service")
+        if component_session_config:
+            log.debug("Using component-specific session_service configuration")
+            return component_session_config
+
+        # Backward compatibility: check shared config
+        shared_session_config = self.get_config("default_session_service")
+        if shared_session_config:
+            log.warning(
+                "Using session_service from shared config is deprecated. "
+                "Move to component-specific configuration in app_config.session_service"
+            )
+            return shared_session_config
+
+        # Default configuration for Web UI (backward compatibility)
+        default_config = {"type": "memory", "default_behavior": "PERSISTENT"}
+        log.info(
+            "Using default memory session configuration for Web UI (backward compatibility)"
+        )
+        return default_config
+
     async def _visualization_message_processor_loop(self) -> None:
         """
         Asynchronously consumes messages from the _visualization_message_queue,
@@ -427,7 +477,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                     "solace_topics", set()
                                 )
                                 if any(
-                                    _topic_matches_subscription(topic, pattern)
+                                    a2a.topic_matches_subscription(topic, pattern)
                                     for pattern in subscribed_topics_for_stream
                                 ):
                                     is_permitted = True
@@ -449,6 +499,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                 "task_id": event_details["task_id"],
                                 "payload_summary": event_details["payload_summary"],
                                 "full_payload": payload_dict,
+                                "debug_type": event_details["debug_type"],
                             }
 
                             try:
@@ -567,7 +618,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     if not hasattr(
                         self._visualization_broker_input, "add_subscription"
                     ) or not callable(
-                        getattr(self._visualization_broker_input, "add_subscription")
+                        self._visualization_broker_input.add_subscription
                     ):
                         log.error(
                             "%s Visualization BrokerInput does not support dynamic 'add_subscription'. "
@@ -682,9 +733,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             try:
                 if not hasattr(
                     self._visualization_broker_input, "remove_subscription"
-                ) or not callable(
-                    getattr(self._visualization_broker_input, "remove_subscription")
-                ):
+                ) or not callable(self._visualization_broker_input.remove_subscription):
                     log.error(
                         "%s Visualization BrokerInput does not support dynamic 'remove_subscription'. "
                         "Please upgrade the 'solace-ai-connector' module. Cannot remove subscription '%s'.",
@@ -771,7 +820,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
     async def _extract_initial_claims(
         self, external_event_data: Any
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Extracts initial identity claims from the incoming external event.
         For the WebUI, this means inspecting the FastAPIRequest.
@@ -827,18 +876,18 @@ class WebUIBackendComponent(BaseGatewayComponent):
             return
 
         try:
-            from ...gateway.http_sse.main import (
-                app as fastapi_app_instance,
-            )
-            from ...gateway.http_sse.main import (
-                setup_dependencies,
-            )
+            from ...gateway.http_sse.main import app as fastapi_app_instance
+            from ...gateway.http_sse.main import setup_dependencies
 
             self.fastapi_app = fastapi_app_instance
 
-            setup_dependencies(self)
+            setup_dependencies(self, self.persistence_service)
 
-            port = self.fastapi_https_port if self.ssl_keyfile and self.ssl_certfile else self.fastapi_port
+            port = (
+                self.fastapi_https_port
+                if self.ssl_keyfile and self.ssl_certfile
+                else self.fastapi_port
+            )
 
             config = uvicorn.Config(
                 app=self.fastapi_app,
@@ -935,7 +984,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             raise
 
     def publish_a2a(
-        self, topic: str, payload: Dict, user_properties: Optional[Dict] = None
+        self, topic: str, payload: dict, user_properties: dict | None = None
     ):
         """
         Publishes an A2A message using the SAC App's send_message method.
@@ -993,15 +1042,17 @@ class WebUIBackendComponent(BaseGatewayComponent):
         log.info("%s Visualization resources cleaned up.", self.log_identifier)
 
     def _infer_visualization_event_details(
-        self, topic: str, payload: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, topic: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Infers details for the visualization SSE payload from the Solace topic and A2A message.
+        This version is updated to parse the official A2A SDK message formats.
         """
         details = {
             "direction": "unknown",
             "source_entity": "unknown",
             "target_entity": "unknown",
+            "debug_type": "unknown",
             "message_id": payload.get("id"),
             "task_id": None,
             "payload_summary": {
@@ -1010,135 +1061,141 @@ class WebUIBackendComponent(BaseGatewayComponent):
             },
         }
 
-        topic_parts = topic.split("/")
-
+        # --- Phase 1: Parse the payload to extract core info ---
         try:
-            a2a_base_index = topic_parts.index("a2a")
-            domain_index = a2a_base_index + 2
-            action_type_index = a2a_base_index + 3
-            entity_name_index = a2a_base_index + 4
-            task_id_from_topic_index = a2a_base_index + 5
+            # Try to parse as a JSON-RPC response first
+            if "result" in payload or "error" in payload:
+                rpc_response = JSONRPCResponse.model_validate(payload)
+                result = a2a.get_response_result(rpc_response)
+                error = a2a.get_response_error(rpc_response)
+                details["message_id"] = a2a.get_response_id(rpc_response)
 
-            domain = (
-                topic_parts[domain_index] if len(topic_parts) > domain_index else None
-            )
-            action_type = (
-                topic_parts[action_type_index]
-                if len(topic_parts) > action_type_index
-                else None
-            )
-            entity_name = (
-                topic_parts[entity_name_index]
-                if len(topic_parts) > entity_name_index
-                else None
-            )
+                if result:
+                    kind = getattr(result, "kind", None)
+                    details["direction"] = kind or "response"
+                    details["task_id"] = getattr(result, "task_id", None) or getattr(
+                        result, "id", None
+                    )
 
-            if domain == "agent":
-                if action_type == "request":
-                    details["direction"] = "request"
-                    details["target_entity"] = entity_name
-                    user_props = (
-                        payload.get("params", {})
-                        .get("metadata", {})
-                        .get("solaceUserProperties", {})
+                    if isinstance(result, TaskStatusUpdateEvent):
+                        details["source_entity"] = (
+                            result.metadata.get("agent_name")
+                            if result.metadata
+                            else None
+                        )
+                        message = a2a.get_message_from_status_update(result)
+                        if message:
+                            if not details["source_entity"]:
+                                details["source_entity"] = (
+                                    message.metadata.get("agent_name")
+                                    if message.metadata
+                                    else None
+                                )
+                            data_parts = a2a.get_data_parts_from_message(message)
+                            if data_parts:
+                                details["debug_type"] = data_parts[0].data.get(
+                                    "type", "unknown"
+                                )
+                            elif a2a.get_text_from_message(message):
+                                details["debug_type"] = "streaming_text"
+                    elif isinstance(result, Task):
+                        details["source_entity"] = (
+                            result.metadata.get("agent_name")
+                            if result.metadata
+                            else None
+                        )
+                    elif isinstance(result, TaskArtifactUpdateEvent):
+                        artifact = a2a.get_artifact_from_artifact_update(result)
+                        if artifact:
+                            details["source_entity"] = (
+                                artifact.metadata.get("agent_name")
+                                if artifact.metadata
+                                else None
+                            )
+                elif error:
+                    details["direction"] = "error_response"
+                    details["task_id"] = (
+                        error.data.get("taskId")
+                        if isinstance(error.data, dict)
+                        else None
                     )
-                    details["source_entity"] = (
-                        user_props.get("clientId")
-                        or user_props.get("delegating_agent_name")
-                        or self.gateway_id
+                    details["debug_type"] = "error"
+
+            # Try to parse as a JSON-RPC request
+            elif "method" in payload:
+                rpc_request = A2ARequest.model_validate(payload)
+                method = a2a.get_request_method(rpc_request)
+                details["direction"] = "request"
+                details["payload_summary"]["method"] = method
+                details["message_id"] = a2a.get_request_id(rpc_request)
+
+                if method in ["message/send", "message/stream"]:
+                    details["debug_type"] = method
+                    message = a2a.get_message_from_send_request(rpc_request)
+                    details["task_id"] = a2a.get_request_id(rpc_request)
+                    if message:
+                        details["target_entity"] = (
+                            message.metadata.get("agent_name")
+                            if message.metadata
+                            else None
+                        )
+                elif method == "tasks/cancel":
+                    details["task_id"] = a2a.get_task_id_from_cancel_request(
+                        rpc_request
                     )
-                elif action_type == "response":
-                    details["direction"] = "response"
-                    details["source_entity"] = entity_name
-                    details["target_entity"] = (
-                        payload.get("result", {}).get("metadata", {}).get("clientId")
-                    )
-                elif action_type == "status":
-                    details["direction"] = "status_update"
-                    details["source_entity"] = entity_name
-                    details["target_entity"] = (
-                        payload.get("result", {}).get("metadata", {}).get("clientId")
-                    )
-            elif domain == "gateway":
-                if action_type == "response":
-                    details["direction"] = "response"
-                    details["source_entity"] = (
-                        payload.get("result", {})
-                        .get("status", {})
-                        .get("message", {})
-                        .get("metadata", {})
-                        .get("agent_name", "unknown_agent")
-                    )
-                    details["target_entity"] = entity_name
-                elif action_type == "status":
-                    details["direction"] = "status_update"
-                    details["source_entity"] = (
-                        payload.get("result", {})
-                        .get("status", {})
-                        .get("message", {})
-                        .get("metadata", {})
-                        .get("agent_name", "unknown_agent")
-                    )
-                    details["target_entity"] = entity_name
-            elif domain == "discovery" and action_type == "agentcards":
+
+            # Handle Discovery messages (which are not JSON-RPC)
+            elif "/a2a/v1/discovery/" in topic:
+                agent_card = AgentCard.model_validate(payload)
                 details["direction"] = "discovery"
-                details["source_entity"] = payload.get("name", "unknown_agent")
+                details["source_entity"] = agent_card.name
                 details["target_entity"] = "broadcast"
+                details["message_id"] = None  # Discovery has no ID
 
-            if payload.get("method") in [
-                "tasks/send",
-                "tasks/sendSubscribe",
-                "tasks/cancel",
-            ]:
-                details["task_id"] = payload.get("params", {}).get("id")
-            elif "result" in payload and isinstance(payload["result"], dict):
-                details["task_id"] = payload["result"].get("id")
-            elif len(topic_parts) > task_id_from_topic_index and (
-                action_type == "status" or action_type == "response"
-            ):
-                details["task_id"] = topic_parts[task_id_from_topic_index]
-
-        except (ValueError, IndexError):
-            log.debug(
-                "%s Could not parse A2A structure from topic: %s",
+        except Exception as e:
+            log.warning(
+                "[%s] Failed to parse A2A payload for visualization details: %s",
                 self.log_identifier,
-                topic,
+                e,
             )
+
+        # --- Phase 2: Refine details using topic information as a fallback ---
+        if details["direction"] == "unknown":
             if "request" in topic:
                 details["direction"] = "request"
             elif "response" in topic:
                 details["direction"] = "response"
             elif "status" in topic:
                 details["direction"] = "status_update"
-            elif "discovery" in topic:
-                details["direction"] = "discovery"
+                # TEMP - add debug_type based on the type in the data
+                details["debug_type"] = "unknown"
 
-        if "params" in payload:
-            params_str = json.dumps(payload["params"])
-            details["payload_summary"]["params_preview"] = (
-                (params_str[:100] + "...") if len(params_str) > 100 else params_str
+        # --- Phase 3: Create a payload summary ---
+        try:
+            summary_source = (
+                payload.get("result")
+                or payload.get("params")
+                or payload.get("error")
+                or payload
             )
-        elif "result" in payload:
-            result_str = json.dumps(payload["result"])
+            summary_str = json.dumps(summary_source)
             details["payload_summary"]["params_preview"] = (
-                (result_str[:100] + "...") if len(result_str) > 100 else result_str
+                (summary_str[:100] + "...") if len(summary_str) > 100 else summary_str
             )
-        elif "error" in payload:
-            details["payload_summary"]["method"] = "JSONRPCError"
-            error_str = json.dumps(payload["error"])
+        except Exception:
             details["payload_summary"]["params_preview"] = (
-                (error_str[:100] + "...") if len(error_str) > 100 else error_str
+                "[Could not serialize payload]"
             )
 
         return details
 
     def _extract_involved_agents_for_viz(
-        self, topic: str, payload_dict: Dict[str, Any]
-    ) -> Set[str]:
+        self, topic: str, payload_dict: dict[str, Any]
+    ) -> set[str]:
         """
         Extracts agent names involved in a message from its topic and payload.
         """
-        agents: Set[str] = set()
+        agents: set[str] = set()
         log_id_prefix = f"{self.log_identifier}[ExtractAgentsViz]"
 
         topic_agent_match = re.match(
@@ -1265,13 +1322,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
         """Returns the unique identifier for this gateway instance."""
         return self.gateway_id
 
-    def get_cors_origins(self) -> List[str]:
+    def get_cors_origins(self) -> list[str]:
         return self.cors_allowed_origins
 
-    def get_shared_artifact_service(self) -> Optional[BaseArtifactService]:
+    def get_shared_artifact_service(self) -> BaseArtifactService | None:
         return self.shared_artifact_service
 
-    def get_embed_config(self) -> Dict[str, Any]:
+    def get_embed_config(self) -> dict[str, Any]:
         """Returns embed-related configuration needed by dependencies."""
         return {
             "enable_embed_resolution": self.enable_embed_resolution,
@@ -1286,6 +1343,52 @@ class WebUIBackendComponent(BaseGatewayComponent):
     def get_config_resolver(self) -> ConfigResolver:
         """Returns the instance of the ConfigResolver."""
         return self._config_resolver
+
+    async def _resolve_embeds_for_persistence(
+        self, message_content: str, session_id: str, user_id: str, log_identifier: str
+    ) -> str:
+        """
+        Resolves embeds in a message for database storage.
+        Returns the resolved text.
+
+        Args:
+            message_content: The message text that may contain embeds
+            session_id: The A2A session ID
+            user_id: The user ID
+            log_identifier: Logging identifier
+
+        Returns:
+            The message with embeds resolved (or original if resolution fails)
+        """
+        try:
+            embed_context = {
+                "artifact_service": self.shared_artifact_service,
+                "session_context": {
+                    "app_name": self.gateway_id,
+                    "user_id": user_id,
+                    "session_id": session_id,
+                },
+                "config": self.get_embed_config(),
+            }
+
+            resolved_text, _, _ = await resolve_embeds_in_string(
+                text=message_content,
+                context=embed_context,
+                resolver_func=evaluate_embed,
+                types_to_resolve=EARLY_EMBED_TYPES,
+                log_identifier=log_identifier,
+                config=embed_context["config"],
+            )
+
+            return resolved_text
+
+        except Exception as e:
+            log.warning(
+                "%s Error resolving embeds for storage: %s. Using original message.",
+                log_identifier,
+                e,
+            )
+            return message_content
 
     def _start_listener(self) -> None:
         """
@@ -1308,8 +1411,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
         pass
 
     async def _translate_external_input(
-        self, external_event_data: Dict[str, Any]
-    ) -> Tuple[str, List[A2APart], Dict[str, Any]]:
+        self, external_event_data: dict[str, Any]
+    ) -> tuple[str, list[ContentPart], dict[str, Any]]:
         """
         Translates raw HTTP request data (from FastAPI form) into A2A task parameters.
 
@@ -1321,7 +1424,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
         Returns:
             A tuple containing:
             - target_agent_name (str): The name of the A2A agent to target.
-            - a2a_parts (List[A2APart]): A list of A2A Part objects for the message.
+            - a2a_parts (List[ContentPart]): A list of unwrapped A2A Part objects.
             - external_request_context (Dict[str, Any]): Context for TaskContextManager.
         """
         log_id_prefix = f"{self.log_identifier}[TranslateInput]"
@@ -1333,10 +1436,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         target_agent_name: str = external_event_data.get("agent_name")
         user_message: str = external_event_data.get("message", "")
-        files: Optional[List[UploadFile]] = external_event_data.get("files")
+        files: list[UploadFile] | None = external_event_data.get("files")
         client_id: str = external_event_data.get("client_id")
         a2a_session_id: str = external_event_data.get("a2a_session_id")
-
         if not target_agent_name:
             raise ValueError("Target agent name is missing in external_event_data.")
         if not client_id or not a2a_session_id:
@@ -1344,10 +1446,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "Client ID or A2A Session ID is missing in external_event_data."
             )
 
-        a2a_parts: List[A2APart] = []
+        a2a_parts: list[ContentPart] = []
 
-        if files and self.shared_artifact_service:
-            file_metadata_summary_parts = []
+        if files:
             for upload_file in files:
                 try:
                     content_bytes = await upload_file.read()
@@ -1358,52 +1459,21 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             upload_file.filename,
                         )
                         continue
-                    save_result = await save_artifact_with_metadata(
-                        artifact_service=self.shared_artifact_service,
-                        app_name=self.gateway_id,
-                        user_id=client_id,
-                        session_id=a2a_session_id,
-                        filename=upload_file.filename,
-                        content_bytes=content_bytes,
-                        mime_type=upload_file.content_type
-                        or "application/octet-stream",
-                        metadata_dict={
-                            "source": "webui_gateway_upload",
-                            "original_filename": upload_file.filename,
-                            "upload_timestamp_utc": datetime.now(
-                                timezone.utc
-                            ).isoformat(),
-                            "gateway_id": self.gateway_id,
-                            "web_client_id": client_id,
-                            "a2a_session_id": a2a_session_id,
-                        },
-                        timestamp=datetime.now(timezone.utc),
-                    )
 
-                    if save_result["status"] in ["success", "partial_success"]:
-                        data_version = save_result.get("data_version", 0)
-                        artifact_uri = f"artifact://{self.gateway_id}/{client_id}/{a2a_session_id}/{upload_file.filename}?version={data_version}"
-                        file_content = FileContent(
-                            name=upload_file.filename,
-                            mimeType=upload_file.content_type,
-                            uri=artifact_uri,
-                        )
-                        a2a_parts.append(FilePart(file=file_content))
-                        file_metadata_summary_parts.append(
-                            f"- {upload_file.filename} ({upload_file.content_type}, {len(content_bytes)} bytes, URI: {artifact_uri})"
-                        )
-                        log.info(
-                            "%s Processed and created URI for uploaded file: %s",
-                            log_id_prefix,
-                            artifact_uri,
-                        )
-                    else:
-                        log.error(
-                            "%s Failed to save artifact %s: %s",
-                            log_id_prefix,
-                            upload_file.filename,
-                            save_result.get("message"),
-                        )
+                    # The BaseGatewayComponent will handle normalization based on policy.
+                    # Here, we just create the FilePart with inline bytes.
+                    file_part = a2a.create_file_part_from_bytes(
+                        content_bytes=content_bytes,
+                        name=upload_file.filename,
+                        mime_type=upload_file.content_type,
+                    )
+                    a2a_parts.append(file_part)
+                    log.info(
+                        "%s Created inline FilePart for uploaded file: %s (%d bytes)",
+                        log_id_prefix,
+                        upload_file.filename,
+                        len(content_bytes),
+                    )
 
                 except Exception as e:
                     log.exception(
@@ -1415,15 +1485,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 finally:
                     await upload_file.close()
 
-            if file_metadata_summary_parts:
-                user_message = (
-                    "The user uploaded the following file(s):\n"
-                    + "\n".join(file_metadata_summary_parts)
-                    + f"\n\nUser message: {user_message}"
-                )
-
         if user_message:
-            a2a_parts.append(TextPart(text=user_message))
+            a2a_parts.append(a2a.create_text_part(text=user_message))
 
         external_request_context = {
             "app_name_for_artifacts": self.gateway_id,
@@ -1443,17 +1506,23 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
     async def _send_update_to_external(
         self,
-        external_request_context: Dict[str, Any],
-        event_data: Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent],
+        external_request_context: dict[str, Any],
+        event_data: TaskStatusUpdateEvent | TaskArtifactUpdateEvent,
         is_final_chunk_of_update: bool,
     ) -> None:
         """
         Sends an intermediate update (TaskStatusUpdateEvent or TaskArtifactUpdateEvent)
-        to the external platform (Web UI via SSE).
+        to the external platform (Web UI via SSE) and stores agent messages in the database.
         """
         log_id_prefix = f"{self.log_identifier}[SendUpdate]"
         sse_task_id = external_request_context.get("a2a_task_id_for_event")
-        a2a_task_id = event_data.id
+        a2a_task_id = event_data.task_id
+
+        log.debug(
+            "%s _send_update_to_external called with event_type: %s",
+            log_id_prefix,
+            type(event_data).__name__,
+        )
 
         if not sse_task_id:
             log.error(
@@ -1474,9 +1543,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
         if isinstance(event_data, TaskArtifactUpdateEvent):
             sse_event_type = "artifact_update"
 
-        sse_payload = JSONRPCResponse(id=a2a_task_id, result=event_data).model_dump(
-            exclude_none=True
+        sse_payload_model = a2a.create_success_response(
+            result=event_data, request_id=a2a_task_id
         )
+        sse_payload = sse_payload_model.model_dump(by_alias=True, exclude_none=True)
 
         try:
             await self.sse_manager.send_event(
@@ -1488,6 +1558,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 sse_event_type,
                 a2a_task_id,
             )
+
+            # Note: Agent message storage is handled in _send_final_response_to_external
+            # to avoid duplicate storage of intermediate status updates
+
         except Exception as e:
             log.exception(
                 "%s Failed to send %s via SSE for A2A Task ID %s: %s",
@@ -1498,7 +1572,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
 
     async def _send_final_response_to_external(
-        self, external_request_context: Dict[str, Any], task_data: Task
+        self, external_request_context: dict[str, Any], task_data: Task
     ) -> None:
         """
         Sends the final A2A Task result to the external platform (Web UI via SSE).
@@ -1506,6 +1580,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
         log_id_prefix = f"{self.log_identifier}[SendFinalResponse]"
         sse_task_id = external_request_context.get("a2a_task_id_for_event")
         a2a_task_id = task_data.id
+
+        log.debug("%s _send_final_response_to_external called", log_id_prefix)
 
         if not sse_task_id:
             log.error(
@@ -1521,9 +1597,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
             sse_task_id,
         )
 
-        sse_payload = JSONRPCResponse(id=a2a_task_id, result=task_data).model_dump(
-            exclude_none=True
+        sse_payload_model = a2a.create_success_response(
+            result=task_data, request_id=a2a_task_id
         )
+        sse_payload = sse_payload_model.model_dump(by_alias=True, exclude_none=True)
 
         try:
             await self.sse_manager.send_event(
@@ -1534,6 +1611,63 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 log_id_prefix,
                 a2a_task_id,
             )
+
+            # Store final agent response in persistence layer if available
+            if hasattr(self, "persistence_service") and self.persistence_service:
+                try:
+                    session_id = external_request_context.get("a2a_session_id")
+                    user_id = external_request_context.get("user_id_for_a2a")
+                    agent_name = external_request_context.get(
+                        "target_agent_name", "agent"
+                    )
+
+                    # Extract message content from the task status
+                    message_text = ""
+                    if task_data.status and task_data.status.message:
+                        parts = a2a.get_parts_from_message(task_data.status.message)
+                        for part in parts:
+                            if hasattr(part, "text") and part.text:
+                                if message_text:
+                                    message_text += "\n"
+                                message_text += part.text
+
+                    log.info(
+                        "%s Final agent response storage debug - session_id: %s, user_id: %s, message_text: '%s', parts_count: %s",
+                        log_id_prefix,
+                        session_id,
+                        user_id,
+                        message_text[:100] if message_text else None,
+                        len(a2a.get_parts_from_message(task_data.status.message))
+                        if task_data.status and task_data.status.message
+                        else 0,
+                    )
+
+                    if message_text and session_id and user_id:
+                        from .dependencies import get_session_service
+                        from .shared.enums import SenderType
+
+                        session_service = get_session_service(self)
+                        session_service.add_message_to_session(
+                            session_id=session_id,
+                            user_id=user_id,
+                            message=message_text,
+                            sender_type=SenderType.AGENT,
+                            sender_name=agent_name,
+                            agent_id=agent_name,
+                        )
+                        log.info(
+                            "%s Final agent response stored in session %s",
+                            log_id_prefix,
+                            session_id,
+                        )
+                except Exception as storage_error:
+                    log.warning(
+                        "%s Failed to store final agent response: %s",
+                        log_id_prefix,
+                        storage_error,
+                    )
+                    # Don't fail the SSE send if storage fails
+
         except Exception as e:
             log.exception(
                 "%s Failed to send final_response via SSE for A2A Task ID %s: %s",
@@ -1550,7 +1684,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
 
     async def _send_error_to_external(
-        self, external_request_context: Dict[str, Any], error_data: JSONRPCError
+        self, external_request_context: dict[str, Any], error_data: JSONRPCError
     ) -> None:
         """
         Sends an error notification to the external platform (Web UI via SSE).
@@ -1572,10 +1706,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
             error_data,
         )
 
-        sse_payload = JSONRPCResponse(
-            id=external_request_context.get("original_rpc_id", sse_task_id),
+        sse_payload_model = a2a.create_error_response(
             error=error_data,
-        ).model_dump(exclude_none=True)
+            request_id=external_request_context.get("original_rpc_id", sse_task_id),
+        )
+        sse_payload = sse_payload_model.model_dump(by_alias=True, exclude_none=True)
 
         try:
             await self.sse_manager.send_event(

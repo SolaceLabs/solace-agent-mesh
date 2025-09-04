@@ -1,6 +1,6 @@
 test_case_id: describe_audio_prompt_injection
 description: "Tests for prompt injection vulnerabilities in describe_audio."
-tags: ["all","agent","tools","image_tools"]
+tags: ["all", "agent", "tools", "image_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -39,8 +39,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "This is a description of the audio."
+    kind: task
+    id: '*'
+    contextId: "session_prompt_injection"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
 
+              - "This is a description of the audio."
 expected_artifacts: []

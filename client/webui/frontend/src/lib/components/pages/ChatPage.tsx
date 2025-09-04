@@ -5,6 +5,7 @@ import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
 import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/chat";
+import type { TextPart } from "@/lib/types";
 import { Button, ChatMessageList, CHAT_STYLES } from "@/lib/components/ui";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 import { useChatContext, useSessionPreview, useTaskContext } from "@/lib/hooks";
@@ -12,6 +13,7 @@ import { useChatContext, useSessionPreview, useTaskContext } from "@/lib/hooks";
 import { ChatSidePanel } from "../chat/ChatSidePanel";
 import { ChatSessionDialog } from "../chat/ChatSessionDialog";
 import { SessionSidePanel } from "../chat/SessionSidePanel";
+import DeleteConfirmationModal from "../chat/DeleteConfirmationModal";
 import type { ChatMessageListRef } from "../ui/chat/chat-message-list";
 
 // Constants for sidepanel behavior
@@ -34,9 +36,8 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
-    const { agents, sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel } = useChatContext();
+    const { agents, sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
-
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
     const sessionPreview = useSessionPreview();
@@ -129,7 +130,10 @@ export function ChatPage() {
                 return [
                     ...filteredMessages,
                     {
-                        text: displayedText,
+                        role: "agent",
+                        kind: "message",
+                        messageId: `welcome-${Date.now()}`,
+                        parts: [{ kind: "text", text: displayedText }],
                         isUser: false,
                         isComplete: true,
                         metadata: { sessionId, lastProcessedEventSequence: 0 },
@@ -152,6 +156,12 @@ export function ChatPage() {
     const loadingMessage = useMemo(() => {
         return messages.find(message => message.isStatusBubble);
     }, [messages]);
+
+    const backendStatusText = useMemo(() => {
+        if (!loadingMessage || !loadingMessage.parts) return null;
+        const textPart = loadingMessage.parts.find(p => p.kind === "text") as TextPart | undefined;
+        return textPart?.text || null;
+    }, [loadingMessage]);
 
     const handleViewProgressClick = useMemo(() => {
         if (!loadingMessage?.taskId) return undefined;
@@ -214,7 +224,7 @@ export function ChatPage() {
                                     })}
                                 </ChatMessageList>
                                 <div style={CHAT_STYLES}>
-                                    {loadingMessage && <LoadingMessageRow statusText={loadingMessage.text} onViewWorkflow={handleViewProgressClick} />}
+                                    {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
                                     <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                                 </div>
                             </div>
@@ -241,6 +251,12 @@ export function ChatPage() {
                 </div>
             </div>
             <ChatSessionDialog isOpen={isChatSessionDialogOpen} onClose={() => setChatSessionDialogOpen(false)} />
+            <DeleteConfirmationModal
+                isOpen={!!sessionToDelete}
+                onClose={closeSessionDeleteModal}
+                onConfirm={confirmSessionDelete}
+                sessionName={sessionToDelete?.name || `Session ${sessionToDelete?.id.substring(0, 8)}`}
+            />
         </div>
     );
 }

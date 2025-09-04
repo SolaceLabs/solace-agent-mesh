@@ -1,0 +1,73 @@
+# DEVELOPER GUIDE: jsonViewer
+
+## Quick Summary
+A React component directory that provides a customizable JSON viewer with theme support. The main component renders JSON data in a read-only, collapsible tree view that automatically adapts to the application's light/dark theme using CSS variables.
+
+## Files Overview
+- `JSONViewer.tsx` - Main React component for displaying JSON data with theme-aware styling and configurable expansion depth
+
+## Developer API Reference
+
+### JSONViewer.tsx
+**Purpose:** Provides a themed, read-only JSON viewer component with collapsible tree structure
+**Import:** `import { JSONViewer } from "@/lib/components/jsonViewer/JSONViewer"`
+
+**Types:**
+- `JSONValue` - Union type representing any valid JSON value: `string | number | boolean | null | JSONObject | JSONArray`
+- `JSONObject` - Object type: `{ [key: string]: JSONValue }`
+- `JSONArray` - Array type: `JSONValue[]`
+- `JSONViewerProps` - Component props interface
+
+**Components:**
+- `JSONViewer(props: JSONViewerProps)` - Main JSON viewer component
+  - `data: JSONValue` - The JSON data to display (required)
+  - `maxDepth?: number` - Maximum expansion depth (default: 2, set to negative for fully expanded)
+  - `className?: string` - Additional CSS classes to apply to container
+
+**Functions:**
+- `createJsonEditorTheme(isDark: boolean) -> JerTheme` - Creates theme object using CSS variables for consistent styling
+
+**Usage Examples:**
+```tsx
+import { JSONViewer } from "@/lib/components/jsonViewer/JSONViewer";
+
+// Basic usage with object data
+const MyComponent = () => {
+  const jsonData = { 
+    name: "John", 
+    age: 30, 
+    active: true,
+    metadata: { created: "2024-01-01", tags: ["user", "premium"] }
+  };
+  
+  return <JSONViewer data={jsonData} />;
+};
+
+// With custom expansion depth
+const DeepViewer = () => {
+  return (
+    <JSONViewer 
+      data={complexData} 
+      maxDepth={3} 
+      className="max-h-96 p-4" 
+    />
+  );
+};
+
+// Handling primitive values
+const PrimitiveViewer = () => {
+  return <JSONViewer data="Hello World" />; // Automatically wrapped in {value: "Hello World"}
+};
+
+// Fully expanded view
+const ExpandedViewer = () => {
+  return <JSONViewer data={data} maxDepth={-1} />;
+};
+
+// Handling undefined/no data
+const EmptyViewer = () => {
+  return <JSONViewer data={undefined} />; // Shows "No JSON data"
+};
+```
+
+# content_hash: 554bb259037f829218111d9330b626aa208a069856a74e49fe3b24e65f30de2d

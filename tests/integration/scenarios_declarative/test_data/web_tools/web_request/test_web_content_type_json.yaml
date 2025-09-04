@@ -1,6 +1,6 @@
 test_case_id: web_request_content_type_json
 description: "Test that web_request tool correctly handles application/json content type."
-tags: ["all","agent","tools","web_tools"]
+tags: ["all", "agent", "tools", "web_tools"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -45,11 +45,20 @@ llm_interactions:
 
 expected_gateway_output:
   - type: final_response
-    task_state: "completed"
-    content_parts:
-      - type: text
-        text_contains: "I have successfully fetched the content."
+    kind: task
+    id: '*'
+    contextId: "session-463"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: text
+            text_contains:
 
+              - "I have successfully fetched the content."
 expected_artifacts:
   - filename_matches_regex: "^web_content_.*\\.json(?<!\\.metadata\\.json)$"
     metadata_contains:

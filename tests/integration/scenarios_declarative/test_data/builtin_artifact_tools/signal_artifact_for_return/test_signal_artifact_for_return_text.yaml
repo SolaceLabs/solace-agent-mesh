@@ -101,7 +101,7 @@ expected_gateway_output:
 
   - type: "status_update" # This is the 7th event: llm_response event that finalizes the text stream
     event_purpose: "llm_response"
-    final_flag: true
+    final_flag: false
     expected_llm_data_contains: # The content of an llm_response event is in its metadata
       content:
         parts:
@@ -113,10 +113,18 @@ expected_gateway_output:
 
   # Final Task object
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "Okay, I've signaled 'signal_text_doc.txt' (v0) to be returned to you."
-    task_state: "completed"
+    kind: "task"
+    id: "*"
+    contextId: "session_signal_text_artifact_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_exact: "Okay, I've signaled 'signal_text_doc.txt' (v0) to be returned to you."
     # We can also assert the original artifact was not changed.
     assert_artifact_state:
       - filename: "signal_text_doc.txt"

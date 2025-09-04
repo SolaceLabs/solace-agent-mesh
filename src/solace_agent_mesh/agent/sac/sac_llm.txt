@@ -1,44 +1,34 @@
+# DEVELOPER GUIDE for the directory: sac
+
 ## Quick Summary
 The `sac` (Solace AI Connector) directory provides the core implementation for hosting a Google ADK (Agent Development Kit) agent within the Solace AI Connector framework. It acts as a bridge, enabling ADK agents to communicate using the A2A (Agent-to-Agent) protocol over Solace messaging. This allows for the creation of distributed, collaborative agent systems where agents can delegate tasks, share information, and work together to solve complex problems.
 
-The main components are `SamAgentApp`, which handles the initial setup and configuration, and `SamAgentComponent`, which hosts the ADK agent instance, manages its lifecycle, and translates between the A2A protocol and the ADK's internal event model.
-
 ## Files Overview
-- `__init__.py`: An empty file that marks the `sac` directory as a Python package.
-- `app.py`: Defines a custom SAC `App` class that automatically configures Solace subscriptions and broker settings for A2A communication.
-- `component.py`: The main SAC `Component` that hosts the ADK agent, manages its lifecycle, and handles all A2A protocol messaging.
-- `patch_adk.py`: Contains runtime patches for the Google ADK library to enhance or correct its behavior for this specific use case.
-- `task_execution_context.py`: A state management class that encapsulates all runtime information for a single, in-flight A2A task.
+- `__init__.py` - Empty package marker file
+- `app.py` - Custom SAC App class that automatically configures Solace subscriptions and broker settings for A2A communication
+- `component.py` - Main SAC Component that hosts the ADK agent, manages its lifecycle, and handles all A2A protocol messaging
+- `patch_adk.py` - Runtime patches for the Google ADK library to enhance or correct its behavior
+- `task_execution_context.py` - State management class that encapsulates all runtime information for a single, in-flight A2A task
 
 ## Developer API Reference
 
----
-### __init__.py
-**Purpose:** A standard Python file that makes the `sac` directory a package, allowing its modules to be imported.
-**Import:** This file is not meant to be imported from directly.
-
----
 ### app.py
-**Purpose:** Provides a custom SAC `App` class (`SamAgentApp`) that simplifies the configuration of an A2A agent. It automatically generates the required Solace topic subscriptions and configures the message broker based on the provided `namespace` and `agent_name` in the configuration file. This class is the main entry point for running an agent host.
-**Import:** `from src.solace_agent_mesh.agent.sac.app import SamAgentApp`
+**Purpose:** Provides a custom SAC App class that simplifies the configuration of an A2A agent
+**Import:** `from solace_agent_mesh.agent.sac.app import SamAgentApp`
 
 **Classes:**
-- `SamAgentApp(app_info: Dict[str, Any], **kwargs)` - A custom App class for the SAM Agent Host. It handles namespace prefixing, automatic subscription generation, and programmatic definition of the `SamAgentComponent`.
-  - `app_schema: Dict` - A class attribute that defines the comprehensive configuration schema for the agent host. This schema is used by the SAC framework to validate the application's YAML configuration file, ensuring all required parameters are present and correctly typed.
+- `SamAgentApp(app_info: Dict[str, Any], **kwargs)` - Custom App class for SAM Agent Host with namespace prefixing and automatic subscription generation
+  - `app_schema: Dict` - Class attribute defining comprehensive configuration schema for agent host validation
 
 **Constants/Variables:**
-- `info: Dict[str, str]` - A dictionary containing metadata about the `SamAgentApp` class, required by the SAC framework for discovery.
+- `info: Dict[str, str]` - Metadata dictionary about the SamAgentApp class for SAC framework discovery
 
 **Usage Examples:**
 ```python
-# The SamAgentApp is typically instantiated by the Solace AI Connector framework,
-# not directly by a developer. The framework reads a YAML configuration file,
-# validates it against the app_schema, and passes the resulting configuration
-# to the SamAgentApp constructor.
-
-# --- Example agent-config.yaml ---
+# SamAgentApp is typically instantiated by the SAC framework from YAML config
+# Example agent-config.yaml:
 # app:
-#   class_name: src.solace_agent_mesh.agent.sac.app.SamAgentApp
+#   class_name: solace_agent_mesh.agent.sac.app.SamAgentApp
 #   app_config:
 #     namespace: "my-org/production"
 #     agent_name: "customer-support-agent"
@@ -50,56 +40,136 @@ The main components are `SamAgentApp`, which handles the initial setup and confi
 #       description: "An agent that can answer questions about customer accounts."
 #     agent_card_publishing:
 #       interval_seconds: 60
-#     agent_discovery:
-#       enabled: true
-#     inter_agent_communication:
-#       allow_list: ["*"]
-#       request_timeout_seconds: 45
 #     session_service:
 #       type: "memory"
-#     # ... other configuration parameters
 ```
 
----
 ### component.py
-**Purpose:** This is the core component that hosts a Google ADK agent and bridges its communication to the A2A protocol over Solace. It handles incoming task requests, manages the agent's lifecycle, processes ADK events, orchestrates tool calls (including peer agent delegation), and sends status updates and final responses. Developers can interact with this component's state and lifecycle via custom initialization and cleanup functions.
-**Import:** `from src.solace_agent_mesh.agent.sac.component import SamAgentComponent`
+**Purpose:** Core component that hosts a Google ADK agent and bridges communication to A2A protocol
+**Import:** `from solace_agent_mesh.agent.sac.component import SamAgentComponent`
 
 **Classes:**
-- `SamAgentComponent(**kwargs)` - A Solace AI Connector component that hosts a Google ADK agent and communicates via the A2A protocol.
-  - `process_event(self, event: Event)` - The main entry point for all events from the SAC framework (e.g., incoming messages, timers). This method orchestrates the processing of A2A requests.
-  - `handle_timer_event(self, timer_data: Dict[str, Any])` - Handles scheduled timer events, primarily used for periodically publishing the agent's discovery card.
-  - `handle_cache_expiry_event(self, cache_data: Dict[str, Any])` - Handles cache expiry events, used to detect timeouts for requests sent to peer agents.
-  - `finalize_task_success(self, a2a_context: Dict)` - An async method that finalizes a task successfully, sending the final `COMPLETED` response.
-  - `finalize_task_canceled(self, a2a_context: Dict)` - Finalizes a task as `CANCELED` and sends the corresponding response.
-  - `finalize_task_error(self, exception: Exception, a2a_context: Dict)` - An async method that finalizes a task as `FAILED`, sending an error response.
-  - `cleanup(self)` - Cleans up all resources when the component is shut down, including stopping the async loop and calling any custom cleanup functions.
-  - `set_agent_specific_state(self, key: str, value: Any)` - Sets a key-value pair in a dedicated state dictionary. This is intended for use within a custom `agent_init_function` to store state (e.g., database connections, API clients) that can be accessed by tools.
-  - `get_agent_specific_state(self, key: str, default: Optional[Any] = None) -> Any` - Retrieves a value from the agent-specific state dictionary. This is intended for use by tools or a custom `agent_cleanup_function`.
-  - `get_async_loop(self) -> Optional[asyncio.AbstractEventLoop]` - Returns the dedicated asyncio event loop used by the component for all its asynchronous operations. This is useful for scheduling custom async work from synchronous code (e.g., tools).
-  - `set_agent_system_instruction_string(self, instruction_string: str) -> None` - Sets a static string to be injected into the agent's system prompt. This should be called from a custom `agent_init_function`.
-  - `set_agent_system_instruction_callback(self, callback_function: Callable[[CallbackContext, LlmRequest], Optional[str]]) -> None` - Sets a callback function to dynamically generate parts of the system prompt at runtime. This should be called from a custom `agent_init_function`.
-  - `get_gateway_id(self) -> str` - Returns a unique identifier for this agent host instance, typically the agent's name.
-  - `submit_a2a_task(self, target_agent_name: str, a2a_message: A2AMessage, original_session_id: str, main_logical_task_id: str, user_id: str, user_config: Dict[str, Any], sub_task_id: str, function_call_id: Optional[str] = None) -> str` - Submits a task to a peer agent in a non-blocking way. This is the core mechanism for agent delegation. Returns the `sub_task_id` used for correlation.
-  - `get_agent_context(self) -> Dict[str, Any]` - Returns a dictionary containing context about the agent, used for interactions with the middleware system.
+- `SamAgentComponent(**kwargs)` - Solace AI Connector component that hosts a Google ADK agent
+  - `process_event(event: Event) -> None` - Main entry point for all SAC framework events
+  - `handle_timer_event(timer_data: Dict[str, Any]) -> None` - Handles scheduled timer events for agent card publishing
+  - `handle_cache_expiry_event(cache_data: Dict[str, Any]) -> None` - Handles cache expiry events for peer agent timeouts
+  - `finalize_task_success(a2a_context: Dict) -> None` - Async method to finalize successful task completion
+  - `finalize_task_canceled(a2a_context: Dict) -> None` - Finalizes task as CANCELED
+  - `finalize_task_error(exception: Exception, a2a_context: Dict) -> None` - Async method to finalize failed tasks
+  - `cleanup() -> None` - Cleans up resources on component shutdown
+  - `set_agent_specific_state(key: str, value: Any) -> None` - Sets key-value pair in agent state dictionary
+  - `get_agent_specific_state(key: str, default: Optional[Any] = None) -> Any` - Retrieves value from agent state
+  - `get_async_loop() -> Optional[asyncio.AbstractEventLoop]` - Returns dedicated asyncio event loop
+  - `set_agent_system_instruction_string(instruction_string: str) -> None` - Sets static system prompt injection
+  - `set_agent_system_instruction_callback(callback_function: Callable) -> None` - Sets dynamic system prompt callback
+  - `get_gateway_id() -> str` - Returns unique identifier for agent host instance
+  - `submit_a2a_task(target_agent_name: str, a2a_message: A2AMessage, user_id: str, user_config: Dict[str, Any], sub_task_id: str) -> str` - Submits task to peer agent
+  - `get_agent_context() -> Dict[str, Any]` - Returns agent context for middleware interactions
 
 **Constants/Variables:**
-- `info: Dict` - A dictionary containing metadata about the `SamAgentComponent` class, required by the SAC framework.
-- `CORRELATION_DATA_PREFIX: str` - A public constant string used as a prefix for cache keys when tracking peer-to-peer requests.
-- `HOST_COMPONENT_VERSION: str` - The version string of the host component.
+- `info: Dict` - Metadata dictionary for SAC framework
+- `CORRELATION_DATA_PREFIX: str` - Prefix for cache keys when tracking peer requests
+- `HOST_COMPONENT_VERSION: str` - Version string of the host component
 
 **Usage Examples:**
 ```python
-# This component is instantiated by the SamAgentApp. Developers interact with it
-# primarily through custom init/cleanup functions and by building tools that
-# may need access to its state or methods.
+# Custom initialization function example
+from solace_agent_mesh.agent.sac.component import SamAgentComponent
 
-# --- In a custom init module (e.g., my_agent_init.py) ---
-import asyncio
-from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
-from src.solace_agent_mesh.common.types import A2AMessage, TextPart
-
-# This function would be configured in the agent's YAML config
 def initialize_my_agent(host_component: SamAgentComponent, config: dict):
     """Custom initialization function for the agent."""
-    print("Initializing my custom agent...")
+    # Store database connection in agent state
+    db_connection = create_database_connection(config.get('db_url'))
+    host_component.set_agent_specific_state('db_connection', db_connection)
+    
+    # Set custom system instruction
+    host_component.set_agent_system_instruction_string(
+        "You are a specialized customer service agent with access to our database."
+    )
+
+# Tool accessing agent state
+def my_custom_tool(host_component: SamAgentComponent, query: str) -> str:
+    """Tool that uses stored database connection."""
+    db_connection = host_component.get_agent_specific_state('db_connection')
+    if db_connection:
+        return db_connection.execute_query(query)
+    return "Database not available"
+
+# Scheduling async work from synchronous code
+def schedule_background_task(host_component: SamAgentComponent):
+    """Schedule async work on the component's event loop."""
+    loop = host_component.get_async_loop()
+    if loop:
+        asyncio.run_coroutine_threadsafe(my_async_task(), loop)
+```
+
+### patch_adk.py
+**Purpose:** Contains runtime patches for the Google ADK library to enhance behavior
+**Import:** `from solace_agent_mesh.agent.sac.patch_adk import patch_adk`
+
+**Functions:**
+- `patch_adk() -> None` - Applies all necessary patches to the ADK library
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.sac.patch_adk import patch_adk
+
+# Apply patches before using ADK
+patch_adk()
+```
+
+### task_execution_context.py
+**Purpose:** State management class for single, in-flight agent tasks
+**Import:** `from solace_agent_mesh.agent.sac.task_execution_context import TaskExecutionContext`
+
+**Classes:**
+- `TaskExecutionContext(task_id: str, a2a_context: Dict[str, Any])` - Encapsulates runtime state for a single agent task
+  - `cancel() -> None` - Signals that the task should be cancelled
+  - `is_cancelled() -> bool` - Checks if cancellation event has been set
+  - `append_to_streaming_buffer(text: str) -> None` - Appends text to streaming buffer
+  - `flush_streaming_buffer() -> str` - Returns and clears streaming buffer content
+  - `get_streaming_buffer_content() -> str` - Returns buffer content without clearing
+  - `append_to_run_based_buffer(text: str) -> None` - Appends text to run-based response buffer
+  - `register_peer_sub_task(sub_task_id: str, correlation_data: Dict[str, Any]) -> None` - Adds peer sub-task tracking
+  - `claim_sub_task_completion(sub_task_id: str) -> Optional[Dict[str, Any]]` - Atomically retrieves and removes sub-task data
+  - `register_parallel_call_sent(invocation_id: str) -> None` - Registers new parallel tool call
+  - `handle_peer_timeout(sub_task_id: str, correlation_data: Dict, timeout_sec: int, invocation_id: str) -> bool` - Handles peer timeout
+  - `record_parallel_result(result: Dict, invocation_id: str) -> bool` - Records parallel tool call result
+  - `clear_parallel_invocation_state(invocation_id: str) -> None` - Removes completed invocation state
+  - `register_produced_artifact(filename: str, version: int) -> None` - Tracks newly created artifacts
+  - `add_artifact_signal(signal: Dict[str, Any]) -> None` - Adds artifact return signal
+  - `get_and_clear_artifact_signals() -> List[Dict[str, Any]]` - Retrieves and clears artifact signals
+  - `set_event_loop(loop: asyncio.AbstractEventLoop) -> None` - Stores event loop reference
+  - `get_event_loop() -> Optional[asyncio.AbstractEventLoop]` - Retrieves stored event loop
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.sac.task_execution_context import TaskExecutionContext
+
+# Create task context
+a2a_context = {
+    "logical_task_id": "task-123",
+    "user_id": "user-456",
+    "session_id": "session-789"
+}
+task_context = TaskExecutionContext("task-123", a2a_context)
+
+# Use streaming buffer
+task_context.append_to_streaming_buffer("Hello ")
+task_context.append_to_streaming_buffer("world!")
+content = task_context.flush_streaming_buffer()  # Returns "Hello world!"
+
+# Track peer sub-tasks
+correlation_data = {
+    "peer_agent_name": "math-agent",
+    "adk_function_call_id": "call-123"
+}
+task_context.register_peer_sub_task("sub-task-456", correlation_data)
+
+# Handle completion
+completed_data = task_context.claim_sub_task_completion("sub-task-456")
+if completed_data:
+    print(f"Sub-task completed: {completed_data}")
+```
+
+# content_hash: 79c043cb89eecb2b6a6f05113ff223c5064861f1a537d8e832ebb2738f5801e8

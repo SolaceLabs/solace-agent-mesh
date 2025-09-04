@@ -11,23 +11,26 @@ import { getFileIcon } from "./fileUtils";
 
 interface FileAttachmentMessageProps {
     fileAttachment: FileAttachment;
+    isEmbedded?: boolean;
 }
 
-export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps>> = ({ fileAttachment }) => {
-    return <FileMessage filename={fileAttachment.name} onDownload={() => downloadFile(fileAttachment)} className="ml-4" />;
+export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps>> = ({ fileAttachment, isEmbedded = false }) => {
+    return <FileMessage filename={fileAttachment.name} mimeType={fileAttachment.mime_type} onDownload={() => downloadFile(fileAttachment)} className="ml-4" isEmbedded={isEmbedded} />;
 };
 
 interface FileMessageProps {
     filename: string;
+    mimeType?: string;
     className?: string;
     onDownload?: () => void;
+    isEmbedded?: boolean;
 }
 
-export const FileMessage: React.FC<Readonly<FileMessageProps>> = ({ filename, className, onDownload }) => {
+export const FileMessage: React.FC<Readonly<FileMessageProps>> = ({ filename, mimeType, className, onDownload, isEmbedded = false }) => {
     const { artifacts, setPreviewArtifact, openSidePanelTab } = useChatContext();
 
     const artifact: ArtifactInfo | undefined = useMemo(() => artifacts.find(artifact => artifact.filename === filename), [artifacts, filename]);
-    const FileIcon = useMemo(() => getFileIcon(artifact), [artifact]);
+    const FileIcon = useMemo(() => getFileIcon(artifact || { filename, mime_type: mimeType || "", size: 0, last_modified: "" }), [artifact, filename, mimeType]);
 
     return (
         <div className={`flex flex-shrink items-center gap-2 rounded-lg bg-[var(--accent-background)] px-2 py-1 h-11 max-w-xs ${className || ""}`}>
@@ -38,7 +41,7 @@ export const FileMessage: React.FC<Readonly<FileMessageProps>> = ({ filename, cl
                 </strong>
             </span>
 
-            {artifact && (
+            {artifact && !isEmbedded && (
                 <Button
                     variant="ghost"
                     onClick={e => {

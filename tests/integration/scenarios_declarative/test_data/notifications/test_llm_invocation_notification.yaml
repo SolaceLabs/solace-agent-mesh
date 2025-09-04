@@ -1,6 +1,6 @@
 test_case_id: "notification_llm_invocation_001"
 description: "Tests that an llm_invocation notification is sent."
-tags: ["all","agent","common","notification"]
+tags: ["all", "agent", "common", "notification"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -21,12 +21,29 @@ llm_interactions: # Only one interaction needed to trigger the llm_invocation
           finish_reason: "stop"
 expected_gateway_output:
   - type: "status_update"
+    kind: task
+    id: '*'
+    contextId: session_notification_llm_invocation_001
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
     event_purpose: "llm_invocation"
     expected_llm_data_contains:
       model: "openai/test-model-sam-..."
     final_flag: false
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "LLM was invoked."
-    task_state: "completed"
+    kind: task
+    id: '*'
+    contextId: session_notification_llm_invocation_001
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "LLM was invoked."

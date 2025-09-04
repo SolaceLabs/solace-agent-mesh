@@ -3,7 +3,7 @@ description: |
   Tests appending multiple chunks sequentially to the same artifact.
   Verifies content accumulation, correct versioning, and metadata updates
   across multiple append operations.
-tags: ["all","agent","tools","builtin_artifact_tools"]
+tags: ["all", "agent", "tools", "builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -87,10 +87,18 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "Okay, I have appended two chunks. 'multi_append_target.txt' is now version 2 and has a total size of 23 bytes."
-    task_state: "completed"
+    kind: task
+    id: '*'
+    contextId: "session_multi_append_test_001"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "Okay, I have appended two chunks. 'multi_append_target.txt' is now version 2 and has a total size of 23 bytes."
     assert_artifact_state:
       # Check initial artifact (version 0)
       - filename: "multi_append_target.txt"

@@ -1,12 +1,20 @@
-from typing import Any, Dict, Generator
-import pytest
-import time
+import inspect
+import socket
 import subprocess
 import sys
-import socket
-import httpx
-import inspect
+import time
+from collections.abc import Generator
+from typing import Any
 
+import httpx
+import pytest
+from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
+from sam_test_infrastructure.artifact_service.service import TestInMemoryArtifactService
+from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
+from sam_test_infrastructure.gateway_interface.component import TestGatewayComponent
+from sam_test_infrastructure.llm_server.server import TestLLMServer
+from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
+from solace_ai_connector.solace_ai_connector import SolaceAiConnector
 
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
@@ -21,9 +29,29 @@ from sam_test_infrastructure.artifact_service.service import (
 )
 from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
 from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
-from solace_agent_mesh.common.client.card_resolver import A2ACardResolver
-from solace_agent_mesh.common.client.client import A2AClient
-from solace_agent_mesh.common.types import AgentCard, AgentSkill
+from solace_agent_mesh.agent.sac.app import SamAgentApp
+from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from solace_agent_mesh.agent.tools.registry import tool_registry
+from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
+from sam_test_infrastructure.gateway_interface.component import (
+    TestGatewayComponent,
+)
+from sam_test_infrastructure.llm_server.server import TestLLMServer
+from sam_test_infrastructure.artifact_service.service import (
+    TestInMemoryArtifactService,
+)
+from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
+from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
+from solace_agent_mesh.common import a2a
+from a2a.types import (
+    AgentCard,
+    AgentSkill,
+    Task,
+    TaskState,
+    TaskStatusUpdateEvent,
+    TaskPushNotificationConfig,
+    PushNotificationConfig,
+)
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
 
 
@@ -35,7 +63,7 @@ def find_free_port() -> int:
 
 
 @pytest.fixture(scope="session")
-def mcp_server_harness() -> Generator[Dict[str, Any], None, None]:
+def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
     """
     Pytest fixture to manage the lifecycle of the TestMCPServer.
 
@@ -224,13 +252,13 @@ def test_llm_server():
         time.sleep(retry_delay)
         try:
             if server.started:
-                print(f"TestLLMServer confirmed started after {i+1} attempts.")
+                print(f"TestLLMServer confirmed started after {i + 1} attempts.")
                 ready = True
                 break
-            print(f"TestLLMServer not ready yet (attempt {i+1}/{max_retries})...")
+            print(f"TestLLMServer not ready yet (attempt {i + 1}/{max_retries})...")
         except Exception as e:
             print(
-                f"TestLLMServer readiness check (attempt {i+1}/{max_retries}) encountered an error: {e}"
+                f"TestLLMServer readiness check (attempt {i + 1}/{max_retries}) encountered an error: {e}"
             )
 
     if not ready:
@@ -533,10 +561,10 @@ def shared_solace_connector(
 
     yield connector
 
-    print(f"shared_solace_connector fixture: Cleaning up SolaceAiConnector...")
+    print("shared_solace_connector fixture: Cleaning up SolaceAiConnector...")
     connector.stop()
     connector.cleanup()
-    print(f"shared_solace_connector fixture: SolaceAiConnector cleaned up.")
+    print("shared_solace_connector fixture: SolaceAiConnector cleaned up.")
 
 
 @pytest.fixture(scope="session")
@@ -545,9 +573,9 @@ def sam_app_under_test(shared_solace_connector: SolaceAiConnector) -> SamAgentAp
     Retrieves the main SamAgentApp instance from the session-scoped SolaceAiConnector.
     """
     app_instance = shared_solace_connector.get_app("TestSamAgentApp")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve SamAgentApp from shared connector."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve SamAgentApp from shared connector."
+    )
     print(
         f"sam_app_under_test fixture: Retrieved app {app_instance.name} from shared SolaceAiConnector."
     )
@@ -560,9 +588,9 @@ def peer_agent_a_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the TestPeerAgentA_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentA_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve TestPeerAgentA_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve TestPeerAgentA_App."
+    )
     yield app_instance
 
 
@@ -572,9 +600,9 @@ def peer_agent_b_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the TestPeerAgentB_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentB_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve TestPeerAgentB_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve TestPeerAgentB_App."
+    )
     yield app_instance
 
 
@@ -584,9 +612,9 @@ def peer_agent_c_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the TestPeerAgentC_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentC_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve TestPeerAgentC_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve TestPeerAgentC_App."
+    )
     yield app_instance
 
 
@@ -596,9 +624,9 @@ def peer_agent_d_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the TestPeerAgentD_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentD_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve TestPeerAgentD_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve TestPeerAgentD_App."
+    )
     yield app_instance
 
 
@@ -656,9 +684,9 @@ def test_gateway_app_instance(
     and yields its TestGatewayComponent.
     """
     app_instance = shared_solace_connector.get_app("TestHarnessGatewayApp")
-    assert isinstance(
-        app_instance, TestGatewayApp
-    ), "Failed to retrieve TestGatewayApp from shared connector."
+    assert isinstance(app_instance, TestGatewayApp), (
+        "Failed to retrieve TestGatewayApp from shared connector."
+    )
     print(
         f"test_gateway_app_instance fixture: Retrieved app {app_instance.name} from shared SolaceAiConnector."
     )
@@ -810,6 +838,7 @@ def a2a_message_validator(
     yield validator
     validator.deactivate()
 
+
 @pytest.fixture(scope="function")
 def mock_agent_skills() -> AgentSkill:
     return AgentSkill(
@@ -818,86 +847,117 @@ def mock_agent_skills() -> AgentSkill:
         description="Description for Skill 1",
         tags=["tag1", "tag2"],
         examples=["Example 1", "Example 2"],
-        inputModes=["text/plain"],
-        outputModes=["text/plain"]
+        input_modes=["text/plain"],
+        output_modes=["text/plain"],
     )
+
 
 @pytest.fixture(scope="function")
 def mock_agent_card(mock_agent_skills: AgentSkill) -> AgentCard:
+    from a2a.types import AgentCapabilities
+
     return AgentCard(
         name="test_agent",
-        display_name="Test Agent_Display",
         description="Test Agent Description",
         url="http://test.com/test_path/agent.json",
         version="1.0.0",
-        capabilities={
-            "streaming": True,
-            "pushNotifications": False,
-            "stateTransitionHistory": True
-        },
+        protocol_version="0.3.0",
+        capabilities=AgentCapabilities(
+            streaming=True,
+            push_notifications=False,
+            state_transition_history=True,
+        ),
         skills=[mock_agent_skills],
-        peer_agents={},
+        default_input_modes=["text/plain"],
+        default_output_modes=["text/plain"],
     )
 
-@pytest.fixture(scope="function")
-def mock_a2a_client(mock_agent_card: AgentCard) -> A2AClient:
-    return A2AClient(agent_card=mock_agent_card)
+
 
 @pytest.fixture(scope="function")
-def mock_card_resolver() -> A2ACardResolver:
-    return A2ACardResolver("http://test.com", agent_card_path="/test_path/agent.json")
+def mock_task_response() -> Task:
+    """
+    Provides a mock A2A Task object, using the new helper layer.
+    Represents a final, completed task.
+    """
+    final_status = a2a.create_task_status(
+        state=TaskState.completed,
+        message=a2a.create_agent_text_message(
+            text="Task completed successfully", message_id="msg-agent-complete-1"
+        ),
+    )
+    final_status.timestamp = "2024-01-01T00:00:00Z"  # for deterministic testing
+
+    return a2a.create_final_task(
+        task_id="task-123",
+        context_id="session-456",
+        final_status=final_status,
+    )
+
+
 
 @pytest.fixture(scope="function")
-def mock_task_response() -> dict[str, Any]:
-    return {
-        "id": "task-123",
-        "sessionId": "session-456",
-        "status": {
-            "state": "completed",
-            "message": {
-                "role": "agent",
-                "parts": [{"type": "text", "text": "Task completed successfully"}]
-            },
-            "timestamp": "2024-01-01T00:00:00Z"
-        }
-    }
+def mock_task_response_cancel() -> Task:
+    """
+    Provides a mock A2A Task object, using the new helper layer.
+    Represents a final, canceled task.
+    """
+    final_status = a2a.create_task_status(
+        state=TaskState.canceled,
+        message=a2a.create_agent_text_message(
+            text="Task canceled successfully", message_id="msg-agent-cancel-1"
+        ),
+    )
+    final_status.timestamp = "2023-01-01T00:00:00Z"  # for deterministic testing
+
+    return a2a.create_final_task(
+        task_id="task-123",
+        context_id="session-456",
+        final_status=final_status,
+    )
+
+
 
 @pytest.fixture(scope="function")
-def mock_task_response_cancel() -> dict[str, Any]:
-    return {
-        "id": "task-123",
-        "sessionId": "session-456",
-        "status": {
-            "state": "canceled",
-            "message": {
-                "role": "agent",
-                "parts": [{"type": "text", "text": "Task canceled successfully"}]
-            },
-            "timestamp": "2023-01-01T00:00:00Z"
-        }
-    }
+def mock_sse_task_response() -> TaskStatusUpdateEvent:
+    """
+    Provides a mock A2A TaskStatusUpdateEvent, using the new helper layer.
+    Represents an intermediate status update during a streaming response.
+    """
+    status_message = a2a.create_agent_text_message(
+        text="Processing...", message_id="msg-agent-stream-1"
+    )
+    status_update = a2a.create_status_update(
+        task_id="task-123",
+        context_id="session-456",
+        message=status_message,
+        is_final=False,
+    )
+    status_update.status.timestamp = "2024-01-01T00:00:00Z"  # for deterministic testing
+    return status_update
+
+
 
 @pytest.fixture(scope="function")
-def mock_sse_task_response() -> dict[str, Any]:
-    return {
-        "id": "task-123",
-        "sessionId": "session-456",
-        "status": {
-            "state": "working",
-            "message": {
-                "role": "agent",
-                "parts": [{"type": "text", "text": "Processing..."}]
-            },
-            "timestamp": "2024-01-01T00:00:00Z"
-        }
-    }
+def mock_task_callback_response() -> TaskPushNotificationConfig:
+    """
+    Provides a mock A2A TaskPushNotificationConfig object.
+    """
+    return TaskPushNotificationConfig(
+        task_id="task-123",
+        push_notification_config=PushNotificationConfig(
+            id="config-1",
+            url="http://test.com/notify",
+            token="test-token",
+        ),
+    )
 
-@pytest.fixture(scope="function")
-def mock_task_callback_response() -> dict[str, Any]:
-    return {
-        "id": "task-123",
-        "pushNotificationConfig": {
-            "url": "http://test.com/notify",
-            "token": "test-token"
-        }
-    }
+
+def test_a2a_sdk_import():
+    """Verifies that the a2a-sdk can be imported."""
+    try:
+        from a2a.types import Task
+
+        assert Task is not None
+    except ImportError as e:
+        pytest.fail(f"Failed to import from a2a-sdk: {e}")

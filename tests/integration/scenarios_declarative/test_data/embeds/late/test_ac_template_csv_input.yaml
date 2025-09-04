@@ -1,6 +1,6 @@
 test_case_id: "embed_ac_template_csv_input_001"
 description: "Tests «artifact_content:data.csv>>>apply_to_template:table.mustache>>>format:text»."
-tags: ["all","common","embeds"]
+tags: ["all", "common", "embeds"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -16,9 +16,19 @@ gateway_input:
   parts: [{type: "text", text: "Render data.csv with table.mustache"}]
 llm_interactions:
   - static_response:
-      choices: [{message: {role: "assistant", content: "Result: «artifact_content:data.csv>>>apply_to_template:table.mustache>>>format:text»"}}]
+      choices: [message: {role: "assistant", content: "Result: «artifact_content:data.csv>>>apply_to_template:table.mustache>>>format:text»"}]
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "Result: <table><thead><tr><th>h1</th><th>h2</th></tr></thead><tbody><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></tbody></table>"
+    kind: task
+    id: '*'
+    contextId: session_embed_ac_template_csv_input_001
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "Result: <table><thead><tr><th>h1</th><th>h2</th></tr></thead><tbody><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></tbody></table>"

@@ -1,6 +1,7 @@
 test_case_id: "mcp_conversation_with_artifact_001"
-description: "Tests a two-turn conversation where an artifact is created and then used, verifying metadata injection."
-tags: ["all","agent","mcp"]
+description: "Tests a two-turn conversation where an artifact is created and then
+  used, verifying metadata injection."
+tags: ["all", "agent", "mcp"]
 skip_intermediate_events: true
 
 test_runner_config_overrides:
@@ -12,7 +13,8 @@ gateway_input:
   user_identity: "mcp_convo_tester@example.com"
   parts:
     - type: "text"
-      text: "Create a JSON file with user data for 'user123', then summarize it for me."
+      text: "Create a JSON file with user data for 'user123', then summarize it for
+        me."
   external_context:
     a2a_session_id: "session_mcp_conversation_with_artifact_001"
 
@@ -27,7 +29,10 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "get_data_stdio"
-                  arguments: '{"response_to_return": {"content": [{"type": "text", "text": "{\"user_id\": \"user123\", \"name\": \"Alice\", \"role\": \"Admin\", \"preferences\": {\"theme\": \"dark\", \"notifications\": true}}"}]}}'
+                  arguments: '{"response_to_return": {"content": [{"type": "text",
+                    "text": "{\"user_id\": \"user123\", \"name\": \"Alice\", \"role\":
+                    \"Admin\", \"preferences\": {\"theme\": \"dark\", \"notifications\":
+                    true}}"}]}}'
 
   # Turn 2: LLM receives the result, which has been saved as an artifact with metadata.
   # It then uses this information to summarize the data.
@@ -36,7 +41,8 @@ llm_interactions:
         - tool_name: "get_data_stdio"
           response_json_matches:
             status: "processed_and_saved"
-            message_to_llm_matches_regex: "The full response has been saved as artifact 'get_data_stdio_json_0_.*\\.json' \\(version 0\\)\\."
+            message_to_llm_matches_regex: "The full response has been saved as artifact
+              'get_data_stdio_json_0_.*\\.json' \\(version 0\\)\\."
             # This is the key assertion for metadata injection, now using contains for robustness.
             appended_artifact_metadata_contains:
               - "**Description:** Text content from MCP tool get_data_stdio"
@@ -49,17 +55,29 @@ llm_interactions:
       choices:
         - message:
             role: "assistant"
-            content: "I have created the user data for 'user123'. The user is Alice, an Admin, who prefers a dark theme."
+            content: "I have created the user data for 'user123'. The user is Alice,
+              an Admin, who prefers a dark theme."
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "I have created the user data for 'user123'. The user is Alice, an Admin, who prefers a dark theme."
+    kind: task
+    id: '*'
+    contextId: "session_mcp_conversation_with_artifact_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I have created the user data for 'user123'. The user is Alice,
+              an Admin, who prefers a dark theme."
     assert_artifact_state:
       - filename_matches_regex: "get_data_stdio_json_0_.*[^a]\\.json$"
         version: 0
-        expected_content_text: '{"user_id": "user123", "name": "Alice", "role": "Admin", "preferences": {"theme": "dark", "notifications": true}}'
+        expected_content_text: '{"user_id": "user123", "name": "Alice", "role": "Admin",
+          "preferences": {"theme": "dark", "notifications": true}}'
         expected_metadata_contains:
           source_tool_name: "get_data_stdio"
           content_type: "text"

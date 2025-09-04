@@ -7,33 +7,42 @@ setup_artifacts:
   - filename: "file1.txt"
     mime_type: "text/plain"
     content: "Version 0 content"
-    metadata: {"description": "Initial version of file1.txt"} # ADDED metadata for v0
-  - filename: "file1.txt" # Same filename, new version
+    metadata: {"source": "initial_upload"}
+  - filename: "file1.txt"
     mime_type: "text/markdown"
     content: "## Version 1 Content"
-    # version: 1 # Implicitly version 1
-    metadata: {"source": "latest_upload", "status": "final"}
+    metadata: {"source": "latest_upload"}
+
 gateway_input:
   target_agent_name: "TestAgent"
   user_identity: "embed_tester@example.com"
-  parts: [{type: "text", text: "Get metadata for file1.txt"}]
+  a2a_parts:
+    - type: "text"
+      text: "Get metadata for file1.txt"
   external_context:
-    a2a_session_id: "fixed_session_for_artifact_meta_latest_test_001"
+    a2a_session_id: "fixed_session_for_artifact_meta_test_latest_001"
+
 llm_interactions:
   - static_response:
       choices: [{message: {role: "assistant", content: "Metadata: «artifact_meta:file1.txt»"}}]
+
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "--- Metadata for artifact 'file1.txt' (v1) ---"
-      - type: "text"
-        text_contains: "*   **Source:** latest_upload"
-      - type: "text"
-        text_contains: "status: final"
-      - type: "text"
-        text_contains: "*   **Type:** text/markdown"
-      - type: "text"
-        text_contains: "*   **Schema Type:** text/markdown" # Defaults to MIME type if no explicit schema
-      - type: "text"
-        text_matches_regex: "\\*   size: \\d+" # Check for size presence with formatting
+    kind: "task"
+    id: "*"
+    contextId: "fixed_session_for_artifact_meta_test_latest_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "--- Metadata for artifact 'file1.txt' (v1) ---"
+              - "*   **Source:** latest_upload"
+              - "*   **Type:** text/markdown"
+              - "*   **Schema Type:** text/markdown"
+            text_matches_regex:
+              - "\\*   size: \\d+"

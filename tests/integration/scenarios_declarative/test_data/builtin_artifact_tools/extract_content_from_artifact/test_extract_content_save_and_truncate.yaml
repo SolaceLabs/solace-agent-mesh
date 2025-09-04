@@ -86,11 +86,20 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "Here's a preview: 'This is the very long, detailed, and extensive summary extracted from the orig... [Content truncated]'"
-        text_contains: "The full summary has been saved to a new file."
-    task_state: "completed"
+    kind: "task"
+    id: "*"
+    contextId: "session_extract_save_truncate_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "Here's a preview: 'This is the very long, detailed, and extensive summary extracted from the orig... [Content truncated]'"
+              - "The full summary has been saved to a new file."
 
 expected_artifacts: # Check the newly created artifact (full content)
   - filename_matches_regex: "^long_summary_st_[a-f0-9]{8}\\.txt$"
