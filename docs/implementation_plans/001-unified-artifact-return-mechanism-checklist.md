@@ -10,7 +10,7 @@ This checklist provides a high-level overview of the tasks required to implement
 ## Phase 2: Core Resolver Logic Refactoring
 
 3.  [x] **Update Resolver Signatures:** Add the `resolution_mode: ResolutionMode` parameter to `evaluate_embed`, `resolve_embeds_in_string`, and `resolve_embeds_recursively_in_string` in `src/solace_agent_mesh/common/utils/embeds/resolver.py`.
-4.  [ ] **Implement Context-Aware Logic:** In `evaluate_embed`, add logic to:
+4.  [x] **Implement Context-Aware Logic:** In `evaluate_embed`, add logic to:
     -   Emit `SIGNAL_ARTIFACT_RETURN` only when `resolution_mode` is `A2A_MESSAGE_TO_USER`.
     -   Emit `SIGNAL_INLINE_BINARY_CONTENT` for binary `artifact_content` results.
     -   Ignore `artifact_return` in other modes.

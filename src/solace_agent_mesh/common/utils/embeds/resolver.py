@@ -87,7 +87,7 @@ async def _evaluate_artifact_content_embed_with_chain(
     config: Optional[Dict] = None,
     current_depth: int = 0,
     visited_artifacts: Optional[Set[Tuple[str, int]]] = None,
-) -> Tuple[str, Optional[str], int]:
+) -> Union[Tuple[str, Optional[str], int], Tuple[None, str, Any]]:
     """
     Loads artifact content, recursively resolves its internal embeds if text-based,
     applies a chain of modifiers, and serializes the final result.
@@ -421,6 +421,26 @@ async def _evaluate_artifact_content_embed_with_chain(
             )
             err_msg = f"Unexpected error in modifier '{prefix}': {mod_err}"
             return f"[Error: {err_msg}]", err_msg, 0
+
+    if (
+        current_format == DataFormat.BYTES
+        and resolution_mode == ResolutionMode.A2A_MESSAGE_TO_USER
+    ):
+        log.info(
+            "%s [Depth:%d] Result is binary data in A2A_MESSAGE_TO_USER mode. Signaling for inline binary content.",
+            log_identifier,
+            current_depth,
+        )
+        filename_for_signal = artifact_spec_from_directive.split(":", 1)[0]
+        return (
+            None,
+            "SIGNAL_INLINE_BINARY_CONTENT",
+            {
+                "bytes": current_data,
+                "mime_type": original_mime_type,
+                "filename": filename_for_signal,
+            },
+        )
 
     target_string_format = output_format_from_directive
     if target_string_format is None:
@@ -817,6 +837,26 @@ async def evaluate_embed(
         log.info("%s Detected 'status_update' embed. Signaling.", log_identifier)
         return (None, "SIGNAL_STATUS_UPDATE", status_text)
 
+    elif embed_type == "artifact_return":
+        if resolution_mode == ResolutionMode.A2A_MESSAGE_TO_USER:
+            parts = expression.strip().split(":", 1)
+            filename = parts[0]
+            version = parts[1] if len(parts) > 1 else "latest"
+            log.info("%s Detected 'artifact_return' embed. Signaling.", log_identifier)
+            return (
+                None,
+                "SIGNAL_ARTIFACT_RETURN",
+                {"filename": filename, "version": version},
+            )
+        else:
+            log.warning(
+                "%s Ignoring 'artifact_return' embed in unsupported context: %s",
+                log_identifier,
+                resolution_mode.name,
+            )
+            original_embed_text = f"«{embed_type}:{expression}»"
+            return original_embed_text, None, len(original_embed_text.encode("utf-8"))
+
     elif embed_type == "artifact_content":
         artifact_spec, modifiers, output_format = _parse_modifier_chain(expression)
         if output_format is None and format_spec is not None:
@@ -827,7 +867,7 @@ async def evaluate_embed(
             )
             output_format = format_spec
 
-        final_string, error, size = await _evaluate_artifact_content_embed_with_chain(
+        result = await _evaluate_artifact_content_embed_with_chain(
             artifact_spec_from_directive=artifact_spec,
             modifiers_from_directive=modifiers,
             output_format_from_directive=output_format,
@@ -838,7 +878,7 @@ async def evaluate_embed(
             current_depth=current_depth,
             visited_artifacts=visited_artifacts or set(),
         )
-        return final_string, error, size
+        return result
 
     else:
         evaluator = EMBED_EVALUATORS.get(embed_type)
