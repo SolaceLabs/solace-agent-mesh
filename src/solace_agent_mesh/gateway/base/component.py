@@ -4,6 +4,7 @@ Base Component class for Gateway implementations in the Solace AI Connector.
 
 import asyncio
 import queue
+import re
 import base64
 import uuid
 from datetime import datetime, timezone
