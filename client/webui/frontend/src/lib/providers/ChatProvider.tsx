@@ -979,7 +979,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 const task = result?.result as Task | undefined;
                 const taskId = task?.id;
-                const responseSessionId = (result?.result as any)?.contextId;
+                const responseSessionId = (task as Task & { contextId?: string })?.contextId;
 
                 console.log(`ChatProvider handleSubmit: Extracted responseSessionId: ${responseSessionId}, current sessionId: ${sessionId}`);
                 console.log(`ChatProvider handleSubmit: Full result object:`, result);
