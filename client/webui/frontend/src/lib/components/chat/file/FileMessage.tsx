@@ -13,6 +13,8 @@ import { getRenderType, getFileContent } from "../preview/previewUtils";
 import { ContentRenderer } from "../preview/ContentRenderer";
 import { MessageBanner } from "../../common";
 
+const INLINE_RENDERABLE_TYPES = ["image", "audio", "markdown", "csv", "json", "yaml"];
+
 interface FileAttachmentMessageProps {
     fileAttachment: FileAttachment;
     isEmbedded?: boolean;
@@ -25,11 +27,10 @@ export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps
     const [renderError, setRenderError] = useState<string | null>(null);
 
     const renderType = useMemo(() => getRenderType(fileAttachment.name, fileAttachment.mime_type), [fileAttachment.name, fileAttachment.mime_type]);
-    const inlineRenderableTypes = ["image", "audio", "markdown", "csv", "json", "yaml"];
 
     useEffect(() => {
         const fetchContentFromUri = async () => {
-            if (!fileAttachment.uri || !renderType || !inlineRenderableTypes.includes(renderType)) {
+            if (!fileAttachment.uri || !renderType || !INLINE_RENDERABLE_TYPES.includes(renderType)) {
                 return;
             }
 
@@ -67,7 +68,7 @@ export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps
         if (fileAttachment.uri && !fileAttachment.content) {
             fetchContentFromUri();
         }
-    }, [fileAttachment.uri, fileAttachment.content, renderType, inlineRenderableTypes]);
+    }, [fileAttachment.uri, fileAttachment.content, renderType]);
 
     const contentToRender = fetchedContent || fileAttachment.content;
 
@@ -75,7 +76,7 @@ export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps
         return <FileMessage filename={fileAttachment.name} mimeType={fileAttachment.mime_type} onDownload={() => downloadFile(fileAttachment)} className="ml-4" isEmbedded={isEmbedded} />;
     }
 
-    if (renderType && inlineRenderableTypes.includes(renderType)) {
+    if (renderType && INLINE_RENDERABLE_TYPES.includes(renderType)) {
         if (isLoading) {
             return (
                 <div className="ml-4 my-2 p-4 border rounded-lg max-w-2xl h-24 flex items-center justify-center bg-muted">
