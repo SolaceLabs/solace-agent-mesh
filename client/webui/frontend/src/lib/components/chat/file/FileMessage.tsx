@@ -79,8 +79,10 @@ export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps
 
     const contentToRender = fetchedContent || fileAttachment.content;
 
+    const renderFallbackBadge = () => <FileMessage filename={fileAttachment.name} mimeType={fileAttachment.mime_type} onDownload={() => downloadFile(fileAttachment)} className="ml-4" isEmbedded={isEmbedded} />;
+
     if (isEmbedded) {
-        return <FileMessage filename={fileAttachment.name} mimeType={fileAttachment.mime_type} onDownload={() => downloadFile(fileAttachment)} className="ml-4" isEmbedded={isEmbedded} />;
+        return renderFallbackBadge();
     }
 
     if (renderType && INLINE_RENDERABLE_TYPES.includes(renderType)) {
@@ -103,7 +105,7 @@ export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps
         if (contentToRender) {
             const finalContent = getFileContent({ ...fileAttachment, content: contentToRender });
             if (!finalContent) {
-                return <FileMessage filename={fileAttachment.name} mimeType={fileAttachment.mime_type} onDownload={() => downloadFile(fileAttachment)} className="ml-4" isEmbedded={isEmbedded} />;
+                return renderFallbackBadge();
             }
 
             const rendererContainerStyle: React.CSSProperties =
@@ -129,7 +131,7 @@ export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps
         }
     }
 
-    return <FileMessage filename={fileAttachment.name} mimeType={fileAttachment.mime_type} onDownload={() => downloadFile(fileAttachment)} className="ml-4" isEmbedded={isEmbedded} />;
+    return renderFallbackBadge();
 };
 
 interface FileMessageProps {
