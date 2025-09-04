@@ -16,14 +16,12 @@ from .resolver import (
     evaluate_embed,
     resolve_embeds_in_string,
     resolve_embeds_recursively_in_string,
-    resolve_embeds_in_parts_list,
 )
 
 __all__ = [
     "evaluate_embed",
     "resolve_embeds_in_string",
     "resolve_embeds_recursively_in_string",
-    "resolve_embeds_in_parts_list",
     "EMBED_DELIMITER_OPEN",
     "EMBED_DELIMITER_CLOSE",
     "EMBED_TYPE_SEPARATOR",
