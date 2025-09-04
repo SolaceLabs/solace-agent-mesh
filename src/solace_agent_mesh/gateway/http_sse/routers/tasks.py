@@ -76,7 +76,28 @@ async def _submit_task(
         )
 
         client_id = session_manager.get_a2a_client_id(request)
-        session_id = session_manager.ensure_a2a_session(request)
+        
+        # Use session ID from frontend request (contextId) instead of cookie-based session
+        # Handle various falsy values: None, empty string, whitespace-only string
+        log.info("%s[DEBUG] payload.params.message: %s", log_prefix, payload.params.message)
+        log.info("%s[DEBUG] hasattr context_id: %s", log_prefix, hasattr(payload.params.message, 'context_id'))
+        if hasattr(payload.params.message, 'context_id'):
+            log.info("%s[DEBUG] context_id value: %s", log_prefix, payload.params.message.context_id)
+        
+        frontend_session_id = None
+        if hasattr(payload.params.message, 'context_id') and payload.params.message.context_id:
+            context_id = payload.params.message.context_id
+            if isinstance(context_id, str) and context_id.strip():
+                frontend_session_id = context_id.strip()
+                log.info("%s[DEBUG] Extracted frontend_session_id: %s", log_prefix, frontend_session_id)
+        
+        if frontend_session_id:
+            session_id = frontend_session_id
+            log.info("%sUsing session ID from frontend request: %s", log_prefix, session_id)
+        else:
+            # Create new session when frontend doesn't provide one (None, empty, or whitespace-only)
+            session_id = session_manager.create_new_session_id(request)
+            log.info("%sNo valid session ID from frontend, created new session: %s", log_prefix, session_id)
 
         log.info(
             "%sUsing ClientID: %s, SessionID: %s", log_prefix, client_id, session_id
@@ -89,6 +110,29 @@ async def _submit_task(
                 from ....gateway.http_sse.dependencies import get_session_service
                 from ....gateway.http_sse.shared.enums import SenderType
                 
+                session_service = get_session_service(component)
+                
+                # First ensure session exists in database - create it with the SessionManager's ID
+                # Handle race condition where multiple requests might try to create the same session
+                existing_session = session_service.get_session(session_id=session_id, user_id=user_id)
+                if not existing_session:
+                    log.info("%sCreating new session in database: %s", log_prefix, session_id)
+                    try:
+                        session_service.create_session(
+                            user_id=user_id,
+                            agent_id=agent_name,
+                            name=None,  # Will be auto-generated if needed
+                            session_id=session_id  # Use the SessionManager's session ID
+                        )
+                    except Exception as create_error:
+                        # Another request may have created the session concurrently
+                        log.warning("%sSession creation failed, checking if session exists: %s", log_prefix, create_error)
+                        existing_session = session_service.get_session(session_id=session_id, user_id=user_id)
+                        if not existing_session:
+                            # If session still doesn't exist, re-raise the original error
+                            raise create_error
+                        log.info("%sSession was created by another request: %s", log_prefix, session_id)
+                
                 # Extract text content from the message for storage
                 message_text = ""
                 if payload.params and payload.params.message:
@@ -98,7 +142,7 @@ async def _submit_task(
                             message_text = part.text
                             break
                 
-                session_service = get_session_service(component)
+                # Now store the message in the existing session
                 message_domain = session_service.add_message_to_session(
                     session_id=session_id,
                     user_id=user_id,
@@ -107,13 +151,11 @@ async def _submit_task(
                     sender_name=user_id or "user",
                     agent_id=agent_name,
                 )
-                # Use the actual session ID from the message (may be different if session was recreated)
+                
                 if message_domain:
-                    session_id = message_domain.session_id
                     log.info("%sMessage stored in session %s", log_prefix, session_id)
-            except ValueError as e:
-                log.warning("%sValidation error in session service: %s", log_prefix, e)
-                # Don't fail the request, just log the warning
+                else:
+                    log.warning("%sFailed to store message in session %s", log_prefix, session_id)
             except Exception as e:
                 log.error("%sFailed to store message in session service: %s", log_prefix, e)
                 # Don't fail the request, just log the error
@@ -148,8 +190,7 @@ async def _submit_task(
         )
 
         if is_streaming:
-            # Include session_id in the response for streaming requests
-            task_object["sessionId"] = session_id
+            # The task_object already contains the contextId from create_initial_task
             return a2a.create_send_streaming_message_success_response(
                 result=task_object, request_id=payload.id
             )

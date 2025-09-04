@@ -6,11 +6,6 @@ import json
 import asyncio
 from typing import TYPE_CHECKING, Dict, Any
 import fnmatch
-import json
-from typing import TYPE_CHECKING
-
-from google.adk.agents import RunConfig
-from solace_ai_connector.common.event import Event, EventType
 from solace_ai_connector.common.log import log
 from solace_ai_connector.common.message import Message as SolaceMessage
 from ...agent.adk.callbacks import _publish_data_part_status_update
@@ -32,6 +27,9 @@ from a2a.types import (
 from ...common import a2a
 from ...common.a2a import (
     get_agent_request_topic,
+    get_discovery_topic,
+    translate_a2a_to_adk_content,
+    get_client_response_topic,
     get_agent_response_subscription_topic,
     get_agent_status_subscription_topic,
     get_text_from_message,
@@ -39,12 +37,12 @@ from ...common.a2a import (
 from ...agent.utils.artifact_helpers import (
     generate_artifact_metadata_summary,
 )
-from ...common.types import Message as A2AMessage
+from ...agent.adk.runner import run_adk_async_task_thread_wrapper
 from ..sac.task_execution_context import TaskExecutionContext
+from google.adk.agents import RunConfig
 
 if TYPE_CHECKING:
-    pass
-
+    from ..sac.component import SamAgentComponent
 from google.adk.agents.run_config import StreamingMode
 
 
@@ -238,6 +236,16 @@ async def handle_a2a_request(component, message: SolaceMessage):
         a2a_request: A2ARequest = A2ARequest.model_validate(payload_dict)
         jsonrpc_request_id = a2a.get_request_id(a2a_request)
 
+        # Extract properties from message user properties  
+        client_id = message.get_user_properties().get("clientId", "default_client")
+        status_topic_from_peer = message.get_user_properties().get("a2aStatusTopic")
+        reply_topic_from_peer = message.get_user_properties().get("replyTo")
+        namespace = component.get_config("namespace")
+        a2a_user_config = message.get_user_properties().get("a2aUserConfig", {})
+        if not isinstance(a2a_user_config, dict):
+            log.warning("a2aUserConfig is not a dict, using empty dict instead")
+            a2a_user_config = {}
+
         # The concept of logical_task_id changes. For Cancel, it's in params.id.
         # For Send, we will generate it.
         logical_task_id = None
@@ -394,8 +402,8 @@ async def handle_a2a_request(component, message: SolaceMessage):
             temporary_run_session_id_for_cleanup = None
 
             session_id_from_data = None
-            if a2a_request.params.message and a2a_request.params.message.parts:
-                for part in a2a_request.params.message.parts:
+            if a2a_message and a2a_message.parts:
+                for part in a2a_message.parts:
                     if isinstance(part, DataPart) and "session_id" in part.data:
                         session_id_from_data = part.data["session_id"]
                         log.info(

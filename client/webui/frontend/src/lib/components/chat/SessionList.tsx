@@ -94,6 +94,22 @@ export const SessionList: React.FC = () => {
         return new Date(dateString).toLocaleString();
     };
 
+    const getSessionDisplayName = (session: Session) => {
+        if (session.name && session.name.trim()) {
+            return session.name;
+        }
+        // Generate a short, readable identifier from the session ID  
+        const sessionId = session.id;
+        if (sessionId.startsWith('web-session-')) {
+            // Extract the UUID part and create a short identifier
+            const uuid = sessionId.replace('web-session-', '');
+            const shortId = uuid.substring(0, 8);
+            return `Chat ${shortId}`;
+        }
+        // Fallback for other ID formats
+        return `Session ${sessionId.substring(0, 8)}`;
+    };
+
     return (
         <div className="p-4">
             <h2 className="text-lg font-bold mb-4">Chat History</h2>
@@ -114,7 +130,7 @@ export const SessionList: React.FC = () => {
                             ) : (
                                 <button onClick={() => handleSessionClick(session.id)} className="flex-grow text-left">
                                     <div className="flex flex-col">
-                                        <span className="font-semibold">{session.name || `Session ${session.id.substring(0, 8)}`}</span>
+                                        <span className="font-semibold">{getSessionDisplayName(session)}</span>
                                         <span className="text-xs text-gray-500">{formatSessionDate(session.updated_at)}</span>
                                     </div>
                                 </button>

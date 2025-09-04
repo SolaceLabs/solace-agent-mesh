@@ -40,29 +40,11 @@ class DatabasePersistenceService(PersistenceService):
             # Check if session exists
             db_session = session.query(DbSession).filter_by(id=session_id).first()
             if not db_session:
-                if not user_id:
-                    raise ValueError(
-                        f"Session {session_id} not found and no user_id provided for creation"
-                    )
+                self.logger.error("Session %s not found for user %s", session_id, user_id)
+                raise ValueError(f"Session {session_id} not found. Sessions must be created via SessionManager.")
 
-                # Generate a new session ID to prevent resurrection of deleted sessions
-                new_session_id = str(uuid.uuid4())
-
-                self.logger.warning(
-                    "Session %s not found. Creating new session %s for user %s.",
-                    session_id,
-                    new_session_id,
-                    user_id,
-                )
-                db_session = DbSession(
-                    id=new_session_id, user_id=user_id, agent_id=agent_id
-                )
-                session.add(db_session)
-
-                # Update session_id to the new one for message creation
-                session_id = new_session_id
-
-            elif not db_session.agent_id and agent_id:
+            # Update agent_id if provided and not already set
+            if not db_session.agent_id and agent_id:
                 self.logger.info(
                     "Hydrating agent_id for session %s with agent %s",
                     session_id,

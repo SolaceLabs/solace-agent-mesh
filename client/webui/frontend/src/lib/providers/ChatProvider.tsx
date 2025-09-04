@@ -32,7 +32,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         });
 
     // State Variables from useChat
-    const [sessionId, setSessionId] = useState<string>(() => `web-session-${Date.now()}`);
+    const [sessionId, setSessionId] = useState<string>("");
     const [messages, setMessages] = useState<MessageFE[]>([]);
     const [userInput, setUserInput] = useState<string>("");
     const [isResponding, setIsResponding] = useState<boolean>(false);
@@ -84,6 +84,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [previewedArtifactAvailableVersions, setPreviewedArtifactAvailableVersions] = useState<number[] | null>(null);
     const [currentPreviewedVersionNumber, setCurrentPreviewedVersionNumber] = useState<number | null>(null);
     const [previewFileContent, setPreviewFileContent] = useState<FileAttachment | null>(null);
+
 
     // Notification Helper
     const addNotification = useCallback((message: string, type?: "success" | "info" | "error") => {
@@ -610,110 +611,49 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }
         setIsCancelling(false);
 
-        try {
-            // 3. Call backend to create new A2A session
-            console.log(`${log_prefix} Requesting new session from backend...`);
-            const response = await authenticatedFetch(`${apiPrefix}/sessions/new`, {
-                method: "POST",
-                credentials: "include",
-                headers: {
-                    "Content-Type": "application/json",
+        // Reset frontend state - session will be created lazily when first message is sent
+        console.log(`${log_prefix} Resetting session state - new session will be created when first message is sent`);
+        
+        // Clear session ID - will be set by backend when first message is sent
+        setSessionId("");
+
+        // Reset UI state with empty session ID
+        const welcomeMessages: MessageFE[] = configWelcomeMessage
+            ? [
+                {
+                    parts: [{ kind: "text", text: configWelcomeMessage }],
+                    isUser: false,
+                    isComplete: true,
+                    role: "agent",
+                    metadata: {
+                        sessionId: "", // Empty - will be populated when session is created
+                        lastProcessedEventSequence: 0,
+                    },
                 },
-            });
+            ]
+            : [];
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({
-                    detail: `HTTP error ${response.status}`,
-                }));
-                throw new Error(errorData.detail || `Failed to create new session: ${response.status}`);
-            }
+        setMessages(welcomeMessages);
+        setUserInput("");
+        setIsResponding(false);
+        setCurrentTaskId(null);
+        setTaskIdInSidePanel(null);
+        setPreviewArtifact(null);
+        isFinalizing.current = false;
+        latestStatusText.current = null;
+        sseEventSequenceRef.current = 0;
 
-            const result = await response.json();
-            const backendSessionId = result?.result?.sessionId;
+        // Refresh artifacts (should be empty for new session)
+        console.log(`${log_prefix} Refreshing artifacts for new session...`);
+        await artifactsRefetch();
 
-            if (!backendSessionId) {
-                throw new Error("Backend did not return a valid session ID");
-            }
+        // Success notification
+        addNotification("New session started successfully.");
+        console.log(`${log_prefix} New session setup complete - session will be created on first message.`);
 
-            console.log(`${log_prefix} Received new backend session ID: ${backendSessionId}`);
-
-            // 4. Update frontend state with backend session ID
-            setSessionId(backendSessionId);
-
-            // 5. Reset UI state with new session ID
-            const welcomeMessages: MessageFE[] = configWelcomeMessage
-                ? [
-                    {
-                        parts: [{ kind: "text", text: configWelcomeMessage }],
-                        isUser: false,
-                        isComplete: true,
-                        role: "agent",
-                        metadata: {
-                            sessionId: backendSessionId,
-                            lastProcessedEventSequence: 0,
-                        },
-                    },
-                ]
-                : [];
-
-            setMessages(welcomeMessages);
-            setUserInput("");
-            setIsResponding(false);
-            setCurrentTaskId(null);
-            setTaskIdInSidePanel(null);
-            setPreviewArtifact(null);
-            isFinalizing.current = false;
-            latestStatusText.current = null;
-            sseEventSequenceRef.current = 0;
-
-            // 6. Refresh artifacts (should now be empty for new session)
-            console.log(`${log_prefix} Refreshing artifacts for new session...`);
-            await artifactsRefetch();
-
-            // 7. Success notification
-            addNotification("New session started successfully.");
-            console.log(`${log_prefix} New session setup complete.`);
-        } catch (error) {
-            console.error(`${log_prefix} Error creating new session:`, error);
-            addNotification(`Failed to create new session: ${error instanceof Error ? error.message : "Unknown error"}`);
-
-            // 8. Fallback to frontend-only reset if backend call fails
-            console.log(`${log_prefix} Falling back to frontend-only session reset...`);
-            const fallbackSessionId = `web-session-${Date.now()}`;
-            setSessionId(fallbackSessionId);
-
-            const fallbackMessages: MessageFE[] = configWelcomeMessage
-                ? [
-                    {
-                        parts: [{ kind: "text", text: configWelcomeMessage }],
-                        isUser: false,
-                        isComplete: true,
-                        role: "agent",
-                        metadata: {
-                            sessionId: fallbackSessionId,
-                            lastProcessedEventSequence: 0,
-                        },
-                    },
-                ]
-                : [];
-
-            setMessages(fallbackMessages);
-            setUserInput("");
-            setIsResponding(false);
-            setCurrentTaskId(null);
-            setTaskIdInSidePanel(null);
-            isFinalizing.current = false;
-            latestStatusText.current = null;
-            sseEventSequenceRef.current = 0;
-
-            addNotification("Session reset to frontend-only mode due to backend error.");
-        }
-
-        // 9. Dispatch custom event for other components
-        if (typeof window !== "undefined") {
-            window.dispatchEvent(new CustomEvent("new-chat-session"));
-        }
-    }, [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, configWelcomeMessage, addNotification, sessionId]);
+        // Note: No session events dispatched here since no session exists yet.
+        // Session creation event will be dispatched when first message creates the actual session.
+    }, [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, configWelcomeMessage, addNotification, artifactsRefetch]);
 
     const handleSwitchSession = useCallback(
         async (newSessionId: string) => {
@@ -748,9 +688,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             try {
                 const history = await getHistory(newSessionId);
                 const formattedMessages: MessageFE[] = history.map((msg: HistoryMessage) => ({
-                    text: msg.message,
+                    parts: [{ kind: "text", text: msg.message }],
                     isUser: msg.sender_type === "user",
                     isComplete: true,
+                    role: msg.sender_type === "user" ? "user" : "agent",
                     metadata: {
                         sessionId: msg.session_id,
                         messageId: msg.id,
@@ -807,9 +748,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const deleteSession = useCallback(
-        async (sessionId: string) => {
+        async (sessionIdToDelete: string) => {
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}`, {
+                const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionIdToDelete}`, {
                     method: 'DELETE',
                 });
                 if (!response.ok) {
@@ -817,8 +758,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
                 addNotification('Session deleted successfully.');
-                if (sessionId === state.sessionId) {
+                if (sessionIdToDelete === sessionId) {
                     handleNewSession();
+                }
+                // Trigger session list refresh
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(new CustomEvent("new-chat-session"));
                 }
             } catch (error) {
                 addNotification(`Error deleting session: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -826,6 +771,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         },
         [apiPrefix, addNotification, handleNewSession, sessionId]
     );
+
 
     const openSessionDeleteModal = useCallback((session: Session) => {
         setSessionToDelete(session);
@@ -994,6 +940,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // 3. Construct the A2A message
+                console.log(`ChatProvider handleSubmit: Using sessionId for contextId: ${sessionId}`);
                 const a2aMessage: Message = {
                     role: "user",
                     parts: messageParts,
@@ -1032,10 +979,33 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 const task = result?.result as Task | undefined;
                 const taskId = task?.id;
+                const responseSessionId = (result?.result as any)?.contextId;
+
+                console.log(`ChatProvider handleSubmit: Extracted responseSessionId: ${responseSessionId}, current sessionId: ${sessionId}`);
+                console.log(`ChatProvider handleSubmit: Full result object:`, result);
 
                 if (!taskId) {
                     console.error("ChatProvider handleSubmit: Backend did not return a valid taskId. Result:", result);
                     throw new Error("Backend did not return a valid taskId.");
+                }
+
+                // Update session ID if backend provided one (for new sessions)
+                console.log(`ChatProvider handleSubmit: Checking session update condition - responseSessionId: ${responseSessionId}, sessionId: ${sessionId}, different: ${responseSessionId !== sessionId}`);
+                if (responseSessionId && responseSessionId !== sessionId) {
+                    console.log(`ChatProvider handleSubmit: Updating sessionId from ${sessionId} to ${responseSessionId}`);
+                    const isNewSession = !sessionId || sessionId === "";
+                    setSessionId(responseSessionId);
+                    // Update the user message metadata with the new session ID
+                    setMessages(prev => prev.map(msg => 
+                        msg.metadata?.messageId === userMsg.metadata?.messageId 
+                            ? { ...msg, metadata: { ...msg.metadata, sessionId: responseSessionId } }
+                            : msg
+                    ));
+                    
+                    // Trigger session list refresh for new sessions
+                    if (isNewSession && typeof window !== "undefined") {
+                        window.dispatchEvent(new CustomEvent("new-chat-session"));
+                    }
                 }
 
                 console.log(`ChatProvider handleSubmit: Received taskId ${taskId}. Setting currentTaskId and taskIdInSidePanel.`);

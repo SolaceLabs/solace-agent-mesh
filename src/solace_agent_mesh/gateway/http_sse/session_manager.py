@@ -129,6 +129,25 @@ class SessionManager:
         )
         return new_session_id
 
+    def create_new_session_id(self, request: Request) -> str:
+        """
+        Generates a new A2A Session ID without storing it in cookies.
+        This should be used when the frontend manages session state.
+        """
+        client_id = self._get_or_create_client_id(request)
+        if not client_id:
+            # This case should ideally be prevented by middleware raising 401
+            raise RuntimeError(
+                "Cannot start a new A2A session without a client ID when authorization is enabled."
+            )
+        new_session_id = f"web-session-{uuid.uuid4().hex}"
+        log.info(
+            "[SessionManager] Generated new A2A Session ID: %s for Client ID: %s (not stored in cookies)",
+            new_session_id,
+            client_id,
+        )
+        return new_session_id
+
     def ensure_a2a_session(self, request: Request) -> str:
         """
         Ensures an A2A session ID exists, creating one if necessary.

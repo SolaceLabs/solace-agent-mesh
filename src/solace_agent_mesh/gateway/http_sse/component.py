@@ -9,7 +9,7 @@ import re
 import threading
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Dict, Optional, List, Tuple, Union, Set
 
 import uvicorn
 from fastapi import FastAPI
@@ -1528,6 +1528,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
         log_id_prefix = f"{self.log_identifier}[SendUpdate]"
         sse_task_id = external_request_context.get("a2a_task_id_for_event")
         a2a_task_id = event_data.task_id
+        
+        log.debug("%s _send_update_to_external called with event_type: %s", 
+                  log_id_prefix, type(event_data).__name__)
 
         if not sse_task_id:
             log.error(
@@ -1564,35 +1567,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 a2a_task_id,
             )
             
-            # Store agent message in persistence layer if available
-            if isinstance(event_data, TaskStatusUpdateEvent) and hasattr(self, "persistence_service") and self.persistence_service:
-                try:
-                    session_id = external_request_context.get("a2a_session_id")
-                    user_id = external_request_context.get("user_id_for_a2a")
-                    agent_name = external_request_context.get("target_agent_name", "agent")
-                    
-                    # Extract message content from the status update
-                    message_text = ""
-                    if event_data.message:
-                        message_text = a2a.get_message_from_status_update(event_data)
-                    
-                    if message_text and session_id and user_id:
-                        from .dependencies import get_session_service
-                        from .shared.enums import SenderType
-                        
-                        session_service = get_session_service(self)
-                        session_service.add_message_to_session(
-                            session_id=session_id,
-                            user_id=user_id,
-                            message=message_text,
-                            sender_type=SenderType.AGENT,
-                            sender_name=agent_name,
-                            agent_id=agent_name,
-                        )
-                        log.debug("%s Agent message stored in session %s", log_id_prefix, session_id)
-                except Exception as storage_error:
-                    log.warning("%s Failed to store agent message: %s", log_id_prefix, storage_error)
-                    # Don't fail the SSE send if storage fails
+            # Note: Agent message storage is handled in _send_final_response_to_external
+            # to avoid duplicate storage of intermediate status updates
                     
         except Exception as e:
             log.exception(
@@ -1612,6 +1588,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
         log_id_prefix = f"{self.log_identifier}[SendFinalResponse]"
         sse_task_id = external_request_context.get("a2a_task_id_for_event")
         a2a_task_id = task_data.id
+        
+        log.debug("%s _send_final_response_to_external called", log_id_prefix)
 
         if not sse_task_id:
             log.error(
@@ -1649,15 +1627,19 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     user_id = external_request_context.get("user_id_for_a2a")
                     agent_name = external_request_context.get("target_agent_name", "agent")
                     
-                    # Extract message content from the task result
+                    # Extract message content from the task status
                     message_text = ""
-                    if task_data.result:
-                        parts = a2a.get_parts_from_task(task_data)
+                    if task_data.status and task_data.status.message:
+                        parts = a2a.get_parts_from_message(task_data.status.message)
                         for part in parts:
-                            if hasattr(part, 'text'):
+                            if hasattr(part, 'text') and part.text:
                                 if message_text:
                                     message_text += "\n"
                                 message_text += part.text
+                    
+                    log.info("%s Final agent response storage debug - session_id: %s, user_id: %s, message_text: '%s', parts_count: %s", 
+                             log_id_prefix, session_id, user_id, message_text[:100] if message_text else None, 
+                             len(a2a.get_parts_from_message(task_data.status.message)) if task_data.status and task_data.status.message else 0)
                     
                     if message_text and session_id and user_id:
                         from .dependencies import get_session_service

@@ -37,13 +37,13 @@ from ...gateway.http_sse.routers import (
     people,
     sse,
     tasks,
-    sessions,
     visualization,
 )
 # Import persistence-aware controllers
 from .api.controllers.session_controller import router as session_router
 from .api.controllers.task_controller import router as task_router
 from .api.controllers.user_controller import router as user_router
+from .data.persistence.database_service import DatabaseService
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
@@ -506,7 +506,8 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service=N
     app.include_router(agents.router, prefix=api_prefix, tags=["Agents"])
     # New A2A message endpoints (non-conflicting paths)
     app.include_router(tasks.router, prefix=api_prefix, tags=["A2A Messages"])  # Provides /api/v1/message:send, /message:stream
-    # Skip mounting sessions.router as it conflicts with session_router and provides less functionality
+    # Note: We only use the full-featured session_router (from api/controllers/session_controller.py)
+    # which provides complete session management with database persistence
     app.include_router(sse.router, prefix=f"{api_prefix}/sse", tags=["SSE"])
     app.include_router(
         artifacts.router, prefix=f"{api_prefix}/artifacts", tags=["Artifacts"]

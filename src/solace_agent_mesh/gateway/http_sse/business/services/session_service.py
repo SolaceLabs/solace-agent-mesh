@@ -109,12 +109,13 @@ class SessionService:
             )
 
     def create_session(
-        self, user_id: UserId, name: str | None = None, agent_id: str | None = None
+        self, user_id: UserId, name: str | None = None, agent_id: str | None = None, session_id: str | None = None
     ) -> SessionDomain:
         if not user_id or user_id.strip() == "":
             raise ValueError(f"user_id cannot be None or empty. Received: {user_id}")
 
-        session_id = str(uuid.uuid4())
+        if not session_id:
+            session_id = str(uuid.uuid4())
 
         with self.db_service.session_scope() as db_session:
             session_model = SessionModel(
@@ -186,13 +187,10 @@ class SessionService:
         agent_id: str | None = None,
     ) -> MessageDomain | None:
         """
-        Add a message to a session, creating the session if it doesn't exist.
+        Add a message to an existing session.
 
-        This is an atomic operation - both session creation and message addition
-        happen in a single transaction using industry-standard patterns.
-
-        Note: If session doesn't exist, generates a new session ID to prevent
-        reusing deleted session IDs and avoid orphaned data issues.
+        The session must already exist - session creation is handled by SessionManager.
+        This method only adds messages to existing sessions in the database.
         """
         if not user_id or user_id.strip() == "":
             raise ValueError(f"user_id cannot be None or empty. Received: {user_id}")
@@ -205,22 +203,13 @@ class SessionService:
             )
 
             if not session_model:
-                # Session doesn't exist, generate a new session ID to prevent
-                # reusing potentially deleted session IDs
-                new_session_id = str(uuid.uuid4())
-                log.info(
-                    f"Session {session_id} not found, creating new session {new_session_id} for user {user_id}"
-                )
-                session_model = SessionModel(
-                    id=new_session_id,
-                    user_id=user_id,
-                    name=None,  # Will be auto-generated if needed
-                    agent_id=agent_id,
-                )
-                db_session.add(session_model)
-                db_session.flush()
-                session_id = new_session_id  # Use the new session ID for the message
-                log.info(f"Created new session {new_session_id} for user {user_id}")
+                log.error(f"Session {session_id} not found for user {user_id}")
+                return None
+
+            # Update agent_id if provided and not already set
+            if agent_id and not session_model.agent_id:
+                session_model.agent_id = agent_id
+                log.info(f"Updated session {session_id} with agent_id: {agent_id}")
 
             message_domain = MessageDomain(
                 id=str(uuid.uuid4()),
@@ -245,10 +234,9 @@ class SessionService:
             db_session.add(message_model)
             db_session.flush()
 
-            # Both session creation (if needed) and message creation are committed together
             return MessageDomain(
                 id=message_model.id,
-                session_id=session_id,  # Use the actual session_id (may be new)
+                session_id=session_id,
                 message=message_model.message,
                 sender_type=SenderType(message_model.sender_type),
                 sender_name=message_model.sender_name,

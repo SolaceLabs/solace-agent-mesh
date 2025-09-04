@@ -1,21 +1,20 @@
-import os
 import sys
+import os
 
 sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 )
 
 from common.utils.asyncio_macos_fix import ensure_asyncio_compatibility
-from solace_ai_connector.common.log import log
-
 from .patch_adk import patch_adk
+from solace_ai_connector.common.log import log
 
 ensure_asyncio_compatibility()
 patch_adk()
 
-from typing import Any
-
+from typing import Any, Dict
 from solace_ai_connector.flow.app import App
+from solace_ai_connector.common.log import log
 
 from ...common.a2a import (
     get_agent_request_topic,
@@ -26,13 +25,6 @@ from ...common.a2a import (
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...agent.sac.component import SamAgentComponent
 from ...agent.utils.artifact_helpers import DEFAULT_SCHEMA_MAX_KEYS
-from ...common.a2a_protocol import (
-    get_agent_request_topic,
-    get_agent_response_subscription_topic,
-    get_agent_status_subscription_topic,
-    get_discovery_topic,
-)
-from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 
 info = {
     "class_name": "SamAgentApp",
@@ -271,13 +263,6 @@ class SamAgentApp(App):
                 "type": "object",
                 "default": {"type": "memory"},
                 "description": "Configuration for ADK Memory Service (defaults to memory).",
-            },
-            {
-                "name": "persistence_db_base_path",
-                "required": False,
-                "type": "string",
-                "default": None,
-                "description": "Base directory for the enterprise persistence database. Overrides default (`~/.solace/a2a-agent-enterprise`).",
             },
             # --- Tool Output Handling (Generalized) ---
             {
@@ -631,17 +616,10 @@ class SamAgentApp(App):
                 "default": 20,
                 "description": "Maximum number of LLM calls allowed for a single A2A task. A value of 0 or less means unlimited.",
             },
-            {
-                "name": "database_url",
-                "required": False,
-                "type": "string",
-                "default": None,
-                "description": "Database connection URL (e.g., 'sqlite:///solace_agent_mesh.db').",
-            },
         ]
     }
 
-    def __init__(self, app_info: dict[str, Any], **kwargs):
+    def __init__(self, app_info: Dict[str, Any], **kwargs):
         log.debug("Initializing A2A_ADK_App...")
 
         app_config = app_info.get("app_config", {})
@@ -657,10 +635,6 @@ class SamAgentApp(App):
             raise ValueError(
                 "Internal Error: Agent name missing or invalid after validation."
             )
-
-        database_url = app_config.get("database_url")
-        if database_url:
-            os.environ["DATABASE_URL"] = database_url
 
         artifact_mode = app_config.get("artifact_handling_mode", "ignore").lower()
         if artifact_mode not in ["ignore", "embed", "reference"]:

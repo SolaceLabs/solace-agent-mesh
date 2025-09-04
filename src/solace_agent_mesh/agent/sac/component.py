@@ -12,7 +12,6 @@ import fnmatch
 import base64
 from datetime import datetime, timezone
 import json
-import json
 from solace_ai_connector.common.message import (
     Message as SolaceMessage,
 )
