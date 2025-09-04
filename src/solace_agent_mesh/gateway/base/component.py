@@ -650,7 +650,7 @@ class BaseGatewayComponent(SamComponentBase):
                     text=text_to_resolve,
                     context=embed_eval_context,
                     resolver_func=evaluate_embed,
-                    types_to_resolve=LATE_EMBED_TYPES.copy(),
+                    types_to_resolve=LATE_EMBED_TYPES.union({"status_update"}),
                     resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER,
                     log_identifier=log_id_prefix,
                     config=embed_eval_config,

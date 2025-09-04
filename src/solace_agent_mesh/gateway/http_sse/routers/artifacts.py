@@ -47,6 +47,7 @@ from ....common.utils.embeds import (
     evaluate_embed,
     LATE_EMBED_TYPES,
 )
+from ....common.utils.embeds.types import ResolutionMode
 
 
 if TYPE_CHECKING:
@@ -278,6 +279,7 @@ async def get_latest_artifact(
                     context=context_for_resolver,
                     resolver_func=evaluate_embed,
                     types_to_resolve=LATE_EMBED_TYPES,
+                    resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT,
                     log_identifier=f"{log_prefix}[RecursiveResolve]",
                     config=config_for_resolver,
                     max_depth=component.gateway_recursive_embed_depth,
@@ -453,6 +455,7 @@ async def get_specific_artifact_version(
                     context=context_for_resolver,
                     resolver_func=evaluate_embed,
                     types_to_resolve=LATE_EMBED_TYPES,
+                    resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT,
                     log_identifier=f"{log_prefix}[RecursiveResolve]",
                     config=config_for_resolver,
                     max_depth=component.gateway_recursive_embed_depth,
