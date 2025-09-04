@@ -1751,28 +1751,6 @@ load_artifact_tool_def = BuiltinTool(
     examples=[],
 )
 
-signal_artifact_for_return_tool_def = BuiltinTool(
-    name="signal_artifact_for_return",
-    implementation=signal_artifact_for_return,
-    description="Signals the host component to return a specific artifact version to the original caller of the task. This tool does not load the artifact content itself; it just flags it for return.",
-    category="artifact_management",
-    required_scopes=["tool:artifact:signal_return"],
-    parameters=adk_types.Schema(
-        type=adk_types.Type.OBJECT,
-        properties={
-            "filename": adk_types.Schema(
-                type=adk_types.Type.STRING,
-                description="The name of the artifact to return. May contain embeds.",
-            ),
-            "version": adk_types.Schema(
-                type=adk_types.Type.INTEGER,
-                description="The specific version number to return. Use list_artifacts() first to find available versions.",
-            ),
-        },
-        required=["filename", "version"],
-    ),
-    examples=[],
-)
 
 apply_embed_and_create_artifact_tool_def = BuiltinTool(
     name="apply_embed_and_create_artifact",
@@ -1840,7 +1818,6 @@ tool_registry.register(_notify_artifact_save_tool_def)
 tool_registry.register(append_to_artifact_tool_def)
 tool_registry.register(list_artifacts_tool_def)
 tool_registry.register(load_artifact_tool_def)
-tool_registry.register(signal_artifact_for_return_tool_def)
 tool_registry.register(apply_embed_and_create_artifact_tool_def)
 tool_registry.register(extract_content_from_artifact_tool_def)
 
