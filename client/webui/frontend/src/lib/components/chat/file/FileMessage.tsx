@@ -48,19 +48,26 @@ export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps
                 if (!response.ok) throw new Error(`Failed to fetch artifact content: ${response.statusText}`);
 
                 const blob = await response.blob();
-                const reader = new FileReader();
-                reader.readAsDataURL(blob);
-                reader.onloadend = () => {
-                    const base64data = (reader.result as string).split(",")[1];
-                    setFetchedContent(base64data);
-                    setIsLoading(false);
-                };
-                reader.onerror = () => {
-                    throw new Error("Failed to read artifact content as base64.");
-                };
+                const base64data = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        if (typeof reader.result === "string") {
+                            resolve(reader.result.split(",")[1]);
+                        } else {
+                            reject(new Error("Failed to read artifact content as a data URL."));
+                        }
+                    };
+                    reader.onerror = () => {
+                        reject(reader.error || new Error("An unknown error occurred while reading the file."));
+                    };
+                    reader.readAsDataURL(blob);
+                });
+
+                setFetchedContent(base64data);
             } catch (e) {
                 console.error("Error fetching inline content:", e);
                 setError(e instanceof Error ? e.message : "Unknown error fetching content.");
+            } finally {
                 setIsLoading(false);
             }
         };
