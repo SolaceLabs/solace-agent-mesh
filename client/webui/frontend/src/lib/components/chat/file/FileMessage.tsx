@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 
 import { Download, Eye } from "lucide-react";
 
@@ -108,8 +108,9 @@ export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps
                 return renderFallbackBadge();
             }
 
+            const scrollableRenderTypes = ["csv", "json", "yaml", "markdown"];
             const rendererContainerStyle: React.CSSProperties =
-                renderType === "csv" || renderType === "json" || renderType === "yaml" || renderType === "markdown" ? { maxHeight: "400px", overflowY: "auto" } : {};
+                renderType && scrollableRenderTypes.includes(renderType) ? { maxHeight: "400px", overflowY: "auto" } : {};
 
             return (
                 <div className="relative group max-w-2xl my-2 border rounded-lg overflow-hidden bg-background ml-4">
@@ -148,6 +149,23 @@ export const FileMessage: React.FC<Readonly<FileMessageProps>> = ({ filename, mi
     const artifact: ArtifactInfo | undefined = useMemo(() => artifacts.find(artifact => artifact.filename === filename), [artifacts, filename]);
     const FileIcon = useMemo(() => getFileIcon(artifact || { filename, mime_type: mimeType || "", size: 0, last_modified: "" }), [artifact, filename, mimeType]);
 
+    const handlePreviewClick = useCallback(
+        (e: React.MouseEvent) => {
+            e.stopPropagation();
+            if (artifact) {
+                openSidePanelTab("files");
+                setPreviewArtifact(artifact);
+            }
+        },
+        [artifact, openSidePanelTab, setPreviewArtifact]
+    );
+
+    const handleDownloadClick = useCallback(() => {
+        if (onDownload) {
+            onDownload();
+        }
+    }, [onDownload]);
+
     return (
         <div className={`flex flex-shrink items-center gap-2 rounded-lg bg-[var(--accent-background)] px-2 py-1 h-11 max-w-xs ${className || ""}`}>
             {FileIcon}
@@ -158,21 +176,13 @@ export const FileMessage: React.FC<Readonly<FileMessageProps>> = ({ filename, mi
             </span>
 
             {artifact && !isEmbedded && (
-                <Button
-                    variant="ghost"
-                    onClick={e => {
-                        e.stopPropagation();
-                        openSidePanelTab("files");
-                        setPreviewArtifact(artifact);
-                    }}
-                    tooltip="Preview"
-                >
+                <Button variant="ghost" onClick={handlePreviewClick} tooltip="Preview">
                     <Eye className="h-4 w-4" />
                 </Button>
             )}
 
             {onDownload && (
-                <Button variant="ghost" onClick={() => onDownload()} tooltip="Download file">
+                <Button variant="ghost" onClick={handleDownloadClick} tooltip="Download file">
                     <Download className="h-4 w-4" />
                 </Button>
             )}
