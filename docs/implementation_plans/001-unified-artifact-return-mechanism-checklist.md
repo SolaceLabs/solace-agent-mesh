@@ -4,8 +4,8 @@ This checklist provides a high-level overview of the tasks required to implement
 
 ## Phase 1: Foundational Changes in Embed Utilities
 
-1.  [ ] **Define `ResolutionMode` Enum:** Create the `ResolutionMode` enum in `src/solace_agent_mesh/common/utils/embeds/types.py` with `A2A_MESSAGE_TO_USER`, `TOOL_PARAMETER`, and `RECURSIVE_ARTIFACT_CONTENT` members.
-2.  [ ] **Update Embed Constants:** Add `"artifact_return"` to the `LATE_EMBED_TYPES` set in `src/solace_agent_mesh/common/utils/embeds/constants.py`.
+1.  [x] **Define `ResolutionMode` Enum:** Create the `ResolutionMode` enum in `src/solace_agent_mesh/common/utils/embeds/types.py` with `A2A_MESSAGE_TO_USER`, `TOOL_PARAMETER`, and `RECURSIVE_ARTIFACT_CONTENT` members.
+2.  [x] **Update Embed Constants:** Add `"artifact_return"` to the `LATE_EMBED_TYPES` set in `src/solace_agent_mesh/common/utils/embeds/constants.py`.
 
 ## Phase 2: Core Resolver Logic Refactoring
 
