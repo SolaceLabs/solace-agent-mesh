@@ -17,10 +17,6 @@ from a2a.client import (
     AuthInterceptor,
     InMemoryContextCredentialStore,
 )
-from solace_ai_connector.common.log import log
-
-from datetime import datetime, timezone
-
 from a2a.types import (
     A2ARequest,
     AgentCard,
@@ -41,6 +37,11 @@ from a2a.types import (
     TaskStatusUpdateEvent,
     TextPart,
 )
+
+from solace_ai_connector.common.log import log
+
+from datetime import datetime, timezone
+
 
 from ....common import a2a
 from ....agent.utils.artifact_helpers import format_artifact_uri
@@ -75,6 +76,7 @@ class A2AProxyComponent(BaseProxyComponent):
         """
         agent_name = agent_config.get("name")
         agent_url = agent_config.get("url")
+        agent_card_path = agent_config.get("agent_card_path", "/agent/card.json")
         log_identifier = f"{self.log_identifier}[FetchCard:{agent_name}]"
 
         if not agent_url:
@@ -131,9 +133,7 @@ class A2AProxyComponent(BaseProxyComponent):
                         response, task_context, client, agent_name
                     )
             elif isinstance(request, SendMessageRequest):
-                response = await client.send_message(
-                    request, context=task_context.a2a_context
-                )
+                response = await client.send_message(request)
                 await self._process_downstream_response(
                     response, task_context, client, agent_name
                 )
@@ -179,7 +179,7 @@ class A2AProxyComponent(BaseProxyComponent):
         # Resolve timeout
         default_timeout = self.get_config("default_request_timeout_seconds", 300)
         agent_timeout = agent_config.get("request_timeout_seconds", default_timeout)
-        log.info(f"Using timeout of {agent_timeout}s for agent '{agent_name}'.")
+        log.info("Using timeout of %ss for agent '%s'.", agent_timeout, agent_name)
 
         # Create a new httpx client with the specific timeout for this agent
         httpx_client_for_agent = httpx.AsyncClient(timeout=agent_timeout)

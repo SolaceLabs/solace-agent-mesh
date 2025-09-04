@@ -10,7 +10,7 @@ from typing import Any, Dict, Type
 from solace_ai_connector.common.log import log
 from solace_ai_connector.flow.app import App
 
-from ....common.a2a_protocol import get_agent_request_topic
+from ....common.a2a import get_agent_request_topic
 from .component import BaseProxyComponent
 
 
@@ -118,7 +118,9 @@ class BaseProxyApp(App, ABC):
         proxied_agents = app_config.get("proxied_agents", [])
 
         if not namespace or not isinstance(namespace, str):
-            raise ValueError("Config Error: 'namespace' is required and must be a string.")
+            raise ValueError(
+                "Config Error: 'namespace' is required and must be a string."
+            )
         if not proxied_agents or not isinstance(proxied_agents, list):
             raise ValueError(
                 "Config Error: 'proxied_agents' is required and must be a non-empty list."

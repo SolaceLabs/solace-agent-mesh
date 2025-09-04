@@ -6,10 +6,9 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
-import functools
 import threading
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
 import httpx
 
@@ -18,7 +17,6 @@ from solace_ai_connector.common.log import log
 from solace_ai_connector.common.message import Message as SolaceMessage
 from solace_ai_connector.components.component_base import ComponentBase
 
-from ....common.a2a_protocol import get_agent_request_topic, get_discovery_topic
 from ....common.agent_registry import AgentRegistry
 from pydantic import TypeAdapter, ValidationError
 
@@ -353,9 +351,9 @@ class BaseProxyComponent(ComponentBase, ABC):
                 # Publish the modern card directly after updating its URL
                 card_to_publish = card_for_proxy.model_copy(deep=True)
                 card_to_publish.url = (
-                    f"solace:{get_agent_request_topic(self.namespace, agent_alias)}"
+                    f"solace:{a2a.get_agent_request_topic(self.namespace, agent_alias)}"
                 )
-                discovery_topic = get_discovery_topic(self.namespace)
+                discovery_topic = a2a.get_discovery_topic(self.namespace)
                 self._publish_a2a_message(
                     card_to_publish.model_dump(exclude_none=True), discovery_topic
                 )
@@ -503,16 +501,18 @@ class BaseProxyComponent(ComponentBase, ABC):
 
     def _publish_discovered_cards(self):
         """Publishes all agent cards currently in the registry."""
-        log.info("%s Publishing initially discovered agent cards...", self.log_identifier)
+        log.info(
+            "%s Publishing initially discovered agent cards...", self.log_identifier
+        )
         for agent_alias in self.agent_registry.get_agent_names():
             card_to_publish = self.agent_registry.get_agent(agent_alias)
             if not card_to_publish:
                 continue
 
             card_to_publish.url = (
-                f"solace:{get_agent_request_topic(self.namespace, agent_alias)}"
+                f"solace:{a2a.get_agent_request_topic(self.namespace, agent_alias)}"
             )
-            discovery_topic = get_discovery_topic(self.namespace)
+            discovery_topic = a2a.get_discovery_topic(self.namespace)
             self._publish_a2a_message(
                 card_to_publish.model_dump(exclude_none=True), discovery_topic
             )
@@ -521,7 +521,6 @@ class BaseProxyComponent(ComponentBase, ABC):
                 self.log_identifier,
                 agent_alias,
             )
-
 
     def run(self):
         """
