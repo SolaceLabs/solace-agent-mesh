@@ -387,53 +387,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     return;
             }
 
-            // Process the parts of the message
-            const newContentParts: Part[] = [];
-            const newFileAttachments: FileAttachment[] = [];
-            let agentStatusText: string | null = null;
-
-            if (messageToProcess?.parts) {
-                for (const part of messageToProcess.parts) {
-                    if (part.kind === "data") {
-                        const data = part.data;
-                        if (data && typeof data === "object" && "type" in data) {
-                            switch (data.type) {
-                                case "agent_progress_update":
-                                    agentStatusText = String(data?.status_text ?? "Processing...");
-                                    break;
-                                case "artifact_creation_progress":
-                                    agentStatusText = `Saving artifact: ${String(data?.filename ?? "unknown file")} (${Number(data?.bytes_saved ?? 0)} bytes)`;
-                                    break;
-                                case "tool_invocation_start":
-                                    break;
-                                default:
-                                    newContentParts.push(part);
-                            }
-                        }
-                    } else if (part.kind === "file") {
-                        const filePart = part as FilePart;
-                        const fileInfo = filePart.file;
-                        const attachment: FileAttachment = {
-                            name: fileInfo.name || "untitled_file",
-                            mime_type: fileInfo.mimeType,
-                        };
-                        if ("bytes" in fileInfo && fileInfo.bytes) {
-                            attachment.content = fileInfo.bytes;
-                        } else if ("uri" in fileInfo && fileInfo.uri) {
-                            attachment.uri = fileInfo.uri;
-                        }
-                        newFileAttachments.push(attachment);
-                    } else {
-                        newContentParts.push(part);
-                    }
-                }
-            }
-
-            if (agentStatusText) {
-                latestStatusText.current = agentStatusText;
-            }
-
-            // Update UI state based on processed parts
+            // Process the parts of the message sequentially
             setMessages(prevMessages => {
                 const newMessages = [...prevMessages];
                 let lastMessage = newMessages[newMessages.length - 1];
@@ -444,68 +398,109 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     lastMessage = newMessages[newMessages.length - 1];
                 }
 
-                const textPartFromStream = newContentParts.find(p => p.kind === "text") as TextPart | undefined;
-                const otherContentParts = newContentParts.filter(p => p.kind !== "text");
+                if (messageToProcess?.parts) {
+                    for (const part of messageToProcess.parts) {
+                        // Re-fetch lastMessage inside the loop as it might be updated by a previous part
+                        lastMessage = newMessages[newMessages.length - 1];
 
-                // Check if we can append to the last message
-                if (
-                    lastMessage &&
-                    !lastMessage.isUser &&
-                    !lastMessage.isComplete &&
-                    lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId &&
-                    (textPartFromStream || newFileAttachments.length > 0)
-                ) {
-                    const updatedMessage: MessageFE = {
-                        ...lastMessage,
-                        parts: [...lastMessage.parts],
-                        files: lastMessage.files ? [...lastMessage.files] : [],
-                        isComplete: isFinalEvent || newFileAttachments.length > 0,
+                        if (part.kind === "data") {
+                            const data = part.data;
+                            if (data && typeof data === "object" && "type" in data) {
+                                switch (data.type) {
+                                    case "agent_progress_update":
+                                        latestStatusText.current = String(data?.status_text ?? "Processing...");
+                                        break;
+                                    case "artifact_creation_progress":
+                                        latestStatusText.current = `Saving artifact: ${String(data?.filename ?? "unknown file")} (${Number(data?.bytes_saved ?? 0)} bytes)`;
+                                        break;
+                                    case "tool_invocation_start":
+                                        break;
+                                }
+                            }
+                        } else if (part.kind === "file") {
+                            // When a file comes in, we complete the previous message bubble.
+                            if (lastMessage && !lastMessage.isUser && !lastMessage.isComplete) {
+                                lastMessage.isComplete = true;
+                            }
+
+                            const filePart = part as FilePart;
+                            const fileInfo = filePart.file;
+                            const attachment: FileAttachment = {
+                                name: fileInfo.name || "untitled_file",
+                                mime_type: fileInfo.mimeType,
+                            };
+                            if ("bytes" in fileInfo && fileInfo.bytes) {
+                                attachment.content = fileInfo.bytes;
+                            } else if ("uri" in fileInfo && fileInfo.uri) {
+                                attachment.uri = fileInfo.uri;
+                            }
+
+                            // Create a new, separate message bubble for the file.
+                            const newFileBubble: MessageFE = {
+                                role: "agent",
+                                parts: [], // No text parts for a file-only bubble
+                                files: [attachment],
+                                taskId: (result as TaskStatusUpdateEvent).taskId,
+                                isUser: false,
+                                isComplete: true, // A file bubble is always complete.
+                                metadata: {
+                                    messageId: `msg-file-${crypto.randomUUID()}`,
+                                    sessionId: (result as TaskStatusUpdateEvent).contextId,
+                                    lastProcessedEventSequence: currentEventSequence,
+                                },
+                            };
+                            newMessages.push(newFileBubble);
+                        } else if (part.kind === "text") {
+                            const textPart = part as TextPart;
+                            if (!textPart.text) continue; // Skip empty/null text parts
+
+                            // Check if we can append to the last message
+                            if (lastMessage && !lastMessage.isUser && !lastMessage.isComplete && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId) {
+                                const lastPartInMessage = lastMessage.parts[lastMessage.parts.length - 1];
+                                if (lastPartInMessage?.kind === "text") {
+                                    // Append to existing text part
+                                    lastPartInMessage.text += textPart.text;
+                                } else {
+                                    // Add new text part to existing message
+                                    lastMessage.parts.push(textPart);
+                                }
+                                lastMessage.metadata.lastProcessedEventSequence = currentEventSequence;
+                            } else {
+                                // Create a new message bubble for this text
+                                const newTextBubble: MessageFE = {
+                                    role: "agent",
+                                    parts: [textPart],
+                                    taskId: (result as TaskStatusUpdateEvent).taskId,
+                                    isUser: false,
+                                    isComplete: false, // It's a new bubble, might get more content
+                                    metadata: {
+                                        messageId: rpcResponse.id?.toString() || `msg-text-${crypto.randomUUID()}`,
+                                        sessionId: (result as TaskStatusUpdateEvent).contextId,
+                                        lastProcessedEventSequence: currentEventSequence,
+                                    },
+                                };
+                                newMessages.push(newTextBubble);
+                            }
+                        }
+                    }
+                }
+
+                // Handle artifact notification (this is separate from content parts)
+                if (artifactToProcess) {
+                    const newBubble: MessageFE = {
+                        role: "agent",
+                        parts: [],
+                        taskId: (result as TaskStatusUpdateEvent).taskId,
+                        isUser: false,
+                        isComplete: true,
                         metadata: {
-                            ...lastMessage.metadata,
+                            messageId: `msg-artifact-${crypto.randomUUID()}`,
+                            sessionId: (result as TaskStatusUpdateEvent).contextId,
                             lastProcessedEventSequence: currentEventSequence,
                         },
+                        artifactNotification: { name: artifactToProcess.name || artifactToProcess.artifactId },
                     };
-
-                    if (textPartFromStream) {
-                        const lastPart = updatedMessage.parts[updatedMessage.parts.length - 1];
-                        if (lastPart?.kind === "text") {
-                            updatedMessage.parts[updatedMessage.parts.length - 1] = { ...lastPart, text: lastPart.text + textPartFromStream.text };
-                        } else {
-                            updatedMessage.parts.push(textPartFromStream);
-                        }
-                    }
-
-                    if (otherContentParts.length > 0) {
-                        updatedMessage.parts.push(...otherContentParts);
-                    }
-
-                    if (newFileAttachments.length > 0) {
-                        updatedMessage.files!.push(...newFileAttachments);
-                    }
-
-                    newMessages[newMessages.length - 1] = updatedMessage;
-                } else {
-                    // Only create a new bubble if there is visible content to render.
-                    const hasVisibleContent = newContentParts.some(p => p.kind === "text" && p.text.trim());
-                    if (hasVisibleContent || newFileAttachments.length > 0 || artifactToProcess) {
-                        const newBubble: MessageFE = {
-                            role: "agent",
-                            parts: newContentParts,
-                            files: newFileAttachments.length > 0 ? newFileAttachments : undefined,
-                            taskId: (result as TaskStatusUpdateEvent).taskId,
-                            isUser: false,
-                            isComplete: isFinalEvent || newFileAttachments.length > 0,
-                            metadata: {
-                                messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
-                                sessionId: (result as TaskStatusUpdateEvent).contextId,
-                                lastProcessedEventSequence: currentEventSequence,
-                            },
-                        };
-                        if (artifactToProcess) {
-                            newBubble.artifactNotification = { name: artifactToProcess.name || artifactToProcess.artifactId };
-                        }
-                        newMessages.push(newBubble);
-                    }
+                    newMessages.push(newBubble);
                 }
 
                 // Add a new status bubble if the task is not over
