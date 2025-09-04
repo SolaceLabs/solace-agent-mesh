@@ -7,6 +7,7 @@ import { useChatContext } from "@/lib/hooks";
 import type { ArtifactInfo, FileAttachment } from "@/lib/types";
 import { downloadFile, parseArtifactUri } from "@/lib/utils/download";
 import { authenticatedFetch } from "@/lib/utils/api";
+import { cn } from "@/lib/utils";
 
 import { getFileIcon } from "./fileUtils";
 import { getRenderType, getFileContent } from "../preview/previewUtils";
@@ -112,8 +113,14 @@ export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps
             const rendererContainerStyle: React.CSSProperties =
                 renderType && scrollableRenderTypes.includes(renderType) ? { maxHeight: "400px", overflowY: "auto" } : {};
 
+            const noBorderRenderTypes = ["image", "audio"];
+            const containerClasses = cn(
+                "relative group max-w-2xl my-2 overflow-hidden bg-background ml-4",
+                !noBorderRenderTypes.includes(renderType || "") && "border rounded-lg"
+            );
+
             return (
-                <div className="relative group max-w-2xl my-2 border rounded-lg overflow-hidden bg-background ml-4">
+                <div className={containerClasses}>
                     {renderError && <MessageBanner variant="error" message={renderError} />}
                     <div style={rendererContainerStyle}>
                         <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileAttachment.mime_type} setRenderError={setRenderError} />
