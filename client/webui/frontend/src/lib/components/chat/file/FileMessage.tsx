@@ -137,11 +137,11 @@ export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps
                     </div>
                     <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 rounded-md bg-black/60 p-0.5 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 dark:bg-zinc-200/60">
                         {artifact && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20 dark:text-zinc-900 dark:hover:bg-black/10" onClick={handlePreviewClick} tooltip="Preview">
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20 dark:text-zinc-900 dark:hover:bg-black/10 dark:hover:text-zinc-900" onClick={handlePreviewClick} tooltip="Preview">
                                 <Eye className="h-4 w-4" />
                             </Button>
                         )}
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20 dark:text-zinc-900 dark:hover:bg-black/10" onClick={() => downloadFile(fileAttachment)} tooltip="Download">
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20 dark:text-zinc-900 dark:hover:bg-black/10 dark:hover:text-zinc-900" onClick={() => downloadFile(fileAttachment)} tooltip="Download">
                             <Download className="h-4 w-4" />
                         </Button>
                     </div>
