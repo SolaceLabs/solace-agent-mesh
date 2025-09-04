@@ -826,7 +826,7 @@ def _generate_embed_instruction(
     )
 
     base_instruction = f"""\
-You can use dynamic embeds in your text responses and tool parameters using the syntax {open_delim}type:expression {chain_delim} format{close_delim}. This allows you to
+You can use dynamic embeds in your text responses and tool parameters using the syntax {open_delim}type:expression{close_delim}. This allows you to
 always have correct information in your output. Specifically, make sure you always use embeds for math, even if it is simple. You will make mistakes if you try to do math yourself.
 Use HTML entities to escape the delimiters.
 This host resolves the following embed types *early* (before sending to the LLM or tool): {early_types}. This means the embed is replaced with its resolved value.
@@ -837,7 +837,10 @@ This host resolves the following embed types *early* (before sending to the LLM 
 - `{open_delim}status_update:Your message here{close_delim}`: Generates an immediate, distinct status message event that is displayed to the user (e.g., 'Thinking...', 'Searching database...'). This message appears in a status area, not as part of the main chat conversation. Use this to provide interim feedback during processing."""
 
     artifact_content_instruction = f"""
-- `{open_delim}artifact_content:filename[:version] {chain_delim} modifier1:value1 {chain_delim} ... {chain_delim} format:output_format{close_delim}`: Embeds artifact content after applying a chain of modifiers. This is resolved *late* (typically by a gateway before final display).
+The following embeds are resolved *late* (by the gateway before final display):
+- `{open_delim}artifact_return:filename[:version]{close_delim}`: **This is the primary way to return an artifact to the user.** It attaches the specified artifact to the message. The embed itself is removed from the text. Use this instead of describing a file and expecting the user to download it.
+- `{open_delim}artifact_content:filename[:version] {chain_delim} modifier1:value1 {chain_delim} ... {chain_delim} format:output_format{close_delim}`: Embeds artifact content after applying a chain of modifiers.
+    - If this embed resolves to binary content (like an image), it will be automatically converted into an attached file, similar to `artifact_return`.
     - Use `{chain_delim}` to separate the artifact identifier from the modifier steps and the final format step.
     - Available modifiers: {modifier_list}.
     - The `format:output_format` step *must* be the last step in the chain. Supported formats include `text`, `datauri`, `json`, `json_pretty`, `csv`. Formatting as datauri, will include the data URI prefix, so do not add it yourself.

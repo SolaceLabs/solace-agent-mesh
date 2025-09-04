@@ -25,5 +25,5 @@ This checklist provides a high-level overview of the tasks required to implement
 
 ## Phase 4: Prompt Engineering and Documentation
 
-10. [ ] **Update Agent System Prompt:** Modify `inject_dynamic_instructions_callback` in `src/solace_agent_mesh/agent/adk/callbacks.py` to remove instructions for the old tool and add instructions for the new `«artifact_return:...»` embed.
-11. [ ] **Update Project Documentation:** After implementation is complete, update the `proposal` and `design` documents to reflect their implemented status.
+10. [x] **Update Agent System Prompt:** Modify `inject_dynamic_instructions_callback` in `src/solace_agent_mesh/agent/adk/callbacks.py` to remove instructions for the old tool and add instructions for the new `«artifact_return:...»` embed.
+11. [x] **Update Project Documentation:** After implementation is complete, update the `proposal` and `design` documents to reflect their implemented status.

@@ -82,3 +82,8 @@ The agent's system prompt, located in `src/solace_agent_mesh/agent/adk/callbacks
 -   Provide clear, explicit instructions on how and when to use the new `«artifact_return:filename:version»` embed.
 -   Clarify that this is the **only** correct way to return an existing artifact as a file attachment.
 -   Explain that using `«artifact_content:...»` for binary files will result in them being automatically attached, so the LLM does not need to take special action.
+
+## 4. Implementation Status
+
+**Status:** Implemented
+**Commit:** [Final Commit Hash]
