@@ -180,17 +180,19 @@ function handleLLMCall(step: VisualizerStep, manager: TimelineLayoutManager, nod
 }
 
 function handleLLMResponseToAgent(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
-    // If this is a parallel tool decision, set up the parallel flow context
+    // If this is a parallel tool decision with multiple peer agents delegation, set up the parallel flow context
     if (step.type === "AGENT_LLM_RESPONSE_TOOL_DECISION" && step.data.toolDecision?.isParallel) {
         const parallelFlowId = `parallel-${step.id}`;
-        manager.parallelFlows.set(parallelFlowId, {
-            subflowFunctionCallIds: step.data.toolDecision.decisions.filter(d => d.isPeerDelegation).map(d => d.functionCallId),
-            completedSubflows: new Set(),
-            startX: LANE_X_POSITIONS.MAIN_FLOW - 50,
-            startY: manager.nextAvailableGlobalY,
-            currentXOffset: 0,
-            maxHeight: 0,
-        });
+        if (step.data.toolDecision.decisions.filter(d => d.isPeerDelegation).length > 1) {
+            manager.parallelFlows.set(parallelFlowId, {
+                subflowFunctionCallIds: step.data.toolDecision.decisions.filter(d => d.isPeerDelegation).map(d => d.functionCallId),
+                completedSubflows: new Set(),
+                startX: LANE_X_POSITIONS.MAIN_FLOW - 50,
+                startY: manager.nextAvailableGlobalY,
+                currentXOffset: 0,
+                maxHeight: 0,
+            });
+        }
     }
 
     const currentPhase = getCurrentPhase(manager);
@@ -204,9 +206,7 @@ function handleLLMResponseToAgent(step: VisualizerStep, manager: TimelineLayoutM
     // Find the most recent LLM instance within the correct context
     const context = subflow || currentPhase;
 
-    // Find the most recent LLM node in this context that doesn't have an outgoing edge yet.
-    const llmNodeCandidates = context.toolInstances.filter(instance => nodes.find(n => n.id === instance.id)?.type === "llmNode");
-    const llmInstance = llmNodeCandidates.reverse().find(instance => !edges.some(edge => edge.source === instance.id));
+    const llmInstance = findToolInstanceByNameEnhanced(context.toolInstances, "LLM", nodes, step.functionCallId);
 
     if (llmInstance) {
         llmNodeId = llmInstance.id;

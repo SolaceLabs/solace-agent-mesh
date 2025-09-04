@@ -343,23 +343,6 @@ export const processTaskForVisualization = (
                                 });
                                 break;
                             }
-                            case "artifact_creation_progress": {
-                                visualizerSteps.push({
-                                    id: `vstep-artifact-progress-${visualizerSteps.length}-${eventId}`,
-                                    type: "AGENT_RESPONSE_TEXT", // Reusing for simplicity
-                                    timestamp: eventTimestamp,
-                                    title: `${statusUpdateAgentName}: Saving Artifact`,
-                                    source: statusUpdateAgentName,
-                                    target: "System",
-                                    data: { text: `Saving ${signalData.filename} (${signalData.bytes_saved} bytes)` },
-                                    rawEventIds: [eventId],
-                                    isSubTaskStep: currentEventNestingLevel > 0,
-                                    nestingLevel: currentEventNestingLevel,
-                                    owningTaskId: currentEventOwningTaskId,
-                                    functionCallId: functionCallIdForStep,
-                                });
-                                break;
-                            }
                             case "llm_invocation": {
                                 const llmData = signalData.request as any;
                                 let promptText = "System-initiated LLM call";
