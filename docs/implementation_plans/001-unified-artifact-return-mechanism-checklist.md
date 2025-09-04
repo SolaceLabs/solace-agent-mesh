@@ -14,7 +14,7 @@ This checklist provides a high-level overview of the tasks required to implement
     -   Emit `SIGNAL_ARTIFACT_RETURN` only when `resolution_mode` is `A2A_MESSAGE_TO_USER`.
     -   Emit `SIGNAL_INLINE_BINARY_CONTENT` for binary `artifact_content` results.
     -   Ignore `artifact_return` in other modes.
-5.  [ ] **Create `Part` List Resolver:** Implement the new `resolve_embeds_in_parts_list` function in `src/solace_agent_mesh/common/utils/embeds/resolver.py` to handle `List[Part]` transformations.
+5.  [x] **Create `Part` List Resolver:** Implement the new `resolve_embeds_in_parts_list` function in `src/solace_agent_mesh/common/utils/embeds/resolver.py` to handle `List[Part]` transformations.
 
 ## Phase 3: Gateway and Agent Integration
 

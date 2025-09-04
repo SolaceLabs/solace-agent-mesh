@@ -20,6 +20,8 @@ from .converter import (
     serialize_data,
     _parse_string_to_list_of_dicts,
 )
+import uuid
+import re
 from .types import DataFormat, ResolutionMode
 from ..mime_helpers import is_text_based_mime_type
 
@@ -509,7 +511,7 @@ async def resolve_embeds_in_string(
     resolution_mode: "ResolutionMode",
     log_identifier: str = "[EmbedUtil]",
     config: Optional[Dict[str, Any]] = None,
-) -> Tuple[str, int, List[Tuple[int, Any]]]:
+) -> Tuple[str, int, List[Tuple[int, Any, str]]]:
     """
     Resolves specified embed types within a string using a provided resolver function.
     This is the TOP-LEVEL resolver called by gateways. It handles signals and buffering.
@@ -541,7 +543,7 @@ async def resolve_embeds_in_string(
           The index corresponds to the start index of the embed directive in the original string.
     """
     resolved_parts = []
-    signals_found: List[Tuple[int, Any]] = []
+    signals_found: List[Tuple[int, Any, str]] = []
     last_end = 0
     original_length = len(text)
 
@@ -588,10 +590,13 @@ async def resolve_embeds_in_string(
                     signal_type,
                     start,
                 )
+                placeholder = f"__EMBED_SIGNAL_{uuid.uuid4().hex}__"
+                resolved_parts.append(placeholder)
                 signals_found.append(
                     (
                         start,
                         resolved_value,
+                        placeholder,
                     )
                 )
             elif (
@@ -792,6 +797,83 @@ async def resolve_embeds_recursively_in_string(
 
     resolved_parts.append(text[last_end:])
     return "".join(resolved_parts)
+
+
+async def resolve_embeds_in_parts_list(
+    parts: List["ContentPart"],
+    context: Any,
+    resolver_func: Callable[
+        ..., Union[Tuple[str, Optional[str], int], Tuple[None, str, Any]]
+    ],
+    types_to_resolve: Set[str],
+    resolution_mode: "ResolutionMode",
+    log_identifier: str = "[EmbedUtil]",
+    config: Optional[Dict[str, Any]] = None,
+) -> Tuple[List[Union["ContentPart", Tuple]], List[Any]]:
+    """
+    Resolves embeds within a list of A2A ContentParts.
+    This is the primary resolver for gateways. It handles splitting TextParts
+    when embeds that generate new parts (like artifact_return) are found.
+    It returns a new list of parts and a list of any non-part-generating signals.
+    """
+    from ...common import a2a
+    from ...common.a2a.types import TextPart
+
+    output_proto_parts: List[Union["ContentPart", Tuple]] = []
+    other_signals: List[Any] = []
+
+    for part in parts:
+        if (
+            not isinstance(part, TextPart)
+            or not part.text
+            or EMBED_DELIMITER_OPEN not in part.text
+        ):
+            output_proto_parts.append(part)
+            continue
+
+        resolved_text, _, signals_with_placeholders = await resolve_embeds_in_string(
+            text=part.text,
+            context=context,
+            resolver_func=resolver_func,
+            types_to_resolve=types_to_resolve,
+            resolution_mode=resolution_mode,
+            log_identifier=log_identifier,
+            config=config,
+        )
+
+        if not signals_with_placeholders:
+            output_proto_parts.append(
+                a2a.create_text_part(text=resolved_text, metadata=part.metadata)
+            )
+            continue
+
+        placeholder_map = {
+            placeholder: signal_tuple
+            for _, signal_tuple, placeholder in signals_with_placeholders
+        }
+
+        split_pattern = f"({'|'.join(re.escape(p) for p in placeholder_map.keys())})"
+        text_fragments = re.split(split_pattern, resolved_text)
+
+        for fragment in text_fragments:
+            if not fragment:
+                continue
+
+            if fragment in placeholder_map:
+                signal_tuple = placeholder_map[fragment]
+                signal_type = signal_tuple[1]
+
+                if signal_type in [
+                    "SIGNAL_ARTIFACT_RETURN",
+                    "SIGNAL_INLINE_BINARY_CONTENT",
+                ]:
+                    output_proto_parts.append(signal_tuple)
+                else:
+                    other_signals.append(signal_tuple)
+            else:
+                output_proto_parts.append(a2a.create_text_part(text=fragment))
+
+    return output_proto_parts, other_signals
 
 
 async def evaluate_embed(
