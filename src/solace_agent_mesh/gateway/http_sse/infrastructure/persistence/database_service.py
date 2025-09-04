@@ -1,8 +1,3 @@
-"""
-Database service with industry-standard transaction management.
-Following SQLAlchemy best practices and context manager patterns.
-"""
-
 import logging
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -10,19 +5,10 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
-from ..models import Base
+from .models import Base
 
 
 class DatabaseService:
-    """
-    Database service with industry-standard transaction management.
-
-    Uses SQLAlchemy's recommended patterns:
-    - Context managers for automatic transaction handling
-    - Proper session lifecycle management
-    - Optimized connection pooling
-    """
-
     def __init__(self, database_url: str):
         self.database_url = database_url
         self.logger = logging.getLogger(__name__)
@@ -61,18 +47,6 @@ class DatabaseService:
 
     @contextmanager
     def session_scope(self) -> Generator[Session, None, None]:
-        """
-        Provide a transactional scope around a series of operations.
-
-        This is the industry-standard pattern for transaction management.
-        Automatically handles commit/rollback and session cleanup.
-
-        Usage:
-            with db_service.session_scope() as session:
-                user = User(name="John")
-                session.add(user)
-                # Automatic commit on success, rollback on exception
-        """
         session = self.SessionLocal()
         try:
             yield session
@@ -86,16 +60,6 @@ class DatabaseService:
 
     @contextmanager
     def read_only_session(self) -> Generator[Session, None, None]:
-        """
-        Provide a read-only session for queries.
-
-        Optimized for read operations - no commit needed.
-        Automatically handles session cleanup.
-
-        Usage:
-            with db_service.read_only_session() as session:
-                users = session.query(User).all()
-        """
         session = self.SessionLocal()
         try:
             yield session

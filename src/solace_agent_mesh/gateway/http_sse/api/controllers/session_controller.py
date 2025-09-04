@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from solace_ai_connector.common.log import log
 
-from ...business.services.session_service import SessionService
+from ...application.services.session_service import SessionService
 from ...dependencies import (
     PublishFunc,
     get_namespace,
@@ -28,9 +28,7 @@ router = APIRouter()
 @router.get("/sessions", response_model=SessionListResponse)
 async def get_all_sessions(
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(
-        get_session_service
-    ),
+    session_service: SessionService = Depends(get_session_service),
 ):
     user_id = user.get("id")
     log.info("Fetching sessions for user_id: %s", user_id)
@@ -74,9 +72,7 @@ async def get_all_sessions(
 async def get_session(
     session_id: str,
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(
-        get_session_service
-    ),
+    session_service: SessionService = Depends(get_session_service),
 ):
     user_id = user.get("id")
     log.info("User %s attempting to fetch session_id: %s", user_id, session_id)
@@ -134,9 +130,7 @@ async def get_session(
 async def get_session_history(
     session_id: str,
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(
-        get_session_service
-    ),
+    session_service: SessionService = Depends(get_session_service),
 ):
     user_id = user.get("id")
     log.info(
@@ -208,9 +202,7 @@ async def update_session_name(
     session_id: str,
     name: str = Body(..., embed=True),
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(
-        get_session_service
-    ),
+    session_service: SessionService = Depends(get_session_service),
 ):
     user_id = user.get("id")
     log.info("User %s attempting to update session %s", user_id, session_id)
@@ -277,9 +269,7 @@ async def update_session_name(
 async def delete_session(
     session_id: str,
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(
-        get_session_service
-    ),
+    session_service: SessionService = Depends(get_session_service),
     publish_func: PublishFunc = Depends(get_publish_a2a_func),
     namespace: str = Depends(get_namespace),
 ):

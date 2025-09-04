@@ -19,8 +19,8 @@ from ...gateway.http_sse.services.people_service import PeopleService
 from ...gateway.http_sse.services.task_service import TaskService
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
-from .business.services.session_service import SessionService
-from .database.persistence_service import PersistenceService
+from .application.services.session_service import SessionService
+from .infrastructure.persistence_service import PersistenceService
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -360,21 +360,15 @@ def get_task_service(
 def get_session_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> SessionService:
-    """
-    FastAPI dependency for getting the session service.
-
-    Returns a database-backed session service if persistence is configured.
-    Raises an error if no database is configured.
-    """
     log.debug("[Dependencies] get_session_service called")
 
-    # Check if component has a persistence service (database-backed)
     if (
         hasattr(component, "persistence_service")
         and component.persistence_service is not None
     ):
         log.debug("Using database-backed session service")
-        return SessionService(db_service=component.persistence_service.db_service)
+        container = component.persistence_service.container
+        return container.get_session_service()
     else:
         log.debug("No database configured - session persistence not available")
         raise HTTPException(
@@ -400,12 +394,10 @@ def get_session_validator(
         and component.persistence_service is not None
     ):
         log.debug("Using database-backed session validation")
-        session_service = SessionService(
-            db_service=component.persistence_service.db_service
-        )
 
         def validate_with_database(session_id: str, user_id: str) -> bool:
-            """Validate session against database"""
+            container = component.persistence_service.container
+            session_service = container.get_session_service()
             session_domain = session_service.get_session(
                 session_id=session_id, user_id=user_id
             )

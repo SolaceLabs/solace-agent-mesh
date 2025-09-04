@@ -1,9 +1,17 @@
 from collections.abc import Callable
-from typing import Any, TypeVar, Union
+from typing import Any, TypeVar
 
-from ...business.services.session_service import SessionService
-from ...data.persistence import database_service as db_service_module
-from ...data.persistence.database_service import DatabaseService
+from ...application.services.session_service import SessionService
+from ...domain.repositories.session_repository import (
+    IMessageRepository,
+    ISessionRepository,
+)
+from ...infrastructure.persistence import database_service as db_service_module
+from ...infrastructure.persistence.database_service import DatabaseService
+from ...infrastructure.repositories.session_repository import (
+    MessageRepository,
+    SessionRepository,
+)
 
 T = TypeVar("T")
 
@@ -63,22 +71,31 @@ class ApplicationContainer:
         self._setup_dependencies()
 
     def _setup_dependencies(self) -> None:
-        """Setup all application dependencies."""
-
         if self.has_database:
-            # Database service (singleton)
             database_service = DatabaseService(self.database_url)
             self.container.register_singleton(DatabaseService, database_service)
             db_service_module.database_service = database_service
-        else:
-            # No database available - session persistence not supported
-            pass
+
+            session_repository = SessionRepository(database_service)
+            message_repository = MessageRepository(database_service)
+
+            self.container.register_singleton(ISessionRepository, session_repository)
+            self.container.register_singleton(IMessageRepository, message_repository)
+
+            def session_service_factory():
+                return SessionService(session_repository, message_repository)
+
+            self.container.register_factory(SessionService, session_service_factory)
 
     def get_database_service(self) -> DatabaseService | None:
-        """Get database service if available."""
         if not self.has_database:
             return None
         return self.container.get(DatabaseService)
+
+    def get_session_service(self) -> SessionService | None:
+        if not self.has_database:
+            return None
+        return self.container.get(SessionService)
 
 
 # Global container instance
@@ -104,4 +121,3 @@ def get_container() -> ApplicationContainer:
             "Container not initialized. Call initialize_container() first."
         )
     return _container
-

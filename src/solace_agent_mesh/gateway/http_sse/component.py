@@ -9,12 +9,11 @@ import re
 import threading
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, List, Tuple, Union, Set
+from typing import Any
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile
 from fastapi import Request as FastAPIRequest
-from fastapi import UploadFile
 from solace_ai_connector.common.log import log
 from solace_ai_connector.components.inputs_outputs.broker_input import BrokerInput
 from solace_ai_connector.flow.app import App as SACApp
@@ -25,27 +24,16 @@ from ...gateway.base.component import BaseGatewayComponent
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .components import VisualizationForwarderComponent
-from .database.database_persistence_service import DatabasePersistenceService
+from .infrastructure.persistence_service import PersistenceService
 
 try:
     from google.adk.artifacts import BaseArtifactService
 except ImportError:
-    
+
     class BaseArtifactService:
         pass
 
 
-from ...agent.utils.artifact_helpers import save_artifact_with_metadata
-from ...common.a2a.protocol import topic_matches_subscription
-from ...common.middleware.config_resolver import ConfigResolver
-
-from ...common.utils.embeds import (
-                resolve_embeds_in_string,
-                evaluate_embed,
-                EARLY_EMBED_TYPES
-            )
-
-from ...common.a2a.types import ContentPart
 from a2a.types import (
     A2ARequest,
     AgentCard,
@@ -55,10 +43,15 @@ from a2a.types import (
     TaskArtifactUpdateEvent,
     TaskStatusUpdateEvent,
 )
-from ...common import a2a
-from ...agent.utils.artifact_helpers import save_artifact_with_metadata
-from ...common.middleware.config_resolver import ConfigResolver
 
+from ...common import a2a
+from ...common.a2a.types import ContentPart
+from ...common.middleware.config_resolver import ConfigResolver
+from ...common.utils.embeds import (
+    EARLY_EMBED_TYPES,
+    evaluate_embed,
+    resolve_embeds_in_string,
+)
 
 info = {
     "class_name": "WebUIBackendComponent",
@@ -138,7 +131,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     f"{self.log_identifier} Session service type is 'sql' but no database_url provided. "
                     "Please provide a database_url in the session_service configuration or use type 'memory'."
                 )
-            self.persistence_service = DatabasePersistenceService(db_url=database_url)
+            self.persistence_service = PersistenceService(database_url)
         else:
             # Memory storage or no explicit configuration - no persistence service needed
             self.persistence_service = None
@@ -1190,9 +1183,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 (summary_str[:100] + "...") if len(summary_str) > 100 else summary_str
             )
         except Exception:
-            details["payload_summary"][
-                "params_preview"
-            ] = "[Could not serialize payload]"
+            details["payload_summary"]["params_preview"] = (
+                "[Could not serialize payload]"
+            )
 
         return details
 
@@ -1352,22 +1345,18 @@ class WebUIBackendComponent(BaseGatewayComponent):
         return self._config_resolver
 
     async def _resolve_embeds_for_persistence(
-        self,
-        message_content: str,
-        session_id: str,
-        user_id: str,
-        log_identifier: str
+        self, message_content: str, session_id: str, user_id: str, log_identifier: str
     ) -> str:
         """
         Resolves embeds in a message for database storage.
         Returns the resolved text.
-        
+
         Args:
             message_content: The message text that may contain embeds
             session_id: The A2A session ID
             user_id: The user ID
             log_identifier: Logging identifier
-            
+
         Returns:
             The message with embeds resolved (or original if resolution fails)
         """
@@ -1381,7 +1370,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 },
                 "config": self.get_embed_config(),
             }
-            
+
             resolved_text, _, _ = await resolve_embeds_in_string(
                 text=message_content,
                 context=embed_context,
@@ -1390,14 +1379,14 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 log_identifier=log_identifier,
                 config=embed_context["config"],
             )
-            
+
             return resolved_text
-            
+
         except Exception as e:
             log.warning(
                 "%s Error resolving embeds for storage: %s. Using original message.",
                 log_identifier,
-                e
+                e,
             )
             return message_content
 
@@ -1422,8 +1411,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
         pass
 
     async def _translate_external_input(
-        self, external_event_data: Dict[str, Any]
-    ) -> Tuple[str, List[ContentPart], Dict[str, Any]]:
+        self, external_event_data: dict[str, Any]
+    ) -> tuple[str, list[ContentPart], dict[str, Any]]:
         """
         Translates raw HTTP request data (from FastAPI form) into A2A task parameters.
 
@@ -1457,7 +1446,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "Client ID or A2A Session ID is missing in external_event_data."
             )
 
-        a2a_parts: List[ContentPart] = []
+        a2a_parts: list[ContentPart] = []
 
         if files:
             for upload_file in files:
@@ -1528,9 +1517,12 @@ class WebUIBackendComponent(BaseGatewayComponent):
         log_id_prefix = f"{self.log_identifier}[SendUpdate]"
         sse_task_id = external_request_context.get("a2a_task_id_for_event")
         a2a_task_id = event_data.task_id
-        
-        log.debug("%s _send_update_to_external called with event_type: %s", 
-                  log_id_prefix, type(event_data).__name__)
+
+        log.debug(
+            "%s _send_update_to_external called with event_type: %s",
+            log_id_prefix,
+            type(event_data).__name__,
+        )
 
         if not sse_task_id:
             log.error(
@@ -1566,10 +1558,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 sse_event_type,
                 a2a_task_id,
             )
-            
+
             # Note: Agent message storage is handled in _send_final_response_to_external
             # to avoid duplicate storage of intermediate status updates
-                    
+
         except Exception as e:
             log.exception(
                 "%s Failed to send %s via SSE for A2A Task ID %s: %s",
@@ -1588,7 +1580,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
         log_id_prefix = f"{self.log_identifier}[SendFinalResponse]"
         sse_task_id = external_request_context.get("a2a_task_id_for_event")
         a2a_task_id = task_data.id
-        
+
         log.debug("%s _send_final_response_to_external called", log_id_prefix)
 
         if not sse_task_id:
@@ -1619,32 +1611,41 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 log_id_prefix,
                 a2a_task_id,
             )
-            
+
             # Store final agent response in persistence layer if available
             if hasattr(self, "persistence_service") and self.persistence_service:
                 try:
                     session_id = external_request_context.get("a2a_session_id")
                     user_id = external_request_context.get("user_id_for_a2a")
-                    agent_name = external_request_context.get("target_agent_name", "agent")
-                    
+                    agent_name = external_request_context.get(
+                        "target_agent_name", "agent"
+                    )
+
                     # Extract message content from the task status
                     message_text = ""
                     if task_data.status and task_data.status.message:
                         parts = a2a.get_parts_from_message(task_data.status.message)
                         for part in parts:
-                            if hasattr(part, 'text') and part.text:
+                            if hasattr(part, "text") and part.text:
                                 if message_text:
                                     message_text += "\n"
                                 message_text += part.text
-                    
-                    log.info("%s Final agent response storage debug - session_id: %s, user_id: %s, message_text: '%s', parts_count: %s", 
-                             log_id_prefix, session_id, user_id, message_text[:100] if message_text else None, 
-                             len(a2a.get_parts_from_message(task_data.status.message)) if task_data.status and task_data.status.message else 0)
-                    
+
+                    log.info(
+                        "%s Final agent response storage debug - session_id: %s, user_id: %s, message_text: '%s', parts_count: %s",
+                        log_id_prefix,
+                        session_id,
+                        user_id,
+                        message_text[:100] if message_text else None,
+                        len(a2a.get_parts_from_message(task_data.status.message))
+                        if task_data.status and task_data.status.message
+                        else 0,
+                    )
+
                     if message_text and session_id and user_id:
                         from .dependencies import get_session_service
                         from .shared.enums import SenderType
-                        
+
                         session_service = get_session_service(self)
                         session_service.add_message_to_session(
                             session_id=session_id,
@@ -1654,11 +1655,19 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             sender_name=agent_name,
                             agent_id=agent_name,
                         )
-                        log.info("%s Final agent response stored in session %s", log_id_prefix, session_id)
+                        log.info(
+                            "%s Final agent response stored in session %s",
+                            log_id_prefix,
+                            session_id,
+                        )
                 except Exception as storage_error:
-                    log.warning("%s Failed to store final agent response: %s", log_id_prefix, storage_error)
+                    log.warning(
+                        "%s Failed to store final agent response: %s",
+                        log_id_prefix,
+                        storage_error,
+                    )
                     # Don't fail the SSE send if storage fails
-                    
+
         except Exception as e:
             log.exception(
                 "%s Failed to send final_response via SSE for A2A Task ID %s: %s",
