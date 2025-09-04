@@ -24,6 +24,7 @@ import uuid
 import re
 from .types import DataFormat, ResolutionMode
 from ..mime_helpers import is_text_based_mime_type
+from ...common.a2a.types import ContentPart
 
 try:
     import yaml
