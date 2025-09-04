@@ -22,12 +22,22 @@ interface FileAttachmentMessageProps {
 }
 
 export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps>> = ({ fileAttachment, isEmbedded = false }) => {
+    const { artifacts, setPreviewArtifact, openSidePanelTab } = useChatContext();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [fetchedContent, setFetchedContent] = useState<string | null>(null);
     const [renderError, setRenderError] = useState<string | null>(null);
 
     const renderType = useMemo(() => getRenderType(fileAttachment.name, fileAttachment.mime_type), [fileAttachment.name, fileAttachment.mime_type]);
+
+    const artifact = useMemo(() => artifacts.find(art => art.filename === fileAttachment.name), [artifacts, fileAttachment.name]);
+
+    const handlePreviewClick = useCallback(() => {
+        if (artifact) {
+            openSidePanelTab("files");
+            setPreviewArtifact(artifact);
+        }
+    }, [artifact, openSidePanelTab, setPreviewArtifact]);
 
     useEffect(() => {
         const fetchContentFromUri = async () => {
@@ -125,15 +135,28 @@ export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps
                     <div style={rendererContainerStyle}>
                         <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileAttachment.mime_type} setRenderError={setRenderError} />
                     </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 hover:bg-black/40 text-white"
-                        onClick={() => downloadFile(fileAttachment)}
-                        tooltip="Download"
-                    >
-                        <Download className="h-4 w-4" />
-                    </Button>
+                    <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {artifact && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="bg-black/30 hover:bg-black/60 text-white"
+                                onClick={handlePreviewClick}
+                                tooltip="Preview"
+                            >
+                                <Eye className="h-4 w-4" />
+                            </Button>
+                        )}
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="bg-black/30 hover:bg-black/60 text-white"
+                            onClick={() => downloadFile(fileAttachment)}
+                            tooltip="Download"
+                        >
+                            <Download className="h-4 w-4" />
+                        </Button>
+                    </div>
                 </div>
             );
         }
