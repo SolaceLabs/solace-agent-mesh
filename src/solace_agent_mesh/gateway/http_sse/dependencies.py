@@ -3,39 +3,40 @@ Defines FastAPI dependency injectors to access shared resources
 managed by the WebUIBackendComponent.
 """
 
-from fastapi import Depends, HTTPException, status, Request
-from typing import (
-    TYPE_CHECKING,
-    Callable,
-    Dict,
-    Optional,
-    Any,
-)
-import os
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
+from fastapi import Depends, HTTPException, Request, status
 from solace_ai_connector.common.log import log
-from ...gateway.http_sse.sse_manager import SSEManager
-from ...gateway.http_sse.session_manager import SessionManager
+
 from ...common.agent_registry import AgentRegistry
-
-from ...gateway.http_sse.services.agent_service import AgentService
-from ...gateway.http_sse.services.task_service import TaskService
-from ...gateway.http_sse.services.people_service import PeopleService
-from ...gateway.base.task_context import TaskContextManager
-
-from ...core_a2a.service import CoreA2AService
-from ...common.services.identity_service import BaseIdentityService
 from ...common.middleware.config_resolver import ConfigResolver
+from ...common.services.identity_service import BaseIdentityService
+from ...core_a2a.service import CoreA2AService
+from ...gateway.base.task_context import TaskContextManager
+from ...gateway.http_sse.services.agent_service import AgentService
+from ...gateway.http_sse.services.people_service import PeopleService
+from ...gateway.http_sse.services.task_service import TaskService
+from ...gateway.http_sse.session_manager import SessionManager
+from ...gateway.http_sse.sse_manager import SSEManager
+from .application.services.session_service import SessionService
+from .infrastructure.persistence_service import PersistenceService
 
-from google.adk.artifacts import BaseArtifactService
+try:
+    from google.adk.artifacts import BaseArtifactService
+except ImportError:
+    # Mock BaseArtifactService for environments without Google ADK
+    class BaseArtifactService:
+        pass
 
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
 
 sac_component_instance: "WebUIBackendComponent" = None
+persistence_service_instance: "PersistenceService" = None
 
-api_config: Optional[Dict[str, Any]] = None
+api_config: dict[str, Any] | None = None
 
 
 def set_component_instance(component: "WebUIBackendComponent"):
@@ -48,7 +49,30 @@ def set_component_instance(component: "WebUIBackendComponent"):
         log.warning("[Dependencies] SAC Component instance already set.")
 
 
-def set_api_config(config: Dict[str, Any]):
+def set_persistence_service(persistence_service: "PersistenceService"):
+    """Called by the component during its startup to provide its instance."""
+    global persistence_service_instance
+    if persistence_service_instance is None:
+        persistence_service_instance = persistence_service
+        log.info("[Dependencies] Persistence Service instance provided.")
+    else:
+        log.warning("[Dependencies] Persistence Service instance already set.")
+
+
+def get_persistence_service() -> "PersistenceService":
+    """FastAPI dependency to get the PersistenceService instance."""
+    if persistence_service_instance is None:
+        log.warning(
+            "[Dependencies] PersistenceService not available - running in compatibility mode"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Persistence service not available in compatibility mode.",
+        )
+    return persistence_service_instance
+
+
+def set_api_config(config: dict[str, Any]):
     """Called during startup to provide API configuration."""
     global api_config
     if api_config is None:
@@ -71,7 +95,7 @@ def get_sac_component() -> "WebUIBackendComponent":
     return sac_component_instance
 
 
-def get_api_config() -> Dict[str, Any]:
+def get_api_config() -> dict[str, Any]:
     """FastAPI dependency to get the API configuration."""
     if api_config is None:
         log.critical("[Dependencies] API configuration accessed before it was set!")
@@ -128,26 +152,43 @@ def get_user_id(
 ) -> str:
     """
     FastAPI dependency that returns the user's identity.
-    It prioritizes the authenticated user from `request.state.user` (set by AuthMiddleware)
-    and falls back to the SessionManager for non-authenticated or legacy scenarios.
+    When FRONTEND_USE_AUTHORIZATION is true: Fully relies on OAuth - user must be authenticated by AuthMiddleware.
+    When FRONTEND_USE_AUTHORIZATION is false: Uses development fallback user.
     """
     log.debug("[Dependencies] Resolving user_id string")
 
+    # AuthMiddleware should always set user state for both auth enabled/disabled cases
     if hasattr(request.state, "user") and request.state.user:
         user_id = request.state.user.get("id")
         if user_id:
             log.debug(f"[Dependencies] Using user ID from AuthMiddleware: {user_id}")
             return user_id
         else:
-            log.warning(
-                "[Dependencies] request.state.user exists but has no 'id' field. Falling back."
+            log.error(
+                "[Dependencies] request.state.user exists but has no 'id' field: %s. This indicates a bug in AuthMiddleware.",
+                request.state.user,
             )
 
-    log.debug("[Dependencies] Falling back to SessionManager for user_id")
-    try:
-        return session_manager.get_a2a_client_id(request)
-    except AssertionError:
-        return f"anonymous_user:{os.urandom(8).hex()}"
+    # If we reach here, AuthMiddleware didn't set user state properly
+    use_authorization = session_manager.use_authorization
+
+    if use_authorization:
+        # When OAuth is enabled, we should never reach here - AuthMiddleware should have handled authentication
+        log.error(
+            "[Dependencies] OAuth is enabled but no authenticated user found. This indicates an authentication failure or middleware bug."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required but user not found",
+        )
+    else:
+        # When auth is disabled, use development fallback user
+        fallback_id = "sam_dev_user"
+        log.info(
+            "[Dependencies] Authorization disabled and no user in request state, using fallback user: %s",
+            fallback_id,
+        )
+        return fallback_id
 
 
 def ensure_session_id(
@@ -161,21 +202,21 @@ def ensure_session_id(
 
 def get_identity_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> Optional[BaseIdentityService]:
+) -> BaseIdentityService | None:
     """FastAPI dependency to get the configured IdentityService instance."""
     log.debug("[Dependencies] get_identity_service called")
     return component.identity_service
 
 
 def get_people_service(
-    identity_service: Optional[BaseIdentityService] = Depends(get_identity_service),
+    identity_service: BaseIdentityService | None = Depends(get_identity_service),
 ) -> PeopleService:
     """FastAPI dependency to get an instance of PeopleService."""
     log.debug("[Dependencies] get_people_service called")
     return PeopleService(identity_service=identity_service)
 
 
-PublishFunc = Callable[[str, Dict, Optional[Dict]], None]
+PublishFunc = Callable[[str, dict, dict | None], None]
 
 
 def get_publish_a2a_func(
@@ -212,7 +253,7 @@ def get_config_resolver(
 
 def get_app_config(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     FastAPI dependency to safely get the application configuration dictionary.
     """
@@ -225,8 +266,8 @@ async def get_user_config(
     user_id: str = Depends(get_user_id),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    app_config: Dict[str, Any] = Depends(get_app_config),
-) -> Dict[str, Any]:
+    app_config: dict[str, Any] = Depends(get_app_config),
+) -> dict[str, Any]:
     """
     FastAPI dependency to get the user-specific configuration.
     """
@@ -243,7 +284,7 @@ async def get_user_config(
 
 def get_shared_artifact_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> Optional[BaseArtifactService]:
+) -> BaseArtifactService | None:
     """FastAPI dependency to get the shared ArtifactService."""
     log.debug("[Dependencies] get_shared_artifact_service called")
     return component.get_shared_artifact_service()
@@ -251,7 +292,7 @@ def get_shared_artifact_service(
 
 def get_embed_config(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """FastAPI dependency to get embed-related configuration."""
     log.debug("[Dependencies] get_embed_config called")
     return component.get_embed_config()
@@ -314,3 +355,65 @@ def get_task_service(
         task_context_lock=task_context_manager._lock,
         app_name=app_name,
     )
+
+
+def get_session_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> SessionService:
+    log.debug("[Dependencies] get_session_service called")
+
+    if (
+        hasattr(component, "persistence_service")
+        and component.persistence_service is not None
+    ):
+        log.debug("Using database-backed session service")
+        container = component.persistence_service.container
+        return container.get_session_service()
+    else:
+        log.debug("No database configured - session persistence not available")
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Session management requires database configuration. Configure 'database_url' in your gateway configuration.",
+        )
+
+
+def get_session_validator(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> Callable[[str, str], bool]:
+    """
+    FastAPI dependency that returns a session validator function.
+
+    With database: Validates sessions against database
+    Without database: Validates sessions using basic checks (session exists in recent activity)
+    """
+    log.debug("[Dependencies] get_session_validator called")
+
+    # Check if component has a persistence service (database-backed)
+    if (
+        hasattr(component, "persistence_service")
+        and component.persistence_service is not None
+    ):
+        log.debug("Using database-backed session validation")
+
+        def validate_with_database(session_id: str, user_id: str) -> bool:
+            container = component.persistence_service.container
+            session_service = container.get_session_service()
+            session_domain = session_service.get_session(
+                session_id=session_id, user_id=user_id
+            )
+            return session_domain is not None
+
+        return validate_with_database
+    else:
+        log.debug("No database configured - using basic session validation")
+
+        def validate_without_database(session_id: str, user_id: str) -> bool:
+            """Basic validation: check session ID format and user authentication"""
+            # Validate session ID format (should be web-session-* format from SessionManager)
+            if not session_id or not session_id.startswith("web-session-"):
+                return False
+            # If user_id is provided (authenticated), allow access
+            # This provides basic security while allowing filesystem-based artifacts
+            return bool(user_id)
+
+        return validate_without_database

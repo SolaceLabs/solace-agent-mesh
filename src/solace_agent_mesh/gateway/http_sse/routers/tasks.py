@@ -76,11 +76,91 @@ async def _submit_task(
         )
 
         client_id = session_manager.get_a2a_client_id(request)
-        session_id = session_manager.ensure_a2a_session(request)
+        
+        # Use session ID from frontend request (contextId) instead of cookie-based session
+        # Handle various falsy values: None, empty string, whitespace-only string
+        log.info("%s[DEBUG] payload.params.message: %s", log_prefix, payload.params.message)
+        log.info("%s[DEBUG] hasattr context_id: %s", log_prefix, hasattr(payload.params.message, 'context_id'))
+        if hasattr(payload.params.message, 'context_id'):
+            log.info("%s[DEBUG] context_id value: %s", log_prefix, payload.params.message.context_id)
+        
+        frontend_session_id = None
+        if hasattr(payload.params.message, 'context_id') and payload.params.message.context_id:
+            context_id = payload.params.message.context_id
+            if isinstance(context_id, str) and context_id.strip():
+                frontend_session_id = context_id.strip()
+                log.info("%s[DEBUG] Extracted frontend_session_id: %s", log_prefix, frontend_session_id)
+        
+        if frontend_session_id:
+            session_id = frontend_session_id
+            log.info("%sUsing session ID from frontend request: %s", log_prefix, session_id)
+        else:
+            # Create new session when frontend doesn't provide one (None, empty, or whitespace-only)
+            session_id = session_manager.create_new_session_id(request)
+            log.info("%sNo valid session ID from frontend, created new session: %s", log_prefix, session_id)
 
         log.info(
             "%sUsing ClientID: %s, SessionID: %s", log_prefix, client_id, session_id
         )
+
+        # Store message in persistence layer if available
+        user_id = user_identity.get("id")
+        if is_streaming and hasattr(component, "persistence_service") and component.persistence_service:
+            try:
+                from ....gateway.http_sse.dependencies import get_session_service
+                from ....gateway.http_sse.shared.enums import SenderType
+                
+                session_service = get_session_service(component)
+                
+                # First ensure session exists in database - create it with the SessionManager's ID
+                # Handle race condition where multiple requests might try to create the same session
+                existing_session = session_service.get_session(session_id=session_id, user_id=user_id)
+                if not existing_session:
+                    log.info("%sCreating new session in database: %s", log_prefix, session_id)
+                    try:
+                        session_service.create_session(
+                            user_id=user_id,
+                            agent_id=agent_name,
+                            name=None,  # Will be auto-generated if needed
+                            session_id=session_id  # Use the SessionManager's session ID
+                        )
+                    except Exception as create_error:
+                        # Another request may have created the session concurrently
+                        log.warning("%sSession creation failed, checking if session exists: %s", log_prefix, create_error)
+                        existing_session = session_service.get_session(session_id=session_id, user_id=user_id)
+                        if not existing_session:
+                            # If session still doesn't exist, re-raise the original error
+                            raise create_error
+                        log.info("%sSession was created by another request: %s", log_prefix, session_id)
+                
+                # Extract text content from the message for storage
+                message_text = ""
+                if payload.params and payload.params.message:
+                    parts = a2a.get_parts_from_message(payload.params.message)
+                    for part in parts:
+                        if hasattr(part, 'text'):
+                            message_text = part.text
+                            break
+                
+                # Now store the message in the existing session
+                message_domain = session_service.add_message_to_session(
+                    session_id=session_id,
+                    user_id=user_id,
+                    message=message_text or "Task submitted",
+                    sender_type=SenderType.USER,
+                    sender_name=user_id or "user",
+                    agent_id=agent_name,
+                )
+                
+                if message_domain:
+                    log.info("%sMessage stored in session %s", log_prefix, session_id)
+                else:
+                    log.warning("%sFailed to store message in session %s", log_prefix, session_id)
+            except Exception as e:
+                log.error("%sFailed to store message in session service: %s", log_prefix, e)
+                # Don't fail the request, just log the error
+        else:
+            log.debug("%sNo persistence available or non-streaming - skipping message storage", log_prefix)
 
         # Use the helper to get the unwrapped parts from the incoming message.
         a2a_parts = a2a.get_parts_from_message(payload.params.message)
@@ -88,7 +168,7 @@ async def _submit_task(
         external_req_ctx = {
             "app_name_for_artifacts": component.gateway_id,
             "user_id_for_artifacts": client_id,
-            "a2a_session_id": session_id,
+            "a2a_session_id": session_id,  # This may have been updated by persistence layer
             "user_id_for_a2a": client_id,
             "target_agent_name": agent_name,
         }
@@ -110,6 +190,7 @@ async def _submit_task(
         )
 
         if is_streaming:
+            # The task_object already contains the contextId from create_initial_task
             return a2a.create_send_streaming_message_success_response(
                 result=task_object, request_id=payload.id
             )

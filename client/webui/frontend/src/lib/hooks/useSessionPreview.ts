@@ -3,13 +3,9 @@ import { useMemo } from "react";
 import type { TextPart } from "@/lib/types";
 import { useChatContext } from "./useChatContext";
 
-/**
- * Custom hook to get the session preview text based on the first user message.
- * Returns "New Chat" if no user message exists, otherwise returns the first 100 characters
- * of the first user message with "..." if truncated.
- */
+
 export const useSessionPreview = (): string => {
-    const { messages } = useChatContext();
+    const { messages, sessionName } = useChatContext();
 
     return useMemo(() => {
         const firstUserMessage = messages.find(msg => {
@@ -28,5 +24,5 @@ export const useSessionPreview = (): string => {
         }
 
         return "New Chat";
-    }, [messages]);
+    }, [messages, sessionName]);
 };

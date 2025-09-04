@@ -200,7 +200,6 @@ export function getRenderType(fileName?: string, mimeType?: string): string | nu
         return "yaml";
     }
 
-
     if (isCsvFile(fileName, mimeType)) {
         return "csv";
     }
@@ -224,7 +223,6 @@ export function getRenderType(fileName?: string, mimeType?: string): string | nu
  */
 export function decodeBase64Content(content: string): string {
     try {
-
         const bytes = Uint8Array.from(atob(content), c => c.charCodeAt(0));
         return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
     } catch (error) {
@@ -234,7 +232,7 @@ export function decodeBase64Content(content: string): string {
             return atob(content);
         } catch (atobError) {
             console.error("Failed to decode base64 content with atob fallback:", atobError);
-            throw new Error("Invalid base64 string");
+            return content;
         }
     }
 }

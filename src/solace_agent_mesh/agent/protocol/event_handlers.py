@@ -229,33 +229,22 @@ async def handle_a2a_request(component, message: SolaceMessage):
         component.log_identifier,
         message.get_topic(),
     )
-    a2a_context = {}
-    adk_session = None
-    jsonrpc_request_id = None
-    logical_task_id = None
-    client_id = message.get_user_properties().get("clientId", "default_client")
-    status_topic_from_peer = message.get_user_properties().get("a2aStatusTopic")
-    reply_topic_from_peer = message.get_user_properties().get("replyTo")
-    namespace = component.get_config("namespace")
-    a2a_user_config = message.get_user_properties().get("a2aUserConfig", {})
-    if not isinstance(a2a_user_config, dict):
-        log.warning(
-            "%s 'a2aUserConfig' user property is not a dictionary, received: %s. Defaulting to empty dict.",
-            component.log_identifier,
-            type(a2a_user_config),
-        )
-        a2a_user_config = {}
-    log.debug(
-        "%s Extracted 'a2aUserConfig': %s",
-        component.log_identifier,
-        a2a_user_config,
-    )
     try:
         payload_dict = message.get_payload()
         if not isinstance(payload_dict, dict):
             raise ValueError("Payload is not a dictionary.")
         a2a_request: A2ARequest = A2ARequest.model_validate(payload_dict)
         jsonrpc_request_id = a2a.get_request_id(a2a_request)
+
+        # Extract properties from message user properties  
+        client_id = message.get_user_properties().get("clientId", "default_client")
+        status_topic_from_peer = message.get_user_properties().get("a2aStatusTopic")
+        reply_topic_from_peer = message.get_user_properties().get("replyTo")
+        namespace = component.get_config("namespace")
+        a2a_user_config = message.get_user_properties().get("a2aUserConfig", {})
+        if not isinstance(a2a_user_config, dict):
+            log.warning("a2aUserConfig is not a dict, using empty dict instead")
+            a2a_user_config = {}
 
         # The concept of logical_task_id changes. For Cancel, it's in params.id.
         # For Send, we will generate it.
@@ -411,6 +400,20 @@ async def handle_a2a_request(component, message: SolaceMessage):
             effective_session_id = original_session_id
             is_run_based_session = False
             temporary_run_session_id_for_cleanup = None
+
+            session_id_from_data = None
+            if a2a_message and a2a_message.parts:
+                for part in a2a_message.parts:
+                    if isinstance(part, DataPart) and "session_id" in part.data:
+                        session_id_from_data = part.data["session_id"]
+                        log.info(
+                            f"Extracted session_id '{session_id_from_data}' from DataPart."
+                        )
+                        break
+
+            if session_id_from_data:
+                original_session_id = session_id_from_data
+
             if session_behavior == "RUN_BASED":
                 is_run_based_session = True
                 effective_session_id = f"{original_session_id}:{logical_task_id}:run"
@@ -432,6 +435,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     effective_session_id,
                     logical_task_id,
                 )
+
             adk_session_for_run = await component.session_service.get_session(
                 app_name=agent_name, user_id=user_id, session_id=effective_session_id
             )
@@ -447,6 +451,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     effective_session_id,
                     logical_task_id,
                 )
+
             else:
                 log.info(
                     "%s Reusing existing ADK session '%s' for task '%s'.",
@@ -454,6 +459,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     effective_session_id,
                     logical_task_id,
                 )
+
             if is_run_based_session:
                 try:
                     original_adk_session_data = (

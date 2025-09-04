@@ -59,11 +59,12 @@ dependencies = [
     "solace-ai-connector~=1.1.8",
     "holidays>=0.24",
     "rouge~=1.0.1",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13.1",
     "openai==1.99.9"
 ]
 
 [project.optional-dependencies]
-database = ["sqlalchemy>=2.0"]
 gcs = ["google-cloud-storage>=2.0"]
 s3 = ["boto3>=1.35.0,<2.0"]
 vertex = ["google-cloud-aiplatform>=1.38"]
@@ -191,6 +192,8 @@ packages = ["src/solace_agent_mesh"]
 "config_portal/backend" = "solace_agent_mesh/config_portal/backend"
 "config_portal/__init__.py" = "solace_agent_mesh/config_portal/__init__.py"
 "client/webui/frontend/static" = "solace_agent_mesh/client/webui/frontend/static"
+"src/solace_agent_mesh/gateway/http_sse/alembic.ini" = "solace_agent_mesh/gateway/http_sse/alembic.ini"
+"src/solace_agent_mesh/gateway/http_sse/alembic" = "solace_agent_mesh/gateway/http_sse/alembic"
 "docs/build" = "solace_agent_mesh/assets/docs"
 
 [tool.hatch.build.targets.sdist.force-include]

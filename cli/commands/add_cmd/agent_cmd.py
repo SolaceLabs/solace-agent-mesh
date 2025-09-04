@@ -1,22 +1,36 @@
 import json
+import sys
 from pathlib import Path
 
 import click
 import yaml
 
-from config_portal.backend.common import (
-    AGENT_DEFAULTS,
-    USE_DEFAULT_SHARED_ARTIFACT,
-    USE_DEFAULT_SHARED_SESSION,
-)
+from config_portal.backend.common import AGENT_DEFAULTS, USE_DEFAULT_SHARED_ARTIFACT
 
 from ...utils import (
     ask_if_not_provided,
+    ask_yes_no_question,
+    create_and_validate_database,
     get_formatted_names,
     indent_multiline_string,
     load_template,
 )
 from .web_add_agent_step import launch_add_agent_web_portal
+
+DATABASE_URL_KEY = "database_url"
+
+
+def _append_to_env_file(project_root: Path, key: str, value: str):
+    env_path = project_root / ".env"
+    try:
+        with open(env_path, "a", encoding="utf-8") as f:
+            f.write(f'\n{key}="{value}"\n')
+        return True
+    except OSError as e:
+        click.echo(
+            click.style(f"Error appending to .env file: {e}", fg="red"), err=True
+        )
+        return False
 
 
 def _write_agent_yaml_from_data(
@@ -39,17 +53,27 @@ def _write_agent_yaml_from_data(
     try:
         modified_content = load_template("agent_template.yaml")
         session_service_type_opt = config_options.get("session_service_type")
-        if (
-            session_service_type_opt
-            and session_service_type_opt != USE_DEFAULT_SHARED_SESSION
-        ):
+        if session_service_type_opt and session_service_type_opt != "memory":
             type_val = session_service_type_opt
             behavior_val = config_options.get(
                 "session_service_behavior", AGENT_DEFAULTS["session_service_behavior"]
             )
-            session_service_block = (
-                f'\n        type: "{type_val}"\n'
-                f'        default_behavior: "{behavior_val}"'
+
+            session_service_lines = [
+                f'type: "{type_val}"',
+                f'default_behavior: "{behavior_val}"',
+            ]
+
+            if type_val == "sql":
+                database_url_placeholder = (
+                    f"${{{formatted_names['SNAKE_UPPER_CASE_NAME']}_DATABASE_URL}}"
+                )
+                session_service_lines.append(
+                    f'database_url: "{database_url_placeholder}"'
+                )
+
+            session_service_block = "\n" + "\n".join(
+                [f"        {line}" for line in session_service_lines]
             )
         else:
             session_service_block = "*default_session_service"
@@ -70,25 +94,9 @@ def _write_agent_yaml_from_data(
                 )
                 custom_artifact_lines.append(f'base_path: "{base_path_val}"')
             elif type_val == "s3":
-                bucket_name_val = config_options.get(
-                    "artifact_service_bucket_name",
-                    AGENT_DEFAULTS.get("artifact_service_bucket_name", ""),
-                )
-                custom_artifact_lines.append(f'bucket_name: "{bucket_name_val}"')
-
-                endpoint_url_val = config_options.get(
-                    "artifact_service_endpoint_url",
-                    AGENT_DEFAULTS.get("artifact_service_endpoint_url", ""),
-                )
-                if endpoint_url_val:
-                    custom_artifact_lines.append(f'endpoint_url: "{endpoint_url_val}"')
-
-                region_val = config_options.get(
-                    "artifact_service_region",
-                    AGENT_DEFAULTS.get("artifact_service_region", "us-east-1"),
-                )
-                if region_val:
-                    custom_artifact_lines.append(f'region: "{region_val}"')
+                custom_artifact_lines.append("bucket_name: ${S3_BUCKET_NAME}")
+                custom_artifact_lines.append("endpoint_url: ${S3_ENDPOINT_URL:-}")
+                custom_artifact_lines.append("region: ${S3_REGION}")
             custom_artifact_lines.append(f"artifact_scope: {scope_val}")
             artifact_service_block = "\n" + "\n".join(
                 [f"        {line}" for line in custom_artifact_lines]
@@ -187,7 +195,9 @@ def _write_agent_yaml_from_data(
 
         replacements = {
             "__AGENT_NAME__": agent_name_camel,
-            "__AGENT_SPACED_NAME__": get_formatted_names(agent_name_camel).get("SPACED_CAPITALIZED_NAME"),
+            "__AGENT_SPACED_NAME__": get_formatted_names(agent_name_camel).get(
+                "SPACED_CAPITALIZED_NAME"
+            ),
             "__NAMESPACE__": config_options.get(
                 "namespace", AGENT_DEFAULTS["namespace"]
             ),
@@ -283,6 +293,12 @@ def _write_agent_yaml_from_data(
 
         for placeholder, value in replacements.items():
             modified_content = modified_content.replace(placeholder, str(value))
+        if config_options.get(DATABASE_URL_KEY):
+            env_key = f"{formatted_names['SNAKE_UPPER_CASE_NAME']}_DATABASE_URL"
+            if not _append_to_env_file(
+                project_root, env_key, config_options[DATABASE_URL_KEY]
+            ):
+                return False, "Failed to write to .env file.", ""
 
         with open(agent_config_file_path, "w", encoding="utf-8") as f:
             f.write(modified_content)
@@ -370,17 +386,68 @@ def create_agent_config(
         "Session service type",
         AGENT_DEFAULTS["session_service_type"],
         skip_interactive,
-        choices=[USE_DEFAULT_SHARED_SESSION, "memory", "vertex_rag"],
+        choices=["sql", "memory", "vertex_rag"],
     )
-    if collected_options["session_service_type"] != USE_DEFAULT_SHARED_SESSION:
-        collected_options["session_service_behavior"] = ask_if_not_provided(
-            collected_options,
-            "session_service_behavior",
-            "Session service behavior",
-            AGENT_DEFAULTS["session_service_behavior"],
-            skip_interactive,
-            choices=["PERSISTENT", "RUN_BASED"],
-        )
+
+    if collected_options.get("session_service_type") == "sql":
+        if DATABASE_URL_KEY not in collected_options:
+            use_own_db = False
+            if not skip_interactive:
+                use_own_db = ask_yes_no_question(
+                    f"Do you want to use your own database for the '{agent_name_camel_case}' agent?\n"
+                    f"  (If no, SQLite embedded database will be used)",
+                    default=False,
+                )
+
+            if use_own_db:
+                database_url = ask_if_not_provided(
+                    collected_options,
+                    DATABASE_URL_KEY,
+                    f"Enter the full database URL for the {agent_name_camel_case} agent (e.g., postgresql://user:pass@host/db)",
+                    none_interactive=skip_interactive,
+                )
+                collected_options[DATABASE_URL_KEY] = database_url
+            else:
+                data_dir = project_root / "data"
+                data_dir.mkdir(exist_ok=True)
+                db_file = data_dir / f"{formatted_names['SNAKE_CASE_NAME']}.db"
+                database_url = f"sqlite:///{db_file.resolve()}"
+                click.echo(
+                    f"  Using default SQLite database for {agent_name_camel_case} agent: {db_file}"
+                )
+                collected_options[DATABASE_URL_KEY] = database_url
+
+        try:
+            db_url = collected_options.get(DATABASE_URL_KEY)
+            if not db_url:
+                error_msg = "Database URL was not provided or determined despite SQL session service being selected."
+                click.echo(
+                    click.style(f"Internal Error: {error_msg}", fg="red"), err=True
+                )
+                raise ValueError(error_msg)
+
+            click.echo(f"  Validating database: {db_url}")
+            create_and_validate_database(
+                db_url, f"{agent_name_camel_case} agent database"
+            )
+        except Exception as e:
+            click.echo(
+                click.style(
+                    f"Error validating database URL '{collected_options.get(DATABASE_URL_KEY)}': {e}",
+                    fg="red",
+                ),
+                err=True,
+            )
+            return False
+
+    collected_options["session_service_behavior"] = ask_if_not_provided(
+        collected_options,
+        "session_service_behavior",
+        "Session service behavior",
+        AGENT_DEFAULTS["session_service_behavior"],
+        skip_interactive,
+        choices=["PERSISTENT", "RUN_BASED"],
+    )
 
     collected_options["artifact_service_type"] = ask_if_not_provided(
         collected_options,
@@ -469,7 +536,9 @@ def create_agent_config(
         skip_interactive,
     )
     collected_options["agent_card_default_input_modes"] = [
-        mode.strip() for mode in default_input_modes_str.split(",") if mode.strip()
+        mode.strip()
+        for mode in (default_input_modes_str or "").split(",")
+        if mode.strip()
     ]
 
     default_output_modes_str = ask_if_not_provided(
@@ -480,7 +549,9 @@ def create_agent_config(
         skip_interactive,
     )
     collected_options["agent_card_default_output_modes"] = [
-        mode.strip() for mode in default_output_modes_str.split(",") if mode.strip()
+        mode.strip()
+        for mode in (default_output_modes_str or "").split(",")
+        if mode.strip()
     ]
 
     collected_options["agent_card_skills_str"] = ask_if_not_provided(
@@ -514,8 +585,9 @@ def create_agent_config(
         ",".join(AGENT_DEFAULTS["inter_agent_communication_allow_list"]),
         skip_interactive,
     )
+    allow_list_items = (allow_list_str or "").split(",")
     collected_options["inter_agent_communication_allow_list"] = [
-        item.strip() for item in allow_list_str.split(",") if item.strip()
+        item.strip() for item in allow_list_items if item.strip()
     ]
 
     deny_list_str = ask_if_not_provided(
@@ -525,8 +597,9 @@ def create_agent_config(
         ",".join(AGENT_DEFAULTS["inter_agent_communication_deny_list"]),
         skip_interactive,
     )
+    deny_list_items = (deny_list_str or "").split(",")
     collected_options["inter_agent_communication_deny_list"] = [
-        item.strip() for item in deny_list_str.split(",") if item.strip()
+        item.strip() for item in deny_list_items if item.strip()
     ]
 
     collected_options["inter_agent_communication_timeout"] = ask_if_not_provided(
@@ -546,7 +619,7 @@ def create_agent_config(
         skip_interactive,
     )
     try:
-        tools_list = json.loads(tools_json_str)
+        tools_list = json.loads(tools_json_str or "[]")
         if not isinstance(tools_list, list):
             tools_list = []
             if not skip_interactive:
@@ -595,13 +668,16 @@ def create_agent_config(
 @click.option("--instruction", help="Custom instruction for the agent.")
 @click.option(
     "--session-service-type",
-    type=click.Choice(["memory", "vertex_rag"]),
+    type=click.Choice(["sql", "memory", "vertex_rag"]),
     help="Session service type.",
 )
 @click.option(
     "--session-service-behavior",
     type=click.Choice(["PERSISTENT", "RUN_BASED"]),
     help="Session service behavior.",
+)
+@click.option(
+    "--database-url", help="Database URL for session service (if type is 'sql')."
 )
 @click.option(
     "--artifact-service-type",
@@ -714,3 +790,4 @@ def add_agent(name: str, gui: bool = False, **kwargs):
                 ),
                 err=True,
             )
+            sys.exit(1)

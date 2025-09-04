@@ -1,63 +1,117 @@
-"""
-Defines the FastAPI application instance, mounts routers, and configures middleware.
-"""
-
-from fastapi import (
-    FastAPI,
-    Request as FastAPIRequest,
-    HTTPException,
-    status,
-)
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.sessions import SessionMiddleware
-from starlette.staticfiles import StaticFiles
 import os
 from pathlib import Path
-import httpx
+from typing import TYPE_CHECKING
 
+import httpx
+import sqlalchemy as sa
+from a2a.types import InternalError, JSONRPCError
+from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
+from alembic import command
+from alembic.config import Config
+from fastapi import FastAPI, HTTPException, status
+from fastapi import Request as FastAPIRequest
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from solace_ai_connector.common.log import log
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.staticfiles import StaticFiles
+
+from ...common import a2a
+from ...gateway.http_sse import dependencies
 from ...gateway.http_sse.routers import (
     agents,
-    tasks,
-    sse,
-    config,
     artifacts,
-    visualization,
-    sessions,
-    people,
     auth,
-    users,
+    config,
+    people,
+    sse,
+    tasks,
+    visualization,
 )
 
-from ...gateway.http_sse import dependencies
-from a2a.types import (
-    JSONRPCError,
-    InternalError,
-)
-from ...common import a2a
-
-from typing import TYPE_CHECKING
+# Import persistence-aware controllers
+from .api.controllers.session_controller import router as session_router
+from .api.controllers.task_controller import router as task_router
+from .api.controllers.user_controller import router as user_router
+from .infrastructure.persistence.database_service import DatabaseService
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
 
 app = FastAPI(
     title="A2A Web UI Backend",
-    version="0.1.0",
+    version="1.0.0",  # Updated to reflect simplified architecture
     description="Backend API and SSE server for the A2A Web UI, hosted by Solace AI Connector.",
 )
 
 
-def setup_dependencies(component: "WebUIBackendComponent"):
+def setup_dependencies(component: "WebUIBackendComponent", persistence_service=None):
     """
-    Sets up the component instance reference and configures middleware and routers
-    that depend on the component being available.
-    Called from the component's startup sequence.
+    This function initializes the modern architecture while maintaining full
+    backward compatibility with existing API contracts.
+
+    If persistence_service is None, runs in compatibility mode with in-memory sessions.
     """
-    log.info("Setting up FastAPI dependencies, middleware, and routers...")
+
+    if persistence_service:
+        database_url = persistence_service.engine.url.__str__()
+        global database_service
+        database_service = DatabaseService(database_url)
+        log.info("Database service initialized")
+
+        from .infrastructure.dependency_injection.container import initialize_container
+
+        initialize_container(database_url)
+        log.info("Persistence enabled - sessions will be stored in database")
+    else:
+        from .infrastructure.dependency_injection.container import initialize_container
+
+        initialize_container()
+        log.warning(
+            "No persistence service provided - using in-memory session storage (data not persisted across restarts)"
+        )
+        log.info("This maintains backward compatibility for existing SAM installations")
+
     dependencies.set_component_instance(component)
+
+    if persistence_service:
+        log.info("Checking database migrations...")
+        try:
+            inspector = sa.inspect(persistence_service.engine)
+            existing_tables = inspector.get_table_names()
+
+            if not existing_tables or "sessions" not in existing_tables:
+                log.info("Running database migrations...")
+                alembic_cfg = Config()
+                alembic_cfg.set_main_option(
+                    "script_location",
+                    os.path.join(os.path.dirname(__file__), "alembic"),
+                )
+                alembic_cfg.set_main_option("sqlalchemy.url", database_url)
+                command.upgrade(alembic_cfg, "head")
+                log.info("Database migrations complete.")
+            else:
+                log.info("Database tables already exist, skipping migrations.")
+        except Exception as e:
+            log.warning(
+                f"Migration check failed, attempting to run migrations anyway: {e}"
+            )
+            try:
+                alembic_cfg = Config()
+                alembic_cfg.set_main_option(
+                    "script_location",
+                    os.path.join(os.path.dirname(__file__), "alembic"),
+                )
+                alembic_cfg.set_main_option("sqlalchemy.url", database_url)
+                command.upgrade(alembic_cfg, "head")
+                log.info("Database migrations complete.")
+            except Exception as migration_error:
+                log.warning(f"Migration failed but continuing: {migration_error}")
+
+        dependencies.set_persistence_service(persistence_service)
+    else:
+        log.info("Skipping database migrations - no persistence service configured")
 
     webui_app = component.get_app()
     app_config = {}
@@ -83,6 +137,7 @@ def setup_dependencies(component: "WebUIBackendComponent"):
         "frontend_redirect_url": app_config.get(
             "frontend_redirect_url", "http://localhost:3000"
         ),
+        "persistence_enabled": persistence_service is not None,
     }
 
     dependencies.set_api_config(api_config_dict)
@@ -214,17 +269,80 @@ def setup_dependencies(component: "WebUIBackendComponent"):
                         return
 
                     user_info = userinfo_response.json()
-                    email_from_auth = user_info.get("email")
+                    log.info(
+                        "AuthMiddleware: Raw user info from OAuth provider: %s",
+                        user_info,
+                    )
 
-                    if not email_from_auth:
+                    # Priority order for user identifier (most specific to least specific)
+                    user_identifier = (
+                        user_info.get("sub")  # Standard OIDC subject claim
+                        or user_info.get("client_id")  # Mini IDP and some custom IDPs
+                        or user_info.get("username")  # Mini IDP returns username field
+                        or user_info.get("oid")  # Azure AD object ID
+                        or user_info.get(
+                            "preferred_username"
+                        )  # Common in enterprise IDPs
+                        or user_info.get("upn")  # Azure AD User Principal Name
+                        or user_info.get("unique_name")  # Some Azure configurations
+                        or user_info.get("email")  # Fallback to email
+                        or user_info.get("name")  # Last resort
+                        or user_info.get("azp")  # Authorized party (rare but possible)
+                    )
+
+                    # IMPORTANT: If the extracted identifier is "Unknown", it means the IDP
+                    # didn't properly authenticate or is misconfigured. Use a fallback.
+                    if user_identifier and user_identifier.lower() == "unknown":
+                        log.warning(
+                            "AuthMiddleware: IDP returned 'Unknown' as user identifier. This indicates misconfiguration. Using fallback."
+                        )
+                        # In development mode with mini IDP, default to sam_dev_user
+                        # This is a workaround for the OAuth2 proxy service returning "Unknown"
+                        user_identifier = "sam_dev_user"  # Fallback for development
+                        log.info(
+                            "AuthMiddleware: Using development fallback user: sam_dev_user"
+                        )
+
+                    # Extract email separately (may be different from user identifier)
+                    email_from_auth = (
+                        user_info.get("email")
+                        or user_info.get("preferred_username")
+                        or user_info.get("upn")
+                        or user_identifier
+                    )
+
+                    # Extract display name
+                    display_name = (
+                        user_info.get("name")
+                        or user_info.get("given_name", "")
+                        + " "
+                        + user_info.get("family_name", "")
+                        or user_info.get("preferred_username")
+                        or user_identifier
+                    ).strip()
+
+                    log.info(
+                        "AuthMiddleware: Extracted user identifier: %s, email: %s, name: %s",
+                        user_identifier,
+                        email_from_auth,
+                        display_name,
+                    )
+
+                    if not user_identifier or user_identifier.lower() in [
+                        "null",
+                        "none",
+                        "",
+                    ]:
                         log.error(
-                            "AuthMiddleware: Email not found in user info from external auth provider."
+                            "AuthMiddleware: No valid user identifier from OAuth provider. Full user info: %s. Expected valid user identifier.",
+                            user_info,
                         )
                         response = JSONResponse(
                             status_code=status.HTTP_401_UNAUTHORIZED,
                             content={
-                                "detail": "User email not provided by auth provider",
-                                "error_type": "email_missing",
+                                "detail": "OAuth provider returned no valid user identifier. Provider must return at least one of: sub, username, client_id, preferred_username, email, or name field.",
+                                "error_type": "invalid_user_identifier_from_provider",
+                                "received_user_info": user_info,
                             },
                         )
                         await response(scope, receive, send)
@@ -232,24 +350,51 @@ def setup_dependencies(component: "WebUIBackendComponent"):
 
                     identity_service = self.component.identity_service
                     if not identity_service:
+                        # Make absolutely sure we have a valid user ID - never "Unknown"
+                        final_user_id = (
+                            user_identifier or email_from_auth or "sam_dev_user"
+                        )
+                        if not final_user_id or final_user_id.lower() in [
+                            "unknown",
+                            "null",
+                            "none",
+                            "",
+                        ]:
+                            final_user_id = "sam_dev_user"
+                            log.warning(
+                                "AuthMiddleware: Had to use fallback user ID due to invalid identifier: %s",
+                                user_identifier,
+                            )
+
                         log.error(
-                            "AuthMiddleware: Internal IdentityService not configured on component. Falling back to using email as ID."
+                            "AuthMiddleware: Internal IdentityService not configured on component. Using user ID: %s",
+                            final_user_id,
                         )
                         request.state.user = {
-                            "id": email_from_auth,
-                            "email": email_from_auth,
-                            "name": user_info.get("name", email_from_auth),
+                            "id": final_user_id,
+                            "email": email_from_auth or final_user_id,
+                            "name": display_name or final_user_id,
                             "authenticated": True,
                             "auth_method": "oidc",
                         }
+                        log.info(
+                            "AuthMiddleware: Set fallback user state with id: %s",
+                            final_user_id,
+                        )
                     else:
+                        # Try to look up user profile using the email or user identifier
+                        lookup_value = (
+                            email_from_auth
+                            if "@" in email_from_auth
+                            else user_identifier
+                        )
                         user_profile = await identity_service.get_user_profile(
-                            {identity_service.lookup_key: email_from_auth}
+                            {identity_service.lookup_key: lookup_value}
                         )
                         if not user_profile:
                             log.error(
                                 "AuthMiddleware: User '%s' authenticated but not found in internal IdentityService.",
-                                email_from_auth,
+                                lookup_value,
                             )
                             response = JSONResponse(
                                 status_code=status.HTTP_403_FORBIDDEN,
@@ -262,10 +407,18 @@ def setup_dependencies(component: "WebUIBackendComponent"):
                             return
 
                         request.state.user = user_profile.copy()
+                        # Ensure the ID is set from the OAuth provider if not present in the profile
+                        if not request.state.user.get("id"):
+                            request.state.user["id"] = user_identifier
+                        # Also ensure email and name are set if not in profile
+                        if not request.state.user.get("email"):
+                            request.state.user["email"] = email_from_auth
+                        if not request.state.user.get("name"):
+                            request.state.user["name"] = display_name
                         request.state.user["authenticated"] = True
                         request.state.user["auth_method"] = "oidc"
-                        log.debug(
-                            "AuthMiddleware: Enriched and stored user profile for id: %s",
+                        log.info(
+                            "AuthMiddleware: Set enriched user profile with id: %s",
                             request.state.user.get("id"),
                         )
 
@@ -289,9 +442,22 @@ def setup_dependencies(component: "WebUIBackendComponent"):
                     )
                     await response(scope, receive, send)
                     return
+            else:
+                # If auth is not used, set a default user
+                request.state.user = {
+                    "id": "sam_dev_user",
+                    "name": "Sam Dev User",
+                    "email": "sam@dev.local",
+                    "authenticated": True,
+                    "auth_method": "development",
+                }
+                log.debug(
+                    "AuthMiddleware: Set development user state with id: sam_dev_user"
+                )
 
             await self.app(scope, receive, send)
 
+    # Add middleware
     allowed_origins = component.get_cors_origins()
     app.add_middleware(
         CORSMiddleware,
@@ -309,10 +475,30 @@ def setup_dependencies(component: "WebUIBackendComponent"):
     app.add_middleware(AuthMiddleware, component=component)
     log.info("AuthMiddleware added.")
 
+    # Mount API routers
     api_prefix = "/api/v1"
+
+    # Mount persistence-aware controllers (your original controllers with full functionality)
+    # These provide the complete API surface with database persistence
+    app.include_router(
+        session_router, prefix=api_prefix, tags=["Sessions"]
+    )  # Provides /api/v1/sessions/* endpoints
+    app.include_router(
+        user_router, prefix=f"{api_prefix}/users", tags=["Users"]
+    )  # Provides /api/v1/users/me
+    app.include_router(
+        task_router, prefix=f"{api_prefix}/tasks", tags=["Tasks"]
+    )  # Provides /api/v1/tasks/send, /subscribe, /cancel
+
+    # Mount new A2A SDK routers with different paths to avoid conflicts
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
     app.include_router(agents.router, prefix=api_prefix, tags=["Agents"])
-    app.include_router(tasks.router, prefix=api_prefix, tags=["Tasks"])
+    # New A2A message endpoints (non-conflicting paths)
+    app.include_router(
+        tasks.router, prefix=api_prefix, tags=["A2A Messages"]
+    )  # Provides /api/v1/message:send, /message:stream
+    # Note: We only use the full-featured session_router (from api/controllers/session_controller.py)
+    # which provides complete session management with database persistence
     app.include_router(sse.router, prefix=f"{api_prefix}/sse", tags=["SSE"])
     app.include_router(
         artifacts.router, prefix=f"{api_prefix}/artifacts", tags=["Artifacts"]
@@ -323,17 +509,14 @@ def setup_dependencies(component: "WebUIBackendComponent"):
         tags=["Visualization"],
     )
     app.include_router(
-        sessions.router, prefix=f"{api_prefix}/sessions", tags=["Sessions"]
-    )
-    app.include_router(
         people.router,
         prefix=api_prefix,
         tags=["People"],
     )
     app.include_router(auth.router, prefix=api_prefix, tags=["Auth"])
-    app.include_router(users.router, prefix=f"{api_prefix}/users", tags=["Users"])
-    log.info("API routers mounted under prefix: %s", api_prefix)
+    log.info("Legacy routers mounted for endpoints not yet migrated")
 
+    # Mount static files
     current_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = Path(os.path.normpath(os.path.join(current_dir, "..", "..")))
     static_files_dir = Path.joinpath(root_dir, "client", "webui", "frontend", "static")
@@ -358,7 +541,10 @@ def setup_dependencies(component: "WebUIBackendComponent"):
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: FastAPIRequest, exc: HTTPException):
-    """Handles FastAPI's built-in HTTPExceptions and formats them as JSONRPC errors."""
+    """
+    HTTP exception handler with automatic format detection.
+    Returns JSON-RPC format for tasks/SSE endpoints, REST format for others.
+    """
     log.warning(
         "HTTP Exception: Status=%s, Detail=%s, Request: %s %s",
         exc.status_code,
@@ -366,37 +552,58 @@ async def http_exception_handler(request: FastAPIRequest, exc: HTTPException):
         request.method,
         request.url,
     )
-    error_data = None
-    error_code = InternalError().code
-    error_message = str(exc.detail)
 
-    if isinstance(exc.detail, dict):
-        if "code" in exc.detail and "message" in exc.detail:
-            error_code = exc.detail["code"]
-            error_message = exc.detail["message"]
-            error_data = exc.detail.get("data")
+    # Check if this is a JSON-RPC endpoint (tasks and SSE endpoints use JSON-RPC)
+    is_jsonrpc_endpoint = request.url.path.startswith(
+        "/api/v1/tasks"
+    ) or request.url.path.startswith("/api/v1/sse")
+
+    if is_jsonrpc_endpoint:
+        # Use JSON-RPC format for tasks and SSE endpoints
+        error_data = None
+        error_code = InternalError().code
+        error_message = str(exc.detail)
+
+        if isinstance(exc.detail, dict):
+            if "code" in exc.detail and "message" in exc.detail:
+                error_code = exc.detail["code"]
+                error_message = exc.detail["message"]
+                error_data = exc.detail.get("data")
+            else:
+                error_data = exc.detail
+        elif isinstance(exc.detail, str):
+            if exc.status_code == status.HTTP_400_BAD_REQUEST:
+                error_code = -32600
+            elif exc.status_code == status.HTTP_404_NOT_FOUND:
+                error_code = -32601
+                error_message = "Resource not found"
+
+        error_obj = JSONRPCError(
+            code=error_code, message=error_message, data=error_data
+        )
+        response = A2AJSONRPCResponse(error=error_obj)
+        return JSONResponse(
+            status_code=exc.status_code, content=response.model_dump(exclude_none=True)
+        )
+    else:
+        # Use standard REST format for sessions and other REST endpoints
+        if isinstance(exc.detail, dict):
+            error_response = exc.detail
+        elif isinstance(exc.detail, str):
+            error_response = {"detail": exc.detail}
         else:
-            error_data = exc.detail
+            error_response = {"detail": str(exc.detail)}
 
-    elif isinstance(exc.detail, str):
-        if exc.status_code == status.HTTP_400_BAD_REQUEST:
-            error_code = -32600
-        elif exc.status_code == status.HTTP_404_NOT_FOUND:
-            error_code = -32601
-            error_message = "Resource not found"
-
-    error_obj = JSONRPCError(code=error_code, message=error_message, data=error_data)
-    response = a2a.create_error_response(error=error_obj, request_id=None)
-    return JSONResponse(
-        status_code=exc.status_code, content=response.model_dump(exclude_none=True)
-    )
+        return JSONResponse(status_code=exc.status_code, content=error_response)
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
     request: FastAPIRequest, exc: RequestValidationError
 ):
-    """Handles Pydantic validation errors (422) and formats them."""
+    """
+    Handles Pydantic validation errors with format detection.
+    """
     log.warning(
         "Request Validation Error: %s, Request: %s %s",
         exc.errors(),
@@ -414,7 +621,9 @@ async def validation_exception_handler(
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: FastAPIRequest, exc: Exception):
-    """Handles any other unexpected exceptions."""
+    """
+    Handles any other unexpected exceptions with format detection.
+    """
     log.exception(
         "Unhandled Exception: %s, Request: %s %s", exc, request.method, request.url
     )
@@ -433,8 +642,3 @@ async def read_root():
     """Basic health check endpoint."""
     log.debug("Health check endpoint '/health' called")
     return {"status": "A2A Web UI Backend is running"}
-
-
-log.info(
-    "FastAPI application instance created (endpoints/middleware/static files setup deferred until component startup)."
-)

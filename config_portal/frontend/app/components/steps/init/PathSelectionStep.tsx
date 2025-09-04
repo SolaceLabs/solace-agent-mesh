@@ -1,14 +1,8 @@
 import { useState } from "react";
 import Button from "../../ui/Button";
+import { StepComponentProps } from "../../InitializationFlow";
 
 type PathType = "quick" | "advanced";
-
-type PathSelectionStepProps = {
-  data: { setupPath: PathType | null };
-  updateData: (data: { setupPath: PathType }) => void;
-  onNext: () => void;
-  onPrevious: () => void;
-};
 
 const CheckIcon = () => (
   <svg
@@ -119,9 +113,10 @@ export default function PathSelectionStep({
   data,
   updateData,
   onNext,
-}: Readonly<PathSelectionStepProps>) {
+}: StepComponentProps) {
+  const { setupPath } = data as { setupPath?: PathType };
   const [selectedPath, setSelectedPath] = useState<PathType | null>(
-    data.setupPath ?? null
+    setupPath ?? null
   );
 
   const handlePathSelect = (path: PathType) => {
@@ -150,7 +145,7 @@ export default function PathSelectionStep({
 
       <div className="mt-6 p-4 border rounded-lg">
         <h3 className="text-lg font-semibold text-solace-blue mb-3">
-          What you'll get after setup:
+          What you&apos;ll get after setup:
         </h3>
         <ul className="space-y-2 text-gray-700">
           {commonOutcomes.map((outcome) => (

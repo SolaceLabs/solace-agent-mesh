@@ -73,18 +73,21 @@ async def run_adk_async_task_thread_wrapper(
 
         if adk_session and component.session_service:
             context_setting_invocation_id = logical_task_id
-            context_setting_event = ADKEvent(
-                invocation_id=context_setting_invocation_id,
-                author="A2A_Host_System",
-                content=adk_types.Content(
-                    parts=[
-                        adk_types.Part(text="Initializing A2A context for task run.")
-                    ]
-                ),
-                actions=EventActions(state_delta={"a2a_context": a2a_context}),
-                branch=None,
-            )
+            original_message = a2a_context.pop("original_solace_message", None)
             try:
+                context_setting_event = ADKEvent(
+                    invocation_id=context_setting_invocation_id,
+                    author="A2A_Host_System",
+                    content=adk_types.Content(
+                        parts=[
+                            adk_types.Part(
+                                text="Initializing A2A context for task run."
+                            )
+                        ]
+                    ),
+                    actions=EventActions(state_delta={"a2a_context": a2a_context}),
+                    branch=None,
+                )
                 await component.session_service.append_event(
                     session=adk_session, event=context_setting_event
                 )
@@ -96,12 +99,15 @@ async def run_adk_async_task_thread_wrapper(
                 )
             except Exception as e_append:
                 log.error(
-                    "%s Failed to append context-setting event for task %s: %s. Tool scope filtering might not work if state is not persisted.",
+                    "%s Failed to append context-setting event for task %s: %s.",
                     component.log_identifier,
                     logical_task_id,
                     e_append,
                     exc_info=True,
                 )
+            finally:
+                if original_message:
+                    a2a_context["original_solace_message"] = original_message
         else:
             log.warning(
                 "%s Could not inject a2a_context into ADK session state via event for task %s (session or session_service invalid). Tool scope filtering might not work.",

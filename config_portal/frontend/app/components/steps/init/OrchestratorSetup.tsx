@@ -6,11 +6,13 @@ import ChipInput from '../../ui/ChipInput';
 import Button from '../../ui/Button';
 import { InfoBox } from '../../ui/InfoBoxes';
 import Checkbox from '../../ui/Checkbox';
+import { StepComponentProps } from '../../InitializationFlow';
 
 interface OrchestratorData {
   agent_name?: string;
   supports_streaming?: boolean;
   session_service_type?: string;
+  orchestrator_database_url?: string;
   session_service_behavior?: string;
   artifact_service_type?: string;
   artifact_service_base_path?: string;
@@ -28,14 +30,9 @@ interface OrchestratorData {
   inter_agent_communication_timeout?: number;
 }
 
-type OrchestratorSetupProps = {
-  data: OrchestratorData;
-  updateData: (data: Partial<OrchestratorData>) => void;
-  onNext: () => void;
-  onPrevious: () => void;
-};
-
 const sessionServiceTypeOptions = [
+  /* eslint-disable-next-line */
+  // { value: 'sql', label: 'SQL: Use a SQL database for session data' },
   { value: 'memory', label: 'Memory: Store session data in memory' },
   { value: 'vertex_rag', label: 'Vertex RAG: Use Google Vertex AI for RAG capabilities' },
 ];
@@ -63,7 +60,12 @@ const artifactHandlingModeOptions = [
   { value: 'reference', label: 'Reference: Include fetch URI in messages' },
 ];
 
-export default function OrchestratorSetup({ data, updateData, onNext, onPrevious }: OrchestratorSetupProps) {
+export default function OrchestratorSetup({
+  data,
+  updateData,
+  onNext,
+  onPrevious,
+}: StepComponentProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [initialized, setInitialized] = useState(false);
 
@@ -81,46 +83,51 @@ export default function OrchestratorSetup({ data, updateData, onNext, onPrevious
     return trimmedString.split(',').map(s => s.trim()).filter(s => s.length > 0);
   };
   
-  const [agentName, setAgentName] = useState(data.agent_name || 'OrchestratorAgent');
-  const [supportsStreaming, setSupportsStreaming] = useState(data.supports_streaming !== false);
-  const [sessionServiceType, setSessionServiceType] = useState(data.session_service_type || 'memory');
-  const [sessionBehavior, setSessionBehavior] = useState(data.session_service_behavior || 'PERSISTENT');
-  const [artifactServiceType, setArtifactServiceType] = useState(data.artifact_service_type || 'filesystem');
-  const [artifactBasePath, setArtifactBasePath] = useState(data.artifact_service_base_path || '/tmp/samv2');
-  const [artifactScope, setArtifactScope] = useState(data.artifact_service_scope || 'namespace');
-  const [artifactHandlingMode, setArtifactHandlingMode] = useState(data.artifact_handling_mode || 'reference');
-  const [enableEmbedResolution, setEnableEmbedResolution] = useState(data.enable_embed_resolution !== false);
-  const [enableArtifactContentInstruction, setEnableArtifactContentInstruction] = useState(data.enable_artifact_content_instruction !== false);
-  const [agentCardDescription, setAgentCardDescription] = useState(data.agent_card_description || 'The Orchestrator component. It manages tasks and coordinates multi-agent workflows.');
-  const [defaultInputModes, setDefaultInputModes] = useState<string[]>(stringToArray(data.agent_card_default_input_modes, ['text']));
-  const [defaultOutputModes, setDefaultOutputModes] = useState<string[]>(stringToArray(data.agent_card_default_output_modes, ['text', 'file']));
-  const [agentDiscoveryEnabled, setAgentDiscoveryEnabled] = useState(data.agent_discovery_enabled !== false);
-  const [cardPublishingInterval, setCardPublishingInterval] = useState(data.agent_card_publishing_interval || 10);
-  const [allowList, setAllowList] = useState<string[]>(stringToArray(data.inter_agent_communication_allow_list, ['*']));
-  const [denyList, setDenyList] = useState<string[]>(stringToArray(data.inter_agent_communication_deny_list, []));
-  const [communicationTimeout, setCommunicationTimeout] = useState(data.inter_agent_communication_timeout || 180);
+  const orchestratorData = data as OrchestratorData;
+
+  const [agentName, setAgentName] = useState(orchestratorData.agent_name || 'OrchestratorAgent');
+  const [supportsStreaming, setSupportsStreaming] = useState(orchestratorData.supports_streaming !== false);
+  const [sessionServiceType, setSessionServiceType] = useState(orchestratorData.session_service_type || 'memory');
+  const [orchestratorDatabaseUrl, setOrchestratorDatabaseUrl] = useState(orchestratorData.orchestrator_database_url || '');
+  const [sessionBehavior, setSessionBehavior] = useState(orchestratorData.session_service_behavior || 'PERSISTENT');
+  const [artifactServiceType, setArtifactServiceType] = useState(orchestratorData.artifact_service_type || 'filesystem');
+  const [artifactBasePath, setArtifactBasePath] = useState(orchestratorData.artifact_service_base_path || '/tmp/samv2');
+  const [artifactScope, setArtifactScope] = useState(orchestratorData.artifact_service_scope || 'namespace');
+  const [artifactHandlingMode, setArtifactHandlingMode] = useState(orchestratorData.artifact_handling_mode || 'reference');
+  const [enableEmbedResolution, setEnableEmbedResolution] = useState(orchestratorData.enable_embed_resolution !== false);
+  const [enableArtifactContentInstruction, setEnableArtifactContentInstruction] = useState(orchestratorData.enable_artifact_content_instruction !== false);
+  const [agentCardDescription, setAgentCardDescription] = useState(orchestratorData.agent_card_description || 'The Orchestrator component. It manages tasks, and coordinating multi-agent workflows.');
+  const [defaultInputModes, setDefaultInputModes] = useState<string[]>(stringToArray(orchestratorData.agent_card_default_input_modes, ['text']));
+  const [defaultOutputModes, setDefaultOutputModes] = useState<string[]>(stringToArray(orchestratorData.agent_card_default_output_modes, ['text', 'file']));
+  const [agentDiscoveryEnabled, setAgentDiscoveryEnabled] = useState(orchestratorData.agent_discovery_enabled !== false);
+  const [cardPublishingInterval, setCardPublishingInterval] = useState(orchestratorData.agent_card_publishing_interval || 10);
+  const [allowList, setAllowList] = useState<string[]>(stringToArray(orchestratorData.inter_agent_communication_allow_list, ['*']));
+  const [denyList, setDenyList] = useState<string[]>(stringToArray(orchestratorData.inter_agent_communication_deny_list, []));
+  const [communicationTimeout, setCommunicationTimeout] = useState(orchestratorData.inter_agent_communication_timeout || 180);
 
   useEffect(() => {
     if (initialized) return;
     
-    if (data.agent_name) setAgentName(data.agent_name);
-    if (data.supports_streaming !== undefined) setSupportsStreaming(data.supports_streaming);
-    if (data.session_service_type) setSessionServiceType(data.session_service_type);
-    if (data.session_service_behavior) setSessionBehavior(data.session_service_behavior);
-    if (data.artifact_service_type) setArtifactServiceType(data.artifact_service_type);
-    if (data.artifact_service_base_path) setArtifactBasePath(data.artifact_service_base_path);
-    if (data.artifact_service_scope) setArtifactScope(data.artifact_service_scope);
-    if (data.artifact_handling_mode) setArtifactHandlingMode(data.artifact_handling_mode);
-    if (data.enable_embed_resolution !== undefined) setEnableEmbedResolution(data.enable_embed_resolution);
-    if (data.enable_artifact_content_instruction !== undefined) setEnableArtifactContentInstruction(data.enable_artifact_content_instruction);
-    if (data.agent_card_description) setAgentCardDescription(data.agent_card_description);
-    if (data.agent_card_default_input_modes !== undefined) setDefaultInputModes(stringToArray(data.agent_card_default_input_modes, ['text']));
-    if (data.agent_card_default_output_modes !== undefined) setDefaultOutputModes(stringToArray(data.agent_card_default_output_modes, ['text', 'file']));
-    if (data.agent_discovery_enabled !== undefined) setAgentDiscoveryEnabled(data.agent_discovery_enabled);
-    if (data.agent_card_publishing_interval) setCardPublishingInterval(data.agent_card_publishing_interval);
-    if (data.inter_agent_communication_allow_list !== undefined) setAllowList(stringToArray(data.inter_agent_communication_allow_list, ['*']));
-    if (data.inter_agent_communication_deny_list !== undefined) setDenyList(stringToArray(data.inter_agent_communication_deny_list, []));
-    if (data.inter_agent_communication_timeout) setCommunicationTimeout(data.inter_agent_communication_timeout);
+    if (orchestratorData.agent_name) setAgentName(orchestratorData.agent_name);
+    if (orchestratorData.supports_streaming !== undefined) setSupportsStreaming(orchestratorData.supports_streaming);
+    if (orchestratorData.session_service_type) setSessionServiceType(orchestratorData.session_service_type);
+    /* eslint-disable-next-line */
+    // if (orchestratorData.orchestrator_database_url) setOrchestratorDatabaseUrl(orchestratorData.orchestrator_database_url);
+    if (orchestratorData.session_service_behavior) setSessionBehavior(orchestratorData.session_service_behavior);
+    if (orchestratorData.artifact_service_type) setArtifactServiceType(orchestratorData.artifact_service_type);
+    if (orchestratorData.artifact_service_base_path) setArtifactBasePath(orchestratorData.artifact_service_base_path);
+    if (orchestratorData.artifact_service_scope) setArtifactScope(orchestratorData.artifact_service_scope);
+    if (orchestratorData.artifact_handling_mode) setArtifactHandlingMode(orchestratorData.artifact_handling_mode);
+    if (orchestratorData.enable_embed_resolution !== undefined) setEnableEmbedResolution(orchestratorData.enable_embed_resolution);
+    if (orchestratorData.enable_artifact_content_instruction !== undefined) setEnableArtifactContentInstruction(orchestratorData.enable_artifact_content_instruction);
+    if (orchestratorData.agent_card_description) setAgentCardDescription(orchestratorData.agent_card_description);
+    if (orchestratorData.agent_card_default_input_modes !== undefined) setDefaultInputModes(stringToArray(orchestratorData.agent_card_default_input_modes, ['text']));
+    if (orchestratorData.agent_card_default_output_modes !== undefined) setDefaultOutputModes(stringToArray(orchestratorData.agent_card_default_output_modes, ['text', 'file']));
+    if (orchestratorData.agent_discovery_enabled !== undefined) setAgentDiscoveryEnabled(orchestratorData.agent_discovery_enabled);
+    if (orchestratorData.agent_card_publishing_interval) setCardPublishingInterval(orchestratorData.agent_card_publishing_interval);
+    if (orchestratorData.inter_agent_communication_allow_list !== undefined) setAllowList(stringToArray(orchestratorData.inter_agent_communication_allow_list, ['*']));
+    if (orchestratorData.inter_agent_communication_deny_list !== undefined) setDenyList(stringToArray(orchestratorData.inter_agent_communication_deny_list, []));
+    if (orchestratorData.inter_agent_communication_timeout) setCommunicationTimeout(orchestratorData.inter_agent_communication_timeout);
     
     setInitialized(true);
   }, [data, initialized]);
@@ -138,6 +145,11 @@ export default function OrchestratorSetup({ data, updateData, onNext, onPrevious
   const handleSessionServiceTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSessionServiceType(e.target.value);
     updateData({ session_service_type: e.target.value });
+  };
+
+  const handleOrchestratorDatabaseUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setOrchestratorDatabaseUrl(e.target.value);
+    updateData({ orchestrator_database_url: e.target.value });
   };
 
   const handleSessionBehaviorChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -310,9 +322,25 @@ export default function OrchestratorSetup({ data, updateData, onNext, onPrevious
               onChange={handleSessionServiceTypeChange}
             />
           </FormField>
+
+          {/* eslint-disable-next-line */}
+          {/* sessionServiceType === 'sql' && (
+            <FormField
+              label="Orchestrator Database URL"
+              htmlFor="orchestrator_database_url"
+              helpText="Leave blank to create a default SQLite database"
+            >
+              <Input
+                id="orchestrator_database_url"
+                value={orchestratorDatabaseUrl}
+                onChange={handleOrchestratorDatabaseUrlChange}
+                placeholder="e.g., sqlite:///./data/orchestrator.db"
+              />
+            </FormField>
+          ) */}
           
-          <FormField 
-            label="Session Behavior" 
+          <FormField
+            label="Session Behavior"
             htmlFor="session_behavior"
             required
           >

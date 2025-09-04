@@ -180,3 +180,11 @@ export interface NavigationContextValue {
     items: NavigationItem[];
     setItems: (items: NavigationItem[]) => void;
 }
+
+
+export interface Session {
+    id: string;
+    created_at: string;
+    updated_at: string;
+    name: string | null;
+}

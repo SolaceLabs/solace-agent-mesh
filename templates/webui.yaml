@@ -1,11 +1,11 @@
-# Solace Agent Mesh WebUI Gateway Configuration
+
 
 log:
   stdout_log_level: INFO
   log_file_level: DEBUG
   log_file: webui_app.log
 
-# Shared SAM config
+
 !include ../shared_config.yaml
 
 apps:
@@ -21,14 +21,13 @@ apps:
       session_secret_key: ${SESSION_SECRET_KEY}
 
       artifact_service: *default_artifact_service
-
+      session_service: __SESSION_SERVICE__
       gateway_id: ${WEBUI_GATEWAY_ID}
       fastapi_host: ${FASTAPI_HOST}
       fastapi_port: ${FASTAPI_PORT}
-      cors_allowed_origins: # List of allowed origins for CORS
-        - "http://localhost:3000" # Example: Allow local React dev server
+      cors_allowed_origins: 
+        - "http://localhost:3000" 
         - "http://127.0.0.1:3000"
-        # Add other origins as needed, or use ["*"] for wide open (less secure)
 
       enable_embed_resolution: ${ENABLE_EMBED_RESOLUTION} # Enable late-stage resolution
       gateway_artifact_content_limit_bytes: ${GATEWAY_ARTIFACT_LIMIT_BYTES, 10000000} # Max size for late-stage embeds
