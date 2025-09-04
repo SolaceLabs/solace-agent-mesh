@@ -21,7 +21,7 @@ This checklist provides a high-level overview of the tasks required to implement
 6.  [x] **Deprecate `signal_artifact_for_return` Tool:** Delete the `signal_artifact_for_return` function and its `BuiltinTool` registration from `src/solace_agent_mesh/agent/tools/builtin_artifact_tools.py`.
 7.  [x] **Update Gateway Component:** Refactor `_resolve_embeds_and_handle_signals` in `src/solace_agent_mesh/gateway/base/component.py` to use the new `resolve_embeds_in_parts_list` function, passing `ResolutionMode.A2A_MESSAGE_TO_USER`.
 8.  [x] **Update `ADKToolWrapper`:** Modify the call to the embed resolver in `src/solace_agent_mesh/agent/adk/tool_wrapper.py` to pass `resolution_mode=ResolutionMode.TOOL_PARAMETER`.
-9.  [ ] **Update `_apply_template` Modifier:** Modify the recursive call to the embed resolver in `src/solace_agent_mesh/common/utils/embeds/modifiers.py` to pass `resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT`.
+9.  [x] **Update `_apply_template` Modifier:** Modify the recursive call to the embed resolver in `src/solace_agent_mesh/common/utils/embeds/modifiers.py` to pass `resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT`.
 
 ## Phase 4: Prompt Engineering and Documentation
 
