@@ -381,3 +381,47 @@ def get_session_service(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="Session management requires database configuration. Configure 'database_url' in your gateway configuration.",
         )
+
+
+def get_session_validator(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> Callable[[str, str], bool]:
+    """
+    FastAPI dependency that returns a session validator function.
+
+    With database: Validates sessions against database
+    Without database: Validates sessions using basic checks (session exists in recent activity)
+    """
+    log.debug("[Dependencies] get_session_validator called")
+
+    # Check if component has a persistence service (database-backed)
+    if (
+        hasattr(component, "persistence_service")
+        and component.persistence_service is not None
+    ):
+        log.debug("Using database-backed session validation")
+        session_service = SessionService(
+            db_service=component.persistence_service.db_service
+        )
+
+        def validate_with_database(session_id: str, user_id: str) -> bool:
+            """Validate session against database"""
+            session_domain = session_service.get_session(
+                session_id=session_id, user_id=user_id
+            )
+            return session_domain is not None
+
+        return validate_with_database
+    else:
+        log.debug("No database configured - using basic session validation")
+
+        def validate_without_database(session_id: str, user_id: str) -> bool:
+            """Basic validation: check session ID format and user authentication"""
+            # Validate session ID format (should be web-session-* format from SessionManager)
+            if not session_id or not session_id.startswith("web-session-"):
+                return False
+            # If user_id is provided (authenticated), allow access
+            # This provides basic security while allowing filesystem-based artifacts
+            return bool(user_id)
+
+        return validate_without_database

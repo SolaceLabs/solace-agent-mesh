@@ -2,67 +2,62 @@
 FastAPI router for managing session-specific artifacts via REST endpoints.
 """
 
-from typing import (
-    List,
-    Dict,
-    Optional,
-    Union,
-    Any,
-    TYPE_CHECKING,
-)
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from fastapi import (
     APIRouter,
     Depends,
-    HTTPException,
-    UploadFile,
     File,
-    Path,
-    status,
     Form,
+    HTTPException,
+    Path,
+    UploadFile,
+    status,
 )
-from fastapi.responses import StreamingResponse, Response
+from fastapi.responses import Response, StreamingResponse
+
 try:
     from google.adk.artifacts import BaseArtifactService
 except ImportError:
-    
+
     class BaseArtifactService:
         pass
+
+
 import io
 import json
 from datetime import datetime, timezone
-from urllib.parse import urlparse, parse_qs, quote
-
-from ..dependencies import (
-    get_shared_artifact_service,
-    get_sac_component,
-    get_user_id,
-    get_config_resolver,
-    get_user_config,
-    get_session_service
-)
-from ..business.services.session_service import SessionService
+from urllib.parse import parse_qs, quote, urlparse
 
 from solace_ai_connector.common.log import log
 
-from ....common.middleware import ConfigResolver
 from ....common.a2a.types import ArtifactInfo
-from ....common.utils.mime_helpers import is_text_based_mime_type
+from ....common.middleware import ConfigResolver
 from ....common.utils.embeds import (
-    resolve_embeds_recursively_in_string,
-    evaluate_embed,
     LATE_EMBED_TYPES,
+    evaluate_embed,
+    resolve_embeds_recursively_in_string,
 )
-
+from ....common.utils.mime_helpers import is_text_based_mime_type
+from ..dependencies import (
+    get_config_resolver,
+    get_sac_component,
+    get_session_validator,
+    get_shared_artifact_service,
+    get_user_config,
+    get_user_id,
+)
 
 if TYPE_CHECKING:
     from ....gateway.http_sse.component import WebUIBackendComponent
+
 from ....agent.utils.artifact_helpers import (
-    get_artifact_info_list,
-    save_artifact_with_metadata,
-    load_artifact_content_or_metadata,
     DEFAULT_SCHEMA_MAX_KEYS,
     format_artifact_uri,
+    get_artifact_info_list,
+    load_artifact_content_or_metadata,
+    save_artifact_with_metadata,
 )
 
 router = APIRouter()
@@ -70,16 +65,18 @@ router = APIRouter()
 
 @router.get(
     "/{session_id}/{filename}/versions",
-    response_model=List[int],
+    response_model=list[int],
     summary="List Artifact Versions",
     description="Retrieves a list of available version numbers for a specific artifact.",
 )
 async def list_artifact_versions(
-    session_id: str = Path(..., title="Session ID", description="The session ID to get artifacts from"),
+    session_id: str = Path(
+        ..., title="Session ID", description="The session ID to get artifacts from"
+    ),
     filename: str = Path(..., title="Filename", description="The name of the artifact"),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
-    session_service: SessionService = Depends(get_session_service),
+    validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     user_config: dict = Depends(get_user_config),
@@ -99,12 +96,11 @@ async def list_artifact_versions(
     log.info("%s Request received.", log_prefix)
 
     # Validate session exists and belongs to user
-    session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
-    if not session_domain:
-        log.warning("%s Session not found or access denied.", log_prefix)
+    if not validate_session(session_id, user_id):
+        log.warning("%s Session validation failed or access denied.", log_prefix)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied."
+            detail="Session not found or access denied.",
         )
 
     if artifact_service is None:
@@ -152,21 +148,23 @@ async def list_artifact_versions(
 
 @router.get(
     "/{session_id}",
-    response_model=List[ArtifactInfo],
+    response_model=list[ArtifactInfo],
     summary="List Artifact Information",
     description="Retrieves detailed information for artifacts available for the specified user session.",
 )
 @router.get(
     "/",
-    response_model=List[ArtifactInfo],
+    response_model=list[ArtifactInfo],
     summary="List Artifact Information",
     description="Retrieves detailed information for artifacts available for the current user session.",
 )
 async def list_artifacts(
-    session_id: str = Path(..., title="Session ID", description="The session ID to list artifacts for"),
+    session_id: str = Path(
+        ..., title="Session ID", description="The session ID to list artifacts for"
+    ),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
-    session_service: SessionService = Depends(get_session_service),
+    validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     user_config: dict = Depends(get_user_config),
@@ -185,12 +183,16 @@ async def list_artifacts(
     log.info("%s Request received.", log_prefix)
 
     # Validate session exists and belongs to user
-    session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
-    if not session_domain:
-        log.warning("%s Session not found or access denied.", log_prefix)
+    if not validate_session(session_id, user_id):
+        log.warning(
+            "%s Session validation failed for session_id=%s, user_id=%s",
+            log_prefix,
+            session_id,
+            user_id,
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied."
+            detail="Session not found or access denied.",
         )
 
     if artifact_service is None:
@@ -231,11 +233,13 @@ async def list_artifacts(
     description="Retrieves the content of the latest version of a specific artifact.",
 )
 async def get_latest_artifact(
-    session_id: str = Path(..., title="Session ID", description="The session ID to get artifacts from"),
+    session_id: str = Path(
+        ..., title="Session ID", description="The session ID to get artifacts from"
+    ),
     filename: str = Path(..., title="Filename", description="The name of the artifact"),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
-    session_service: SessionService = Depends(get_session_service),
+    validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     user_config: dict = Depends(get_user_config),
@@ -369,16 +373,18 @@ async def get_latest_artifact(
     description="Retrieves the content of a specific version of an artifact.",
 )
 async def get_specific_artifact_version(
-    session_id: str = Path(..., title="Session ID", description="The session ID to get artifacts from"),
+    session_id: str = Path(
+        ..., title="Session ID", description="The session ID to get artifacts from"
+    ),
     filename: str = Path(..., title="Filename", description="The name of the artifact"),
-    version: Union[int, str] = Path(
+    version: int | str = Path(
         ...,
         title="Version",
         description="The specific version number to retrieve, or 'latest'",
     ),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
-    session_service: SessionService = Depends(get_session_service),
+    validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     user_config: dict = Depends(get_user_config),
@@ -397,12 +403,11 @@ async def get_specific_artifact_version(
     log.info("%s Request received.", log_prefix)
 
     # Validate session exists and belongs to user
-    session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
-    if not session_domain:
-        log.warning("%s Session not found or access denied.", log_prefix)
+    if not validate_session(session_id, user_id):
+        log.warning("%s Session validation failed or access denied.", log_prefix)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied."
+            detail="Session not found or access denied.",
         )
 
     if artifact_service is None:
@@ -424,7 +429,7 @@ async def get_specific_artifact_version(
             version=version,
             load_metadata_only=False,
             return_raw_bytes=True,
-            log_identifier_prefix=f"[ArtifactRouter:GetVersion]",
+            log_identifier_prefix="[ArtifactRouter:GetVersion]",
         )
 
         if load_result.get("status") != "success":
@@ -571,7 +576,7 @@ async def get_artifact_by_uri(
     This allows fetching artifacts from any context, not just the current user's session,
     after performing an authorization check.
     """
-    log_id_prefix = f"[ArtifactRouter:by-uri]"
+    log_id_prefix = "[ArtifactRouter:by-uri]"
     log.info(
         "%s Received request for URI: %s from user: %s",
         log_id_prefix,
@@ -676,22 +681,24 @@ async def get_artifact_by_uri(
 @router.post(
     "/{session_id}/{filename}",
     status_code=status.HTTP_201_CREATED,
-    response_model=Dict[str, Any],
+    response_model=dict[str, Any],
     summary="Upload Artifact (Create/Update Version with Metadata)",
     description="Uploads file content and optional metadata to create or update an artifact version.",
 )
 async def upload_artifact(
-    session_id: str = Path(..., title="Session ID", description="The session ID to upload artifacts to"),
+    session_id: str = Path(
+        ..., title="Session ID", description="The session ID to upload artifacts to"
+    ),
     filename: str = Path(
         ..., title="Filename", description="The name of the artifact to create/update"
     ),
     upload_file: UploadFile = File(..., description="The file content to upload"),
-    metadata_json: Optional[str] = Form(
+    metadata_json: str | None = Form(
         None, description="JSON string of artifact metadata (e.g., description, source)"
     ),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
-    session_service: SessionService = Depends(get_session_service),
+    validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     user_config: dict = Depends(get_user_config),
@@ -715,12 +722,11 @@ async def upload_artifact(
     )
 
     # Validate session exists and belongs to user
-    session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
-    if not session_domain:
-        log.warning("%s Session not found or access denied.", log_prefix)
+    if not validate_session(session_id, user_id):
+        log.warning("%s Session validation failed or access denied.", log_prefix)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied."
+            detail="Session not found or access denied.",
         )
 
     if artifact_service is None:
@@ -840,13 +846,15 @@ async def upload_artifact(
     description="Deletes an artifact and all its versions.",
 )
 async def delete_artifact(
-    session_id: str = Path(..., title="Session ID", description="The session ID to delete artifacts from"),
+    session_id: str = Path(
+        ..., title="Session ID", description="The session ID to delete artifacts from"
+    ),
     filename: str = Path(
         ..., title="Filename", description="The name of the artifact to delete"
     ),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
-    session_service: SessionService = Depends(get_session_service),
+    validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     user_config: dict = Depends(get_user_config),
@@ -865,12 +873,11 @@ async def delete_artifact(
     log.info("%s Request received.", log_prefix)
 
     # Validate session exists and belongs to user
-    session_domain = session_service.get_session(session_id=session_id, user_id=user_id)
-    if not session_domain:
-        log.warning("%s Session not found or access denied.", log_prefix)
+    if not validate_session(session_id, user_id):
+        log.warning("%s Session validation failed or access denied.", log_prefix)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied."
+            detail="Session not found or access denied.",
         )
 
     if artifact_service is None:
