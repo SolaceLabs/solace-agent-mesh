@@ -18,7 +18,7 @@ export const ChatSessions = () => {
                     
                     {/* Multi-session notice */}
                     <div className="text-muted-foreground mt-4 text-center text-xs">
-                        Multi-session support requires database configuration
+                        Multi-session support coming soon
                     </div>
                 </div>
             </div>

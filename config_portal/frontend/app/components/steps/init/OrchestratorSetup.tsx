@@ -31,7 +31,8 @@ interface OrchestratorData {
 }
 
 const sessionServiceTypeOptions = [
-  { value: 'sql', label: 'SQL: Use a SQL database for session data' },
+  /* eslint-disable-next-line */
+  // { value: 'sql', label: 'SQL: Use a SQL database for session data' },
   { value: 'memory', label: 'Memory: Store session data in memory' },
   { value: 'vertex_rag', label: 'Vertex RAG: Use Google Vertex AI for RAG capabilities' },
 ];
@@ -86,7 +87,7 @@ export default function OrchestratorSetup({
 
   const [agentName, setAgentName] = useState(orchestratorData.agent_name || 'OrchestratorAgent');
   const [supportsStreaming, setSupportsStreaming] = useState(orchestratorData.supports_streaming !== false);
-  const [sessionServiceType, setSessionServiceType] = useState(orchestratorData.session_service_type || 'sql');
+  const [sessionServiceType, setSessionServiceType] = useState(orchestratorData.session_service_type || 'memory');
   const [orchestratorDatabaseUrl, setOrchestratorDatabaseUrl] = useState(orchestratorData.orchestrator_database_url || '');
   const [sessionBehavior, setSessionBehavior] = useState(orchestratorData.session_service_behavior || 'PERSISTENT');
   const [artifactServiceType, setArtifactServiceType] = useState(orchestratorData.artifact_service_type || 'filesystem');
@@ -110,7 +111,8 @@ export default function OrchestratorSetup({
     if (orchestratorData.agent_name) setAgentName(orchestratorData.agent_name);
     if (orchestratorData.supports_streaming !== undefined) setSupportsStreaming(orchestratorData.supports_streaming);
     if (orchestratorData.session_service_type) setSessionServiceType(orchestratorData.session_service_type);
-    if (orchestratorData.orchestrator_database_url) setOrchestratorDatabaseUrl(orchestratorData.orchestrator_database_url);
+    /* eslint-disable-next-line */
+    // if (orchestratorData.orchestrator_database_url) setOrchestratorDatabaseUrl(orchestratorData.orchestrator_database_url);
     if (orchestratorData.session_service_behavior) setSessionBehavior(orchestratorData.session_service_behavior);
     if (orchestratorData.artifact_service_type) setArtifactServiceType(orchestratorData.artifact_service_type);
     if (orchestratorData.artifact_service_base_path) setArtifactBasePath(orchestratorData.artifact_service_base_path);
@@ -321,7 +323,8 @@ export default function OrchestratorSetup({
             />
           </FormField>
 
-          {sessionServiceType === 'sql' && (
+          {/* eslint-disable-next-line */}
+          {/* sessionServiceType === 'sql' && (
             <FormField
               label="Orchestrator Database URL"
               htmlFor="orchestrator_database_url"
@@ -334,7 +337,7 @@ export default function OrchestratorSetup({
                 placeholder="e.g., sqlite:///./data/orchestrator.db"
               />
             </FormField>
-          )}
+          ) */}
           
           <FormField
             label="Session Behavior"

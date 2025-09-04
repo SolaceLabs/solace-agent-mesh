@@ -244,7 +244,8 @@ export default function WebUIGatewaySetup({
               />
             </FormField>
 
-            <h4 className="text-sm font-medium text-gray-700 mt-3 mb-2">
+            {/* eslint-disable-next-line */}
+            {/* <h4 className="text-sm font-medium text-gray-700 mt-3 mb-2">
               Database Configuration
             </h4>
             <InfoBox className="mb-4">
@@ -264,7 +265,7 @@ export default function WebUIGatewaySetup({
                 onChange={handleChange}
                 placeholder="e.g., sqlite:///gatewayDatabase.db"
               />
-            </FormField>
+            </FormField> */}
           </div>
         )}
       </div>
