@@ -20,7 +20,7 @@ from .converter import (
     serialize_data,
     _parse_string_to_list_of_dicts,
 )
-from .types import DataFormat
+from .types import DataFormat, ResolutionMode
 from ..mime_helpers import is_text_based_mime_type
 
 try:
@@ -83,6 +83,7 @@ async def _evaluate_artifact_content_embed_with_chain(
     output_format_from_directive: Optional[str],
     context: Any,
     log_identifier: str,
+    resolution_mode: "ResolutionMode",
     config: Optional[Dict] = None,
     current_depth: int = 0,
     visited_artifacts: Optional[Set[Tuple[str, int]]] = None,
@@ -165,6 +166,7 @@ async def _evaluate_artifact_content_embed_with_chain(
                 context=context,
                 resolver_func=evaluate_embed,
                 types_to_resolve=EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES),
+                resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT,
                 log_identifier=log_identifier,
                 config=config,
                 max_depth=config.get("gateway_recursive_embed_depth", 12),
@@ -484,6 +486,7 @@ async def resolve_embeds_in_string(
         ..., Union[Tuple[str, Optional[str], int], Tuple[None, str, Any]]
     ],
     types_to_resolve: Set[str],
+    resolution_mode: "ResolutionMode",
     log_identifier: str = "[EmbedUtil]",
     config: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, int, List[Tuple[int, Any]]]:
@@ -548,6 +551,7 @@ async def resolve_embeds_in_string(
                 format_spec,
                 context,
                 log_identifier,
+                resolution_mode,
                 config,
             )
 
@@ -655,6 +659,7 @@ async def resolve_embeds_recursively_in_string(
     context: Any,
     resolver_func: Callable[..., Tuple[str, Optional[str], int]],
     types_to_resolve: Set[str],
+    resolution_mode: "ResolutionMode",
     log_identifier: str,
     config: Optional[Dict],
     max_depth: int,
@@ -707,6 +712,7 @@ async def resolve_embeds_recursively_in_string(
             format_spec,
             context,
             log_identifier,
+            resolution_mode,
             config,
             current_depth,
             visited_artifacts,
@@ -774,6 +780,7 @@ async def evaluate_embed(
     format_spec: Optional[str],
     context: Dict[str, Any],
     log_identifier: str,
+    resolution_mode: "ResolutionMode",
     config: Optional[Dict] = None,
     current_depth: int = 0,
     visited_artifacts: Optional[Set[Tuple[str, int]]] = None,
@@ -826,6 +833,7 @@ async def evaluate_embed(
             output_format_from_directive=output_format,
             context=context,
             log_identifier=log_identifier,
+            resolution_mode=resolution_mode,
             config=config,
             current_depth=current_depth,
             visited_artifacts=visited_artifacts or set(),
