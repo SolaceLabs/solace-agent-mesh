@@ -16,10 +16,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import StaticPool
 
-from solace_agent_mesh.gateway.http_sse.database.database_persistence_service import (
+from solace_agent_mesh.gateway.http_sse.infrastructure.persistence.database_persistence_service import (
     DatabasePersistenceService,
 )
-from solace_agent_mesh.gateway.http_sse.database.models import Base
+from solace_agent_mesh.gateway.http_sse.infrastructure.persistence.models import Base
 
 # Import FastAPI components
 from solace_agent_mesh.gateway.http_sse.main import app as fastapi_app
