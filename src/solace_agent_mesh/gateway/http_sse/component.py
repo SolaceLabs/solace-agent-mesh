@@ -1376,6 +1376,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 context=embed_context,
                 resolver_func=evaluate_embed,
                 types_to_resolve=EARLY_EMBED_TYPES,
+                resolution_mode=ResolutionMode.TOOL_PARAMETER,
                 log_identifier=log_identifier,
                 config=embed_context["config"],
             )
