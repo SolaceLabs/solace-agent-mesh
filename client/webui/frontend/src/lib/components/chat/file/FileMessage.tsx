@@ -14,7 +14,7 @@ import { getRenderType, getFileContent } from "../preview/previewUtils";
 import { ContentRenderer } from "../preview/ContentRenderer";
 import { MessageBanner } from "../../common";
 
-const INLINE_RENDERABLE_TYPES = ["image", "audio", "markdown", "csv", "json", "yaml"];
+const INLINE_RENDERABLE_TYPES = ["image", "audio", "markdown", "csv", "json", "yaml", "text"];
 
 interface FileAttachmentMessageProps {
     fileAttachment: FileAttachment;
@@ -119,7 +119,7 @@ export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps
                 return renderFallbackBadge();
             }
 
-            const scrollableRenderTypes = ["csv", "json", "yaml", "markdown"];
+            const scrollableRenderTypes = ["csv", "json", "yaml", "markdown", "text"];
             const rendererContainerStyle: React.CSSProperties =
                 renderType && scrollableRenderTypes.includes(renderType) ? { maxHeight: "400px", overflowY: "auto" } : {};
 
