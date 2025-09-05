@@ -1184,9 +1184,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 (summary_str[:100] + "...") if len(summary_str) > 100 else summary_str
             )
         except Exception:
-            details["payload_summary"]["params_preview"] = (
-                "[Could not serialize payload]"
-            )
+            details["payload_summary"][
+                "params_preview"
+            ] = "[Could not serialize payload]"
 
         return details
 
@@ -1639,9 +1639,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         session_id,
                         user_id,
                         message_text[:100] if message_text else None,
-                        len(a2a.get_parts_from_message(task_data.status.message))
-                        if task_data.status and task_data.status.message
-                        else 0,
+                        (
+                            len(a2a.get_parts_from_message(task_data.status.message))
+                            if task_data.status and task_data.status.message
+                            else 0
+                        ),
                     )
 
                     if message_text and session_id and user_id:

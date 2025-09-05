@@ -6,6 +6,7 @@ calls within each tool module.
 """
 
 from . import builtin_artifact_tools
+from . import enterprise_builtin_data_analysis_tools
 from . import builtin_data_analysis_tools
 from . import general_agent_tools
 from . import audio_tools

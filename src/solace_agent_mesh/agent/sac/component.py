@@ -7,10 +7,7 @@ import asyncio
 import functools
 import threading
 import concurrent.futures
-import uuid
 import fnmatch
-import base64
-from datetime import datetime, timezone
 import json
 from solace_ai_connector.common.message import (
     Message as SolaceMessage,

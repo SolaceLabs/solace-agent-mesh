@@ -5,7 +5,6 @@ Base Component class for Gateway implementations in the Solace AI Connector.
 import asyncio
 import queue
 import re
-import base64
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, List, Tuple, Union
@@ -33,18 +32,14 @@ from a2a.types import (
     JSONRPCError,
     TextPart,
     FilePart,
-    FileWithBytes,
     Artifact as A2AArtifact,
 )
 from ...common import a2a
-from ...common.utils import is_text_based_mime_type
 from ...common.utils.embeds import (
     resolve_embeds_in_string,
-    resolve_embeds_recursively_in_string,
     evaluate_embed,
     LATE_EMBED_TYPES,
     EARLY_EMBED_TYPES,
-    EMBED_DELIMITER_OPEN,
 )
 from ...common.utils.embeds.types import ResolutionMode
 from ...agent.utils.artifact_helpers import (

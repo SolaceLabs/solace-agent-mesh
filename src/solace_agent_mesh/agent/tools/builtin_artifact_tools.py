@@ -32,11 +32,13 @@ from ...common.utils.embeds import (
     EMBED_REGEX,
     EMBED_CHAIN_DELIMITER,
 )
+from ...common.utils.embeds.types import ResolutionMode
 from ...agent.utils.context_helpers import get_original_session_id
 from ...agent.adk.models.lite_llm import LiteLlm
 from google.adk.models import LlmRequest
 from google.adk.models.registry import LLMRegistry
 from ...common.utils.mime_helpers import is_text_based_file
+
 
 async def _internal_create_artifact(
     filename: str,
@@ -446,7 +448,6 @@ async def load_artifact(
         }
 
 
-
 async def apply_embed_and_create_artifact(
     output_filename: str,
     embed_directive: str,
@@ -540,6 +541,7 @@ async def apply_embed_and_create_artifact(
         format_spec=format_spec,
         context=gateway_context,
         log_identifier=log_identifier,
+        resolution_mode=ResolutionMode.TOOL_PARAMETER,
         config=embed_config,
     )
 
@@ -857,7 +859,7 @@ async def extract_content_from_artifact(
         mime_type=normalized_source_mime_type,
         content_bytes=source_artifact_content_bytes,
     )
-            
+
     if is_text_based:
         try:
             artifact_text_content = source_artifact_content_bytes.decode("utf-8")

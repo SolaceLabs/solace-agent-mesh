@@ -2,15 +2,9 @@
 Custom MCPToolset that resolves embeds in tool parameters before calling MCP tools.
 """
 
-import asyncio
 from typing import Dict, List, Optional, Any
 
 from google.adk.tools.mcp_tool import MCPToolset, MCPTool
-from google.adk.tools.mcp_tool.mcp_session_manager import (
-    SseConnectionParams,
-    StdioConnectionParams,
-    StreamableHTTPConnectionParams,
-)
 from google.adk.tools.tool_context import ToolContext
 from solace_ai_connector.common.log import log
 
@@ -22,6 +16,7 @@ from ...common.utils.embeds import (
     LATE_EMBED_TYPES,
     EMBED_DELIMITER_OPEN,
 )
+from ...common.utils.embeds.types import ResolutionMode
 
 
 class EmbedResolvingMCPTool(MCPTool):
@@ -112,6 +107,7 @@ class EmbedResolvingMCPTool(MCPTool):
                         types_to_resolve=EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES),
                         log_identifier=log_identifier,
                         config=self._tool_config,
+                        resolution_mode=ResolutionMode.TOOL_PARAMETER,
                     )
                     return resolved_value
                 except Exception as e:

@@ -17,7 +17,6 @@ from ...common.utils.embeds import (
     EMBED_DELIMITER_OPEN,
 )
 from ...common.utils.embeds.types import ResolutionMode
-from ...common.utils.embeds.types import ResolutionMode
 
 
 class ADKToolWrapper:
