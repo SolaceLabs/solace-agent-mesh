@@ -174,6 +174,16 @@ async def process_artifact_blocks_callback(
                             await _publish_data_part_status_update(
                                 host_component, a2a_context, progress_data
                             )
+                            # Also send an initial in-progress event to create the UI bubble
+                            artifact_progress_data = ArtifactCreationProgressData(
+                                filename=filename,
+                                status="in-progress",
+                                bytes_transferred=0,
+                                artifact_chunk=None,
+                            )
+                            await _publish_data_part_status_update(
+                                host_component, a2a_context, artifact_progress_data
+                            )
                         params_str = " ".join(
                             [f'{k}="{v}"' for k, v in event.params.items()]
                         )

@@ -499,6 +499,35 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 metadata: { lastProcessedEventSequence: currentEventSequence },
                                             });
                                             return filteredMessages;
+                                        } else if (status === "completed" || status === "failed") {
+                                            // This handles the case where a 'completed' or 'failed' event arrives
+                                            // without a preceding 'in-progress' event (e.g., for very small artifacts).
+                                            const filteredMessages = newMessages.filter(m => !(m.isStatusBubble && !m.inProgressArtifact));
+                                            if (status === "completed") {
+                                                filteredMessages.push({
+                                                    role: "agent",
+                                                    parts: [],
+                                                    taskId: (result as TaskStatusUpdateEvent).taskId,
+                                                    isUser: false,
+                                                    isComplete: true,
+                                                    metadata: { lastProcessedEventSequence: currentEventSequence },
+                                                    artifactNotification: { name: filename, mime_type: mime_type },
+                                                });
+                                                // Trigger a refetch of artifacts in the background
+                                                void artifactsRefetch();
+                                            } else {
+                                                // status === "failed"
+                                                filteredMessages.push({
+                                                    role: "agent",
+                                                    parts: [{ kind: "text", text: `Failed to create artifact: ${filename}` }],
+                                                    taskId: (result as TaskStatusUpdateEvent).taskId,
+                                                    isUser: false,
+                                                    isError: true,
+                                                    isComplete: true,
+                                                    metadata: { lastProcessedEventSequence: currentEventSequence },
+                                                });
+                                            }
+                                            return filteredMessages;
                                         }
                                         return newMessages;
                                     });
