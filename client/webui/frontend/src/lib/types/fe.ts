@@ -102,12 +102,18 @@ export interface MessageFE {
     isThinkingMessage?: boolean; // Specific flag for the "thinking" status message
     isComplete?: boolean; // ADDED: True if the agent response associated with this message is complete
     isError?: boolean; // ADDED: True if this message represents an error/failure
+    inProgressArtifact?: {
+        name: string;
+        bytesTransferred: number;
+        status: "in-progress" | "completed" | "failed";
+    };
     files?: FileAttachment[]; // Array of files returned by the agent with this message
     uploadedFiles?: File[]; // Array of files uploaded by the user with this message
     artifactNotification?: {
         // ADDED: For displaying artifact arrival notifications
         name: string;
         version?: number; // Optional: If version info is available from metadata
+        mime_type?: string; // Optional: MIME type for immediate rendering
     };
     toolEvents?: ToolEvent[]; // --- NEW: Array to hold tool call results ---
     metadata?: {
