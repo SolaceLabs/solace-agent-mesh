@@ -17,7 +17,7 @@ except ImportError:
 DEFAULT_OFFICIAL_REGISTRY_URL = (
     "https://github.com/SolaceLabs/solace-agent-mesh-core-plugins"
 )
-OFFICIAL_REGISTRY_GIT_BRANCH = "main"
+OFFICIAL_REGISTRY_GIT_BRANCH = "samv1.0-compatible"
 IGNORE_OFFICIAL_FLAG_REPOS = []
 
 USER_REGISTRIES_PATH = SAM_HOME / "plugin_catalog_registries.json"
