@@ -186,7 +186,7 @@ async def process_artifact_blocks_callback(
                             log_identifier,
                             event.buffered_size,
                         )
-                        params = parser._block_params
+                        params = event.params
                         filename = params.get("filename", "unknown_artifact")
                         if a2a_context:
                             progress_data = ArtifactCreationProgressData(
