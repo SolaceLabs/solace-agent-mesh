@@ -10,6 +10,11 @@ on:
           - patch
           - minor
           - major
+      custom_ref:
+        type: string
+        required: false
+        default: "main"
+        description: "Custom git ref to checkout and release from"
 
 permissions:
   id-token: write
@@ -19,7 +24,7 @@ permissions:
 
 jobs:
   release:
-    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_pypi.yml@main
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_pypi.yml@cust-ref
     with:
       ENVIRONMENT: pypi
       version: ${{ github.event.inputs.version }}
@@ -31,6 +36,7 @@ jobs:
       node_version: 20
       npm_lock_file: package-lock.json
       pypi-project: solace-agent-mesh
+      custom_ref: ${{ github.event.inputs.custom_ref }}
 
     secrets:
       COMMIT_KEY: ${{ secrets.COMMIT_KEY }}
