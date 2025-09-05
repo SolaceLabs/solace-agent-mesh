@@ -69,6 +69,7 @@ gcs = ["google-cloud-storage>=2.0"]
 s3 = ["boto3>=1.35.0,<2.0"]
 vertex = ["google-cloud-aiplatform>=1.38"]
 employee_tools = ["holidays>=0.24"]
+postgresql = ["psycopg2-binary>=2.9.0"]
 cli = [
     "click>=8.0",
     "prompt-toolkit>=3.0",
