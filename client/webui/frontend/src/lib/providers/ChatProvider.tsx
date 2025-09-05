@@ -402,19 +402,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     currentTaskIdFromResult = result.taskId;
                     break;
                 case "artifact-update":
-                    artifactToProcess = result.artifact;
-                    currentTaskIdFromResult = result.taskId;
-                    // Finalize the in-progress message by removing it.
-                    // The new artifact notification bubble will be created later in the handler.
-                    setMessages(prev => {
-                        const newMessages = [...prev];
-                        const existingIndex = newMessages.findIndex(m => m.inProgressArtifact?.name === artifactToProcess?.name);
-                        if (existingIndex > -1) {
-                            newMessages.splice(existingIndex, 1);
-                        }
-                        return newMessages;
-                    });
-                    break;
+                    // An artifact was created or updated, refetch the list for the side panel.
+                    void artifactsRefetch();
+                    return; // No further processing needed for this event.
                 default:
                     console.warn("Received unknown result kind in SSE message:", result);
                     return;
@@ -441,97 +431,64 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                                     setMessages(prev => {
                                         const newMessages = [...prev];
-                                        const existingIndex = newMessages.findIndex(m => m.inProgressArtifact?.name === filename);
+                                        // Find the last agent message for the current task to attach the artifact progress to.
+                                        let agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && m.taskId === currentTaskIdFromResult);
 
-                                        if (existingIndex > -1) {
-                                            if (status === "completed") {
-                                                // Finalize the message: transform it into an artifact notification
-                                                newMessages[existingIndex] = {
-                                                    ...newMessages[existingIndex],
-                                                    inProgressArtifact: undefined,
-                                                    artifactNotification: {
-                                                        name: filename,
-                                                        mime_type: mime_type,
-                                                    },
-                                                    isComplete: true,
-                                                    isStatusBubble: false, // No longer just a status
-                                                };
-                                                // Trigger a refetch of artifacts in the background
-                                                void artifactsRefetch();
-                                            } else if (status === "failed") {
-                                                // Transform into an error message
-                                                newMessages[existingIndex] = {
-                                                    ...newMessages[existingIndex],
-                                                    inProgressArtifact: undefined,
-                                                    parts: [{ kind: "text", text: `Failed to create artifact: ${filename}` }],
-                                                    isError: true,
-                                                    isComplete: true,
-                                                    isStatusBubble: false,
-                                                };
-                                            } else {
-                                                // Update the in-progress state
-                                                newMessages[existingIndex] = {
-                                                    ...newMessages[existingIndex],
-                                                    inProgressArtifact: {
-                                                        name: filename,
-                                                        bytesTransferred: bytes_transferred,
-                                                        status: status,
-                                                    },
-                                                    metadata: {
-                                                        ...newMessages[existingIndex].metadata,
-                                                        lastProcessedEventSequence: currentEventSequence,
-                                                    },
-                                                };
-                                            }
-                                        } else if (status === "in-progress") {
-                                            // Create new in-progress message, removing any generic status bubble first
-                                            const filteredMessages = newMessages.filter(m => !(m.isStatusBubble && !m.inProgressArtifact));
-                                            filteredMessages.push({
+                                        // If no agent message exists for this task, create one.
+                                        if (agentMessageIndex === -1) {
+                                            const newAgentMessage: MessageFE = {
+                                                role: "agent",
+                                                parts: [],
+                                                taskId: currentTaskIdFromResult,
                                                 isUser: false,
-                                                isStatusBubble: true,
-                                                inProgressArtifact: {
+                                                isComplete: false,
+                                                metadata: { lastProcessedEventSequence: currentEventSequence },
+                                            };
+                                            newMessages.push(newAgentMessage);
+                                            agentMessageIndex = newMessages.length - 1;
+                                        }
+
+                                        const agentMessage = { ...newMessages[agentMessageIndex], parts: [...newMessages[agentMessageIndex].parts] };
+                                        const inProgressPartIndex = agentMessage.parts.findIndex(p => p.kind === "in-progress-artifact" && p.name === filename);
+
+                                        if (status === "in-progress") {
+                                            if (inProgressPartIndex > -1) {
+                                                // Update existing in-progress part
+                                                (agentMessage.parts[inProgressPartIndex] as InProgressArtifactPart).bytesTransferred = bytes_transferred;
+                                            } else {
+                                                // Add new in-progress part
+                                                agentMessage.parts.push({
+                                                    kind: "in-progress-artifact",
                                                     name: filename,
                                                     bytesTransferred: bytes_transferred,
-                                                    status: status,
-                                                },
-                                                taskId: (result as TaskStatusUpdateEvent).taskId,
-                                                parts: [],
-                                                metadata: { lastProcessedEventSequence: currentEventSequence },
-                                            });
-                                            return filteredMessages;
-                                        } else if (status === "completed" || status === "failed") {
-                                            // This handles the case where a 'completed' or 'failed' event arrives
-                                            // without a preceding 'in-progress' event (e.g., for very small artifacts).
-                                            const filteredMessages = newMessages.filter(m => !(m.isStatusBubble && !m.inProgressArtifact));
-                                            if (status === "completed") {
-                                                filteredMessages.push({
-                                                    role: "agent",
-                                                    parts: [],
-                                                    taskId: (result as TaskStatusUpdateEvent).taskId,
-                                                    isUser: false,
-                                                    isComplete: true,
-                                                    metadata: { lastProcessedEventSequence: currentEventSequence },
-                                                    artifactNotification: { name: filename, mime_type: mime_type },
-                                                });
-                                                // Trigger a refetch of artifacts in the background
-                                                void artifactsRefetch();
-                                            } else {
-                                                // status === "failed"
-                                                filteredMessages.push({
-                                                    role: "agent",
-                                                    parts: [{ kind: "text", text: `Failed to create artifact: ${filename}` }],
-                                                    taskId: (result as TaskStatusUpdateEvent).taskId,
-                                                    isUser: false,
-                                                    isError: true,
-                                                    isComplete: true,
-                                                    metadata: { lastProcessedEventSequence: currentEventSequence },
                                                 });
                                             }
-                                            return filteredMessages;
+                                        } else if (status === "completed") {
+                                            const filePart: FilePart = {
+                                                kind: "file",
+                                                file: { uri: `artifact://${sessionId}/${filename}`, name: filename, mimeType: mime_type },
+                                            };
+                                            if (inProgressPartIndex > -1) {
+                                                // Replace in-progress part with final file part
+                                                agentMessage.parts.splice(inProgressPartIndex, 1, filePart);
+                                            } else {
+                                                agentMessage.parts.push(filePart);
+                                            }
+                                            void artifactsRefetch();
+                                        } else { // status === "failed"
+                                            const errorPart: TextPart = { kind: "text", text: `\n\n> Failed to create artifact: ${filename}` };
+                                            if (inProgressPartIndex > -1) {
+                                                // Remove in-progress part and add error text
+                                                agentMessage.parts.splice(inProgressPartIndex, 1);
+                                            }
+                                            agentMessage.parts.push(errorPart);
+                                            agentMessage.isError = true;
                                         }
-                                        return newMessages;
+
+                                        newMessages[agentMessageIndex] = agentMessage;
+                                        // Remove any generic status bubble since we have specific progress.
+                                        return newMessages.filter(m => !m.isStatusBubble);
                                     });
-                                    // Prevent this from updating the main status text
                                     break;
                                 }
                                 case "tool_invocation_start":
@@ -555,26 +512,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const hasNewText = newContentParts.some(p => p.kind === "text" && (p as TextPart).text.trim());
                 const hasNewArtifactNotification = !!artifactToProcess;
 
-                // If new content is arriving, finalize any in-progress artifact for this task.
-                if (hasNewText || hasNewFiles || hasNewArtifactNotification) {
-                    const inProgressIndex = newMessages.findIndex(m => m.inProgressArtifact && m.taskId === currentTaskIdFromResult);
-
-                    if (inProgressIndex > -1) {
-                        const inProgressMessage = newMessages[inProgressIndex];
-                        const artifactName = inProgressMessage.inProgressArtifact!.name;
-
-                        // Replace the in-progress bubble with a final artifact notification bubble.
-                        newMessages[inProgressIndex] = {
-                            role: "agent",
-                            parts: [],
-                            taskId: currentTaskIdFromResult,
-                            isUser: false,
-                            isComplete: true,
-                            metadata: { ...inProgressMessage.metadata },
-                            artifactNotification: { name: artifactName },
-                        };
-                    }
-                }
 
                 let lastMessage = newMessages[newMessages.length - 1];
 
@@ -599,7 +536,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 } else {
                     // Only create a new bubble if there is visible content to render.
                     const hasVisibleContent = newContentParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file");
-                    if (hasVisibleContent || artifactToProcess) {
+                    if (hasVisibleContent) {
                         const newBubble: MessageFE = {
                             role: "agent",
                             parts: newContentParts,
@@ -611,7 +548,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 sessionId: (result as TaskStatusUpdateEvent).contextId,
                                 lastProcessedEventSequence: currentEventSequence,
                             },
-                            artifactNotification: artifactToProcess ? { name: artifactToProcess.name || artifactToProcess.artifactId } : undefined,
                         };
                         newMessages.push(newBubble);
                     }
@@ -633,20 +569,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     });
                 } else if (isFinalEvent) {
                     latestStatusText.current = null;
-                    // Finalize any lingering in-progress artifact bubbles for this task
+                    // Finalize any lingering in-progress artifact parts for this task
                     for (let i = newMessages.length - 1; i >= 0; i--) {
                         const msg = newMessages[i];
-                        if (msg.inProgressArtifact && msg.taskId === currentTaskIdFromResult) {
-                            const artifactName = msg.inProgressArtifact.name;
-                            // Replace with a final notification
+                        if (msg.taskId === currentTaskIdFromResult && msg.parts.some(p => p.kind === "in-progress-artifact")) {
+                            const finalParts: PartFE[] = msg.parts.map(p => {
+                                if (p.kind === "in-progress-artifact") {
+                                    // Replace in-progress part with a failure message
+                                    return { kind: "text", text: `\n\n> Artifact creation for "${p.name}" did not complete.` };
+                                }
+                                return p;
+                            });
                             newMessages[i] = {
-                                role: "agent",
-                                parts: [],
-                                taskId: currentTaskIdFromResult,
-                                isUser: false,
+                                ...msg,
+                                parts: finalParts,
+                                isError: true, // Mark as error because it didn't complete
                                 isComplete: true,
-                                metadata: { ...msg.metadata },
-                                artifactNotification: { name: artifactName },
                             };
                         }
                     }
