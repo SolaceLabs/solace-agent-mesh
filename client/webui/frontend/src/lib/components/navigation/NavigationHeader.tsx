@@ -18,7 +18,7 @@ interface NavigationHeaderProps {
 
 export const NavigationHeader: React.FC<NavigationHeaderProps> = ({ onClick }) => {
     return (
-        <div className="flex h-[80px] cursor-pointer items-center justify-center border-b" onClick={onClick}>
+        <div className="flex h-[80px] min-h-[80px] cursor-pointer items-center justify-center border-b" onClick={onClick}>
             <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full">
                 {HEADER_ICON}
             </div>
