@@ -91,6 +91,7 @@ const getUploadedFiles = (message: MessageFE) => {
 
 
 const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean) => {
+    console.log(`[ChatMessage] Rendering bubble for message:`, message);
     const { openSidePanelTab, setTaskIdInSidePanel } = chatContext;
 
     if (message.isStatusBubble) {
@@ -115,6 +116,8 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
     if (currentTextGroup) {
         groupedParts.push({ kind: "text", text: currentTextGroup });
     }
+
+    console.log(`[ChatMessage] Grouped parts for message:`, groupedParts);
 
     const hasContent = groupedParts.some(p => (p.kind === "text" && p.text.trim()) || p.kind === "file" || p.kind === "in-progress-artifact");
     if (!hasContent) {
@@ -156,6 +159,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                         );
                     }
                     if (part.kind === "in-progress-artifact") {
+                        console.log(`[ChatMessage] Rendering InProgressFileMessage for part:`, part);
                         const inProgressPart = part as InProgressArtifactPart;
                         return (
                             <div key={`part-inprogress-${index}`} className="my-2">
