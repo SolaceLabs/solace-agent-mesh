@@ -1729,7 +1729,7 @@ class SamAgentComponent(SamComponentBase):
                 log_id,
                 len(signals_found),
             )
-            for _signal_index, signal_data_tuple in signals_found:
+            for _signal_index, signal_data_tuple, _ in signals_found:
                 if (
                     isinstance(signal_data_tuple, tuple)
                     and len(signal_data_tuple) == 3
