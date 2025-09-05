@@ -1,16 +1,15 @@
 import React, { useState } from "react";
 import type { ReactNode } from "react";
 
-import { AlertCircle, FileText } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
 import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner } from "@/lib/components";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
-import type { FileAttachment, MessageFE, TextPart } from "@/lib/types";
+import type { FileAttachment, FilePart, InProgressArtifactPart, MessageFE, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
 
 import { FileAttachmentMessage, FileMessage, InProgressFileMessage } from "./file";
-import { ArtifactNotificationMessage } from "./artifact";
 import { ContentRenderer } from "./preview/ContentRenderer";
 import { extractEmbeddedContent } from "./preview/contentUtils";
 import { decodeBase64Content } from "./preview/previewUtils";
@@ -90,55 +89,34 @@ const getUploadedFiles = (message: MessageFE) => {
 };
 
 
-const getArtifactNotification = (message: MessageFE) => {
-    if (message.artifactNotification) {
-        return (
-            <MessageWrapper message={message}>
-                <ArtifactNotificationMessage artifactName={message.artifactNotification.name} mimeType={message.artifactNotification.mime_type} />
-            </MessageWrapper>
-        );
-    }
-    return null;
-};
-
-const getInProgressFile = (message: MessageFE) => {
-    if (message.inProgressArtifact) {
-        return (
-            <MessageWrapper message={message}>
-                <InProgressFileMessage name={message.inProgressArtifact.name} bytesTransferred={message.inProgressArtifact.bytesTransferred} />
-            </MessageWrapper>
-        );
-    }
-    return null;
-};
 
 const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean) => {
     const { openSidePanelTab, setTaskIdInSidePanel } = chatContext;
 
-    if (message.isStatusBubble && !message.inProgressArtifact) {
+    if (message.isStatusBubble) {
         return null;
     }
 
     // Group contiguous parts to handle interleaving of text and files
-    const groupedParts: (TextPart | FilePart)[] = [];
+    const groupedParts: (TextPart | FilePart | InProgressArtifactPart)[] = [];
     let currentTextGroup = "";
 
     message.parts?.forEach(part => {
         if (part.kind === "text") {
             currentTextGroup += (part as TextPart).text;
-        } else if (part.kind === "file") {
+        } else if (part.kind === "file" || part.kind === "in-progress-artifact") {
             if (currentTextGroup) {
                 groupedParts.push({ kind: "text", text: currentTextGroup });
                 currentTextGroup = "";
             }
-            groupedParts.push(part as FilePart);
+            groupedParts.push(part);
         }
     });
     if (currentTextGroup) {
         groupedParts.push({ kind: "text", text: currentTextGroup });
     }
 
-    const hasContent = groupedParts.some(p => (p.kind === "text" && p.text.trim()) || p.kind === "file");
+    const hasContent = groupedParts.some(p => (p.kind === "text" && p.text.trim()) || p.kind === "file" || p.kind === "in-progress-artifact");
     if (!hasContent) {
         return null;
     }
@@ -177,6 +155,14 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                             </div>
                         );
                     }
+                    if (part.kind === "in-progress-artifact") {
+                        const inProgressPart = part as InProgressArtifactPart;
+                        return (
+                            <div key={`part-inprogress-${index}`} className="my-2">
+                                <InProgressFileMessage name={inProgressPart.name} bytesTransferred={inProgressPart.bytesTransferred} />
+                            </div>
+                        );
+                    }
                     return null;
                 })}
                 {showWorkflowButton && (
@@ -197,8 +183,6 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
         <>
             {getChatBubble(message, chatContext, isLastWithTaskId)}
             {getUploadedFiles(message)}
-            {getInProgressFile(message)}
-            {getArtifactNotification(message)}
         </>
     );
 };
