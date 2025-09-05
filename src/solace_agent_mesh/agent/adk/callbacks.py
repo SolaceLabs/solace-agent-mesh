@@ -191,7 +191,8 @@ async def process_artifact_blocks_callback(
                         if a2a_context:
                             progress_data = ArtifactCreationProgressData(
                                 filename=filename,
-                                bytes_saved=event.buffered_size,
+                                status="in-progress",
+                                bytes_transferred=event.buffered_size,
                                 artifact_chunk=event.chunk,
                             )
                             await _publish_data_part_status_update(
@@ -233,6 +234,15 @@ async def process_artifact_blocks_callback(
                                     "original_text": original_text,
                                 }
                             )
+                            if a2a_context:
+                                progress_data = ArtifactCreationProgressData(
+                                    filename=filename or "unknown_artifact",
+                                    status="failed",
+                                    bytes_transferred=0,
+                                )
+                                await _publish_data_part_status_update(
+                                    host_component, a2a_context, progress_data
+                                )
                             continue
 
                         kwargs_for_call = {
@@ -296,9 +306,28 @@ async def process_artifact_blocks_callback(
                                     log_identifier,
                                     e_track,
                                 )
+                            if a2a_context:
+                                progress_data = ArtifactCreationProgressData(
+                                    filename=filename,
+                                    status="completed",
+                                    bytes_transferred=len(event.content),
+                                    mime_type=params.get("mime_type"),
+                                )
+                                await _publish_data_part_status_update(
+                                    host_component, a2a_context, progress_data
+                                )
                         else:
                             status_for_tool = "error"
                             version_for_tool = 0
+                            if a2a_context:
+                                progress_data = ArtifactCreationProgressData(
+                                    filename=filename,
+                                    status="failed",
+                                    bytes_transferred=len(event.content),
+                                )
+                                await _publish_data_part_status_update(
+                                    host_component, a2a_context, progress_data
+                                )
 
                         session.state["completed_artifact_blocks_list"].append(
                             {
