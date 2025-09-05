@@ -47,6 +47,7 @@ apps:
             Format responses to the user in Markdown using appropriate formatting.
 
       # --- Frontend Config Passthrough ---
-      frontend_welcome_message: Hello, how can I assist you?
+      frontend_welcome_message: >
+            
       frontend_bot_name: Solace Agent Mesh
       frontend_collect_feedback: false

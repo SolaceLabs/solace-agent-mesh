@@ -1,6 +1,6 @@
 {
   "name": "@SolaceLabs/solace-agent-mesh-ui",
-  "version": "0.4.2",
+  "version": "0.4.1",
   "description": "Solace Agent Mesh UI components - React library for building agent communication interfaces",
   "author": "SolaceLabs <solacelabs@solace.com>",
   "license": "Apache-2.0",
@@ -51,11 +51,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.2.1",
     "@radix-ui/react-accordion": "^1.2.11",
+    "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.14",
+    "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-popover": "^1.1.14",
-    "@radix-ui/react-select": "^2.2.5",
+    "@radix-ui/react-scroll-area": "^1.2.10",
+    "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-separator": "^1.1.7",
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tabs": "^1.1.12",
@@ -79,7 +83,8 @@
     "recharts": "^2.15.3",
     "tailwind-merge": "^3.3.0",
     "tailwind-scrollbar-hide": "^4.0.0",
-    "tailwindcss": "^4.1.10"
+    "tailwindcss": "^4.1.10",
+    "zod": "^4.0.17"
   },
   "peerDependencies": {
     "react": ">=19.0.0",

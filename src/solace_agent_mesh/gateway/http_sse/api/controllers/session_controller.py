@@ -1,3 +1,8 @@
+"""
+Session API controller using 3-tiered architecture.
+"""
+
+from typing import Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from solace_ai_connector.common.log import log
 
@@ -27,17 +32,26 @@ router = APIRouter()
 
 @router.get("/sessions", response_model=SessionListResponse)
 async def get_all_sessions(
+    project_id: Optional[str] = None,
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(get_session_service),
+    session_service: SessionService = Depends(
+        get_session_service
+    ),
 ):
     user_id = user.get("id")
-    log.info("Fetching sessions for user_id: %s", user_id)
+    log_msg = f"Fetching sessions for user_id: {user_id}"
+    if project_id:
+        log_msg += f" for project_id: {project_id}"
+    log.info(log_msg)
 
+    log.info(project_id)
     try:
         request_dto = GetSessionsRequest(user_id=user_id)
 
         session_domains = session_service.get_user_sessions(
-            user_id=request_dto.user_id, pagination=request_dto.pagination
+            user_id=request_dto.user_id,
+            pagination=request_dto.pagination,
+            #project_id=project_id,
         )
 
         session_responses = []
@@ -47,6 +61,7 @@ async def get_all_sessions(
                 user_id=domain.user_id,
                 name=domain.name,
                 agent_id=domain.agent_id,
+                #project_id=domain.project_id,
                 status=domain.status,
                 created_at=domain.created_at,
                 updated_at=domain.updated_at,
@@ -72,7 +87,9 @@ async def get_all_sessions(
 async def get_session(
     session_id: str,
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(get_session_service),
+    session_service: SessionService = Depends(
+        get_session_service
+    ),
 ):
     user_id = user.get("id")
     log.info("User %s attempting to fetch session_id: %s", user_id, session_id)
@@ -105,6 +122,7 @@ async def get_session(
             user_id=session_domain.user_id,
             name=session_domain.name,
             agent_id=session_domain.agent_id,
+            project_id=session_domain.project_id,
             status=session_domain.status,
             created_at=session_domain.created_at,
             updated_at=session_domain.updated_at,
@@ -130,7 +148,9 @@ async def get_session(
 async def get_session_history(
     session_id: str,
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(get_session_service),
+    session_service: SessionService = Depends(
+        get_session_service
+    ),
 ):
     user_id = user.get("id")
     log.info(
@@ -202,7 +222,9 @@ async def update_session_name(
     session_id: str,
     name: str = Body(..., embed=True),
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(get_session_service),
+    session_service: SessionService = Depends(
+        get_session_service
+    ),
 ):
     user_id = user.get("id")
     log.info("User %s attempting to update session %s", user_id, session_id)
@@ -239,6 +261,7 @@ async def update_session_name(
             user_id=updated_domain.user_id,
             name=updated_domain.name,
             agent_id=updated_domain.agent_id,
+            project_id=updated_domain.project_id,
             status=updated_domain.status,
             created_at=updated_domain.created_at,
             updated_at=updated_domain.updated_at,
@@ -269,7 +292,9 @@ async def update_session_name(
 async def delete_session(
     session_id: str,
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(get_session_service),
+    session_service: SessionService = Depends(
+        get_session_service
+    ),
     publish_func: PublishFunc = Depends(get_publish_a2a_func),
     namespace: str = Depends(get_namespace),
 ):

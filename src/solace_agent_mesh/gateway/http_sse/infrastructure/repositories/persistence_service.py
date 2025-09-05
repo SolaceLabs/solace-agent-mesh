@@ -1,5 +1,5 @@
-from .dependency_injection.container import ApplicationContainer
-from .persistence.database_service import DatabaseService
+from ..dependency_injection.container import ApplicationContainer
+from ..persistence.database_service import DatabaseService
 
 
 class PersistenceService:

@@ -11,7 +11,7 @@ log:
 apps:
   - name: webui_example_app
     app_base_path: . # Assume running from project root where src/ is located
-    app_module: solace_agent_mesh.gateway.http_sse.app
+    app_module: src.solace_agent_mesh.gateway.http_sse.app
 
     # Broker settings for this app instance
     broker:
@@ -21,8 +21,17 @@ apps:
     # --- App Level Config (Validated by WebUIBackendApp.app_schema) ---
     app_config:
       # --- Required ---
-      namespace: ${NAMESPACE} # Namespace for A2A communication
-      session_secret_key: ${SESSION_SECRET_KEY} # Secret for web sessions
+      namespace: ${NAMESPACE, a2a/dev} # Namespace for A2A communication
+      session_secret_key: ${SESSION_SECRET_KEY, please_change_me_in_production} # Secret for web sessions
+      # --- Authorization Service (Required for proper access control) ---
+      authorization_service:
+        type: "default_rbac"
+        role_definitions_path: "examples/auth/dev-roles.yaml"
+        user_assignments_path: "examples/auth/dev-users.yaml"
+      session_service:
+        type: sql
+        database_url: ${WEB_UI_GATEWAY_DATABASE_URL}
+        default_behavior: "PERSISTENT"
 
       # --- Authorization Service (Required for proper access control) ---
       # authorization_service:
@@ -66,6 +75,7 @@ apps:
             Format responses to the user in Markdown using appropriate formatting.
 
       # --- Frontend Config Passthrough ---
-      frontend_welcome_message: ${FRONTEND_WELCOME_MESSAGE}
-      frontend_bot_name: ${FRONTEND_BOT_NAME}
-      frontend_collect_feedback: ${FRONTEND_COLLECT_FEEDBACK}
+      frontend_welcome_message: >
+            __FRONTEND_WELCOME_MESSAGE__
+      frontend_bot_name: __FRONTEND_BOT_NAME__
+      frontend_collect_feedback: __FRONTEND_COLLECT_FEEDBACK__

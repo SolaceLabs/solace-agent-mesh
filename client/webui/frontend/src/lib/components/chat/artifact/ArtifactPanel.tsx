@@ -33,7 +33,7 @@ export const ArtifactPanel: React.FC = () => {
     const header = useMemo(() => {
         if (previewArtifact) {
             return (
-                <div className="flex items-center gap-2 border-b p-2">
+                <div className="flex items-center gap-2 border-b px-8 py-4">
                     <Button variant="ghost" onClick={() => setPreviewArtifact(null)}>
                         <ArrowLeft />
                     </Button>
@@ -44,7 +44,7 @@ export const ArtifactPanel: React.FC = () => {
         
         return (
             sortedArtifacts.length > 0 && (
-                <div className="flex items-center justify-end border-b p-2">
+                <div className="flex items-center justify-end border-b px-8 py-4">
                     <SortPopover key="sort-popover" currentSortOption={sortOption} onSortChange={setSortOption}>
                         <Button variant="ghost" title="Sort By">
                             <ArrowDown className="h-5 w-5" />
@@ -71,7 +71,7 @@ export const ArtifactPanel: React.FC = () => {
                             <ArtifactCard key={artifact.filename} artifact={artifact} />
                         ))}
                         {sortedArtifacts.length === 0 && (
-                            <div className="flex h-full items-center justify-center p-4">
+                            <div className="flex h-full items-center justify-center px-8 py-6">
                                 <div className="text-muted-foreground text-center">
                                     {artifactsLoading && (
                                         <Loader2 className="size-6 animate-spin" />
@@ -89,7 +89,7 @@ export const ArtifactPanel: React.FC = () => {
                     </div>
                 )}
                 {previewArtifact && (
-                    <div className="flex flex-1 flex-col gap-2 min-h-0 min-w-0">
+                    <div className="flex flex-1 flex-col gap-2 min-h-0 min-w-0 px-8 py-6">
                         <ArtifactCard key={previewArtifact.filename} artifact={previewArtifact} isPreview={true} />
                         <div className="flex-1 min-h-0 min-w-0 overflow-y-auto">
                             <ArtifactPreviewContent artifact={previewArtifact} />

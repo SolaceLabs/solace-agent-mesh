@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
 
 import { useConfigContext, useArtifacts, useAgents } from "@/lib/hooks";
+import { useProjectContext } from "@/lib/providers";
 import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
 import type { ArtifactInfo, CancelTaskRequest, FileAttachment, FilePart, JSONRPCErrorResponse, Message, MessageFE, Notification, Part, SendStreamingMessageRequest, SendStreamingMessageSuccessResponse, Session, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart } from "@/lib/types";
@@ -20,6 +21,7 @@ interface HistoryMessage {
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, configServerUrl } = useConfigContext();
     const apiPrefix = `${configServerUrl}/api/v1`;
+    const { activeProject } = useProjectContext();
 
     const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
 
@@ -37,6 +39,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [userInput, setUserInput] = useState<string>("");
     const [isResponding, setIsResponding] = useState<boolean>(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [sessions, setSessions] = useState<Session[]>([]);
+
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
     const currentEventSource = useRef<EventSource | null>(null);
     const [selectedAgentName, setSelectedAgentName] = useState<string>("");
@@ -106,6 +110,25 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         });
     }, []);
 
+    const fetchSessions = useCallback(async () => {
+        const projectId = activeProject?.id;
+        let url = `${apiPrefix}/sessions`;
+        if (projectId) {
+            url += `?project_id=${projectId}`;
+        }
+        try {
+            const response = await authenticatedFetch(url, { credentials: "include" });
+            if (!response.ok) {
+                throw new Error("Failed to fetch sessions");
+            }
+            const data = await response.json();
+            setSessions(data.sessions);
+        } catch (error) {
+            console.error("Error fetching sessions:", error);
+            setSessions([]);
+            addNotification("Could not load sessions.", "error");
+        }
+    }, [apiPrefix, activeProject, addNotification]);
 
     const getHistory = useCallback(
         async (sessionId: string) => {
@@ -145,6 +168,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [apiPrefix, addNotification, artifactsRefetch]
     );
 
+    // Rest of state variables from useChat (excluding TaskMonitor parts)
     const [sessionName, setSessionName] = useState<string | null>(null);
     // Note: Other state variables are already declared above (lines 36-52)
 
@@ -737,14 +761,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
                 addNotification('Session name updated successfully.');
-                if (typeof window !== "undefined") {
-                    window.dispatchEvent(new CustomEvent("new-chat-session"));
-                }
+                await fetchSessions();
             } catch (error) {
                 addNotification(`Error updating session name: ${error instanceof Error ? error.message : 'Unknown error'}`);
             }
         },
-        [apiPrefix, addNotification]
+        [apiPrefix, addNotification, fetchSessions]
     );
 
     const deleteSession = useCallback(
@@ -762,14 +784,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     handleNewSession();
                 }
                 // Trigger session list refresh
-                if (typeof window !== "undefined") {
-                    window.dispatchEvent(new CustomEvent("new-chat-session"));
-                }
+                await fetchSessions();
             } catch (error) {
                 addNotification(`Error deleting session: ${error instanceof Error ? error.message : 'Unknown error'}`);
             }
         },
-        [apiPrefix, addNotification, handleNewSession, sessionId]
+        [apiPrefix, addNotification, handleNewSession, sessionId, fetchSessions]
     );
 
 
@@ -1003,8 +1023,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     ));
                     
                     // Trigger session list refresh for new sessions
-                    if (isNewSession && typeof window !== "undefined") {
-                        window.dispatchEvent(new CustomEvent("new-chat-session"));
+                    if (isNewSession) {
+                        void fetchSessions();
                     }
                 }
 
@@ -1021,8 +1041,24 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [userInput, isResponding, isCancelling, sessionId, selectedAgentName, apiPrefix, addNotification, closeCurrentEventSource, uploadArtifactFile]
+        [userInput, isResponding, isCancelling, sessionId, selectedAgentName, apiPrefix, addNotification, closeCurrentEventSource, uploadArtifactFile, fetchSessions]
     );
+
+    const prevProjectIdRef = useRef<string | null | undefined>("");
+    useEffect(() => {
+        // When the active project changes, reset the chat view to a clean slate
+        // and refetch the sessions for that project.
+        if (prevProjectIdRef.current !== activeProject?.id) {
+            console.log("Active project changed, resetting chat view and fetching sessions.");
+            handleNewSession();
+            fetchSessions();
+        }
+        prevProjectIdRef.current = activeProject?.id;
+    }, [activeProject, handleNewSession, fetchSessions]);
+
+    useEffect(() => {
+        fetchSessions();
+    }, []); // Fetch sessions on initial load
 
     useEffect(() => {
         if (currentTaskId && apiPrefix) {
@@ -1055,6 +1091,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [currentTaskId, apiPrefix, handleSseMessage, handleSseOpen, handleSseError, closeCurrentEventSource]);
 
     const contextValue: ChatContextValue = {
+        sessions,
         sessionId,
         setSessionId,
         sessionName,

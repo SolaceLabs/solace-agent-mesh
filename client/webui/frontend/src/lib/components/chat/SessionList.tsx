@@ -1,65 +1,13 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useChatContext } from "@/lib/hooks";
-import { authenticatedFetch } from "@/lib/utils/api";
-import { useConfigContext } from "@/lib/hooks";
-import { useAuthContext } from "@/lib/hooks";
 import { Edit, Trash2, Check, X } from "lucide-react";
-
-interface Session {
-    id: string;
-    created_at: string;
-    updated_at: string;
-    name: string | null;
-}
+import type { Session } from "@/lib/types";
 
 export const SessionList: React.FC = () => {
-    const { handleSwitchSession, updateSessionName, openSessionDeleteModal } = useChatContext();
-    const { configServerUrl } = useConfigContext();
-    useAuthContext();
-    const apiPrefix = `${configServerUrl}/api/v1`;
-    const [sessions, setSessions] = useState<Session[]>([]);
+    const { sessions, handleSwitchSession, updateSessionName, openSessionDeleteModal } = useChatContext();
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
     const [editingSessionName, setEditingSessionName] = useState<string>("");
     const inputRef = useRef<HTMLInputElement>(null);
-
-    const fetchSessions = async () => {
-        const url = `${apiPrefix}/sessions`;
-        try {
-            const response = await authenticatedFetch(url);
-            if (response.ok) {
-                const data = await response.json();
-                setSessions(data.sessions || []);
-            } else {
-                console.error(`Failed to fetch sessions: ${response.status} ${response.statusText}`);
-            }
-        } catch (error) {
-            console.error("An error occurred while fetching sessions:", error);
-        }
-    };
-
-    useEffect(() => {
-        fetchSessions();
-        const handleNewSession = () => {
-            fetchSessions();
-        };
-        const handleSessionUpdated = (event: CustomEvent) => {
-            const { sessionId } = event.detail;
-            setSessions(prevSessions => {
-                const updatedSession = prevSessions.find(s => s.id === sessionId);
-                if (updatedSession) {
-                    const otherSessions = prevSessions.filter(s => s.id !== sessionId);
-                    return [updatedSession, ...otherSessions];
-                }
-                return prevSessions;
-            });
-        };
-        window.addEventListener("new-chat-session", handleNewSession);
-        window.addEventListener("session-updated", handleSessionUpdated as EventListener);
-        return () => {
-            window.removeEventListener("new-chat-session", handleNewSession);
-            window.removeEventListener("session-updated", handleSessionUpdated as EventListener);
-        };
-    }, [apiPrefix]);
 
     useEffect(() => {
         if (editingSessionId && inputRef.current) {
@@ -82,7 +30,6 @@ export const SessionList: React.FC = () => {
         if (editingSessionId) {
             await updateSessionName(editingSessionId, editingSessionName);
             setEditingSessionId(null);
-            fetchSessions();
         }
     };
 

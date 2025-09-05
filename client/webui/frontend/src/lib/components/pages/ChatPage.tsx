@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { PanelLeftIcon, Edit } from "lucide-react";
+import { PanelLeftIcon, Edit, LogOut } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
@@ -9,6 +9,7 @@ import type { TextPart } from "@/lib/types";
 import { Button, ChatMessageList, CHAT_STYLES } from "@/lib/components/ui";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 import { useChatContext, useSessionPreview, useTaskContext } from "@/lib/hooks";
+import { useProjectContext } from "@/lib/providers";
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
 import { ChatSessionDialog } from "../chat/ChatSessionDialog";
@@ -35,7 +36,13 @@ const PANEL_SIZES_OPEN = {
     sidePanelSizes: { ...PANEL_SIZES_CLOSED.sidePanelSizes, max: 50 },
 };
 
-export function ChatPage() {
+interface ChatPageProps {
+    onExitProject: () => void;
+}
+
+export function ChatPage({ onExitProject }: ChatPageProps) {
+
+    const { activeProject, setActiveProject } = useProjectContext();
     const { agents, sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
@@ -87,6 +94,11 @@ export function ChatPage() {
     const handleSessionSidePanelToggle = useCallback(() => {
         setIsSessionSidePanelCollapsed(!isSessionSidePanelCollapsed);
     }, [isSessionSidePanelCollapsed]);
+
+    const handleExitProject = () => {
+        setActiveProject(null);
+        onExitProject();
+    };
 
     useEffect(() => {
         if (chatSidePanelRef.current && isSidePanelCollapsed) {
@@ -216,8 +228,21 @@ export function ChatPage() {
                 <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
                         <ResizablePanel defaultSize={chatPanelSizes.default} minSize={chatPanelSizes.min} maxSize={chatPanelSizes.max} id="chat-panel">
-                            <div className="flex h-full w-full flex-col py-6">
-                                <ChatMessageList className="text-base" ref={chatMessageListRef}>
+                            <div className="flex h-full w-full flex-col">
+                                {activeProject && (
+                                    <div className="flex flex-shrink-0 items-center justify-between border-b bg-muted px-8 py-2">
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <span className="font-semibold text-muted-foreground">Project:</span>
+                                            <span className="font-bold text-foreground">{activeProject.name}</span>
+                                        </div>
+                                        <Button variant="ghost" onClick={handleExitProject} className="flex h-8 items-center gap-2 text-muted-foreground hover:text-foreground">
+                                            <LogOut className="size-4" />
+                                            Exit Project
+                                        </Button>
+                                    </div>
+                                )}
+                                <div className="flex flex-1 flex-col py-6 min-h-0">
+                                    <ChatMessageList className="text-base" ref={chatMessageListRef}>
                                     {messages.map((message, index) => {
                                         const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
                                         return <ChatMessage message={message} key={`${message.metadata?.sessionId || "session"}-${index}-${message.isUser ? "received" : "sent"}`} isLastWithTaskId={isLastWithTaskId} />;
@@ -226,6 +251,7 @@ export function ChatPage() {
                                 <div style={CHAT_STYLES}>
                                     {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
                                     <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
+                                </div>
                                 </div>
                             </div>
                         </ResizablePanel>

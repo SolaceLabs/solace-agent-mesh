@@ -1,5 +1,11 @@
 import os
 from pathlib import Path
+
+import httpx
+import sqlalchemy as sa
+from fastapi import FastAPI, HTTPException
+from fastapi import Request as FastAPIRequest
+from fastapi import status
 from typing import TYPE_CHECKING
 
 import httpx
@@ -17,6 +23,8 @@ from solace_ai_connector.common.log import log
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 
+from .api.controllers import session_router, task_router, user_router, project_router
+from .infrastructure.persistence.database_service import DatabaseService
 from ...common import a2a
 from ...gateway.http_sse import dependencies
 from ...gateway.http_sse.routers import (
@@ -35,6 +43,29 @@ from .api.controllers.session_controller import router as session_router
 from .api.controllers.task_controller import router as task_router
 from .api.controllers.user_controller import router as user_router
 from .infrastructure.persistence.database_service import DatabaseService
+
+from alembic import command
+from alembic.config import Config
+
+from a2a.types import InternalError, InvalidRequestError, JSONRPCError
+from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
+from ...common import a2a
+from ...gateway.http_sse import dependencies
+from ...gateway.http_sse.routers import (
+    agents,
+    artifacts,
+    auth,
+    config,
+    people,
+    sse,
+    tasks,
+    visualization,
+)
+# Import persistence-aware controllers
+from .api.controllers.session_controller import router as session_router
+from .api.controllers.task_controller import router as task_router
+from .api.controllers.user_controller import router as user_router
+from .infrastructure.persistence import DatabaseService
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
@@ -112,7 +143,6 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service=N
         dependencies.set_persistence_service(persistence_service)
     else:
         log.info("Skipping database migrations - no persistence service configured")
-
     webui_app = component.get_app()
     app_config = {}
     if webui_app:
@@ -143,6 +173,7 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service=N
     dependencies.set_api_config(api_config_dict)
     log.info("API configuration extracted and stored.")
 
+    
     class AuthMiddleware:
         def __init__(self, app, component):
             self.app = app
@@ -478,25 +509,18 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service=N
     # Mount API routers
     api_prefix = "/api/v1"
 
-    # Mount persistence-aware controllers (your original controllers with full functionality)
-    # These provide the complete API surface with database persistence
-    app.include_router(
-        session_router, prefix=api_prefix, tags=["Sessions"]
-    )  # Provides /api/v1/sessions/* endpoints
-    app.include_router(
-        user_router, prefix=f"{api_prefix}/users", tags=["Users"]
-    )  # Provides /api/v1/users/me
-    app.include_router(
-        task_router, prefix=f"{api_prefix}/tasks", tags=["Tasks"]
-    )  # Provides /api/v1/tasks/send, /subscribe, /cancel
+    # Mount new 3-tiered architecture controllers
+    app.include_router(session_router, prefix=api_prefix, tags=["Sessions"])
+    app.include_router(user_router, prefix=f"{api_prefix}/users", tags=["Users"])
+    app.include_router(task_router, prefix=f"{api_prefix}/tasks", tags=["Tasks"])
+    app.include_router(project_router, prefix=api_prefix, tags=["Projects"])
+    log.info("3-tiered architecture controllers mounted")
 
-    # Mount new A2A SDK routers with different paths to avoid conflicts
+    # Mount remaining routers that haven't been migrated yet
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
     app.include_router(agents.router, prefix=api_prefix, tags=["Agents"])
     # New A2A message endpoints (non-conflicting paths)
-    app.include_router(
-        tasks.router, prefix=api_prefix, tags=["A2A Messages"]
-    )  # Provides /api/v1/message:send, /message:stream
+    app.include_router(tasks.router, prefix=api_prefix, tags=["A2A Messages"])  # Provides /api/v1/message:send, /message:stream
     # Note: We only use the full-featured session_router (from api/controllers/session_controller.py)
     # which provides complete session management with database persistence
     app.include_router(sse.router, prefix=f"{api_prefix}/sse", tags=["SSE"])

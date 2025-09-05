@@ -47,3 +47,4 @@ class CreateSessionRequest(BaseModel):
     user_id: UserId
     name: Optional[str] = Field(None, max_length=255, description="Session name")
     agent_id: Optional[str] = Field(None, description="Associated agent ID")
+    project_id: Optional[str] = Field(None, description="Associated project ID")

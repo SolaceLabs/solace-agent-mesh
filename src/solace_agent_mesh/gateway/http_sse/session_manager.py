@@ -9,7 +9,7 @@ from typing import Any
 from solace_ai_connector.common.log import log
 from starlette.requests import Request
 
-from .infrastructure.persistence_service import PersistenceService
+from .infrastructure.repositories.persistence_service import PersistenceService
 
 SESSION_KEY_CLIENT_ID = "a2a_client_id"
 SESSION_KEY_SESSION_ID = "a2a_session_id"

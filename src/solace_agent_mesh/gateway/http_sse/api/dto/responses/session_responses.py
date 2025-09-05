@@ -29,6 +29,7 @@ class SessionResponse(BaseModel):
     user_id: UserId
     name: Optional[str] = None
     agent_id: Optional[str] = None
+    project_id: Optional[str] = None
     status: SessionStatus = SessionStatus.ACTIVE
     created_at: datetime
     updated_at: Optional[datetime] = None

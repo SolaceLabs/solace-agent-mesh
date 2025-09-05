@@ -20,7 +20,7 @@ from ...gateway.http_sse.services.task_service import TaskService
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .application.services.session_service import SessionService
-from .infrastructure.persistence_service import PersistenceService
+from .infrastructure.repositories.persistence_service import PersistenceService
 
 try:
     from google.adk.artifacts import BaseArtifactService

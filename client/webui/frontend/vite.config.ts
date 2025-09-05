@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
 
     
     const backendPort = env.VITE_BACKEND_PORT || process.env.FASTAPI_PORT || "8000";
-    const backendTarget = `http://localhost:${backendPort}`;
+    const backendTarget = `http://127.0.0.1:${backendPort}`;
 
     return {
         plugins: [react(), tailwindcss()],

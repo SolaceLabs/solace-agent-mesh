@@ -2,16 +2,19 @@ from collections.abc import Callable
 from typing import Any, TypeVar
 
 from ...application.services.session_service import SessionService
+from ...application.services.project_service import ProjectService
 from ...domain.repositories.session_repository import (
     IMessageRepository,
     ISessionRepository,
 )
+from ...domain.repositories.project_repository import IProjectRepository
 from ...infrastructure.persistence import database_service as db_service_module
 from ...infrastructure.persistence.database_service import DatabaseService
 from ...infrastructure.repositories.session_repository import (
     MessageRepository,
     SessionRepository,
 )
+from ...infrastructure.repositories.project_repository import ProjectRepository
 
 T = TypeVar("T")
 
@@ -78,14 +81,20 @@ class ApplicationContainer:
 
             session_repository = SessionRepository(database_service)
             message_repository = MessageRepository(database_service)
+            project_repository = ProjectRepository(database_service)
 
             self.container.register_singleton(ISessionRepository, session_repository)
             self.container.register_singleton(IMessageRepository, message_repository)
+            self.container.register_singleton(IProjectRepository, project_repository)
 
             def session_service_factory():
                 return SessionService(session_repository, message_repository)
 
+            def project_service_factory():
+                return ProjectService(project_repository)
+
             self.container.register_factory(SessionService, session_service_factory)
+            self.container.register_factory(ProjectService, project_service_factory)
 
     def get_database_service(self) -> DatabaseService | None:
         if not self.has_database:
@@ -96,6 +105,11 @@ class ApplicationContainer:
         if not self.has_database:
             return None
         return self.container.get(SessionService)
+
+    def get_project_service(self) -> ProjectService | None:
+        if not self.has_database:
+            return None
+        return self.container.get(ProjectService)
 
 
 # Global container instance
@@ -121,3 +135,12 @@ def get_container() -> ApplicationContainer:
             "Container not initialized. Call initialize_container() first."
         )
     return _container
+
+
+def get_project_service() -> ProjectService:
+    """Get project service from the global container."""
+    container = get_container()
+    service = container.get_project_service()
+    if service is None:
+        raise RuntimeError("Project service not available (database not configured)")
+    return service

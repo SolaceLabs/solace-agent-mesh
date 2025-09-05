@@ -24,7 +24,7 @@ from ...gateway.base.component import BaseGatewayComponent
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .components import VisualizationForwarderComponent
-from .infrastructure.persistence_service import PersistenceService
+from .infrastructure.repositories.persistence_service import PersistenceService
 
 try:
     from google.adk.artifacts import BaseArtifactService

@@ -1,7 +1,8 @@
 import { useState } from "react";
 
 import { AgentMeshPage, ChatPage, bottomNavigationItems, topNavigationItems, NavigationSidebar, ToastContainer, Button } from "@/lib/components";
-import { AuthProvider, ChatProvider, ConfigProvider, CsrfProvider, TaskProvider, ThemeProvider } from "@/lib/providers";
+import { ProjectsPage } from "@/lib/components/projects";
+import { AuthProvider, ChatProvider, ConfigProvider, CsrfProvider, ProjectProvider, TaskProvider, ThemeProvider } from "@/lib/providers";
 
 import { useAuthContext, useBeforeUnload } from "@/lib/hooks";
 
@@ -37,9 +38,11 @@ function AppContent() {
     const renderMainContent = () => {
         switch (activeNavItem) {
             case "chat":
-                return <ChatPage />;
+                return <ChatPage onExitProject={() => setActiveNavItem("projects")} />;
             case "agentMesh":
                 return <AgentMeshPage />;
+            case "projects":
+                return <ProjectsPage onProjectActivated={() => setActiveNavItem("chat")} />;
         }
     };
 
@@ -58,11 +61,13 @@ function App() {
             <CsrfProvider>
                 <ConfigProvider>
                     <AuthProvider>
-                        <ChatProvider>
-                            <TaskProvider>
-                                <AppContent />
-                            </TaskProvider>
-                        </ChatProvider>
+                        <ProjectProvider>
+                            <ChatProvider>
+                                <TaskProvider>
+                                    <AppContent />
+                                </TaskProvider>
+                            </ChatProvider>
+                        </ProjectProvider>
                     </AuthProvider>
                 </ConfigProvider>
             </CsrfProvider>
