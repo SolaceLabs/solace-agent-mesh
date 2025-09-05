@@ -659,9 +659,7 @@ class BaseGatewayComponent(SamComponentBase):
                 if not signals_with_placeholders:
                     new_parts.append(a2a.create_text_part(text=resolved_text))
                 else:
-                    placeholder_map = {
-                        p: s for _, s, p in signals_with_placeholders
-                    }
+                    placeholder_map = {p: s for _, s, p in signals_with_placeholders}
                     split_pattern = (
                         f"({'|'.join(re.escape(p) for p in placeholder_map.keys())})"
                     )
@@ -679,12 +677,14 @@ class BaseGatewayComponent(SamComponentBase):
                                         signal_data["filename"],
                                         signal_data["version"],
                                     )
-                                    artifact_data = await load_artifact_content_or_metadata(
-                                        self.shared_artifact_service,
-                                        **embed_eval_context["session_context"],
-                                        filename=filename,
-                                        version=version,
-                                        load_metadata_only=True,
+                                    artifact_data = (
+                                        await load_artifact_content_or_metadata(
+                                            self.shared_artifact_service,
+                                            **embed_eval_context["session_context"],
+                                            filename=filename,
+                                            version=version,
+                                            load_metadata_only=True,
+                                        )
                                     )
                                     if artifact_data.get("status") == "success":
                                         uri = format_artifact_uri(
@@ -719,6 +719,8 @@ class BaseGatewayComponent(SamComponentBase):
                                         )
                                     )
                             elif signal_type == "SIGNAL_INLINE_BINARY_CONTENT":
+                                signal_data["content_bytes"] = signal_data.get("bytes")
+                                del signal_data["bytes"]
                                 new_parts.append(
                                     a2a.create_file_part_from_bytes(**signal_data)
                                 )
