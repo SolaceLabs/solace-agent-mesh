@@ -121,21 +121,22 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 
     // Group contiguous parts to handle interleaving of text and files
     const groupedParts: (TextPart | FilePart)[] = [];
-    let currentTextGroup = "";
-
-    message.parts?.forEach(part => {
-        if (part.kind === "text") {
-            currentTextGroup += (part as TextPart).text;
-        } else if (part.kind === "file") {
-            if (currentTextGroup) {
-                groupedParts.push({ kind: "text", text: currentTextGroup });
-                currentTextGroup = "";
+    if (message.parts) {
+        for (const part of message.parts) {
+            if (part.kind === "text") {
+                const lastPart = groupedParts[groupedParts.length - 1];
+                if (lastPart && lastPart.kind === "text") {
+                    // If the last part was also text, append to it
+                    (lastPart as TextPart).text += (part as TextPart).text;
+                } else {
+                    // Otherwise, start a new text part
+                    groupedParts.push({ ...part });
+                }
+            } else {
+                // For non-text parts, just push them
+                groupedParts.push({ ...part });
             }
-            groupedParts.push(part as FilePart);
         }
-    });
-    if (currentTextGroup) {
-        groupedParts.push({ kind: "text", text: currentTextGroup });
     }
 
     const hasContent = groupedParts.some(p => (p.kind === "text" && p.text.trim()) || p.kind === "file");
