@@ -10,6 +10,11 @@ setup_artifacts:
   - filename: "some_other_file.txt"
     content: "This content should not appear anywhere."
     mime_type: "text/plain"
+  - filename: "output.txt"
+    content: ""
+    mime_type: "text/plain"
+    metadata:
+      description: "An empty file to be appended to."
 
 gateway_input:
   target_agent_name: "TestAgent"
