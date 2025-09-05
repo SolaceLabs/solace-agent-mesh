@@ -13,19 +13,28 @@
             "type": "string",
             "description": "The name of the artifact being created."
         },
-        "bytes_saved": {
+        "status": {
+            "type": "string",
+            "enum": ["in-progress", "completed", "failed"],
+            "description": "The status of the artifact creation."
+        },
+        "bytes_transferred": {
             "type": "integer",
-            "description": "The number of bytes saved so far."
+            "description": "The number of bytes transferred so far."
         },
         "artifact_chunk": {
             "type": "string",
-            "description": "The chunk of artifact data that was saved in this progress update."
+            "description": "The chunk of artifact data that was transferred in this progress update. Only present for 'in-progress' status."
+        },
+        "mime_type": {
+            "type": "string",
+            "description": "The MIME type of the artifact. Only present for 'completed' status."
         }
     },
     "required": [
         "type",
         "filename",
-        "bytes_saved",
-        "artifact_chunk"
+        "status",
+        "bytes_transferred"
     ]
 }
