@@ -22,7 +22,7 @@ interface FileAttachmentMessageProps {
 }
 
 export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps>> = ({ fileAttachment, isEmbedded = false }) => {
-    const { artifacts, setPreviewArtifact, openSidePanelTab } = useChatContext();
+    const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId } = useChatContext();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [fetchedContent, setFetchedContent] = useState<string | null>(null);
@@ -53,7 +53,7 @@ export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps
                 if (!parsedUri) throw new Error("Invalid artifact URI.");
 
                 const { filename, version } = parsedUri;
-                const apiUrl = `/api/v1/artifacts/${encodeURIComponent(filename)}/versions/${version || "latest"}`;
+                const apiUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${version || "latest"}`;
 
                 const response = await authenticatedFetch(apiUrl);
                 if (!response.ok) throw new Error(`Failed to fetch artifact content: ${response.statusText}`);
@@ -86,7 +86,7 @@ export const FileAttachmentMessage: React.FC<Readonly<FileAttachmentMessageProps
         if (fileAttachment.uri && !fileAttachment.content) {
             fetchContentFromUri();
         }
-    }, [fileAttachment.uri, fileAttachment.content, renderType]);
+    }, [fileAttachment.uri, fileAttachment.content, renderType, sessionId]);
 
     const contentToRender = fetchedContent || fileAttachment.content;
 
