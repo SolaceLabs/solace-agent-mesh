@@ -3122,6 +3122,7 @@ class SamAgentComponent(SamComponentBase):
                     types_to_resolve=EARLY_EMBED_TYPES,
                     log_identifier=method_context_log_identifier,
                     config=resolver_config,
+                    resolution_mode="early",
                 )
             )
             unprocessed_tail = raw_text[processed_until_index:]
