@@ -193,8 +193,6 @@ packages = ["src/solace_agent_mesh"]
 "config_portal/backend" = "solace_agent_mesh/config_portal/backend"
 "config_portal/__init__.py" = "solace_agent_mesh/config_portal/__init__.py"
 "client/webui/frontend/static" = "solace_agent_mesh/client/webui/frontend/static"
-"src/solace_agent_mesh/gateway/http_sse/alembic.ini" = "solace_agent_mesh/gateway/http_sse/alembic.ini"
-"src/solace_agent_mesh/gateway/http_sse/alembic" = "solace_agent_mesh/gateway/http_sse/alembic"
 "docs/build" = "solace_agent_mesh/assets/docs"
 
 [tool.hatch.build.targets.sdist.force-include]
