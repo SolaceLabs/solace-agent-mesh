@@ -3,7 +3,6 @@ export * from "./ArtifactDeleteAllDialog";
 export * from "./ArtifactDeleteDialog";
 export * from "./ArtifactDetails";
 export * from "./ArtifactMorePopover";
-export * from "./ArtifactNotificationMessage";
 export * from "./ArtifactPanel";
 export * from "./ArtifactPreviewContent";
 export * from "./ArtifactPreviewDownload";
