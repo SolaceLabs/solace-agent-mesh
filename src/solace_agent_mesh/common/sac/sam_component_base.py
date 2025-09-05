@@ -12,6 +12,7 @@ from solace_ai_connector.common.log import log
 
 from ..utils.message_utils import validate_message_size
 from ..exceptions import MessageSizeExceededError
+from solace_agent_mesh.common.utils.initializer import initialize
 
 
 class SamComponentBase(ComponentBase, abc.ABC):
@@ -27,6 +28,9 @@ class SamComponentBase(ComponentBase, abc.ABC):
         super().__init__(info, **kwargs)
         log.info("%s Initializing SamComponentBase...", self.log_identifier)
 
+        # GREG: Remove this
+        initialize()
+        
         try:
             self.namespace: str = self.get_config("namespace")
             if not self.namespace:
