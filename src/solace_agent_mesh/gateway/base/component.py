@@ -948,12 +948,13 @@ class BaseGatewayComponent(SamComponentBase):
                     }
                     resolved_remaining_text, _, signals = (
                         await resolve_embeds_in_string(
-                            remaining_buffer,
-                            embed_eval_context,
-                            evaluate_embed,
-                            LATE_EMBED_TYPES.copy(),
-                            log_id_prefix,
-                            embed_eval_config,
+                            text=remaining_buffer,
+                            context=embed_eval_context,
+                            resolver_func=evaluate_embed,
+                            types_to_resolve=LATE_EMBED_TYPES.copy(),
+                            resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER,
+                            log_identifier=log_id_prefix,
+                            config=embed_eval_config,
                         )
                     )
                     await self._handle_resolved_signals(
