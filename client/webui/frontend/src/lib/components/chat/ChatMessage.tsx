@@ -9,7 +9,8 @@ import { useChatContext } from "@/lib/hooks";
 import type { FileAttachment, MessageFE, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
 
-import { FileAttachmentMessage, FileMessage } from "./file/FileMessage";
+import { FileAttachmentMessage, FileMessage, InProgressFileMessage } from "./file";
+import { ArtifactNotificationMessage } from "./artifact";
 import { ContentRenderer } from "./preview/ContentRenderer";
 import { extractEmbeddedContent } from "./preview/contentUtils";
 import { decodeBase64Content } from "./preview/previewUtils";
@@ -134,16 +135,38 @@ const getFileAttachments = (message: MessageFE, chatContext: ChatContextValue, i
     return null;
 };
 
+const getArtifactNotification = (message: MessageFE) => {
+    if (message.artifactNotification) {
+        return (
+            <MessageWrapper message={message}>
+                <ArtifactNotificationMessage artifactName={message.artifactNotification.name} mimeType={message.artifactNotification.mime_type} />
+            </MessageWrapper>
+        );
+    }
+    return null;
+};
+
+const getInProgressFile = (message: MessageFE) => {
+    if (message.inProgressArtifact) {
+        return (
+            <MessageWrapper message={message}>
+                <InProgressFileMessage name={message.inProgressArtifact.name} bytesTransferred={message.inProgressArtifact.bytesTransferred} />
+            </MessageWrapper>
+        );
+    }
+    return null;
+};
+
 const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean) => {
     const { openSidePanelTab, setTaskIdInSidePanel } = chatContext;
 
-    if (message.isStatusBubble) {
+    if (message.isStatusBubble && !message.inProgressArtifact) {
         return null;
     }
 
     const textContent = message.parts?.some(p => p.kind === "text" && p.text.trim());
 
-    if (!textContent && !message.artifactNotification) {
+    if (!textContent) {
         return null;
     }
 
@@ -160,15 +183,6 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
         <ChatBubble key={message.metadata?.messageId} variant={variant}>
             <ChatBubbleMessage variant={variant}>
                 {textContent && <MessageContent message={message} />}
-                {message.artifactNotification && (
-                    <div className="flex items-center p-2 my-1 bg-blue-100 dark:bg-blue-900/50 rounded-md">
-                        <FileText className="mr-2 text-blue-500 dark:text-blue-400" />
-                        <span className="text-sm">
-                            Artifact created: <strong>{message.artifactNotification.name}</strong>
-                            {message.artifactNotification.version && ` (v${message.artifactNotification.version})`}
-                        </span>
-                    </div>
-                )}
                 {showWorkflowButton && (
                     <div className="mt-3">
                         <ViewWorkflowButton onClick={handleViewWorkflowClick} />
@@ -188,6 +202,8 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
             {getChatBubble(message, chatContext, isLastWithTaskId)}
             {getUploadedFiles(message)}
             {getFileAttachments(message, chatContext, isLastWithTaskId)}
+            {getInProgressFile(message)}
+            {getArtifactNotification(message)}
         </>
     );
 };
