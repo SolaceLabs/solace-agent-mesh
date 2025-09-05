@@ -1726,7 +1726,7 @@ class SamAgentComponent(SamComponentBase):
                 log_id,
                 len(signals_found),
             )
-            for _signal_index, signal_data_tuple, _ in signals_found:
+            for _signal_index, signal_data_tuple, placeholder in signals_found:
                 if (
                     isinstance(signal_data_tuple, tuple)
                     and len(signal_data_tuple) == 3
@@ -1742,6 +1742,7 @@ class SamAgentComponent(SamComponentBase):
                     await self._publish_agent_status_signal_update(
                         status_text, a2a_context
                     )
+                    resolved_text = resolved_text.replace(placeholder, "")
 
         return resolved_text, unprocessed_tail
 

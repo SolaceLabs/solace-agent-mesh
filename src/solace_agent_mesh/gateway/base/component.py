@@ -660,7 +660,7 @@ class BaseGatewayComponent(SamComponentBase):
                     )
                     text_fragments = re.split(split_pattern, resolved_text)
 
-                    for fragment in text_fragments:
+                    for i, fragment in enumerate(text_fragments):
                         if not fragment:
                             continue
                         if fragment in placeholder_map:
@@ -722,6 +722,28 @@ class BaseGatewayComponent(SamComponentBase):
                             else:
                                 other_signals.append(signal_tuple)
                         else:
+                            # Check if the non-placeholder fragment is just whitespace
+                            # and is between two placeholders. If so, drop it.
+                            is_just_whitespace = not fragment.strip()
+                            prev_fragment_was_placeholder = (
+                                i > 0 and text_fragments[i - 1] in placeholder_map
+                            )
+                            next_fragment_is_placeholder = (
+                                i < len(text_fragments) - 1
+                                and text_fragments[i + 1] in placeholder_map
+                            )
+
+                            if (
+                                is_just_whitespace
+                                and prev_fragment_was_placeholder
+                                and next_fragment_is_placeholder
+                            ):
+                                log.debug(
+                                    "%s Dropping whitespace fragment between two file signals.",
+                                    log_id_prefix,
+                                )
+                                continue
+
                             new_parts.append(a2a.create_text_part(text=fragment))
 
                 if is_streaming_status_update:
