@@ -418,7 +418,7 @@ class BaseGatewayComponent(SamComponentBase):
         if not signals:
             return
 
-        for _, signal_tuple in signals:
+        for signal_tuple in signals:
             if (
                 isinstance(signal_tuple, tuple)
                 and len(signal_tuple) == 3
