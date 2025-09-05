@@ -433,10 +433,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     setMessages(prev => {
                                         console.log(`[ChatProvider] setMessages for artifact_creation_progress. Current messages count: ${prev.length}`);
                                         const newMessages = [...prev];
-                                        // Find the last agent message for the current task to attach the artifact progress to.
                                         let agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && m.taskId === currentTaskIdFromResult);
 
-                                        // If no agent message exists for this task, create one.
                                         if (agentMessageIndex === -1) {
                                             console.log(`[ChatProvider] No agent message found for task ${currentTaskIdFromResult}. Creating a new one.`);
                                             const newAgentMessage: MessageFE = {
@@ -445,6 +443,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 taskId: currentTaskIdFromResult,
                                                 isUser: false,
                                                 isComplete: false,
+                                                isStatusBubble: false, // This is a real message now
                                                 metadata: { lastProcessedEventSequence: currentEventSequence },
                                             };
                                             newMessages.push(newAgentMessage);
@@ -454,16 +453,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         }
 
                                         const agentMessage = { ...newMessages[agentMessageIndex], parts: [...newMessages[agentMessageIndex].parts] };
+                                        agentMessage.isStatusBubble = false; // Ensure it's treated as a real message
                                         const inProgressPartIndex = agentMessage.parts.findIndex(p => p.kind === "in-progress-artifact" && p.name === filename);
 
                                         if (status === "in-progress") {
                                             if (inProgressPartIndex > -1) {
                                                 console.log(`[ChatProvider] Updating in-progress-artifact part for ${filename}. Bytes: ${bytes_transferred}`);
-                                                // Update existing in-progress part
                                                 (agentMessage.parts[inProgressPartIndex] as InProgressArtifactPart).bytesTransferred = bytes_transferred;
                                             } else {
                                                 console.log(`[ChatProvider] Adding new in-progress-artifact part for ${filename}.`);
-                                                // Add new in-progress part
                                                 agentMessage.parts.push({
                                                     kind: "in-progress-artifact",
                                                     name: filename,
@@ -477,7 +475,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 file: { uri: `artifact://${sessionId}/${filename}`, name: filename, mimeType: mime_type },
                                             };
                                             if (inProgressPartIndex > -1) {
-                                                // Replace in-progress part with final file part
                                                 agentMessage.parts.splice(inProgressPartIndex, 1, filePart);
                                             } else {
                                                 agentMessage.parts.push(filePart);
@@ -487,7 +484,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                             console.log(`[ChatProvider] Artifact creation failed for ${filename}. Adding error part.`);
                                             const errorPart: TextPart = { kind: "text", text: `\n\n> Failed to create artifact: ${filename}` };
                                             if (inProgressPartIndex > -1) {
-                                                // Remove in-progress part and add error text
                                                 agentMessage.parts.splice(inProgressPartIndex, 1);
                                             }
                                             agentMessage.parts.push(errorPart);
@@ -496,12 +492,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                                         newMessages[agentMessageIndex] = agentMessage;
                                         console.log(`[ChatProvider] Updated agent message:`, agentMessage);
-                                        // Remove any generic status bubble since we have specific progress.
-                                        const finalMessages = newMessages.filter(m => !m.isStatusBubble);
+                                        
+                                        // Filter out OTHER generic status bubbles, but keep our message.
+                                        const finalMessages = newMessages.filter(m => !m.isStatusBubble || m.parts.some(p => p.kind === 'in-progress-artifact' || p.kind === 'file'));
                                         console.log(`[ChatProvider] Final messages state:`, finalMessages);
                                         return finalMessages;
                                     });
-                                    break;
+                                    // Return immediately to prevent the generic status handler from running
+                                    return;
                                 }
                                 case "tool_invocation_start":
                                     break;
