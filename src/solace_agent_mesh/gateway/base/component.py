@@ -886,6 +886,7 @@ class BaseGatewayComponent(SamComponentBase):
                             context=embed_eval_context,
                             resolver_func=evaluate_embed,
                             types_to_resolve=all_embed_types,
+                            resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER,
                             log_identifier=log_id_prefix,
                             config=embed_eval_config,
                         )
