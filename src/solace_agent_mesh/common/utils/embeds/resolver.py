@@ -440,7 +440,7 @@ async def _evaluate_artifact_content_embed_with_chain(
             {
                 "bytes": current_data,
                 "mime_type": original_mime_type,
-                "filename": filename_for_signal,
+                "name": filename_for_signal,
             },
         )
 
