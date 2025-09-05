@@ -37,7 +37,7 @@ def _get_optimal_mcp_toolset_class() -> Tuple[Type[MCPToolset], bool]:
         - supports_tool_config_flag: Whether the class supports tool_config parameter
     """
     try:
-        from solace_agent_mesh_enterprise.common import McpToolsetWithManifest
+        from solace_agent_mesh_enterprise.common.mcp_toolset_with_manifest import McpToolsetWithManifest
         return (McpToolsetWithManifest, True)
     except ImportError:
         return (MCPToolset, False)
