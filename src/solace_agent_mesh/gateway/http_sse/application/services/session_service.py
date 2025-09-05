@@ -53,6 +53,7 @@ class SessionService:
         name: str | None = None,
         agent_id: str | None = None,
         session_id: str | None = None,
+        project_id: str | None = None,
     ) -> Session:
         if not user_id or user_id.strip() == "":
             raise ValueError(f"user_id cannot be None or empty. Received: {user_id}")
@@ -66,6 +67,7 @@ class SessionService:
             user_id=user_id,
             name=name,
             agent_id=agent_id,
+            project_id=project_id,
             status=SessionStatus.ACTIVE,
             created_at=now,
             updated_at=now,

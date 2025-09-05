@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useChatContext } from "@/lib/hooks";
+import { useProjectContext } from "@/lib/providers";
 import { Edit, Trash2, Check, X } from "lucide-react";
 import type { Session } from "@/lib/types";
 
 export const SessionList: React.FC = () => {
     const { sessions, handleSwitchSession, updateSessionName, openSessionDeleteModal } = useChatContext();
+    const { activeProject } = useProjectContext();
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
     const [editingSessionName, setEditingSessionName] = useState<string>("");
     const inputRef = useRef<HTMLInputElement>(null);
@@ -59,7 +61,9 @@ export const SessionList: React.FC = () => {
 
     return (
         <div className="p-4">
-            <h2 className="text-lg font-bold mb-4">Chat History</h2>
+            <h2 className="text-lg font-bold mb-4">
+                {activeProject ? `Chat History (Project: ${activeProject.name})` : "Chat History"}
+            </h2>
             <ul>
                 {sessions.map((session) => (
                     <li key={session.id} className="mb-2 group">

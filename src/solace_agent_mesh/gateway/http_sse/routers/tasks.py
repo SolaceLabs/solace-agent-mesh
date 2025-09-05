@@ -50,8 +50,10 @@ async def _submit_task(
     log_prefix = f"[POST /api/v1/message:{'stream' if is_streaming else 'send'}] "
 
     agent_name = None
+    project_id = None
     if payload.params and payload.params.message and payload.params.message.metadata:
         agent_name = payload.params.message.metadata.get("agent_name")
+        project_id = payload.params.message.metadata.get("project_id")
 
     if not agent_name:
         raise HTTPException(
@@ -122,7 +124,8 @@ async def _submit_task(
                             user_id=user_id,
                             agent_id=agent_name,
                             name=None,  # Will be auto-generated if needed
-                            session_id=session_id  # Use the SessionManager's session ID
+                            session_id=session_id,  # Use the SessionManager's session ID
+                            project_id=project_id if project_id else None
                         )
                     except Exception as create_error:
                         # Another request may have created the session concurrently

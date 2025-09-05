@@ -97,6 +97,9 @@ export function ChatPage({ onExitProject }: ChatPageProps) {
 
     const handleExitProject = () => {
         setActiveProject(null);
+    };
+
+    const handleEditProject = () => {
         onExitProject();
     };
 
@@ -235,10 +238,16 @@ export function ChatPage({ onExitProject }: ChatPageProps) {
                                             <span className="font-semibold text-muted-foreground">Project:</span>
                                             <span className="font-bold text-foreground">{activeProject.name}</span>
                                         </div>
-                                        <Button variant="ghost" onClick={handleExitProject} className="flex h-8 items-center gap-2 text-muted-foreground hover:text-foreground">
-                                            <LogOut className="size-4" />
-                                            Exit Project
-                                        </Button>
+                                        <div className="flex items-center gap-2">
+                                            <Button variant="ghost" onClick={handleExitProject} className="flex h-8 items-center gap-2 text-muted-foreground hover:text-foreground">
+                                                <LogOut className="size-4" />
+                                                Exit
+                                            </Button>
+                                            <Button variant="ghost" onClick={handleEditProject} className="flex h-8 items-center gap-2 text-muted-foreground hover:text-foreground">
+                                                <Edit className="size-4" />
+                                                Edit
+                                            </Button>
+                                        </div>
                                     </div>
                                 )}
                                 <div className="flex flex-1 flex-col py-6 min-h-0">

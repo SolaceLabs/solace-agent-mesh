@@ -969,6 +969,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     contextId: sessionId,
                     metadata: {
                         agent_name: selectedAgentName, // For gateway routing
+                        project_id: activeProject?.id || null,
                     },
                 };
 

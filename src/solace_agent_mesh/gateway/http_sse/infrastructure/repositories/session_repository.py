@@ -29,7 +29,11 @@ class SessionRepository(ISessionRepository):
             query = session.query(SessionModel).filter(SessionModel.user_id == user_id)
             
             if project_id:
+                # When querying for a specific project, only return sessions for that project
                 query = query.filter(SessionModel.project_id == project_id)
+            else:
+                # When no project is specified, exclude sessions that belong to any project
+                query = query.filter(SessionModel.project_id.is_(None))
 
             if pagination:
                 offset = (pagination.page - 1) * pagination.page_size
