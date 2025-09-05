@@ -52,6 +52,7 @@ from ...common.utils.embeds import (
     evaluate_embed,
     resolve_embeds_in_string,
 )
+from ...common.utils.embeds.types import ResolutionMode
 
 info = {
     "class_name": "WebUIBackendComponent",
