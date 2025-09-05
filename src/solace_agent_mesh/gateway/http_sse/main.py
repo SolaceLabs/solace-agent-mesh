@@ -34,6 +34,7 @@ from ...gateway.http_sse.routers import (
 from .api.controllers.session_controller import router as session_router
 from .api.controllers.task_controller import router as task_router
 from .api.controllers.user_controller import router as user_router
+from .api.controllers.agent_controller import router as agent_router
 from .infrastructure.persistence.database_service import DatabaseService
 
 if TYPE_CHECKING:
@@ -489,6 +490,9 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service=N
     app.include_router(
         task_router, prefix=f"{api_prefix}/tasks", tags=["Tasks"]
     )  # Provides /api/v1/tasks/send, /subscribe, /cancel
+    app.include_router(
+        agent_router, prefix=api_prefix, tags=["Agents"]
+    )
 
     # Mount new A2A SDK routers with different paths to avoid conflicts
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])

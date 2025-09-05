@@ -2,16 +2,19 @@ from collections.abc import Callable
 from typing import Any, TypeVar
 
 from ...application.services.session_service import SessionService
+from ...application.services.agent_service import AgentService
 from ...domain.repositories.session_repository import (
     IMessageRepository,
     ISessionRepository,
 )
+from ...domain.repositories.agent_repository import IAgentRepository
 from ...infrastructure.persistence import database_service as db_service_module
 from ...infrastructure.persistence.database_service import DatabaseService
 from ...infrastructure.repositories.session_repository import (
     MessageRepository,
     SessionRepository,
 )
+from ...infrastructure.repositories.agent_repository import AgentRepository
 
 T = TypeVar("T")
 
@@ -78,14 +81,20 @@ class ApplicationContainer:
 
             session_repository = SessionRepository(database_service)
             message_repository = MessageRepository(database_service)
+            agent_repository = AgentRepository(database_service)
 
             self.container.register_singleton(ISessionRepository, session_repository)
             self.container.register_singleton(IMessageRepository, message_repository)
+            self.container.register_singleton(IAgentRepository, agent_repository)
 
             def session_service_factory():
                 return SessionService(session_repository, message_repository)
 
+            def agent_service_factory():
+                return AgentService(agent_repository)
+
             self.container.register_factory(SessionService, session_service_factory)
+            self.container.register_factory(AgentService, agent_service_factory)
 
     def get_database_service(self) -> DatabaseService | None:
         if not self.has_database:
@@ -96,6 +105,11 @@ class ApplicationContainer:
         if not self.has_database:
             return None
         return self.container.get(SessionService)
+
+    def get_agent_service(self) -> AgentService | None:
+        if not self.has_database:
+            return None
+        return self.container.get(AgentService)
 
 
 # Global container instance

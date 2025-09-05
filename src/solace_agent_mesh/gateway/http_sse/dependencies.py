@@ -331,6 +331,26 @@ def get_agent_service(
     return AgentService(agent_registry=registry)
 
 
+def get_test_agent_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> AgentService:
+    """FastAPI dependency to get an instance of AgentService."""
+    log.debug("[Dependencies] get_test_agent_service called")
+    if (
+        hasattr(component, "persistence_service")
+        and component.persistence_service is not None
+    ):
+        log.debug("Using database-backed agent service")
+        container = component.persistence_service.container
+        return container.get_agent_service()
+    else:
+        log.debug("No database configured - agent persistence not available")
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Agent management requires database configuration. Configure 'database_url' in your gateway configuration.",
+        )
+
+
 def get_task_service(
     core_a2a_service: CoreA2AService = Depends(get_core_a2a_service),
     publish_func: PublishFunc = Depends(get_publish_a2a_func),
