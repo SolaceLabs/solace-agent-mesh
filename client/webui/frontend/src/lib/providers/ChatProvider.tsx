@@ -404,126 +404,234 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 case "artifact-update":
                     artifactToProcess = result.artifact;
                     currentTaskIdFromResult = result.taskId;
+                    // Finalize the in-progress message by removing it.
+                    // The new artifact notification bubble will be created later in the handler.
+                    setMessages(prev => {
+                        const newMessages = [...prev];
+                        const existingIndex = newMessages.findIndex(m => m.inProgressArtifact?.name === artifactToProcess?.name);
+                        if (existingIndex > -1) {
+                            newMessages.splice(existingIndex, 1);
+                        }
+                        return newMessages;
+                    });
                     break;
                 default:
                     console.warn("Received unknown result kind in SSE message:", result);
                     return;
             }
 
-            // Process the parts of the message sequentially
-            setMessages(prevMessages => {
-                const newMessages = [...prevMessages];
-                let lastMessage = newMessages[newMessages.length - 1];
+            // Process data parts first to extract status text
+            if (messageToProcess?.parts) {
+                const dataParts = messageToProcess.parts.filter(p => p.kind === "data") as DataPart[];
+                if (dataParts.length > 0) {
+                    for (const part of dataParts) {
+                        const data = part.data as any;
+                        if (data && typeof data === "object" && "type" in data) {
+                            switch (data.type) {
+                                case "agent_progress_update":
+                                    latestStatusText.current = String(data?.status_text ?? "Processing...");
+                                    break;
+                                case "artifact_creation_progress": {
+                                    const { filename, status, bytes_transferred, mime_type } = data as {
+                                        filename: string;
+                                        status: "in-progress" | "completed" | "failed";
+                                        bytes_transferred: number;
+                                        mime_type?: string;
+                                    };
 
-                // Remove old status bubble
-                if (lastMessage?.isStatusBubble) {
-                    newMessages.pop();
-                    lastMessage = newMessages[newMessages.length - 1];
-                }
+                                    setMessages(prev => {
+                                        const newMessages = [...prev];
+                                        const existingIndex = newMessages.findIndex(m => m.inProgressArtifact?.name === filename);
 
-                if (messageToProcess?.parts) {
-                    for (const part of messageToProcess.parts) {
-                        // Re-fetch lastMessage inside the loop as it might be updated by a previous part
-                        lastMessage = newMessages[newMessages.length - 1];
-
-                        if (part.kind === "data") {
-                            const data = part.data;
-                            if (data && typeof data === "object" && "type" in data) {
-                                switch (data.type) {
-                                    case "agent_progress_update":
-                                        latestStatusText.current = String(data?.status_text ?? "Processing...");
-                                        break;
-                                    case "artifact_creation_progress":
-                                        latestStatusText.current = `Saving artifact: ${String(data?.filename ?? "unknown file")} (${Number(data?.bytes_saved ?? 0)} bytes)`;
-                                        break;
-                                    case "tool_invocation_start":
-                                        break;
+                                        if (existingIndex > -1) {
+                                            if (status === "completed") {
+                                                // Finalize the message: transform it into an artifact notification
+                                                newMessages[existingIndex] = {
+                                                    ...newMessages[existingIndex],
+                                                    inProgressArtifact: undefined,
+                                                    artifactNotification: {
+                                                        name: filename,
+                                                        mime_type: mime_type,
+                                                    },
+                                                    isComplete: true,
+                                                    isStatusBubble: false, // No longer just a status
+                                                };
+                                                // Trigger a refetch of artifacts in the background
+                                                void artifactsRefetch();
+                                            } else if (status === "failed") {
+                                                // Transform into an error message
+                                                newMessages[existingIndex] = {
+                                                    ...newMessages[existingIndex],
+                                                    inProgressArtifact: undefined,
+                                                    parts: [{ kind: "text", text: `Failed to create artifact: ${filename}` }],
+                                                    isError: true,
+                                                    isComplete: true,
+                                                    isStatusBubble: false,
+                                                };
+                                            } else {
+                                                // Update the in-progress state
+                                                newMessages[existingIndex] = {
+                                                    ...newMessages[existingIndex],
+                                                    inProgressArtifact: {
+                                                        name: filename,
+                                                        bytesTransferred: bytes_transferred,
+                                                        status: status,
+                                                    },
+                                                    metadata: {
+                                                        ...newMessages[existingIndex].metadata,
+                                                        lastProcessedEventSequence: currentEventSequence,
+                                                    },
+                                                };
+                                            }
+                                        } else if (status === "in-progress") {
+                                            // Create new in-progress message, removing any generic status bubble first
+                                            const filteredMessages = newMessages.filter(m => !(m.isStatusBubble && !m.inProgressArtifact));
+                                            filteredMessages.push({
+                                                isUser: false,
+                                                isStatusBubble: true,
+                                                inProgressArtifact: {
+                                                    name: filename,
+                                                    bytesTransferred: bytes_transferred,
+                                                    status: status,
+                                                },
+                                                taskId: (result as TaskStatusUpdateEvent).taskId,
+                                                parts: [],
+                                                metadata: { lastProcessedEventSequence: currentEventSequence },
+                                            });
+                                            return filteredMessages;
+                                        }
+                                        return newMessages;
+                                    });
+                                    // Prevent this from updating the main status text
+                                    break;
                                 }
-                            }
-                        } else if (part.kind === "file") {
-                            // When a file comes in, we complete the previous message bubble.
-                            if (lastMessage && !lastMessage.isUser && !lastMessage.isComplete) {
-                                lastMessage.isComplete = true;
-                            }
-
-                            const filePart = part as FilePart;
-                            const fileInfo = filePart.file;
-                            const attachment: FileAttachment = {
-                                name: fileInfo.name || "untitled_file",
-                                mime_type: fileInfo.mimeType,
-                            };
-                            if ("bytes" in fileInfo && fileInfo.bytes) {
-                                attachment.content = fileInfo.bytes;
-                            } else if ("uri" in fileInfo && fileInfo.uri) {
-                                attachment.uri = fileInfo.uri;
-                            }
-
-                            // Create a new, separate message bubble for the file.
-                            const newFileBubble: MessageFE = {
-                                role: "agent",
-                                parts: [], // No text parts for a file-only bubble
-                                files: [attachment],
-                                taskId: (result as TaskStatusUpdateEvent).taskId,
-                                isUser: false,
-                                isComplete: true, // A file bubble is always complete.
-                                metadata: {
-                                    messageId: `msg-file-${crypto.randomUUID()}`,
-                                    sessionId: (result as TaskStatusUpdateEvent).contextId,
-                                    lastProcessedEventSequence: currentEventSequence,
-                                },
-                            };
-                            newMessages.push(newFileBubble);
-                        } else if (part.kind === "text") {
-                            const textPart = part as TextPart;
-                            if (!textPart.text) continue; // Skip empty/null text parts
-
-                            // Check if we can append to the last message
-                            if (lastMessage && !lastMessage.isUser && !lastMessage.isComplete && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId) {
-                                const lastPartInMessage = lastMessage.parts[lastMessage.parts.length - 1];
-                                if (lastPartInMessage?.kind === "text") {
-                                    // Append to existing text part
-                                    lastPartInMessage.text += textPart.text;
-                                } else {
-                                    // Add new text part to existing message
-                                    lastMessage.parts.push(textPart);
-                                }
-                                lastMessage.metadata.lastProcessedEventSequence = currentEventSequence;
-                            } else {
-                                // Create a new message bubble for this text
-                                const newTextBubble: MessageFE = {
-                                    role: "agent",
-                                    parts: [textPart],
-                                    taskId: (result as TaskStatusUpdateEvent).taskId,
-                                    isUser: false,
-                                    isComplete: false, // It's a new bubble, might get more content
-                                    metadata: {
-                                        messageId: rpcResponse.id?.toString() || `msg-text-${crypto.randomUUID()}`,
-                                        sessionId: (result as TaskStatusUpdateEvent).contextId,
-                                        lastProcessedEventSequence: currentEventSequence,
-                                    },
-                                };
-                                newMessages.push(newTextBubble);
+                                case "tool_invocation_start":
+                                    break;
+                                default:
+                                    console.warn("Received unknown data part type:", data.type);
                             }
                         }
                     }
                 }
+            }
 
-                // Handle artifact notification (this is separate from content parts)
-                if (artifactToProcess) {
-                    const newBubble: MessageFE = {
-                        role: "agent",
-                        parts: [],
-                        taskId: (result as TaskStatusUpdateEvent).taskId,
-                        isUser: false,
-                        isComplete: true,
+            const newContentParts = messageToProcess?.parts?.filter(p => p.kind !== "data") || [];
+            const textPartFromStream = newContentParts.find(p => p.kind === "text") as TextPart | undefined;
+            const newFileAttachments = newContentParts.filter(p => p.kind === "file").map(p => {
+                const filePart = p as FilePart;
+                const fileInfo = filePart.file;
+                const attachment: FileAttachment = {
+                    name: fileInfo.name || "untitled_file",
+                    mime_type: fileInfo.mimeType,
+                };
+                if ("bytes" in fileInfo && fileInfo.bytes) {
+                    attachment.content = fileInfo.bytes;
+                } else if ("uri" in fileInfo && fileInfo.uri) {
+                    attachment.uri = fileInfo.uri;
+                }
+                return attachment;
+            });
+            const otherContentParts = newContentParts.filter(p => p.kind !== "text" && p.kind !== "file");
+
+            // Update UI state based on processed parts
+            setMessages(prevMessages => {
+                let newMessages = [...prevMessages];
+
+                // Deduplicate file attachments against existing artifact notifications for the same task
+                const dedupedFileAttachments = newFileAttachments.filter(
+                    att => !prevMessages.some(msg => msg.taskId === currentTaskIdFromResult && msg.artifactNotification?.name === att.name)
+                );
+
+                const hasNewText = newContentParts.some(p => p.kind === "text" && (p as TextPart).text.trim());
+                const hasNewFiles = dedupedFileAttachments.length > 0;
+                const hasNewArtifactNotification = !!artifactToProcess;
+
+                // If new content is arriving, finalize any in-progress artifact for this task.
+                if (hasNewText || hasNewFiles || hasNewArtifactNotification) {
+                    const inProgressIndex = newMessages.findIndex(m => m.inProgressArtifact && m.taskId === currentTaskIdFromResult);
+
+                    if (inProgressIndex > -1) {
+                        const inProgressMessage = newMessages[inProgressIndex];
+                        const artifactName = inProgressMessage.inProgressArtifact!.name;
+
+                        // Replace the in-progress bubble with a final artifact notification bubble.
+                        newMessages[inProgressIndex] = {
+                            role: "agent",
+                            parts: [],
+                            taskId: currentTaskIdFromResult,
+                            isUser: false,
+                            isComplete: true,
+                            metadata: { ...inProgressMessage.metadata },
+                            artifactNotification: { name: artifactName },
+                        };
+                    }
+                }
+
+                let lastMessage = newMessages[newMessages.length - 1];
+
+                // Remove old generic status bubble
+                if (lastMessage?.isStatusBubble && !lastMessage.inProgressArtifact) {
+                    newMessages.pop();
+                    lastMessage = newMessages[newMessages.length - 1];
+                }
+
+                // Check if we can append to the last message
+                if (
+                    lastMessage &&
+                    !lastMessage.isUser &&
+                    !lastMessage.isComplete &&
+                    lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId &&
+                    (textPartFromStream || dedupedFileAttachments.length > 0)
+                ) {
+                    const updatedMessage: MessageFE = {
+                        ...lastMessage,
+                        parts: [...lastMessage.parts],
+                        files: lastMessage.files ? [...lastMessage.files] : [],
+                        isComplete: isFinalEvent || dedupedFileAttachments.length > 0,
                         metadata: {
-                            messageId: `msg-artifact-${crypto.randomUUID()}`,
-                            sessionId: (result as TaskStatusUpdateEvent).contextId,
+                            ...lastMessage.metadata,
                             lastProcessedEventSequence: currentEventSequence,
                         },
-                        artifactNotification: { name: artifactToProcess.name || artifactToProcess.artifactId },
                     };
-                    newMessages.push(newBubble);
+
+                    if (textPartFromStream) {
+                        const lastPartInMessage = updatedMessage.parts[updatedMessage.parts.length - 1];
+                        if (lastPartInMessage?.kind === "text") {
+                            lastPartInMessage.text += textPartFromStream.text;
+                        } else {
+                            updatedMessage.parts.push(textPartFromStream);
+                        }
+                    }
+
+                    if (otherContentParts.length > 0) {
+                        updatedMessage.parts.push(...otherContentParts);
+                    }
+
+                    if (dedupedFileAttachments.length > 0) {
+                        updatedMessage.files!.push(...dedupedFileAttachments);
+                    }
+
+                    newMessages[newMessages.length - 1] = updatedMessage;
+                } else {
+                    // Only create a new bubble if there is visible content to render.
+                    const hasVisibleContent = newContentParts.some(p => p.kind === "text" && (p as TextPart).text.trim());
+                    if (hasVisibleContent || dedupedFileAttachments.length > 0 || artifactToProcess) {
+                        const newBubble: MessageFE = {
+                            role: "agent",
+                            parts: newContentParts,
+                            files: dedupedFileAttachments.length > 0 ? dedupedFileAttachments : undefined,
+                            taskId: (result as TaskStatusUpdateEvent).taskId,
+                            isUser: false,
+                            isComplete: isFinalEvent || dedupedFileAttachments.length > 0,
+                            metadata: {
+                                messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
+                                sessionId: (result as TaskStatusUpdateEvent).contextId,
+                                lastProcessedEventSequence: currentEventSequence,
+                            },
+                            artifactNotification: artifactToProcess ? { name: artifactToProcess.name || artifactToProcess.artifactId } : undefined,
+                        };
+                        newMessages.push(newBubble);
+                    }
                 }
 
                 // Add a new status bubble if the task is not over
@@ -542,6 +650,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     });
                 } else if (isFinalEvent) {
                     latestStatusText.current = null;
+                    // Finalize any lingering in-progress artifact bubbles for this task
+                    for (let i = newMessages.length - 1; i >= 0; i--) {
+                        const msg = newMessages[i];
+                        if (msg.inProgressArtifact && msg.taskId === currentTaskIdFromResult) {
+                            const artifactName = msg.inProgressArtifact.name;
+                            // Replace with a final notification
+                            newMessages[i] = {
+                                role: "agent",
+                                parts: [],
+                                taskId: currentTaskIdFromResult,
+                                isUser: false,
+                                isComplete: true,
+                                metadata: { ...msg.metadata },
+                                artifactNotification: { name: artifactName },
+                            };
+                        }
+                    }
                     // Explicitly mark the last message as complete on the final event
                     const taskMessageIndex = newMessages.findLastIndex(msg => !msg.isUser && msg.taskId === currentTaskIdFromResult);
 
