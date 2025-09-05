@@ -107,7 +107,6 @@ export interface MessageFE {
         bytesTransferred: number;
         status: "in-progress" | "completed" | "failed";
     };
-    files?: FileAttachment[]; // Array of files returned by the agent with this message
     uploadedFiles?: File[]; // Array of files uploaded by the user with this message
     artifactNotification?: {
         // ADDED: For displaying artifact arrival notifications

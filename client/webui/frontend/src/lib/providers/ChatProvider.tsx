@@ -517,33 +517,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             const newContentParts = messageToProcess?.parts?.filter(p => p.kind !== "data") || [];
             const textPartFromStream = newContentParts.find(p => p.kind === "text") as TextPart | undefined;
-            const newFileAttachments = newContentParts.filter(p => p.kind === "file").map(p => {
-                const filePart = p as FilePart;
-                const fileInfo = filePart.file;
-                const attachment: FileAttachment = {
-                    name: fileInfo.name || "untitled_file",
-                    mime_type: fileInfo.mimeType,
-                };
-                if ("bytes" in fileInfo && fileInfo.bytes) {
-                    attachment.content = fileInfo.bytes;
-                } else if ("uri" in fileInfo && fileInfo.uri) {
-                    attachment.uri = fileInfo.uri;
-                }
-                return attachment;
-            });
-            const otherContentParts = newContentParts.filter(p => p.kind !== "text" && p.kind !== "file");
+            const hasNewFiles = newContentParts.some(p => p.kind === "file");
 
             // Update UI state based on processed parts
             setMessages(prevMessages => {
                 let newMessages = [...prevMessages];
 
-                // Deduplicate file attachments against existing artifact notifications for the same task
-                const dedupedFileAttachments = newFileAttachments.filter(
-                    att => !prevMessages.some(msg => msg.taskId === currentTaskIdFromResult && msg.artifactNotification?.name === att.name)
-                );
-
                 const hasNewText = newContentParts.some(p => p.kind === "text" && (p as TextPart).text.trim());
-                const hasNewFiles = dedupedFileAttachments.length > 0;
                 const hasNewArtifactNotification = !!artifactToProcess;
 
                 // If new content is arriving, finalize any in-progress artifact for this task.
@@ -576,53 +556,27 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // Check if we can append to the last message
-                if (
-                    lastMessage &&
-                    !lastMessage.isUser &&
-                    !lastMessage.isComplete &&
-                    lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId &&
-                    (textPartFromStream || dedupedFileAttachments.length > 0)
-                ) {
+                if (lastMessage && !lastMessage.isUser && !lastMessage.isComplete && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && newContentParts.length > 0) {
                     const updatedMessage: MessageFE = {
                         ...lastMessage,
-                        parts: [...lastMessage.parts],
-                        files: lastMessage.files ? [...lastMessage.files] : [],
-                        isComplete: isFinalEvent || dedupedFileAttachments.length > 0,
+                        parts: [...lastMessage.parts, ...newContentParts],
+                        isComplete: isFinalEvent || hasNewFiles,
                         metadata: {
                             ...lastMessage.metadata,
                             lastProcessedEventSequence: currentEventSequence,
                         },
                     };
-
-                    if (textPartFromStream) {
-                        const lastPartInMessage = updatedMessage.parts[updatedMessage.parts.length - 1];
-                        if (lastPartInMessage?.kind === "text") {
-                            lastPartInMessage.text += textPartFromStream.text;
-                        } else {
-                            updatedMessage.parts.push(textPartFromStream);
-                        }
-                    }
-
-                    if (otherContentParts.length > 0) {
-                        updatedMessage.parts.push(...otherContentParts);
-                    }
-
-                    if (dedupedFileAttachments.length > 0) {
-                        updatedMessage.files!.push(...dedupedFileAttachments);
-                    }
-
                     newMessages[newMessages.length - 1] = updatedMessage;
                 } else {
                     // Only create a new bubble if there is visible content to render.
-                    const hasVisibleContent = newContentParts.some(p => p.kind === "text" && (p as TextPart).text.trim());
-                    if (hasVisibleContent || dedupedFileAttachments.length > 0 || artifactToProcess) {
+                    const hasVisibleContent = newContentParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file");
+                    if (hasVisibleContent || artifactToProcess) {
                         const newBubble: MessageFE = {
                             role: "agent",
                             parts: newContentParts,
-                            files: dedupedFileAttachments.length > 0 ? dedupedFileAttachments : undefined,
                             taskId: (result as TaskStatusUpdateEvent).taskId,
                             isUser: false,
-                            isComplete: isFinalEvent || dedupedFileAttachments.length > 0,
+                            isComplete: isFinalEvent || hasNewFiles,
                             metadata: {
                                 messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
                                 sessionId: (result as TaskStatusUpdateEvent).contextId,

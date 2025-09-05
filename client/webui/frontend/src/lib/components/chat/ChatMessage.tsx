@@ -18,40 +18,25 @@ import type { ExtractedContent } from "./preview/contentUtils";
 
 const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
 
-const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
+const MessageContent: React.FC<{ message: MessageFE; textContent: string }> = ({ message, textContent }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
-    if (message.isStatusBubble) {
-        return null;
-    }
-
-    // Derive text content from the `parts` array for both user and agent messages.
-    const textParts = message.parts?.filter(p => p.kind === "text") as TextPart[] | undefined;
-    const combinedText = textParts?.map(p => p.text).join("") || "";
-
-    if (message.isUser) {
-        return <span>{combinedText}</span>;
-    }
-
-    const trimmedText = combinedText.trim();
-    if (!trimmedText) return null;
 
     if (message.isError) {
         return (
             <div className="flex items-center">
                 <AlertCircle className="mr-2 self-start text-[var(--color-error-wMain)]" />
-                <MarkdownHTMLConverter>{trimmedText}</MarkdownHTMLConverter>
+                <MarkdownHTMLConverter>{textContent}</MarkdownHTMLConverter>
             </div>
         );
     }
 
-    const embeddedContent = extractEmbeddedContent(trimmedText);
+    const embeddedContent = extractEmbeddedContent(textContent);
     if (embeddedContent.length === 0) {
-        return <MarkdownHTMLConverter>{trimmedText}</MarkdownHTMLConverter>;
+        return <MarkdownHTMLConverter>{textContent}</MarkdownHTMLConverter>;
     }
 
-    let modifiedText = trimmedText;
+    let modifiedText = textContent;
     const contentElements: ReactNode[] = [];
-    // Process each embedded content item
     embeddedContent.forEach((item: ExtractedContent, index: number) => {
         modifiedText = modifiedText.replace(item.originalMatch, "");
 
@@ -104,36 +89,6 @@ const getUploadedFiles = (message: MessageFE) => {
     return null;
 };
 
-const getFileAttachments = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean) => {
-    const { openSidePanelTab, setTaskIdInSidePanel } = chatContext;
-
-    if (message.files && message.files.length > 0) {
-        const textContent = message.parts?.some(p => p.kind === "text" && p.text.trim());
-        const isFileOnlyMessage = !textContent && !message.artifactNotification;
-        const showWorkflowButton = isFileOnlyMessage && !message.isUser && message.isComplete && !!message.taskId && isLastWithTaskId;
-
-        const handleViewWorkflowClick = () => {
-            if (message.taskId) {
-                setTaskIdInSidePanel(message.taskId);
-                openSidePanelTab("workflow");
-            }
-        };
-
-        return (
-            <MessageWrapper message={message}>
-                {message.files.map((file, fileIdx) => (
-                    <FileAttachmentMessage key={`file-${message.metadata?.messageId}-${fileIdx}`} fileAttachment={file} />
-                ))}
-                {showWorkflowButton && (
-                    <div className="mt-3">
-                        <ViewWorkflowButton onClick={handleViewWorkflowClick} />
-                    </div>
-                )}
-            </MessageWrapper>
-        );
-    }
-    return null;
-};
 
 const getArtifactNotification = (message: MessageFE) => {
     if (message.artifactNotification) {
@@ -164,9 +119,27 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
         return null;
     }
 
-    const textContent = message.parts?.some(p => p.kind === "text" && p.text.trim());
+    // Group contiguous parts to handle interleaving of text and files
+    const groupedParts: (TextPart | FilePart)[] = [];
+    let currentTextGroup = "";
 
-    if (!textContent) {
+    message.parts?.forEach(part => {
+        if (part.kind === "text") {
+            currentTextGroup += (part as TextPart).text;
+        } else if (part.kind === "file") {
+            if (currentTextGroup) {
+                groupedParts.push({ kind: "text", text: currentTextGroup });
+                currentTextGroup = "";
+            }
+            groupedParts.push(part as FilePart);
+        }
+    });
+    if (currentTextGroup) {
+        groupedParts.push({ kind: "text", text: currentTextGroup });
+    }
+
+    const hasContent = groupedParts.some(p => (p.kind === "text" && p.text.trim()) || p.kind === "file");
+    if (!hasContent) {
         return null;
     }
 
@@ -182,7 +155,30 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
     return (
         <ChatBubble key={message.metadata?.messageId} variant={variant}>
             <ChatBubbleMessage variant={variant}>
-                {textContent && <MessageContent message={message} />}
+                {groupedParts.map((part, index) => {
+                    if (part.kind === "text") {
+                        return <MessageContent key={`part-text-${index}`} message={message} textContent={part.text} />;
+                    }
+                    if (part.kind === "file") {
+                        const filePart = part as FilePart;
+                        const fileInfo = filePart.file;
+                        const attachment: FileAttachment = {
+                            name: fileInfo.name || "untitled_file",
+                            mime_type: fileInfo.mimeType,
+                        };
+                        if ("bytes" in fileInfo && fileInfo.bytes) {
+                            attachment.content = fileInfo.bytes;
+                        } else if ("uri" in fileInfo && fileInfo.uri) {
+                            attachment.uri = fileInfo.uri;
+                        }
+                        return (
+                            <div key={`part-file-${index}`} className="my-2">
+                                <FileAttachmentMessage fileAttachment={attachment} />
+                            </div>
+                        );
+                    }
+                    return null;
+                })}
                 {showWorkflowButton && (
                     <div className="mt-3">
                         <ViewWorkflowButton onClick={handleViewWorkflowClick} />
@@ -201,7 +197,6 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
         <>
             {getChatBubble(message, chatContext, isLastWithTaskId)}
             {getUploadedFiles(message)}
-            {getFileAttachments(message, chatContext, isLastWithTaskId)}
             {getInProgressFile(message)}
             {getArtifactNotification(message)}
         </>
