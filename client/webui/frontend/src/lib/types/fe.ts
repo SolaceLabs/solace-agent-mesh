@@ -90,6 +90,14 @@ export interface Notification {
     type?: "success" | "info" | "error";
 }
 
+export interface InProgressArtifactPart {
+    kind: "in-progress-artifact";
+    name: string;
+    bytesTransferred: number;
+}
+
+export type PartFE = Part | InProgressArtifactPart;
+
 /**
  * Represents a single message in the chat conversation.
  */
@@ -102,18 +110,7 @@ export interface MessageFE {
     isThinkingMessage?: boolean; // Specific flag for the "thinking" status message
     isComplete?: boolean; // ADDED: True if the agent response associated with this message is complete
     isError?: boolean; // ADDED: True if this message represents an error/failure
-    inProgressArtifact?: {
-        name: string;
-        bytesTransferred: number;
-        status: "in-progress" | "completed" | "failed";
-    };
     uploadedFiles?: File[]; // Array of files uploaded by the user with this message
-    artifactNotification?: {
-        // ADDED: For displaying artifact arrival notifications
-        name: string;
-        version?: number; // Optional: If version info is available from metadata
-        mime_type?: string; // Optional: MIME type for immediate rendering
-    };
     toolEvents?: ToolEvent[]; // --- NEW: Array to hold tool call results ---
     metadata?: {
         // Optional metadata, e.g., for feedback or correlation
@@ -121,7 +118,7 @@ export interface MessageFE {
         sessionId?: string; // The A2A session ID associated with this message exchange
         lastProcessedEventSequence?: number; // Sequence number of the last SSE event processed for this bubble
     };
-    parts: Part[];
+    parts: PartFE[];
 }
 
 // Layout Types
