@@ -46,12 +46,12 @@ async def get_all_sessions(
 
     log.info(project_id)
     try:
-        request_dto = GetSessionsRequest(user_id=user_id)
+        request_dto = GetSessionsRequest(user_id=user_id, project_id=project_id)
 
         session_domains = session_service.get_user_sessions(
             user_id=request_dto.user_id,
             pagination=request_dto.pagination,
-            #project_id=project_id,
+            project_id=request_dto.project_id,
         )
 
         session_responses = []
@@ -61,7 +61,7 @@ async def get_all_sessions(
                 user_id=domain.user_id,
                 name=domain.name,
                 agent_id=domain.agent_id,
-                #project_id=domain.project_id,
+                project_id=domain.project_id,
                 status=domain.status,
                 created_at=domain.created_at,
                 updated_at=domain.updated_at,

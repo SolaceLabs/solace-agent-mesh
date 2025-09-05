@@ -23,10 +23,13 @@ class SessionRepository(ISessionRepository):
             return self._model_to_entity(model) if model else None
 
     def get_by_user_id(
-        self, user_id: UserId, pagination: PaginationInfo | None = None
+        self, user_id: UserId, pagination: PaginationInfo | None = None, project_id: str | None = None
     ) -> list[Session]:
         with self.db_service.read_only_session() as session:
             query = session.query(SessionModel).filter(SessionModel.user_id == user_id)
+            
+            if project_id:
+                query = query.filter(SessionModel.project_id == project_id)
 
             if pagination:
                 offset = (pagination.page - 1) * pagination.page_size
@@ -53,6 +56,7 @@ class SessionRepository(ISessionRepository):
                 user_id=session_entity.user_id,
                 name=session_entity.name,
                 agent_id=session_entity.agent_id,
+                project_id=session_entity.project_id,
                 created_at=session_entity.created_at,
                 updated_at=session_entity.updated_at,
             )
@@ -77,6 +81,7 @@ class SessionRepository(ISessionRepository):
 
             model.name = session_entity.name
             model.agent_id = session_entity.agent_id
+            model.project_id = session_entity.project_id
             model.updated_at = session_entity.updated_at
 
             session.flush()
@@ -112,6 +117,7 @@ class SessionRepository(ISessionRepository):
             user_id=model.user_id,
             name=model.name,
             agent_id=model.agent_id,
+            project_id=model.project_id,
             status=SessionStatus.ACTIVE,
             created_at=model.created_at,
             updated_at=model.updated_at,

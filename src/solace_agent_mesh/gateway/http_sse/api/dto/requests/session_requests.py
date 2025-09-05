@@ -11,6 +11,7 @@ from ....shared.types import SessionId, UserId, SortInfo, FilterInfo, Pagination
 class GetSessionsRequest(BaseModel):
     """Request DTO for retrieving sessions."""
     user_id: UserId
+    project_id: Optional[str] = None
     pagination: Optional[PaginationInfo] = None
     sort: Optional[SortInfo] = None
     filters: Optional[List[FilterInfo]] = None

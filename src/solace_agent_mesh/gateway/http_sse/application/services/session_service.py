@@ -22,9 +22,9 @@ class SessionService:
         self.message_repository = message_repository
 
     def get_user_sessions(
-        self, user_id: UserId, pagination: PaginationInfo | None = None
+        self, user_id: UserId, pagination: PaginationInfo | None = None, project_id: str | None = None
     ) -> list[Session]:
-        return self.session_repository.get_by_user_id(user_id, pagination)
+        return self.session_repository.get_by_user_id(user_id, pagination, project_id)
 
     def get_session(self, session_id: SessionId, user_id: UserId) -> Session | None:
         return self.session_repository.get_user_session(session_id, user_id)

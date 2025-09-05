@@ -11,7 +11,7 @@ class ISessionRepository(ABC):
 
     @abstractmethod
     def get_by_user_id(
-        self, user_id: UserId, pagination: PaginationInfo | None = None
+        self, user_id: UserId, pagination: PaginationInfo | None = None, project_id: str | None = None
     ) -> list[Session]:
         pass
 
