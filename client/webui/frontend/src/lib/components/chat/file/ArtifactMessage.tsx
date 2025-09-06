@@ -29,6 +29,7 @@ type ArtifactMessageProps =
       };
 
 export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
+    console.log(`[ArtifactMessage] Rendering with props:`, props);
     const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId, messages } = useChatContext();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);

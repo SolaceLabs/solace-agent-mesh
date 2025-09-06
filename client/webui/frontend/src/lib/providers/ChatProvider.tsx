@@ -442,6 +442,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         artifact_chunk?: string;
                                     };
                                     console.log(`[ChatProvider] Received artifact_creation_progress:`, { filename, status, bytes_transferred, mime_type, description, artifact_chunk });
+                                    console.log(`[ChatProvider] Updating artifact progress: ${filename}, status: ${status}, bytes: ${bytes_transferred}`);
 
                                     // Update global artifacts list with description and accumulated content
                                     setArtifacts(prevArtifacts => {
@@ -506,6 +507,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         if (status === "in-progress") {
                                             if (artifactPartIndex > -1) {
                                                 const existingPart = agentMessage.parts[artifactPartIndex] as ArtifactPart;
+                                                console.log(`[ChatProvider] Updating existing artifact part for ${filename}, old bytes: ${existingPart.bytesTransferred}, new bytes: ${bytes_transferred}`);
                                                 // Create a new part object with immutable update
                                                 const updatedPart: ArtifactPart = {
                                                     ...existingPart,
@@ -513,7 +515,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                     status: "in-progress",
                                                 };
                                                 agentMessage.parts[artifactPartIndex] = updatedPart;
+                                                console.log(`[ChatProvider] Updated artifact part:`, updatedPart);
                                             } else {
+                                                console.log(`[ChatProvider] Creating new artifact part for ${filename} with bytes: ${bytes_transferred}`);
                                                 agentMessage.parts.push({
                                                     kind: "artifact",
                                                     status: "in-progress",
@@ -572,6 +576,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         }
 
                                         newMessages[agentMessageIndex] = agentMessage;
+                                        console.log(`[ChatProvider] Updated message with artifact parts:`, agentMessage.parts.filter(p => p.kind === 'artifact'));
                                         
                                         // Filter out OTHER generic status bubbles, but keep our message.
                                         const finalMessages = newMessages.filter(m => !m.isStatusBubble || m.parts.some(p => p.kind === 'artifact' || p.kind === 'file'));

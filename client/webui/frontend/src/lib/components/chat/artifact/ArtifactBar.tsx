@@ -43,6 +43,8 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
     content,
     expandedContent,
 }) => {
+    console.log(`[ArtifactBar] Rendering ${filename} with status: ${status}, bytesTransferred: ${bytesTransferred}`);
+    
     // Validate required props
     if (!filename || typeof filename !== 'string') {
         console.error('ArtifactBar: filename is required and must be a string');
