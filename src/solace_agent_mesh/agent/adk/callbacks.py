@@ -206,6 +206,7 @@ async def process_artifact_blocks_callback(
                         if a2a_context:
                             progress_data = ArtifactCreationProgressData(
                                 filename=filename,
+                                description=params.get("description"),
                                 status="in-progress",
                                 bytes_transferred=event.buffered_size,
                                 artifact_chunk=event.chunk,
