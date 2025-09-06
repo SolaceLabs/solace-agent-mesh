@@ -30,23 +30,31 @@ export const generateIconContentPreview = (content: string, filename?: string, m
  * Generates JSON preview for file icons
  */
 export const generateJsonIconPreview = (content: string, maxLength: number = 150): string => {
+    if (!content || typeof content !== 'string') {
+        return '';
+    }
+    
     try {
         const parsed = JSON.parse(content);
         if (typeof parsed === "object" && parsed !== null) {
             const keys = Object.keys(parsed).slice(0, 6); // Show up to 6 keys for icons
             const preview = keys.map(key => {
-                const value = parsed[key];
-                if (typeof value === "string") {
-                    const truncatedValue = value.length > 15 ? value.substring(0, 15) + '...' : value;
-                    return `"${key}": "${truncatedValue}"`;
-                } else if (typeof value === "number" || typeof value === "boolean") {
-                    return `"${key}": ${value}`;
-                } else if (Array.isArray(value)) {
-                    return `"${key}": [${value.length}]`;
-                } else if (typeof value === "object" && value !== null) {
-                    return `"${key}": {...}`;
+                try {
+                    const value = parsed[key];
+                    if (typeof value === "string") {
+                        const truncatedValue = value.length > 15 ? value.substring(0, 15) + '...' : value;
+                        return `"${key}": "${truncatedValue}"`;
+                    } else if (typeof value === "number" || typeof value === "boolean") {
+                        return `"${key}": ${value}`;
+                    } else if (Array.isArray(value)) {
+                        return `"${key}": [${value.length}]`;
+                    } else if (typeof value === "object" && value !== null) {
+                        return `"${key}": {...}`;
+                    }
+                    return `"${key}": ${typeof value}`;
+                } catch (keyError) {
+                    return `"${key}": <error>`;
                 }
-                return `"${key}": ${typeof value}`;
             }).join('\n');
             
             const result = `{\n${preview}\n}`;
@@ -54,6 +62,7 @@ export const generateJsonIconPreview = (content: string, maxLength: number = 150
         }
         return content.substring(0, maxLength);
     } catch (error) {
+        console.warn('Failed to parse JSON for preview:', error);
         return content.substring(0, maxLength);
     }
 };
@@ -153,13 +162,22 @@ export const cleanContentForIconPreview = (content: string): string => {
  * Generates a fallback preview for binary or unsupported files
  */
 export const generateBinaryFilePreview = (filename: string, mimeType?: string, size?: number): string => {
-    const extension = filename.split('.').pop()?.toUpperCase() || 'FILE';
-    const sizeText = size ? `${Math.round(size / 1024)}KB` : '';
-    const typeText = mimeType ? mimeType.split('/')[0].toUpperCase() : 'BINARY';
+    if (!filename || typeof filename !== 'string') {
+        return 'Unknown File';
+    }
     
-    return [
-        `${extension} File`,
-        typeText,
-        sizeText
-    ].filter(Boolean).join('\n');
+    try {
+        const extension = filename.split('.').pop()?.toUpperCase() || 'FILE';
+        const sizeText = size && typeof size === 'number' ? `${Math.round(size / 1024)}KB` : '';
+        const typeText = mimeType && typeof mimeType === 'string' ? mimeType.split('/')[0].toUpperCase() : 'BINARY';
+        
+        return [
+            `${extension} File`,
+            typeText,
+            sizeText
+        ].filter(Boolean).join('\n');
+    } catch (error) {
+        console.warn('Failed to generate binary file preview:', error);
+        return 'Binary File';
+    }
 };

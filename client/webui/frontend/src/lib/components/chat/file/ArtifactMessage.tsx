@@ -121,12 +121,18 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     // Generate content preview for the file icon
     const contentPreview = useMemo(() => {
         if (props.status === "completed" && fileAttachment) {
-            const contentToUse = fetchedContent || fileAttachment.content;
-            if (contentToUse) {
-                const decodedContent = getFileContent({ ...fileAttachment, content: contentToUse });
-                if (decodedContent) {
-                    return generateFileTypePreview(decodedContent, fileName, fileMimeType);
+            try {
+                const contentToUse = fetchedContent || fileAttachment.content;
+                if (contentToUse) {
+                    const decodedContent = getFileContent({ ...fileAttachment, content: contentToUse });
+                    if (decodedContent) {
+                        return generateFileTypePreview(decodedContent, fileName, fileMimeType);
+                    }
                 }
+            } catch (error) {
+                console.warn("Failed to generate content preview:", error);
+                // Return fallback preview
+                return `${fileName}\n${fileMimeType || 'Unknown type'}`;
             }
         }
         return undefined;
@@ -140,7 +146,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             onDownload: handleDownloadClick,
             onPreview: artifact ? handlePreviewClick : undefined,
         };
-    }, [props.status, handleDown loadClick, artifact, handlePreviewClick]);
+    }, [props.status, handleDownloadClick, artifact, handlePreviewClick]);
 
     // Render the artifact bar (no indentation)
     const artifactBar = (
@@ -192,9 +198,20 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         return artifactBar;
     }
 
-    const finalContent = getFileContent({ ...fileAttachment!, content: contentToRender });
-    if (!finalContent) {
-        return artifactBar;
+    let finalContent: string;
+    try {
+        finalContent = getFileContent({ ...fileAttachment!, content: contentToRender });
+        if (!finalContent) {
+            return artifactBar;
+        }
+    } catch (error) {
+        console.error("Failed to process file content:", error);
+        return (
+            <div className="space-y-2">
+                {artifactBar}
+                <MessageBanner variant="error" message="Failed to process file content for rendering" />
+            </div>
+        );
     }
 
     // Render the bar with inline content below

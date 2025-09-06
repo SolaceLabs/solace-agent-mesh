@@ -40,6 +40,24 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
     error,
     content,
 }) => {
+    // Validate required props
+    if (!filename || typeof filename !== 'string') {
+        console.error('ArtifactBar: filename is required and must be a string');
+        return (
+            <div className="w-full border border-red-300 rounded-lg bg-red-50 p-3">
+                <div className="text-red-600 text-sm">Error: Invalid artifact data</div>
+            </div>
+        );
+    }
+
+    if (!status || !['creating', 'completed', 'failed'].includes(status)) {
+        console.error('ArtifactBar: status must be one of: creating, completed, failed');
+        return (
+            <div className="w-full border border-red-300 rounded-lg bg-red-50 p-3">
+                <div className="text-red-600 text-sm">Error: Invalid artifact status</div>
+            </div>
+        );
+    }
     const getStatusDisplay = () => {
         switch (status) {
             case "creating":
@@ -83,12 +101,12 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                 <div className="flex-1 min-w-0 py-1">
                     {/* Primary line: Filename */}
                     <div className="font-mono text-sm font-semibold text-gray-900 dark:text-gray-100 truncate leading-tight" title={filename}>
-                        {filename}
+                        {filename.length > 50 ? `${filename.substring(0, 47)}...` : filename}
                     </div>
                     
                     {/* Secondary line: Description or status */}
-                    <div className="text-xs text-gray-600 dark:text-gray-400 truncate mt-1 leading-tight" title={description}>
-                        {description || statusDisplay.text}
+                    <div className="text-xs text-gray-600 dark:text-gray-400 truncate mt-1 leading-tight" title={description || statusDisplay.text}>
+                        {(description && description.length > 100) ? `${description.substring(0, 97)}...` : (description || statusDisplay.text)}
                     </div>
                     
                     {/* Tertiary line: Status for completed files */}
@@ -105,7 +123,14 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={actions.onDownload}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                try {
+                                    actions.onDownload();
+                                } catch (error) {
+                                    console.error('Download failed:', error);
+                                }
+                            }}
                             tooltip="Download"
                             className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                         >
@@ -117,7 +142,14 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={actions.onPreview}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                try {
+                                    actions.onPreview();
+                                } catch (error) {
+                                    console.error('Preview failed:', error);
+                                }
+                            }}
                             tooltip="Preview"
                             className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                         >
@@ -143,7 +175,14 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                     <Button
                         variant="ghost"
                         size="sm"
-                        onClick={onToggleExpand}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            try {
+                                onToggleExpand();
+                            } catch (error) {
+                                console.error('Toggle expand failed:', error);
+                            }
+                        }}
                         tooltip={expanded ? "Collapse" : "Expand"}
                         className="h-8 w-8 p-0 flex-shrink-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >

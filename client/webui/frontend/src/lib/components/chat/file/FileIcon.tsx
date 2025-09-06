@@ -55,10 +55,24 @@ const getFileTypeColor = (mimeType?: string, filename?: string): string => {
 };
 
 const truncateContent = (content: string, maxLength: number = 200): string => {
-    if (!content || content.length <= maxLength) {
-        return content || '';
+    if (!content || typeof content !== 'string') {
+        return '';
     }
-    return content.substring(0, maxLength) + '...';
+    if (content.length <= maxLength) {
+        return content;
+    }
+    // Truncate at word boundary if possible
+    const truncated = content.substring(0, maxLength);
+    const lastSpaceIndex = truncated.lastIndexOf(' ');
+    const lastNewlineIndex = truncated.lastIndexOf('\n');
+    
+    // Use the latest boundary that's not too close to the start
+    const boundaryIndex = Math.max(lastSpaceIndex, lastNewlineIndex);
+    if (boundaryIndex > maxLength * 0.7) {
+        return truncated.substring(0, boundaryIndex) + '...';
+    }
+    
+    return truncated + '...';
 };
 
 export const FileIcon: React.FC<FileIconProps> = ({ 
@@ -68,6 +82,12 @@ export const FileIcon: React.FC<FileIconProps> = ({
     size,
     className 
 }) => {
+    // Validate required props
+    if (!filename || typeof filename !== 'string') {
+        console.warn('FileIcon: filename is required and must be a string');
+        return null;
+    }
+
     const extension = getFileExtension(filename);
     const typeColor = getFileTypeColor(mimeType, filename);
     const previewContent = content ? truncateContent(content) : '';
