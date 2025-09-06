@@ -94,6 +94,7 @@ export interface ArtifactPart {
     kind: "artifact";
     status: "in-progress" | "completed" | "failed";
     name: string;
+    description?: string;
     bytesTransferred?: number;
     file?: FileAttachment; // The completed file info
     error?: string;

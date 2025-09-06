@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useChatContext, useArtifactRendering } from "@/lib/hooks";
-import type { FileAttachment } from "@/lib/types";
+import type { FileAttachment, ArtifactPart } from "@/lib/types";
 import { authenticatedFetch } from "@/lib/utils/api";
 import { downloadFile, parseArtifactUri } from "@/lib/utils/download";
 import { generateFileTypePreview } from "./fileUtils";
@@ -148,10 +148,29 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         };
     }, [props.status, handleDownloadClick, artifact, handlePreviewClick]);
 
+    // Get the artifact part to extract description
+    const artifactPart = useMemo(() => {
+        if (props.status === "completed" && artifact) {
+            // For completed artifacts, try to find the artifact part in messages
+            const { messages } = useChatContext();
+            for (const message of messages) {
+                if (!message.isUser && message.parts) {
+                    const part = message.parts.find(p => 
+                        p.kind === "artifact" && 
+                        p.name === props.name
+                    ) as ArtifactPart | undefined;
+                    if (part) return part;
+                }
+            }
+        }
+        return undefined;
+    }, [props.status, props.name, artifact]);
+
     // Render the artifact bar (no indentation)
     const artifactBar = (
         <ArtifactBar
             filename={fileName}
+            description={artifactPart?.description}
             mimeType={fileMimeType}
             size={fileAttachment?.size}
             status={props.status}
