@@ -1,20 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Download, Eye, FileText, Loader2 } from "lucide-react";
 
-import { Button, Spinner } from "@/lib/components/ui";
-import { useChatContext } from "@/lib/hooks";
+import { useChatContext, useArtifactRendering } from "@/lib/hooks";
 import type { FileAttachment } from "@/lib/types";
 import { authenticatedFetch } from "@/lib/utils/api";
 import { downloadFile, parseArtifactUri } from "@/lib/utils/download";
-import { formatBytes } from "@/lib/utils/format";
-import { cn } from "@/lib/utils";
+import { generateFileTypePreview } from "./fileUtils";
 
 import { MessageBanner } from "../../common";
 import { ContentRenderer } from "../preview/ContentRenderer";
 import { getFileContent, getRenderType } from "../preview/previewUtils";
-import { FileMessage } from "./FileMessage";
-
-const INLINE_RENDERABLE_TYPES = ["image", "audio", "markdown", "csv", "json", "yaml", "text"];
+import { ArtifactBar } from "../artifact/ArtifactBar";
 
 type ArtifactMessageProps =
     | {
@@ -42,6 +37,17 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
     const artifact = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);
 
+    // Get file info for rendering decisions
+    const fileAttachment = props.status === "completed" ? props.fileAttachment : undefined;
+    const fileName = fileAttachment?.name || props.name;
+    const fileMimeType = fileAttachment?.mime_type;
+    
+    // Use the artifact rendering hook to determine rendering behavior
+    const { shouldRender, isExpandable, isExpanded, toggleExpanded } = useArtifactRendering({
+        filename: fileName,
+        mimeType: fileMimeType
+    });
+
     const handlePreviewClick = useCallback(() => {
         if (artifact) {
             openSidePanelTab("files");
@@ -49,24 +55,24 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         }
     }, [artifact, openSidePanelTab, setPreviewArtifact]);
 
-    const { status } = props;
-    const fileAttachment = status === "completed" ? props.fileAttachment : undefined;
-    const fileUri = fileAttachment?.uri;
-    const fileContent = fileAttachment?.content;
-    const fileName = fileAttachment?.name;
-    const fileMimeType = fileAttachment?.mime_type;
+    const handleDownloadClick = useCallback(() => {
+        if (fileAttachment) {
+            downloadFile(fileAttachment);
+        }
+    }, [fileAttachment]);
 
-    // Fetch content from URI for completed artifacts
+    // Fetch content from URI for completed artifacts when needed for rendering
     useEffect(() => {
         const fetchContentFromUri = async () => {
-            // Guard to prevent re-fetching if we are already loading or have the content.
-            if (isLoading || fetchedContent) {
+            if (isLoading || fetchedContent || !shouldRender) {
                 return;
             }
 
-            const renderType = getRenderType(fileName, fileMimeType);
-            if (!fileUri || !renderType || !INLINE_RENDERABLE_TYPES.includes(renderType)) {
-                return;
+            const fileUri = fileAttachment?.uri;
+            const fileContent = fileAttachment?.content;
+            
+            if (!fileUri || fileContent) {
+                return; // Already have content or no URI to fetch from
             }
 
             setIsLoading(true);
@@ -107,104 +113,105 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             }
         };
 
-        if (status === "completed" && fileUri && !fileContent) {
+        if (props.status === "completed" && shouldRender) {
             fetchContentFromUri();
         }
-    }, [status, fileUri, fileContent, fileName, fileMimeType, sessionId, isLoading, fetchedContent]);
+    }, [props.status, shouldRender, fileAttachment, sessionId, isLoading, fetchedContent]);
 
-    switch (props.status) {
-        case "in-progress":
-            return (
-                <div className="ml-4 flex max-w-xs items-center gap-2 rounded-lg bg-[var(--accent-background)] px-2 py-1 h-11">
-                    <FileText className="h-4 w-4 flex-shrink-0" />
-                    <div className="min-w-0 flex-1 truncate">
-                        <div className="text-sm font-semibold" title={props.name}>
-                            <code>{props.name}</code>
-                        </div>
-                        <div className="text-xs text-muted-foreground">Authoring artifact... {formatBytes(props.bytesTransferred)}</div>
-                    </div>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                </div>
-            );
-
-        case "failed":
-            return (
-                <div className="ml-4 flex max-w-xs items-center gap-2 rounded-lg bg-destructive/10 px-2 py-1 h-11 text-destructive">
-                    <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                    <div className="min-w-0 flex-1 truncate">
-                        <div className="text-sm font-semibold" title={props.name}>
-                            <code>{props.name}</code>
-                        </div>
-                        <div className="text-xs">Failed to create artifact</div>
-                    </div>
-                </div>
-            );
-
-        case "completed": {
-            const { fileAttachment } = props;
-            const renderType = getRenderType(fileAttachment.name, fileAttachment.mime_type);
-            const contentToRender = fetchedContent || fileAttachment.content;
-
-            const renderFallbackBadge = () => <FileMessage filename={fileAttachment.name} mimeType={fileAttachment.mime_type} onDownload={() => downloadFile(fileAttachment)} className="ml-4" />;
-
-            if (renderType && INLINE_RENDERABLE_TYPES.includes(renderType)) {
-                if (isLoading) {
-                    return (
-                        <div className="ml-4 my-2 p-4 border rounded-lg max-w-2xl h-24 flex items-center justify-center bg-muted">
-                            <Spinner />
-                        </div>
-                    );
-                }
-
-                if (error) {
-                    return (
-                        <div className="ml-4 my-2">
-                            <MessageBanner variant="error" message={error} />
-                        </div>
-                    );
-                }
-
-                if (contentToRender) {
-                    const finalContent = getFileContent({ ...fileAttachment, content: contentToRender });
-                    if (!finalContent) {
-                        return renderFallbackBadge();
-                    }
-
-                    const scrollableRenderTypes = ["csv", "json", "yaml", "markdown", "text"];
-                    const rendererContainerStyle: React.CSSProperties =
-                        renderType && scrollableRenderTypes.includes(renderType) ? { maxHeight: "400px", overflowY: "auto" } : {};
-
-                    const noBorderRenderTypes = ["image", "audio"];
-                    const containerClasses = cn(
-                        "relative group max-w-2xl my-2 overflow-hidden bg-background ml-4",
-                        !noBorderRenderTypes.includes(renderType || "") && "border rounded-lg"
-                    );
-
-                    return (
-                        <div className={containerClasses}>
-                            {renderError && <MessageBanner variant="error" message={renderError} />}
-                            <div style={rendererContainerStyle}>
-                                <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileAttachment.mime_type} setRenderError={setRenderError} />
-                            </div>
-                            <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 rounded-md bg-black/60 p-0.5 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 dark:bg-zinc-200/60">
-                                {artifact && (
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20 dark:text-zinc-900 dark:hover:bg-black/10 dark:hover:text-zinc-900" onClick={handlePreviewClick} tooltip="Preview">
-                                        <Eye className="h-4 w-4" />
-                                    </Button>
-                                )}
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20 dark:text-zinc-900 dark:hover:bg-black/10 dark:hover:text-zinc-900" onClick={() => downloadFile(fileAttachment)} tooltip="Download">
-                                    <Download className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        </div>
-                    );
+    // Generate content preview for the file icon
+    const contentPreview = useMemo(() => {
+        if (props.status === "completed" && fileAttachment) {
+            const contentToUse = fetchedContent || fileAttachment.content;
+            if (contentToUse) {
+                const decodedContent = getFileContent({ ...fileAttachment, content: contentToUse });
+                if (decodedContent) {
+                    return generateFileTypePreview(decodedContent, fileName, fileMimeType);
                 }
             }
-
-            return renderFallbackBadge();
         }
+        return undefined;
+    }, [props.status, fileAttachment, fetchedContent, fileName, fileMimeType]);
 
-        default:
-            return null;
+    // Prepare actions for the artifact bar
+    const actions = useMemo(() => {
+        if (props.status !== "completed") return undefined;
+        
+        return {
+            onDownload: handleDownloadClick,
+            onPreview: artifact ? handlePreviewClick : undefined,
+        };
+    }, [props.status, handleDown loadClick, artifact, handlePreviewClick]);
+
+    // Render the artifact bar (no indentation)
+    const artifactBar = (
+        <ArtifactBar
+            filename={fileName}
+            mimeType={fileMimeType}
+            size={fileAttachment?.size}
+            status={props.status}
+            expandable={isExpandable}
+            expanded={isExpanded}
+            onToggleExpand={isExpandable ? toggleExpanded : undefined}
+            actions={actions}
+            bytesTransferred={props.status === "in-progress" ? props.bytesTransferred : undefined}
+            error={props.status === "failed" ? props.error : undefined}
+            content={contentPreview}
+        />
+    );
+
+    // If we shouldn't render content inline, just show the bar
+    if (!shouldRender) {
+        return artifactBar;
     }
+
+    // For rendering content, we need the actual content
+    const contentToRender = fetchedContent || fileAttachment?.content;
+    const renderType = getRenderType(fileName, fileMimeType);
+
+    if (isLoading) {
+        return (
+            <div className="space-y-2">
+                {artifactBar}
+                <div className="p-4 border rounded-lg max-w-2xl h-24 flex items-center justify-center bg-muted">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="space-y-2">
+                {artifactBar}
+                <MessageBanner variant="error" message={error} />
+            </div>
+        );
+    }
+
+    if (!contentToRender || !renderType) {
+        return artifactBar;
+    }
+
+    const finalContent = getFileContent({ ...fileAttachment!, content: contentToRender });
+    if (!finalContent) {
+        return artifactBar;
+    }
+
+    // Render the bar with inline content below
+    return (
+        <div className="space-y-2">
+            {artifactBar}
+            <div className="relative group max-w-2xl overflow-hidden bg-background border rounded-lg">
+                {renderError && <MessageBanner variant="error" message={renderError} />}
+                <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+                    <ContentRenderer 
+                        content={finalContent} 
+                        rendererType={renderType} 
+                        mime_type={fileAttachment?.mime_type} 
+                        setRenderError={setRenderError} 
+                    />
+                </div>
+            </div>
+        </div>
+    );
 };

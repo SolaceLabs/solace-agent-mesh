@@ -7,7 +7,7 @@
 
 ## Phase 2: Rendering Control Logic
 - [x] 4. Create useArtifactRendering hook (`client/webui/frontend/src/lib/hooks/useArtifactRendering.ts`)
-- [ ] 5. Refactor ArtifactMessage component to use new bar design (`client/webui/frontend/src/lib/components/chat/file/ArtifactMessage.tsx`)
+- [x] 5. Refactor ArtifactMessage component to use new bar design (`client/webui/frontend/src/lib/components/chat/file/ArtifactMessage.tsx`)
 
 ## Phase 3: Content Preview Integration
 - [ ] 6. Update preview utilities for content extraction (`client/webui/frontend/src/lib/components/chat/preview/previewUtils.ts`)
