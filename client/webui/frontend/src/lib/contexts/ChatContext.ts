@@ -1,6 +1,6 @@
 import React, { createContext, type FormEvent } from "react";
 
-import type { AgentInfo, ArtifactInfo, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
+import type { AgentInfo, ArtifactInfo, ArtifactRenderingState, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
 
 export interface ChatState {
     sessionId: string;
@@ -39,6 +39,8 @@ export interface ChatState {
     previewedArtifactAvailableVersions: number[] | null;
     currentPreviewedVersionNumber: number | null;
     previewFileContent: FileAttachment | null;
+    // Artifact Rendering State
+    artifactRenderingState: ArtifactRenderingState;
 }
 
 export interface ChatActions {
@@ -80,6 +82,11 @@ export interface ChatActions {
     /* Session Management Actions */
     updateSessionName: (sessionId: string, newName: string) => Promise<void>;
     deleteSession: (sessionId: string) => Promise<void>;
+    
+    /** Artifact Rendering Actions */
+    toggleArtifactExpanded: (filename: string) => void;
+    isArtifactExpanded: (filename: string) => boolean;
+    setArtifactRenderingState: React.Dispatch<React.SetStateAction<ArtifactRenderingState>>;
 }
 
 export type ChatContextValue = ChatState & ChatActions;

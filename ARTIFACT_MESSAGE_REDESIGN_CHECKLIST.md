@@ -14,7 +14,7 @@
 - [x] 7. Create content preview generator (`client/webui/frontend/src/lib/utils/contentPreview.ts`)
 
 ## Phase 4: State Management Updates
-- [ ] 8. Update chat context types (`client/webui/frontend/src/lib/types/fe.ts` and `client/webui/frontend/src/lib/contexts/ChatContext.ts`)
+- [x] 8. Update chat context types (`client/webui/frontend/src/lib/types/fe.ts` and `client/webui/frontend/src/lib/contexts/ChatContext.ts`)
 - [ ] 9. Update ChatProvider for artifact rendering state (`client/webui/frontend/src/lib/providers/ChatProvider.tsx`)
 
 ## Phase 5: Progress State Integration
