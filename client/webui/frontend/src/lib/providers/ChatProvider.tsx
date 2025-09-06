@@ -433,36 +433,53 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     break;
                                 }
                                 case "artifact_creation_progress": {
-                                    const { filename, status, bytes_transferred, mime_type, description } = data as {
+                                    const { filename, status, bytes_transferred, mime_type, description, artifact_chunk } = data as {
                                         filename: string;
                                         status: "in-progress" | "completed" | "failed";
                                         bytes_transferred: number;
                                         mime_type?: string;
                                         description?: string;
+                                        artifact_chunk?: string;
                                     };
-                                    console.log(`[ChatProvider] Received artifact_creation_progress:`, { filename, status, bytes_transferred, mime_type, description });
+                                    console.log(`[ChatProvider] Received artifact_creation_progress:`, { filename, status, bytes_transferred, mime_type, description, artifact_chunk });
 
-                                    // Update global artifacts list immediately with description
-                                    if (description !== undefined) {
-                                        setArtifacts(prevArtifacts => {
-                                            const existingIndex = prevArtifacts.findIndex(a => a.filename === filename);
-                                            if (existingIndex >= 0) {
-                                                // Update existing artifact
-                                                const updated = [...prevArtifacts];
-                                                updated[existingIndex] = { ...updated[existingIndex], description };
-                                                return updated;
-                                            } else {
-                                                // Create new artifact entry
+                                    // Update global artifacts list with description and accumulated content
+                                    setArtifacts(prevArtifacts => {
+                                        const existingIndex = prevArtifacts.findIndex(a => a.filename === filename);
+                                        if (existingIndex >= 0) {
+                                            // Update existing artifact, preserving description if new one not provided
+                                            const updated = [...prevArtifacts];
+                                            const existingArtifact = updated[existingIndex];
+                                            updated[existingIndex] = { 
+                                                ...existingArtifact, 
+                                                description: description !== undefined ? description : existingArtifact.description,
+                                                size: bytes_transferred || existingArtifact.size,
+                                                last_modified: new Date().toISOString(),
+                                                // Accumulate content chunks for in-progress artifacts
+                                                accumulatedContent: status === "in-progress" && artifact_chunk 
+                                                    ? (existingArtifact.accumulatedContent || '') + artifact_chunk
+                                                    : status === "completed" 
+                                                        ? undefined // Clear accumulated content when completed
+                                                        : existingArtifact.accumulatedContent,
+                                                // Update mime_type when completed
+                                                mime_type: (status === "completed" && mime_type) ? mime_type : existingArtifact.mime_type,
+                                            };
+                                            return updated;
+                                        } else {
+                                            // Create new artifact entry only if we have description or it's the first chunk
+                                            if (description !== undefined || status === "in-progress") {
                                                 return [...prevArtifacts, {
                                                     filename,
-                                                    description,
+                                                    description: description || null,
                                                     mime_type: mime_type || 'application/octet-stream',
                                                     size: bytes_transferred || 0,
                                                     last_modified: new Date().toISOString(),
+                                                    accumulatedContent: status === "in-progress" && artifact_chunk ? artifact_chunk : undefined,
                                                 }];
                                             }
-                                        });
-                                    }
+                                        }
+                                        return prevArtifacts;
+                                    });
 
                                     setMessages(prev => {
                                         const newMessages = [...prev];

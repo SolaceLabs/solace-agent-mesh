@@ -66,6 +66,7 @@ export interface ArtifactInfo {
     versionCount?: number; // Optional: Total number of available versions
     description?: string | null; // Optional: Description of the artifact
     schema?: string | null | object; // Optional: Schema for the structure artifact
+    accumulatedContent?: string; // Optional: Accumulated base64 content during creation
 }
 
 /**
