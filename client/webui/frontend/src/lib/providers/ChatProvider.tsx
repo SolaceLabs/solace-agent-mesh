@@ -465,17 +465,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                                         if (status === "in-progress") {
                                             if (artifactPartIndex > -1) {
-                                                const part = agentMessage.parts[artifactPartIndex] as ArtifactPart;
-                                                const existingDescription = part.description;
-                                                part.bytesTransferred = bytes_transferred;
-                                                part.status = "in-progress";
-                                                // Preserve existing description if new one is not provided
-                                                if (description !== undefined) {
-                                                    part.description = description;
-                                                } else {
-                                                    // Keep existing description if no new one provided
-                                                    part.description = existingDescription;
-                                                }
+                                                const existingPart = agentMessage.parts[artifactPartIndex] as ArtifactPart;
+                                                // Create a new part object with immutable update
+                                                const updatedPart: ArtifactPart = {
+                                                    ...existingPart,
+                                                    bytesTransferred: bytes_transferred,
+                                                    status: "in-progress",
+                                                    // Preserve existing description if new one is not provided
+                                                    description: description !== undefined ? description : existingPart.description,
+                                                };
+                                                agentMessage.parts[artifactPartIndex] = updatedPart;
                                             } else {
                                                 agentMessage.parts.push({
                                                     kind: "artifact",
@@ -492,18 +491,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 uri: `artifact://${sessionId}/${filename}` 
                                             };
                                             if (artifactPartIndex > -1) {
-                                                const part = agentMessage.parts[artifactPartIndex] as ArtifactPart;
-                                                const existingDescription = part.description;
-                                                part.status = "completed";
-                                                part.file = fileAttachment;
-                                                // Preserve existing description if new one is not provided
-                                                if (description !== undefined) {
-                                                    part.description = description;
-                                                } else {
-                                                    // Keep existing description if no new one provided
-                                                    part.description = existingDescription;
-                                                }
-                                                delete part.bytesTransferred;
+                                                const existingPart = agentMessage.parts[artifactPartIndex] as ArtifactPart;
+                                                // Create a new part object with immutable update
+                                                const updatedPart: ArtifactPart = {
+                                                    ...existingPart,
+                                                    status: "completed",
+                                                    file: fileAttachment,
+                                                    // Preserve existing description if new one is not provided
+                                                    description: description !== undefined ? description : existingPart.description,
+                                                };
+                                                // Remove bytesTransferred for completed artifacts
+                                                delete updatedPart.bytesTransferred;
+                                                agentMessage.parts[artifactPartIndex] = updatedPart;
                                             } else {
                                                 agentMessage.parts.push({
                                                     kind: "artifact",
@@ -517,18 +516,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         } else { // status === "failed"
                                             const errorMsg = `Failed to create artifact: ${filename}`;
                                             if (artifactPartIndex > -1) {
-                                                const part = agentMessage.parts[artifactPartIndex] as ArtifactPart;
-                                                const existingDescription = part.description;
-                                                part.status = "failed";
-                                                part.error = errorMsg;
-                                                // Preserve existing description if new one is not provided
-                                                if (description !== undefined) {
-                                                    part.description = description;
-                                                } else {
-                                                    // Keep existing description if no new one provided
-                                                    part.description = existingDescription;
-                                                }
-                                                delete part.bytesTransferred;
+                                                const existingPart = agentMessage.parts[artifactPartIndex] as ArtifactPart;
+                                                // Create a new part object with immutable update
+                                                const updatedPart: ArtifactPart = {
+                                                    ...existingPart,
+                                                    status: "failed",
+                                                    error: errorMsg,
+                                                    // Preserve existing description if new one is not provided
+                                                    description: description !== undefined ? description : existingPart.description,
+                                                };
+                                                // Remove bytesTransferred for failed artifacts
+                                                delete updatedPart.bytesTransferred;
+                                                agentMessage.parts[artifactPartIndex] = updatedPart;
                                             } else {
                                                 agentMessage.parts.push({
                                                     kind: "artifact",
