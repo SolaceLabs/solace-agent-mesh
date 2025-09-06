@@ -167,9 +167,13 @@ async def process_artifact_blocks_callback(
                             event.params,
                         )
                         filename = event.params.get("filename", "unknown_artifact")
+                        description = event.params.get("description")
                         if a2a_context:
+                            status_text = f"Receiving artifact `{filename}`..."
+                            if description:
+                                status_text = f"Receiving artifact `{filename}`: {description}"
                             progress_data = AgentProgressUpdateData(
-                                status_text=f"Receiving artifact `{filename}`..."
+                                status_text=status_text
                             )
                             await _publish_data_part_status_update(
                                 host_component, a2a_context, progress_data
@@ -177,6 +181,7 @@ async def process_artifact_blocks_callback(
                             # Also send an initial in-progress event to create the UI bubble
                             artifact_progress_data = ArtifactCreationProgressData(
                                 filename=filename,
+                                description=description,
                                 status="in-progress",
                                 bytes_transferred=0,
                                 artifact_chunk=None,
