@@ -29,7 +29,7 @@ type ArtifactMessageProps =
       };
 
 export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
-    const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId } = useChatContext();
+    const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId, messages } = useChatContext();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [fetchedContent, setFetchedContent] = useState<string | null>(null);
@@ -150,21 +150,18 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
     // Get the artifact part to extract description
     const artifactPart = useMemo(() => {
-        if (props.status === "completed" && artifact) {
-            // For completed artifacts, try to find the artifact part in messages
-            const { messages } = useChatContext();
-            for (const message of messages) {
-                if (!message.isUser && message.parts) {
-                    const part = message.parts.find(p => 
-                        p.kind === "artifact" && 
-                        p.name === props.name
-                    ) as ArtifactPart | undefined;
-                    if (part) return part;
-                }
+        // Search through messages to find the artifact part for this filename
+        for (const message of messages) {
+            if (!message.isUser && message.parts) {
+                const part = message.parts.find(p => 
+                    p.kind === "artifact" && 
+                    p.name === props.name
+                ) as ArtifactPart | undefined;
+                if (part) return part;
             }
         }
         return undefined;
-    }, [props.status, props.name, artifact]);
+    }, [props.name, messages]);
 
     // If we shouldn't render content inline, just show the bar
     if (!shouldRender) {
