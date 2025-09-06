@@ -49,11 +49,23 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         }
     }, [artifact, openSidePanelTab, setPreviewArtifact]);
 
+    const { status } = props;
+    const fileAttachment = status === "completed" ? props.fileAttachment : undefined;
+    const fileUri = fileAttachment?.uri;
+    const fileContent = fileAttachment?.content;
+    const fileName = fileAttachment?.name;
+    const fileMimeType = fileAttachment?.mime_type;
+
     // Fetch content from URI for completed artifacts
     useEffect(() => {
-        const fetchContentFromUri = async (fileAttachment: FileAttachment) => {
-            const renderType = getRenderType(fileAttachment.name, fileAttachment.mime_type);
-            if (!fileAttachment.uri || !renderType || !INLINE_RENDERABLE_TYPES.includes(renderType)) {
+        const fetchContentFromUri = async () => {
+            // Guard to prevent re-fetching if we are already loading or have the content.
+            if (isLoading || fetchedContent) {
+                return;
+            }
+
+            const renderType = getRenderType(fileName, fileMimeType);
+            if (!fileUri || !renderType || !INLINE_RENDERABLE_TYPES.includes(renderType)) {
                 return;
             }
 
@@ -61,7 +73,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             setError(null);
 
             try {
-                const parsedUri = parseArtifactUri(fileAttachment.uri);
+                const parsedUri = parseArtifactUri(fileUri);
                 if (!parsedUri) throw new Error("Invalid artifact URI.");
 
                 const { filename, version } = parsedUri;
@@ -95,10 +107,10 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             }
         };
 
-        if (props.status === "completed" && props.fileAttachment.uri && !props.fileAttachment.content) {
-            fetchContentFromUri(props.fileAttachment);
+        if (status === "completed" && fileUri && !fileContent) {
+            fetchContentFromUri();
         }
-    }, [props, sessionId]);
+    }, [status, fileUri, fileContent, fileName, fileMimeType, sessionId, isLoading, fetchedContent]);
 
     switch (props.status) {
         case "in-progress":
