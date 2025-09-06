@@ -432,13 +432,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     break;
                                 }
                                 case "artifact_creation_progress": {
-                                    const { filename, status, bytes_transferred, mime_type } = data as {
+                                    const { filename, status, bytes_transferred, mime_type, description } = data as {
                                         filename: string;
                                         status: "in-progress" | "completed" | "failed";
                                         bytes_transferred: number;
                                         mime_type?: string;
+                                        description?: string;
                                     };
-                                    console.log(`[ChatProvider] Received artifact_creation_progress:`, { filename, status, bytes_transferred, mime_type });
+                                    console.log(`[ChatProvider] Received artifact_creation_progress:`, { filename, status, bytes_transferred, mime_type, description });
 
                                     setMessages(prev => {
                                         const newMessages = [...prev];
@@ -476,7 +477,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 });
                                             }
                                         } else if (status === "completed") {
-                                            const fileAttachment: FileAttachment = { name: filename, mime_type, uri: `artifact://${sessionId}/${filename}` };
+                                            const fileAttachment: FileAttachment = { 
+                                                name: filename, 
+                                                mime_type, 
+                                                uri: `artifact://${sessionId}/${filename}` 
+                                            };
                                             if (artifactPartIndex > -1) {
                                                 const part = agentMessage.parts[artifactPartIndex] as ArtifactPart;
                                                 part.status = "completed";
