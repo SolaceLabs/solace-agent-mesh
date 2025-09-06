@@ -6,13 +6,14 @@ import { AlertCircle } from "lucide-react";
 import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner } from "@/lib/components";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
-import type { FileAttachment, FilePart, InProgressArtifactPart, MessageFE, TextPart } from "@/lib/types";
+import type { ArtifactPart, FileAttachment, FilePart, MessageFE, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
 
-import { FileAttachmentMessage, FileMessage, InProgressFileMessage } from "./file";
+import { ArtifactMessage, FileMessage } from "./file";
 import { ContentRenderer } from "./preview/ContentRenderer";
 import { extractEmbeddedContent } from "./preview/contentUtils";
 import { decodeBase64Content } from "./preview/previewUtils";
+import { downloadFile } from "@/lib/utils/download";
 import type { ExtractedContent } from "./preview/contentUtils";
 
 const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
@@ -47,7 +48,7 @@ const MessageContent: React.FC<{ message: MessageFE; textContent: string }> = ({
             };
             contentElements.push(
                 <div key={`embedded-file-${index}`} className="my-2">
-                    <FileAttachmentMessage fileAttachment={fileAttachment} isEmbedded={true} />
+                    <FileMessage filename={fileAttachment.name} mimeType={fileAttachment.mime_type} onDownload={() => downloadFile(fileAttachment)} isEmbedded={true} />
                 </div>
             );
         } else if (!RENDER_TYPES_WITH_RAW_CONTENT.includes(item.type)) {
@@ -99,13 +100,13 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
     }
 
     // Group contiguous parts to handle interleaving of text and files
-    const groupedParts: (TextPart | FilePart | InProgressArtifactPart)[] = [];
+    const groupedParts: (TextPart | FilePart | ArtifactPart)[] = [];
     let currentTextGroup = "";
 
     message.parts?.forEach(part => {
         if (part.kind === "text") {
             currentTextGroup += (part as TextPart).text;
-        } else if (part.kind === "file" || part.kind === "in-progress-artifact") {
+        } else if (part.kind === "file" || part.kind === "artifact") {
             if (currentTextGroup) {
                 groupedParts.push({ kind: "text", text: currentTextGroup });
                 currentTextGroup = "";
@@ -119,7 +120,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 
     console.log(`[ChatMessage] Grouped parts for message:`, groupedParts);
 
-    const hasContent = groupedParts.some(p => (p.kind === "text" && p.text.trim()) || p.kind === "file" || p.kind === "in-progress-artifact");
+    const hasContent = groupedParts.some(p => (p.kind === "text" && p.text.trim()) || p.kind === "file" || p.kind === "artifact");
     if (!hasContent) {
         return null;
     }
@@ -154,16 +155,15 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                         }
                         return (
                             <div key={`part-file-${index}`} className="my-2">
-                                <FileAttachmentMessage fileAttachment={attachment} />
+                                <ArtifactMessage status="completed" name={attachment.name} fileAttachment={attachment} />
                             </div>
                         );
                     }
-                    if (part.kind === "in-progress-artifact") {
-                        console.log(`[ChatMessage] Rendering InProgressFileMessage for part:`, part);
-                        const inProgressPart = part as InProgressArtifactPart;
+                    if (part.kind === "artifact") {
+                        const artifactPart = part as ArtifactPart;
                         return (
-                            <div key={`part-inprogress-${index}`} className="my-2">
-                                <InProgressFileMessage name={inProgressPart.name} bytesTransferred={inProgressPart.bytesTransferred} />
+                            <div key={`part-artifact-${index}`} className="my-2">
+                                <ArtifactMessage {...artifactPart} />
                             </div>
                         );
                     }
