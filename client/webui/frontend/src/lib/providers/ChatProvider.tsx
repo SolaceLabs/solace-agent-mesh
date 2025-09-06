@@ -466,13 +466,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         if (status === "in-progress") {
                                             if (artifactPartIndex > -1) {
                                                 const part = agentMessage.parts[artifactPartIndex] as ArtifactPart;
+                                                const existingDescription = part.description;
                                                 part.bytesTransferred = bytes_transferred;
                                                 part.status = "in-progress";
                                                 // Preserve existing description if new one is not provided
                                                 if (description !== undefined) {
                                                     part.description = description;
+                                                } else {
+                                                    // Keep existing description if no new one provided
+                                                    part.description = existingDescription;
                                                 }
-                                                // If no description provided but part has one, keep it
                                             } else {
                                                 agentMessage.parts.push({
                                                     kind: "artifact",
@@ -490,10 +493,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                             };
                                             if (artifactPartIndex > -1) {
                                                 const part = agentMessage.parts[artifactPartIndex] as ArtifactPart;
+                                                const existingDescription = part.description;
                                                 part.status = "completed";
                                                 part.file = fileAttachment;
-                                                // Always update description if provided
-                                                if (description !== undefined) part.description = description;
+                                                // Preserve existing description if new one is not provided
+                                                if (description !== undefined) {
+                                                    part.description = description;
+                                                } else {
+                                                    // Keep existing description if no new one provided
+                                                    part.description = existingDescription;
+                                                }
                                                 delete part.bytesTransferred;
                                             } else {
                                                 agentMessage.parts.push({
@@ -509,10 +518,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                             const errorMsg = `Failed to create artifact: ${filename}`;
                                             if (artifactPartIndex > -1) {
                                                 const part = agentMessage.parts[artifactPartIndex] as ArtifactPart;
+                                                const existingDescription = part.description;
                                                 part.status = "failed";
                                                 part.error = errorMsg;
-                                                // Always update description if provided
-                                                if (description !== undefined) part.description = description;
+                                                // Preserve existing description if new one is not provided
+                                                if (description !== undefined) {
+                                                    part.description = description;
+                                                } else {
+                                                    // Keep existing description if no new one provided
+                                                    part.description = existingDescription;
+                                                }
                                                 delete part.bytesTransferred;
                                             } else {
                                                 agentMessage.parts.push({
