@@ -1,4 +1,5 @@
 export * from "./useAgents";
+export * from "./useArtifactRendering";
 export * from "./useArtifacts";
 export * from "./useAuthContext";
 export * from "./useBeforeUnload";

@@ -26,7 +26,7 @@
 - [x] 13. Update FileIcon styling (within component)
 
 ## Phase 7: Integration and Testing
-- [ ] 14. Update export statements in index files
+- [x] 14. Update export statements in index files
 - [ ] 15. Handle edge cases and error scenarios
 
 ## Phase 8: Accessibility and Performance
