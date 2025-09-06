@@ -22,8 +22,10 @@ export interface ArtifactBarProps {
     // For creation progress
     bytesTransferred?: number;
     error?: string;
-    // For content preview
+    // For content preview in file icon
     content?: string;
+    // For rendered content when expanded
+    expandedContent?: React.ReactNode;
 }
 
 export const ArtifactBar: React.FC<ArtifactBarProps> = ({
@@ -39,6 +41,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
     bytesTransferred,
     error,
     content,
+    expandedContent,
 }) => {
     // Validate required props
     if (!filename || typeof filename !== 'string') {
@@ -126,7 +129,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
 
                 {/* File Info Section */}
                 <div className="flex-1 min-w-0 py-1">
-                    {/* Primary line: Description (if available) or Filename */}
+                    {/*Primary line: Description (if available) or Filename */}
                     <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate leading-tight" title={hasDescription ? description : filename}>
                         {hasDescription ? displayDescription : (filename.length > 50 ? `${filename.substring(0, 47)}...` : filename)}
                     </div>
@@ -221,6 +224,16 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                     </Button>
                 )}
             </div>
+            
+            {/* Expanded Content Section */}
+            {expanded && expandedContent && (
+                <>
+                    <hr className="border-t border-[#e0e0e0] dark:border-[#404040]" />
+                    <div className="p-3">
+                        {expandedContent}
+                    </div>
+                </>
+            )}
         </div>
     );
 };

@@ -166,8 +166,67 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         return undefined;
     }, [props.status, props.name, artifact]);
 
-    // Render the artifact bar (no indentation)
-    const artifactBar = (
+    // If we shouldn't render content inline, just show the bar
+    if (!shouldRender) {
+        return (
+            <ArtifactBar
+                filename={fileName}
+                description={artifactPart?.description}
+                mimeType={fileMimeType}
+                size={fileAttachment?.size}
+                status={props.status}
+                expandable={isExpandable}
+                expanded={isExpanded}
+                onToggleExpand={isExpandable ? toggleExpanded : undefined}
+                actions={actions}
+                bytesTransferred={props.status === "in-progress" ? props.bytesTransferred : undefined}
+                error={props.status === "failed" ? props.error : undefined}
+                content={contentPreview}
+            />
+        );
+    }
+
+    // For rendering content, we need the actual content
+    const contentToRender = fetchedContent || fileAttachment?.content;
+    const renderType = getRenderType(fileName, fileMimeType);
+
+    // Prepare expanded content if we have content to render
+    let expandedContent: React.ReactNode = null;
+    
+    if (isLoading) {
+        expandedContent = (
+            <div className="p-4 h-24 flex items-center justify-center bg-muted">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+            </div>
+        );
+    } else if (error) {
+        expandedContent = <MessageBanner variant="error" message={error} />;
+    } else if (contentToRender && renderType) {
+        try {
+            const finalContent = getFileContent({ ...fileAttachment!, content: contentToRender });
+            if (finalContent) {
+                expandedContent = (
+                    <div className="relative group max-w-full overflow-hidden">
+                        {renderError && <MessageBanner variant="error" message={renderError} />}
+                        <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+                            <ContentRenderer 
+                                content={finalContent} 
+                                rendererType={renderType} 
+                                mime_type={fileAttachment?.mime_type} 
+                                setRenderError={setRenderError} 
+                            />
+                        </div>
+                    </div>
+                );
+            }
+        } catch (error) {
+            console.error("Failed to process file content:", error);
+            expandedContent = <MessageBanner variant="error" message="Failed to process file content for rendering" />;
+        }
+    }
+
+    // Render the bar with expanded content inside
+    return (
         <ArtifactBar
             filename={fileName}
             description={artifactPart?.description}
@@ -181,73 +240,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             bytesTransferred={props.status === "in-progress" ? props.bytesTransferred : undefined}
             error={props.status === "failed" ? props.error : undefined}
             content={contentPreview}
+            expandedContent={expandedContent}
         />
-    );
-
-    // If we shouldn't render content inline, just show the bar
-    if (!shouldRender) {
-        return artifactBar;
-    }
-
-    // For rendering content, we need the actual content
-    const contentToRender = fetchedContent || fileAttachment?.content;
-    const renderType = getRenderType(fileName, fileMimeType);
-
-    if (isLoading) {
-        return (
-            <div className="space-y-2">
-                {artifactBar}
-                <div className="p-4 border rounded-lg max-w-2xl h-24 flex items-center justify-center bg-muted">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                </div>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="space-y-2">
-                {artifactBar}
-                <MessageBanner variant="error" message={error} />
-            </div>
-        );
-    }
-
-    if (!contentToRender || !renderType) {
-        return artifactBar;
-    }
-
-    let finalContent: string;
-    try {
-        finalContent = getFileContent({ ...fileAttachment!, content: contentToRender });
-        if (!finalContent) {
-            return artifactBar;
-        }
-    } catch (error) {
-        console.error("Failed to process file content:", error);
-        return (
-            <div className="space-y-2">
-                {artifactBar}
-                <MessageBanner variant="error" message="Failed to process file content for rendering" />
-            </div>
-        );
-    }
-
-    // Render the bar with inline content below
-    return (
-        <div className="space-y-2">
-            {artifactBar}
-            <div className="relative group max-w-2xl overflow-hidden bg-background border rounded-lg">
-                {renderError && <MessageBanner variant="error" message={renderError} />}
-                <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-                    <ContentRenderer 
-                        content={finalContent} 
-                        rendererType={renderType} 
-                        mime_type={fileAttachment?.mime_type} 
-                        setRenderError={setRenderError} 
-                    />
-                </div>
-            </div>
-        </div>
     );
 };

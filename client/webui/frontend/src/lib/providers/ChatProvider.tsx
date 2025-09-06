@@ -468,7 +468,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 const part = agentMessage.parts[artifactPartIndex] as ArtifactPart;
                                                 part.bytesTransferred = bytes_transferred;
                                                 part.status = "in-progress";
-                                                if (description) part.description = description;
+                                                // Always update description if provided, even for in-progress
+                                                if (description !== undefined) part.description = description;
                                             } else {
                                                 agentMessage.parts.push({
                                                     kind: "artifact",
@@ -488,7 +489,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 const part = agentMessage.parts[artifactPartIndex] as ArtifactPart;
                                                 part.status = "completed";
                                                 part.file = fileAttachment;
-                                                if (description) part.description = description;
+                                                // Always update description if provided
+                                                if (description !== undefined) part.description = description;
                                                 delete part.bytesTransferred;
                                             } else {
                                                 agentMessage.parts.push({
@@ -506,7 +508,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 const part = agentMessage.parts[artifactPartIndex] as ArtifactPart;
                                                 part.status = "failed";
                                                 part.error = errorMsg;
-                                                if (description) part.description = description;
+                                                // Always update description if provided
+                                                if (description !== undefined) part.description = description;
                                                 delete part.bytesTransferred;
                                             } else {
                                                 agentMessage.parts.push({
