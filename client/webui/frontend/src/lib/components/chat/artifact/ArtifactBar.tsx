@@ -156,8 +156,8 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                         {hasDescription ? (filename.length > 60 ? `${filename.substring(0, 57)}...` : filename) : statusDisplay.text}
                     </div>
                     
-                    {/* Tertiary line: Status for completed files with description */}
-                    {status === "completed" && hasDescription && (
+                    {/* Tertiary line: Status when description is shown */}
+                    {hasDescription && (
                         <div className={cn("text-xs mt-0.5 leading-tight", statusDisplay.className)}>
                             {statusDisplay.text}
                         </div>
