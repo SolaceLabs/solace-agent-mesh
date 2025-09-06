@@ -10,7 +10,7 @@ export interface ArtifactBarProps {
     description?: string;
     mimeType?: string;
     size?: number;
-    status: "creating" | "completed" | "failed";
+    status: "in-progress" | "completed" | "failed";
     expandable?: boolean;
     expanded?: boolean;
     onToggleExpand?: () => void;
@@ -50,8 +50,8 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
         );
     }
 
-    if (!status || !['creating', 'completed', 'failed'].includes(status)) {
-        console.error('ArtifactBar: status must be one of: creating, completed, failed');
+    if (!status || !['in-progress', 'completed', 'failed'].includes(status)) {
+        console.error('ArtifactBar: status must be one of: in-progress, completed, failed');
         return (
             <div className="w-full border border-red-300 rounded-lg bg-red-50 p-3">
                 <div className="text-red-600 text-sm">Error: Invalid artifact status</div>
@@ -60,7 +60,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
     }
     const getStatusDisplay = () => {
         switch (status) {
-            case "creating":
+            case "in-progress":
                 return {
                     text: bytesTransferred ? `Creating... ${Math.round(bytesTransferred / 1024)}KB` : "Creating...",
                     className: "text-blue-600 dark:text-blue-400",
@@ -157,8 +157,8 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                         </Button>
                     )}
                     
-                    {/* Progress indicator for creating status */}
-                    {status === "creating" && (
+                    {/* Progress indicator for in-progress status */}
+                    {status === "in-progress" && (
                         <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
                     )}
                     
