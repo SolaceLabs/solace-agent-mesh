@@ -95,7 +95,7 @@ export const FileIcon: React.FC<FileIconProps> = ({
     return (
         <div className={cn("relative flex-shrink-0 transition-transform duration-200 hover:scale-105", className)}>
             {/* Main document icon */}
-            <div className="relative w-[60px] h-[66px] bg-gradient-to-b from-white via-[#fafafa] to-[#f5f5f5] dark:from-gray-100 dark:via-gray-200 dark:to-gray-300 border border-[#e0e0e0] dark:border-gray-400 overflow-visible rounded-sm transition-all duration-200">
+            <div className="relative w-[60px] h-[75px] bg-gradient-to-b from-white via-[#fafafa] to-[#f5f5f5] dark:from-gray-100 dark:via-gray-200 dark:to-gray-300 border border-[#e0e0e0] dark:border-gray-400 overflow-visible rounded-sm transition-all duration-200">
                 {/* Shadow effects */}
                 <div className="absolute top-[10px] left-0 right-0 bottom-0 z-[-1] shadow-[0_2px_4px_rgba(0,0,0,0.15)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.25)]" />
                 <div className="absolute bottom-[7px] left-[2px] w-[45%] h-[20%] bg-[#777] dark:bg-[#555] shadow-[0_15px_10px_#777] dark:shadow-[0_15px_10px_#555] transform rotate-[-3deg] z-[-2] opacity-60" />
@@ -121,7 +121,7 @@ export const FileIcon: React.FC<FileIconProps> = ({
                 
                 {/* File type badge */}
                 <div className={cn(
-                    "absolute bottom-[4px] right-[4px] text-white px-[3px] py-[1px] text-[5px] font-bold rounded-[1px] z-[4] shadow-sm select-none transition-all duration-200",
+                    "absolute bottom-[4px] right-[4px] text-white px-[4px] py-[2px] text-[6px] font-bold rounded-[2px] z-[4] shadow-sm select-none transition-all duration-200",
                     typeColor
                 )}>
                     {extension.length > 4 ? extension.substring(0, 4) : extension}
