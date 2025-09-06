@@ -17,7 +17,7 @@ export const InProgressFileMessage: React.FC<InProgressFileMessageProps> = ({ na
                 <div className="text-sm font-semibold" title={name}>
                     <code>{name}</code>
                 </div>
-                <div className="text-xs text-muted-foreground">Saving... {formatBytes(bytesTransferred)}</div>
+                <div className="text-xs text-muted-foreground">Authoring artifact... {formatBytes(bytesTransferred)}</div>
             </div>
             <Loader2 className="h-4 w-4 animate-spin" />
         </div>

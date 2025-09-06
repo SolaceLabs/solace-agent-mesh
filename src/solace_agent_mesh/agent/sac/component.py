@@ -1292,7 +1292,7 @@ class SamAgentComponent(SamComponentBase):
                 context_id=a2a_context.get("contextId"),
                 signal_data=progress_data,
                 agent_name=self.agent_name,
-                part_metadata={"source_embed_type": "status_update"},
+                # part_metadata={"source_embed_type": "status_update"},
             )
 
             await self._publish_status_update_with_buffer_flush(

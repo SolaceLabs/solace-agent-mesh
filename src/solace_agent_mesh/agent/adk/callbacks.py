@@ -825,6 +825,7 @@ It can span multiple lines.
   - The parameters `filename` and `mime_type` are required. `description` is optional but recommended.
   - All parameter values **MUST** be enclosed in double quotes.
   - You **MUST NOT** use double quotes `"` inside the parameter values (e.g., within the description string). Use single quotes or rephrase instead.
+  - The content saved will automatically be made available to the user at the point in the response where this embed is located. No need to additionally return it
 
 The system will automatically save the content and give you a confirmation in the next turn."""
 
@@ -880,6 +881,7 @@ The following embeds are resolved *late* (by the gateway before final display):
 - `{open_delim}artifact_return:filename[:version]{close_delim}`: **This is the primary way to return an artifact to the user.** It attaches the specified artifact to the message. The embed itself is removed from the text. Use this instead of describing a file and expecting the user to download it.
 - `{open_delim}artifact_content:filename[:version] {chain_delim} modifier1:value1 {chain_delim} ... {chain_delim} format:output_format{close_delim}`: Embeds artifact content after applying a chain of modifiers.
     - If this embed resolves to binary content (like an image), it will be automatically converted into an attached file, similar to `artifact_return`.
+    - artifact_return is not necessary if the artifact was just created by you with save_artifact, since it will automatically be attached to your message.
     - Use `{chain_delim}` to separate the artifact identifier from the modifier steps and the final format step.
     - Available modifiers: {modifier_list}.
     - The `format:output_format` step *must* be the last step in the chain. Supported formats include `text`, `datauri`, `json`, `json_pretty`, `csv`. Formatting as datauri, will include the data URI prefix, so do not add it yourself.
