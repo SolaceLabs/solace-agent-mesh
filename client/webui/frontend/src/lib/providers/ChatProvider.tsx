@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect, useRef, type FormEvent, type R
 import { useConfigContext, useArtifacts, useAgents } from "@/lib/hooks";
 import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
-import type { ArtifactInfo, CancelTaskRequest, FileAttachment, FilePart, JSONRPCErrorResponse, Message, MessageFE, Notification, Part, SendStreamingMessageRequest, SendStreamingMessageSuccessResponse, Session, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart, ArtifactPart } from "@/lib/types";
+import type { ArtifactInfo, ArtifactRenderingState, CancelTaskRequest, FileAttachment, FilePart, JSONRPCErrorResponse, Message, MessageFE, Notification, Part, SendStreamingMessageRequest, SendStreamingMessageSuccessResponse, Session, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart, ArtifactPart } from "@/lib/types";
 
 interface ChatProviderProps {
     children: ReactNode;
@@ -84,6 +84,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [previewedArtifactAvailableVersions, setPreviewedArtifactAvailableVersions] = useState<number[] | null>(null);
     const [currentPreviewedVersionNumber, setCurrentPreviewedVersionNumber] = useState<number | null>(null);
     const [previewFileContent, setPreviewFileContent] = useState<FileAttachment | null>(null);
+
+    // Artifact Rendering State
+    const [artifactRenderingState, setArtifactRenderingState] = useState<ArtifactRenderingState>({
+        expandedArtifacts: new Set<string>()
+    });
 
 
     // Notification Helper
@@ -1167,6 +1172,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setPreviewArtifact,
         updateSessionName,
         deleteSession,
+        
+        /** Artifact Rendering Actions */
+        toggleArtifactExpanded,
+        isArtifactExpanded,
+        setArtifactRenderingState,
+        artifactRenderingState,
     };
 
     return <ChatContext.Provider value={contextValue}>{children}</ChatContext.Provider>;
