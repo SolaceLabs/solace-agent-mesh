@@ -30,6 +30,10 @@ type ArtifactMessageProps =
 
 export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     console.log(`[ArtifactMessage] Rendering with props:`, props);
+    console.log(`[ArtifactMessage] Props type check - status: ${props.status}, name: ${props.name}`);
+    if (props.status === "in-progress") {
+        console.log(`[ArtifactMessage] In-progress artifact - bytesTransferred: ${props.bytesTransferred}`);
+    }
     const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId, messages } = useChatContext();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);

@@ -516,14 +516,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 };
                                                 agentMessage.parts[artifactPartIndex] = updatedPart;
                                                 console.log(`[ChatProvider] Updated artifact part:`, updatedPart);
+                                                console.log(`[ChatProvider] Full parts array after update:`, agentMessage.parts);
                                             } else {
                                                 console.log(`[ChatProvider] Creating new artifact part for ${filename} with bytes: ${bytes_transferred}`);
-                                                agentMessage.parts.push({
+                                                const newPart: ArtifactPart = {
                                                     kind: "artifact",
                                                     status: "in-progress",
                                                     name: filename,
                                                     bytesTransferred: bytes_transferred,
-                                                });
+                                                };
+                                                agentMessage.parts.push(newPart);
+                                                console.log(`[ChatProvider] Created new artifact part:`, newPart);
                                             }
                                         } else if (status === "completed") {
                                             const fileAttachment: FileAttachment = { 
