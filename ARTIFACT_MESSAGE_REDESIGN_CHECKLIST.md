@@ -22,7 +22,7 @@
 - [x] 11. Update ChatMessage component for new artifact bars (`client/webui/frontend/src/lib/components/chat/ChatMessage.tsx`)
 
 ## Phase 6: Styling and Polish
-- [ ] 12. Create ArtifactBar styles (within component)
+- [x] 12. Create ArtifactBar styles (within component)
 - [ ] 13. Update FileIcon styling (within component)
 
 ## Phase 7: Integration and Testing

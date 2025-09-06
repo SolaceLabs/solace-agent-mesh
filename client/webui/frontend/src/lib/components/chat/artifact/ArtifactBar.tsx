@@ -68,8 +68,8 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
     const statusDisplay = getStatusDisplay();
 
     return (
-        <div className="w-full border border-[#e0e0e0] dark:border-[#404040] rounded-lg bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-3 p-3">
+        <div className="w-full border border-[#e0e0e0] dark:border-[#404040] rounded-lg bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all duration-200 ease-in-out">
+            <div className="flex items-center gap-3 p-3 min-h-[60px]">
                 {/* File Icon with Preview */}
                 <FileIcon
                     filename={filename}
@@ -80,34 +80,34 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                 />
 
                 {/* File Info Section */}
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 py-1">
                     {/* Primary line: Filename */}
-                    <div className="font-mono text-sm font-medium text-gray-900 dark:text-gray-100 truncate" title={filename}>
+                    <div className="font-mono text-sm font-semibold text-gray-900 dark:text-gray-100 truncate leading-tight" title={filename}>
                         {filename}
                     </div>
                     
                     {/* Secondary line: Description or status */}
-                    <div className="text-xs text-gray-600 dark:text-gray-400 truncate" title={description}>
+                    <div className="text-xs text-gray-600 dark:text-gray-400 truncate mt-1 leading-tight" title={description}>
                         {description || statusDisplay.text}
                     </div>
                     
                     {/* Tertiary line: Status for completed files */}
                     {status === "completed" && description && (
-                        <div className={cn("text-xs", statusDisplay.className)}>
+                        <div className={cn("text-xs mt-0.5 leading-tight", statusDisplay.className)}>
                             {statusDisplay.text}
                         </div>
                     )}
                 </div>
 
                 {/* Actions Section */}
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 flex-shrink-0">
                     {status === "completed" && actions?.onDownload && (
                         <Button
                             variant="ghost"
                             size="sm"
                             onClick={actions.onDownload}
                             tooltip="Download"
-                            className="h-8 w-8 p-0"
+                            className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                         >
                             <Download className="h-4 w-4" />
                         </Button>
@@ -119,7 +119,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                             size="sm"
                             onClick={actions.onPreview}
                             tooltip="Preview"
-                            className="h-8 w-8 p-0"
+                            className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                         >
                             <Eye className="h-4 w-4" />
                         </Button>
@@ -127,13 +127,13 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                     
                     {/* Progress indicator for creating status */}
                     {status === "creating" && (
-                        <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
                     )}
                     
                     {/* Error indicator for failed status */}
                     {status === "failed" && (
-                        <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center">
-                            <div className="w-3 h-3 rounded-full bg-red-600" />
+                        <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center border border-red-200 dark:border-red-800">
+                            <div className="w-3 h-3 rounded-full bg-red-500 dark:bg-red-400" />
                         </div>
                     )}
                 </div>
@@ -145,12 +145,12 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                         size="sm"
                         onClick={onToggleExpand}
                         tooltip={expanded ? "Collapse" : "Expand"}
-                        className="h-8 w-8 p-0 flex-shrink-0"
+                        className="h-8 w-8 p-0 flex-shrink-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
                         {expanded ? (
-                            <ChevronDown className="h-4 w-4" />
+                            <ChevronDown className="h-4 w-4 transition-transform duration-200" />
                         ) : (
-                            <ChevronRight className="h-4 w-4" />
+                            <ChevronRight className="h-4 w-4 transition-transform duration-200" />
                         )}
                     </Button>
                 )}
