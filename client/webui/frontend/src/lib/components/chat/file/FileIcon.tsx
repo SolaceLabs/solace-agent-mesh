@@ -96,21 +96,15 @@ export const FileIcon: React.FC<FileIconProps> = ({
         <div className={cn("relative flex-shrink-0", className)}>
             {/* Main document icon with square corners and special shadows */}
             <div className="relative w-[60px] h-[75px] bg-gradient-to-b from-white via-[#fafafa] to-[#f5f5f5] dark:from-gray-100 dark:via-gray-200 dark:to-gray-300 border border-[#e0e0e0] dark:border-gray-400 overflow-visible">
-                {/* Main body shadow - positioned below the fold */}
-                <div className="absolute top-[10px] left-0 right-0 bottom-0 z-[-1] shadow-[0_2px_4px_rgba(0,0,0,0.15)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.25)]" />
+                {/* Main body shadow */}
+                <div className="absolute top-0 left-0 right-0 bottom-0 z-[-1] shadow-[0_4px_8px_rgba(0,0,0,0.15)] dark:shadow-[0_4px_8px_rgba(0,0,0,0.3)]" />
                 
-                {/* Lifted corner shadows */}
-                <div className="absolute bottom-[7px] left-[2px] w-[45%] h-[20%] bg-[#777] dark:bg-[#555] shadow-[0_15px_10px_#777] dark:shadow-[0_15px_10px_#555] transform rotate-[-3deg] z-[-2]" />
-                <div className="absolute bottom-[7px] right-[2px] w-[45%] h-[20%] bg-[#777] dark:bg-[#555] shadow-[0_15px_10px_#777] dark:shadow-[0_15px_10px_#555] transform rotate-[3deg] z-[-2]" />
-                
-                {/* Corner fold - outer triangle */}
-                <div className="absolute top-0 right-0 w-0 h-0 border-l-[10px] border-l-transparent border-b-[10px] border-b-[#d0d0d0] dark:border-b-gray-500 z-[2] filter drop-shadow-[-1px_1px_1px_rgba(0,0,0,0.1)]" />
-                
-                {/* Corner fold - inner triangle */}
-                <div className="absolute top-0 right-0 w-0 h-0 border-l-[9px] border-l-transparent border-b-[9px] border-b-[#f8f8f8] dark:border-b-gray-200 z-[3]" />
+                {/* Lifted corner shadows - enhanced for visibility */}
+                <div className="absolute bottom-[5px] left-[1px] w-[48%] h-[25%] bg-[#666] dark:bg-[#444] shadow-[0_8px_16px_rgba(0,0,0,0.4)] dark:shadow-[0_8px_16px_rgba(0,0,0,0.6)] transform rotate-[-4deg] z-[-2] opacity-70" />
+                <div className="absolute bottom-[5px] right-[1px] w-[48%] h-[25%] bg-[#666] dark:bg-[#444] shadow-[0_8px_16px_rgba(0,0,0,0.4)] dark:shadow-[0_8px_16px_rgba(0,0,0,0.6)] transform rotate-[4deg] z-[-2] opacity-70" />
                 
                 {/* Content preview */}
-                <div className="absolute top-[4px] left-[4px] right-[14px] bottom-[20px] font-mono text-[1.5px] leading-[1.4] text-[#444] dark:text-[#333] overflow-hidden">
+                <div className="absolute top-[4px] left-[4px] right-[4px] bottom-[20px] font-mono text-[1.5px] leading-[1.4] text-[#444] dark:text-[#333] overflow-hidden">
                     {previewContent && (
                         <div className="whitespace-pre-wrap break-words text-[1.5px] select-none">
                             {previewContent}
