@@ -247,6 +247,7 @@ async def process_artifact_blocks_callback(
                             if a2a_context:
                                 progress_data = ArtifactCreationProgressData(
                                     filename=filename or "unknown_artifact",
+                                    description=params.get("description"),
                                     status="failed",
                                     bytes_transferred=0,
                                 )
@@ -319,6 +320,7 @@ async def process_artifact_blocks_callback(
                             if a2a_context:
                                 progress_data = ArtifactCreationProgressData(
                                     filename=filename,
+                                    description=params.get("description"),
                                     status="completed",
                                     bytes_transferred=len(event.content),
                                     mime_type=params.get("mime_type"),
@@ -332,6 +334,7 @@ async def process_artifact_blocks_callback(
                             if a2a_context:
                                 progress_data = ArtifactCreationProgressData(
                                     filename=filename,
+                                    description=params.get("description"),
                                     status="failed",
                                     bytes_transferred=len(event.content),
                                 )

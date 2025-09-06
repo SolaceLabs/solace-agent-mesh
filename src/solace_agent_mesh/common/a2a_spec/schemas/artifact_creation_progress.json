@@ -13,6 +13,10 @@
             "type": "string",
             "description": "The name of the artifact being created."
         },
+        "description": {
+            "type": "string",
+            "description": "An optional description of the artifact being created."
+        },
         "status": {
             "type": "string",
             "enum": ["in-progress", "completed", "failed"],

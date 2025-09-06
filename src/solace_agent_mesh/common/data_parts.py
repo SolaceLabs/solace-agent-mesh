@@ -67,6 +67,9 @@ class ArtifactCreationProgressData(BaseModel):
         description="The constant type for this data part.",
     )
     filename: str = Field(..., description="The name of the artifact being created.")
+    description: Optional[str] = Field(
+        None, description="An optional description of the artifact being created."
+    )
     status: Literal["in-progress", "completed", "failed"] = Field(
         ..., description="The status of the artifact creation."
     )
