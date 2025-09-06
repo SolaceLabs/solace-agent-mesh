@@ -94,10 +94,16 @@ export const FileIcon: React.FC<FileIconProps> = ({
 
     return (
         <div className={cn("relative flex-shrink-0", className)}>
-            {/* Main document icon with square corners and special shadows */}
-            <div className="relative w-[60px] h-[75px] bg-gradient-to-b from-white via-[#fafafa] to-[#f5f5f5] dark:from-gray-100 dark:via-gray-200 dark:to-gray-300 border border-[#e0e0e0] dark:border-gray-400 overflow-visible before:absolute before:bottom-[5px] before:left-[1px] before:w-[48%] before:h-[25%] before:bg-[#666] dark:before:bg-[#444] before:shadow-[0_8px_16px_rgba(0,0,0,0.4)] dark:before:shadow-[0_8px_16px_rgba(0,0,0,0.6)] before:transform before:rotate-[-4deg] before:opacity-70 before:z-[-1] after:absolute after:bottom-[5px] after:right-[1px] after:w-[48%] after:h-[25%] after:bg-[#666] dark:after:bg-[#444] after:shadow-[0_8px_16px_rgba(0,0,0,0.4)] dark:after:shadow-[0_8px_16px_rgba(0,0,0,0.6)] after:transform after:rotate-[4deg] after:opacity-70 after:z-[-1]">
-                {/* Main body shadow */}
-                <div className="absolute top-0 left-0 right-0 bottom-0 z-[-1] shadow-[0_4px_8px_rgba(0,0,0,0.15)] dark:shadow-[0_4px_8px_rgba(0,0,0,0.3)]" />
+            {/* Shadow container - positioned behind but shadows extend beyond */}
+            <div className="absolute inset-0 overflow-visible">
+                {/* Left corner shadow element */}
+                <div className="absolute bottom-[-10px] left-[-5px] w-[48%] h-[25%] bg-[#666] dark:bg-[#444] shadow-[0_8px_16px_rgba(0,0,0,0.4)] dark:shadow-[0_8px_16px_rgba(0,0,0,0.6)] transform rotate-[-4deg] opacity-70"></div>
+                {/* Right corner shadow element */}
+                <div className="absolute bottom-[-10px] right-[-5px] w-[48%] h-[25%] bg-[#666] dark:bg-[#444] shadow-[0_8px_16px_rgba(0,0,0,0.4)] dark:shadow-[0_8px_16px_rgba(0,0,0,0.6)] transform rotate-[4deg] opacity-70"></div>
+            </div>
+
+            {/* Main document icon with square corners */}
+            <div className="relative w-[60px] h-[75px] bg-gradient-to-b from-white via-[#fafafa] to-[#f5f5f5] dark:from-gray-100 dark:via-gray-200 dark:to-gray-300 border border-[#e0e0e0] dark:border-gray-400 shadow-[0_4px_8px_rgba(0,0,0,0.15)] dark:shadow-[0_4px_8px_rgba(0,0,0,0.3)]">
 
                 {/* Content preview */}
                 <div className="absolute top-[4px] left-[4px] right-[4px] bottom-[20px] font-mono text-[1.5px] leading-[1.4] text-[#444] dark:text-[#333] overflow-hidden">
