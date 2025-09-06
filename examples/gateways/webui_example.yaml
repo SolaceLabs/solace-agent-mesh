@@ -22,7 +22,7 @@ apps:
     app_config:
       # --- Required ---
       namespace: ${NAMESPACE} # Namespace for A2A communication
-      session_secret_key: ${SESSION_SECRET_KEY} # Secret for web sessions
+      session_secret_key: "${SESSION_SECRET_KEY}" # Secret for web sessions
 
       # --- Authorization Service (Required for proper access control) ---
       # authorization_service:
