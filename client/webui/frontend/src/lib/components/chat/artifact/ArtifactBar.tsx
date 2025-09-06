@@ -115,8 +115,23 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
     const displayDescription = getDisplayDescription(description);
     const hasDescription = description && description.trim();
 
+    const handleBarClick = () => {
+        if (status === "completed" && actions?.onPreview) {
+            try {
+                actions.onPreview();
+            } catch (error) {
+                console.error('Preview failed:', error);
+            }
+        }
+    };
+
     return (
-        <div className="w-full border border-[#e0e0e0] dark:border-[#404040] rounded-lg bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all duration-200 ease-in-out">
+        <div 
+            className={`w-full border border-[#e0e0e0] dark:border-[#404040] rounded-lg bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all duration-200 ease-in-out ${
+                status === "completed" && actions?.onPreview ? "cursor-pointer" : ""
+            }`}
+            onClick={handleBarClick}
+        >
             <div className="flex items-center gap-3 p-3 min-h-[60px]">
                 {/* File Icon with Preview */}
                 <FileIcon
