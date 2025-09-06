@@ -97,9 +97,9 @@ export const FileIcon: React.FC<FileIconProps> = ({
             {/* Shadow container - positioned behind but shadows extend beyond */}
             <div className="absolute inset-0 overflow-visible">
                 {/* Left corner shadow element */}
-                <div className="absolute bottom-[-10px] left-[-5px] w-[48%] h-[25%] bg-[#666] dark:bg-[#444] shadow-[0_8px_16px_rgba(0,0,0,0.4)] dark:shadow-[0_8px_16px_rgba(0,0,0,0.6)] transform rotate-[-4deg] opacity-70"></div>
+                <div className="absolute bottom-[-5px] left-[2px] w-[45%] h-[20%] bg-[#666] dark:bg-[#444] shadow-[0_8px_16px_rgba(0,0,0,0.4)] dark:shadow-[0_8px_16px_rgba(0,0,0,0.6)] transform rotate-[-4deg] opacity-70"></div>
                 {/* Right corner shadow element */}
-                <div className="absolute bottom-[-10px] right-[-5px] w-[48%] h-[25%] bg-[#666] dark:bg-[#444] shadow-[0_8px_16px_rgba(0,0,0,0.4)] dark:shadow-[0_8px_16px_rgba(0,0,0,0.6)] transform rotate-[4deg] opacity-70"></div>
+                <div className="absolute bottom-[-5px] right-[2px] w-[45%] h-[20%] bg-[#666] dark:bg-[#444] shadow-[0_8px_16px_rgba(0,0,0,0.4)] dark:shadow-[0_8px_16px_rgba(0,0,0,0.6)] transform rotate-[4deg] opacity-70"></div>
             </div>
 
             {/* Main document icon with square corners */}
