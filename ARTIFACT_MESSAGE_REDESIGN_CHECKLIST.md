@@ -23,7 +23,7 @@
 
 ## Phase 6: Styling and Polish
 - [x] 12. Create ArtifactBar styles (within component)
-- [ ] 13. Update FileIcon styling (within component)
+- [x] 13. Update FileIcon styling (within component)
 
 ## Phase 7: Integration and Testing
 - [ ] 14. Update export statements in index files
