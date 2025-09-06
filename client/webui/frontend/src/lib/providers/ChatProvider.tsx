@@ -64,6 +64,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         artifacts,
         isLoading: artifactsLoading,
         refetch: artifactsRefetch,
+        setArtifacts,
     } = useArtifacts(sessionId);
 
     // Side Panel Control State
@@ -441,6 +442,28 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     };
                                     console.log(`[ChatProvider] Received artifact_creation_progress:`, { filename, status, bytes_transferred, mime_type, description });
 
+                                    // Update global artifacts list immediately with description
+                                    if (description !== undefined) {
+                                        setArtifacts(prevArtifacts => {
+                                            const existingIndex = prevArtifacts.findIndex(a => a.filename === filename);
+                                            if (existingIndex >= 0) {
+                                                // Update existing artifact
+                                                const updated = [...prevArtifacts];
+                                                updated[existingIndex] = { ...updated[existingIndex], description };
+                                                return updated;
+                                            } else {
+                                                // Create new artifact entry
+                                                return [...prevArtifacts, {
+                                                    filename,
+                                                    description,
+                                                    mime_type: mime_type || 'application/octet-stream',
+                                                    size: bytes_transferred || 0,
+                                                    last_modified: new Date().toISOString(),
+                                                }];
+                                            }
+                                        });
+                                    }
+
                                     setMessages(prev => {
                                         const newMessages = [...prev];
                                         let agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && m.taskId === currentTaskIdFromResult);
@@ -471,8 +494,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                     ...existingPart,
                                                     bytesTransferred: bytes_transferred,
                                                     status: "in-progress",
-                                                    // Preserve existing description if new one is not provided
-                                                    description: description !== undefined ? description : existingPart.description,
                                                 };
                                                 agentMessage.parts[artifactPartIndex] = updatedPart;
                                             } else {
@@ -480,7 +501,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                     kind: "artifact",
                                                     status: "in-progress",
                                                     name: filename,
-                                                    description: description,
                                                     bytesTransferred: bytes_transferred,
                                                 });
                                             }
@@ -497,8 +517,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                     ...existingPart,
                                                     status: "completed",
                                                     file: fileAttachment,
-                                                    // Preserve existing description if new one is not provided
-                                                    description: description !== undefined ? description : existingPart.description,
                                                 };
                                                 // Remove bytesTransferred for completed artifacts
                                                 delete updatedPart.bytesTransferred;
@@ -508,7 +526,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                     kind: "artifact",
                                                     status: "completed",
                                                     name: filename,
-                                                    description: description,
                                                     file: fileAttachment,
                                                 });
                                             }
@@ -522,8 +539,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                     ...existingPart,
                                                     status: "failed",
                                                     error: errorMsg,
-                                                    // Preserve existing description if new one is not provided
-                                                    description: description !== undefined ? description : existingPart.description,
                                                 };
                                                 // Remove bytesTransferred for failed artifacts
                                                 delete updatedPart.bytesTransferred;
@@ -533,7 +548,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                     kind: "artifact",
                                                     status: "failed",
                                                     name: filename,
-                                                    description: description,
                                                     error: errorMsg,
                                                 });
                                             }
@@ -1190,6 +1204,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         artifacts,
         artifactsLoading,
         artifactsRefetch,
+        setArtifacts,
         uploadArtifactFile,
         isSidePanelCollapsed,
         activeSidePanelTab,

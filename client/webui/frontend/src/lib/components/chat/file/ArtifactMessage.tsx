@@ -148,27 +148,20 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         };
     }, [props.status, handleDownloadClick, artifact, handlePreviewClick]);
 
-    // Get the artifact part to extract description
-    const artifactPart = useMemo(() => {
-        // Search through messages to find the artifact part for this filename
-        for (const message of messages) {
-            if (!message.isUser && message.parts) {
-                const part = message.parts.find(p => 
-                    p.kind === "artifact" && 
-                    p.name === props.name
-                ) as ArtifactPart | undefined;
-                if (part) return part;
-            }
-        }
-        return undefined;
-    }, [props.name, messages]);
+    // Get description from global artifacts instead of message parts
+    const artifactFromGlobal = useMemo(() => 
+        artifacts.find(art => art.filename === props.name), 
+        [artifacts, props.name]
+    );
+    
+    const description = artifactFromGlobal?.description;
 
     // If we shouldn't render content inline, just show the bar
     if (!shouldRender) {
         return (
             <ArtifactBar
                 filename={fileName}
-                description={artifactPart?.description}
+                description={description}
                 mimeType={fileMimeType}
                 size={fileAttachment?.size}
                 status={props.status}
@@ -226,7 +219,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     return (
         <ArtifactBar
             filename={fileName}
-            description={artifactPart?.description}
+            description={description}
             mimeType={fileMimeType}
             size={fileAttachment?.size}
             status={props.status}

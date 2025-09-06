@@ -22,6 +22,7 @@ export interface ChatState {
     artifacts: ArtifactInfo[];
     artifactsLoading: boolean;
     artifactsRefetch: () => Promise<void>;
+    setArtifacts: React.Dispatch<React.SetStateAction<ArtifactInfo[]>>;
     taskIdInSidePanel: string | null;
     // Side Panel Control State
     isSidePanelCollapsed: boolean;
