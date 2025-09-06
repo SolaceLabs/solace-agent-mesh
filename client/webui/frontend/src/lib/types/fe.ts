@@ -90,13 +90,16 @@ export interface Notification {
     type?: "success" | "info" | "error";
 }
 
-export interface InProgressArtifactPart {
-    kind: "in-progress-artifact";
+export interface ArtifactPart {
+    kind: "artifact";
+    status: "in-progress" | "completed" | "failed";
     name: string;
-    bytesTransferred: number;
+    bytesTransferred?: number;
+    file?: FileAttachment; // The completed file info
+    error?: string;
 }
 
-export type PartFE = Part | InProgressArtifactPart;
+export type PartFE = Part | ArtifactPart;
 
 /**
  * Represents a single message in the chat conversation.

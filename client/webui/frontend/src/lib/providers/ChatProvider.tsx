@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect, useRef, type FormEvent, type R
 import { useConfigContext, useArtifacts, useAgents } from "@/lib/hooks";
 import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
-import type { ArtifactInfo, CancelTaskRequest, FileAttachment, FilePart, JSONRPCErrorResponse, Message, MessageFE, Notification, Part, SendStreamingMessageRequest, SendStreamingMessageSuccessResponse, Session, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart } from "@/lib/types";
+import type { ArtifactInfo, CancelTaskRequest, FileAttachment, FilePart, JSONRPCErrorResponse, Message, MessageFE, Notification, Part, SendStreamingMessageRequest, SendStreamingMessageSuccessResponse, Session, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart, ArtifactPart } from "@/lib/types";
 
 interface ChatProviderProps {
     children: ReactNode;
@@ -436,71 +436,78 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     console.log(`[ChatProvider] Received artifact_creation_progress:`, { filename, status, bytes_transferred, mime_type });
 
                                     setMessages(prev => {
-                                        console.log(`[ChatProvider] setMessages for artifact_creation_progress. Current messages count: ${prev.length}`);
                                         const newMessages = [...prev];
                                         let agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && m.taskId === currentTaskIdFromResult);
 
                                         if (agentMessageIndex === -1) {
-                                            console.log(`[ChatProvider] No agent message found for task ${currentTaskIdFromResult}. Creating a new one.`);
                                             const newAgentMessage: MessageFE = {
                                                 role: "agent",
                                                 parts: [],
                                                 taskId: currentTaskIdFromResult,
                                                 isUser: false,
                                                 isComplete: false,
-                                                isStatusBubble: false, // This is a real message now
+                                                isStatusBubble: false,
                                                 metadata: { lastProcessedEventSequence: currentEventSequence },
                                             };
                                             newMessages.push(newAgentMessage);
                                             agentMessageIndex = newMessages.length - 1;
-                                        } else {
-                                            console.log(`[ChatProvider] Found agent message for task ${currentTaskIdFromResult} at index ${agentMessageIndex}.`);
                                         }
 
                                         const agentMessage = { ...newMessages[agentMessageIndex], parts: [...newMessages[agentMessageIndex].parts] };
-                                        agentMessage.isStatusBubble = false; // Ensure it's treated as a real message
-                                        const inProgressPartIndex = agentMessage.parts.findIndex(p => p.kind === "in-progress-artifact" && p.name === filename);
+                                        agentMessage.isStatusBubble = false;
+                                        const artifactPartIndex = agentMessage.parts.findIndex(p => p.kind === "artifact" && p.name === filename);
 
                                         if (status === "in-progress") {
-                                            if (inProgressPartIndex > -1) {
-                                                console.log(`[ChatProvider] Updating in-progress-artifact part for ${filename}. Bytes: ${bytes_transferred}`);
-                                                (agentMessage.parts[inProgressPartIndex] as InProgressArtifactPart).bytesTransferred = bytes_transferred;
+                                            if (artifactPartIndex > -1) {
+                                                const part = agentMessage.parts[artifactPartIndex] as ArtifactPart;
+                                                part.bytesTransferred = bytes_transferred;
+                                                part.status = "in-progress";
                                             } else {
-                                                console.log(`[ChatProvider] Adding new in-progress-artifact part for ${filename}.`);
                                                 agentMessage.parts.push({
-                                                    kind: "in-progress-artifact",
+                                                    kind: "artifact",
+                                                    status: "in-progress",
                                                     name: filename,
                                                     bytesTransferred: bytes_transferred,
                                                 });
                                             }
                                         } else if (status === "completed") {
-                                            console.log(`[ChatProvider] Artifact creation completed for ${filename}. Transforming part.`);
-                                            const filePart: FilePart = {
-                                                kind: "file",
-                                                file: { uri: `artifact://${sessionId}/${filename}`, name: filename, mimeType: mime_type },
-                                            };
-                                            if (inProgressPartIndex > -1) {
-                                                agentMessage.parts.splice(inProgressPartIndex, 1, filePart);
+                                            const fileAttachment: FileAttachment = { name: filename, mime_type, uri: `artifact://${sessionId}/${filename}` };
+                                            if (artifactPartIndex > -1) {
+                                                const part = agentMessage.parts[artifactPartIndex] as ArtifactPart;
+                                                part.status = "completed";
+                                                part.file = fileAttachment;
+                                                delete part.bytesTransferred;
                                             } else {
-                                                agentMessage.parts.push(filePart);
+                                                agentMessage.parts.push({
+                                                    kind: "artifact",
+                                                    status: "completed",
+                                                    name: filename,
+                                                    file: fileAttachment,
+                                                });
                                             }
                                             void artifactsRefetch();
                                         } else { // status === "failed"
-                                            console.log(`[ChatProvider] Artifact creation failed for ${filename}. Adding error part.`);
-                                            const errorPart: TextPart = { kind: "text", text: `\n\n> Failed to create artifact: ${filename}` };
-                                            if (inProgressPartIndex > -1) {
-                                                agentMessage.parts.splice(inProgressPartIndex, 1);
+                                            const errorMsg = `Failed to create artifact: ${filename}`;
+                                            if (artifactPartIndex > -1) {
+                                                const part = agentMessage.parts[artifactPartIndex] as ArtifactPart;
+                                                part.status = "failed";
+                                                part.error = errorMsg;
+                                                delete part.bytesTransferred;
+                                            } else {
+                                                agentMessage.parts.push({
+                                                    kind: "artifact",
+                                                    status: "failed",
+                                                    name: filename,
+                                                    error: errorMsg,
+                                                });
                                             }
-                                            agentMessage.parts.push(errorPart);
                                             agentMessage.isError = true;
                                         }
 
                                         newMessages[agentMessageIndex] = agentMessage;
-                                        console.log(`[ChatProvider] Updated agent message:`, agentMessage);
                                         
                                         // Filter out OTHER generic status bubbles, but keep our message.
-                                        const finalMessages = newMessages.filter(m => !m.isStatusBubble || m.parts.some(p => p.kind === 'in-progress-artifact' || p.kind === 'file'));
-                                        console.log(`[ChatProvider] Final messages state:`, finalMessages);
+                                        const finalMessages = newMessages.filter(m => !m.isStatusBubble || m.parts.some(p => p.kind === 'artifact' || p.kind === 'file'));
                                         return finalMessages;
                                     });
                                     // Return immediately to prevent the generic status handler from running
@@ -531,7 +538,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 let lastMessage = newMessages[newMessages.length - 1];
 
                 // Remove old generic status bubble
-                if (lastMessage?.isStatusBubble && !lastMessage.inProgressArtifact) {
+                if (lastMessage?.isStatusBubble) {
                     newMessages.pop();
                     lastMessage = newMessages[newMessages.length - 1];
                 }
@@ -574,11 +581,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     // Finalize any lingering in-progress artifact parts for this task
                     for (let i = newMessages.length - 1; i >= 0; i--) {
                         const msg = newMessages[i];
-                        if (msg.taskId === currentTaskIdFromResult && msg.parts.some(p => p.kind === "in-progress-artifact")) {
+                        if (msg.taskId === currentTaskIdFromResult && msg.parts.some(p => p.kind === "artifact" && p.status === "in-progress")) {
                             const finalParts: PartFE[] = msg.parts.map(p => {
-                                if (p.kind === "in-progress-artifact") {
-                                    // Replace in-progress part with a failure message
-                                    return { kind: "text", text: `\n\n> Artifact creation for "${p.name}" did not complete.` };
+                                if (p.kind === "artifact" && p.status === "in-progress") {
+                                    // Mark in-progress part as failed
+                                    return { ...p, status: "failed", error: `Artifact creation for "${p.name}" did not complete.` };
                                 }
                                 return p;
                             });
