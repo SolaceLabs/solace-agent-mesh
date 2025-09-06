@@ -468,8 +468,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 const part = agentMessage.parts[artifactPartIndex] as ArtifactPart;
                                                 part.bytesTransferred = bytes_transferred;
                                                 part.status = "in-progress";
-                                                // Always update description if provided, even for in-progress
-                                                if (description !== undefined) part.description = description;
+                                                // Preserve existing description if new one is not provided
+                                                if (description !== undefined) {
+                                                    part.description = description;
+                                                }
+                                                // If no description provided but part has one, keep it
                                             } else {
                                                 agentMessage.parts.push({
                                                     kind: "artifact",

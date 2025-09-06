@@ -65,7 +65,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
         switch (status) {
             case "in-progress":
                 return {
-                    text: bytesTransferred ? `Creating... ${Math.round(bytesTransferred / 1024)}KB` : "Creating...",
+                    text: bytesTransferred ? `Creating... ${(bytesTransferred / 1024).toFixed(1)}KB` : "Creating...",
                     className: "text-blue-600 dark:text-blue-400",
                 };
             case "failed":
@@ -75,7 +75,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                 };
             case "completed":
                 return {
-                    text: size ? `${Math.round(size / 1024)}KB` : "Ready",
+                    text: size ? `${(size / 1024).toFixed(1)}KB` : "Ready",
                     className: "text-green-600 dark:text-green-400",
                 };
             default:
