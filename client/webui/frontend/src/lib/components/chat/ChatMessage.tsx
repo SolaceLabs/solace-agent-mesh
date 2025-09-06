@@ -161,11 +161,28 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                     }
                     if (part.kind === "artifact") {
                         const artifactPart = part as ArtifactPart;
-                        return (
-                            <div key={`part-artifact-${index}`} className="my-2">
-                                <ArtifactMessage {...artifactPart} />
-                            </div>
-                        );
+                        switch (artifactPart.status) {
+                            case "completed":
+                                return (
+                                    <div key={`part-artifact-${index}`} className="my-2">
+                                        <ArtifactMessage status="completed" name={artifactPart.name} fileAttachment={artifactPart.file!} />
+                                    </div>
+                                );
+                            case "in-progress":
+                                return (
+                                    <div key={`part-artifact-${index}`} className="my-2">
+                                        <ArtifactMessage status="in-progress" name={artifactPart.name} bytesTransferred={artifactPart.bytesTransferred!} />
+                                    </div>
+                                );
+                            case "failed":
+                                return (
+                                    <div key={`part-artifact-${index}`} className="my-2">
+                                        <ArtifactMessage status="failed" name={artifactPart.name} error={artifactPart.error} />
+                                    </div>
+                                );
+                            default:
+                                return null;
+                        }
                     }
                     return null;
                 })}
