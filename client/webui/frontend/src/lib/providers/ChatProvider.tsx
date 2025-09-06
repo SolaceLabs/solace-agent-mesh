@@ -827,6 +827,28 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [apiPrefix, addNotification, handleNewSession, sessionId]
     );
 
+    // Artifact Rendering Actions
+    const toggleArtifactExpanded = useCallback((filename: string) => {
+        setArtifactRenderingState(prevState => {
+            const newExpandedArtifacts = new Set(prevState.expandedArtifacts);
+            
+            if (newExpandedArtifacts.has(filename)) {
+                newExpandedArtifacts.delete(filename);
+            } else {
+                newExpandedArtifacts.add(filename);
+            }
+            
+            return {
+                ...prevState,
+                expandedArtifacts: newExpandedArtifacts
+            };
+        });
+    }, []);
+
+    const isArtifactExpanded = useCallback((filename: string) => {
+        return artifactRenderingState.expandedArtifacts.has(filename);
+    }, [artifactRenderingState.expandedArtifacts]);
+
 
     const openSessionDeleteModal = useCallback((session: Session) => {
         setSessionToDelete(session);
