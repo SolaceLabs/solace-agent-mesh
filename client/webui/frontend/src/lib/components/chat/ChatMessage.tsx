@@ -134,65 +134,75 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
         }
     };
 
+    // Separate text content from artifact/file content for proper rendering
+    const textParts = groupedParts.filter(part => part.kind === "text");
+    const artifactParts = groupedParts.filter(part => part.kind === "artifact" || part.kind === "file");
+    
     return (
-        <ChatBubble key={message.metadata?.messageId} variant={variant}>
-            <ChatBubbleMessage variant={variant}>
-                {groupedParts.map((part, index) => {
-                    if (part.kind === "text") {
-                        return <MessageContent key={`part-text-${index}`} message={message} textContent={part.text} />;
-                    }
-                    if (part.kind === "file") {
-                        const filePart = part as FilePart;
-                        const fileInfo = filePart.file;
-                        const attachment: FileAttachment = {
-                            name: fileInfo.name || "untitled_file",
-                            mime_type: fileInfo.mimeType,
-                        };
-                        if ("bytes" in fileInfo && fileInfo.bytes) {
-                            attachment.content = fileInfo.bytes;
-                        } else if ("uri" in fileInfo && fileInfo.uri) {
-                            attachment.uri = fileInfo.uri;
-                        }
-                        return (
-                            <div key={`part-file-${index}`} className="my-2">
-                                <ArtifactMessage status="completed" name={attachment.name} fileAttachment={attachment} />
+        <div key={message.metadata?.messageId} className="space-y-2">
+            {/* Render text content in chat bubble if present */}
+            {textParts.length > 0 && (
+                <ChatBubble variant={variant}>
+                    <ChatBubbleMessage variant={variant}>
+                        {textParts.map((part, index) => (
+                            <MessageContent key={`part-text-${index}`} message={message} textContent={(part as TextPart).text} />
+                        ))}
+                        {showWorkflowButton && (
+                            <div className="mt-3">
+                                <ViewWorkflowButton onClick={handleViewWorkflowClick} />
                             </div>
-                        );
+                        )}
+                    </ChatBubbleMessage>
+                </ChatBubble>
+            )}
+            
+            {/* Render artifact/file content as full-width bars */}
+            {artifactParts.map((part, index) => {
+                if (part.kind === "file") {
+                    const filePart = part as FilePart;
+                    const fileInfo = filePart.file;
+                    const attachment: FileAttachment = {
+                        name: fileInfo.name || "untitled_file",
+                        mime_type: fileInfo.mimeType,
+                    };
+                    if ("bytes" in fileInfo && fileInfo.bytes) {
+                        attachment.content = fileInfo.bytes;
+                    } else if ("uri" in fileInfo && fileInfo.uri) {
+                        attachment.uri = fileInfo.uri;
                     }
-                    if (part.kind === "artifact") {
-                        const artifactPart = part as ArtifactPart;
-                        switch (artifactPart.status) {
-                            case "completed":
-                                return (
-                                    <div key={`part-artifact-${index}`} className="my-2">
-                                        <ArtifactMessage status="completed" name={artifactPart.name} fileAttachment={artifactPart.file!} />
-                                    </div>
-                                );
-                            case "in-progress":
-                                return (
-                                    <div key={`part-artifact-${index}`} className="my-2">
-                                        <ArtifactMessage status="in-progress" name={artifactPart.name} bytesTransferred={artifactPart.bytesTransferred!} />
-                                    </div>
-                                );
-                            case "failed":
-                                return (
-                                    <div key={`part-artifact-${index}`} className="my-2">
-                                        <ArtifactMessage status="failed" name={artifactPart.name} error={artifactPart.error} />
-                                    </div>
-                                );
-                            default:
-                                return null;
-                        }
+                    return (
+                        <ArtifactMessage key={`part-file-${index}`} status="completed" name={attachment.name} fileAttachment={attachment} />
+                    );
+                }
+                if (part.kind === "artifact") {
+                    const artifactPart = part as ArtifactPart;
+                    switch (artifactPart.status) {
+                        case "completed":
+                            return (
+                                <ArtifactMessage key={`part-artifact-${index}`} status="completed" name={artifactPart.name} fileAttachment={artifactPart.file!} />
+                            );
+                        case "in-progress":
+                            return (
+                                <ArtifactMessage key={`part-artifact-${index}`} status="in-progress" name={artifactPart.name} bytesTransferred={artifactPart.bytesTransferred!} />
+                            );
+                        case "failed":
+                            return (
+                                <ArtifactMessage key={`part-artifact-${index}`} status="failed" name={artifactPart.name} error={artifactPart.error} />
+                            );
+                        default:
+                            return null;
                     }
-                    return null;
-                })}
-                {showWorkflowButton && (
-                    <div className="mt-3">
-                        <ViewWorkflowButton onClick={handleViewWorkflowClick} />
-                    </div>
-                )}
-            </ChatBubbleMessage>
-        </ChatBubble>
+                }
+                return null;
+            })}
+            
+            {/* Show workflow button if no text content but artifacts are present */}
+            {textParts.length === 0 && artifactParts.length > 0 && showWorkflowButton && (
+                <div className="flex justify-end">
+                    <ViewWorkflowButton onClick={handleViewWorkflowClick} />
+                </div>
+            )}
+        </div>
     );
 };
 export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean }> = ({ message, isLastWithTaskId }) => {

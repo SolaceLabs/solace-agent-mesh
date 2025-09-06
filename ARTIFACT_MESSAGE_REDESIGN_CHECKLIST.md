@@ -19,7 +19,7 @@
 
 ## Phase 5: Progress State Integration
 - [x] 10. Update progress handling in ChatProvider (`client/webui/frontend/src/lib/providers/ChatProvider.tsx`)
-- [ ] 11. Update ChatMessage component for new artifact bars (`client/webui/frontend/src/lib/components/chat/ChatMessage.tsx`)
+- [x] 11. Update ChatMessage component for new artifact bars (`client/webui/frontend/src/lib/components/chat/ChatMessage.tsx`)
 
 ## Phase 6: Styling and Polish
 - [ ] 12. Create ArtifactBar styles (within component)
