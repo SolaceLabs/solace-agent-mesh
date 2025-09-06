@@ -32,7 +32,7 @@ const getFileTypeColor = (mimeType?: string, filename?: string): string => {
             return 'bg-[#6c757d]'; // Markdown gray
         }
     }
-    
+
     // Fallback based on filename extension
     const ext = filename ? getFileExtension(filename).toLowerCase() : '';
     switch (ext) {
@@ -65,22 +65,22 @@ const truncateContent = (content: string, maxLength: number = 200): string => {
     const truncated = content.substring(0, maxLength);
     const lastSpaceIndex = truncated.lastIndexOf(' ');
     const lastNewlineIndex = truncated.lastIndexOf('\n');
-    
+
     // Use the latest boundary that's not too close to the start
     const boundaryIndex = Math.max(lastSpaceIndex, lastNewlineIndex);
     if (boundaryIndex > maxLength * 0.7) {
         return truncated.substring(0, boundaryIndex) + '...';
     }
-    
+
     return truncated + '...';
 };
 
-export const FileIcon: React.FC<FileIconProps> = ({ 
-    filename, 
-    mimeType, 
-    content, 
+export const FileIcon: React.FC<FileIconProps> = ({
+    filename,
+    mimeType,
+    content,
     size,
-    className 
+    className
 }) => {
     // Validate required props
     if (!filename || typeof filename !== 'string') {
@@ -98,11 +98,11 @@ export const FileIcon: React.FC<FileIconProps> = ({
             <div className="relative w-[60px] h-[75px] bg-gradient-to-b from-white via-[#fafafa] to-[#f5f5f5] dark:from-gray-100 dark:via-gray-200 dark:to-gray-300 border border-[#e0e0e0] dark:border-gray-400 overflow-visible">
                 {/* Main body shadow */}
                 <div className="absolute top-0 left-0 right-0 bottom-0 z-[-1] shadow-[0_4px_8px_rgba(0,0,0,0.15)] dark:shadow-[0_4px_8px_rgba(0,0,0,0.3)]" />
-                
+
                 {/* Lifted corner shadows - enhanced for visibility */}
-                <div className="absolute bottom-[5px] left-[1px] w-[48%] h-[25%] bg-[#666] dark:bg-[#444] shadow-[0_8px_16px_rgba(0,0,0,0.4)] dark:shadow-[0_8px_16px_rgba(0,0,0,0.6)] transform rotate-[-4deg] z-[-2] opacity-70" />
-                <div className="absolute bottom-[5px] right-[1px] w-[48%] h-[25%] bg-[#666] dark:bg-[#444] shadow-[0_8px_16px_rgba(0,0,0,0.4)] dark:shadow-[0_8px_16px_rgba(0,0,0,0.6)] transform rotate-[4deg] z-[-2] opacity-70" />
-                
+                <div className="absolute bottom-[5px] left-[1px] w-[48%] h-[25%] bg-[#666] dark:bg-[#444] shadow-[0_8px_16px_rgba(0,0,0,0.4)] dark:shadow-[0_8px_16px_rgba(0,0,0,0.6)] transform rotate-[-4deg] opacity-70" />
+                <div className="absolute bottom-[5px] right-[1px] w-[48%] h-[25%] bg-[#666] dark:bg-[#444] shadow-[0_8px_16px_rgba(0,0,0,0.4)] dark:shadow-[0_8px_16px_rgba(0,0,0,0.6)] transform rotate-[4deg] opacity-70" />
+
                 {/* Content preview */}
                 <div className="absolute top-[4px] left-[4px] right-[4px] bottom-[20px] font-mono text-[1.5px] leading-[1.4] text-[#444] dark:text-[#333] overflow-hidden">
                     {previewContent && (
@@ -116,7 +116,7 @@ export const FileIcon: React.FC<FileIconProps> = ({
                         </div>
                     )}
                 </div>
-                
+
                 {/* File type badge */}
                 <div className={cn(
                     "absolute bottom-[4px] right-[4px] text-white px-[4px] py-[2px] text-[6px] font-bold z-[4] shadow-sm select-none",
