@@ -36,7 +36,7 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
-    const { agents, sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete } = useChatContext();
+    const { agents, sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, currentTaskId } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
@@ -153,24 +153,14 @@ export function ChatPage() {
         return map;
     }, [messages]);
 
-    const loadingMessage = useMemo(() => {
-        return messages.find(message => message.isStatusBubble);
-    }, [messages]);
-
-    const backendStatusText = useMemo(() => {
-        if (!loadingMessage || !loadingMessage.parts) return null;
-        const textPart = loadingMessage.parts.find(p => p.kind === "text") as TextPart | undefined;
-        return textPart?.text || null;
-    }, [loadingMessage]);
-
     const handleViewProgressClick = useMemo(() => {
-        if (!loadingMessage?.taskId) return undefined;
+        if (!currentTaskId) return undefined;
 
         return () => {
-            setTaskIdInSidePanel(loadingMessage.taskId!);
+            setTaskIdInSidePanel(currentTaskId);
             openSidePanelTab("workflow");
         };
-    }, [loadingMessage?.taskId, setTaskIdInSidePanel, openSidePanelTab]);
+    }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab]);
 
     // Handle window focus to reconnect when user returns to chat page
     useEffect(() => {
@@ -224,7 +214,7 @@ export function ChatPage() {
                                     })}
                                 </ChatMessageList>
                                 <div style={CHAT_STYLES}>
-                                    {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
+                                    {isResponding && <LoadingMessageRow statusText={latestStatusText ?? undefined} onViewWorkflow={handleViewProgressClick} />}
                                     <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                                 </div>
                             </div>

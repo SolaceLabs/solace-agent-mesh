@@ -48,7 +48,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [taskIdInSidePanel, setTaskIdInSidePanel] = useState<string | null>(null);
     const cancelTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Ref for cancel timeout
     const isFinalizing = useRef(false);
-    const latestStatusText = useRef<string | null>(null);
+    const [latestStatusText, setLatestStatusText] = useState<string | null>(null);
     const sseEventSequenceRef = useRef<number>(0);
 
     // Agents State
@@ -418,9 +418,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         const data = part.data as any;
                         if (data && typeof data === "object" && "type" in data) {
                             switch (data.type) {
-                                case "agent_progress_update":
-                                    latestStatusText.current = String(data?.status_text ?? "Processing...");
+                                case "agent_progress_update": {
+                                    setLatestStatusText(String(data?.status_text ?? "Processing..."));
+                                    const otherParts = messageToProcess.parts.filter(p => p.kind !== "data");
+                                    if (otherParts.length === 0) {
+                                        return; // This is a status-only event, do not process further.
+                                    }
                                     break;
+                                }
                                 case "artifact_creation_progress": {
                                     const { filename, status, bytes_transferred, mime_type } = data as {
                                         filename: string;
@@ -564,21 +569,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // Add a new status bubble if the task is not over
-                if (!isFinalEvent && latestStatusText.current) {
-                    newMessages.push({
-                        role: "agent",
-                        parts: [{ kind: "text", text: latestStatusText.current }],
-                        taskId: (result as TaskStatusUpdateEvent).taskId,
-                        isUser: false,
-                        isStatusBubble: true,
-                        isComplete: false,
-                        metadata: {
-                            messageId: `status-${crypto.randomUUID()}`,
-                            lastProcessedEventSequence: currentEventSequence,
-                        },
-                    });
-                } else if (isFinalEvent) {
-                    latestStatusText.current = null;
+                if (isFinalEvent) {
+                    setLatestStatusText(null);
                     // Finalize any lingering in-progress artifact parts for this task
                     for (let i = newMessages.length - 1; i >= 0; i--) {
                         const msg = newMessages[i];
@@ -691,7 +683,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setTaskIdInSidePanel(null);
         setPreviewArtifact(null);
         isFinalizing.current = false;
-        latestStatusText.current = null;
+        setLatestStatusText(null);
         sseEventSequenceRef.current = 0;
 
         // Refresh artifacts (should be empty for new session)
@@ -764,7 +756,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setTaskIdInSidePanel(null);
                 setPreviewArtifact(null);
                 isFinalizing.current = false;
-                latestStatusText.current = null;
+                setLatestStatusText(null);
                 sseEventSequenceRef.current = 0;
 
             } catch (error) {
@@ -905,7 +897,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 closeCurrentEventSource();
                 setCurrentTaskId(null);
             }
-            latestStatusText.current = null;
+            setLatestStatusText(null);
         }
         setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
     }, [addNotification, closeCurrentEventSource, isResponding]);
@@ -925,7 +917,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             isFinalizing.current = false;
             setIsResponding(true);
             setCurrentTaskId(null);
-            latestStatusText.current = null;
+            setLatestStatusText(null);
             sseEventSequenceRef.current = 0;
 
             const userMsg: MessageFE = {
@@ -939,7 +931,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     lastProcessedEventSequence: 0,
                 },
             };
-            latestStatusText.current = "Thinking";
+            setLatestStatusText("Thinking");
             setMessages(prev => [...prev, userMsg]);
             setUserInput("");
             try {
@@ -1069,7 +1061,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setMessages(prev => prev.filter(msg => !msg.isStatusBubble));
                 setCurrentTaskId(null);
                 isFinalizing.current = false;
-                latestStatusText.current = null;
+                setLatestStatusText(null);
             }
         },
         [userInput, isResponding, isCancelling, sessionId, selectedAgentName, apiPrefix, addNotification, closeCurrentEventSource, uploadArtifactFile]

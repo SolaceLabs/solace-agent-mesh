@@ -12,7 +12,7 @@ export interface ChatState {
     selectedAgentName: string;
     notifications: Notification[];
     isCancelling: boolean;
-    latestStatusText: React.RefObject<string | null>;
+    latestStatusText: string | null;
     // Agents
     agents: AgentInfo[];
     agentsError: string | null;
