@@ -2,7 +2,7 @@
 
 ## Phase 1: Core Infrastructure
 - [x] 1. Create FileIcon component (`client/webui/frontend/src/lib/components/chat/file/FileIcon.tsx`)
-- [ ] 2. Create ArtifactBar component (`client/webui/frontend/src/lib/components/chat/artifact/ArtifactBar.tsx`)
+- [x] 2. Create ArtifactBar component (`client/webui/frontend/src/lib/components/chat/artifact/ArtifactBar.tsx`)
 - [ ] 3. Update file utilities for content preview and rendering decisions (`client/webui/frontend/src/lib/components/chat/file/fileUtils.tsx`)
 
 ## Phase 2: Rendering Control Logic
