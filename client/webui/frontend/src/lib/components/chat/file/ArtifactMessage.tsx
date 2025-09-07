@@ -198,11 +198,10 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         } else {
             return {
                 onDownload: handleDownloadClick,
-                onPreview: artifact ? handlePreviewClick : undefined,
                 onInfo: handleInfoClick,
             };
         }
-    }, [props.status, context, handleDownloadClick, artifact, handlePreviewClick, handleDeleteClick, handleInfoClick]);
+    }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick]);
 
     // Get description from global artifacts instead of message parts
     const artifactFromGlobal = useMemo(() => 
