@@ -16,7 +16,6 @@ This document outlines the key features that SAM provides on top of the standard
 *   **Dynamic Content Generation ("Embeds"):** A powerful mini-language within prompts that allows for dynamic data transformation, content embedding, and on-the-fly calculations.
 *   **Intelligent Content Processing:** Automatically parse and structure complex tool outputs (e.g., from MCP tools) into multiple, well-defined artifacts.
 *   **Robust Configuration & Initialization:** A declarative configuration framework with built-in validation and a flexible tool-loading system simplifies agent setup and deployment.
-*   **Pluggable Enterprise Services:** Easily integrate with your existing enterprise systems through swappable providers for services like identity and employee directories.
 *   **Extensible Middleware:** A pluggable middleware layer allows for custom logic to handle user-specific configurations and feature access control.
 *   **Comprehensive Tool Library:** A rich set of built-in tools for data analysis, file conversion, image generation, and more, ready to be enabled in any agent.
 *   **Enhanced Observability:** Advanced debugging tools, including detailed invocation logging and Datadog-compatible output, provide deep visibility into agent behavior.
@@ -144,9 +143,6 @@ The framework also features a flexible **configuration-driven tool loading** sys
 
 Finally, SAM provides a hook for custom **agent initialization logic**. Developers can specify a function to be run when the agent starts, which is perfect for setting up connections to proprietary databases, loading specialized models, or preparing any other custom resources the agent's tools will need to perform their tasks.
 
-## Pluggable Enterprise Services
-
-*To be detailed in a future section.*
 
 ## Security & Configuration Middleware
 
