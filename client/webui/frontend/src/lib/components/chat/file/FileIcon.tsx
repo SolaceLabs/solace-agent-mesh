@@ -33,7 +33,7 @@ const getFileTypeEmoji = (mimeType?: string, filename?: string): string | null =
             return '📄';
         }
         // Archive files
-        if (mimeType === 'application/zip' || mimeType === 'application/x-zip-compressed' || 
+        if (mimeType === 'application/zip' || mimeType === 'application/x-zip-compressed' ||
             mimeType === 'application/x-rar-compressed' || mimeType === 'application/x-tar' ||
             mimeType === 'application/gzip') {
             return '📦';
@@ -218,7 +218,7 @@ export const FileIcon: React.FC<FileIconProps> = ({
                 <div className="absolute top-[4px] left-[4px] right-[4px] bottom-[20px] font-mono text-[3.5px] leading-[1.4] text-[#444] dark:text-[#333] overflow-hidden">
                     {fileEmoji ? (
                         <div className="flex items-center justify-center h-full">
-                            <span className="text-[32px] select-none">{fileEmoji}</span>
+                            <span className="text-[42px] select-none">{fileEmoji}</span>
                         </div>
                     ) : previewContent ? (
                         <div className="whitespace-pre-wrap break-words text-[8px] select-none">
