@@ -33,16 +33,16 @@ This document outlines the step-by-step plan to integrate the A2A proxy componen
     *   `artifact_service`: Configure to use the in-memory test service: `{"type": "test_in_memory"}`.
     *   `discovery_interval_seconds`: Set to a low value (e.g., `1`) to ensure rapid discovery during tests.
 
-### 3. [ ] Update A2A Message Validator for Proxy
+### 3. [x] Update A2A Message Validator for Proxy
 
 **Objective:** Enhance the `A2AMessageValidator` to automatically intercept and validate messages published by the proxy component.
 
 **File to Modify:** `tests/sam-test-infrastructure/src/sam_test_infrastructure/a2a_validator/validator.py`
 
 **Actions:**
-1.  [ ] Import `BaseProxyComponent` from `solace_agent_mesh.agent.proxies.base.component`.
-2.  [ ] In the `activate` method, add a new check: `is_base_proxy_component = isinstance(component_instance, BaseProxyComponent)`.
-3.  [ ] If the component is a proxy, set `method_name_to_patch` to `_publish_a2a_message`. This will ensure that any message the proxy sends to the Solace mesh is validated against the A2A JSON schema.
+1.  [x] Import `BaseProxyComponent` from `solace_agent_mesh.agent.proxies.base.component`.
+2.  [x] In the `activate` method, add a new check: `is_base_proxy_component = isinstance(component_instance, BaseProxyComponent)`.
+3.  [x] If the component is a proxy, set `method_name_to_patch` to `_publish_a2a_message`. This will ensure that any message the proxy sends to the Solace mesh is validated against the A2A JSON schema.
 
 ### 4. [ ] Monkeypatch Proxy's Artifact Service
 
