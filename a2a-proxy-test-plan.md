@@ -44,17 +44,17 @@ This document outlines the step-by-step plan to integrate the A2A proxy componen
 2.  [x] In the `activate` method, add a new check: `is_base_proxy_component = isinstance(component_instance, BaseProxyComponent)`.
 3.  [x] If the component is a proxy, set `method_name_to_patch` to `_publish_a2a_message`. This will ensure that any message the proxy sends to the Solace mesh is validated against the A2A JSON schema.
 
-### 4. [ ] Monkeypatch Proxy's Artifact Service
+### 4. [x] Monkeypatch Proxy's Artifact Service
 
 **Objective:** Ensure the A2A proxy uses the single, shared `TestInMemoryArtifactService` instance so that artifact-related assertions work correctly.
 
 **File to Modify:** `tests/integration/conftest.py`
 
 **Actions:**
-1.  [ ] Inside the `shared_solace_connector` fixture, use the `session_monkeypatch` object.
-2.  [ ] Add a new `monkeypatch.setattr` call to intercept the proxy's artifact service initialization.
-3.  [ ] The target for the patch will be `solace_agent_mesh.agent.proxies.base.component.initialize_artifact_service`.
-4.  [ ] The replacement will be a `lambda` function that ignores the component argument and returns the shared `test_artifact_service_instance`.
+1.  [x] Inside the `shared_solace_connector` fixture, use the `session_monkeypatch` object.
+2.  [x] Add a new `monkeypatch.setattr` call to intercept the proxy's artifact service initialization.
+3.  [x] The target for the patch will be `solace_agent_mesh.agent.proxies.base.component.initialize_artifact_service`.
+4.  [x] The replacement will be a `lambda` function that ignores the component argument and returns the shared `test_artifact_service_instance`.
 
 ### 5. [ ] Enhance Declarative Test Runner
 

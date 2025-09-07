@@ -6,7 +6,7 @@
 
 3.  [x] **Update A2A Message Validator**: In `tests/sam-test-infrastructure/src/sam_test_infrastructure/a2a_validator/validator.py`, update `A2AMessageValidator.activate` to recognize and patch `BaseProxyComponent` instances, enabling automatic message validation.
 
-4.  [ ] **Monkeypatch Proxy's Artifact Service**: In the `shared_solace_connector` fixture in `tests/integration/conftest.py`, add a `monkeypatch.setattr` call to ensure the proxy's `initialize_artifact_service` function returns the shared `test_artifact_service_instance`.
+4.  [x] **Monkeypatch Proxy's Artifact Service**: In the `shared_solace_connector` fixture in `tests/integration/conftest.py`, add a `monkeypatch.setattr` call to ensure the proxy's `initialize_artifact_service` function returns the shared `test_artifact_service_instance`.
 
 5.  [ ] **Enhance Declarative Test Runner**:
     - In `tests/integration/scenarios_declarative/test_declarative_runner.py`, update the `test_declarative_scenario` function to accept the `test_a2a_agent_server_harness` fixture.

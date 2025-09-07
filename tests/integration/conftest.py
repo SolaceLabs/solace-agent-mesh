@@ -587,6 +587,10 @@ def shared_solace_connector(
         "solace_agent_mesh.agent.adk.services.TestInMemoryArtifactService",
         lambda: test_artifact_service_instance,
     )
+    session_monkeypatch.setattr(
+        "solace_agent_mesh.agent.proxies.base.component.initialize_artifact_service",
+        lambda component: test_artifact_service_instance,
+    )
 
     log_level_str = request.config.getoption("--log-cli-level") or "INFO"
 
