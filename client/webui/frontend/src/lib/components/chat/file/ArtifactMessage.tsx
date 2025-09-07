@@ -53,6 +53,12 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         mimeType: fileMimeType
     });
 
+    // Check if this should auto-render (images and audio)
+    const shouldAutoRender = useMemo(() => {
+        const renderType = getRenderType(fileName, fileMimeType);
+        return renderType === "image" || renderType === "audio";
+    }, [fileName, fileMimeType]);
+
     const handlePreviewClick = useCallback(() => {
         if (artifact) {
             openSidePanelTab("files");
@@ -65,6 +71,14 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             downloadFile(fileAttachment);
         }
     }, [fileAttachment]);
+
+    // Auto-expand for images and audio when completed
+    useEffect(() => {
+        if (props.status === "completed" && shouldAutoRender && !isExpanded) {
+            console.log(`[ArtifactMessage] Auto-expanding ${fileName} for auto-render`);
+            toggleExpanded();
+        }
+    }, [props.status, shouldAutoRender, isExpanded, toggleExpanded, fileName]);
 
     // Fetch content from URI for completed artifacts when needed for rendering
     useEffect(() => {
