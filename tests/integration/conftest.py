@@ -374,6 +374,7 @@ def shared_solace_connector(
     session_monkeypatch,
     request,
     mcp_server_harness,
+    test_a2a_agent_server_harness: TestA2AAgentServer,
 ) -> SolaceAiConnector:
     """
     Creates and manages a single SolaceAiConnector instance with multiple agents
@@ -563,6 +564,22 @@ def shared_solace_connector(
             },
             "broker": {"dev_mode": True},
             "app_module": "sam_test_infrastructure.gateway_interface.app",
+        },
+        {
+            "name": "TestA2AProxyApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "proxied_agents": [
+                    {
+                        "name": "TestAgent_Proxied",
+                        "url": test_a2a_agent_server_harness.url,
+                    }
+                ],
+                "artifact_service": {"type": "test_in_memory"},
+                "discovery_interval_seconds": 1,
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.proxies.a2a.app",
         },
     ]
 

@@ -18,16 +18,16 @@ This document outlines the step-by-step plan to integrate the A2A proxy componen
 7.  [x] It will `yield` the server instance, making its URL and other properties available to tests.
 8.  [x] A `finally` block will be used to guarantee that `server.stop()` is called, ensuring the server process is terminated after the test session.
 
-### 2. [ ] Integrate A2A Proxy into the Test Connector
+### 2. [x] Integrate A2A Proxy into the Test Connector
 
 **Objective:** Configure the main `SolaceAiConnector` test fixture to launch and manage the `A2AProxyApp`.
 
 **File to Modify:** `tests/integration/conftest.py`
 
 **Actions:**
-1.  [ ] Modify the `shared_solace_connector` fixture to accept the new `test_a2a_agent_server_harness` as a dependency.
-2.  [ ] In the `app_infos` list within the fixture, add a new dictionary entry to define the `A2AProxyApp`.
-3.  [ ] The `app_config` for the proxy will be configured as follows:
+1.  [x] Modify the `shared_solace_connector` fixture to accept the new `test_a2a_agent_server_harness` as a dependency.
+2.  [x] In the `app_infos` list within the fixture, add a new dictionary entry to define the `A2AProxyApp`.
+3.  [x] The `app_config` for the proxy will be configured as follows:
     *   `namespace`: Set to `"test_namespace"` to align with other test components.
     *   `proxied_agents`: Define a list containing one agent. The `name` will be a test alias (e.g., `"TestAgent_Proxied"`), and the `url` will be dynamically set from the `test_a2a_agent_server_harness.url` property.
     *   `artifact_service`: Configure to use the in-memory test service: `{"type": "test_in_memory"}`.

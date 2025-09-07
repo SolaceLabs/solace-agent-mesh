@@ -2,7 +2,7 @@
 
 1.  [x] **Create Downstream A2A Agent Server Fixture**: Implement the `test_a2a_agent_server_harness` fixture in `tests/integration/conftest.py` to manage the lifecycle of the `TestA2AAgentServer`.
 
-2.  [ ] **Integrate A2A Proxy into Test Connector**: Modify the `shared_solace_connector` fixture in `tests/integration/conftest.py` to launch the `A2AProxyApp`, configuring it to proxy requests to the `test_a2a_agent_server_harness`.
+2.  [x] **Integrate A2A Proxy into Test Connector**: Modify the `shared_solace_connector` fixture in `tests/integration/conftest.py` to launch the `A2AProxyApp`, configuring it to proxy requests to the `test_a2a_agent_server_harness`.
 
 3.  [ ] **Update A2A Message Validator**: In `tests/sam-test-infrastructure/src/sam_test_infrastructure/a2a_validator/validator.py`, update `A2AMessageValidator.activate` to recognize and patch `BaseProxyComponent` instances, enabling automatic message validation.
 
