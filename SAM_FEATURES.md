@@ -33,7 +33,11 @@ Finally, SAM introduces a **managed agent lifecycle and a formal Task Execution 
 
 ## Inter-Agent Communication (A2A Delegation)
 
-*To be detailed in a future section.*
+SAM transforms individual agents into a collaborative team of specialists. Instead of being limited to its own local tools, a SAM agent can dynamically discover other agents on the mesh and delegate tasks to them as if they were simple function calls. This powerful abstraction allows agents to specialize in specific domains—like data analysis, customer communication, or system monitoring—and seamlessly collaborate to solve complex problems.
+
+Crucially, this delegation is fully asynchronous and non-blocking. When an agent delegates a task, it doesn't wait idly for the response. It can continue working on other parts of a problem or even delegate tasks to multiple other agents in parallel. The SAM framework manages this complex orchestration behind the scenes, tracking all outstanding requests, handling timeouts, and gathering all the peer responses before re-engaging the original agent with the complete set of results.
+
+This capability moves beyond the single-agent paradigm, enabling the creation of sophisticated, multi-agent systems that can tackle complex, multi-step problems by distributing work to the most qualified specialist available on the mesh.
 
 ## Enhanced Artifact Management
 
