@@ -134,7 +134,15 @@ SAM enhances the standard ADK by inserting custom logic at critical moments in a
 
 ## Configuration & Initialization Framework
 
-*To be detailed in a future section.*
+SAM provides a robust and declarative framework that simplifies how agents are defined, configured, and launched. This eliminates boilerplate code and ensures that agents start up reliably and predictably.
+
+First, every agent is defined through a single, comprehensive **declarative configuration file**. This file acts as the agent's blueprint, specifying everything from its name and the AI model it uses, to which tools it has access to and how it connects to other enterprise services. SAM validates this entire configuration at startup, catching errors early and preventing misconfigured agents from running.
+
+Based on this configuration, SAM handles the complex setup process automatically. It generates all the necessary **event broker topic subscriptions** required for the agent to communicate on the mesh. Developers don't need to know the low-level details of the A2A protocol; the framework ensures the agent is listening on the correct channels for requests, peer responses, and discovery messages.
+
+The framework also features a flexible **configuration-driven tool loading** system. In the agent's configuration file, developers can enable tools from various sources: a pre-built library of common functions (e.g., data analysis, image generation), custom Python functions, or entire toolsets from external systems. This makes it easy to assemble agents with different specializations and to enable or disable capabilities without changing any code.
+
+Finally, SAM provides a hook for custom **agent initialization logic**. Developers can specify a function to be run when the agent starts, which is perfect for setting up connections to proprietary databases, loading specialized models, or preparing any other custom resources the agent's tools will need to perform their tasks.
 
 ## Pluggable Enterprise Services
 
