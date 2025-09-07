@@ -146,7 +146,11 @@ Finally, SAM provides a hook for custom **agent initialization logic**. Develope
 
 ## Security & Configuration Middleware
 
-*To be detailed in a future section.*
+SAM introduces a powerful and extensible middleware layer that acts as a gatekeeper for all incoming requests. This layer allows for custom logic to be inserted into the request lifecycle, enabling dynamic, user-specific configuration and fine-grained security controls that are essential for enterprise environments.
+
+The core of this middleware is the **Config Resolver**. By default, it's permissive, but it can be replaced with a custom implementation that integrates with your organization's own systems. When a request arrives, the Config Resolver can fetch the specific user's profile and permissions. This resolved configuration is then used throughout the task's lifecycle to make real-time decisions.
+
+This enables powerful capabilities not found in the standard ADK. For example, the middleware can dynamically filter the list of tools and peer agents presented to the LLM, ensuring a user can only see and invoke functions they are authorized to use. It can also supply user-specific API keys or database credentials to tools, or even change the agent's behavior based on the user's department or role. This provides a robust, centralized mechanism for security, personalization, and multi-tenancy.
 
 ## Rich Built-in Tool Library
 
