@@ -36,7 +36,7 @@ export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview 
                 status="completed"
                 name={artifact.filename}
                 fileAttachment={fileAttachment}
-                context={isPreview ? "chat" : "list"}
+                context={isPreview ? "list" : "list"}
             />
         </div>
     );
