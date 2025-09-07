@@ -120,7 +120,17 @@ The framework handles the extraction and saving of this content seamlessly. This
 
 ## Advanced ADK Lifecycle Customization (Callbacks)
 
-*To be detailed in a future section.*
+SAM enhances the standard ADK by inserting custom logic at critical moments in an agent's lifecycle—before it thinks, after it calls a tool, and before it responds. This is achieved through a series of "callbacks" that act like intelligent checkpoints, adding powerful new capabilities that are not available in the ADK by default.
+
+*   **Intelligent Content Processing:** When an agent uses an external tool (like an MCP tool) that returns complex data, SAM doesn't just pass back a raw JSON file. A custom callback intercepts the response, intelligently parses its contents, and automatically saves each part as a distinct, properly typed artifact. For example, a single response containing a report and three images becomes four separate artifacts: one Markdown file for the text and three individual image files, each with its own metadata. This makes the output immediately useful and understandable for both the LLM and the user.
+
+*   **Dynamic Instruction Injection:** An agent's capabilities can change in real-time as new peer agents are discovered or as user permissions change. SAM's callbacks dynamically inject up-to-date instructions into the LLM's system prompt just before it generates a response. This ensures the agent is always aware of the tools it can use and the peers it can delegate to at that exact moment.
+
+*   **Proactive History Repair:** To prevent the LLM from getting confused by incomplete interactions, SAM includes a self-healing mechanism. If a tool is called but fails to return a response, a callback automatically inserts a synthetic error message into the conversation history. This "history repair" ensures the conversation remains coherent and prevents the agent from getting stuck waiting for a response that will never arrive.
+
+*   **Capability Filtering:** For security and personalization, a callback filters the list of tools presented to the LLM based on the current user's permissions, which are resolved at runtime. This ensures that users can only see and invoke tools they are authorized to use, providing a critical layer of access control.
+
+*   **Automatic Continuation:** LLMs have a limit on how much text they can generate in a single response. If an agent's response is cut off by this limit, a SAM callback detects the interruption and automatically re-prompts the LLM to continue generating from where it left off. This process is seamless to the end-user, allowing the agent to produce long, detailed documents or code blocks that would otherwise be impossible.
 
 ## Configuration & Initialization Framework
 
