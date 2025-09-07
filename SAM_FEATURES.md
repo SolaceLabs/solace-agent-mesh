@@ -51,7 +51,72 @@ Finally, SAM provides **pluggable, production-grade storage backends**. Instead 
 
 ## Dynamic Content & Prompt Engineering ("Embeds")
 
-*To be detailed in a future section.*
+SAM introduces a powerful mini-language, called "Embeds," that can be used directly within an agent's text responses and tool arguments. This feature, denoted by special `&laquo;...&raquo;` delimiters, allows an agent to go beyond static text and dynamically generate content on the fly, fundamentally enhancing what's possible in a single LLM response.
+
+#### Basic Embeds
+
+At its simplest, an embed allows an agent to perform a quick calculation or insert dynamic information. The syntax is `&laquo;type:expression&raquo;`. For example, instead of outputting a potentially incorrect calculation, the agent can output an embed that the framework resolves before sending the final message to the user.
+
+*   **Math:** `The total cost is &laquo;math: (19.99 * 3) + 5.50&raquo; USD.`
+    *   *Result:* The total cost is 65.47 USD.
+*   **Date/Time:** `Report generated on &laquo;datetime:%Y-%m-%d %H:%M&raquo;.`
+    *   *Result:* Report generated on 2023-10-27 14:30.
+*   **Artifact Metadata:** `Here is the summary for &laquo;artifact_meta:quarterly_report.csv&raquo;`
+    *   *Result:* The embed is replaced with a formatted summary of the `quarterly_report.csv` artifact's metadata, including its description, size, and column headers.
+
+#### Chained Embeds for Data Transformation
+
+The true power of embeds is unlocked with the `artifact_content` type, which allows an agent to load an artifact and apply a series of transformations to it using a **modifier chain**. This enables complex data manipulation without needing multiple, separate tool calls.
+
+The syntax uses `>>>` to chain modifiers together, ending with a `format` step:
+`&laquo;artifact_content:filename.ext >>> modifier1:value >>> ... >>> format:output_format&raquo;`
+
+For example, imagine an agent needs to list the names of all active users from a `users.json` file. Instead of calling three separate tools, it can construct a single embed:
+
+`&laquo;artifact_content:users.json >>> jsonpath:$.users[?(@.active==true)] >>> select_cols:name >>> format:text&raquo;`
+
+This single directive instructs the framework to:
+1.  Load the content of `users.json`.
+2.  Apply a `jsonpath` modifier to filter for objects where the "active" key is true.
+3.  Apply a `select_cols` modifier to the result, keeping only the "name" field.
+4.  Format the final list of names as plain text for the user.
+
+#### Templating with Mustache
+
+The modifier chain includes a powerful `apply_to_template` modifier. This allows an agent to first create a Mustache template artifact (e.g., `report_template.html`) and then, in a subsequent step, use an embed to render structured data (like JSON or CSV) into that template. This separates content from presentation, enabling the creation of sophisticated, consistently formatted reports, emails, or other documents.
+
+For example, an agent could render a CSV file into an HTML table using a template:
+`&laquo;artifact_content:sales_data.csv >>> apply_to_template:table_template.html >>> format:text&raquo;`
+
+#### Embeds in Tool Parameters
+
+This dynamic capability extends to tool parameters. An agent can use an embed directly as an argument in a tool call, streamlining the workflow and making the agent's reasoning more direct. For example, instead of first loading a JSON file with chart data and then calling a charting tool in a second step, an agent can do it all at once:
+
+`create_chart_from_plotly_config(config_content="&laquo;artifact_content:chart_data.json&raquo;", ...)`
+
+The framework resolves the `artifact_content` embed first, loading the file's content, and then passes the resulting JSON string directly to the `create_chart_from_plotly_config` tool.
+
+#### Recursive Embeds for Document Inclusion
+
+The power of embeds is further amplified through recursion. A text-based artifact, such as a Markdown report, can itself contain embed directives. When this report is embedded into another response (e.g., `&laquo;artifact_content:monthly_summary.md&raquo;`), the framework first resolves all the embeds *within* `monthly_summary.md`. This allows for the creation of complex, composite documents where a main report can dynamically include the latest data from other files—such as embedding a table from a CSV or a chart's metadata—ensuring the final document is always up-to-date.
+
+#### Fenced Artifact Creation
+
+SAM extends this concept to allow the LLM to create new artifacts directly within its response stream using a special fenced block syntax. The agent can simply "write" the file content inside this block, and the framework will automatically parse and save it as a new artifact.
+
+For example, to create a simple Python script, the agent would output:
+
+<pre>
+&laquo;&laquo;&laquo;save_artifact: filename="hello.py" mime_type="text/x-python" description="A simple Python script."&raquo;&raquo;&raquo;
+def main():
+    print("Hello, World!")
+
+if __name__ == "__main__":
+    main()
+&raquo;&raquo;&raquo;
+</pre>
+
+The framework handles the extraction and saving of this content seamlessly. This feature transforms prompt engineering, enabling agents to perform complex data manipulation and content composition tasks more naturally and efficiently, leading to richer and more dynamic outputs.
 
 ## Advanced ADK Lifecycle Customization (Callbacks)
 
