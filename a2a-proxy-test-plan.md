@@ -2,21 +2,21 @@
 
 This document outlines the step-by-step plan to integrate the A2A proxy component into the existing declarative test harness for comprehensive, end-to-end testing.
 
-### 1. [ ] Create Downstream A2A Agent Server Fixture
+### 1. [x] Create Downstream A2A Agent Server Fixture
 
 **Objective:** Establish a test fixture that manages the lifecycle of a downstream A2A agent server, which the proxy will communicate with.
 
 **File to Modify:** `tests/integration/conftest.py`
 
 **Actions:**
-1.  [ ] Create a new session-scoped pytest fixture named `test_a2a_agent_server_harness`.
-2.  [ ] This fixture will depend on the `mock_agent_card` fixture to get a valid `AgentCard`.
-3.  [ ] It will instantiate the `TestA2AAgentServer` from `sam_test_infrastructure.a2a_agent_server.server`.
-4.  [ ] It will find a free port on the host machine to run the server, preventing port conflicts.
-5.  [ ] The server will be started in a background thread.
-6.  [ ] The fixture will perform a readiness check to ensure the server is running before yielding control to the test.
-7.  [ ] It will `yield` the server instance, making its URL and other properties available to tests.
-8.  [ ] A `finally` block will be used to guarantee that `server.stop()` is called, ensuring the server process is terminated after the test session.
+1.  [x] Create a new session-scoped pytest fixture named `test_a2a_agent_server_harness`.
+2.  [x] This fixture will depend on the `mock_agent_card` fixture to get a valid `AgentCard`.
+3.  [x] It will instantiate the `TestA2AAgentServer` from `sam_test_infrastructure.a2a_agent_server.server`.
+4.  [x] It will find a free port on the host machine to run the server, preventing port conflicts.
+5.  [x] The server will be started in a background thread.
+6.  [x] The fixture will perform a readiness check to ensure the server is running before yielding control to the test.
+7.  [x] It will `yield` the server instance, making its URL and other properties available to tests.
+8.  [x] A `finally` block will be used to guarantee that `server.stop()` is called, ensuring the server process is terminated after the test session.
 
 ### 2. [ ] Integrate A2A Proxy into the Test Connector
 

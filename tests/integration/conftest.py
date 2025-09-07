@@ -20,6 +20,7 @@ from sam_test_infrastructure.artifact_service.service import (
     TestInMemoryArtifactService,
 )
 from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
+from sam_test_infrastructure.a2a_agent_server.server import TestA2AAgentServer
 from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
@@ -266,6 +267,49 @@ def test_llm_server():
     print("TestLLMServer fixture: Stopping server...")
     server.stop()
     print("TestLLMServer fixture: Server stopped.")
+
+
+@pytest.fixture(scope="session")
+def test_a2a_agent_server_harness(
+    mock_agent_card: AgentCard,
+) -> Generator[TestA2AAgentServer, None, None]:
+    """
+    Manages the lifecycle of the TestA2AAgentServer for the test session.
+    Yields the TestA2AAgentServer instance.
+    """
+    port = find_free_port()
+    server = TestA2AAgentServer(host="127.0.0.1", port=port, agent_card=mock_agent_card)
+    server.start()
+
+    max_retries = 20
+    retry_delay = 0.25
+    ready = False
+    for i in range(max_retries):
+        time.sleep(retry_delay)
+        try:
+            if server.started:
+                print(f"TestA2AAgentServer confirmed started after {i+1} attempts.")
+                ready = True
+                break
+            print(f"TestA2AAgentServer not ready yet (attempt {i+1}/{max_retries})...")
+        except Exception as e:
+            print(
+                f"TestA2AAgentServer readiness check (attempt {i+1}/{max_retries}) encountered an error: {e}"
+            )
+
+    if not ready:
+        try:
+            server.stop()
+        except Exception:
+            pass
+        pytest.fail(f"TestA2AAgentServer did not become ready in time on port {port}.")
+
+    print(f"TestA2AAgentServer fixture: Server ready at {server.url}")
+    yield server
+
+    print("TestA2AAgentServer fixture: Stopping server...")
+    server.stop()
+    print("TestA2AAgentServer fixture: Server stopped.")
 
 
 @pytest.fixture(autouse=True)
