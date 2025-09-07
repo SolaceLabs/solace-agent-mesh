@@ -134,64 +134,73 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
         }
     };
 
-    // Separate text content from artifact/file content for proper rendering
+    // Helper function to render artifact/file parts
+    const renderArtifactOrFilePart = (part: ArtifactPart | FilePart, index: number) => {
+        if (part.kind === "file") {
+            const filePart = part as FilePart;
+            const fileInfo = filePart.file;
+            const attachment: FileAttachment = {
+                name: fileInfo.name || "untitled_file",
+                mime_type: fileInfo.mimeType,
+            };
+            if ("bytes" in fileInfo && fileInfo.bytes) {
+                attachment.content = fileInfo.bytes;
+            } else if ("uri" in fileInfo && fileInfo.uri) {
+                attachment.uri = fileInfo.uri;
+            }
+            return (
+                <ArtifactMessage key={`part-file-${index}`} status="completed" name={attachment.name} fileAttachment={attachment} />
+            );
+        }
+        if (part.kind === "artifact") {
+            const artifactPart = part as ArtifactPart;
+            switch (artifactPart.status) {
+                case "completed":
+                    return (
+                        <ArtifactMessage key={`part-artifact-${index}`} status="completed" name={artifactPart.name} fileAttachment={artifactPart.file!} />
+                    );
+                case "in-progress":
+                    return (
+                        <ArtifactMessage key={`part-artifact-${index}`} status="in-progress" name={artifactPart.name} bytesTransferred={artifactPart.bytesTransferred!} />
+                    );
+                case "failed":
+                    return (
+                        <ArtifactMessage key={`part-artifact-${index}`} status="failed" name={artifactPart.name} error={artifactPart.error} />
+                    );
+                default:
+                        return null;
+            }
+        }
+        return null;
+    };
+
+    // Count text and artifact parts for workflow button logic
     const textParts = groupedParts.filter(part => part.kind === "text");
     const artifactParts = groupedParts.filter(part => part.kind === "artifact" || part.kind === "file");
     
     return (
         <div key={message.metadata?.messageId} className="space-y-2">
-            {/* Render text content in chat bubble if present */}
-            {textParts.length > 0 && (
-                <ChatBubble variant={variant}>
-                    <ChatBubbleMessage variant={variant}>
-                        {textParts.map((part, index) => (
-                            <MessageContent key={`part-text-${index}`} message={message} textContent={(part as TextPart).text} />
-                        ))}
-                        {showWorkflowButton && (
-                            <div className="mt-3">
-                                <ViewWorkflowButton onClick={handleViewWorkflowClick} />
-                            </div>
-                        )}
-                    </ChatBubbleMessage>
-                </ChatBubble>
-            )}
-            
-            {/* Render artifact/file content as full-width bars */}
-            {artifactParts.map((part, index) => {
-                if (part.kind === "file") {
-                    const filePart = part as FilePart;
-                    const fileInfo = filePart.file;
-                    const attachment: FileAttachment = {
-                        name: fileInfo.name || "untitled_file",
-                        mime_type: fileInfo.mimeType,
-                    };
-                    if ("bytes" in fileInfo && fileInfo.bytes) {
-                        attachment.content = fileInfo.bytes;
-                    } else if ("uri" in fileInfo && fileInfo.uri) {
-                        attachment.uri = fileInfo.uri;
-                    }
+            {/* Render parts in their original order to preserve interleaving */}
+            {groupedParts.map((part, index) => {
+                if (part.kind === "text") {
+                    const isLastTextPart = index === groupedParts.length - 1 || 
+                        !groupedParts.slice(index + 1).some(p => p.kind === "text");
+                    
                     return (
-                        <ArtifactMessage key={`part-file-${index}`} status="completed" name={attachment.name} fileAttachment={attachment} />
+                        <ChatBubble key={`part-${index}`} variant={variant}>
+                            <ChatBubbleMessage variant={variant}>
+                                <MessageContent message={message} textContent={(part as TextPart).text} />
+                                {/* Show workflow button on the last text part */}
+                                {showWorkflowButton && isLastTextPart && (
+                                    <div className="mt-3">
+                                        <ViewWorkflowButton onClick={handleViewWorkflowClick} />
+                                    </div>
+                                )}
+                            </ChatBubbleMessage>
+                        </ChatBubble>
                     );
-                }
-                if (part.kind === "artifact") {
-                    const artifactPart = part as ArtifactPart;
-                    switch (artifactPart.status) {
-                        case "completed":
-                            return (
-                                <ArtifactMessage key={`part-artifact-${index}`} status="completed" name={artifactPart.name} fileAttachment={artifactPart.file!} />
-                            );
-                        case "in-progress":
-                            return (
-                                <ArtifactMessage key={`part-artifact-${index}`} status="in-progress" name={artifactPart.name} bytesTransferred={artifactPart.bytesTransferred!} />
-                            );
-                        case "failed":
-                            return (
-                                <ArtifactMessage key={`part-artifact-${index}`} status="failed" name={artifactPart.name} error={artifactPart.error} />
-                            );
-                        default:
-                            return null;
-                    }
+                } else if (part.kind === "artifact" || part.kind === "file") {
+                    return renderArtifactOrFilePart(part, index);
                 }
                 return null;
             })}
