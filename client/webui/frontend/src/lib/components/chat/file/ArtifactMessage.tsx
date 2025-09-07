@@ -196,12 +196,14 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 onDelete: artifact ? handleDeleteClick : undefined,
             };
         } else {
+            // In chat context, show preview action
             return {
+                onPreview: handlePreviewClick,
                 onDownload: handleDownloadClick,
                 onInfo: handleInfoClick,
             };
         }
-    }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick]);
+    }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick, handlePreviewClick]);
 
     // Get description from global artifacts instead of message parts
     const artifactFromGlobal = useMemo(() => 
