@@ -167,6 +167,25 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
 
                 {/* Actions Section */}
                 <div className="flex items-center gap-1 flex-shrink-0">
+                    {status === "completed" && actions?.onInfo && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                try {
+                                    actions.onInfo();
+                                } catch (error) {
+                                    console.error('Info failed:', error);
+                                }
+                            }}
+                            tooltip="Info"
+                            className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                            <Info className="h-4 w-4" />
+                        </Button>
+                    )}
+                    
                     {status === "completed" && actions?.onDownload && (
                         <Button
                             variant="ghost"
@@ -221,25 +240,6 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                             className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                         >
                             <Trash className="h-4 w-4" />
-                        </Button>
-                    )}
-                    
-                    {status === "completed" && actions?.onInfo && (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                try {
-                                    actions.onInfo();
-                                } catch (error) {
-                                    console.error('Info failed:', error);
-                                }
-                            }}
-                            tooltip="Info"
-                            className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        >
-                            <Info className="h-4 w-4" />
                         </Button>
                     )}
                     
