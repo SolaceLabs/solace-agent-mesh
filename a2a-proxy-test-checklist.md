@@ -12,4 +12,4 @@
     - In `tests/integration/scenarios_declarative/test_declarative_runner.py`, update the `test_declarative_scenario` function to accept the `test_a2a_agent_server_harness` fixture.
     - Add logic to the test runner to parse a new `downstream_a2a_agent_responses` key from the test YAML and use it to configure the `TestA2AAgentServer`'s behavior for the scenario.
 
-6.  [ ] **Create Initial Proxy Test Case**: Create the first declarative test case at `tests/integration/scenarios_declarative/test_data/proxy/test_proxy_simple_passthrough.yaml` to verify the end-to-end test setup with a simple request/response flow.
+6.  [x] **Create Initial Proxy Test Case**: Create the first declarative test case at `tests/integration/scenarios_declarative/test_data/proxy/test_proxy_simple_passthrough.yaml` to verify the end-to-end test setup with a simple request/response flow.

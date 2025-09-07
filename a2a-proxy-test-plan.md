@@ -68,16 +68,16 @@ This document outlines the step-by-step plan to integrate the A2A proxy componen
 3.  [x] The test runner will look for a new top-level key in the test YAML file, such as `downstream_a2a_agent_responses: List[Dict]`.
 4.  [x] If this key is present, the runner will call the `prime_responses` method on the `test_a2a_agent_server_harness` instance, passing the specified response data. This will happen before the main `gateway_input` is executed.
 
-### 6. [ ] Create Initial Proxy Test Case
+### 6. [x] Create Initial Proxy Test Case
 
 **Objective:** Develop a baseline "happy path" test case in YAML to verify the entire testing setup.
 
 **File to Create:** `tests/integration/scenarios_declarative/test_data/proxy/test_proxy_simple_passthrough.yaml`
 
 **Actions:**
-1.  [ ] Create a new YAML file for the test scenario.
-2.  [ ] **`gateway_input`**: Define a simple text message targeting the proxied agent's name (e.g., `TestAgent_Proxied`).
-3.  [ ] **`downstream_a2a_agent_responses`**: Define a single, simple, successful `Task` object that the `TestA2AAgentServer` will return when it receives the request.
-4.  [ ] **`expected_gateway_output`**: Define assertions to verify that the final response captured by the `TestGatewayComponent` is identical to the `Task` object defined in the previous step.
+1.  [x] Create a new YAML file for the test scenario.
+2.  [x] **`gateway_input`**: Define a simple text message targeting the proxied agent's name (e.g., `TestAgent_Proxied`).
+3.  [x] **`downstream_a2a_agent_responses`**: Define a single, simple, successful `Task` object that the `TestA2AAgentServer` will return when it receives the request.
+4.  [x] **`expected_gateway_output`**: Define assertions to verify that the final response captured by the `TestGatewayComponent` is identical to the `Task` object defined in the previous step.
 
 This initial test will validate that a request can flow correctly through the entire chain: Test Gateway -> Solace Mesh -> A2A Proxy -> Test A2A Agent Server -> A2A Proxy -> Solace Mesh -> Test Gateway.
