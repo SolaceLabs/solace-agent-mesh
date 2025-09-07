@@ -56,17 +56,17 @@ This document outlines the step-by-step plan to integrate the A2A proxy componen
 3.  [x] The target for the patch will be `solace_agent_mesh.agent.proxies.base.component.initialize_artifact_service`.
 4.  [x] The replacement will be a `lambda` function that ignores the component argument and returns the shared `test_artifact_service_instance`.
 
-### 5. [ ] Enhance Declarative Test Runner
+### 5. [x] Enhance Declarative Test Runner
 
 **Objective:** Update the YAML-based test runner to support configuration of the downstream A2A agent's behavior.
 
 **File to Modify:** `tests/integration/scenarios_declarative/test_declarative_runner.py`
 
 **Actions:**
-1.  [ ] The main test function, `test_declarative_scenario`, will be updated to accept the `test_a2a_agent_server_harness` fixture as an argument.
-2.  [ ] A new function will be added to `TestA2AAgentServer` (e.g., `prime_responses`) that allows it to be configured with a sequence of responses.
-3.  [ ] The test runner will look for a new top-level key in the test YAML file, such as `downstream_a2a_agent_responses: List[Dict]`.
-4.  [ ] If this key is present, the runner will call the `prime_responses` method on the `test_a2a_agent_server_harness` instance, passing the specified response data. This will happen before the main `gateway_input` is executed.
+1.  [x] The main test function, `test_declarative_scenario`, will be updated to accept the `test_a2a_agent_server_harness` fixture as an argument.
+2.  [x] A new function will be added to `TestA2AAgentServer` (e.g., `prime_responses`) that allows it to be configured with a sequence of responses.
+3.  [x] The test runner will look for a new top-level key in the test YAML file, such as `downstream_a2a_agent_responses: List[Dict]`.
+4.  [x] If this key is present, the runner will call the `prime_responses` method on the `test_a2a_agent_server_harness` instance, passing the specified response data. This will happen before the main `gateway_input` is executed.
 
 ### 6. [ ] Create Initial Proxy Test Case
 

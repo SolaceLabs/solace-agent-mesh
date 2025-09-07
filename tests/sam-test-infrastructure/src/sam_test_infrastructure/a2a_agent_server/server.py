@@ -35,6 +35,8 @@ class TestA2AAgentServer:
         self.captured_requests: List[Dict[str, Any]] = []
         self._stateful_responses_cache: Dict[str, List[Any]] = {}
         self._stateful_cache_lock = threading.Lock()
+        self._primed_responses: List[Dict[str, Any]] = []
+        self._primed_responses_lock = threading.Lock()
 
         # 2.3: A2A Application Setup
         # 2.3.1: Instantiate DeclarativeAgentExecutor
@@ -90,6 +92,7 @@ class TestA2AAgentServer:
 
         self.clear_captured_requests()
         self.clear_stateful_cache()
+        self.clear_primed_responses()
 
         config = uvicorn.Config(
             self.app, host=self.host, port=self.port, log_level="warning"
@@ -153,11 +156,45 @@ class TestA2AAgentServer:
                 log.warning("[TestA2AAgentServer] Server thread did not exit cleanly.")
         self._server_thread = None
         self._uvicorn_server = None
+        self.clear_primed_responses()
         log.info("[TestA2AAgentServer] Stopped.")
 
     def clear_captured_requests(self):
         """Clears the list of captured requests."""
         self.captured_requests.clear()
+
+    def prime_responses(self, responses: List[Dict[str, Any]]):
+        """
+        Primes the server with a sequence of responses to serve for subsequent requests.
+        Each call to this method overwrites any previously primed responses.
+        """
+        with self._primed_responses_lock:
+            self._primed_responses = list(responses)
+            log.info(
+                "[TestA2AAgentServer] Primed with %d responses.",
+                len(self._primed_responses),
+            )
+
+    def get_next_primed_response(self) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves the next available primed response in a thread-safe manner.
+        This is intended to be called by the agent executor.
+        """
+        with self._primed_responses_lock:
+            if self._primed_responses:
+                response = self._primed_responses.pop(0)
+                log.debug(
+                    "[TestA2AAgentServer] Consumed primed response. %d remaining.",
+                    len(self._primed_responses),
+                )
+                return response
+        return None
+
+    def clear_primed_responses(self):
+        """Clears the primed response queue."""
+        with self._primed_responses_lock:
+            self._primed_responses.clear()
+            log.debug("[TestA2AAgentServer] Cleared primed responses.")
 
     def clear_stateful_cache(self):
         """Clears the stateful response cache."""

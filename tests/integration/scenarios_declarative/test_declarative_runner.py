@@ -17,6 +17,7 @@ from sam_test_infrastructure.llm_server.server import (
 from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )
+from sam_test_infrastructure.a2a_agent_server.server import TestA2AAgentServer
 from sam_test_infrastructure.artifact_service.service import (
     TestInMemoryArtifactService,
 )
@@ -1289,6 +1290,7 @@ async def test_declarative_scenario(
     monkeypatch: pytest.MonkeyPatch,
     mcp_server_harness,
     request: pytest.FixtureRequest,
+    test_a2a_agent_server_harness: TestA2AAgentServer,
 ):
     """
     Executes a single declarative test scenario discovered by pytest_generate_tests.
@@ -1297,6 +1299,13 @@ async def test_declarative_scenario(
     scenario_description = declarative_scenario.get("description", "No description")
 
     # --- Phase 0: MCP Configuration now handled by mcp_configured_sam_app fixture ---
+
+    if "downstream_a2a_agent_responses" in declarative_scenario:
+        responses_to_prime = declarative_scenario["downstream_a2a_agent_responses"]
+        test_a2a_agent_server_harness.prime_responses(responses_to_prime)
+        print(
+            f"Scenario {scenario_id}: Primed downstream A2A agent with {len(responses_to_prime)} responses."
+        )
 
     if "monkeypatch_spec" in declarative_scenario:
         for patch_spec in declarative_scenario["monkeypatch_spec"]:
