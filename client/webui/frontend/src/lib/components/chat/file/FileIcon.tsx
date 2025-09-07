@@ -14,6 +14,114 @@ const getFileExtension = (filename: string): string => {
     return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : 'FILE';
 };
 
+const getFileTypeEmoji = (mimeType?: string, filename?: string): string | null => {
+    if (mimeType) {
+        // Image files
+        if (mimeType.startsWith('image/')) {
+            return '🖼️';
+        }
+        // Video files
+        if (mimeType.startsWith('video/')) {
+            return '🎬';
+        }
+        // Audio files
+        if (mimeType.startsWith('audio/')) {
+            return '🎵';
+        }
+        // PDF files
+        if (mimeType === 'application/pdf') {
+            return '📄';
+        }
+        // Archive files
+        if (mimeType === 'application/zip' || mimeType === 'application/x-zip-compressed' || 
+            mimeType === 'application/x-rar-compressed' || mimeType === 'application/x-tar' ||
+            mimeType === 'application/gzip') {
+            return '📦';
+        }
+        // Office documents
+        if (mimeType.includes('word') || mimeType.includes('document')) {
+            return '📝';
+        }
+        if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) {
+            return '📊';
+        }
+        if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) {
+            return '📈';
+        }
+        // Executable files
+        if (mimeType === 'application/x-executable' || mimeType === 'application/x-msdownload') {
+            return '⚙️';
+        }
+    }
+
+    // Fallback based on filename extension
+    const ext = filename ? getFileExtension(filename).toLowerCase() : '';
+    switch (ext) {
+        // Images
+        case 'jpg':
+        case 'jpeg':
+        case 'png':
+        case 'gif':
+        case 'bmp':
+        case 'webp':
+        case 'svg':
+        case 'ico':
+            return '🖼️';
+        // Videos
+        case 'mp4':
+        case 'avi':
+        case 'mov':
+        case 'wmv':
+        case 'flv':
+        case 'webm':
+        case 'mkv':
+            return '🎬';
+        // Audio
+        case 'mp3':
+        case 'wav':
+        case 'flac':
+        case 'aac':
+        case 'ogg':
+        case 'm4a':
+            return '🎵';
+        // Documents
+        case 'pdf':
+            return '📄';
+        case 'doc':
+        case 'docx':
+            return '📝';
+        case 'xls':
+        case 'xlsx':
+            return '📊';
+        case 'ppt':
+        case 'pptx':
+            return '📈';
+        // Archives
+        case 'zip':
+        case 'rar':
+        case '7z':
+        case 'tar':
+        case 'gz':
+            return '📦';
+        // Executables
+        case 'exe':
+        case 'msi':
+        case 'dmg':
+        case 'pkg':
+        case 'deb':
+        case 'rpm':
+            return '⚙️';
+        // Fonts
+        case 'ttf':
+        case 'otf':
+        case 'woff':
+        case 'woff2':
+            return '🔤';
+        default:
+            return null;
+    }
+};
+
 const getFileTypeColor = (mimeType?: string, filename?: string): string => {
     if (mimeType) {
         if (mimeType.startsWith('text/html') || mimeType === 'application/xhtml+xml') {
@@ -90,6 +198,7 @@ export const FileIcon: React.FC<FileIconProps> = ({
 
     const extension = getFileExtension(filename);
     const typeColor = getFileTypeColor(mimeType, filename);
+    const fileEmoji = getFileTypeEmoji(mimeType, filename);
     const previewContent = content ? truncateContent(content) : '';
 
     return (
@@ -105,14 +214,17 @@ export const FileIcon: React.FC<FileIconProps> = ({
             {/* Main document icon with square corners */}
             <div className="relative w-[60px] h-[75px] bg-gradient-to-b from-white via-[#fafafa] to-[#f5f5f5] dark:from-gray-100 dark:via-gray-200 dark:to-gray-300 border border-[#e0e0e0] dark:border-gray-400 shadow-[0_4px_8px_rgba(0,0,0,0.15)] dark:shadow-[0_4px_8px_rgba(0,0,0,0.3)]">
 
-                {/* Content preview */}
+                {/* Content preview or emoji */}
                 <div className="absolute top-[4px] left-[4px] right-[4px] bottom-[20px] font-mono text-[3.5px] leading-[1.4] text-[#444] dark:text-[#333] overflow-hidden">
-                    {previewContent && (
+                    {fileEmoji ? (
+                        <div className="flex items-center justify-center h-full">
+                            <span className="text-[32px] select-none">{fileEmoji}</span>
+                        </div>
+                    ) : previewContent ? (
                         <div className="whitespace-pre-wrap break-words text-[8px] select-none">
                             {previewContent}
                         </div>
-                    )}
-                    {!previewContent && (
+                    ) : (
                         <div className="flex h-full text-[#999] dark:text-[#666] text-[8px] font-medium select-none">
                             {size ? `${Math.round(size / 1024)}KB` : 'File'}
                         </div>
