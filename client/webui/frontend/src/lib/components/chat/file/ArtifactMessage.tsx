@@ -44,7 +44,6 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const [fetchedContent, setFetchedContent] = useState<string | null>(null);
     const [renderError, setRenderError] = useState<string | null>(null);
     const [isInfoExpanded, setIsInfoExpanded] = useState(false);
-    const [isContentExpanded, setIsContentExpanded] = useState(false);
 
     const artifact = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);
     const context = props.context || "chat";
@@ -91,11 +90,11 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
     // Auto-expand for images and audio when completed
     useEffect(() => {
-        if (props.status === "completed" && shouldAutoRender && !isContentExpanded) {
+        if (props.status === "completed" && shouldAutoRender && !isExpanded) {
             console.log(`[ArtifactMessage] Auto-expanding ${fileName} for auto-render`);
-            setIsContentExpanded(true);
+            toggleExpanded();
         }
-    }, [props.status, shouldAutoRender, isContentExpanded, fileName]);
+    }, [props.status, shouldAutoRender, isExpanded, fileName, toggleExpanded]);
 
     // Check if we should render content inline (for images and audio)
     const shouldRenderInline = useMemo(() => {
@@ -258,7 +257,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     }
 
     // For inline rendering (images/audio), always show the content regardless of expansion state
-    const shouldShowContent = shouldRenderInline || (shouldRender && isContentExpanded);
+    const shouldShowContent = shouldRenderInline || (shouldRender && isExpanded);
 
     // Prepare info content for expansion
     const infoContent = useMemo(() => {
@@ -334,7 +333,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             status={props.status}
             expandable={context === "chat" && isExpandable && !shouldRenderInline} // Don't show expand button for inline content or in list context
             expanded={shouldShowContent || isInfoExpanded}
-            onToggleExpand={context === "chat" && isExpandable && !shouldRenderInline ? () => setIsContentExpanded(!isContentExpanded) : undefined}
+            onToggleExpand={context === "chat" && isExpandable && !shouldRenderInline ? toggleExpanded : undefined}
             actions={actions}
             bytesTransferred={props.status === "in-progress" ? props.bytesTransferred : undefined}
             error={props.status === "failed" ? props.error : undefined}
