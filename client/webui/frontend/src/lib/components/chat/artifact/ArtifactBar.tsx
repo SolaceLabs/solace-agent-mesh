@@ -19,6 +19,7 @@ export interface ArtifactBarProps {
         onPreview?: () => void;
         onDelete?: () => void;
         onInfo?: () => void;
+        onExpand?: () => void;
     };
     // For creation progress
     bytesTransferred?: number;
@@ -221,6 +222,25 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                             className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                         >
                             <Eye className="h-4 w-4" />
+                        </Button>
+                    )}
+                    
+                    {status === "completed" && actions?.onExpand && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                try {
+                                    actions.onExpand();
+                                } catch (error) {
+                                    console.error('Expand failed:', error);
+                                }
+                            }}
+                            tooltip="Expand"
+                            className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                            <ChevronDown className="h-4 w-4" />
                         </Button>
                     )}
                     
