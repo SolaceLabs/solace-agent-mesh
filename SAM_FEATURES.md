@@ -41,7 +41,13 @@ This capability moves beyond the single-agent paradigm, enabling the creation of
 
 ## Enhanced Artifact Management
 
-*To be detailed in a future section.*
+SAM elevates the ADK's basic file storage into a sophisticated, intelligent artifact management system. Where the standard ADK provides a simple way to save a file, SAM enriches this process, making artifacts more discoverable, understandable, and ready for enterprise use.
+
+First, every artifact saved in SAM is automatically paired with a **rich metadata file**. This acts like a digital label, capturing not just the file's name and type, but also a description of its contents, its origin, and other custom details. This ensures that both users and other agents can understand an artifact's purpose and context without having to inspect its contents manually.
+
+For structured data like CSV, JSON, or YAML files, SAM goes a step further by performing **automatic schema inference**. When an agent saves a data file, the framework intelligently analyzes its structure—such as column headers in a CSV or the key-value layout of a JSON object—and includes this schema in the metadata. This gives the LLM a "table of contents" for the data, enabling it to write accurate queries and transformations in subsequent steps without first needing to load and read the entire file.
+
+Finally, SAM provides **pluggable, production-grade storage backends**. Instead of being limited to the ADK's default in-memory storage (where files are lost on restart), SAM supports persistent storage on a local filesystem or in enterprise cloud object stores like Amazon S3. This makes artifacts durable and reliable, turning them from temporary outputs into managed, long-term assets for your AI applications.
 
 ## Dynamic Content & Prompt Engineering ("Embeds")
 
