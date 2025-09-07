@@ -86,6 +86,12 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         return renderType === "image" || renderType === "audio";
     }, [fileName, fileMimeType]);
 
+    // Check if this is specifically an image for special styling
+    const isImage = useMemo(() => {
+        const renderType = getRenderType(fileName, fileMimeType);
+        return renderType === "image";
+    }, [fileName, fileMimeType]);
+
     // Fetch content from URI for completed artifacts when needed for rendering
     useEffect(() => {
         const fetchContentFromUri = async () => {
@@ -203,7 +209,13 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 expandedContent = (
                     <div className="relative group max-w-full overflow-hidden">
                         {renderError && <MessageBanner variant="error" message={renderError} />}
-                        <div style={{ maxHeight: shouldRenderInline ? "300px" : "400px", overflowY: "auto" }}>
+                        <div 
+                            style={{ 
+                                maxHeight: shouldRenderInline && !isImage ? "300px" : isImage ? "none" : "400px", 
+                                overflowY: isImage ? "visible" : "auto" 
+                            }}
+                            className={isImage ? "drop-shadow-md" : ""}
+                        >
                             <ContentRenderer 
                                 content={finalContent} 
                                 rendererType={renderType} 
