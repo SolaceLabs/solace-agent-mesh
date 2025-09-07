@@ -237,10 +237,14 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                                     console.error('Expand failed:', error);
                                 }
                             }}
-                            tooltip="Expand"
+                            tooltip={expanded ? "Collapse" : "Expand"}
                             className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                         >
-                            <ChevronDown className="h-4 w-4" />
+                            {expanded ? (
+                                <ChevronDown className="h-4 w-4" />
+                            ) : (
+                                <ChevronRight className="h-4 w-4" />
+                            )}
                         </Button>
                     )}
                     
