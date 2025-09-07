@@ -331,9 +331,9 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             mimeType={fileMimeType}
             size={fileAttachment?.size}
             status={props.status}
-            expandable={context === "chat" && isExpandable && !shouldRenderInline} // Don't show expand button for inline content or in list context
+            expandable={false} // Never show expand button in any context
             expanded={shouldShowContent || isInfoExpanded}
-            onToggleExpand={context === "chat" && isExpandable && !shouldRenderInline ? toggleExpanded : undefined}
+            onToggleExpand={undefined}
             actions={actions}
             bytesTransferred={props.status === "in-progress" ? props.bytesTransferred : undefined}
             error={props.status === "failed" ? props.error : undefined}
