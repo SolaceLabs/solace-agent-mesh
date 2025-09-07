@@ -154,8 +154,22 @@ This enables powerful capabilities not found in the standard ADK. For example, t
 
 ## Rich Built-in Tool Library
 
-*To be detailed in a future section.*
+SAM comes equipped with a comprehensive library of pre-built, production-ready tools that can be enabled with simple configuration changes. This significantly accelerates development by providing powerful, out-of-the-box capabilities for common enterprise tasks, eliminating the need to write boilerplate code for every new agent.
+
+The library is organized into logical categories, allowing developers to easily grant an agent a suite of related skills. For example, by enabling the "data_analysis" group, an agent instantly gains the ability to execute SQL queries, transform JSON with JMESPath, and generate charts. Other available categories include:
+
+*   **Artifact Management:** Tools to list, load, create, and manipulate artifacts.
+*   **Web Interaction:** A secure tool for making HTTP requests to external websites and APIs.
+*   **Multimedia Generation:** Tools to create images from text descriptions and convert text to speech with multiple voices.
+*   **Multimodal Analysis:** Tools that use vision and audio models to describe the content of images and audio files.
+*   **File Conversion:** Utilities to convert common file formats, like PDF or DOCX, into clean Markdown for easier processing by the LLM.
+
+This declarative approach to tool management—enabling entire categories or individual tools in a YAML file—makes it trivial to customize an agent's skillset for a specific purpose.
 
 ## Observability & Debugging
 
-*To be detailed in a future section.*
+Understanding an agent's decision-making process is critical for development, debugging, and ensuring reliability in production. SAM provides advanced observability features that offer deep visibility into the inner workings of every task.
+
+The cornerstone of this is the **Invocation Monitor**, which acts as a "flight recorder" for every task an agent performs. When enabled, it meticulously logs the entire lifecycle of a request to a structured YAML file. This includes every message sent and received over the event broker, every internal thought process of the LLM, every tool it decides to call, and the exact data returned. This provides an invaluable, step-by-step trace that makes it easy to diagnose issues and understand the agent's behavior in complex, asynchronous workflows.
+
+Furthermore, SAM is built for enterprise environments and includes a **structured JSON log formatter**. This allows agent logs to be seamlessly ingested and parsed by standard corporate monitoring platforms like Datadog or Splunk. This integration provides operations teams with the familiar tools they need to search, analyze, and alert on agent activity, making SAM agents first-class citizens in a production ecosystem.
