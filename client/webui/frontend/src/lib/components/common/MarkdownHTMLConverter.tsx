@@ -25,14 +25,24 @@ export function MarkdownHTMLConverter({ children, className }: Readonly<Markdown
         return null;
     }
 
-    try {
-        // 1. Convert markdown to HTML string using marked
-        const rawHtml = marked.parse(children, { gfm: true }) as string;
+    // Helper function to decode HTML entities
+    const decodeHtmlEntities = (text: string): string => {
+        const textarea = document.createElement('textarea');
+        textarea.innerHTML = text;
+        return textarea.value;
+    };
 
-        // 2. Sanitize the HTML string using DOMPurify
+    try {
+        // 1. Decode HTML entities first
+        const decodedChildren = decodeHtmlEntities(children);
+        
+        // 2. Convert markdown to HTML string using marked
+        const rawHtml = marked.parse(decodedChildren, { gfm: true }) as string;
+
+        // 3. Sanitize the HTML string using DOMPurify
         const cleanHtml = DOMPurify.sanitize(rawHtml, { USE_PROFILES: { html: true } });
 
-        // 3. Parse the sanitized HTML string into React elements
+        // 4. Parse the sanitized HTML string into React elements
         const reactElements = parse(cleanHtml, parserOptions);
 
         return <div className={getThemeHtmlStyles(className)}>{reactElements}</div>;
