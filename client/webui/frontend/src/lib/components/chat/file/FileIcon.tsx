@@ -18,7 +18,7 @@ const getFileTypeEmoji = (mimeType?: string, filename?: string): string | null =
     if (mimeType) {
         // Image files
         if (mimeType.startsWith('image/')) {
-            return '🖼️';
+            return '🎨';
         }
         // Video files
         if (mimeType.startsWith('video/')) {
@@ -66,7 +66,7 @@ const getFileTypeEmoji = (mimeType?: string, filename?: string): string | null =
         case 'webp':
         case 'svg':
         case 'ico':
-            return '🖼️';
+            return '🎨';
         // Videos
         case 'mp4':
         case 'avi':
