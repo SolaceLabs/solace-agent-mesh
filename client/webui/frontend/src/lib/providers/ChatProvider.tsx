@@ -188,10 +188,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const confirmDelete = useCallback(async () => {
         if (artifactToDelete) {
+            // Check if the artifact being deleted is currently being previewed
+            const isCurrentlyPreviewed = previewArtifact?.filename === artifactToDelete.filename;
+            
             await deleteArtifactInternal(artifactToDelete.filename);
+            
+            // If the deleted artifact was being previewed, go back to file list
+            if (isCurrentlyPreviewed) {
+                setPreviewArtifact(null);
+            }
         }
         closeDeleteModal();
-    }, [artifactToDelete, deleteArtifactInternal, closeDeleteModal]);
+    }, [artifactToDelete, deleteArtifactInternal, closeDeleteModal, previewArtifact, setPreviewArtifact]);
 
     const handleDeleteSelectedArtifacts = useCallback(() => {
         if (selectedArtifactFilenames.size === 0) {
