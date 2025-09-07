@@ -97,23 +97,23 @@ export const FileIcon: React.FC<FileIconProps> = ({
             {/* Shadow container - positioned behind but shadows extend beyond */}
             <div className="absolute inset-0 overflow-visible">
                 {/* Left corner shadow element */}
-                <div className="absolute bottom-[-5px] left-[2px] w-[45%] h-[20%] bg-[#666] dark:bg-[#444] shadow-[0_8px_16px_rgba(0,0,0,0.4)] dark:shadow-[0_8px_16px_rgba(0,0,0,0.6)] transform rotate-[-4deg] opacity-70"></div>
+                <div className="absolute bottom-[5px] left-[5px] w-[49%] h-[50%] bg-[#666] dark:bg-[#444] shadow-[0_6px_12px_rgba(0,0,0,0.3)] dark:shadow-[0_8px_8px_rgba(0,0,0,1.0)] transform rotate-[4deg] skew-[-10deg] opacity-70"></div>
                 {/* Right corner shadow element */}
-                <div className="absolute bottom-[-5px] right-[2px] w-[45%] h-[20%] bg-[#666] dark:bg-[#444] shadow-[0_8px_16px_rgba(0,0,0,0.4)] dark:shadow-[0_8px_16px_rgba(0,0,0,0.6)] transform rotate-[4deg] opacity-70"></div>
+                <div className="absolute bottom-[5px] right-[5px] w-[49%] h-[50%] bg-[#666] dark:bg-[#444] shadow-[0_6px_12px_rgba(0,0,0,0.3)] dark:shadow-[0_8px_8px_rgba(0,0,0,1)] transform rotate-[-4deg] skew-[10deg] opacity-70"></div>
             </div>
 
             {/* Main document icon with square corners */}
             <div className="relative w-[60px] h-[75px] bg-gradient-to-b from-white via-[#fafafa] to-[#f5f5f5] dark:from-gray-100 dark:via-gray-200 dark:to-gray-300 border border-[#e0e0e0] dark:border-gray-400 shadow-[0_4px_8px_rgba(0,0,0,0.15)] dark:shadow-[0_4px_8px_rgba(0,0,0,0.3)]">
 
                 {/* Content preview */}
-                <div className="absolute top-[4px] left-[4px] right-[4px] bottom-[20px] font-mono text-[1.5px] leading-[1.4] text-[#444] dark:text-[#333] overflow-hidden">
+                <div className="absolute top-[4px] left-[4px] right-[4px] bottom-[20px] font-mono text-[3.5px] leading-[1.4] text-[#444] dark:text-[#333] overflow-hidden">
                     {previewContent && (
-                        <div className="whitespace-pre-wrap break-words text-[1.5px] select-none">
+                        <div className="whitespace-pre-wrap break-words text-[8px] select-none">
                             {previewContent}
                         </div>
                     )}
                     {!previewContent && (
-                        <div className="flex items-center justify-center h-full text-[#999] dark:text-[#666] text-[2px] font-medium select-none">
+                        <div className="flex h-full text-[#999] dark:text-[#666] text-[8px] font-medium select-none">
                             {size ? `${Math.round(size / 1024)}KB` : 'File'}
                         </div>
                     )}
@@ -121,7 +121,7 @@ export const FileIcon: React.FC<FileIconProps> = ({
 
                 {/* File type badge */}
                 <div className={cn(
-                    "absolute bottom-[4px] right-[4px] text-white px-[4px] py-[2px] text-[6px] font-bold z-[4] shadow-sm select-none",
+                    "absolute bottom-[4px] right-[4px] text-white px-[4px] py-[2px] text-[10px] font-bold z-[4] shadow-sm select-none",
                     typeColor
                 )}>
                     {extension.length > 4 ? extension.substring(0, 4) : extension}
