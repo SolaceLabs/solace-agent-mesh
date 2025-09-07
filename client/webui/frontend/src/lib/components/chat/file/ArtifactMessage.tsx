@@ -44,6 +44,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const [fetchedContent, setFetchedContent] = useState<string | null>(null);
     const [renderError, setRenderError] = useState<string | null>(null);
     const [isInfoExpanded, setIsInfoExpanded] = useState(false);
+    const [isContentExpanded, setIsContentExpanded] = useState(false);
 
     const artifact = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);
     const context = props.context || "chat";
@@ -90,11 +91,11 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
     // Auto-expand for images and audio when completed
     useEffect(() => {
-        if (props.status === "completed" && shouldAutoRender && !isExpanded) {
+        if (props.status === "completed" && shouldAutoRender && !isContentExpanded) {
             console.log(`[ArtifactMessage] Auto-expanding ${fileName} for auto-render`);
-            toggleExpanded();
+            setIsContentExpanded(true);
         }
-    }, [props.status, shouldAutoRender, isExpanded, toggleExpanded, fileName]);
+    }, [props.status, shouldAutoRender, isContentExpanded, fileName]);
 
     // Check if we should render content inline (for images and audio)
     const shouldRenderInline = useMemo(() => {
@@ -257,7 +258,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     }
 
     // For inline rendering (images/audio), always show the content regardless of expansion state
-    const shouldShowContent = shouldRenderInline || (shouldRender && isExpanded);
+    const shouldShowContent = shouldRenderInline || (shouldRender && isContentExpanded);
 
     // Prepare info content for expansion
     const infoContent = useMemo(() => {
@@ -297,14 +298,29 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         );
     }, [isInfoExpanded, artifact]);
 
-    // Determine what content to show in expanded area
+    // Determine what content to show in expanded area - can show both info and content
     const finalExpandedContent = useMemo(() => {
-        if (isInfoExpanded && infoContent) {
+        const hasInfo = isInfoExpanded && infoContent;
+        const hasContent = shouldShowContent && expandedContent;
+        
+        if (hasInfo && hasContent) {
+            return (
+                <div className="space-y-4">
+                    {infoContent}
+                    <hr className="border-t border-[#e0e0e0] dark:border-[#404040]" />
+                    {expandedContent}
+                </div>
+            );
+        }
+        
+        if (hasInfo) {
             return infoContent;
         }
-        if (shouldShowContent) {
+        
+        if (hasContent) {
             return expandedContent;
         }
+        
         return undefined;
     }, [isInfoExpanded, infoContent, shouldShowContent, expandedContent]);
 
@@ -318,7 +334,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             status={props.status}
             expandable={context === "chat" && isExpandable && !shouldRenderInline} // Don't show expand button for inline content or in list context
             expanded={shouldShowContent || isInfoExpanded}
-            onToggleExpand={context === "chat" && isExpandable && !shouldRenderInline ? toggleExpanded : undefined}
+            onToggleExpand={context === "chat" && isExpandable && !shouldRenderInline ? () => setIsContentExpanded(!isContentExpanded) : undefined}
             actions={actions}
             bytesTransferred={props.status === "in-progress" ? props.bytesTransferred : undefined}
             error={props.status === "failed" ? props.error : undefined}
