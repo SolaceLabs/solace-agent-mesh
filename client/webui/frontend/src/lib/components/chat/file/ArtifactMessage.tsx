@@ -80,6 +80,12 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         }
     }, [props.status, shouldAutoRender, isExpanded, toggleExpanded, fileName]);
 
+    // Check if we should render content inline (for images and audio)
+    const shouldRenderInline = useMemo(() => {
+        const renderType = getRenderType(fileName, fileMimeType);
+        return renderType === "image" || renderType === "audio";
+    }, [fileName, fileMimeType]);
+
     // Fetch content from URI for completed artifacts when needed for rendering
     useEffect(() => {
         const fetchContentFromUri = async () => {
@@ -175,26 +181,6 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     
     const description = artifactFromGlobal?.description;
 
-    // If we shouldn't render content inline, just show the bar
-    if (!shouldRender) {
-        return (
-            <ArtifactBar
-                filename={fileName}
-                description={description}
-                mimeType={fileMimeType}
-                size={fileAttachment?.size}
-                status={props.status}
-                expandable={isExpandable}
-                expanded={isExpanded}
-                onToggleExpand={isExpandable ? toggleExpanded : undefined}
-                actions={actions}
-                bytesTransferred={props.status === "in-progress" ? props.bytesTransferred : undefined}
-                error={props.status === "failed" ? props.error : undefined}
-                content={contentPreview}
-            />
-        );
-    }
-
     // For rendering content, we need the actual content
     const contentToRender = fetchedContent || fileAttachment?.content;
     const renderType = getRenderType(fileName, fileMimeType);
@@ -217,7 +203,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 expandedContent = (
                     <div className="relative group max-w-full overflow-hidden">
                         {renderError && <MessageBanner variant="error" message={renderError} />}
-                        <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+                        <div style={{ maxHeight: shouldRenderInline ? "300px" : "400px", overflowY: "auto" }}>
                             <ContentRenderer 
                                 content={finalContent} 
                                 rendererType={renderType} 
@@ -234,6 +220,9 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         }
     }
 
+    // For inline rendering (images/audio), always show the content regardless of expansion state
+    const shouldShowContent = shouldRenderInline || (shouldRender && isExpanded);
+
     // Render the bar with expanded content inside
     return (
         <ArtifactBar
@@ -242,14 +231,14 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             mimeType={fileMimeType}
             size={fileAttachment?.size}
             status={props.status}
-            expandable={isExpandable}
-            expanded={isExpanded}
-            onToggleExpand={isExpandable ? toggleExpanded : undefined}
+            expandable={isExpandable && !shouldRenderInline} // Don't show expand button for inline content
+            expanded={shouldShowContent}
+            onToggleExpand={isExpandable && !shouldRenderInline ? toggleExpanded : undefined}
             actions={actions}
             bytesTransferred={props.status === "in-progress" ? props.bytesTransferred : undefined}
             error={props.status === "failed" ? props.error : undefined}
             content={contentPreview}
-            expandedContent={expandedContent}
+            expandedContent={shouldShowContent ? expandedContent : undefined}
         />
     );
 };
