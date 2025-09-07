@@ -1,5 +1,5 @@
 import React from "react";
-import { Download, Eye, ChevronDown, ChevronRight } from "lucide-react";
+import { Download, Eye, ChevronDown, ChevronRight, Trash, Info } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
 import { FileIcon } from "../file/FileIcon";
@@ -18,6 +18,7 @@ export interface ArtifactBarProps {
         onDownload?: () => void;
         onPreview?: () => void;
         onDelete?: () => void;
+        onInfo?: () => void;
     };
     // For creation progress
     bytesTransferred?: number;
@@ -201,6 +202,44 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                             className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                         >
                             <Eye className="h-4 w-4" />
+                        </Button>
+                    )}
+                    
+                    {status === "completed" && actions?.onDelete && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                try {
+                                    actions.onDelete();
+                                } catch (error) {
+                                    console.error('Delete failed:', error);
+                                }
+                            }}
+                            tooltip="Delete"
+                            className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                            <Trash className="h-4 w-4" />
+                        </Button>
+                    )}
+                    
+                    {status === "completed" && actions?.onInfo && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                try {
+                                    actions.onInfo();
+                                } catch (error) {
+                                    console.error('Info failed:', error);
+                                }
+                            }}
+                            tooltip="Info"
+                            className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                            <Info className="h-4 w-4" />
                         </Button>
                     )}
                     

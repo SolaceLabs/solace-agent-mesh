@@ -1,17 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useChatContext, useArtifactRendering } from "@/lib/hooks";
-import type { FileAttachment, ArtifactPart } from "@/lib/types";
+import type { FileAttachment, ArtifactPart, ArtifactInfo } from "@/lib/types";
 import { authenticatedFetch } from "@/lib/utils/api";
 import { downloadFile, parseArtifactUri } from "@/lib/utils/download";
 import { generateFileTypePreview } from "./fileUtils";
+import { formatBytes, formatRelativeTime } from "@/lib/utils/format";
 
 import { MessageBanner } from "../../common";
 import { ContentRenderer } from "../preview/ContentRenderer";
 import { getFileContent, getRenderType } from "../preview/previewUtils";
 import { ArtifactBar } from "../artifact/ArtifactBar";
 
-type ArtifactMessageProps =
+type ArtifactMessageProps = (
     | {
           status: "in-progress";
           name: string;
@@ -26,7 +27,10 @@ type ArtifactMessageProps =
           status: "failed";
           name: string;
           error?: string;
-      };
+      }
+) & {
+    context?: "chat" | "list";
+};
 
 export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     console.log(`[ArtifactMessage] Rendering with props:`, props);
@@ -34,13 +38,15 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     if (props.status === "in-progress") {
         console.log(`[ArtifactMessage] In-progress artifact - bytesTransferred: ${props.bytesTransferred}`);
     }
-    const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId, messages } = useChatContext();
+    const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId, messages, openDeleteModal } = useChatContext();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [fetchedContent, setFetchedContent] = useState<string | null>(null);
     const [renderError, setRenderError] = useState<string | null>(null);
+    const [isInfoExpanded, setIsInfoExpanded] = useState(false);
 
     const artifact = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);
+    const context = props.context || "chat";
 
     // Get file info for rendering decisions
     const fileAttachment = props.status === "completed" ? props.fileAttachment : undefined;
@@ -71,6 +77,16 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             downloadFile(fileAttachment);
         }
     }, [fileAttachment]);
+
+    const handleDeleteClick = useCallback(() => {
+        if (artifact) {
+            openDeleteModal(artifact);
+        }
+    }, [artifact, openDeleteModal]);
+
+    const handleInfoClick = useCallback(() => {
+        setIsInfoExpanded(!isInfoExpanded);
+    }, [isInfoExpanded]);
 
     // Auto-expand for images and audio when completed
     useEffect(() => {
@@ -173,11 +189,20 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const actions = useMemo(() => {
         if (props.status !== "completed") return undefined;
         
-        return {
-            onDownload: handleDownloadClick,
-            onPreview: artifact ? handlePreviewClick : undefined,
-        };
-    }, [props.status, handleDownloadClick, artifact, handlePreviewClick]);
+        if (context === "list") {
+            return {
+                onDownload: handleDownloadClick,
+                onDelete: artifact ? handleDeleteClick : undefined,
+                onInfo: handleInfoClick,
+            };
+        } else {
+            return {
+                onDownload: handleDownloadClick,
+                onPreview: artifact ? handlePreviewClick : undefined,
+                onInfo: handleInfoClick,
+            };
+        }
+    }, [props.status, context, handleDownloadClick, artifact, handlePreviewClick, handleDeleteClick, handleInfoClick]);
 
     // Get description from global artifacts instead of message parts
     const artifactFromGlobal = useMemo(() => 
@@ -235,6 +260,55 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     // For inline rendering (images/audio), always show the content regardless of expansion state
     const shouldShowContent = shouldRenderInline || (shouldRender && isExpanded);
 
+    // Prepare info content for expansion
+    const infoContent = useMemo(() => {
+        if (!isInfoExpanded || !artifact) return null;
+
+        return (
+            <div className="space-y-2 text-sm">
+                {artifact.description && (
+                    <div>
+                        <span className="font-medium">Description:</span>
+                        <div className="mt-1 text-gray-600 dark:text-gray-400">{artifact.description}</div>
+                    </div>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                    <div>
+                        <span className="font-medium">Size:</span>
+                        <div className="text-gray-600 dark:text-gray-400">{formatBytes(artifact.size)}</div>
+                    </div>
+                    <div>
+                        <span className="font-medium">Modified:</span>
+                        <div className="text-gray-600 dark:text-gray-400">{formatRelativeTime(artifact.last_modified)}</div>
+                    </div>
+                </div>
+                {artifact.mime_type && (
+                    <div>
+                        <span className="font-medium">Type:</span>
+                        <div className="text-gray-600 dark:text-gray-400">{artifact.mime_type}</div>
+                    </div>
+                )}
+                {artifact.uri && (
+                    <div>
+                        <span className="font-medium">URI:</span>
+                        <div className="text-gray-600 dark:text-gray-400 break-all text-xs">{artifact.uri}</div>
+                    </div>
+                )}
+            </div>
+        );
+    }, [isInfoExpanded, artifact]);
+
+    // Determine what content to show in expanded area
+    const finalExpandedContent = useMemo(() => {
+        if (isInfoExpanded && infoContent) {
+            return infoContent;
+        }
+        if (shouldShowContent) {
+            return expandedContent;
+        }
+        return undefined;
+    }, [isInfoExpanded, infoContent, shouldShowContent, expandedContent]);
+
     // Render the bar with expanded content inside
     return (
         <ArtifactBar
@@ -243,14 +317,14 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             mimeType={fileMimeType}
             size={fileAttachment?.size}
             status={props.status}
-            expandable={isExpandable && !shouldRenderInline} // Don't show expand button for inline content
-            expanded={shouldShowContent}
-            onToggleExpand={isExpandable && !shouldRenderInline ? toggleExpanded : undefined}
+            expandable={context === "chat" && isExpandable && !shouldRenderInline} // Don't show expand button for inline content or in list context
+            expanded={shouldShowContent || isInfoExpanded}
+            onToggleExpand={context === "chat" && isExpandable && !shouldRenderInline ? toggleExpanded : undefined}
             actions={actions}
             bytesTransferred={props.status === "in-progress" ? props.bytesTransferred : undefined}
             error={props.status === "failed" ? props.error : undefined}
             content={contentPreview}
-            expandedContent={shouldShowContent ? expandedContent : undefined}
+            expandedContent={finalExpandedContent}
         />
     );
 };
