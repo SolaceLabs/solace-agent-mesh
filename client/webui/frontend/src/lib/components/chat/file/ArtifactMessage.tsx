@@ -191,9 +191,9 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         
         if (context === "list") {
             return {
+                onInfo: handleInfoClick,
                 onDownload: handleDownloadClick,
                 onDelete: artifact ? handleDeleteClick : undefined,
-                onInfo: handleInfoClick,
             };
         } else {
             return {
