@@ -22,6 +22,9 @@ from sam_test_infrastructure.artifact_service.service import (
 from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
 from sam_test_infrastructure.a2a_agent_server.server import TestA2AAgentServer
 from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
+from tests.integration.test_support.a2a_agent.executor import (
+    DeclarativeAgentExecutor,
+)
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.agent.tools.registry import tool_registry
@@ -278,7 +281,14 @@ def test_a2a_agent_server_harness(
     Yields the TestA2AAgentServer instance.
     """
     port = find_free_port()
-    server = TestA2AAgentServer(host="127.0.0.1", port=port, agent_card=mock_agent_card)
+    executor = DeclarativeAgentExecutor()
+    server = TestA2AAgentServer(
+        host="127.0.0.1",
+        port=port,
+        agent_card=mock_agent_card,
+        agent_executor=executor,
+    )
+    executor.server = server
     server.start()
 
     max_retries = 20
