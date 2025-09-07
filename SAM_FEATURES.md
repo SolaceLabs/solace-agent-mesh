@@ -23,7 +23,13 @@ This document outlines the key features that SAM provides on top of the standard
 
 ## Core Architecture & Communication Layer
 
-*To be detailed in a future section.*
+While the ADK provides the "brain" for an individual agent, the Solace Agent Mesh provides the "nervous system" that allows a fleet of agents to communicate and operate as a cohesive, enterprise-grade system. This is achieved through a foundational architecture built on three key pillars.
+
+First, SAM replaces direct agent-to-agent HTTP calls with a powerful **event-driven architecture**. All communication—requests, responses, and status updates—is exchanged as messages over an event broker. This decouples every component, meaning agents don't need to know each other's network location or status. The result is a highly scalable and resilient mesh that can handle agents joining, leaving, or failing without disrupting the entire system.
+
+Second, all communication adheres to the **A2A (Agent-to-Agent) protocol**, which provides a standardized and structured format for every interaction. This common language ensures that messages, tasks, and file attachments are handled consistently and reliably, eliminating ambiguity between different agents and services. It creates a predictable and interoperable ecosystem where any new component that "speaks A2A" can immediately participate.
+
+Finally, SAM introduces a **managed agent lifecycle and a formal Task Execution Context**. Each agent operates as an independent, self-contained component, ensuring that one agent's workload doesn't block or slow down others. For each request an agent receives, the framework creates a dedicated "control center" that manages the task's state from start to finish. This provides robust, fine-grained control over long-running operations, cancellation signals, and streaming data—capabilities essential for complex, real-world workflows that go far beyond a single LLM turn.
 
 ## Inter-Agent Communication (A2A Delegation)
 
