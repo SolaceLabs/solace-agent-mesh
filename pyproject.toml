@@ -164,6 +164,9 @@ markers = [
     "mcp: marks tests related to mcp",
     "notification: marks tests related to notifications",
     "task_cancellation: marks tests related to task cancellation",
+    "proxy: marks tests related to the A2A proxy functionality",
+    "streaming: marks tests related to streaming messages",
+    "artifacts: marks tests related to artifact handling and services",
 
     # Agent Tools
     # Markers for the built-in agent tools.

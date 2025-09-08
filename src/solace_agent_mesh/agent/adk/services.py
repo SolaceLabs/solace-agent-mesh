@@ -263,19 +263,23 @@ def initialize_artifact_service(component) -> BaseArtifactService:
 
         try:
             from .artifacts.s3_artifact_service import S3ArtifactService
-            
+
             s3_config = {}
-            
+
             for key, value in config.items():
                 if key not in ["type", "bucket_name", "artifact_scope"]:
                     s3_config[key] = value
-            
+
             if "endpoint_url" not in s3_config:
                 s3_config["endpoint_url"] = "https://s3.amazonaws.com"
-                
-            aws_access_key_id = config.get("aws_access_key_id") or os.environ.get("AWS_ACCESS_KEY_ID")
-            aws_secret_access_key = config.get("aws_secret_access_key") or os.environ.get("AWS_SECRET_ACCESS_KEY")
-            
+
+            aws_access_key_id = config.get("aws_access_key_id") or os.environ.get(
+                "AWS_ACCESS_KEY_ID"
+            )
+            aws_secret_access_key = config.get(
+                "aws_secret_access_key"
+            ) or os.environ.get("AWS_SECRET_ACCESS_KEY")
+
             if aws_access_key_id:
                 s3_config["aws_access_key_id"] = aws_access_key_id
             if aws_secret_access_key:

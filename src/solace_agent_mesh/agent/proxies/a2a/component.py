@@ -125,9 +125,7 @@ class A2AProxyComponent(BaseProxyComponent):
 
             # Forward the request
             if isinstance(request, SendStreamingMessageRequest):
-                response_generator = client.send_message_streaming(
-                    request, context=task_context.a2a_context
-                )
+                response_generator = client.send_message_streaming(request)
                 async for response in response_generator:
                     await self._process_downstream_response(
                         response, task_context, client, agent_name
