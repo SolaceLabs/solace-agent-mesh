@@ -466,67 +466,6 @@ async def load_adk_tools(
                         connection_params,
                     )
 
-                elif tool_type == "dynamic":
-                    module_name = tool_config.get("component_module")
-                    base_path = tool_config.get("component_base_path")
-
-                    if not module_name:
-                        raise ValueError("'component_module' required for dynamic tool.")
-
-                    module = import_module(module_name, base_path=base_path)
-                    specific_tool_config = tool_config.get("tool_config")
-
-                    # Attempt to find a Tool Provider first (one-to-many)
-                    provider_class = _find_dynamic_tool_provider_class(module)
-                    if provider_class:
-                        provider_instance = provider_class()
-                        dynamic_tools = provider_instance.create_tools(
-                            tool_config=specific_tool_config
-                        )
-                        log.info(
-                            "%s Loaded %d tools from DynamicToolProvider '%s' in %s",
-                            component.log_identifier,
-                            len(dynamic_tools),
-                            provider_class.__name__,
-                            module_name,
-                        )
-                    else:
-                        # Fallback to finding a single Tool class (one-to-one)
-                        class_name = tool_config.get("class_name")
-                        if class_name:
-                            tool_class = getattr(module, class_name)
-                        else:
-                            tool_class = _find_dynamic_tool_class(module)
-
-                        if not tool_class or not issubclass(tool_class, DynamicTool):
-                            raise TypeError(
-                                f"Module '{module_name}' must contain a DynamicTool or DynamicToolProvider subclass."
-                            )
-
-                        tool_instance = tool_class(tool_config=specific_tool_config)
-                        dynamic_tools = [tool_instance]
-
-                    # Process all generated tools
-                    for tool in dynamic_tools:
-                        tool.origin = "dynamic"
-                        declaration = tool._get_declaration()
-                        if not declaration:
-                            log.warning(
-                                f"Dynamic tool '{tool.__class__.__name__}' from module '{module_name}' did not generate a valid declaration. Skipping."
-                            )
-                            continue
-
-                        _check_and_register_tool_name(
-                            declaration.name, f"dynamic:{module_name}"
-                        )
-                        loaded_tools.append(tool)
-                        log.info(
-                            "%s Loaded dynamic tool: %s from %s",
-                            component.log_identifier,
-                            declaration.name,
-                            module_name,
-                        )
-
                 else:
                     log.warning(
                         "%s Unknown tool type '%s' in config: %s",
