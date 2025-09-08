@@ -1423,6 +1423,13 @@ async def test_declarative_scenario(
         f"Scenario {scenario_id}: Task {task_id} execution and event collection complete."
     )
 
+    if "assert_downstream_request" in declarative_scenario:
+        await _assert_downstream_request(
+            expected_request_specs=declarative_scenario["assert_downstream_request"],
+            test_a2a_agent_server_harness=test_a2a_agent_server_harness,
+            scenario_id=scenario_id,
+        )
+
     try:
         actual_events_list = all_captured_events
         captured_llm_requests = test_llm_server.get_captured_requests()
@@ -1476,6 +1483,30 @@ async def test_declarative_scenario(
         ]
         pretty_print_event_history(event_payloads)
         raise e
+
+
+async def _assert_downstream_request(
+    expected_request_specs: List[Dict[str, Any]],
+    test_a2a_agent_server_harness: TestA2AAgentServer,
+    scenario_id: str,
+):
+    """
+    Asserts the requests captured by the downstream A2A agent server.
+    """
+    captured_requests = test_a2a_agent_server_harness.captured_requests
+    assert len(captured_requests) >= len(
+        expected_request_specs
+    ), f"Scenario {scenario_id}: Mismatch in number of downstream requests. Expected at least {len(expected_request_specs)}, Got {len(captured_requests)}"
+
+    for i, expected_spec in enumerate(expected_request_specs):
+        actual_request = captured_requests[i]
+        _assert_dict_subset(
+            expected_subset=expected_spec,
+            actual_superset=actual_request,
+            scenario_id=scenario_id,
+            event_index=i,  # Reusing event_index for request_index
+            context_path=f"Downstream Request [{i}]",
+        )
 
 
 def _extract_text_from_generic_update(event: TaskStatusUpdateEvent) -> str:

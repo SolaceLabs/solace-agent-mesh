@@ -25,7 +25,7 @@ These tests verify the core functionality of the proxy under normal operating co
 
 This is a critical feature of the proxy. These tests ensure that artifacts are correctly managed as they pass through the proxy in both directions.
 
-- [ ] **Test 3: Inbound Artifact Resolution**
+- [x] **Test 3: Inbound Artifact Resolution**
   - **Objective:** Ensure the proxy correctly resolves an `artifact://` URI from the mesh into raw bytes before forwarding it to the downstream agent.
   - **Setup:**
     - `setup_artifacts` block creates an initial artifact (e.g., `test.txt`) in the test artifact service.
@@ -35,7 +35,7 @@ This is a critical feature of the proxy. These tests ensure that artifacts are c
     - This will require a new assertion key in our test runner, e.g., `assert_downstream_request`.
     - This assertion will check the request captured by `TestA2AAgentServer` and verify that the `FilePart` it received contains the raw `bytes` of `test.txt`, not the URI.
 
-- [ ] **Test 4: Outbound Artifact Handling**
+- [x] **Test 4: Outbound Artifact Handling**
   - **Objective:** Verify that the proxy intercepts an artifact with raw bytes from the downstream agent, saves it to its own artifact store, and rewrites the response to contain a valid `artifact://` URI.
   - **Setup:** `gateway_input` sends a simple request.
   - **Downstream Behavior:** `downstream_a2a_agent_responses` contains a final `Task` with an `Artifact` that has a `FilePart` containing raw bytes (e.g., base64-encoded).
