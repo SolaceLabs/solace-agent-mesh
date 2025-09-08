@@ -16,6 +16,7 @@ setup_artifacts:
 gateway_input:
   target_agent_name: "TestAgent_Proxied"
   user_identity: "proxy_artifact_tester@example.com"
+  is_streaming: false
   parts:
     - type: "text"
       text: "Process this artifact."
