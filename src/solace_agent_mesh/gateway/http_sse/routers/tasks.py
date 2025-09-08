@@ -145,6 +145,33 @@ async def _submit_task(
                             message_text = part.text
                             break
                 
+                # Project context injection for the first message in a session
+                if project_id and message_text:
+                    try:
+                        from ....gateway.http_sse.dependencies import get_project_service
+                        project_service = get_project_service(component)
+                        
+                        history = session_service.get_session_history(session_id=session_id, user_id=user_id)
+                        
+                        if not history or history.total_message_count == 0:  # First message
+                            project = project_service.get_project(project_id, user_id)
+                            if project:
+                                context_parts = []
+                                # Prepend system prompt first, if it exists
+                                if project.system_prompt and project.system_prompt.strip():
+                                    context_parts.append(project.system_prompt.strip())
+                                # Then, prepend project description, if it exists
+                                if project.description and project.description.strip():
+                                    context_parts.append(f"Project Context: {project.description.strip()}")
+                                
+                                if context_parts:
+                                    project_context = "\n\n".join(context_parts) + "\n\n"
+                                    message_text = project_context + message_text
+                                    log.info("%sInjected project context for project: %s", log_prefix, project_id)
+                    except Exception as e:
+                        log.warning("%sFailed to inject project context: %s", log_prefix, e)
+                        # Continue without injection - don't fail the request
+                
                 # Now store the message in the existing session
                 message_domain = session_service.add_message_to_session(
                     session_id=session_id,
