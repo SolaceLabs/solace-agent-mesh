@@ -1,4 +1,4 @@
-from typing import Any, Dict, Generator
+from typing import Any, Dict, Generator, TYPE_CHECKING
 import pytest
 import time
 import subprocess
@@ -50,6 +50,10 @@ from a2a.types import (
     PushNotificationConfig,
 )
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
+
+
+if TYPE_CHECKING:
+    from solace_agent_mesh.agent.proxies.base.component import BaseProxyComponent
 
 
 def find_free_port() -> int:
