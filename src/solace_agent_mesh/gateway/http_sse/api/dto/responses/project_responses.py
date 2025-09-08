@@ -14,6 +14,7 @@ class ProjectResponse(BaseModel):
     name: str
     user_id: str
     description: Optional[str] = None
+    system_prompt: Optional[str] = None
     is_global: bool = False
     template_id: Optional[str] = None
     created_by_user_id: str
@@ -34,6 +35,7 @@ class GlobalProjectResponse(BaseModel):
     id: str
     name: str
     description: Optional[str] = None
+    system_prompt: Optional[str] = None
     created_by_user_id: str
     created_at: datetime
     updated_at: datetime

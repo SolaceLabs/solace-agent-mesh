@@ -70,6 +70,7 @@ class ProjectRepository(IProjectRepository):
                 name=name,
                 user_id=user_id,
                 description=description or template.description,
+                system_prompt=template.system_prompt,
                 is_global=False,
                 template_id=template_id,
                 created_by_user_id=user_id,

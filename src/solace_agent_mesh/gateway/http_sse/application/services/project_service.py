@@ -16,7 +16,7 @@ class ProjectService:
         self.project_repository = project_repository
         self.logger = logging.getLogger(__name__)
 
-    def create_project(self, name: str, user_id: str, description: Optional[str] = None) -> ProjectDomain:
+    def create_project(self, name: str, user_id: str, description: Optional[str] = None, system_prompt: Optional[str] = None) -> ProjectDomain:
         """
         Create a new project for a user.
         
@@ -24,6 +24,7 @@ class ProjectService:
             name: Project name
             user_id: ID of the user creating the project
             description: Optional project description
+            system_prompt: Optional system prompt
             
         Returns:
             DomainProject: The created project
@@ -45,6 +46,7 @@ class ProjectService:
             name=name.strip(),
             user_id=user_id,
             description=description.strip() if description else None,
+            system_prompt=system_prompt.strip() if system_prompt else None,
             created_by_user_id=user_id
         )
         
@@ -100,8 +102,8 @@ class ProjectService:
         db_projects = self.project_repository.get_global_projects()
         return self._models_to_domain_list(db_projects)
 
-    def update_project(self, project_id: str, user_id: str, 
-                           name: Optional[str] = None, description: Optional[str] = None) -> Optional[ProjectDomain]:
+    def update_project(self, project_id: str, user_id: str,
+                           name: Optional[str] = None, description: Optional[str] = None, system_prompt: Optional[str] = None) -> Optional[ProjectDomain]:
         """
         Update a project's details.
         
@@ -110,6 +112,7 @@ class ProjectService:
             user_id: The requesting user ID
             name: New project name (optional)
             description: New project description (optional)
+            system_prompt: New system prompt (optional)
             
         Returns:
             Optional[DomainProject]: The updated project if successful, None otherwise
@@ -129,6 +132,8 @@ class ProjectService:
             update_data["name"] = name.strip()
         if description is not None:
             update_data["description"] = description.strip() if description else None
+        if system_prompt is not None:
+            update_data["system_prompt"] = system_prompt.strip() if system_prompt else None
         
         if not update_data:
             # Nothing to update
@@ -246,6 +251,7 @@ class ProjectService:
             name=project.name,
             user_id=project.user_id,
             description=project.description,
+            system_prompt=project.system_prompt,
             is_global=project.is_global,
             template_id=project.template_id,
             created_by_user_id=project.created_by_user_id,

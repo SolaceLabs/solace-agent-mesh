@@ -14,6 +14,7 @@ class ProjectDomain(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     user_id: Optional[str] = None  # None for global projects
     description: Optional[str] = Field(None, max_length=1000)
+    system_prompt: Optional[str] = Field(None, max_length=4000)
     is_global: bool = False
     template_id: Optional[str] = None  # Links to original template if copied
     created_by_user_id: str

@@ -9,6 +9,7 @@ class Project(Base):
     name = Column(String, nullable=False)
     user_id = Column(String, nullable=True)  # None for global projects
     description = Column(String, nullable=True)
+    system_prompt = Column(Text, nullable=True)
     is_global = Column(Boolean, default=False)
     template_id = Column(String, ForeignKey("projects.id"), nullable=True)  # Links to original template
     created_by_user_id = Column(String, nullable=False)  # Who created this project

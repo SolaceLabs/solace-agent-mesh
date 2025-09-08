@@ -15,7 +15,8 @@ class IProjectRepository(ABC):
     """Interface for project repository operations."""
 
     @abstractmethod
-    def create_project(self, name: str, user_id: str, description: Optional[str] = None, 
+    def create_project(self, name: str, user_id: str, description: Optional[str] = None,
+                      system_prompt: Optional[str] = None,
                       created_by_user_id: Optional[str] = None) -> Project:
         """Create a new user project."""
         pass
@@ -66,6 +67,7 @@ class ProjectRepository(IProjectRepository):
         self.db_service = db_service
 
     def create_project(self, name: str, user_id: str, description: Optional[str] = None,
+                      system_prompt: Optional[str] = None,
                       created_by_user_id: Optional[str] = None) -> Project:
         """Create a new user project."""
         with self.db_service.session_scope() as session:
@@ -74,6 +76,7 @@ class ProjectRepository(IProjectRepository):
                 name=name,
                 user_id=user_id,
                 description=description,
+                system_prompt=system_prompt,
                 is_global=False,
                 template_id=None,
                 created_by_user_id=created_by_user_id or user_id,

@@ -44,7 +44,8 @@ async def create_project(
         project = project_service.create_project(
             name=request.name,
             user_id=user_id,
-            description=request.description
+            description=request.description,
+            system_prompt=request.system_prompt
         )
         
         return ProjectResponse(
@@ -52,6 +53,7 @@ async def create_project(
             name=project.name,
             user_id=project.user_id,
             description=project.description,
+            system_prompt=project.system_prompt,
             is_global=project.is_global,
             template_id=project.template_id,
             created_by_user_id=project.created_by_user_id,
@@ -99,6 +101,7 @@ async def get_user_projects(
                 name=p.name,
                 user_id=p.user_id,
                 description=p.description,
+                system_prompt=p.system_prompt,
                 is_global=p.is_global,
                 template_id=p.template_id,
                 created_by_user_id=p.created_by_user_id,
@@ -152,6 +155,7 @@ async def get_project(
             name=project.name,
             user_id=project.user_id,
             description=project.description,
+            system_prompt=project.system_prompt,
             is_global=project.is_global,
             template_id=project.template_id,
             created_by_user_id=project.created_by_user_id,
@@ -193,7 +197,8 @@ async def update_project(
             project_id=project_id,
             user_id=user_id,
             name=request.name,
-            description=request.description
+            description=request.description,
+            system_prompt=request.system_prompt
         )
         
         if not project:
@@ -207,6 +212,7 @@ async def update_project(
             name=project.name,
             user_id=project.user_id,
             description=project.description,
+            system_prompt=project.system_prompt,
             is_global=project.is_global,
             template_id=project.template_id,
             created_by_user_id=project.created_by_user_id,
@@ -294,6 +300,7 @@ async def get_global_project_templates(
                     id=project.id,
                     name=project.name,
                     description=project.description,
+                    system_prompt=project.system_prompt,
                     created_by_user_id=project.created_by_user_id,
                     created_at=project.created_at,
                     updated_at=project.updated_at,
@@ -354,6 +361,7 @@ async def copy_project_from_template(
             name=project.name,
             user_id=project.user_id,
             description=project.description,
+            system_prompt=project.system_prompt,
             is_global=project.is_global,
             template_id=project.template_id,
             created_by_user_id=project.created_by_user_id,
