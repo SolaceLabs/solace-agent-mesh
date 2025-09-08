@@ -7,7 +7,7 @@ gateway_input:
   target_agent_name: "TestAgent_Proxied"
   user_identity: "proxy_artifact_tester@example.com"
   is_streaming: false
-  parts:
+  a2a_parts:
     - type: "text"
       text: "Generate an artifact for me."
   external_context:

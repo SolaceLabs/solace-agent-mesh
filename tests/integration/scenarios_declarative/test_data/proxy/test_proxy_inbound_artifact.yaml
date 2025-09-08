@@ -9,7 +9,6 @@ setup_artifacts:
     session_id: "session_proxy_inbound_artifact_001"
     # The app_name for setup must match the target_agent_name in the gateway_input
     # because the test runner uses the target_agent_name to scope the artifact.
-    app_name: "TestAgent_Proxied"
     content: "inbound artifact content"
     mime_type: "text/plain"
 

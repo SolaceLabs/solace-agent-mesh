@@ -370,6 +370,20 @@ class A2AProxyComponent(BaseProxyComponent):
             event_payload, task_context, agent_name
         )
 
+        # Add produced_artifacts to metadata if any artifacts were processed
+        if produced_artifacts and isinstance(
+            event_payload, (Task, TaskStatusUpdateEvent)
+        ):
+            if not event_payload.metadata:
+                event_payload.metadata = {}
+            event_payload.metadata["produced_artifacts"] = produced_artifacts
+            log.info(
+                "%s Added manifest of %d produced artifacts to %s metadata.",
+                log_identifier,
+                len(produced_artifacts),
+                type(event_payload).__name__,
+            )
+
         original_task_id = task_context.task_id
         if hasattr(event_payload, "task_id") and event_payload.task_id:
             event_payload.task_id = original_task_id
@@ -445,6 +459,16 @@ class A2AProxyComponent(BaseProxyComponent):
                 context_id=task_context.a2a_context.get("sessionId"),
                 status=TaskStatus(state=TaskState.completed, message=event_payload),
             )
+
+            # Add produced_artifacts metadata to the wrapped Task if any artifacts were processed
+            if produced_artifacts:
+                final_task.metadata = {"produced_artifacts": produced_artifacts}
+                log.info(
+                    "%s Added manifest of %d produced artifacts to wrapped Task metadata.",
+                    log_identifier,
+                    len(produced_artifacts),
+                )
+
             await self._publish_final_response(final_task, task_context.a2a_context)
         else:
             log.warning(

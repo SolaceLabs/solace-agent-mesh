@@ -99,7 +99,9 @@ class TestGatewayComponent(BaseGatewayComponent):
         if not target_agent_name:
             raise ValueError("Test input must specify 'target_agent_name'.")
 
-        a2a_parts_data = external_event.get("parts", [])
+        a2a_parts_data = external_event.get(
+            "a2a_parts", external_event.get("parts", [])
+        )
         a2a_parts: List[ContentPart] = []
         for part_data in a2a_parts_data:
             part_type = part_data.get("type")
