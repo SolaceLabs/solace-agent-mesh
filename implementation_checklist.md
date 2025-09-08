@@ -2,9 +2,9 @@
 
 ### Step 1: Create Test Support Infrastructure
 
-1.  [ ] Create the directory `tests/integration/test_support/dynamic_tools/`.
-2.  [ ] Create the file `tests/integration/test_support/dynamic_tools/single_tool.py` with the `MySimpleDynamicTool` class.
-3.  [ ] Create the file `tests/integration/test_support/dynamic_tools/provider_tool.py` with the `MyToolProvider` class.
+1.  [x] Create the directory `tests/integration/test_support/dynamic_tools/`.
+2.  [x] Create the file `tests/integration/test_support/dynamic_tools/single_tool.py` with the `MySimpleDynamicTool` class.
+3.  [x] Create the file `tests/integration/test_support/dynamic_tools/provider_tool.py` with the `MyToolProvider` class.
 
 ### Step 2: Update `conftest.py` to Configure New Agents
 
