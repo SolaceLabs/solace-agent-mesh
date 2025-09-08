@@ -906,7 +906,7 @@ def a2a_message_validator(
     validator.deactivate()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def mock_agent_skills() -> AgentSkill:
     return AgentSkill(
         id="skill-1",
@@ -919,7 +919,7 @@ def mock_agent_skills() -> AgentSkill:
     )
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def mock_agent_card(mock_agent_skills: AgentSkill) -> AgentCard:
     from a2a.types import AgentCapabilities
 
