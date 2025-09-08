@@ -6,6 +6,7 @@ skip_intermediate_events: true
 gateway_input:
   target_agent_name: "TestAgent_Proxied"
   user_identity: "proxy_artifact_tester@example.com"
+  is_streaming: false
   parts:
     - type: "text"
       text: "Generate an artifact for me."
@@ -14,6 +15,7 @@ gateway_input:
 
 downstream_a2a_agent_responses:
   - id: "downstream-task-id"
+    contextId: "session_proxy_outbound_artifact_001"
     kind: "task"
     status:
       state: "completed"
@@ -49,7 +51,7 @@ expected_gateway_output:
           - kind: "file"
             file:
               name: "outbound.txt"
-              mime_type: "text/plain"
+              mimeType: "text/plain"
               uri_matches_regex: "artifact://TestAgent_Proxied/proxy_artifact_tester@example.com/session_proxy_outbound_artifact_001/outbound.txt/0"
     assert_artifact_state:
       - filename: "outbound.txt"
