@@ -6,13 +6,13 @@ This document outlines the comprehensive list of test scenarios to be implemente
 
 These tests verify the core functionality of the proxy under normal operating conditions.
 
-- [ ] **Test 1: Simple Request/Response Passthrough**
+- [x] **Test 1: Simple Request/Response Passthrough**
   - **Objective:** Confirm that a basic, non-streaming request is correctly forwarded and the final response is returned.
   - **Setup:** `gateway_input` sends a simple message.
   - **Downstream Behavior:** `downstream_a2a_agent_responses` contains a single, final `Task` object with a `completed` state.
   - **Assertion:** `expected_gateway_output` verifies the final `Task` is received correctly.
 
-- [ ] **Test 2: Full Streaming Response**
+- [x] **Test 2: Full Streaming Response**
   - **Objective:** Verify that the proxy correctly handles a full streaming conversation with multiple intermediate events.
   - **Setup:** `gateway_input` sends a request. Set `skip_intermediate_events: false` in the YAML.
   - **Downstream Behavior:** `downstream_a2a_agent_responses` contains a sequence of events:
