@@ -24,12 +24,13 @@ class DeclarativeAgentExecutor(AgentExecutor):
     async def execute(self, context: RequestContext, event_queue: EventQueue):
         """
         Executes the agent logic by retrieving the next primed response from
-        the test server and enqueuing it as a TaskEvent.
+        the test server and enqueuing it. It ensures the task ID and context ID
+        from the incoming request are preserved in the response.
         """
         log_id = f"[DeclarativeAgentExecutor:{context.task_id}]"
         if not self.server:
             log.error(f"{log_id} TestA2AAgentServer reference not set on executor.")
-            event_queue.finished()
+            await event_queue.close()
             return
 
         response_data = self.server.get_next_primed_response()
@@ -38,13 +39,19 @@ class DeclarativeAgentExecutor(AgentExecutor):
             try:
                 # The primed response is a full Task object
                 task_obj = Task.model_validate(response_data)
+
+                # IMPORTANT: Overwrite the ID/ContextID from the YAML with the actual
+                # ones from the request context to ensure proper correlation.
+                task_obj.id = context.task_id
+                task_obj.context_id = context.context_id
+
                 await event_queue.enqueue_event(task_obj)
             except Exception as e:
                 log.error(f"{log_id} Failed to validate or enqueue primed response: {e}")
         else:
             log.warning(f"{log_id} No primed response available to serve.")
 
-        event_queue.finished()
+        await event_queue.close()
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue):
         """Handles a cancellation request by updating the task state."""
@@ -54,4 +61,4 @@ class DeclarativeAgentExecutor(AgentExecutor):
             task = context.current_task
             task.status = TaskStatus(state=TaskState.canceled)
             await event_queue.enqueue_event(task)
-        event_queue.finished()
+        await event_queue.close()
