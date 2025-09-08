@@ -33,6 +33,7 @@ from a2a.types import (
 from a2a.utils.message import get_data_parts, get_message_text
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from solace_agent_mesh.agent.proxies.base.component import BaseProxyComponent
 from google.genai import types as adk_types  # Add this import
 import re
 import json
@@ -222,7 +223,7 @@ async def _execute_gateway_and_collect_events(
 async def _assert_summary_in_text(
     text_to_search: str,
     artifact_identifiers: List[Dict[str, Any]],
-    component: "SamAgentComponent",
+    component: Any,
     user_id: str,
     session_id: str,
     app_name: str,
@@ -1295,6 +1296,7 @@ async def test_declarative_scenario(
     mcp_server_harness,
     request: pytest.FixtureRequest,
     test_a2a_agent_server_harness: TestA2AAgentServer,
+    a2a_proxy_component: BaseProxyComponent,
 ):
     """
     Executes a single declarative test scenario discovered by pytest_generate_tests.
@@ -1354,6 +1356,7 @@ async def test_declarative_scenario(
         peer_b_component.agent_name: peer_b_component,
         peer_c_component.agent_name: peer_c_component,
         peer_d_component.agent_name: peer_d_component,
+        "TestAgent_Proxied": a2a_proxy_component,
     }
 
     # --- Phase 1: Setup Environment (including config overrides) ---
@@ -1797,6 +1800,16 @@ async def _assert_event_details(
             assert (
                 expected_set == actual_set
             ), f"Scenario {scenario_id}: Event {event_index+1} - 'produced_artifacts' mismatch. Expected {expected_set}, Got {actual_set}"
+
+        if "metadata_contains" in expected_spec:
+            assert actual_event.metadata, f"Scenario {scenario_id}: Event {event_index+1} - Expected 'metadata' field to exist in final Task, but it was None."
+            _assert_dict_subset(
+                expected_subset=expected_spec["metadata_contains"],
+                actual_superset=actual_event.metadata,
+                scenario_id=scenario_id,
+                event_index=event_index,
+                context_path="Final Task metadata",
+            )
 
         text_for_final_assertion = ""
         if expected_spec.get("assert_content_against_stream", False):

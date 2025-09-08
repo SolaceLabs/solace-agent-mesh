@@ -746,6 +746,29 @@ def peer_d_component(peer_agent_d_app_under_test: SamAgentApp) -> SamAgentCompon
 
 
 @pytest.fixture(scope="session")
+def a2a_proxy_component(
+    shared_solace_connector: SolaceAiConnector,
+) -> "BaseProxyComponent":
+    """Retrieves the A2AProxyComponent instance."""
+    from solace_agent_mesh.agent.proxies.base.component import BaseProxyComponent
+
+    app_instance = shared_solace_connector.get_app("TestA2AProxyApp")
+    assert app_instance, "Could not find TestA2AProxyApp in the connector."
+
+    if app_instance.flows and app_instance.flows[0].component_groups:
+        for group in app_instance.flows[0].component_groups:
+            for comp_wrapper in group:
+                component = (
+                    comp_wrapper.component
+                    if hasattr(comp_wrapper, "component")
+                    else comp_wrapper
+                )
+                if isinstance(component, BaseProxyComponent):
+                    return component
+    raise RuntimeError("A2AProxyComponent not found in the application flow.")
+
+
+@pytest.fixture(scope="session")
 def test_gateway_app_instance(
     shared_solace_connector: SolaceAiConnector,
 ) -> TestGatewayComponent:
