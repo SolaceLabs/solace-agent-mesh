@@ -1,9 +1,9 @@
 # Dynamic Tools Implementation Checklist
 
-1.  Create the new file `src/solace_agent_mesh/agent/tools/dynamic_tool.py`.
-2.  In `dynamic_tool.py`, define the `DynamicTool` abstract base class.
-3.  In `dynamic_tool.py`, define the internal `_FunctionAsDynamicTool` adapter class, including a helper to generate an ADK schema from a function signature.
-4.  In `dynamic_tool.py`, define the `DynamicToolProvider` abstract base class, including the `@register_tool` decorator and the `_create_tools_from_decorators` helper method.
+1.  ~~Create the new file `src/solace_agent_mesh/agent/tools/dynamic_tool.py`.~~
+2.  ~~In `dynamic_tool.py`, define the `DynamicTool` abstract base class.~~
+3.  ~~In `dynamic_tool.py`, define the internal `_FunctionAsDynamicTool` adapter class, including a helper to generate an ADK schema from a function signature.~~
+4.  ~~In `dynamic_tool.py`, define the `DynamicToolProvider` abstract base class, including the `@register_tool` decorator and the `_create_tools_from_decorators` helper method.~~
 5.  Update `src/solace_agent_mesh/agent/tools/__init__.py` to import the new `dynamic_tool` module.
 6.  In `src/solace_agent_mesh/agent/adk/setup.py`, add imports for `DynamicTool` and `DynamicToolProvider`.
 7.  In `src/solace_agent_mesh/agent/adk/setup.py`, add the `_find_dynamic_tool_class` helper function.
