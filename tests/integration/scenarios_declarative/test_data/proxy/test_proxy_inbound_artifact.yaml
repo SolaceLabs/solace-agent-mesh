@@ -48,6 +48,8 @@ assert_downstream_request:
         role: "user"
         parts:
           - kind: "text"
+            text_matches_regex: "^Request received by gateway at: .*"
+          - kind: "text"
             text: "Process this artifact."
           - kind: "file"
             file:
