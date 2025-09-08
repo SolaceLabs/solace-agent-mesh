@@ -33,6 +33,7 @@ from a2a.types import (
     A2ARequest,
     AgentCard,
     CancelTaskRequest,
+    FilePart,
     InternalError,
     InvalidRequestError,
     SendMessageRequest,
@@ -277,7 +278,7 @@ class BaseProxyComponent(ComponentBase, ABC):
         all_parts = a2a.get_parts_from_message(original_message)
 
         for part in all_parts:
-            if isinstance(part, a2a.FilePart):
+            if isinstance(part, FilePart):
                 resolved_part = await a2a.resolve_file_part_uri(
                     part, self.artifact_service, log_id
                 )
