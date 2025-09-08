@@ -15,6 +15,7 @@ from solace_ai_connector.common.log import log
 
 from ....gateway.http_sse.session_manager import SessionManager
 from ....gateway.http_sse.services.task_service import TaskService
+from ....application.services.project_service import ProjectService
 
 from a2a.types import (
     CancelTaskRequest,
@@ -30,6 +31,7 @@ from ....gateway.http_sse.dependencies import (
     get_sac_component,
     get_task_service,
 )
+from ....gateway.http_sse.infrastructure.dependency_injection import get_project_service
 
 from typing import TYPE_CHECKING
 
@@ -44,6 +46,7 @@ async def _submit_task(
     payload: Union[SendMessageRequest, SendStreamingMessageRequest],
     session_manager: SessionManager,
     component: "WebUIBackendComponent",
+    project_service: ProjectService,
     is_streaming: bool,
 ):
     """Helper to submit a task, handling both streaming and non-streaming cases."""
@@ -148,9 +151,6 @@ async def _submit_task(
                 # Project context injection for the first message in a session
                 if project_id and message_text:
                     try:
-                        from ....gateway.http_sse.dependencies import get_project_service
-                        project_service = get_project_service(component)
-                        
                         history = session_service.get_session_history(session_id=session_id, user_id=user_id)
                         
                         if not history or history.total_message_count == 0:  # First message
@@ -252,6 +252,7 @@ async def send_task_to_agent(
     payload: SendMessageRequest,
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
+    project_service: ProjectService = Depends(get_project_service),
 ):
     """
     Submits a non-streaming task request to the specified agent.
@@ -262,6 +263,7 @@ async def send_task_to_agent(
         payload=payload,
         session_manager=session_manager,
         component=component,
+        project_service=project_service,
         is_streaming=False,
     )
 
@@ -272,6 +274,7 @@ async def subscribe_task_from_agent(
     payload: SendStreamingMessageRequest,
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
+    project_service: ProjectService = Depends(get_project_service),
 ):
     """
     Submits a streaming task request to the specified agent.
@@ -283,6 +286,7 @@ async def subscribe_task_from_agent(
         payload=payload,
         session_manager=session_manager,
         component=component,
+        project_service=project_service,
         is_streaming=True,
     )
 
