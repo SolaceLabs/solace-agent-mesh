@@ -8,10 +8,10 @@
 
 ### Step 2: Update `conftest.py` to Configure New Agents
 
-4.  [ ] In `tests/integration/conftest.py`, locate the `shared_solace_connector` fixture.
-5.  [ ] Add the configuration dictionary for `DynamicToolAgent`.
-6.  [ ] Add the configuration dictionary for `DynamicProviderAgent`.
-7.  [ ] Add the new agent configurations to the `app_infos` list within the fixture.
+4.  [x] In `tests/integration/conftest.py`, locate the `shared_solace_connector` fixture.
+5.  [x] Add the configuration dictionary for `DynamicToolAgent`.
+6.  [x] Add the configuration dictionary for `DynamicProviderAgent`.
+7.  [x] Add the new agent configurations to the `app_infos` list within the fixture.
 
 ### Step 3: Create and Implement Programmatic Tests
 
