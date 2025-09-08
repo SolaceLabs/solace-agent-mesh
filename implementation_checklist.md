@@ -1,13 +1,21 @@
-# Dynamic Tools Implementation Checklist
+# Dynamic Tools Integration Test Implementation Checklist
 
-1.  ~~Create the new file `src/solace_agent_mesh/agent/tools/dynamic_tool.py`.~~
-2.  ~~In `dynamic_tool.py`, define the `DynamicTool` abstract base class.~~
-3.  ~~In `dynamic_tool.py`, define the internal `_FunctionAsDynamicTool` adapter class, including a helper to generate an ADK schema from a function signature.~~
-4.  ~~In `dynamic_tool.py`, define the `DynamicToolProvider` abstract base class, including the `@register_tool` decorator and the `_create_tools_from_decorators` helper method.~~
-5.  ~~Update `src/solace_agent_mesh/agent/tools/__init__.py` to import the new `dynamic_tool` module.~~
-6.  ~~In `src/solace_agent_mesh/agent/adk/setup.py`, add imports for `DynamicTool` and `DynamicToolProvider`.~~
-7.  ~~In `src/solace_agent_mesh/agent/adk/setup.py`, add the `_find_dynamic_tool_class` helper function.~~
-8.  ~~In `src/solace_agent_mesh/agent/adk/setup.py`, add the `_find_dynamic_tool_provider_class` helper function.~~
-9.  ~~In `src/solace_agent_mesh/agent/adk/setup.py`, add the `elif tool_type == "dynamic":` block inside the `load_adk_tools` function.~~
-10. ~~In the new `elif` block, implement the loading logic that first checks for a `DynamicToolProvider` and falls back to a single `DynamicTool`.~~
-11. ~~In the new `elif` block, add the final loop to process all generated tools, validate their declarations, and add them to the `loaded_tools` list.~~
+### Step 1: Create Test Support Infrastructure
+
+1.  [ ] Create the directory `tests/integration/test_support/dynamic_tools/`.
+2.  [ ] Create the file `tests/integration/test_support/dynamic_tools/single_tool.py` with the `MySimpleDynamicTool` class.
+3.  [ ] Create the file `tests/integration/test_support/dynamic_tools/provider_tool.py` with the `MyToolProvider` class.
+
+### Step 2: Update `conftest.py` to Configure New Agents
+
+4.  [ ] In `tests/integration/conftest.py`, locate the `shared_solace_connector` fixture.
+5.  [ ] Add the configuration dictionary for `DynamicToolAgent`.
+6.  [ ] Add the configuration dictionary for `DynamicProviderAgent`.
+7.  [ ] Add the new agent configurations to the `app_infos` list within the fixture.
+
+### Step 3: Create and Implement Programmatic Tests
+
+8.  [ ] Create the new test file `tests/integration/scenarios_programmatic/test_dynamic_tools.py`.
+9.  [ ] In `test_dynamic_tools.py`, add the `pytest.mark.dynamic_tools` marker to the `pytestmark` list.
+10. [ ] Implement the test `test_single_dynamic_tool_execution` to verify the `DynamicToolAgent`.
+11. [ ] Implement the test `test_dynamic_tool_provider_execution` to verify the `DynamicProviderAgent`.
