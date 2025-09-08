@@ -54,7 +54,7 @@ assert_downstream_request:
           - kind: "file"
             file:
               name: "inbound.txt"
-              mime_type: "text/plain"
+              mimeType: "text/plain"
               # Base64 of "inbound artifact content"
               bytes: "aW5ib3VuZCBhcnRpZmFjdCBjb250ZW50"
 
