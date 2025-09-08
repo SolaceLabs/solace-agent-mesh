@@ -126,6 +126,10 @@ async def _setup_scenario_environment(
         ).get("a2a_session_id", f"setup_session_for_{user_identity_for_artifacts}")
 
         for artifact_spec in setup_artifacts_spec:
+            # If the artifact spec explicitly provides an app_name, use it.
+            # This is crucial for proxy tests where the setup needs to match the proxy's target agent name.
+            if "app_name" in artifact_spec:
+                app_name_for_setup = artifact_spec["app_name"]
             filename = artifact_spec["filename"]
             mime_type = artifact_spec.get("mime_type", "application/octet-stream")
             content_str = artifact_spec.get("content")
