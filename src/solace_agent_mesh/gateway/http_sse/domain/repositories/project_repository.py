@@ -17,7 +17,7 @@ class IProjectRepository(ABC):
     @abstractmethod
     def create_project(self, name: str, user_id: str, description: Optional[str] = None,
                       system_prompt: Optional[str] = None,
-                      created_by_user_id: Optional[str] = None) -> Project:
+                      created_by_user_id: Optional[str] = None) -> ProjectDomain:
         """Create a new user project."""
         pass
 

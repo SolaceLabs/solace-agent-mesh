@@ -42,7 +42,7 @@ class ProjectService:
             raise ValueError("User ID is required to create a project")
         
         # Create the project
-        db_project = self.project_repository.create_project(
+        project_domain = self.project_repository.create_project(
             name=name.strip(),
             user_id=user_id,
             description=description.strip() if description else None,
@@ -50,10 +50,8 @@ class ProjectService:
             created_by_user_id=user_id
         )
         
-        # Access the id immediately before the object might get detached
-        project_id = db_project.id
-        self.logger.info(f"Successfully created project {project_id} for user {user_id}")
-        return self._model_to_domain(db_project)
+        self.logger.info(f"Successfully created project {project_domain.id} for user {user_id}")
+        return project_domain
 
     def get_project(self, project_id: str, user_id: str) -> Optional[ProjectDomain]:
         """

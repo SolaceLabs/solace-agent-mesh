@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 
 from ...domain.repositories.project_repository import IProjectRepository
-from ...domain.entities.project_domain import ProjectFilter
+from ...domain.entities.project_domain import ProjectDomain, ProjectFilter
 from ..persistence.database_service import DatabaseService
 from ..persistence.models import Project
 
@@ -20,7 +20,7 @@ class ProjectRepository(IProjectRepository):
 
     def create_project(self, name: str, user_id: str, description: Optional[str] = None,
                       system_prompt: Optional[str] = None,
-                      created_by_user_id: Optional[str] = None) -> Project:
+                      created_by_user_id: Optional[str] = None) -> ProjectDomain:
         """Create a new user project."""
         with self.db_service.session_scope() as session:
             project = Project(
@@ -37,7 +37,7 @@ class ProjectRepository(IProjectRepository):
             session.add(project)
             session.flush()
             session.refresh(project)
-            return project
+            return self._model_to_domain(project)
 
     def create_global_project(self, name: str, description: Optional[str] = None, 
                              created_by_user_id: str = None) -> Project:
@@ -157,3 +157,18 @@ class ProjectRepository(IProjectRepository):
             
             session.delete(project)
             return True
+
+    def _model_to_domain(self, project: Project) -> ProjectDomain:
+        """Convert database model to domain model."""
+        return ProjectDomain(
+            id=project.id,
+            name=project.name,
+            user_id=project.user_id,
+            description=project.description,
+            system_prompt=project.system_prompt,
+            is_global=project.is_global,
+            template_id=project.template_id,
+            created_by_user_id=project.created_by_user_id,
+            created_at=project.created_at,
+            updated_at=project.updated_at,
+        )
