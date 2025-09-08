@@ -28,6 +28,7 @@ gateway_input:
 
 downstream_a2a_agent_responses:
   - id: "downstream-task-id"
+    contextId: "session_proxy_inbound_artifact_001"
     kind: "task"
     status:
       state: "completed"
