@@ -10,6 +10,7 @@ import inspect
 
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from solace_agent_mesh.agent.adk.services import ScopedArtifactServiceWrapper
 from solace_agent_mesh.agent.tools.registry import tool_registry
 from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
 from sam_test_infrastructure.gateway_interface.component import (
@@ -599,7 +600,9 @@ def shared_solace_connector(
     )
     session_monkeypatch.setattr(
         "solace_agent_mesh.agent.proxies.base.component.initialize_artifact_service",
-        lambda component: test_artifact_service_instance,
+        lambda component: ScopedArtifactServiceWrapper(
+            wrapped_service=test_artifact_service_instance, component=component
+        ),
     )
 
     log_level_str = request.config.getoption("--log-cli-level") or "INFO"
