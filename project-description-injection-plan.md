@@ -40,9 +40,9 @@ if project_id and message_text and is_streaming:
             from ....gateway.http_sse.dependencies import get_session_service
             session_service = get_session_service(component)
             
-            # Get message count for this session
-            existing_session = session_service.get_session(session_id=session_id, user_id=user_id)
-            if existing_session and existing_session.message_count <= 1:  # First message
+            # Get message history to determine if this is the first message
+            history = session_service.get_session_history(session_id=session_id, user_id=user_id)
+            if not history or history.total_message_count == 0:  # First message
                 # Fetch project description
                 project = project_service.get_project(project_id, user_id)
                 if project and project.description and project.description.strip():
