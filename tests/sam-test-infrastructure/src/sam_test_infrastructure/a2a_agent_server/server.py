@@ -56,7 +56,10 @@ class TestA2AAgentServer:
         # 2.3.5: Build the FastAPI app
         self.app: FastAPI = a2a_app_builder.build(rpc_url="/a2a")
 
-        # 2.3.6: Add request capture middleware
+        # 2.3.6: Update the agent card with the correct, full URL
+        self.agent_card.url = f"{self.url}/a2a"
+
+        # 2.3.7: Add request capture middleware
         @self.app.middleware("http")
         async def capture_request_middleware(request: Request, call_next):
             if request.url.path == "/a2a":
