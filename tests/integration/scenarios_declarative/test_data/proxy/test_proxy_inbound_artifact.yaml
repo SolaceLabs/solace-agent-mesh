@@ -21,7 +21,7 @@ gateway_input:
     - type: "text"
       text: "Process this artifact."
     - type: "file"
-      uri: "artifact://test_namespace/TestAgent_Proxied/inbound.txt"
+      uri: "artifact://TestAgent_Proxied/proxy_artifact_tester@example.com/session_proxy_inbound_artifact_001/inbound.txt"
       name: "inbound.txt"
       mime_type: "text/plain"
   external_context:
