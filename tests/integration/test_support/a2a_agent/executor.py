@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
-from a2a.server.events import TaskEvent
 from a2a.server.events.event_queue import EventQueue
 from a2a.types import Task, TaskState, TaskStatus
 from solace_ai_connector.common.log import log
@@ -39,7 +38,7 @@ class DeclarativeAgentExecutor(AgentExecutor):
             try:
                 # The primed response is a full Task object
                 task_obj = Task.model_validate(response_data)
-                event_queue.enqueue_event(TaskEvent(task=task_obj))
+                await event_queue.enqueue_event(task_obj)
             except Exception as e:
                 log.error(f"{log_id} Failed to validate or enqueue primed response: {e}")
         else:
@@ -54,5 +53,5 @@ class DeclarativeAgentExecutor(AgentExecutor):
         if context.current_task:
             task = context.current_task
             task.status = TaskStatus(state=TaskState.canceled)
-            event_queue.enqueue_event(TaskEvent(task=task))
+            await event_queue.enqueue_event(task)
         event_queue.finished()
