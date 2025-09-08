@@ -26,6 +26,14 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, i
                     <CardDescription>{project.description || "No description provided."}</CardDescription>
                 </CardHeader>
                 <CardContent>
+                    {project.system_prompt && (
+                        <div className="mb-6 space-y-2">
+                            <h4 className="font-semibold text-foreground">System Prompt</h4>
+                            <p className="whitespace-pre-wrap rounded-md bg-muted p-4 text-sm text-muted-foreground">
+                                {project.system_prompt}
+                            </p>
+                        </div>
+                    )}
                     <div className="flex justify-start">
                         {isActive ? (
                             <Button variant="outline" disabled className="flex items-center gap-2">

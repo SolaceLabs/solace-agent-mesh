@@ -38,6 +38,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
         defaultValues: {
             name: "",
             description: "",
+            system_prompt: "",
         },
     });
 
@@ -121,6 +122,31 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                                         <Textarea
                                             placeholder="Enter project description..."
                                             className="bg-background border text-foreground placeholder:text-muted-foreground min-h-[80px]"
+                                            disabled={isSubmitting || isLoading}
+                                            {...field}
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        
+                        <FormField
+                            control={form.control}
+                            name="system_prompt"
+                            rules={{
+                                maxLength: {
+                                    value: 4000,
+                                    message: "System prompt must be less than 4000 characters"
+                                }
+                            }}
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-foreground">System Prompt (Optional)</FormLabel>
+                                    <FormControl>
+                                        <Textarea
+                                            placeholder="Enter a system prompt to guide the agent..."
+                                            className="bg-background border text-foreground placeholder:text-muted-foreground min-h-[120px]"
                                             disabled={isSubmitting || isLoading}
                                             {...field}
                                         />

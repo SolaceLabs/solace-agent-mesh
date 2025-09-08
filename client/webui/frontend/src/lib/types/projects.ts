@@ -7,6 +7,7 @@ export interface Project {
     name: string;
     user_id: string;
     description?: string | null;
+    system_prompt?: string | null;
     is_global: boolean;
     template_id?: string | null;
     created_by_user_id: string;
@@ -27,6 +28,7 @@ export interface GlobalProject {
 export interface CreateProjectRequest {
     name: string;
     description?: string;
+    system_prompt?: string;
 }
 
 export interface CopyProjectRequest {
@@ -48,6 +50,7 @@ export interface GlobalProjectListResponse {
 export interface ProjectFormData {
     name: string;
     description: string;
+    system_prompt: string;
 }
 
 export interface UseProjectsReturn {

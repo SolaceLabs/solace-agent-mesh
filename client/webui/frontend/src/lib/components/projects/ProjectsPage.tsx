@@ -21,6 +21,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
         await createProject({
             name: data.name,
             description: data.description || undefined,
+            system_prompt: data.system_prompt || undefined,
         });
         setIsCreateDialogOpen(false);
     };
