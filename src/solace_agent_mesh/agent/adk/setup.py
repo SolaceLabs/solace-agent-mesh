@@ -127,48 +127,117 @@ async def load_adk_tools(
             try:
                 if tool_type == "python":
                     module_name = tool_config.get("component_module")
-                    function_name = tool_config.get("function_name")
-                    tool_name = tool_config.get("tool_name")
-                    tool_description = tool_config.get("tool_description")
                     base_path = tool_config.get("component_base_path")
-                    if not module_name or not function_name:
+                    if not module_name:
                         raise ValueError(
-                            "'component_module' and 'function_name' required for python tool."
+                            "'component_module' is required for python tools."
                         )
-
                     module = import_module(module_name, base_path=base_path)
-                    func = getattr(module, function_name)
-                    if not callable(func):
-                        raise TypeError(
-                            f"'{function_name}' in module '{module_name}' is not callable."
+
+                    # Case 1: Simple function-based tool
+                    if "function_name" in tool_config:
+                        function_name = tool_config.get("function_name")
+                        tool_name = tool_config.get("tool_name")
+                        tool_description = tool_config.get("tool_description")
+
+                        func = getattr(module, function_name)
+                        if not callable(func):
+                            raise TypeError(
+                                f"'{function_name}' in module '{module_name}' is not callable."
+                            )
+
+                        specific_tool_config = tool_config.get("tool_config")
+                        tool_callable = ADKToolWrapper(
+                            func,
+                            specific_tool_config,
+                            function_name,
+                            origin="python",
+                            raw_string_args=tool_config.get("raw_string_args", []),
                         )
 
-                    specific_tool_config = tool_config.get("tool_config")
-                    tool_callable = ADKToolWrapper(
-                        func,
-                        specific_tool_config,
-                        function_name,
-                        origin="python",
-                        raw_string_args=tool_config.get("raw_string_args", []),
-                    )
+                        if tool_name:
+                            function_name = tool_name
+                            tool_callable.__name__ = tool_name
 
-                    if tool_name:
-                        function_name = tool_name
-                        tool_callable.__name__ = tool_name
+                        if tool_description:
+                            tool_callable.__doc__ = tool_description
 
-                    if tool_description:
-                        tool_callable.__doc__ = tool_description
+                        _check_and_register_tool_name(
+                            function_name, f"python:{module_name}"
+                        )
+                        loaded_tools.append(tool_callable)
+                        log.info(
+                            "%s Loaded Python tool: %s from %s.",
+                            component.log_identifier,
+                            function_name,
+                            module_name,
+                        )
+                    # Case 2: Advanced class-based dynamic tool or provider
+                    else:
+                        specific_tool_config = tool_config.get("tool_config")
+                        dynamic_tools = []
 
-                    _check_and_register_tool_name(
-                        function_name, f"python:{module_name}"
-                    )
-                    loaded_tools.append(tool_callable)
-                    log.info(
-                        "%s Loaded Python tool: %s from %s.",
-                        component.log_identifier,
-                        function_name,
-                        module_name,
-                    )
+                        # Determine the class to load
+                        tool_class = None
+                        class_name = tool_config.get("class_name")
+                        if class_name:
+                            tool_class = getattr(module, class_name)
+                        else:
+                            # Auto-discover: provider first, then single tool
+                            tool_class = _find_dynamic_tool_provider_class(module)
+                            if not tool_class:
+                                tool_class = _find_dynamic_tool_class(module)
+
+                        if not tool_class:
+                            raise TypeError(
+                                f"Module '{module_name}' does not contain a 'function_name' or 'class_name' to load, "
+                                "and no DynamicTool or DynamicToolProvider subclass could be auto-discovered."
+                            )
+
+                        # Instantiate tools from the class
+                        if issubclass(tool_class, DynamicToolProvider):
+                            provider_instance = tool_class()
+                            dynamic_tools = provider_instance.create_tools(
+                                tool_config=specific_tool_config
+                            )
+                            log.info(
+                                "%s Loaded %d tools from DynamicToolProvider '%s' in %s",
+                                component.log_identifier,
+                                len(dynamic_tools),
+                                tool_class.__name__,
+                                module_name,
+                            )
+                        elif issubclass(tool_class, DynamicTool):
+                            tool_instance = tool_class(
+                                tool_config=specific_tool_config
+                            )
+                            dynamic_tools = [tool_instance]
+                        else:
+                            raise TypeError(
+                                f"Class '{tool_class.__name__}' in module '{module_name}' is not a valid "
+                                "DynamicTool or DynamicToolProvider subclass."
+                            )
+
+                        # Process all generated tools
+                        for tool in dynamic_tools:
+                            tool.origin = "dynamic"
+                            declaration = tool._get_declaration()
+                            if not declaration:
+                                log.warning(
+                                    f"Dynamic tool '{tool.__class__.__name__}' from module '{module_name}' did not generate a valid declaration. Skipping."
+                                )
+                                continue
+
+                            _check_and_register_tool_name(
+                                declaration.name, f"dynamic:{module_name}"
+                            )
+                            loaded_tools.append(tool)
+                            log.info(
+                                "%s Loaded dynamic tool: %s from %s",
+                                component.log_identifier,
+                                declaration.name,
+                                module_name,
+                            )
 
                 elif tool_type == "builtin":
                     tool_name = tool_config.get("tool_name")
