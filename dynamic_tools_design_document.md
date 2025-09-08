@@ -5,9 +5,10 @@
 
 This document describes the design for adding a new tool type called "dynamic" to the Solace Agent Mesh (SAM) system. Dynamic tools allow developers to create tools that define their own function names, descriptions, and parameter schemas programmatically, rather than having these inferred from Python function signatures.
 
-This design supports two modes of operation:
+This design supports three modes of operation:
 1.  **Single Tool Mode**: A Python module defines a single class that inherits from `DynamicTool`, representing one tool. This is for simple, self-contained tools.
 2.  **Tool Provider Mode**: A Python module defines a class that inherits from `DynamicToolProvider`. This class acts as a factory, capable of generating a list of multiple `DynamicTool` instances from a single configuration block. This is for advanced use cases where a set of related tools can be generated programmatically.
+3.  **Decorator-Based Mode**: Within a `DynamicToolProvider`, developers can use a `@register_tool` decorator on standard Python functions to automatically convert them into tools, combining the ease of introspection with the power of the provider pattern.
 
 ## Problem Statement
 
@@ -16,7 +17,7 @@ Currently, SAM supports three main tool types:
 - **MCP tools**: External tools that communicate via the Model Context Protocol.
 - **Builtin tools**: Pre-registered tools in the SAM tool registry.
 
-However, there's no way for a Python module to programmatically define multiple tools with custom names and parameter schemas without being constrained by Python function signatures or requiring verbose configuration. Dynamic tools fill this gap by allowing modules to define their tool interfaces programmatically, either individually or in bulk.
+However, there's no way for a Python module to programmatically define multiple tools with custom names and parameter schemas without being constrained by Python function signatures or requiring verbose configuration. Dynamic tools fill this gap by allowing modules to define their tool interfaces programmatically, either individually or in bulk, with varying levels of abstraction.
 
 ## Architecture
 
@@ -35,7 +36,7 @@ graph TD
         H --> I[ADK Framework]
     end
     
-    subgraph Tool Provider Mode
+    subgraph "Tool Provider & Decorator Mode"
         J[Agent Configuration YAML] -->|tool_type: dynamic| K[setup.py Tool Loader]
         K --> L[Import Module]
         L --> M[Find DynamicToolProvider Subclass]
@@ -43,21 +44,28 @@ graph TD
         N --> O[Call create_tools Method]
         O --> P[List of DynamicTool Instances]
         P --> F
+
+        subgraph "Provider Internals"
+            Q[Decorated Function] -- @register_tool --> R[Provider Class]
+            R -- "create_tools()" reads list --> S[Internal Adapter]
+            S -- Wraps Function --> P
+        end
     end
 
-    Q[Developer Module] --> R{Implements}
-    R -->|One-to-One| D
-    R -->|One-to-Many| M
+    T[Developer Module] --> U{Implements}
+    U -->|One-to-One| D
+    U -->|One-to-Many| M
 
     style F fill:#e1f5fe
     style D fill:#f3e5f5
     style M fill:#e8f5e9
+    style Q fill:#fff9c4
 ```
 
 ### Key Classes
 
 #### 1. `DynamicTool` Base Class
-A new abstract base class that extends Google ADK's `BaseTool` and provides the interface for a single dynamic tool definition.
+A new abstract base class that extends Google ADK's `BaseTool` and provides the interface for a single, programmatically defined dynamic tool.
 
 **Location**: `src/solace_agent_mesh/agent/tools/dynamic_tool.py`
 
@@ -125,7 +133,7 @@ class DynamicTool(BaseTool, ABC):
 ```
 
 #### 2. `DynamicToolProvider` Base Class
-A new abstract base class for factories that can generate multiple `DynamicTool` instances.
+A new abstract base class for factories that can generate multiple `DynamicTool` instances. It also includes a decorator for converting standard functions into tools.
 
 **Location**: `src/solace_agent_mesh/agent/tools/dynamic_tool.py`
 
@@ -136,6 +144,33 @@ class DynamicToolProvider(ABC):
     programmatically from a single configuration block.
     """
     
+    _decorated_tools: List[Callable] = []
+
+    @classmethod
+    def register_tool(cls, func: Callable) -> Callable:
+        """
+        A decorator to register a standard async function as a tool.
+        The decorated function's signature and docstring will be used to
+        create the tool definition.
+        """
+        if not hasattr(cls, '_decorated_tools') or cls._decorated_tools is DynamicToolProvider._decorated_tools:
+            cls._decorated_tools = []
+        cls._decorated_tools.append(func)
+        return func
+
+    def _create_tools_from_decorators(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
+        """
+        Internal helper to convert decorated functions into DynamicTool instances.
+        This would be called inside the user's create_tools implementation.
+        """
+        tools = []
+        for func in self._decorated_tools:
+            # _FunctionAsDynamicTool is an internal adapter class that wraps the function.
+            # It uses introspection to get name, description, and parameters.
+            adapter = _FunctionAsDynamicTool(func, tool_config)
+            tools.append(adapter)
+        return tools
+
     @abstractmethod
     def create_tools(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
         """
@@ -151,7 +186,7 @@ class DynamicToolProvider(ABC):
 ```
 
 #### 3. Enhanced Tool Loading Logic
-Modifications to `src/solace_agent_mesh/agent/adk/setup.py` to handle both modes of dynamic tools.
+Modifications to `src/solace_agent_mesh/agent/adk/setup.py` remain the same as the previous design, as the complexity is handled within the provider. The loader's responsibility is to find either a `DynamicToolProvider` or a `DynamicTool`.
 
 ```python
 elif tool_type == "dynamic":
@@ -210,7 +245,7 @@ elif tool_type == "dynamic":
 
 ## Configuration Format
 
-Dynamic tools are configured in agent YAML files. The same format is used for both single-tool and provider modes.
+The YAML configuration remains simple and is identical for all modes of dynamic tool creation.
 
 ```yaml
 tools:
@@ -220,73 +255,22 @@ tools:
     component_base_path: .
     tool_config:
       api_key: ${WEATHER_API_KEY}
-      timeout: 30
 
   # Example 2: Tool Provider Mode (auto-discovers DatabaseToolProvider)
-  # This single block will load both 'execute_database_query' and 'get_database_schema' tools.
+  # This single block will load all tools generated by the provider.
   - tool_type: dynamic
     component_module: my_tools.database_tools
     component_base_path: .
     tool_config:
       connection_string: ${DB_CONNECTION_STRING}
       max_rows: 1000
-
-  # Example 3: Single Tool Mode with explicit class name
-  - tool_type: dynamic
-    component_module: my_tools.file_processor
-    class_name: SpecificFileTool # Use this if module has multiple DynamicTool classes
-    component_base_path: .
-    raw_string_args: ["file_content"] # Skip embed resolution for these args
-    tool_config:
-      max_file_size: 10485760 # 10MB
 ```
 
 ## Example Implementation
 
-### Example 1: Single Tool Mode (Weather API)
+### Hybrid Tool Provider (Decorators + Programmatic)
 
-**File**: `my_tools/weather_api.py`
-
-```python
-import httpx
-from typing import Optional, Dict, Any
-from google.genai import types as adk_types
-from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool
-
-class WeatherTool(DynamicTool):
-    """A dynamic tool that fetches current weather information."""
-    
-    @property
-    def tool_name(self) -> str:
-        return "get_current_weather"
-    
-    @property
-    def tool_description(self) -> str:
-        return "Get the current weather for a specified location."
-    
-    @property
-    def parameters_schema(self) -> adk_types.Schema:
-        return adk_types.Schema(
-            type=adk_types.Type.OBJECT,
-            properties={
-                "location": adk_types.Schema(type=adk_types.Type.STRING, description="The city and state/country."),
-                "units": adk_types.Schema(type=adk_types.Type.STRING, enum=["celsius", "fahrenheit"], nullable=True),
-            },
-            required=["location"],
-        )
-    
-    async def _run_async_impl(self, args: Dict[str, Any], **kwargs) -> Dict[str, Any]:
-        location = args["location"]
-        api_key = self.tool_config.get("api_key")
-        if not api_key:
-            return {"status": "error", "message": "API key not configured"}
-        # ... implementation to call weather API ...
-        return {"status": "success", "weather": "Sunny"}
-```
-
-### Example 2: Tool Provider Mode (Database Tools)
-
-This example shows how a single module and configuration can generate multiple, related tools.
+This example shows how a single provider can generate tools from decorated functions and programmatic classes.
 
 **File**: `my_tools/database_tools.py`
 
@@ -296,7 +280,44 @@ from google.genai import types as adk_types
 from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool, DynamicToolProvider
 import asyncpg
 
-# --- Tool Implementations ---
+# --- Tool Provider Implementation ---
+
+class DatabaseToolProvider(DynamicToolProvider):
+    """A factory that creates all database-related tools."""
+    
+    def create_tools(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
+        """
+        Generates a list of all database tools, passing the shared
+        configuration to each one.
+        """
+        # 1. Create tools from any decorated functions in this module
+        tools = self._create_tools_from_decorators(tool_config)
+
+        # 2. Programmatically create and add more complex tools
+        if tool_config and tool_config.get("connection_string"):
+            tools.append(DatabaseQueryTool(tool_config=tool_config))
+            tools.append(DatabaseSchemaTool(tool_config=tool_config))
+        
+        return tools
+
+# --- Decorated Tool Function ---
+
+@DatabaseToolProvider.register_tool
+async def get_database_server_version(tool_config: dict, **kwargs) -> dict:
+    """Returns the version of the connected PostgreSQL server."""
+    connection_string = tool_config.get("connection_string")
+    if not connection_string:
+        return {"status": "error", "message": "Database connection not configured"}
+    
+    try:
+        conn = await asyncpg.connect(connection_string)
+        version = await conn.fetchval('SELECT version()')
+        await conn.close()
+        return {"status": "success", "version": version}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# --- Programmatic Tool Implementations ---
 
 class DatabaseQueryTool(DynamicTool):
     """Dynamic tool for executing read-only database queries."""
@@ -316,7 +337,7 @@ class DatabaseQueryTool(DynamicTool):
         )
     
     async def _run_async_impl(self, args: Dict[str, Any], **kwargs) -> Dict[str, Any]:
-        # ... implementation to run query using self.tool_config["connection_string"] ...
+        # ... implementation to run query ...
         return {"status": "success", "rows": [{"id": 1}]}
 
 class DatabaseSchemaTool(DynamicTool):
@@ -330,138 +351,29 @@ class DatabaseSchemaTool(DynamicTool):
     
     @property
     def parameters_schema(self) -> adk_types.Schema:
-        return adk_types.Schema(
-            type=adk_types.Type.OBJECT,
-            properties={"table_name": adk_types.Schema(type=adk_types.Type.STRING, nullable=True)},
-            required=[],
-        )
+        return adk_types.Schema(type=adk_types.Type.OBJECT, properties={}, required=[])
     
     async def _run_async_impl(self, args: Dict[str, Any], **kwargs) -> Dict[str, Any]:
-        # ... implementation to get schema using self.tool_config["connection_string"] ...
+        # ... implementation to get schema ...
         return {"status": "success", "schema": {"users": ["id", "name"]}}
-
-# --- Tool Provider Implementation ---
-
-class DatabaseToolProvider(DynamicToolProvider):
-    """A factory that creates all database-related tools."""
-    
-    def create_tools(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
-        """
-        Generates a list of all database tools, passing the shared
-        configuration to each one.
-        """
-        if not tool_config or not tool_config.get("connection_string"):
-            # If no connection string is provided, don't create any tools.
-            return []
-            
-        query_tool = DatabaseQueryTool(tool_config=tool_config)
-        schema_tool = DatabaseSchemaTool(tool_config=tool_config)
-        
-        return [query_tool, schema_tool]
 ```
 
 ## Integration with Existing Features
 
-### Embed Resolution Support
-Dynamic tools integrate seamlessly with SAM's embed resolution system. The `raw_string_args` configuration parameter can be used to specify which arguments should skip embed pre-resolution. This is configured at the tool level, not the provider level.
-
-```yaml
-tools:
-  - tool_type: dynamic
-    component_module: my_tools.file_processor
-    class_name: FileProcessorTool # Must use single-tool mode for this
-    raw_string_args: ["raw_content", "template"]
-```
-
-### Tool Callbacks Integration
-Dynamic tools automatically benefit from all existing SAM tool callback features, including large response management, metadata injection, artifact tracking, and error handling.
-
-### Security Considerations
-Dynamic tools inherit all SAM security features, including scope-based authorization, input validation via schemas, timeout management, and resource limits.
-
-## Configuration Reference
-
-### Complete Configuration Options
-
-```yaml
-tools:
-  - tool_type: dynamic
-    # Required: Module containing the dynamic tool class or provider.
-    component_module: my_tools.example_tool
-    
-    # Optional: Base path for module resolution (default: ".").
-    component_base_path: /path/to/modules
-    
-    # Optional (Single Tool Mode): Specific class name.
-    # If not provided, auto-discovers the DynamicTool subclass.
-    # Ignored if a DynamicToolProvider is found.
-    class_name: MyCustomTool
-    
-    # Optional (Single Tool Mode): Arguments that should not have embeds resolved.
-    raw_string_args: ["raw_content", "template_string"]
-    
-    # Optional: Configuration passed to the tool instance(s) or provider.
-    tool_config:
-      api_key: ${API_KEY}
-      timeout: 30
-      custom_setting: "value"
-```
-
-## Advanced Use Cases
-
-### 1. Conditional Tool Generation
-The Tool Provider pattern allows for sophisticated logic, such as generating tools only if certain conditions are met (e.g., environment variables are set, or a database is reachable).
-
-```python
-# In my_tools/conditional_tools.py
-class SmartProvider(DynamicToolProvider):
-    def create_tools(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
-        tools = []
-        if tool_config.get("enable_feature_x"):
-            tools.append(FeatureXTool(tool_config))
-        if os.environ.get("EXTERNAL_API_KEY"):
-            tools.append(ExternalApiTool(tool_config))
-        return tools
-```
-
-### 2. Dynamic Parameter Generation
-A `DynamicTool` can generate its parameter schema based on its configuration, allowing for highly adaptable tools.
-
-```python
-class ConfigurableTool(DynamicTool):
-    @property
-    def parameters_schema(self) -> adk_types.Schema:
-        properties = {"base_param": adk_types.Schema(type=adk_types.Type.STRING)}
-        
-        # Add optional parameters based on configuration
-        if self.tool_config.get("enable_advanced_features"):
-            properties["advanced_param"] = adk_types.Schema(type=adk_types.Type.STRING)
-        
-        return adk_types.Schema(type=adk_types.Type.OBJECT, properties=properties)
-```
-
-## Comparison with Existing Tool Types
-
-| Feature | Python Tools | MCP Tools | Builtin Tools | Dynamic Tools |
-|---------|-------------|-----------|---------------|---------------|
-| Function name source | Python function name | MCP server definition | Pre-registered name | Module-defined property |
-| Parameter definition | Function signature | MCP server schema | Pre-registered schema | Module-defined schema |
-| Multiple tools per module | Multiple functions | Server-defined | Registry-defined | **Yes (via Provider)** |
-| Runtime configuration | Limited | Via connection params | Via tool_config | **Yes (tool & provider)** |
-| Conditional Availability | No | Server-side | No | **Yes (via Provider)** |
-| Bulk Generation | No | No | No | **Yes (via Provider)** |
+Dynamic tools, whether created via class or decorator, integrate seamlessly with all existing SAM features, including embed resolution, tool callbacks, artifact management, and security controls.
 
 ## Benefits
 
 1.  **Flexibility**: Modules can define any tool name and parameter schema they want.
 2.  **Scalability**: The Tool Provider pattern allows a single module to generate hundreds of tools from one configuration block.
-3.  **Encapsulation**: Tool generation logic is co-located with the tool implementation, not spread across YAML.
-4.  **Runtime Configuration**: Tools can adapt their behavior, interface, and even their existence based on runtime configuration.
-5.  **Type Safety**: Uses ADK's type system for parameter validation.
-6.  **Integration**: Works seamlessly with all existing SAM features.
+3.  **Unified Abstraction**: The provider pattern supports both programmatic and declarative (decorator-based) tool creation in the same module.
+4.  **Reduced Boilerplate**: For simple tools, the decorator approach is far more concise than writing a full class.
+5.  **Encapsulation**: Tool generation logic is co-located with the tool implementation, not spread across YAML.
+6.  **Runtime Configuration**: Tools can adapt their behavior, interface, and even their existence based on runtime configuration.
+7.  **Type Safety**: Uses ADK's type system for parameter validation.
 
 ## Conclusion
 
-Dynamic tools provide a powerful and flexible way to create custom tools in SAM. The dual-mode design supports both simple, self-contained tools and complex, programmatically generated toolsets via the Tool Provider pattern. This bridges the gap between rigid Python function signatures and external MCP tools, giving developers a highly scalable and maintainable way to extend agent capabilities.
+Dynamic tools provide a powerful and flexible way to create custom tools in SAM. The dual-mode design supports both simple, self-contained tools and complex, programmatically generated toolsets via the `DynamicToolProvider` pattern. The addition of the `@register_tool` decorator provides a "best of both worlds" approach, combining the simplicity of function introspection with the scalability of a provider.
 
-The design follows established patterns in the SAM codebase, ensuring seamless integration with existing features like embed resolution, tool callbacks, artifact management, and security controls.
+This bridges the gap between rigid Python function signatures and external MCP tools, giving developers a highly scalable and maintainable way to extend agent capabilities.
