@@ -32,6 +32,8 @@ from ...agent.utils.context_helpers import get_original_session_id
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
+CATEGORY_NAME = "Audio Tools"
+CATEGORY_DESCRIPTION = "Tools for audio processing and text-to-speech generation."
 
 VOICE_TONE_MAPPING = {
     "bright": ["Zephyr", "Autonoe"],
@@ -1429,6 +1431,8 @@ select_voice_tool_def = BuiltinTool(
     implementation=select_voice,
     description="Selects a suitable voice name based on criteria like gender and tone. Use this to get a consistent voice name that can be passed to the `text_to_speech` tool for multiple calls.",
     category="audio",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:audio:tts"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
@@ -1460,6 +1464,8 @@ text_to_speech_tool_def = BuiltinTool(
     implementation=text_to_speech,
     description="Converts text to speech using Gemini TTS API and saves as MP3 artifact.",
     category="audio",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:audio:tts"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
@@ -1503,6 +1509,8 @@ multi_speaker_text_to_speech_tool_def = BuiltinTool(
     implementation=multi_speaker_text_to_speech,
     description="Converts conversation text with speaker labels to speech using multiple voices.",
     category="audio",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:audio:tts"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
@@ -1562,6 +1570,8 @@ concatenate_audio_tool_def = BuiltinTool(
     implementation=concatenate_audio,
     description="Combines multiple audio artifacts in a specified order into a single audio file. Allows for custom pause durations between each clip.",
     category="audio",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:audio:edit", "tool:artifact:create", "tool:artifact:load"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
@@ -1601,6 +1611,8 @@ transcribe_audio_tool_def = BuiltinTool(
     implementation=transcribe_audio,
     description="Transcribes an audio recording using an OpenAI-compatible audio transcription API.",
     category="audio",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:audio:transcribe"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,

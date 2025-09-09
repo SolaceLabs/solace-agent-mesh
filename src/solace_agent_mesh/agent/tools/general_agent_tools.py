@@ -30,6 +30,8 @@ from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
+CATEGORY_NAME = "General Tools"
+CATEGORY_DESCRIPTION = "Tools for general purpose tasks like file conversion and diagram generation."
 
 def _simple_truncate_text(text: str, max_bytes: int = 2048) -> Tuple[str, bool]:
     """Truncates text to a maximum number of bytes for preview."""
@@ -527,6 +529,8 @@ convert_file_to_markdown_tool_def = BuiltinTool(
     implementation=convert_file_to_markdown,
     description="Converts an input file artifact to Markdown using the MarkItDown library. The supported input types are those supported by MarkItDown (e.g., PDF, DOCX, XLSX, HTML, CSV, PPTX, ZIP). The output is a new Markdown artifact.",
     category="general",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:general:convert_file"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
@@ -546,6 +550,8 @@ mermaid_diagram_generator_tool_def = BuiltinTool(
     implementation=mermaid_diagram_generator,
     description="Generates a PNG image from Mermaid diagram syntax and saves it as an artifact.",
     category="general",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:general:mermaid"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
