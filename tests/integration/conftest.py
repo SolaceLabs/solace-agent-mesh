@@ -505,6 +505,47 @@ def shared_solace_connector(
         model_suffix="dynamic-combined",
     )
 
+    empty_provider_agent_config = create_agent_config(
+        agent_name="EmptyProviderAgent",
+        description="Agent with an empty tool provider.",
+        allow_list=[],
+        tools=[
+            {
+                "tool_type": "python",
+                "component_module": "tests.integration.test_support.dynamic_tools.error_cases",
+                "class_name": "EmptyToolProvider",
+            }
+        ],
+        model_suffix="empty-provider",
+    )
+
+    docstringless_agent_config = create_agent_config(
+        agent_name="DocstringlessAgent",
+        description="Agent with a tool that has no docstring.",
+        allow_list=[],
+        tools=[
+            {
+                "tool_type": "python",
+                "component_module": "tests.integration.test_support.dynamic_tools.error_cases",
+                "class_name": "ProviderWithDocstringlessTool",
+            }
+        ],
+        model_suffix="docstringless",
+    )
+
+    mixed_discovery_agent_config = create_agent_config(
+        agent_name="MixedDiscoveryAgent",
+        description="Agent with a module containing both provider and standalone tool.",
+        allow_list=[],
+        tools=[
+            {
+                "tool_type": "python",
+                "component_module": "tests.integration.test_support.dynamic_tools.error_cases",
+            }
+        ],
+        model_suffix="mixed-discovery",
+    )
+
     app_infos = [
         {
             "name": "TestSamAgentApp",
@@ -549,6 +590,24 @@ def shared_solace_connector(
         {
             "name": "CombinedDynamicAgent_App",
             "app_config": combined_dynamic_agent_config,
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.sac.app",
+        },
+        {
+            "name": "EmptyProviderAgent_App",
+            "app_config": empty_provider_agent_config,
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.sac.app",
+        },
+        {
+            "name": "DocstringlessAgent_App",
+            "app_config": docstringless_agent_config,
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.sac.app",
+        },
+        {
+            "name": "MixedDiscoveryAgent_App",
+            "app_config": mixed_discovery_agent_config,
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.agent.sac.app",
         },
@@ -666,6 +725,42 @@ def combined_dynamic_agent_app_under_test(
     yield app_instance
 
 
+@pytest.fixture(scope="session")
+def empty_provider_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
+    """Retrieves the EmptyProviderAgent_App instance."""
+    app_instance = shared_solace_connector.get_app("EmptyProviderAgent_App")
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve EmptyProviderAgent_App."
+    yield app_instance
+
+
+@pytest.fixture(scope="session")
+def docstringless_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
+    """Retrieves the DocstringlessAgent_App instance."""
+    app_instance = shared_solace_connector.get_app("DocstringlessAgent_App")
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve DocstringlessAgent_App."
+    yield app_instance
+
+
+@pytest.fixture(scope="session")
+def mixed_discovery_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
+    """Retrieves the MixedDiscoveryAgent_App instance."""
+    app_instance = shared_solace_connector.get_app("MixedDiscoveryAgent_App")
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve MixedDiscoveryAgent_App."
+    yield app_instance
+
+
 def get_component_from_app(app: SamAgentApp) -> SamAgentComponent:
     """Helper to get the component from an app."""
     if app.flows and app.flows[0].component_groups:
@@ -717,6 +812,30 @@ def combined_dynamic_agent_component(
 ) -> SamAgentComponent:
     """Retrieves the CombinedDynamicAgent component instance."""
     return get_component_from_app(combined_dynamic_agent_app_under_test)
+
+
+@pytest.fixture(scope="session")
+def empty_provider_agent_component(
+    empty_provider_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
+    """Retrieves the EmptyProviderAgent component instance."""
+    return get_component_from_app(empty_provider_agent_app_under_test)
+
+
+@pytest.fixture(scope="session")
+def docstringless_agent_component(
+    docstringless_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
+    """Retrieves the DocstringlessAgent component instance."""
+    return get_component_from_app(docstringless_agent_app_under_test)
+
+
+@pytest.fixture(scope="session")
+def mixed_discovery_agent_component(
+    mixed_discovery_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
+    """Retrieves the MixedDiscoveryAgent component instance."""
+    return get_component_from_app(mixed_discovery_agent_app_under_test)
 
 
 @pytest.fixture(scope="session")
@@ -810,6 +929,9 @@ def clear_all_agent_states_between_tests(
     peer_agent_c_app_under_test: SamAgentApp,
     peer_agent_d_app_under_test: SamAgentApp,
     combined_dynamic_agent_app_under_test: SamAgentApp,
+    empty_provider_agent_app_under_test: SamAgentApp,
+    docstringless_agent_app_under_test: SamAgentApp,
+    mixed_discovery_agent_app_under_test: SamAgentApp,
 ):
     """Clears state from all agent components after each test."""
     yield
@@ -819,6 +941,9 @@ def clear_all_agent_states_between_tests(
     _clear_agent_component_state(peer_agent_c_app_under_test)
     _clear_agent_component_state(peer_agent_d_app_under_test)
     _clear_agent_component_state(combined_dynamic_agent_app_under_test)
+    _clear_agent_component_state(empty_provider_agent_app_under_test)
+    _clear_agent_component_state(docstringless_agent_app_under_test)
+    _clear_agent_component_state(mixed_discovery_agent_app_under_test)
 
 
 @pytest.fixture(scope="function")

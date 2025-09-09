@@ -452,6 +452,15 @@ async def _assert_llm_interactions(
                     actual_tools_set
                 ), f"Scenario {scenario_id}: LLM call {i+1} tools not present. Expected {expected_tools_subset} to be in {actual_tools_set}"
 
+            if "tools_not_present" in expected_req_details:
+                unexpected_tools = set(expected_req_details["tools_not_present"])
+                actual_tools_set = set(actual_tool_names)
+                intersection = unexpected_tools.intersection(actual_tools_set)
+                assert not intersection, (
+                    f"Scenario {scenario_id}: LLM call {i+1} - Found unexpected tools. "
+                    f"Tools {intersection} should NOT have been present in {actual_tools_set}"
+                )
+
             if "expected_tool_responses_in_llm_messages" in expected_req_details:
                 expected_tool_responses_spec = expected_req_details[
                     "expected_tool_responses_in_llm_messages"
@@ -1289,6 +1298,9 @@ async def test_declarative_scenario(
     peer_c_component: SamAgentComponent,
     peer_d_component: SamAgentComponent,
     combined_dynamic_agent_component: SamAgentComponent,
+    empty_provider_agent_component: SamAgentComponent,
+    docstringless_agent_component: SamAgentComponent,
+    mixed_discovery_agent_component: SamAgentComponent,
     monkeypatch: pytest.MonkeyPatch,
     mcp_server_harness,
     request: pytest.FixtureRequest,
@@ -1345,6 +1357,9 @@ async def test_declarative_scenario(
         peer_c_component.agent_name: peer_c_component,
         peer_d_component.agent_name: peer_d_component,
         combined_dynamic_agent_component.agent_name: combined_dynamic_agent_component,
+        empty_provider_agent_component.agent_name: empty_provider_agent_component,
+        docstringless_agent_component.agent_name: docstringless_agent_component,
+        mixed_discovery_agent_component.agent_name: mixed_discovery_agent_component,
     }
 
     # --- Phase 1: Setup Environment (including config overrides) ---
