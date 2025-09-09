@@ -18,7 +18,6 @@ from google.adk import tools as adk_tools_module
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
-from google.adk.tools.mcp_tool import MCPToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import (
     SseServerParams,
     StdioConnectionParams,
@@ -208,9 +207,7 @@ async def load_adk_tools(
                                 module_name,
                             )
                         elif issubclass(tool_class, DynamicTool):
-                            tool_instance = tool_class(
-                                tool_config=specific_tool_config
-                            )
+                            tool_instance = tool_class(tool_config=specific_tool_config)
                             dynamic_tools = [tool_instance]
                         else:
                             raise TypeError(
@@ -224,7 +221,9 @@ async def load_adk_tools(
                             declaration = tool._get_declaration()
                             if not declaration:
                                 log.warning(
-                                    f"Dynamic tool '{tool.__class__.__name__}' from module '{module_name}' did not generate a valid declaration. Skipping."
+                                    "Dynamic tool '%s' from module '%s' did not generate a valid declaration. Skipping.",
+                                    tool.__class__.__name__,
+                                    module_name,
                                 )
                                 continue
 
