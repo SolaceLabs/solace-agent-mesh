@@ -55,10 +55,11 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service=N
     """
 
     if persistence_service:
-        database_url = persistence_service.engine.url.__str__()
-        global database_service
-        database_service = DatabaseService(database_url)
-        log.info("Database service initialized")
+        # Get the database URL from the persistence service's engine
+        # Use render_as_string(hide_password=False) to get the actual password
+        database_url = persistence_service.engine.url.render_as_string(hide_password=False)
+        # Log with password hidden for security
+        log.info(f"Using database URL from persistence service: {str(persistence_service.engine.url)}")
 
         from .infrastructure.dependency_injection.container import initialize_container
 
