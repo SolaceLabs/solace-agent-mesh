@@ -16,6 +16,7 @@ from ...common.utils.embeds import (
     resolve_embeds_in_string,
     evaluate_embed,
     EARLY_EMBED_TYPES,
+    LATE_EMBED_TYPES,
     EMBED_DELIMITER_OPEN,
 )
 
@@ -61,7 +62,16 @@ class DynamicTool(BaseTool, ABC):
         """
         return []
 
-    def _get_declaration(self) -> Optional[adk_types.FunctionDeclaration]:
+    @property
+    def resolution_type(self) -> Literal["early", "all"]:
+        """
+        Determines which embeds to resolve. 'early' resolves simple embeds like
+        math and uuid. 'all' also resolves 'artifact_content'.
+        Defaults to 'early'.
+        """
+        return "early"
+
+    def _get_declaration(self) -> Optional[adk_types:
         """
         Generate the FunctionDeclaration for this dynamic tool.
         This follows the same pattern as PeerAgentTool and MCP tools.
@@ -86,6 +96,10 @@ class DynamicTool(BaseTool, ABC):
         log_identifier = f"[DynamicTool:{self.tool_name}]"
         resolved_kwargs = args.copy()
 
+        types_to_resolve = EARLY_EMBED_TYPES
+        if self.resolution_type == "all":
+            types_to_resolve = EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES)
+
         # Unlike ADKToolWrapper, DynamicTools receive all args in a single dict.
         # We iterate through this dict to resolve embeds.
         for key, value in args.items():
@@ -97,12 +111,11 @@ class DynamicTool(BaseTool, ABC):
                 )
             elif isinstance(value, str) and EMBED_DELIMITER_OPEN in value:
                 log.debug("%s Resolving embeds for kwarg '%s'", log_identifier, key)
-                # For now, dynamic tools only support early resolution to be safe.
                 resolved_value, _, _ = await resolve_embeds_in_string(
                     text=value,
                     context=tool_context,
                     resolver_func=evaluate_embed,
-                    types_to_resolve=EARLY_EMBED_TYPES,
+                    types_to_resolve=types_to_resolve,
                     log_identifier=log_identifier,
                     config=self.tool_config,
                 )
