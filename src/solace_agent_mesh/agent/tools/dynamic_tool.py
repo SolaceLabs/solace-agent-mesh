@@ -242,7 +242,7 @@ class DynamicToolProvider(ABC):
     programmatically from a single configuration block.
     """
 
-    _decorated_tools: List[Callable]
+    _decorated_tools: List[Callable] = []
 
     def __init_subclass__(cls, **kwargs):
         """
