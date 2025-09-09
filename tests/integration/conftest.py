@@ -487,31 +487,22 @@ def shared_solace_connector(
         model_suffix="peerD",
     )
 
-    dynamic_tool_agent_config = create_agent_config(
-        agent_name="DynamicToolAgent",
-        description="Agent for testing a single DynamicTool subclass.",
+    combined_dynamic_agent_config = create_agent_config(
+        agent_name="CombinedDynamicAgent",
+        description="Agent for testing all dynamic tool features.",
         allow_list=[],
         tools=[
             {
                 "tool_type": "dynamic",
                 "component_module": "tests.integration.test_support.dynamic_tools.single_tool",
                 "tool_config": {"greeting_prefix": "Hi there"},
-            }
-        ],
-        model_suffix="dynamic-single",
-    )
-
-    dynamic_provider_agent_config = create_agent_config(
-        agent_name="DynamicProviderAgent",
-        description="Agent for testing a DynamicToolProvider.",
-        allow_list=[],
-        tools=[
+            },
             {
                 "tool_type": "dynamic",
                 "component_module": "tests.integration.test_support.dynamic_tools.provider_tool",
-            }
+            },
         ],
-        model_suffix="dynamic-provider",
+        model_suffix="dynamic-combined",
     )
 
     app_infos = [
@@ -556,14 +547,8 @@ def shared_solace_connector(
             "app_module": "sam_test_infrastructure.gateway_interface.app",
         },
         {
-            "name": "DynamicToolAgent_App",
-            "app_config": dynamic_tool_agent_config,
-            "broker": {"dev_mode": True},
-            "app_module": "solace_agent_mesh.agent.sac.app",
-        },
-        {
-            "name": "DynamicProviderAgent_App",
-            "app_config": dynamic_provider_agent_config,
+            "name": "CombinedDynamicAgent_App",
+            "app_config": combined_dynamic_agent_config,
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.agent.sac.app",
         },

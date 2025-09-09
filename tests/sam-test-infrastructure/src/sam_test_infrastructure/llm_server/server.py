@@ -268,7 +268,16 @@ class TestLLMServer:
                         raise HTTPException(status_code=status_code, detail=detail)
 
                     if isinstance(response_spec, dict):
-                        response_to_serve = ChatCompletionResponse(**response_spec)
+                        if "expected_request" in response_spec:
+                            self._verify_expected_request(
+                                request,
+                                response_spec["expected_request"],
+                                case_id,
+                                turn_index,
+                            )
+                        response_to_serve = ChatCompletionResponse(
+                            **response_spec.get("static_response", {})
+                        )
                     else:
                         response_to_serve = response_spec
 
@@ -466,6 +475,178 @@ class TestLLMServer:
         finally:
             yield "data: [DONE]\n\n"
             self.logger.info("Stream finished, sent [DONE].")
+
+    def _verify_tool_declarations(
+        self,
+        actual_tools: List[Dict],
+        expected_declarations: List[Dict],
+        case_id: str,
+        turn_index: int,
+    ):
+        """Verifies that the tool declarations sent to the LLM match expectations."""
+        actual_tool_map = {
+            tool.get("function", {}).get("name"): tool.get("function", {})
+            for tool in actual_tools
+        }
+
+        for expected_decl in expected_declarations:
+            expected_name = expected_decl.get("name")
+            if not expected_name:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Stateful test case '{case_id}' turn {turn_index}: "
+                    f"expected_tool_declarations_contain item is missing 'name'.",
+                )
+
+            if expected_name not in actual_tool_map:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Stateful test case '{case_id}' turn {turn_index}: "
+                    f"Expected tool '{expected_name}' was not declared to the LLM. "
+                    f"Actual tools: {list(actual_tool_map.keys())}",
+                )
+
+            actual_decl = actual_tool_map[expected_name]
+            if "description_contains" in expected_decl:
+                expected_desc_substr = expected_decl["description_contains"]
+                actual_desc = actual_decl.get("description", "")
+                if expected_desc_substr not in actual_desc:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Stateful test case '{case_id}' turn {turn_index}: "
+                        f"Description for tool '{expected_name}' did not match. "
+                        f"Expected to contain: '{expected_desc_substr}'. "
+                        f"Actual: '{actual_desc}'",
+                    )
+
+    def _verify_tool_responses(
+        self,
+        actual_messages: List[Message],
+        expected_responses: List[Dict],
+        case_id: str,
+        turn_index: int,
+    ):
+        """Verifies that tool responses in the LLM history match expectations."""
+        tool_messages = [
+            msg for msg in actual_messages if msg.role == "tool" and msg.tool_call_id
+        ]
+
+        if len(tool_messages) != len(expected_responses):
+            raise HTTPException(
+                status_code=500,
+                detail=f"Stateful test case '{case_id}' turn {turn_index}: "
+                f"Mismatch in number of tool responses. "
+                f"Expected {len(expected_responses)}, Got {len(tool_messages)}.",
+            )
+
+        # Find the previous request to match tool_call_ids
+        # The current request is the last one in captured_requests.
+        # The one that *made* the tool call is the one before that.
+        if len(self.captured_requests) < 2:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Stateful test case '{case_id}' turn {turn_index}: "
+                f"Cannot verify tool responses, not enough request history captured.",
+            )
+        prior_request = self.captured_requests[-2]
+        prior_tool_calls = (
+            prior_request.messages[-1].tool_calls
+            if prior_request.messages and prior_request.messages[-1].tool_calls
+            else []
+        )
+
+        for expected_resp in expected_responses:
+            tool_call_id_to_match = None
+            prior_request_index = expected_resp.get(
+                "tool_call_id_matches_prior_request_index"
+            )
+            if prior_request_index is not None:
+                if prior_request_index < len(prior_tool_calls):
+                    tool_call_id_to_match = prior_tool_calls[prior_request_index].id
+                else:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Stateful test case '{case_id}' turn {turn_index}: "
+                        f"Invalid tool_call_id_matches_prior_request_index: {prior_request_index}. "
+                        f"Prior request only had {len(prior_tool_calls)} tool calls.",
+                    )
+
+            if not tool_call_id_to_match:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Stateful test case '{case_id}' turn {turn_index}: "
+                    f"Could not determine tool_call_id for expected response: {expected_resp}",
+                )
+
+            actual_tool_msg = next(
+                (
+                    msg
+                    for msg in tool_messages
+                    if msg.tool_call_id == tool_call_id_to_match
+                ),
+                None,
+            )
+
+            if not actual_tool_msg:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Stateful test case '{case_id}' turn {turn_index}: "
+                    f"No tool response found for tool_call_id '{tool_call_id_to_match}'.",
+                )
+
+            if "response_json_matches" in expected_resp:
+                expected_json = expected_resp["response_json_matches"]
+                try:
+                    actual_json = json.loads(actual_tool_msg.content)
+                    if actual_json != expected_json:
+                        raise HTTPException(
+                            status_code=500,
+                            detail=f"Stateful test case '{case_id}' turn {turn_index}: "
+                            f"JSON content for tool '{tool_call_id_to_match}' did not match.\n"
+                            f"Expected: {json.dumps(expected_json)}\n"
+                            f"Actual:   {json.dumps(actual_json)}",
+                        )
+                except json.JSONDecodeError:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Stateful test case '{case_id}' turn {turn_index}: "
+                        f"Tool response for '{tool_call_id_to_match}' was not valid JSON. "
+                        f"Content: {actual_tool_msg.content}",
+                    )
+
+            if "response_contains" in expected_resp:
+                expected_substr = expected_resp["response_contains"]
+                if expected_substr not in str(actual_tool_msg.content):
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Stateful test case '{case_id}' turn {turn_index}: "
+                        f"Content for tool '{tool_call_id_to_match}' did not contain expected substring.\n"
+                        f"Expected to contain: '{expected_substr}'\n"
+                        f"Actual:              '{actual_tool_msg.content}'",
+                    )
+
+    def _verify_expected_request(
+        self,
+        request: ChatCompletionRequest,
+        expected_request_spec: Dict,
+        case_id: str,
+        turn_index: int,
+    ):
+        """Dispatches verification checks based on keys in the expected_request spec."""
+        if "expected_tool_declarations_contain" in expected_request_spec:
+            self._verify_tool_declarations(
+                request.tools or [],
+                expected_request_spec["expected_tool_declarations_contain"],
+                case_id,
+                turn_index,
+            )
+        if "expected_tool_responses_in_llm_messages" in expected_request_spec:
+            self._verify_tool_responses(
+                request.messages,
+                expected_request_spec["expected_tool_responses_in_llm_messages"],
+                case_id,
+                turn_index,
+            )
 
     def configure_static_response(
         self, response: Union[Dict[str, Any], ChatCompletionResponse]
