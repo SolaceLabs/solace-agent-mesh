@@ -1288,6 +1288,7 @@ async def test_declarative_scenario(
     peer_b_component: SamAgentComponent,
     peer_c_component: SamAgentComponent,
     peer_d_component: SamAgentComponent,
+    combined_dynamic_agent_component: SamAgentComponent,
     monkeypatch: pytest.MonkeyPatch,
     mcp_server_harness,
     request: pytest.FixtureRequest,
@@ -1343,6 +1344,7 @@ async def test_declarative_scenario(
         peer_b_component.agent_name: peer_b_component,
         peer_c_component.agent_name: peer_c_component,
         peer_d_component.agent_name: peer_d_component,
+        combined_dynamic_agent_component.agent_name: combined_dynamic_agent_component,
     }
 
     # --- Phase 1: Setup Environment (including config overrides) ---
