@@ -167,78 +167,190 @@ graph TD
     style I fill:#007000,stroke:#333,stroke-width:2px
 ```
 
-### Step 2: Define the Agent's Tools
+### Step 2: The Tool Function
 
-An agent's primary capabilities are defined by its tools, which are implemented in Python. You can create simple tools from functions or build advanced, dynamic toolsets using classes.
+Create your first tool function:
+The following arguments are provided by the framework:
+- tool_context: SAM framework context
+- tool_config: Tool-specific configuration (from config.yaml)
 
-For a complete guide on this, see our **[Creating Python Tools](./creating-python-tools.md)** documentation.
+For a complete guide on creating python tools, see our **[Creating Python Tools](./creating-python-tools.md)** documentation.
 
-For this example, assume you have created a `tools.py` file in your agent's source directory (`src/my_hello_agent/`) containing `hello_tool` and `farewell_tool` functions.
+```python
+# src/my_hello_agent/tools.py
+"""
+Tools for the Hello World agent.
+"""
 
-### Step 3: Configure the Agent
+from typing import Any, Dict, Optional
+from google.adk.tools import ToolContext
+from solace_ai_connector.common.log import log
 
-Create the main configuration file for your agent. This file defines the agent's identity, instructions, and which tools it can use.
+
+async def hello_tool(
+    name: str,
+    tool_context: Optional[ToolContext] = None,
+    tool_config: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Greets a user with a personalized message.
+    
+    Args:
+        name: The name of the person to greet
+    
+    Returns:
+        A dictionary with the greeting message
+    """
+    log_identifier = "[HelloTool]"
+    log.info(f"{log_identifier} Greeting user: {name}")
+    
+    # Get configuration from tool_config
+    greeting_prefix = "Hello"
+    if tool_config:
+        greeting_prefix = tool_config.get("greeting_prefix", "Hello")
+    
+    # Create the greeting message
+    greeting_message = f"{greeting_prefix}, {name}! Welcome to Solace Agent Mesh!"
+    
+    log.info(f"{log_identifier} Generated greeting: {greeting_message}")
+    
+    return {
+        "status": "success",
+        "message": greeting_message,
+        "greeted_name": name
+    }
+
+
+async def farewell_tool(
+    name: str,
+    tool_context: Optional[ToolContext] = None,
+    tool_config: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Says goodbye to a user.
+    
+    Args:
+        name: The name of the person to say goodbye to
+    
+    Returns:
+        A dictionary with the farewell message
+    """
+    log_identifier = "[FarewellTool]"
+    log.info(f"{log_identifier} Saying goodbye to user: {name}")
+    
+    # Get configuration from tool_config
+    farewell_prefix = "Goodbye"
+    if tool_config:
+        farewell_prefix = tool_config.get("farewell_prefix", "Goodbye")
+    
+    # Create the farewell message
+    farewell_message = f"{farewell_prefix}, {name}! Thanks for using Solace Agent Mesh!"
+    
+    log.info(f"{log_identifier} Generated farewell: {farewell_message}")
+    
+    return {
+        "status": "success",
+        "message": farewell_message,
+        "farewell_name": name
+    }
+```
+
+**Key Points:**
+
+- **Function Signature**: All tool functions should be `async` and accept `tool_context` and `tool_config` parameters
+- **Return Format**: Return a dictionary with at least a `status` field
+- **Logging**: Use the SAM logger for consistent logging
+- **Configuration**: Access tool-specific config via the `tool_config` parameter
+
+### Step 3: The Agent Configuration
+
+Create the main configuration file for your agent:
 
 ```yaml
 # ... (additional services and configurations)
 
 apps:
   - name: my-hello-agent
-    app_module: solace_agent_mesh.agent.sac.app
+    app_module: solace_agent_mesh.agent.sac.app 
     broker:
       <<: *broker_connection
-
+    
     # Agent-specific configuration
     app_config:
       # Basic agent identity
-      namespace: ${NAMESPACE}
-      supports_streaming: true
+      namespace: ${NAMESPACE} 
+      supports_streaming: true 
       agent_name: "HelloAgent"
       display_name: "Hello World Agent"
-
+      
       # LLM model configuration
-      model: *general_model
-
+      model: *general_model 
+      
       # Agent instructions (system prompt)
       instruction: |
-        You are a friendly Hello World agent. Your purpose is to greet users and
+        You are a friendly Hello World agent. Your purpose is to greet users and 
         demonstrate the capabilities of Solace Agent Mesh. You can:
-
-        1. Greet users with personalized messages using the hello_tool.
-        2. Say goodbye to users using the farewell_tool.
-
-        Always be polite and helpful.
-
+        
+        1. Greet users with personalized messages using the hello_tool
+        2. Say goodbye to users using the farewell_tool
+        
+        Always be polite and helpful. When greeting someone, ask for their name 
+        if they haven't provided it.
+      
+      # Lifecycle functions
+      agent_init_function:
+        module: "my_hello_agent.lifecycle" # This should point to your lifecycle python module
+        name: "initialize_hello_agent"
+        base_path: .
+        config:
+          startup_message: "Hello Agent is starting up!"
+          log_level: "INFO"
+      
+      agent_cleanup_function:
+        module: "my_hello_agent.lifecycle"
+        base_path: .
+        name: "cleanup_hello_agent"
+      
       # Tools configuration
       tools:
-        # Enable custom Python tools defined in your module
+        # Hello tool with custom greeting
         - tool_type: python
           component_module: "my_hello_agent.tools"
+          component_base_path: .
           function_name: "hello_tool"
+          tool_name: "greet_user" # Renaming the tool, must use this name in the agent card
+          tool_config:
+            greeting_prefix: "Hello there"
+        
+        # Farewell tool with custom farewell
         - tool_type: python
           component_module: "my_hello_agent.tools"
+          component_base_path: .
           function_name: "farewell_tool"
-
-        # Enable a group of built-in tools
+          tool_name: "say_goodbye"
+          tool_config:
+            farewell_prefix: "See you later"
+        
+        # Built-in artifact tools for file operations
         - tool_type: builtin-group
           group_name: "artifact_management"
-
+      
       # Agent card (describes the agent's capabilities)
       agent_card:
         description: "A friendly Hello World agent that demonstrates SAM capabilities"
         defaultInputModes: ["text"]
         defaultOutputModes: ["text"]
         skills:
-          - id: "hello_tool"
+          - id: "greet_user"
             name: "Greet User"
             description: "Greets users with personalized messages"
-          - id: "farewell_tool"
+          - id: "say_goodbye"
             name: "Say Goodbye"
             description: "Says goodbye to users"
           - id: "file_operations"
             name: "File Operations"
             description: "Create, read, and manage files and artifacts"
-
+      
       # Session and artifact services
       session_service: *default_session_service
       artifact_service: *default_artifact_service
@@ -247,11 +359,11 @@ apps:
 
 **Key Sections Explained:**
 
-- **`namespace`**: Unique identifier for your agent in the mesh.
-- **`model`**: LLM configuration (references a shared model from `shared_config.yaml`).
-- **`instruction`**: The system prompt that defines your agent's behavior.
-- **`tools`**: List of tools your agent can use. See [Creating Python Tools](./creating-python-tools.md) for more details.
-- **`agent_card`**: Metadata describing your agent's capabilities to other agents.
+- **`namespace`**: Unique identifier for your agent in the mesh
+- **`model`**: LLM configuration (can be a string or detailed config)
+- **`instruction`**: The system prompt that defines your agent's behavior
+- **`tools`**: List of tools your agent can use, with their configurations
+- **`agent_card`**: Metadata describing your agent's capabilities
 
 ### Step 4: The Lifecycle Function
 
@@ -292,19 +404,19 @@ def initialize_hello_agent(host_component: Any, init_config: HelloAgentInitConfi
     """
     log_identifier = f"[{host_component.agent_name}:init]"
     log.info(f"{log_identifier} Starting Hello Agent initialization...")
-
+    
     # Log the startup message from config
     log.info(f"{log_identifier} {init_config.startup_message}")
-
+    
     # You could initialize shared resources here, such as:
     # - Database connections
     # - API clients
     # - Caches or shared data structures
-
+    
     # Store any shared state in the agent
     host_component.set_agent_specific_state("initialized_at", "2024-01-01T00:00:00Z")
     host_component.set_agent_specific_state("greeting_count", 0)
-
+    
     log.info(f"{log_identifier} Hello Agent initialization completed successfully")
 
 
@@ -317,16 +429,16 @@ def cleanup_hello_agent(host_component: Any):
     """
     log_identifier = f"[{host_component.agent_name}:cleanup]"
     log.info(f"{log_identifier} Starting Hello Agent cleanup...")
-
+    
     # Retrieve any shared state
     greeting_count = host_component.get_agent_specific_state("greeting_count", 0)
     log.info(f"{log_identifier} Agent processed {greeting_count} greetings during its lifetime")
-
+    
     # Clean up resources here, such as:
     # - Closing database connections
     # - Shutting down background tasks
     # - Saving final state
-
+    
     log.info(f"{log_identifier} Hello Agent cleanup completed")
 ```
 
