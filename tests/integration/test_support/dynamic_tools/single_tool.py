@@ -19,7 +19,14 @@ class MySimpleDynamicTool(DynamicTool):
         return adk_types.Schema(
             type=adk_types.Type.OBJECT,
             properties={
-                "name": adk_types.Schema(type=adk_types.Type.STRING, description="The name to greet.")
+                "name": adk_types.Schema(
+                    type=adk_types.Type.STRING, description="The name to greet."
+                ),
+                "punctuation": adk_types.Schema(
+                    type=adk_types.Type.STRING,
+                    description="Punctuation to add at the end.",
+                    nullable=True,
+                ),
             },
             required=["name"],
         )
@@ -28,8 +35,9 @@ class MySimpleDynamicTool(DynamicTool):
         self,
         args: dict,
         tool_context: ToolContext,
-        credential: Optional[str] = None
+        credential: Optional[str] = None,
     ) -> dict:
         name = args.get("name", "World")
+        punctuation = args.get("punctuation", "!")
         greeting_prefix = self.tool_config.get("greeting_prefix", "Hello")
-        return {"greeting": f"{greeting_prefix}, {name}!"}
+        return {"greeting": f"{greeting_prefix}, {name}{punctuation}"}
