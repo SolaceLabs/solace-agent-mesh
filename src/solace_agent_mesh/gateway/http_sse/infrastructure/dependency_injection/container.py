@@ -90,11 +90,8 @@ class ApplicationContainer:
             def session_service_factory():
                 return SessionService(session_repository, message_repository)
 
-            def project_service_factory():
-                return ProjectService(project_repository)
-
             self.container.register_factory(SessionService, session_service_factory)
-            self.container.register_factory(ProjectService, project_service_factory)
+            # ProjectService is now created by a dependency factory, so it's no longer registered here.
 
     def get_database_service(self) -> DatabaseService | None:
         if not self.has_database:
@@ -105,11 +102,6 @@ class ApplicationContainer:
         if not self.has_database:
             return None
         return self.container.get(SessionService)
-
-    def get_project_service(self) -> ProjectService | None:
-        if not self.has_database:
-            return None
-        return self.container.get(ProjectService)
 
 
 # Global container instance
