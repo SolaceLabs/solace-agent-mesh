@@ -31,7 +31,7 @@ from ....gateway.http_sse.dependencies import (
     get_sac_component,
     get_task_service,
 )
-from ....gateway.http_sse.infrastructure.dependency_injection import get_project_service
+from ....gateway.http_sse.dependencies import get_project_service
 
 from typing import TYPE_CHECKING
 
