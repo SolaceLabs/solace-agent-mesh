@@ -59,6 +59,17 @@ class DynamicTool(BaseTool, ABC):
             parameters=self.parameters_schema,
         )
 
+    async def run_async(
+        self, *, args: Dict[str, Any], tool_context: ToolContext
+    ) -> Dict[str, Any]:
+        """
+        Asynchronously runs the tool with the given arguments.
+        This method delegates the call to the abstract _run_async_impl.
+        """
+        return await self._run_async_impl(
+            args=args, tool_context=tool_context, credential=None
+        )
+
     @abstractmethod
     async def _run_async_impl(
         self,
