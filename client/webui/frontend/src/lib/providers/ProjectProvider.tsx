@@ -43,14 +43,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }, [apiPrefix]);
 
     const createProject = useCallback(
-        async (projectData: CreateProjectRequest): Promise<Project> => {
+        async (projectData: FormData): Promise<Project> => {
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/projects`, {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify(projectData),
+                    // No 'Content-Type' header, browser will set it for FormData
+                    body: projectData,
                     credentials: "include",
                 });
 

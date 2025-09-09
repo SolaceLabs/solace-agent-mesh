@@ -25,11 +25,6 @@ export interface GlobalProject {
     usage_count?: number | null;
 }
 
-export interface CreateProjectRequest {
-    name: string;
-    description?: string;
-    system_prompt?: string;
-}
 
 export interface CopyProjectRequest {
     name: string;
@@ -51,13 +46,14 @@ export interface ProjectFormData {
     name: string;
     description: string;
     system_prompt: string;
+    files?: FileList | null;
 }
 
 export interface UseProjectsReturn {
     projects: Project[];
     isLoading: boolean;
     error: string | null;
-    createProject: (data: CreateProjectRequest) => Promise<Project>;
+    createProject: (data: FormData) => Promise<Project>;
     refetch: () => Promise<void>;
 }
 

@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
+import { Paperclip } from "lucide-react";
 
-import { 
-    Button, 
-    Dialog, 
-    DialogContent, 
-    DialogDescription, 
-    DialogHeader, 
+import {
+    Button,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
     DialogTitle,
     Form,
     FormControl,
@@ -15,7 +16,7 @@ import {
     FormLabel,
     FormMessage,
     Input,
-    Textarea
+    Textarea,
 } from "@/lib/components/ui";
 import type { ProjectFormData } from "@/lib/types/projects";
 
@@ -26,21 +27,24 @@ interface CreateProjectDialogProps {
     isLoading?: boolean;
 }
 
-export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({ 
-    isOpen, 
-    onClose, 
-    onSubmit, 
-    isLoading = false 
+export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
+    isOpen,
+    onClose,
+    onSubmit,
+    isLoading = false,
 }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
-    
+
     const form = useForm<ProjectFormData>({
         defaultValues: {
             name: "",
             description: "",
             system_prompt: "",
+            files: null,
         },
     });
+
+    const fileList = form.watch("files");
 
     const handleSubmit = async (data: ProjectFormData) => {
         if (isSubmitting || isLoading) return;
@@ -155,21 +159,54 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                                 </FormItem>
                             )}
                         />
-                        
+
+                        <FormField
+                            control={form.control}
+                            name="files"
+                            render={({ field: { onChange, value, ...rest } }) => (
+                                <FormItem>
+                                    <FormLabel className="text-foreground">Artifacts (Optional)</FormLabel>
+                                    <FormControl>
+                                        <Input
+                                            type="file"
+                                            multiple
+                                            className="bg-background border text-foreground placeholder:text-muted-foreground"
+                                            disabled={isSubmitting || isLoading}
+                                            onChange={(e) => {
+                                                onChange(e.target.files);
+                                            }}
+                                            {...rest}
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+
+                        {fileList && fileList.length > 0 && (
+                            <div className="space-y-2 rounded-md border p-3">
+                                <h4 className="text-sm font-medium text-foreground">Selected Files:</h4>
+                                <ul className="space-y-1 text-sm text-muted-foreground">
+                                    {Array.from(fileList).map((file, index) => (
+                                        <li key={index} className="flex items-center gap-2">
+                                            <Paperclip className="h-4 w-4" />
+                                            <span>{file.name}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
                         <div className="flex justify-end gap-2 pt-4">
-                            <Button 
-                                variant="outline" 
+                            <Button
+                                variant="outline"
                                 onClick={handleClose}
                                 disabled={isSubmitting || isLoading}
                                 type="button"
                             >
                                 Cancel
                             </Button>
-                            <Button 
-                                variant="default" 
-                                type="submit"
-                                disabled={isSubmitting || isLoading}
-                            >
+                            <Button variant="default" type="submit" disabled={isSubmitting || isLoading}>
                                 {isSubmitting ? "Creating..." : "Create Project"}
                             </Button>
                         </div>

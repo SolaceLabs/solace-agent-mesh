@@ -18,11 +18,21 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
     const { projects, isLoading, error, createProject, currentProject, setCurrentProject, activeProject, setActiveProject } = useProjectContext();
 
     const handleCreateProject = async (data: ProjectFormData) => {
-        await createProject({
-            name: data.name,
-            description: data.description || undefined,
-            system_prompt: data.system_prompt || undefined,
-        });
+        const formData = new FormData();
+        formData.append("name", data.name);
+        if (data.description) {
+            formData.append("description", data.description);
+        }
+        if (data.system_prompt) {
+            formData.append("system_prompt", data.system_prompt);
+        }
+        if (data.files) {
+            for (let i = 0; i < data.files.length; i++) {
+                formData.append("files", data.files[i]);
+            }
+        }
+
+        await createProject(formData);
         setIsCreateDialogOpen(false);
     };
 
