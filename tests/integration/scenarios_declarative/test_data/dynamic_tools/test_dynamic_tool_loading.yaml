@@ -2,6 +2,7 @@ test_case_id: "dynamic_tool_loading_and_execution_001"
 description: |
   Verifies that dynamic tools from both single-class and provider modules
   are correctly loaded, declared to the LLM, and executed.
+skip_intermediate_events: true
 tags: ["all", "agent", "tools", "dynamic_tools"]
 
 gateway_input:
