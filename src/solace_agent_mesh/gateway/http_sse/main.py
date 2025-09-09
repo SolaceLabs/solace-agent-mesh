@@ -35,6 +35,7 @@ from .api.controllers.session_controller import router as session_router
 from .api.controllers.task_controller import router as task_router
 from .api.controllers.user_controller import router as user_router
 from .infrastructure.persistence.database_service import DatabaseService
+from importlib.metadata import entry_points
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
@@ -44,6 +45,32 @@ app = FastAPI(
     version="1.0.0",  # Updated to reflect simplified architecture
     description="Backend API and SSE server for the A2A Web UI, hosted by Solace AI Connector.",
 )
+
+def load_extensions(app: FastAPI, component: "WebUIBackendComponent", persistence_service=None):
+    """
+    Searches for and loads all registered extensions for the application.
+    """
+    log_prefix = "[load_extensions] "
+    log.debug("%sSearching for extensions under 'solace_agent_mesh.extensions'", log_prefix)
+    try:
+        discovered_extensions = entry_points(group="solace_agent_mesh.extensions")
+    except Exception:
+        log.debug("%sNo extensions found (or importlib.metadata not available).", log_prefix)
+        return
+
+    if not discovered_extensions:
+        log.debug("%sNo extensions found.", log_prefix)
+        return
+
+    for extension in discovered_extensions:
+        log.debug(f"{log_prefix}Found extension: '{extension.name}'. Attempting to load...")
+        try:
+            init_function = extension.load()
+            init_function(app, component, persistence_service)
+            log.debug(f"{log_prefix}Successfully loaded and initialized extension: '{extension.name}'.")
+        except Exception as e:
+            log.error(f"{log_prefix}Failed to load extension '{extension.name}': {e}", exc_info=True)
+            raise
 
 
 def setup_dependencies(component: "WebUIBackendComponent", persistence_service=None):
@@ -142,6 +169,9 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service=N
 
     dependencies.set_api_config(api_config_dict)
     log.info("API configuration extracted and stored.")
+
+    # Discover and load all enterprise extensions
+    load_extensions(app, component, persistence_service)
 
     class AuthMiddleware:
         def __init__(self, app, component):
