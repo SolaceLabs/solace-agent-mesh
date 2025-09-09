@@ -5,12 +5,24 @@ and parameter schemas, offering more flexibility than standard Python tools.
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, List, Callable, Dict, Any, get_origin, get_args, Union
+from typing import (
+    Optional,
+    List,
+    Callable,
+    Dict,
+    Any,
+    get_origin,
+    get_args,
+    Union,
+    Literal,
+)
 import inspect
 
 from google.adk.tools import BaseTool, ToolContext
 from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
+
+from solace_agent_mesh.agent.utils.context_helpers import get_original_session_id
 
 from ...common.utils.embeds import (
     resolve_embeds_in_string,
@@ -22,6 +34,7 @@ from ...common.utils.embeds import (
 
 
 # --- Base Class for Programmatic Tools ---
+
 
 class DynamicTool(BaseTool, ABC):
     """
@@ -71,7 +84,7 @@ class DynamicTool(BaseTool, ABC):
         """
         return "early"
 
-    def _get_declaration(self) -> Optional[adk_types:
+    def _get_declaration(self) -> Optional[Any]:
         """
         Generate the FunctionDeclaration for this dynamic tool.
         This follows the same pattern as PeerAgentTool and MCP tools.
@@ -111,9 +124,31 @@ class DynamicTool(BaseTool, ABC):
                 )
             elif isinstance(value, str) and EMBED_DELIMITER_OPEN in value:
                 log.debug("%s Resolving embeds for kwarg '%s'", log_identifier, key)
+                # Create the resolution context
+                if hasattr(tool_context, "_invocation_context"):
+                    # Use the invocation context if available
+                    invocation_context = tool_context._invocation_context
+                else:
+                    # Error if no invocation context is found
+                    raise RuntimeError(
+                        f"{log_identifier} No invocation context found in ToolContext. Cannot resolve embeds."
+                    )
+                session_context = invocation_context.session
+                if not session_context:
+                    raise RuntimeError(
+                        f"{log_identifier} No session context found in invocation context. Cannot resolve embeds."
+                    )
+                resolution_context = {
+                    "artifact_service": invocation_context.artifact_service,
+                    "session_context": {
+                        "session_id": get_original_session_id(invocation_context),
+                        "user_id": session_context.user_id,
+                        "app_name": session_context.app_name,
+                    },
+                }
                 resolved_value, _, _ = await resolve_embeds_in_string(
                     text=value,
-                    context=tool_context,
+                    context=resolution_context,
                     resolver_func=evaluate_embed,
                     types_to_resolve=types_to_resolve,
                     log_identifier=log_identifier,
@@ -127,10 +162,7 @@ class DynamicTool(BaseTool, ABC):
 
     @abstractmethod
     async def _run_async_impl(
-        self,
-        args: dict,
-        tool_context: ToolContext,
-        credential: Optional[str] = None
+        self, args: dict, tool_context: ToolContext, credential: Optional[str] = None
     ) -> dict:
         """
         Implement the actual tool logic.
@@ -140,6 +172,7 @@ class DynamicTool(BaseTool, ABC):
 
 
 # --- Internal Adapter for Function-Based Tools ---
+
 
 def _get_schema_from_signature(func: Callable) -> adk_types.Schema:
     """
@@ -249,6 +282,7 @@ class _FunctionAsDynamicTool(DynamicTool):
 
 # --- Base Class for Tool Providers ---
 
+
 class DynamicToolProvider(ABC):
     """
     Base class for dynamic tool providers that can generate a list of tools
@@ -278,23 +312,25 @@ class DynamicToolProvider(ABC):
         cls._decorated_tools.append(func)
         return func
 
-    def _create_tools_from_decorators(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
+    def _create_tools_from_decorators(
+        self, tool_config: Optional[dict] = None
+    ) -> List[DynamicTool]:
         """
         Internal helper to convert decorated functions into DynamicTool instances.
         """
         tools = []
         for func in self._decorated_tools:
-            adapter = _FunctionAsDynamicTool(
-                func, tool_config, provider_instance=self
-            )
+            adapter = _FunctionAsDynamicTool(func, tool_config, provider_instance=self)
             tools.append(adapter)
         return tools
 
-    def get_all_tools_for_framework(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
+    def get_all_tools_for_framework(
+        self, tool_config: Optional[dict] = None
+    ) -> List[DynamicTool]:
         """
         Framework-internal method that automatically combines decorated tools with custom tools.
         This is called by the ADK setup code, not by users.
-        
+
         Args:
             tool_config: The configuration dictionary from the agent's YAML file.
 
@@ -303,17 +339,17 @@ class DynamicToolProvider(ABC):
         """
         # Get tools from decorators automatically
         decorated_tools = self._create_tools_from_decorators(tool_config)
-        
+
         # Get custom tools from the user's implementation
         custom_tools = self.create_tools(tool_config)
-        
+
         return decorated_tools + custom_tools
 
     @abstractmethod
     def create_tools(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
         """
         Generate and return a list of custom DynamicTool instances.
-        
+
         Note: Tools registered with the @register_tool decorator are automatically
         included by the framework - you don't need to handle them here.
 

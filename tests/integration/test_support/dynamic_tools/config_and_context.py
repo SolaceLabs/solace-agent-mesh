@@ -1,6 +1,7 @@
 """
 Test support module for dynamic tools testing config and context features.
 """
+
 from typing import List, Optional, Dict, Any, Literal
 
 from google.adk.tools import ToolContext
@@ -49,7 +50,9 @@ class LateResolutionTool(DynamicTool):
 
     @property
     def tool_description(self) -> str:
-        return "Accepts an argument and resolves all embeds, including artifact_content."
+        return (
+            "Accepts an argument and resolves all embeds, including artifact_content."
+        )
 
     @property
     def resolution_type(self) -> Literal["early", "all"]:
@@ -83,14 +86,16 @@ class ConfigAndContextProvider(DynamicToolProvider):
             LateResolutionTool(tool_config=tool_config),
         ]
 
-    @ConfigAndContextProvider.register_tool
-    async def inspect_tool_config(self, tool_context: ToolContext = None) -> dict:
-        """Returns the tool_config that was injected into the provider."""
-        return {"config_received": self.tool_config}
 
-    @ConfigAndContextProvider.register_tool
-    async def resolve_early_embed(
-        self, my_arg: str, tool_context: ToolContext = None
-    ) -> dict:
-        """Accepts an argument and resolves early embeds (the default)."""
-        return {"result": my_arg}
+@ConfigAndContextProvider.register_tool
+async def inspect_tool_config(
+    tool_context: ToolContext = None, tool_config: Optional[dict] = None
+) -> dict:
+    """Returns the tool_config that was injected into the provider."""
+    return {"config_received": tool_config}
+
+
+@ConfigAndContextProvider.register_tool
+async def resolve_early_embed(my_arg: str, tool_context: ToolContext = None) -> dict:
+    """Accepts an argument and resolves early embeds (the default)."""
+    return {"result": my_arg}

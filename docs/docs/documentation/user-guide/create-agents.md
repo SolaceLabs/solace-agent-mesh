@@ -253,6 +253,83 @@ apps:
 - **`tools`**: List of tools your agent can use. See [Creating Python Tools](./creating-python-tools.md) for more details.
 - **`agent_card`**: Metadata describing your agent's capabilities to other agents.
 
+### Step 4: The Lifecycle Function
+
+Lifecycle functions are completely optional but useful for managing resources. They run when the agent starts and stops.
+
+The lifecycle file is not automatically created, so you need to create it manually:
+
+```bash
+touch src/my_hello_agent/lifecycle.py
+```
+
+```python
+# src/my_hello_agent/lifecycle.py
+"""
+Lifecycle functions for the Hello World agent.
+"""
+
+from typing import Any, Dict
+from pydantic import BaseModel, Field
+from solace_ai_connector.common.log import log
+
+
+class HelloAgentInitConfig(BaseModel):
+    """
+    Configuration model for the Hello Agent initialization.
+    """
+    startup_message: str = Field(description="Message to log on startup")
+    log_level: str = Field(default="INFO", description="Logging level for the agent")
+
+
+def initialize_hello_agent(host_component: Any, init_config: HelloAgentInitConfig):
+    """
+    Initializes the Hello World agent.
+    
+    Args:
+        host_component: The agent host component
+        init_config: Validated initialization configuration
+    """
+    log_identifier = f"[{host_component.agent_name}:init]"
+    log.info(f"{log_identifier} Starting Hello Agent initialization...")
+
+    # Log the startup message from config
+    log.info(f"{log_identifier} {init_config.startup_message}")
+
+    # You could initialize shared resources here, such as:
+    # - Database connections
+    # - API clients
+    # - Caches or shared data structures
+
+    # Store any shared state in the agent
+    host_component.set_agent_specific_state("initialized_at", "2024-01-01T00:00:00Z")
+    host_component.set_agent_specific_state("greeting_count", 0)
+
+    log.info(f"{log_identifier} Hello Agent initialization completed successfully")
+
+
+def cleanup_hello_agent(host_component: Any):
+    """
+    Cleans up resources when the Hello World agent shuts down.
+    
+    Args:
+        host_component: The agent host component
+    """
+    log_identifier = f"[{host_component.agent_name}:cleanup]"
+    log.info(f"{log_identifier} Starting Hello Agent cleanup...")
+
+    # Retrieve any shared state
+    greeting_count = host_component.get_agent_specific_state("greeting_count", 0)
+    log.info(f"{log_identifier} Agent processed {greeting_count} greetings during its lifetime")
+
+    # Clean up resources here, such as:
+    # - Closing database connections
+    # - Shutting down background tasks
+    # - Saving final state
+
+    log.info(f"{log_identifier} Hello Agent cleanup completed")
+```
+
 **Key Points:**
 
 - **Pydantic Models**: Use Pydantic for configuration validation
