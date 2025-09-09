@@ -268,7 +268,6 @@ class DynamicToolProvider(ABC):
     def _create_tools_from_decorators(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
         """
         Internal helper to convert decorated functions into DynamicTool instances.
-        This would be called inside the user's create_tools implementation.
         """
         tools = []
         for func in self._decorated_tools:
@@ -278,15 +277,37 @@ class DynamicToolProvider(ABC):
             tools.append(adapter)
         return tools
 
+    def _get_all_tools_for_framework(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
+        """
+        Framework-internal method that automatically combines decorated tools with custom tools.
+        This is called by the ADK setup code, not by users.
+        
+        Args:
+            tool_config: The configuration dictionary from the agent's YAML file.
+
+        Returns:
+            A list of all DynamicTool objects (decorated + custom).
+        """
+        # Get tools from decorators automatically
+        decorated_tools = self._create_tools_from_decorators(tool_config)
+        
+        # Get custom tools from the user's implementation
+        custom_tools = self.create_tools(tool_config)
+        
+        return decorated_tools + custom_tools
+
     @abstractmethod
     def create_tools(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
         """
-        Generate and return a list of DynamicTool instances.
+        Generate and return a list of custom DynamicTool instances.
+        
+        Note: Tools registered with the @register_tool decorator are automatically
+        included by the framework - you don't need to handle them here.
 
         Args:
             tool_config: The configuration dictionary from the agent's YAML file.
 
         Returns:
-            A list of initialized DynamicTool objects.
+            A list of custom DynamicTool objects (decorated tools are added automatically).
         """
         pass

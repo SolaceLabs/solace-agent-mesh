@@ -196,7 +196,7 @@ async def load_adk_tools(
                         # Instantiate tools from the class
                         if issubclass(tool_class, DynamicToolProvider):
                             provider_instance = tool_class()
-                            dynamic_tools = provider_instance.create_tools(
+                            dynamic_tools = provider_instance._get_all_tools_for_framework(
                                 tool_config=specific_tool_config
                             )
                             log.info(

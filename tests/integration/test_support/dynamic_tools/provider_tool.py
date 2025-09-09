@@ -7,10 +7,9 @@ class MyToolProvider(DynamicToolProvider):
     """A provider that generates multiple dynamic tools for testing."""
 
     def create_tools(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
-        # This will create tools from all decorated functions above
-        tools_from_decorators = self._create_tools_from_decorators(tool_config)
-
-        return tools_from_decorators
+        # Decorated tools are automatically included by the framework!
+        # This method is for any additional custom tools you want to create.
+        return []
 
 
 @MyToolProvider.register_tool
