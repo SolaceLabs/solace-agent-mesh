@@ -654,6 +654,18 @@ def peer_agent_d_app_under_test(
     yield app_instance
 
 
+@pytest.fixture(scope="session")
+def combined_dynamic_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
+    """Retrieves the CombinedDynamicAgent_App instance."""
+    app_instance = shared_solace_connector.get_app("CombinedDynamicAgent_App")
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve CombinedDynamicAgent_App."
+    yield app_instance
+
+
 def get_component_from_app(app: SamAgentApp) -> SamAgentComponent:
     """Helper to get the component from an app."""
     if app.flows and app.flows[0].component_groups:
@@ -697,6 +709,14 @@ def peer_c_component(peer_agent_c_app_under_test: SamAgentApp) -> SamAgentCompon
 def peer_d_component(peer_agent_d_app_under_test: SamAgentApp) -> SamAgentComponent:
     """Retrieves the TestPeerAgentD component instance."""
     return get_component_from_app(peer_agent_d_app_under_test)
+
+
+@pytest.fixture(scope="session")
+def combined_dynamic_agent_component(
+    combined_dynamic_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
+    """Retrieves the CombinedDynamicAgent component instance."""
+    return get_component_from_app(combined_dynamic_agent_app_under_test)
 
 
 @pytest.fixture(scope="session")
@@ -789,6 +809,7 @@ def clear_all_agent_states_between_tests(
     peer_agent_b_app_under_test: SamAgentApp,
     peer_agent_c_app_under_test: SamAgentApp,
     peer_agent_d_app_under_test: SamAgentApp,
+    combined_dynamic_agent_app_under_test: SamAgentApp,
 ):
     """Clears state from all agent components after each test."""
     yield
@@ -797,6 +818,7 @@ def clear_all_agent_states_between_tests(
     _clear_agent_component_state(peer_agent_b_app_under_test)
     _clear_agent_component_state(peer_agent_c_app_under_test)
     _clear_agent_component_state(peer_agent_d_app_under_test)
+    _clear_agent_component_state(combined_dynamic_agent_app_under_test)
 
 
 @pytest.fixture(scope="function")
@@ -806,6 +828,7 @@ def a2a_message_validator(
     peer_agent_b_app_under_test: SamAgentApp,
     peer_agent_c_app_under_test: SamAgentApp,
     peer_agent_d_app_under_test: SamAgentApp,
+    combined_dynamic_agent_app_under_test: SamAgentApp,
     test_gateway_app_instance: TestGatewayComponent,
 ) -> A2AMessageValidator:
     """
@@ -845,6 +868,7 @@ def a2a_message_validator(
         peer_agent_b_app_under_test,
         peer_agent_c_app_under_test,
         peer_agent_d_app_under_test,
+        combined_dynamic_agent_app_under_test,
     ]
 
     components_to_patch = [get_component_from_app(app) for app in all_apps]
