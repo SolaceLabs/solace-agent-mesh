@@ -62,6 +62,13 @@ async def create_project(
     try:
         logger.info(f"Creating project '{name}' for user {user_id}")
 
+        if files:
+            logger.info(f"Received {len(files)} files for project creation:")
+            for file in files:
+                logger.info(f"  - Filename: {file.filename}, Content-Type: {file.content_type}")
+        else:
+            logger.info("No files received for project creation.")
+
         project = await project_service.create_project(
             name=name,
             user_id=user_id,
