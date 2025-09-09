@@ -2,18 +2,33 @@
 Project controller for handling HTTP requests in the presentation layer.
 """
 
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from typing import List, Optional
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    Request,
+    Form,
+    File,
+    UploadFile,
+)
 import logging
 
 from ...dependencies import get_user_id
 from ...application.services.project_service import ProjectService
 from ...domain.entities.project_domain import ProjectCopyRequest
 from ...infrastructure.dependency_injection import get_project_service
-from ..dto.requests.project_requests import CreateProjectRequest, UpdateProjectRequest, CopyProjectRequest
+from ..dto.requests.project_requests import (
+    CreateProjectRequest,
+    UpdateProjectRequest,
+    CopyProjectRequest,
+)
 from ..dto.responses.project_responses import (
-    ProjectResponse, ProjectListResponse, 
-    GlobalProjectResponse, GlobalProjectListResponse
+    ProjectResponse,
+    ProjectListResponse,
+    GlobalProjectResponse,
+    GlobalProjectListResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -23,7 +38,10 @@ router = APIRouter()
 
 @router.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
-    request: CreateProjectRequest,
+    name: str = Form(...),
+    description: Optional[str] = Form(None),
+    system_prompt: Optional[str] = Form(None),
+    files: Optional[List[UploadFile]] = File(None),
     user_id: str = Depends(get_user_id),
     project_service: ProjectService = Depends(get_project_service),
 ):
@@ -31,7 +49,10 @@ async def create_project(
     Create a new project for the authenticated user.
     
     Args:
-        request: Project creation request
+        name: Project name
+        description: Optional project description
+        system_prompt: Optional system prompt
+        files: Optional list of files to attach to the project
         user_id: Authenticated user ID
         project_service: Injected project service
         
@@ -39,15 +60,16 @@ async def create_project(
         ProjectResponse: The created project
     """
     try:
-        logger.info(f"Creating project '{request.name}' for user {user_id}")
-        
-        project = project_service.create_project(
-            name=request.name,
+        logger.info(f"Creating project '{name}' for user {user_id}")
+
+        project = await project_service.create_project(
+            name=name,
             user_id=user_id,
-            description=request.description,
-            system_prompt=request.system_prompt
+            description=description,
+            system_prompt=system_prompt,
+            files=files,
         )
-        
+
         return ProjectResponse(
             id=project.id,
             name=project.name,

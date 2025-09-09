@@ -4,19 +4,47 @@ Business service for project-related operations.
 
 from typing import List, Optional
 import logging
+from fastapi import UploadFile
+from datetime import datetime, timezone
+
+from ....agent.utils.artifact_helpers import save_artifact_with_metadata
+
+try:
+    from google.adk.artifacts import BaseArtifactService
+except ImportError:
+
+    class BaseArtifactService:
+        pass
+
 
 from ...domain.repositories.project_repository import IProjectRepository
 from ...domain.entities.project_domain import ProjectDomain, ProjectFilter, ProjectCopyRequest
+
+GLOBAL_PROJECT_USER_ID = "_global_"
 
 
 class ProjectService:
     """Service layer for project business logic."""
 
-    def __init__(self, project_repository: IProjectRepository):
+    def __init__(
+        self,
+        project_repository: IProjectRepository,
+        artifact_service: BaseArtifactService,
+        app_name: str,
+    ):
         self.project_repository = project_repository
+        self.artifact_service = artifact_service
+        self.app_name = app_name
         self.logger = logging.getLogger(__name__)
 
-    def create_project(self, name: str, user_id: str, description: Optional[str] = None, system_prompt: Optional[str] = None) -> ProjectDomain:
+    async def create_project(
+        self,
+        name: str,
+        user_id: str,
+        description: Optional[str] = None,
+        system_prompt: Optional[str] = None,
+        files: Optional[List[UploadFile]] = None,
+    ) -> ProjectDomain:
         """
         Create a new project for a user.
         
@@ -25,6 +53,7 @@ class ProjectService:
             user_id: ID of the user creating the project
             description: Optional project description
             system_prompt: Optional system prompt
+            files: Optional list of files to associate with the project
             
         Returns:
             DomainProject: The created project
@@ -33,24 +62,46 @@ class ProjectService:
             ValueError: If project name is invalid or user_id is missing
         """
         self.logger.info(f"Creating new project '{name}' for user {user_id}")
-        
+
         # Business validation
         if not name or not name.strip():
             raise ValueError("Project name cannot be empty")
-        
+
         if not user_id:
             raise ValueError("User ID is required to create a project")
-        
+
         # Create the project
         project_domain = self.project_repository.create_project(
             name=name.strip(),
             user_id=user_id,
             description=description.strip() if description else None,
             system_prompt=system_prompt.strip() if system_prompt else None,
-            created_by_user_id=user_id
+            created_by_user_id=user_id,
         )
-        
-        self.logger.info(f"Successfully created project {project_domain.id} for user {user_id}")
+
+        if files and self.artifact_service:
+            self.logger.info(
+                f"Project {project_domain.id} created, now saving {len(files)} artifacts."
+            )
+            project_session_id = f"project-{project_domain.id}"
+            for file in files:
+                content_bytes = await file.read()
+                await save_artifact_with_metadata(
+                    artifact_service=self.artifact_service,
+                    app_name=self.app_name,
+                    user_id=project_domain.user_id,
+                    session_id=project_session_id,
+                    filename=file.filename,
+                    content_bytes=content_bytes,
+                    mime_type=file.content_type,
+                    metadata_dict={},
+                    timestamp=datetime.now(timezone.utc),
+                )
+            self.logger.info(f"Saved {len(files)} artifacts for project {project_domain.id}")
+
+        self.logger.info(
+            f"Successfully created project {project_domain.id} for user {user_id}"
+        )
         return project_domain
 
     def get_project(self, project_id: str, user_id: str) -> Optional[ProjectDomain]:
