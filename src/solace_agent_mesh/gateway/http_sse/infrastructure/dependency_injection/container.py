@@ -129,25 +129,4 @@ def get_container() -> ApplicationContainer:
     return _container
 
 
-from fastapi import Depends
-from ...dependencies import get_sac_component
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from ...component import WebUIBackendComponent
-
-
-def get_project_service(
-    component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> ProjectService:
-    """Dependency factory for ProjectService."""
-    container = get_container()
-    project_repository = container.container.get(IProjectRepository)
-    artifact_service = component.get_shared_artifact_service()
-    app_name = component.get_config("name", "A2A_WebUI_App")
-
-    return ProjectService(
-        project_repository=project_repository,
-        artifact_service=artifact_service,
-        app_name=app_name,
-    )
+# Note: get_project_service has been moved to dependencies.py to avoid circular imports

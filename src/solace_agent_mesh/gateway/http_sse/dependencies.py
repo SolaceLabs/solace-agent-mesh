@@ -20,7 +20,10 @@ from ...gateway.http_sse.services.task_service import TaskService
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .application.services.session_service import SessionService
+from .application.services.project_service import ProjectService
+from .domain.repositories.project_repository import IProjectRepository
 from .infrastructure.repositories.persistence_service import PersistenceService
+from .infrastructure.dependency_injection.container import get_container
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -417,3 +420,19 @@ def get_session_validator(
             return bool(user_id)
 
         return validate_without_database
+
+
+def get_project_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> ProjectService:
+    """Dependency factory for ProjectService."""
+    container = get_container()
+    project_repository = container.container.get(IProjectRepository)
+    artifact_service = component.get_shared_artifact_service()
+    app_name = component.get_config("name", "A2A_WebUI_App")
+
+    return ProjectService(
+        project_repository=project_repository,
+        artifact_service=artifact_service,
+        app_name=app_name,
+    )

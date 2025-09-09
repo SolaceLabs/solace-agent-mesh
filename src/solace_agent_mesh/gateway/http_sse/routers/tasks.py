@@ -202,6 +202,7 @@ async def _submit_task(
                                                     session_id=project_artifacts_session_id,
                                                     filename=artifact_info.filename,
                                                     return_raw_bytes=True,
+                                                    version="latest"
                                                 )
                                                 
                                                 # Save a copy to the current chat session
