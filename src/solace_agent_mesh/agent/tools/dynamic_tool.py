@@ -244,15 +244,6 @@ class DynamicToolProvider(ABC):
 
     _decorated_tools: List[Callable] = []
 
-    def __init_subclass__(cls, **kwargs):
-        """
-        This hook ensures that each subclass of DynamicToolProvider gets its
-        own independent list of decorated tools, avoiding issues with shared
-        mutable class attributes.
-        """
-        super().__init_subclass__(**kwargs)
-        cls._decorated_tools = []
-
     @classmethod
     def register_tool(cls, func: Callable) -> Callable:
         """
@@ -260,6 +251,17 @@ class DynamicToolProvider(ABC):
         The decorated function's signature and docstring will be used to
         create the tool definition.
         """
+        # This check is crucial. It runs for each decorated method.
+        # If the current class `cls` is using the list from the base class
+        # `DynamicToolProvider`, it creates a new, empty list just for `cls`.
+        # On subsequent decorator calls for the same `cls`, this condition will
+        # be false, and it will append to the existing list.
+        if (
+            not hasattr(cls, "_decorated_tools")
+            or cls._decorated_tools is DynamicToolProvider._decorated_tools
+        ):
+            cls._decorated_tools = []
+
         cls._decorated_tools.append(func)
         return func
 
