@@ -45,6 +45,6 @@ class MixedDiscoveryProvider(DynamicToolProvider):
 
 
 @MixedDiscoveryProvider.register_tool
-async def preferred_tool_from_provider(tool_context: ToolContext = None) -> dict:
+async def preferred_tool_from_provider(self, tool_context: ToolContext = None) -> dict:
     """This tool should be loaded because it's from the provider."""
     return {"status": "ok"}

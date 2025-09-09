@@ -1301,6 +1301,7 @@ async def test_declarative_scenario(
     empty_provider_agent_component: SamAgentComponent,
     docstringless_agent_component: SamAgentComponent,
     mixed_discovery_agent_component: SamAgentComponent,
+    complex_signatures_agent_component: SamAgentComponent,
     monkeypatch: pytest.MonkeyPatch,
     mcp_server_harness,
     request: pytest.FixtureRequest,
@@ -1360,6 +1361,7 @@ async def test_declarative_scenario(
         empty_provider_agent_component.agent_name: empty_provider_agent_component,
         docstringless_agent_component.agent_name: docstringless_agent_component,
         mixed_discovery_agent_component.agent_name: mixed_discovery_agent_component,
+        complex_signatures_agent_component.agent_name: complex_signatures_agent_component,
     }
 
     # --- Phase 1: Setup Environment (including config overrides) ---

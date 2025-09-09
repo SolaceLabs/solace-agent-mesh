@@ -546,6 +546,19 @@ def shared_solace_connector(
         model_suffix="mixed-discovery",
     )
 
+    complex_signatures_agent_config = create_agent_config(
+        agent_name="ComplexSignaturesAgent",
+        description="Agent for testing complex tool signatures.",
+        allow_list=[],
+        tools=[
+            {
+                "tool_type": "python",
+                "component_module": "tests.integration.test_support.dynamic_tools.complex_signatures",
+            }
+        ],
+        model_suffix="complex-signatures",
+    )
+
     app_infos = [
         {
             "name": "TestSamAgentApp",
@@ -608,6 +621,12 @@ def shared_solace_connector(
         {
             "name": "MixedDiscoveryAgent_App",
             "app_config": mixed_discovery_agent_config,
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.sac.app",
+        },
+        {
+            "name": "ComplexSignaturesAgent_App",
+            "app_config": complex_signatures_agent_config,
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.agent.sac.app",
         },
@@ -761,6 +780,18 @@ def mixed_discovery_agent_app_under_test(
     yield app_instance
 
 
+@pytest.fixture(scope="session")
+def complex_signatures_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
+    """Retrieves the ComplexSignaturesAgent_App instance."""
+    app_instance = shared_solace_connector.get_app("ComplexSignaturesAgent_App")
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve ComplexSignaturesAgent_App."
+    yield app_instance
+
+
 def get_component_from_app(app: SamAgentApp) -> SamAgentComponent:
     """Helper to get the component from an app."""
     if app.flows and app.flows[0].component_groups:
@@ -836,6 +867,14 @@ def mixed_discovery_agent_component(
 ) -> SamAgentComponent:
     """Retrieves the MixedDiscoveryAgent component instance."""
     return get_component_from_app(mixed_discovery_agent_app_under_test)
+
+
+@pytest.fixture(scope="session")
+def complex_signatures_agent_component(
+    complex_signatures_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
+    """Retrieves the ComplexSignaturesAgent component instance."""
+    return get_component_from_app(complex_signatures_agent_app_under_test)
 
 
 @pytest.fixture(scope="session")
@@ -932,6 +971,7 @@ def clear_all_agent_states_between_tests(
     empty_provider_agent_app_under_test: SamAgentApp,
     docstringless_agent_app_under_test: SamAgentApp,
     mixed_discovery_agent_app_under_test: SamAgentApp,
+    complex_signatures_agent_app_under_test: SamAgentApp,
 ):
     """Clears state from all agent components after each test."""
     yield
@@ -944,6 +984,7 @@ def clear_all_agent_states_between_tests(
     _clear_agent_component_state(empty_provider_agent_app_under_test)
     _clear_agent_component_state(docstringless_agent_app_under_test)
     _clear_agent_component_state(mixed_discovery_agent_app_under_test)
+    _clear_agent_component_state(complex_signatures_agent_app_under_test)
 
 
 @pytest.fixture(scope="function")

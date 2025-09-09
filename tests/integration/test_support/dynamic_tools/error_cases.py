@@ -25,6 +25,6 @@ class ProviderWithDocstringlessTool(DynamicToolProvider):
 
 
 @ProviderWithDocstringlessTool.register_tool
-async def tool_with_no_docstring(some_arg: str, tool_context: ToolContext = None):
+async def tool_with_no_docstring(self, some_arg: str, tool_context: ToolContext = None):
     # This tool intentionally lacks a docstring.
     return {"result": f"You passed: {some_arg}"}
