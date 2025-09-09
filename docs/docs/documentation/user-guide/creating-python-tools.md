@@ -181,11 +181,6 @@ class DatabaseToolProvider(DynamicToolProvider):
     """A factory that creates all database-related tools."""
 
     # Use a decorator for a simple, function-based tool
-    @DynamicToolProvider.register_tool
-    async def get_database_server_version(tool_config: dict, **kwargs) -> dict:
-        """Returns the version of the connected PostgreSQL server."""
-        # ... implementation ...
-        return {"version": "PostgreSQL 15.3"}
 
     def create_tools(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
         """
@@ -201,6 +196,14 @@ class DatabaseToolProvider(DynamicToolProvider):
             tools.append(DatabaseSchemaTool(tool_config=tool_config))
 
         return tools
+
+# NOTE that you must use the decorator outside of any class with the provider's class name.
+@DatabaseToolProvider.register_tool
+async def get_database_server_version(tool_config: dict, **kwargs) -> dict:
+    """Returns the version of the connected PostgreSQL server."""
+    # ... implementation ...
+    return {"version": "PostgreSQL 15.3"}
+
 ```
 
 ### Step 2: Configure the Provider

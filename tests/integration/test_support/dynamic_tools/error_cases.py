@@ -19,15 +19,12 @@ class EmptyToolProvider(DynamicToolProvider):
 class ProviderWithDocstringlessTool(DynamicToolProvider):
     """A provider for testing docstring handling."""
 
-    @ProviderWithDocstringlessTool.register_tool
-    async def tool_with_no_docstring(
-        self, some_arg: str, tool_context: ToolContext = None
-    ):
-        # This tool intentionally lacks a docstring.
-        return {"result": f"You passed: {some_arg}"}
-
     def create_tools(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
         # Must implement the abstract method, even if it does nothing.
         return []
 
 
+@ProviderWithDocstringlessTool.register_tool
+async def tool_with_no_docstring(some_arg: str, tool_context: ToolContext = None):
+    # This tool intentionally lacks a docstring.
+    return {"result": f"You passed: {some_arg}"}

@@ -39,11 +39,12 @@ class MixedDiscoveryProvider(DynamicToolProvider):
     and its tools should be loaded.
     """
 
-    @DynamicToolProvider.register_tool
-    async def preferred_tool_from_provider(self, tool_context: ToolContext = None) -> dict:
-        """This tool should be loaded because it's from the provider."""
-        return {"status": "ok"}
-
     def create_tools(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
         # Must implement the abstract method.
         return []
+
+
+@MixedDiscoveryProvider.register_tool
+async def preferred_tool_from_provider(tool_context: ToolContext = None) -> dict:
+    """This tool should be loaded because it's from the provider."""
+    return {"status": "ok"}
