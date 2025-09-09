@@ -7,7 +7,7 @@ import logging
 from fastapi import UploadFile
 from datetime import datetime, timezone
 
-from ....agent.utils.artifact_helpers import save_artifact_with_metadata
+from .....agent.utils.artifact_helpers import save_artifact_with_metadata
 
 try:
     from google.adk.artifacts import BaseArtifactService
