@@ -19,7 +19,7 @@ class EmptyToolProvider(DynamicToolProvider):
 class ProviderWithDocstringlessTool(DynamicToolProvider):
     """A provider for testing docstring handling."""
 
-    @DynamicToolProvider.register_tool
+    @ProviderWithDocstringlessTool.register_tool
     async def tool_with_no_docstring(
         self, some_arg: str, tool_context: ToolContext = None
     ):
