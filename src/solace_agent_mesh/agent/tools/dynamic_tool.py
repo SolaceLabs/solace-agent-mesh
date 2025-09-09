@@ -10,6 +10,14 @@ import inspect
 
 from google.adk.tools import BaseTool, ToolContext
 from google.genai import types as adk_types
+from solace_ai_connector.common.log import log
+
+from ...common.utils.embeds import (
+    resolve_embeds_in_string,
+    evaluate_embed,
+    EARLY_EMBED_TYPES,
+    EMBED_DELIMITER_OPEN,
+)
 
 
 # --- Base Class for Programmatic Tools ---
@@ -45,6 +53,14 @@ class DynamicTool(BaseTool, ABC):
         """Return the ADK Schema defining the tool's parameters."""
         pass
 
+    @property
+    def raw_string_args(self) -> List[str]:
+        """
+        Return a list of argument names that should not have embeds resolved.
+        Subclasses can override this property.
+        """
+        return []
+
     def _get_declaration(self) -> Optional[adk_types.FunctionDeclaration]:
         """
         Generate the FunctionDeclaration for this dynamic tool.
@@ -64,10 +80,36 @@ class DynamicTool(BaseTool, ABC):
     ) -> Dict[str, Any]:
         """
         Asynchronously runs the tool with the given arguments.
-        This method delegates the call to the abstract _run_async_impl.
+        This method resolves embeds in arguments and then delegates the call
+        to the abstract _run_async_impl.
         """
+        log_identifier = f"[DynamicTool:{self.tool_name}]"
+        resolved_kwargs = args.copy()
+
+        # Unlike ADKToolWrapper, DynamicTools receive all args in a single dict.
+        # We iterate through this dict to resolve embeds.
+        for key, value in args.items():
+            if key in self.raw_string_args and isinstance(value, str):
+                log.debug(
+                    "%s Skipping embed resolution for raw string kwarg '%s'",
+                    log_identifier,
+                    key,
+                )
+            elif isinstance(value, str) and EMBED_DELIMITER_OPEN in value:
+                log.debug("%s Resolving embeds for kwarg '%s'", log_identifier, key)
+                # For now, dynamic tools only support early resolution to be safe.
+                resolved_value, _, _ = await resolve_embeds_in_string(
+                    text=value,
+                    context=tool_context,
+                    resolver_func=evaluate_embed,
+                    types_to_resolve=EARLY_EMBED_TYPES,
+                    log_identifier=log_identifier,
+                    config=self.tool_config,
+                )
+                resolved_kwargs[key] = resolved_value
+
         return await self._run_async_impl(
-            args=args, tool_context=tool_context, credential=None
+            args=resolved_kwargs, tool_context=tool_context, credential=None
         )
 
     @abstractmethod
