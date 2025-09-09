@@ -8,8 +8,9 @@ from a2a.types import InternalError, JSONRPCError
 from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
 from alembic import command
 from alembic.config import Config
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException
 from fastapi import Request as FastAPIRequest
+from fastapi import status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -34,7 +35,6 @@ from ...gateway.http_sse.routers import (
 from .api.controllers.session_controller import router as session_router
 from .api.controllers.task_controller import router as task_router
 from .api.controllers.user_controller import router as user_router
-from .infrastructure.persistence.database_service import DatabaseService
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
@@ -55,12 +55,9 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service=N
     """
 
     if persistence_service:
-        # Get the database URL from the persistence service's engine
-        # Use render_as_string(hide_password=False) to get the actual password
-        database_url = persistence_service.engine.url.render_as_string(hide_password=False)
-        # Log with password hidden for security
-        log.info(f"Using database URL from persistence service: {str(persistence_service.engine.url)}")
-
+        database_url = persistence_service.engine.url.render_as_string(
+            hide_password=False
+        )
         from .infrastructure.dependency_injection.container import initialize_container
 
         initialize_container(database_url)
