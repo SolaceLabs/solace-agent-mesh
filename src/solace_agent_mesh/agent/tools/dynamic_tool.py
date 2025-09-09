@@ -277,7 +277,7 @@ class DynamicToolProvider(ABC):
             tools.append(adapter)
         return tools
 
-    def _get_all_tools_for_framework(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
+    def get_all_tools_for_framework(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
         """
         Framework-internal method that automatically combines decorated tools with custom tools.
         This is called by the ADK setup code, not by users.
