@@ -21,8 +21,10 @@ class DynamicTool(BaseTool, ABC):
     """
 
     def __init__(self, tool_config: Optional[dict] = None):
-        # Initialize with a placeholder name, will be overridden by tool_name property
-        super().__init__(name="dynamic_tool_placeholder")
+        # Initialize with placeholder values, will be overridden by properties
+        super().__init__(
+            name="dynamic_tool_placeholder", description="dynamic_tool_placeholder"
+        )
         self.tool_config = tool_config or {}
 
     @property
