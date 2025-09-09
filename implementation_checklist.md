@@ -15,7 +15,7 @@
 
 ### Step 3: Create and Implement Programmatic Tests
 
-8.  [ ] Create the new test file `tests/integration/scenarios_programmatic/test_dynamic_tools.py`.
-9.  [ ] In `test_dynamic_tools.py`, add the `pytest.mark.dynamic_tools` marker to the `pytestmark` list.
-10. [ ] Implement the test `test_single_dynamic_tool_execution` to verify the `DynamicToolAgent`.
-11. [ ] Implement the test `test_dynamic_tool_provider_execution` to verify the `DynamicProviderAgent`.
+8.  [x] Create the new test file `tests/integration/scenarios_programmatic/test_dynamic_tools.py`.
+9.  [x] In `test_dynamic_tools.py`, add the `pytest.mark.dynamic_tools` marker to the `pytestmark` list.
+10. [x] Implement the test `test_single_dynamic_tool_execution` to verify the `DynamicToolAgent`.
+11. [x] Implement the test `test_dynamic_tool_provider_execution` to verify the `DynamicProviderAgent`.
