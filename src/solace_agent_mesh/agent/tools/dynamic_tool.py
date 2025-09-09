@@ -139,10 +139,25 @@ class _FunctionAsDynamicTool(DynamicTool):
     """
     Internal adapter to wrap a standard Python function as a DynamicTool.
     """
-    def __init__(self, func: Callable, tool_config: Optional[dict] = None):
+
+    def __init__(
+        self,
+        func: Callable,
+        tool_config: Optional[dict] = None,
+        provider_instance: Optional[Any] = None,
+    ):
         super().__init__(tool_config=tool_config)
         self._func = func
+        self._provider_instance = provider_instance
         self._schema = _get_schema_from_signature(func)
+
+        # Check if the function is an instance method that needs `self`
+        self._is_instance_method = False
+        sig = inspect.signature(self._func)
+        if sig.parameters:
+            first_param = next(iter(sig.parameters.values()))
+            if first_param.name == "self":
+                self._is_instance_method = True
 
     @property
     def tool_name(self) -> str:
@@ -160,7 +175,7 @@ class _FunctionAsDynamicTool(DynamicTool):
         self,
         args: dict,
         tool_context: ToolContext,
-        credential: Optional[str] = None
+        credential: Optional[str] = None,
     ) -> dict:
         # Inject tool_context and tool_config if the function expects them
         sig = inspect.signature(self._func)
@@ -169,7 +184,12 @@ class _FunctionAsDynamicTool(DynamicTool):
         if "tool_config" in sig.parameters:
             args["tool_config"] = self.tool_config
 
-        return await self._func(**args)
+        if self._provider_instance and self._is_instance_method:
+            # It's an instance method, call it on the provider instance
+            return await self._func(self._provider_instance, **args)
+        else:
+            # It's a static method or a standalone function
+            return await self._func(**args)
 
 
 # --- Base Class for Tool Providers ---
@@ -202,7 +222,9 @@ class DynamicToolProvider(ABC):
         """
         tools = []
         for func in self._decorated_tools:
-            adapter = _FunctionAsDynamicTool(func, tool_config)
+            adapter = _FunctionAsDynamicTool(
+                func, tool_config, provider_instance=self
+            )
             tools.append(adapter)
         return tools
 
