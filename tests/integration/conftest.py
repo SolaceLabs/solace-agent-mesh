@@ -540,7 +540,7 @@ def shared_solace_connector(
         tools=[
             {
                 "tool_type": "python",
-                "component_module": "tests.integration.test_support.dynamic_tools.error_cases",
+                "component_module": "tests.integration.test_support.dynamic_tools.mixed_discovery",
             }
         ],
         model_suffix="mixed-discovery",
