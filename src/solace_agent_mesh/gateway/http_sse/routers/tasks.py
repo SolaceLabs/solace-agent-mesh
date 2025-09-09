@@ -15,7 +15,7 @@ from solace_ai_connector.common.log import log
 
 from ....gateway.http_sse.session_manager import SessionManager
 from ....gateway.http_sse.services.task_service import TaskService
-from ....application.services.project_service import ProjectService
+from ..application.services.project_service import ProjectService
 
 from a2a.types import (
     CancelTaskRequest,
