@@ -12,6 +12,8 @@ from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
+CATEGORY_NAME = "Test Tools"
+CATEGORY_DESCRIPTION = "Tools for testing and debugging."
 
 async def time_delay(
     seconds: float,
@@ -68,6 +70,8 @@ time_delay_tool_def = BuiltinTool(
     implementation=time_delay,
     description="Pauses execution for a specified number of seconds. Useful for testing timeouts and asynchronous behavior.",
     category="test",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:test:delay"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
@@ -106,6 +110,8 @@ always_fail_tool_def = BuiltinTool(
     implementation=always_fail_tool,
     description="This tool is designed to always raise an exception for testing error handling.",
     category="test",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:test:fail"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
@@ -120,6 +126,8 @@ dangling_tool_call_test_tool_def = BuiltinTool(
     implementation=dangling_tool_call_test_tool,
     description="A test tool that returns None to create a dangling tool call in the history.",
     category="test",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:test:dangle"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,

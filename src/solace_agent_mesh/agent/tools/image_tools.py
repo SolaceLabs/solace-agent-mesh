@@ -26,6 +26,8 @@ from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
+CATEGORY_NAME = "Image Tools"
+CATEGORY_DESCRIPTION = "Tools for image generation, manipulation, and multimodal content analysis."
 
 async def create_image_from_description(
     image_description: str,
@@ -1083,6 +1085,8 @@ create_image_from_description_tool_def = BuiltinTool(
     implementation=create_image_from_description,
     description="Generates an image based on a textual description using a configured image generation model (e.g., via LiteLLM) and saves it as a PNG artifact.",
     category="image",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:image:create"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
@@ -1107,6 +1111,8 @@ describe_image_tool_def = BuiltinTool(
     implementation=describe_image,
     description="Describes an image using an OpenAI-compatible vision API.",
     category="image",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:image:describe"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
@@ -1131,6 +1137,8 @@ describe_audio_tool_def = BuiltinTool(
     implementation=describe_audio,
     description="Describes an audio recording using a multimodal API.",
     category="image",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:audio:describe"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
@@ -1155,6 +1163,8 @@ edit_image_with_gemini_tool_def = BuiltinTool(
     implementation=edit_image_with_gemini,
     description="Edits an existing image based on a text prompt using Google's Gemini 2.0 Flash Preview Image Generation model.",
     category="image",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:image:edit"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,

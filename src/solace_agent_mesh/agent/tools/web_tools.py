@@ -27,6 +27,8 @@ from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
+CATEGORY_NAME = "Web Tools"
+CATEGORY_DESCRIPTION = "Tools for interacting with the web."
 
 def _is_safe_url(url: str) -> bool:
     """
@@ -345,6 +347,8 @@ web_request_tool_def = BuiltinTool(
     implementation=web_request,
     description="Makes an HTTP request to a URL, processes content (e.g., HTML to Markdown), and saves the result as an artifact.",
     category="web",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:web:request"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
