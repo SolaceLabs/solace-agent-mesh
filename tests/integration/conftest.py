@@ -493,12 +493,12 @@ def shared_solace_connector(
         allow_list=[],
         tools=[
             {
-                "tool_type": "dynamic",
+                "tool_type": "python",
                 "component_module": "tests.integration.test_support.dynamic_tools.single_tool",
                 "tool_config": {"greeting_prefix": "Hi there"},
             },
             {
-                "tool_type": "dynamic",
+                "tool_type": "python",
                 "component_module": "tests.integration.test_support.dynamic_tools.provider_tool",
             },
         ],
@@ -597,9 +597,9 @@ def sam_app_under_test(shared_solace_connector: SolaceAiConnector) -> SamAgentAp
     Retrieves the main SamAgentApp instance from the session-scoped SolaceAiConnector.
     """
     app_instance = shared_solace_connector.get_app("TestSamAgentApp")
-    assert isinstance(app_instance, SamAgentApp), (
-        "Failed to retrieve SamAgentApp from shared connector."
-    )
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve SamAgentApp from shared connector."
     print(
         f"sam_app_under_test fixture: Retrieved app {app_instance.name} from shared SolaceAiConnector."
     )
@@ -612,9 +612,9 @@ def peer_agent_a_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the TestPeerAgentA_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentA_App")
-    assert isinstance(app_instance, SamAgentApp), (
-        "Failed to retrieve TestPeerAgentA_App."
-    )
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve TestPeerAgentA_App."
     yield app_instance
 
 
@@ -624,9 +624,9 @@ def peer_agent_b_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the TestPeerAgentB_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentB_App")
-    assert isinstance(app_instance, SamAgentApp), (
-        "Failed to retrieve TestPeerAgentB_App."
-    )
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve TestPeerAgentB_App."
     yield app_instance
 
 
@@ -636,9 +636,9 @@ def peer_agent_c_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the TestPeerAgentC_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentC_App")
-    assert isinstance(app_instance, SamAgentApp), (
-        "Failed to retrieve TestPeerAgentC_App."
-    )
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve TestPeerAgentC_App."
     yield app_instance
 
 
@@ -648,9 +648,9 @@ def peer_agent_d_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the TestPeerAgentD_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentD_App")
-    assert isinstance(app_instance, SamAgentApp), (
-        "Failed to retrieve TestPeerAgentD_App."
-    )
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve TestPeerAgentD_App."
     yield app_instance
 
 
@@ -708,9 +708,9 @@ def test_gateway_app_instance(
     and yields its TestGatewayComponent.
     """
     app_instance = shared_solace_connector.get_app("TestHarnessGatewayApp")
-    assert isinstance(app_instance, TestGatewayApp), (
-        "Failed to retrieve TestGatewayApp from shared connector."
-    )
+    assert isinstance(
+        app_instance, TestGatewayApp
+    ), "Failed to retrieve TestGatewayApp from shared connector."
     print(
         f"test_gateway_app_instance fixture: Retrieved app {app_instance.name} from shared SolaceAiConnector."
     )
@@ -897,7 +897,6 @@ def mock_agent_card(mock_agent_skills: AgentSkill) -> AgentCard:
     )
 
 
-
 @pytest.fixture(scope="function")
 def mock_task_response() -> Task:
     """
@@ -917,7 +916,6 @@ def mock_task_response() -> Task:
         context_id="session-456",
         final_status=final_status,
     )
-
 
 
 @pytest.fixture(scope="function")
@@ -941,7 +939,6 @@ def mock_task_response_cancel() -> Task:
     )
 
 
-
 @pytest.fixture(scope="function")
 def mock_sse_task_response() -> TaskStatusUpdateEvent:
     """
@@ -959,7 +956,6 @@ def mock_sse_task_response() -> TaskStatusUpdateEvent:
     )
     status_update.status.timestamp = "2024-01-01T00:00:00Z"  # for deterministic testing
     return status_update
-
 
 
 @pytest.fixture(scope="function")
