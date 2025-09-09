@@ -18,7 +18,7 @@ import logging
 from ...dependencies import get_user_id
 from ...application.services.project_service import ProjectService
 from ...domain.entities.project_domain import ProjectCopyRequest
-from ...infrastructure.dependency_injection import get_project_service
+from ...dependencies import get_project_service
 from ..dto.requests.project_requests import (
     CreateProjectRequest,
     UpdateProjectRequest,
