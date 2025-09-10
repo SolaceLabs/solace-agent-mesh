@@ -22,9 +22,9 @@
             }
         },
         {
-            "name": "gemini-flash",
+            "name": "gemini-2.5-flash",
             "env": {
-                "LLM_SERVICE_PLANNING_MODEL_NAME": "openai/gemini-flash",
+                "LLM_SERVICE_PLANNING_MODEL_NAME": "openai/gemini-2.5-flash",
                 "LLM_SERVICE_ENDPOINT_VAR": "LLM_SERVICE_ENDPOINT",
                 "LLM_SERVICE_API_KEY_VAR": "LLM_SERVICE_API_KEY",
                 "MAX_TOKENS": "8000"

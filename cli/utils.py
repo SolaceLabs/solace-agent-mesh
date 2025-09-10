@@ -236,6 +236,16 @@ def create_and_validate_database(database_url: str, db_name: str = "database") -
                 cursor = dbapi_connection.cursor()
                 cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.close()
+        elif database_url.startswith("postgresql"):
+            # Check if PostgreSQL driver is available
+            try:
+                import psycopg2
+            except ImportError:
+                raise ImportError(
+                    "PostgreSQL support requires psycopg2. Install with: "
+                    "pip install 'solace-agent-mesh[postgresql]'"
+                )
+            engine = create_engine(database_url)
         else:
             engine = create_engine(database_url)
 

@@ -9,19 +9,19 @@ from solace_ai_connector.common.log import log
 
 from ....common.agent_registry import AgentRegistry
 from a2a.types import AgentCard
-from ....gateway.http_sse.dependencies import get_agent_registry
+from ..dependencies import get_agent_registry
 
 router = APIRouter()
 
 
-@router.get("/agents", response_model=List[AgentCard])
-async def get_discovered_agents(
+@router.get("/agentCards", response_model=List[AgentCard])
+async def get_discovered_agent_cards(
     agent_registry: AgentRegistry = Depends(get_agent_registry),
 ):
     """
-    Retrieves a list of all currently discovered A2A agents.
+    Retrieves a list of all currently discovered A2A agents' cards.
     """
-    log_prefix = "[GET /api/v1/agents] "
+    log_prefix = "[GET /api/v1/agentCards] "
     log.info("%sRequest received.", log_prefix)
     try:
         agent_names = agent_registry.get_agent_names()
@@ -31,10 +31,10 @@ async def get_discovered_agents(
             if agent_registry.get_agent(name)
         ]
 
-        log.info("%sReturning %d discovered agents.", log_prefix, len(agents))
+        log.info("%sReturning %d discovered agent cards.", log_prefix, len(agents))
         return agents
     except Exception as e:
-        log.exception("%sError retrieving discovered agents: %s", log_prefix, e)
+        log.exception("%sError retrieving discovered agent cards: %s", log_prefix, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error retrieving agent list.",

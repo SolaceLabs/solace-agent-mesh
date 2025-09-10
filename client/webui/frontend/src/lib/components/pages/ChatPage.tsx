@@ -123,7 +123,7 @@ export function ChatPage() {
             setSelectedAgentName(agentName);
 
             const selectedAgent = agents.find(agent => agent.name === agentName);
-            const displayedText = selectedAgent?.display_name ? `Hi! I'm the ${selectedAgent?.display_name} Agent. How can I help?` : `Hi! I'm ${agentName}. How can I help?`;
+            const displayedText = selectedAgent?.displayName ? `Hi! I'm the ${selectedAgent?.displayName} Agent. How can I help?` : `Hi! I'm ${agentName}. How can I help?`;
 
             setMessages(prev => {
                 const filteredMessages = prev.filter(msg => !msg.isStatusBubble);

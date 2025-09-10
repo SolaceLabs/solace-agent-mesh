@@ -20,7 +20,7 @@ from starlette.staticfiles import StaticFiles
 from ...common import a2a
 from ...gateway.http_sse import dependencies
 from ...gateway.http_sse.routers import (
-    agents,
+    agent_cards,
     artifacts,
     auth,
     config,
@@ -492,7 +492,7 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service=N
 
     # Mount new A2A SDK routers with different paths to avoid conflicts
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
-    app.include_router(agents.router, prefix=api_prefix, tags=["Agents"])
+    app.include_router(agent_cards.router, prefix=api_prefix, tags=["Agent Cards"])
     # New A2A message endpoints (non-conflicting paths)
     app.include_router(
         tasks.router, prefix=api_prefix, tags=["A2A Messages"]

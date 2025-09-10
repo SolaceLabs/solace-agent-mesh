@@ -14,7 +14,7 @@ from ...common.middleware.config_resolver import ConfigResolver
 from ...common.services.identity_service import BaseIdentityService
 from ...core_a2a.service import CoreA2AService
 from ...gateway.base.task_context import TaskContextManager
-from ...gateway.http_sse.services.agent_service import AgentService
+from ...gateway.http_sse.services.agent_card_service import AgentCardService
 from ...gateway.http_sse.services.people_service import PeopleService
 from ...gateway.http_sse.services.task_service import TaskService
 from ...gateway.http_sse.session_manager import SessionManager
@@ -323,12 +323,12 @@ def get_task_context_manager_from_component(
     return component.task_context_manager
 
 
-def get_agent_service(
+def get_agent_card_service(
     registry: AgentRegistry = Depends(get_agent_registry),
-) -> AgentService:
-    """FastAPI dependency to get an instance of AgentService."""
-    log.debug("[Dependencies] get_agent_service called")
-    return AgentService(agent_registry=registry)
+) -> AgentCardService:
+    """FastAPI dependency to get an instance of AgentCardService."""
+    log.debug("[Dependencies] get_agent_card_service called")
+    return AgentCardService(agent_registry=registry)
 
 
 def get_task_service(

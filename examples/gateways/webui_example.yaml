@@ -66,7 +66,6 @@ apps:
             Format responses to the user in Markdown using appropriate formatting.
 
       # --- Frontend Config Passthrough ---
-      frontend_welcome_message: >
-            __FRONTEND_WELCOME_MESSAGE__
-      frontend_bot_name: __FRONTEND_BOT_NAME__
-      frontend_collect_feedback: __FRONTEND_COLLECT_FEEDBACK__
+      frontend_welcome_message: ${FRONTEND_WELCOME_MESSAGE}
+      frontend_bot_name: ${FRONTEND_BOT_NAME}
+      frontend_collect_feedback: ${FRONTEND_COLLECT_FEEDBACK}

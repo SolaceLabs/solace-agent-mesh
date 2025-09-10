@@ -1,10 +1,9 @@
 import React from "react";
 import type { ReactNode } from "react";
 
-import { GitMerge, Info, Book, Link, Paperclip, Clock, Box, Wrench, Key, Bot, Code } from "lucide-react";
+import { GitMerge, Info, Book, Link, Paperclip, Box, Wrench, Key, Bot, Code } from "lucide-react";
 
-import type { AgentInfo, AgentSkill } from "@/lib/types";
-import { formatTimestamp } from "@/lib/utils/format";
+import type { AgentCardInfo, AgentSkill } from "@/lib/types";
 
 interface DetailItemProps {
     label: string;
@@ -14,7 +13,7 @@ interface DetailItemProps {
 }
 
 interface AgentDisplayCardProps {
-    agent: AgentInfo;
+    agent: AgentCardInfo;
     isExpanded: boolean;
     onToggleExpand: () => void;
 }
@@ -104,7 +103,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                             <Bot className="mr-3 h-8 w-8 flex-shrink-0 text-[var(--color-brand-wMain)]" />
                             <div className="min-w-0">
                                 <h2 className="truncate text-xl font-semibold" title={agent.name}>
-                                    {agent.display_name || agent.name}
+                                    {agent.displayName || agent.name}
                                 </h2>
                             </div>
                         </div>
@@ -128,7 +127,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                 >
                     <div className="flex items-center p-3">
                         <h3 className="text-md truncate font-semibold" title={agent.name}>
-                            Details: {agent.display_name || agent.name}
+                            Details: {agent.displayName || agent.name}
                         </h3>
                     </div>
                     <div className="scrollbar-themed flex-grow space-y-1.5 overflow-y-auto p-3 text-xs">
@@ -153,7 +152,6 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                             }
                             icon={<Paperclip size={14} />}
                         />
-                        <DetailItem label="Last Seen" value={formatTimestamp(agent.last_seen)} icon={<Clock size={14} />} />
                         {agent.provider && (
                             <div className="mt-1.5 border-t pt-1.5">
                                 <h4 className="mb-0.5 text-xs font-semibold">Provider</h4>

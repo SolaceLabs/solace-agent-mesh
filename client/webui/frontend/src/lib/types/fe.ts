@@ -42,15 +42,23 @@ export interface ToolEvent {
     data: unknown; // The result data from the tool
 }
 
-
 /**
- * A UI-specific interface that extends the official A2A AgentCard with additional
- * properties needed for rendering, like a display_name.
+ * @deprecated use AgentCardInfo
  */
-export interface AgentInfo extends AgentCard {
+export interface AgentInfo extends AgentCard  {
     display_name?: string;
     last_seen?: string;
     peer_agents?: string[];
+    tools?: AgentSkill[];
+}
+
+/**
+ * A UI-specific interface that extends the official A2A AgentCard with additional
+ * properties needed for rendering, like a displayName.
+ */
+export interface AgentCardInfo extends AgentInfo {
+    displayName?: string;
+    peerAgents?: string[];
     tools?: AgentSkill[];
 }
 
