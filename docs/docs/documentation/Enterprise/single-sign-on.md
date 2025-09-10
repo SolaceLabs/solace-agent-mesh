@@ -246,7 +246,7 @@ OAUTHLIB_INSECURE_TRANSPORT="1"
 -e AZURE_CLIENT_SECRET="xxxxxxxxx-xxxxxx-xxxxxxxx-xxxxxxxxxx" \
 ```
 
-**Configure the authorization server's public URL (accessible from outside the Docker container) and specify the OAuth2 provider’s name from oauth2_config.yaml (this example uses the azure profile:**
+**Configure the authorization server's public URL (accessible from outside the Docker container) and specify the OAuth2 provider’s name from oauth2_config.yaml (this example uses the azure profile):**
 
 ```bash
 -e EXTERNAL_AUTH_SERVICE_URL="http://localhost:9000" \
