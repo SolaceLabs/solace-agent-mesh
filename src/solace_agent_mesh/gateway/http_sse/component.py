@@ -156,6 +156,14 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self._visualization_locks_lock = threading.Lock()
         self._global_visualization_subscriptions: dict[str, int] = {}
         self._visualization_processor_task: asyncio.Task | None = None
+        
+        # Initialize SAM Events service for system events
+        from ...common.sam_events import SamEventService
+        self.sam_events = SamEventService(
+            namespace=self.namespace,
+            component_name=f"{self.name}_gateway", 
+            publish_func=self.publish_a2a
+        )
 
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
 
@@ -989,7 +997,16 @@ class WebUIBackendComponent(BaseGatewayComponent):
         This method can be called from FastAPI handlers (via dependency injection).
         It's thread-safe as it uses the SAC App instance.
         """
-        super().publish_a2a_message(topic, payload, user_properties)
+        log.debug(f"[publish_a2a] Starting to publish message to topic: {topic}")
+        log.debug(f"[publish_a2a] Payload type: {type(payload)}, size: {len(str(payload))} chars")
+        log.debug(f"[publish_a2a] User properties: {user_properties}")
+        
+        try:
+            super().publish_a2a_message(payload, topic, user_properties)
+            log.debug(f"[publish_a2a] Successfully called super().publish_a2a_message for topic: {topic}")
+        except Exception as e:
+            log.error(f"[publish_a2a] Exception in publish_a2a: {e}", exc_info=True)
+            raise
 
     def _cleanup_visualization_locks(self):
         """Remove locks for closed event loops to prevent memory leaks."""
@@ -1061,6 +1078,16 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         # --- Phase 1: Parse the payload to extract core info ---
         try:
+            # Handle SAM Events (system events)
+            event_type = payload.get("event_type")
+            if event_type:
+                details["direction"] = "system_event"
+                details["debug_type"] = "sam_event"
+                details["payload_summary"]["method"] = event_type
+                details["source_entity"] = payload.get("source_component", "unknown")
+                details["target_entity"] = "system"
+                return details
+                
             # Try to parse as a JSON-RPC response first
             if "result" in payload or "error" in payload:
                 rpc_response = JSONRPCResponse.model_validate(payload)

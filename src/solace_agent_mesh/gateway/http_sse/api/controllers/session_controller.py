@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status, BackgroundTasks
 from solace_ai_connector.common.log import log
 
 from ...application.services.session_service import SessionService
@@ -6,6 +6,7 @@ from ...dependencies import (
     PublishFunc,
     get_namespace,
     get_publish_a2a_func,
+    get_sac_component,
     get_session_service,
 )
 from ...shared.auth_utils import get_current_user
@@ -268,10 +269,12 @@ async def update_session_name(
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_session(
     session_id: str,
+    background_tasks: BackgroundTasks,
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_service),
     publish_func: PublishFunc = Depends(get_publish_a2a_func),
     namespace: str = Depends(get_namespace),
+    component = Depends(get_sac_component),
 ):
     user_id = user.get("id")
     log.info("User %s attempting to delete session %s", user_id, session_id)
@@ -310,33 +313,30 @@ async def delete_session(
 
         if agent_id:
             try:
-                from solace_agent_mesh.common.a2a.protocol import (
-                    get_agent_request_topic,
-                )
-
-                control_message = {
-                    "control": {
-                        "action": "delete_session",
-                        "session_id": session_id,
-                        "user_id": user_id,
-                    }
-                }
-
-                target_topic = get_agent_request_topic(namespace, agent_id)
-
                 log.info(
-                    "Sending session deletion notification to agent %s for session %s",
-                    agent_id,
+                    "Publishing session deletion event for session %s (agent %s, user %s)",
                     session_id,
+                    agent_id,
+                    user_id
                 )
-
-                publish_func(target_topic, control_message, None)
+                
+                # Use SAM Events for clean system event messaging
+                success = component.sam_events.publish_session_deleted(
+                    session_id=session_id,
+                    user_id=user_id,
+                    agent_id=agent_id,
+                    gateway_id=component.gateway_id
+                )
+                
+                if success:
+                    log.info("Successfully published session deletion event for session %s", session_id)
+                else:
+                    log.warning("Failed to publish session deletion event for session %s", session_id)
 
             except Exception as e:
                 log.warning(
-                    "Failed to notify agent %s about session %s deletion: %s",
+                    "Failed to publish session deletion event to agent %s: %s",
                     agent_id,
-                    session_id,
                     e,
                 )
 

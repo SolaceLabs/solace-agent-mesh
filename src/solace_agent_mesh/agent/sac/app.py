@@ -21,6 +21,7 @@ from ...common.a2a import (
     get_discovery_topic,
     get_agent_response_subscription_topic,
     get_agent_status_subscription_topic,
+    get_sam_events_subscription_topic,
 )
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...agent.sac.component import SamAgentComponent
@@ -680,6 +681,7 @@ class SamAgentApp(App):
             get_discovery_topic(namespace),
             get_agent_response_subscription_topic(namespace, agent_name),
             get_agent_status_subscription_topic(namespace, agent_name),
+            get_sam_events_subscription_topic(namespace, "session"),
         ]
         generated_subs = [{"topic": topic} for topic in required_topics]
         log.info(
