@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { useForm } from "react-hook-form";
-import { Paperclip } from "lucide-react";
+import { Upload, X, FileText } from "lucide-react";
 
 import {
     Button,
@@ -34,6 +34,8 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
     isLoading = false,
 }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isDragOver, setIsDragOver] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const form = useForm<ProjectFormData>({
         defaultValues: {
@@ -45,6 +47,48 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
     });
 
     const fileList = form.watch("files");
+
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragOver(true);
+    }, []);
+
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragOver(false);
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragOver(false);
+        
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            form.setValue("files", files);
+        }
+    }, [form]);
+
+    const handleFileSelect = useCallback((files: FileList | null) => {
+        if (files) {
+            form.setValue("files", files);
+        }
+    }, [form]);
+
+    const handleRemoveFile = useCallback((indexToRemove: number) => {
+        if (!fileList) return;
+        
+        const newFiles = Array.from(fileList).filter((_, index) => index !== indexToRemove);
+        const dataTransfer = new DataTransfer();
+        newFiles.forEach(file => dataTransfer.items.add(file));
+        form.setValue("files", dataTransfer.files.length > 0 ? dataTransfer.files : null);
+    }, [fileList, form]);
+
+    const openFileDialog = useCallback(() => {
+        fileInputRef.current?.click();
+    }, []);
 
     const handleSubmit = async (data: ProjectFormData) => {
         if (isSubmitting || isLoading) return;
@@ -70,7 +114,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-hidden flex flex-col">
                 <DialogHeader>
                     <DialogTitle className="text-foreground">Create New Project</DialogTitle>
                     <DialogDescription className="text-muted-foreground">
@@ -79,7 +123,8 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                 </DialogHeader>
                 
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 flex-1 overflow-hidden flex flex-col">
+                        <div className="space-y-4 overflow-y-auto flex-1 pr-2">
                         <FormField
                             control={form.control}
                             name="name"
@@ -167,16 +212,49 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                                 <FormItem>
                                     <FormLabel className="text-foreground">Artifacts (Optional)</FormLabel>
                                     <FormControl>
-                                        <Input
-                                            type="file"
-                                            multiple
-                                            className="bg-background border text-foreground placeholder:text-muted-foreground"
-                                            disabled={isSubmitting || isLoading}
-                                            onChange={(e) => {
-                                                onChange(e.target.files);
-                                            }}
-                                            {...rest}
-                                        />
+                                        <div className="space-y-3">
+                                            {/* Hidden file input */}
+                                            <input
+                                                ref={fileInputRef}
+                                                type="file"
+                                                multiple
+                                                className="hidden"
+                                                disabled={isSubmitting || isLoading}
+                                                onChange={(e) => {
+                                                    handleFileSelect(e.target.files);
+                                                }}
+                                            />
+                                            
+                                            {/* Custom drag and drop area */}
+                                            <div
+                                                onDragOver={handleDragOver}
+                                                onDragLeave={handleDragLeave}
+                                                onDrop={handleDrop}
+                                                onClick={openFileDialog}
+                                                className={`
+                                                    relative cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-colors
+                                                    ${isDragOver
+                                                        ? 'border-primary bg-primary/5'
+                                                        : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+                                                    }
+                                                    ${isSubmitting || isLoading ? 'cursor-not-allowed opacity-50' : ''}
+                                                `}
+                                            >
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <div className={`rounded-full p-3 ${isDragOver ? 'bg-primary/10' : 'bg-muted/20'}`}>
+                                                        <Upload className={`h-6 w-6 ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <p className="text-sm font-medium text-foreground">
+                                                            {isDragOver ? 'Drop files here' : 'Choose files or drag and drop'}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Upload project artifacts, documents, or reference files
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -184,20 +262,59 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                         />
 
                         {fileList && fileList.length > 0 && (
-                            <div className="space-y-2 rounded-md border p-3">
-                                <h4 className="text-sm font-medium text-foreground">Selected Files:</h4>
-                                <ul className="space-y-1 text-sm text-muted-foreground">
+                            <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-sm font-medium text-foreground">
+                                        Selected Files ({fileList.length})
+                                    </h4>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => form.setValue("files", null)}
+                                        className="h-auto p-1 text-muted-foreground hover:text-foreground"
+                                        disabled={isSubmitting || isLoading}
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                                <div className="space-y-2 max-h-32 overflow-y-auto pr-2">
                                     {Array.from(fileList).map((file, index) => (
-                                        <li key={index} className="flex items-center gap-2">
-                                            <Paperclip className="h-4 w-4" />
-                                            <span>{file.name}</span>
-                                        </li>
+                                        <div
+                                            key={index}
+                                            className="flex items-center justify-between rounded-md border bg-background p-3"
+                                        >
+                                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                <div className="flex-shrink-0">
+                                                    <FileText className="h-4 w-4 text-muted-foreground" />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-sm font-medium text-foreground truncate">
+                                                        {file.name}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {(file.size / 1024).toFixed(1)} KB
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => handleRemoveFile(index)}
+                                                className="h-auto p-1 text-muted-foreground hover:text-destructive"
+                                                disabled={isSubmitting || isLoading}
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        </div>
                                     ))}
-                                </ul>
+                                </div>
                             </div>
                         )}
+                        </div>
 
-                        <div className="flex justify-end gap-2 pt-4">
+                        <div className="flex justify-end gap-2 pt-4 border-t bg-background mt-4">
                             <Button
                                 variant="outline"
                                 onClick={handleClose}

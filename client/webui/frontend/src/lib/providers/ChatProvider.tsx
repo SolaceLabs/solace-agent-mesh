@@ -667,10 +667,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         latestStatusText.current = null;
         sseEventSequenceRef.current = 0;
 
-        // Refresh artifacts (should be empty for new session)
-        console.log(`${log_prefix} Refreshing artifacts for new session...`);
-        await artifactsRefetch();
-
         // Success notification
         addNotification("New session started successfully.");
         console.log(`${log_prefix} New session setup complete - session will be created on first message.`);
