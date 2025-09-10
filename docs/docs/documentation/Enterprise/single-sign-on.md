@@ -22,7 +22,7 @@ log:
   log_file_level: DEBUG
   log_file: oauth_server.log
 
-!include shared_config.yaml
+!include ../shared_config.yaml
 
 shared_config:
   # OAuth2 service configuration
