@@ -8,7 +8,6 @@ from .session_requests import (
     GetSessionHistoryRequest,
     UpdateSessionRequest,
     DeleteSessionRequest,
-    CreateSessionRequest,
 )
 from .task_requests import (
     SendTaskRequest,
@@ -26,7 +25,6 @@ __all__ = [
     "GetSessionHistoryRequest",
     "UpdateSessionRequest",
     "DeleteSessionRequest",
-    "CreateSessionRequest",
     # Task requests
     "SendTaskRequest",
     "SubscribeTaskRequest",

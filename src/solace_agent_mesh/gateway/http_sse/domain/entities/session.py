@@ -73,18 +73,3 @@ class SessionHistory(BaseModel):
     session: Session
     messages: list[Message] = []
     total_message_count: int = 0
-
-    def add_message(self, message: Message) -> None:
-        if message.session_id != self.session.id:
-            raise ValueError("Message does not belong to this session")
-
-        message.validate_message_content()
-        self.messages.append(message)
-        self.total_message_count += 1
-        self.session.mark_activity()
-
-    def get_messages_by_sender_type(self, sender_type: SenderType) -> list[Message]:
-        return [msg for msg in self.messages if msg.sender_type == sender_type]
-
-    def get_latest_messages(self, count: int = 10) -> list[Message]:
-        return sorted(self.messages, key=lambda x: x.created_at, reverse=True)[:count]

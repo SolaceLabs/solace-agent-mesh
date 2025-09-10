@@ -6,27 +6,19 @@ from ..entities.session import Message, Session
 
 class ISessionRepository(ABC):
     @abstractmethod
-    def get_by_id(self, session_id: SessionId) -> Session | None:
-        pass
-
-    @abstractmethod
-    def get_by_user_id(
+    def find_by_user(
         self, user_id: UserId, pagination: PaginationInfo | None = None
     ) -> list[Session]:
         pass
 
     @abstractmethod
-    def get_user_session(
+    def find_user_session(
         self, session_id: SessionId, user_id: UserId
     ) -> Session | None:
         pass
 
     @abstractmethod
-    def create(self, session: Session) -> Session:
-        pass
-
-    @abstractmethod
-    def update(self, session: Session) -> Session | None:
+    def save(self, session: Session) -> Session:
         pass
 
     @abstractmethod
@@ -34,21 +26,23 @@ class ISessionRepository(ABC):
         pass
 
     @abstractmethod
-    def exists(self, session_id: SessionId) -> bool:
+    def find_user_session_with_messages(
+        self, session_id: SessionId, user_id: UserId, pagination: PaginationInfo | None = None
+    ) -> tuple[Session, list[Message]] | None:
         pass
 
 
 class IMessageRepository(ABC):
     @abstractmethod
-    def get_by_session_id(
+    def find_by_session(
         self, session_id: SessionId, pagination: PaginationInfo | None = None
     ) -> list[Message]:
         pass
 
     @abstractmethod
-    def create(self, message: Message) -> Message:
+    def save(self, message: Message) -> Message:
         pass
 
     @abstractmethod
-    def delete_by_session_id(self, session_id: SessionId) -> bool:
+    def delete_by_session(self, session_id: SessionId) -> bool:
         pass

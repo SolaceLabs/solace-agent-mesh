@@ -4,9 +4,9 @@ Session-related response DTOs.
 
 from typing import List, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from ....shared.types import SessionId, UserId, MessageId, PaginationInfo, Timestamp
+from ....shared.types import SessionId, UserId, MessageId, PaginationInfo
 from ....shared.enums import SessionStatus, SenderType, MessageType
 
 
@@ -40,29 +40,3 @@ class SessionListResponse(BaseModel):
     sessions: List[SessionResponse]
     pagination: Optional[PaginationInfo] = None
     total_count: int
-
-
-class SessionHistoryResponse(BaseModel):
-    """Response DTO for session message history."""
-    session_id: SessionId
-    messages: List[MessageResponse]
-    pagination: Optional[PaginationInfo] = None
-    total_count: int
-
-
-class SessionCreatedResponse(BaseModel):
-    """Response DTO for session creation."""
-    session: SessionResponse
-    message: str = "Session created successfully"
-
-
-class SessionUpdatedResponse(BaseModel):
-    """Response DTO for session update."""
-    session: SessionResponse
-    message: str = "Session updated successfully"
-
-
-class SessionDeletedResponse(BaseModel):
-    """Response DTO for session deletion."""
-    session_id: SessionId
-    message: str = "Session deleted successfully"

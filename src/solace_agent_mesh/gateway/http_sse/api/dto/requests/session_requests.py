@@ -40,10 +40,3 @@ class DeleteSessionRequest(BaseModel):
     """Request DTO for deleting a session."""
     session_id: SessionId
     user_id: UserId
-
-
-class CreateSessionRequest(BaseModel):
-    """Request DTO for creating a new session."""
-    user_id: UserId
-    name: Optional[str] = Field(None, max_length=255, description="Session name")
-    agent_id: Optional[str] = Field(None, description="Associated agent ID")

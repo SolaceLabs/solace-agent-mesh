@@ -164,21 +164,20 @@ async def subscribe_task_from_agent(
         # Store message only if persistence is available
         if hasattr(component, "persistence_service") and component.persistence_service:
             try:
-                from ...dependencies import get_session_service
-                session_service = get_session_service(component)
-                message_domain = session_service.add_message_to_session(
-                    session_id=session_id,
-                    user_id=user_id,
-                    message=message,
-                    sender_type=SenderType.USER,
-                    sender_name=user_id,
-                    agent_id=agent_name,
-                )
-                # Use the actual session ID from the message (may be different if session was recreated)
-                if message_domain:
-                    session_id = message_domain.session_id
+                from ...dependencies import create_session_service_with_transaction
+                
+                with create_session_service_with_transaction() as (session_service, db):
+                    message_domain = session_service.add_message_to_session(
+                        session_id=session_id,
+                        user_id=user_id,
+                        message=message,
+                        sender_type=SenderType.USER,
+                        sender_name=user_id,
+                        agent_id=agent_name,
+                    )
+                    if message_domain:
+                        session_id = message_domain.session_id
             except ValueError as e:
-                # Handle business domain validation errors
                 log.warning("Validation error in session service: %s", e)
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
