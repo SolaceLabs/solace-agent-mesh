@@ -176,7 +176,8 @@ markers = [
     "general_agent_tools: marks tests related to the general_agent_tools",
     "image_tools: marks tests related to the image_tools",
     "peer_agent_tool: marks tests related to the peer_agent_tool",
-    "web_tools: marks tests related to the web_tools"
+    "web_tools: marks tests related to the web_tools",
+    "dynamic_tools: marks tests related to the dynamic_tools",
 ]
 
 [tool.hatch.metadata]

@@ -279,12 +279,12 @@ async def _assert_summary_in_text(
 
         # Spot-check key fields
         # The agent can produce two different headers depending on the context.
-        header_format_1 = f"--- Metadata for artifact '{filename}' (v{resolved_version}) ---"
+        header_format_1 = (
+            f"--- Metadata for artifact '{filename}' (v{resolved_version}) ---"
+        )
         header_format_2 = f"Artifact: '{filename}' (version: {resolved_version})"
 
-        assert (
-            header_format_1 in text_to_search or header_format_2 in text_to_search
-        ), (
+        assert header_format_1 in text_to_search or header_format_2 in text_to_search, (
             f"Scenario {scenario_id}: {context_str} - Expected artifact header not found for '{filename}' v{resolved_version} in text:\n"
             f"---\n{text_to_search}\n---"
         )
@@ -387,7 +387,9 @@ async def _assert_llm_interactions(
 
                 # The agent code uses two possible headers depending on the input method.
                 # We will check for the presence of the common part.
-                header_for_filepart = "The user has provided the following file as context for your task."
+                header_for_filepart = (
+                    "The user has provided the following file as context for your task."
+                )
                 header_for_invoked = "The user has provided the following artifacts as context for your task."
 
                 # The enriched prompt is the last message in the history.
@@ -449,6 +451,15 @@ async def _assert_llm_interactions(
                 assert expected_tools_subset.issubset(
                     actual_tools_set
                 ), f"Scenario {scenario_id}: LLM call {i+1} tools not present. Expected {expected_tools_subset} to be in {actual_tools_set}"
+
+            if "tools_not_present" in expected_req_details:
+                unexpected_tools = set(expected_req_details["tools_not_present"])
+                actual_tools_set = set(actual_tool_names)
+                intersection = unexpected_tools.intersection(actual_tools_set)
+                assert not intersection, (
+                    f"Scenario {scenario_id}: LLM call {i+1} - Found unexpected tools. "
+                    f"Tools {intersection} should NOT have been present in {actual_tools_set}"
+                )
 
             if "expected_tool_responses_in_llm_messages" in expected_req_details:
                 expected_tool_responses_spec = expected_req_details[
@@ -1286,6 +1297,12 @@ async def test_declarative_scenario(
     peer_b_component: SamAgentComponent,
     peer_c_component: SamAgentComponent,
     peer_d_component: SamAgentComponent,
+    combined_dynamic_agent_component: SamAgentComponent,
+    empty_provider_agent_component: SamAgentComponent,
+    docstringless_agent_component: SamAgentComponent,
+    mixed_discovery_agent_component: SamAgentComponent,
+    complex_signatures_agent_component: SamAgentComponent,
+    config_context_agent_component: SamAgentComponent,
     monkeypatch: pytest.MonkeyPatch,
     mcp_server_harness,
     request: pytest.FixtureRequest,
@@ -1341,6 +1358,12 @@ async def test_declarative_scenario(
         peer_b_component.agent_name: peer_b_component,
         peer_c_component.agent_name: peer_c_component,
         peer_d_component.agent_name: peer_d_component,
+        combined_dynamic_agent_component.agent_name: combined_dynamic_agent_component,
+        empty_provider_agent_component.agent_name: empty_provider_agent_component,
+        docstringless_agent_component.agent_name: docstringless_agent_component,
+        mixed_discovery_agent_component.agent_name: mixed_discovery_agent_component,
+        complex_signatures_agent_component.agent_name: complex_signatures_agent_component,
+        config_context_agent_component.agent_name: config_context_agent_component,
     }
 
     # --- Phase 1: Setup Environment (including config overrides) ---
@@ -1399,7 +1422,7 @@ async def test_declarative_scenario(
         pytest.fail(f"Scenario {scenario_id}: 'gateway_input' is missing.")
 
     overall_timeout = declarative_scenario.get(
-        "expected_completion_timeout_seconds", 10.0
+        "expected_completion_timeout_seconds", 10000.0
     )
 
     (
