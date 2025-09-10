@@ -5,7 +5,7 @@ sidebar_position: 5
 
 ## Prepare the Enterprise Image
 
-Download the latest enterprise docker image tarball from from the [Solace Product Portal](https://products.solace.com/).
+Download the latest enterprise docker image tarball from the [Solace Product Portal](https://products.solace.com/).
 
 Load the image using Docker with the following command.
 
