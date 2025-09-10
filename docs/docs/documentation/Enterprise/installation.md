@@ -3,16 +3,11 @@ title: Installation
 sidebar_position: 5
 ---
 
-:::info [warning]
-This linked docker image MUST NOT be run on any machine other than that of a Solace employee. 
-Solace does not yet have a formal licensing agreement process fleshed out to safely share SAM Enterprise images with customers and/or install and run them in a customer environment
-:::
-
 ## Prepare the Enterprise Image
 
-Download the latest enterprise docker image .tar from from the Solace Product Portal.
+Download the latest enterprise docker image tarball from from the [Solace Product Portal](https://products.solace.com/).
 
-Load the image using Docker with the following command. Note this may take some time due to image size.  
+Load the image using Docker with the following command.
 
 ```bash
 docker load -i solace-agent-mesh-enterprise-<tag>.tar
@@ -24,9 +19,15 @@ Once loaded, you can verify the image locally using the following command:
 docker images
 ```
 
-## Run the Enterprise Image
+## Running SAM Enterprise
 
-Execute the following command:
+Here are two examples of Docker run commands for both a development use case as well as a production use case:
+
+:::tip
+You may need to include `--platform linux/amd64` depending on the host machine you’re using.
+:::
+
+### Development Use Case
 
 ```bash
 docker run -itd -p 8000:8000 \
@@ -36,5 +37,26 @@ docker run -itd -p 8000:8000 \
   -e LLM_SERVICE_GENERAL_MODEL_NAME="<YOUR_MODEL_NAME>" \
   -e NAMESPACE="<YOUR_NAMESPACE>" \
   -e SOLACE_DEV_MODE="true" \
+  --name sam-ent-dev \
 solace-agent-mesh-enterprise:<tag>
 ```
+
+### Production Use Case
+
+```bash
+docker run -itd -p 8000:8000 \
+  -e LLM_SERVICE_API_KEY="<YOUR_LLM_TOKEN>" \
+  -e LLM_SERVICE_ENDPOINT="<YOUR_LLM_SERVICE_ENDPOINT>" \
+  -e LLM_SERVICE_PLANNING_MODEL_NAME="<YOUR_MODEL_NAME>" \
+  -e LLM_SERVICE_GENERAL_MODEL_NAME="<YOUR_MODEL_NAME>" \
+  -e NAMESPACE="<YOUR_NAMESPACE>" \
+  -e SOLACE_DEV_MODE="false" \
+  -e SOLACE_BROKER_URL="<YOUR_BROKER_URL>" \
+  -e SOLACE_BROKER_VPN="<YOUR_BROKER_VPN>" \
+  -e SOLACE_BROKER_USERNAME="<YOUR_BROKER_USERNAME>" \
+  -e SOLACE_BROKER_PASSWORD="<YOUR_BROKER_PASSWORD>" \
+  --name sam-ent-prod \
+solace-agent-mesh-enterprise:<tag>
+```
+
+You can then access SAM Enterprise UI through http://localhost:8000

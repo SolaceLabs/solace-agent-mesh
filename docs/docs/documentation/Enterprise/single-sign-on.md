@@ -5,11 +5,11 @@ sidebar_position: 10
 
 ## How to enable SSO
 
-Before running the Docker container, create two configuration files in your working directory. Use the content provided below for each file:
+Before running the Docker container, create two configuration files for SSO in your Named Docker Volume. Use the content provided below for each file:
 
 <details>
 
-<summary>configuration files for sso</summary>
+<summary>Configuration files for SSO</summary>
 
 **oauth2_server.yaml**
 ```yaml
@@ -28,7 +28,7 @@ shared_config:
   # OAuth2 service configuration
   - oauth2_config: &oauth2_config
       enabled: true
-      config_file: "config/oauth2_config.yaml"
+      config_file: "config/sso_vol/oauth2_config.yaml"
       host: ${OAUTH2_HOST, localhost}
       port: ${OAUTH2_PORT, 9000}
       ssl_cert: ""  # Optional: path to SSL certificate
@@ -144,7 +144,11 @@ security:
 
 ## Running SAM Enterprise with SSO enabled
 
-Here is an example docker run command for an Azure provider:
+Here is an example of Docker run command with Azure SSO provider for production use case:
+
+:::tip
+You may need to include `--platform linux/amd64` depending on the host machine you’re using.
+:::
 
 ```bash
 docker run -itd -p 8000:8000 -p 9000:9000 \
@@ -153,7 +157,11 @@ docker run -itd -p 8000:8000 -p 9000:9000 \
   -e LLM_SERVICE_PLANNING_MODEL_NAME="<YOUR_MODEL_NAME>" \
   -e LLM_SERVICE_GENERAL_MODEL_NAME="<YOUR_MODEL_NAME>" \
   -e NAMESPACE="<YOUR_NAMESPACE>" \
-  -e SOLACE_DEV_MODE="true" \
+  -e SOLACE_DEV_MODE="false" \
+  -e SOLACE_BROKER_URL="<YOUR_BROKER_URL>" \
+  -e SOLACE_BROKER_VPN="<YOUR_BROKER_VPN>" \
+  -e SOLACE_BROKER_USERNAME="<YOUR_BROKER_USERNAME>" \
+  -e SOLACE_BROKER_PASSWORD="<YOUR_BROKER_PASSWORD>" \
   -e FASTAPI_HOST="0.0.0.0" \
   -e FASTAPI_PORT="8000" \
   -e AZURE_TENANT_ID="xxxxxxxxx-xxxxxx-xxxxxxxx-xxxxxxxxxx" \
@@ -170,11 +178,12 @@ docker run -itd -p 8000:8000 -p 9000:9000 \
   -e EXTERNAL_AUTH_SERVICE_URL="http://localhost:9000" \
   -e EXTERNAL_AUTH_PROVIDER="azure" \
   -e EXTERNAL_AUTH_CALLBACK="http://localhost:8000/api/v1/auth/callback" \
-  -v $(pwd)/oauth2_server.yaml:/app/config/oauth2_server.yaml \
-  -v $(pwd)/oauth2_config.yaml:/app/config/oauth2_config.yaml \
-  --name sam-ent-sso \
-solace-agent-mesh-enterprise:<tag> run config/oauth2_server.yaml config/webui_backend.yaml config/a2a_orchestrator.yaml config/a2a_agents.yaml
+  -v <YOUR_NAMED_DOCKER_VOLUME>:/app/config/sso_vol/ \
+  --name sam-ent-prod-sso \
+solace-agent-mesh-enterprise:<tag> run config/sso_vol/oauth2_server.yaml config/webui_backend.yaml config/a2a_orchestrator.yaml config/a2a_agents.yaml
 ```
+
+You can then access SAM Enterprise UI through http://localhost:8000
 
 <details>
 
@@ -193,7 +202,7 @@ solace-agent-mesh-enterprise:<tag> run config/oauth2_server.yaml config/webui_ba
 -e FRONTEND_USE_AUTHORIZATION="true" \
 ```
 
-**Specify the main url of the UI. For instance, this could be https://www.example.com**
+**Specify the main URL of the UI. For instance, this could be https://www.example.com**
 
 ```bash
 -e FRONTEND_REDIRECT_URL="http://localhost:8000" \
@@ -259,7 +268,7 @@ OAUTHLIB_INSECURE_TRANSPORT="1"
 **The oauth 2 configuration files must be mounted inside the container:**
 
 ```bash
--v $(pwd)/oauth2_server.yaml:/app/config/oauth2_server.yaml \
--v $(pwd)/oauth2_config.yaml:/app/config/oauth2_config.yaml \
+-v <VOLUME_PATH_TO_YOUR_OAUTH2_SERVER_YAML_FILE>/oauth2_server.yaml:/app/config/oauth2_server.yaml \
+-v <VOLUME_PATH_TO_YOUR_OAUTH2_CONFIG_YAML_FILE>/oauth2_config.yaml:/app/config/oauth2_config.yaml \
 ```
 </details>
