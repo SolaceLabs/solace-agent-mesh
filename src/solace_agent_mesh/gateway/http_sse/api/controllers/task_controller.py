@@ -1,17 +1,13 @@
 from typing import TYPE_CHECKING
 
+from a2a.types import InvalidRequestError, JSONRPCResponse
 from fastapi import APIRouter, Depends, File, Form, HTTPException
 from fastapi import Request as FastAPIRequest
 from fastapi import UploadFile, status
 from solace_ai_connector.common.log import log
 
-from a2a.types import InternalError, InvalidRequestError, JSONRPCResponse
 from .....common import a2a
-from ...dependencies import (
-    get_sac_component,
-    get_session_manager,
-    get_user_id,
-)
+from ...dependencies import get_sac_component, get_session_manager, get_user_id
 from ...session_manager import SessionManager
 from ...shared.enums import SenderType
 from ..dto.requests.task_requests import (
@@ -162,10 +158,12 @@ async def subscribe_task_from_agent(
             session_id = session_manager.start_new_a2a_session(request)
 
         # Store message only if persistence is available
-        if hasattr(component, "persistence_service") and component.persistence_service:
+        from ...dependencies import SessionLocal
+
+        if SessionLocal is not None:
             try:
                 from ...dependencies import create_session_service_with_transaction
-                
+
                 with create_session_service_with_transaction() as (session_service, db):
                     message_domain = session_service.add_message_to_session(
                         session_id=session_id,
@@ -189,7 +187,9 @@ async def subscribe_task_from_agent(
                     detail="Failed to store message",
                 )
         else:
-            log.debug("%sNo persistence available - skipping message storage", log_prefix)
+            log.debug(
+                "%sNo persistence available - skipping message storage", log_prefix
+            )
 
         log.info(
             "%sUsing ClientID: %s, SessionID: %s", log_prefix, client_id, session_id
@@ -271,7 +271,9 @@ async def cancel_agent_task(
         )
     except Exception as e:
         log.exception("%sUnexpected error sending cancellation: %s", log_prefix, e)
-        error_resp = a2a.create_internal_error(message="Unexpected server error: %s" % e)
+        error_resp = a2a.create_internal_error(
+            message="Unexpected server error: %s" % e
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_resp.model_dump(exclude_none=True),

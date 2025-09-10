@@ -105,7 +105,8 @@ async def _submit_task(
 
         # Store message in persistence layer if available
         user_id = user_identity.get("id")
-        if is_streaming and hasattr(component, "persistence_service") and component.persistence_service:
+        from ....gateway.http_sse.dependencies import SessionLocal
+        if is_streaming and SessionLocal is not None:
             try:
                 from ....gateway.http_sse.dependencies import create_session_service_with_transaction
                 from ....gateway.http_sse.shared.enums import SenderType

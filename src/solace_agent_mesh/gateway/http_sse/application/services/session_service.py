@@ -107,8 +107,8 @@ class SessionService:
 
         session = self.session_repository.find_user_session(session_id, user_id)
         if not session:
-            log.error(f"Session {session_id} not found for user {user_id}")
-            return None
+            log.info(f"Session {session_id} not found for user {user_id}, creating new session")
+            session = self.create_session(user_id=user_id, agent_id=agent_id, session_id=session_id)
 
         if agent_id and not session.agent_id:
             session.agent_id = agent_id

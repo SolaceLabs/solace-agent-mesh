@@ -4,14 +4,13 @@ managed by the WebUIBackendComponent.
 """
 
 from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
 from fastapi import Depends, HTTPException, Request, status
-from sqlalchemy.orm import Session
 from solace_ai_connector.common.log import log
-
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from ...common.agent_registry import AgentRegistry
 from ...common.middleware.config_resolver import ConfigResolver
@@ -373,23 +372,24 @@ def get_session_service(
     db: Session = Depends(get_db),
 ) -> SessionService:
     log.debug("[Dependencies] get_session_service called")
-    
+
     session_repository = SessionRepository(db)
     message_repository = MessageRepository(db)
     return SessionService(session_repository, message_repository)
 
 
+@contextmanager
 def create_session_service_with_transaction():
     """Create session service with its own transaction for non-HTTP contexts."""
     if SessionLocal is None:
         raise RuntimeError("Database not configured")
-    
+
     db = SessionLocal()
     try:
         session_repository = SessionRepository(db)
         message_repository = MessageRepository(db)
         session_service = SessionService(session_repository, message_repository)
-        
+
         yield session_service, db
         db.commit()
     except Exception:
