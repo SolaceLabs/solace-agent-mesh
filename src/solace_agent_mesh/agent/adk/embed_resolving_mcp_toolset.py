@@ -320,6 +320,7 @@ class EmbedResolvingMCPToolset(_OptimalToolsetClass):
         tool_filter=None,
         auth_scheme=None,
         auth_credential=None,
+        auth_discovery=None,
         tool_config: Optional[Dict] = None,
     ):
         # Store tool_config for later use
@@ -327,12 +328,12 @@ class EmbedResolvingMCPToolset(_OptimalToolsetClass):
         
         # Initialize parent class with appropriate parameters
         if _supports_tool_config:
-            # McpToolsetWithManifest supports tool_config parameter
             super().__init__(
                 connection_params=connection_params,
                 tool_filter=tool_filter,
                 auth_scheme=auth_scheme,
                 auth_credential=auth_credential,
+                auth_discovery=auth_discovery,
                 tool_config=tool_config,
             )
         else:
