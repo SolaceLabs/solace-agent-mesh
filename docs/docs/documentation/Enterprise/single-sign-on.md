@@ -5,7 +5,7 @@ sidebar_position: 10
 
 ## How to enable SSO
 
-Before running the Docker container, create two configuration files for SSO in your Named Docker Volume. Use the content provided below for each file:
+Before running the Docker container, create two configuration files for SSO under the root directory in your Named Docker Volume. Use the content provided below for each file:
 
 <details>
 
