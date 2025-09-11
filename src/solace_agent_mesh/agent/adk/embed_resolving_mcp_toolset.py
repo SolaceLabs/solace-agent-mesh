@@ -43,19 +43,53 @@ def _get_optimal_mcp_toolset_class() -> Tuple[Type[MCPToolset], bool]:
         return (MCPToolset, False)
 
 
-class EmbedResolvingMCPTool(MCPTool):
+def _get_optimal_mcp_tool_class() -> Tuple[Type[MCPTool], bool]:
+    """
+    Factory function to get the optimal MCP tool class.
+    
+    Tries to import McpToolWithManifest from solace_agent_mesh_enterprise.common
+    and returns it if available. Falls back to base MCPTool if not available.
+    
+    Returns:
+        Tuple of (class, supports_tool_config_flag) where:
+        - class: The MCPTool class to use
+        - supports_tool_config_flag: Whether the class supports tool_config parameter
+    """
+    try:
+        from solace_agent_mesh_enterprise.common.mcp_tool_with_manifest import McpToolWithManifest
+        return (McpToolWithManifest, True)
+    except ImportError:
+        return (MCPTool, False)
+
+
+# Get the optimal tool class to use as base class
+_OptimalToolClass, _tool_supports_tool_config = _get_optimal_mcp_tool_class()
+
+
+class EmbedResolvingMCPTool(_OptimalToolClass):
     """
     Custom MCPTool that resolves embeds in parameters before calling the actual MCP tool.
+    Uses factory pattern to conditionally inherit from McpToolWithManifest when available.
     """
 
     def __init__(self, original_mcp_tool: MCPTool, tool_config: Optional[Dict] = None):
         # Copy all attributes from the original tool
-        super().__init__(
-            mcp_tool=original_mcp_tool._mcp_tool,
-            mcp_session_manager=original_mcp_tool._mcp_session_manager,
-            auth_scheme=getattr(original_mcp_tool._mcp_tool, "auth_scheme", None),
-            auth_credential=getattr(original_mcp_tool._mcp_tool, "auth_credential", None),
-        )
+        if _tool_supports_tool_config:
+            # McpToolWithManifest supports auth_discovery parameter
+            super().__init__(
+                mcp_tool=original_mcp_tool._mcp_tool,
+                mcp_session_manager=original_mcp_tool._mcp_session_manager,
+                auth_scheme=getattr(original_mcp_tool._mcp_tool, "auth_scheme", None),
+                auth_credential=getattr(original_mcp_tool._mcp_tool, "auth_credential", None),
+                auth_discovery=getattr(original_mcp_tool._mcp_tool, "auth_discovery", None),
+            )
+        else:
+            super().__init__(
+                mcp_tool=original_mcp_tool._mcp_tool,
+                mcp_session_manager=original_mcp_tool._mcp_session_manager,
+                auth_scheme=getattr(original_mcp_tool._mcp_tool, "auth_scheme", None),
+                auth_credential=getattr(original_mcp_tool._mcp_tool, "auth_credential", None),
+            )
         self._original_mcp_tool = original_mcp_tool
         self._tool_config = tool_config or {}
 
