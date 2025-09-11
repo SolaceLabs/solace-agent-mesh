@@ -53,8 +53,8 @@ class EmbedResolvingMCPTool(MCPTool):
         super().__init__(
             mcp_tool=original_mcp_tool._mcp_tool,
             mcp_session_manager=original_mcp_tool._mcp_session_manager,
-            auth_scheme=getattr(original_mcp_tool, "_auth_scheme", None),
-            auth_credential=getattr(original_mcp_tool, "_auth_credential", None),
+            auth_scheme=getattr(original_mcp_tool._mcp_tool, "auth_scheme", None),
+            auth_credential=getattr(original_mcp_tool._mcp_tool, "auth_credential", None),
         )
         self._original_mcp_tool = original_mcp_tool
         self._tool_config = tool_config or {}
