@@ -5,7 +5,7 @@ sidebar_position: 10
 
 ## How to enable SSO
 
-Before running the Docker container, create two configuration files for SSO in your Named Docker Volume. Use the content provided below for each file:
+Before running the Docker container, create two configuration files for SSO under the root directory in your Named Docker Volume. Use the content provided below for each file:
 
 <details>
 
@@ -22,7 +22,7 @@ log:
   log_file_level: DEBUG
   log_file: oauth_server.log
 
-!include shared_config.yaml
+!include ../shared_config.yaml
 
 shared_config:
   # OAuth2 service configuration
@@ -268,7 +268,6 @@ OAUTHLIB_INSECURE_TRANSPORT="1"
 **The oauth 2 configuration files must be mounted inside the container:**
 
 ```bash
--v <VOLUME_PATH_TO_YOUR_OAUTH2_SERVER_YAML_FILE>/oauth2_server.yaml:/app/config/oauth2_server.yaml \
--v <VOLUME_PATH_TO_YOUR_OAUTH2_CONFIG_YAML_FILE>/oauth2_config.yaml:/app/config/oauth2_config.yaml \
+-v <YOUR_NAMED_DOCKER_VOLUME>:/app/config/sso_vol/ \
 ```
 </details>
