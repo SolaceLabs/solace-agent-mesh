@@ -17,7 +17,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.pool import StaticPool
 
 # Remove old persistence service import - using direct SQLAlchemy now
-from solace_agent_mesh.gateway.http_sse.infrastructure.persistence.models import Base
+from solace_agent_mesh.gateway.http_sse.repository.models.base import Base
 
 # Import FastAPI components
 from solace_agent_mesh.gateway.http_sse.main import app as fastapi_app
