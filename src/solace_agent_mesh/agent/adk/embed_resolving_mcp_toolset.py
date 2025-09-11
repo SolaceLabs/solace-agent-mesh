@@ -75,7 +75,6 @@ class EmbedResolvingMCPTool(_OptimalToolClass):
     def __init__(self, original_mcp_tool: MCPTool, tool_config: Optional[Dict] = None):
         # Copy all attributes from the original tool
         if _tool_supports_tool_config:
-            # McpToolWithManifest supports auth_discovery parameter
             super().__init__(
                 mcp_tool=original_mcp_tool._mcp_tool,
                 mcp_session_manager=original_mcp_tool._mcp_session_manager,
