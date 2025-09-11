@@ -55,7 +55,21 @@ tools:
         Authorization: "Bearer ${MCP_AUTH_TOKEN}"
 ```
 
-### 3. Docker Connection (Containerized MCP Servers)
+### 3. StreamableHTTP Connection (Remote MCP Servers)
+
+For connecting to remote MCP servers using Server-Sent Events:
+
+```yaml
+tools:
+  - tool_type: mcp
+    connection_params:
+      type: streamable-http
+      url: "https://mcp.example.com:<port>/mcp/message"
+      headers:
+        Authorization: "Bearer ${MCP_AUTH_TOKEN}"
+```
+
+### 4. Docker Connection (Containerized MCP Servers)
 
 For running MCP servers in Docker containers:
 
