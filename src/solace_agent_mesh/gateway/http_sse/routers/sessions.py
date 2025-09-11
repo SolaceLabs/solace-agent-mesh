@@ -1,23 +1,19 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, status, BackgroundTasks
 from solace_ai_connector.common.log import log
 
-from ...application.services.session_service import SessionService
-from ...dependencies import (
-    PublishFunc,
-    get_namespace,
-    get_publish_a2a_func,
-    get_sac_component,
-    get_session_service,
+from ..services.session_service import SessionService
+from ..dependencies import (
+    get_session_business_service,
 )
-from ...shared.auth_utils import get_current_user
-from ..dto.requests.session_requests import (
+from ..shared.auth_utils import get_current_user
+from .dto.requests.session_requests import (
     DeleteSessionRequest,
     GetSessionHistoryRequest,
     GetSessionRequest,
     GetSessionsRequest,
     UpdateSessionRequest,
 )
-from ..dto.responses.session_responses import (
+from .dto.responses.session_responses import (
     MessageResponse,
     SessionListResponse,
     SessionResponse,
@@ -29,7 +25,7 @@ router = APIRouter()
 @router.get("/sessions", response_model=SessionListResponse)
 async def get_all_sessions(
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(get_session_service),
+    session_service: SessionService = Depends(get_session_business_service),
 ):
     user_id = user.get("id")
     log.info("Fetching sessions for user_id: %s", user_id)
@@ -48,7 +44,6 @@ async def get_all_sessions(
                 user_id=domain.user_id,
                 name=domain.name,
                 agent_id=domain.agent_id,
-                status=domain.status,
                 created_at=domain.created_at,
                 updated_at=domain.updated_at,
                 last_activity=domain.last_activity,
@@ -73,7 +68,7 @@ async def get_all_sessions(
 async def get_session(
     session_id: str,
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(get_session_service),
+    session_service: SessionService = Depends(get_session_business_service),
 ):
     user_id = user.get("id")
     log.info("User %s attempting to fetch session_id: %s", user_id, session_id)
@@ -90,7 +85,7 @@ async def get_session(
 
         request_dto = GetSessionRequest(session_id=session_id, user_id=user_id)
 
-        session_domain = session_service.get_session(
+        session_domain = session_service.get_session_details(
             session_id=request_dto.session_id, user_id=request_dto.user_id
         )
 
@@ -106,7 +101,6 @@ async def get_session(
             user_id=session_domain.user_id,
             name=session_domain.name,
             agent_id=session_domain.agent_id,
-            status=session_domain.status,
             created_at=session_domain.created_at,
             updated_at=session_domain.updated_at,
             last_activity=session_domain.last_activity,
@@ -131,7 +125,7 @@ async def get_session(
 async def get_session_history(
     session_id: str,
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(get_session_service),
+    session_service: SessionService = Depends(get_session_business_service),
 ):
     user_id = user.get("id")
     log.info(
@@ -203,7 +197,7 @@ async def update_session_name(
     session_id: str,
     name: str = Body(..., embed=True),
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(get_session_service),
+    session_service: SessionService = Depends(get_session_business_service),
 ):
     user_id = user.get("id")
     log.info("User %s attempting to update session %s", user_id, session_id)
@@ -240,7 +234,6 @@ async def update_session_name(
             user_id=updated_domain.user_id,
             name=updated_domain.name,
             agent_id=updated_domain.agent_id,
-            status=updated_domain.status,
             created_at=updated_domain.created_at,
             updated_at=updated_domain.updated_at,
             last_activity=updated_domain.last_activity,
@@ -269,39 +262,15 @@ async def update_session_name(
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_session(
     session_id: str,
-    background_tasks: BackgroundTasks,
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(get_session_service),
-    publish_func: PublishFunc = Depends(get_publish_a2a_func),
-    namespace: str = Depends(get_namespace),
-    component = Depends(get_sac_component),
+    session_service: SessionService = Depends(get_session_business_service),
 ):
     user_id = user.get("id")
     log.info("User %s attempting to delete session %s", user_id, session_id)
 
     try:
-        if (
-            not session_id
-            or session_id.strip() == ""
-            or session_id in ["null", "undefined"]
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
-            )
-
-        request_dto = DeleteSessionRequest(session_id=session_id, user_id=user_id)
-
-        # Get session details before deletion to find the agent_id
-        session = session_service.get_session(session_id=session_id, user_id=user_id)
-        if not session:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
-            )
-
-        agent_id = session.agent_id
-
-        deleted = session_service.delete_session(
-            session_id=request_dto.session_id, user_id=request_dto.user_id
+        deleted = session_service.delete_session_with_notifications(
+            session_id=session_id, user_id=user_id
         )
 
         if not deleted:
@@ -311,37 +280,11 @@ async def delete_session(
 
         log.info("Session %s deleted successfully", session_id)
 
-        if agent_id:
-            try:
-                log.info(
-                    "Publishing session deletion event for session %s (agent %s, user %s)",
-                    session_id,
-                    agent_id,
-                    user_id
-                )
-                
-                # Use SAM Events for clean system event messaging
-                success = component.sam_events.publish_session_deleted(
-                    session_id=session_id,
-                    user_id=user_id,
-                    agent_id=agent_id,
-                    gateway_id=component.gateway_id
-                )
-                
-                if success:
-                    log.info("Successfully published session deletion event for session %s", session_id)
-                else:
-                    log.warning("Failed to publish session deletion event for session %s", session_id)
-
-            except Exception as e:
-                log.warning(
-                    "Failed to publish session deletion event to agent %s: %s",
-                    agent_id,
-                    e,
-                )
-
-    except HTTPException:
-        raise
+    except ValueError as e:
+        log.warning("Validation error deleting session %s: %s", session_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        )
     except Exception as e:
         log.error(
             "Error deleting session %s for user %s: %s",

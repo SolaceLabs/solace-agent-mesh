@@ -591,13 +591,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         if (isResponding && currentTaskId && selectedAgentName && !isCancelling) {
             console.log(`${log_prefix} Cancelling current task ${currentTaskId}`);
             try {
-                authenticatedFetch(`${apiPrefix}/tasks/cancel`, {
+                const cancelRequest = {
+                    jsonrpc: "2.0",
+                    id: `req-${crypto.randomUUID()}`,
+                    method: "tasks/cancel",
+                    params: {
+                        id: currentTaskId,
+                    },
+                };
+                authenticatedFetch(`${apiPrefix}/tasks/${currentTaskId}:cancel`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        agent_name: selectedAgentName,
-                        task_id: currentTaskId,
-                    }),
+                    body: JSON.stringify(cancelRequest),
                     credentials: "include",
                 });
             } catch (error) {
@@ -665,13 +670,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             if (isResponding && currentTaskId && selectedAgentName && !isCancelling) {
                 console.log(`${log_prefix} Cancelling current task ${currentTaskId}`);
                 try {
-                    await authenticatedFetch(`${apiPrefix}/tasks/cancel`, {
+                    const cancelRequest = {
+                        jsonrpc: "2.0",
+                        id: `req-${crypto.randomUUID()}`,
+                        method: "tasks/cancel",
+                        params: {
+                            id: currentTaskId,
+                        },
+                    };
+                    await authenticatedFetch(`${apiPrefix}/tasks/${currentTaskId}:cancel`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            agent_name: selectedAgentName,
-                            task_id: currentTaskId,
-                        }),
+                        body: JSON.stringify(cancelRequest),
                         credentials: "include",
                     });
                 } catch (error) {

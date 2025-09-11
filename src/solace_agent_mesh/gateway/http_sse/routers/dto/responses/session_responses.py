@@ -7,7 +7,7 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from ....shared.types import SessionId, UserId, MessageId, PaginationInfo
-from ....shared.enums import SessionStatus, SenderType, MessageType
+from ....shared.enums import SenderType, MessageType
 
 
 class MessageResponse(BaseModel):
@@ -29,7 +29,6 @@ class SessionResponse(BaseModel):
     user_id: UserId
     name: Optional[str] = None
     agent_id: Optional[str] = None
-    status: SessionStatus = SessionStatus.ACTIVE
     created_at: datetime
     updated_at: Optional[datetime] = None
     last_activity: Optional[datetime] = None

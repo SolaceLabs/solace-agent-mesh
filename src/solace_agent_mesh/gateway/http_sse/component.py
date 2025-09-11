@@ -1655,7 +1655,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
                     if message_text and session_id and user_id:
                         from .dependencies import create_session_service_with_transaction
-                        from .shared.enums import SenderType
+                        from ...gateway.http_sse.shared.enums import SenderType
 
                         with create_session_service_with_transaction() as (session_service, db):
                             session_service.add_message_to_session(

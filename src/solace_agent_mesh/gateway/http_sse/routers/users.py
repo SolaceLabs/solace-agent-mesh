@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from solace_ai_connector.common.log import log
 
-from ...shared.auth_utils import get_current_user
+from ..shared.auth_utils import get_current_user
 
 router = APIRouter()
 

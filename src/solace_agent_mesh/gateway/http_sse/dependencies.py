@@ -22,8 +22,9 @@ from ...gateway.http_sse.services.people_service import PeopleService
 from ...gateway.http_sse.services.task_service import TaskService
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
-from .application.services.session_service import SessionService
-from .infrastructure.repositories.session_repository import (
+from .services.session_service import SessionService
+from .repository import (
+    Message,
     MessageRepository,
     SessionRepository,
 )
@@ -368,19 +369,21 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def get_session_service(
+
+def get_session_business_service(
     db: Session = Depends(get_db),
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> SessionService:
-    log.debug("[Dependencies] get_session_service called")
+    log.debug("[Dependencies] get_session_business_service called")
 
     session_repository = SessionRepository(db)
     message_repository = MessageRepository(db)
-    return SessionService(session_repository, message_repository)
+    return SessionService(session_repository, message_repository, component)
 
 
 @contextmanager
 def create_session_service_with_transaction():
-    """Create session service with its own transaction for non-HTTP contexts."""
+    """Create session data access service with its own transaction for non-HTTP contexts."""
     if SessionLocal is None:
         raise RuntimeError("Database not configured")
 
@@ -388,8 +391,60 @@ def create_session_service_with_transaction():
     try:
         session_repository = SessionRepository(db)
         message_repository = MessageRepository(db)
-        session_service = SessionService(session_repository, message_repository)
+        
+        # Create a simple data access object for transaction contexts
+        # This provides the basic repository operations without business logic
+        class SessionDataAccess:
+            def __init__(self, session_repo, message_repo):
+                self.session_repository = session_repo
+                self.message_repository = message_repo
+            
+            def add_message_to_session(self, session_id, user_id, message, sender_type, sender_name, agent_id=None):
+                # Simple data access - just save the message
+                from uuid import uuid4
+                from datetime import datetime, timezone
+                from .shared.enums import MessageType
+                
+                message_entity = Message(
+                    id=str(uuid4()),
+                    session_id=session_id,
+                    message=message,
+                    sender_type=sender_type,
+                    sender_name=sender_name,
+                    message_type=MessageType.TEXT,
+                    created_at=datetime.now(timezone.utc),
+                )
+                return self.message_repository.save(message_entity)
+            
+            def get_session(self, session_id, user_id):
+                # Use the session repository to find the session
+                return self.session_repository.find_user_session(session_id, user_id)
+            
+            def create_session(self, user_id, name=None, agent_id=None, session_id=None):
+                # Create a new session using the session repository
+                from uuid import uuid4
+                from datetime import datetime, timezone
+                from .repository.entities import Session
+                
+                if not session_id:
+                    session_id = str(uuid4())
+                
+                # Leave name as None/empty - frontend will generate display name if needed
+                
+                now = datetime.now(timezone.utc)
+                session = Session(
+                    id=session_id,
+                    user_id=user_id,
+                    name=name,
+                    agent_id=agent_id,
+                    created_at=now,
+                    updated_at=now,
+                    last_activity=now,
+                )
+                
+                return self.session_repository.save(session)
 
+        session_service = SessionDataAccess(session_repository, message_repository)
         yield session_service, db
         db.commit()
     except Exception:

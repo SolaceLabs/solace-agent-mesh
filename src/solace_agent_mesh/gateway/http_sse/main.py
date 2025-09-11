@@ -32,9 +32,9 @@ from ...gateway.http_sse.routers import (
 )
 
 # Import persistence-aware controllers
-from .api.controllers.session_controller import router as session_router
-from .api.controllers.task_controller import router as task_router
-from .api.controllers.user_controller import router as user_router
+from .routers.sessions import router as session_router
+from .routers.tasks import router as task_router
+from .routers.users import router as user_router
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
