@@ -268,7 +268,6 @@ OAUTHLIB_INSECURE_TRANSPORT="1"
 **The oauth 2 configuration files must be mounted inside the container:**
 
 ```bash
--v <VOLUME_PATH_TO_YOUR_OAUTH2_SERVER_YAML_FILE>/oauth2_server.yaml:/app/config/oauth2_server.yaml \
--v <VOLUME_PATH_TO_YOUR_OAUTH2_CONFIG_YAML_FILE>/oauth2_config.yaml:/app/config/oauth2_config.yaml \
+-v <YOUR_NAMED_DOCKER_VOLUME>:/app/config/sso_vol/ \
 ```
 </details>
