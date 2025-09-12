@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "solace-agent-mesh"
+name = "solace_agent_mesh"
 dynamic = ["version"]
 description = "Solace Agent Mesh is an open-source framework for building event-driven, multi-agent AI systems where specialized agents collaborate on complex tasks."
 readme = "README.md"
