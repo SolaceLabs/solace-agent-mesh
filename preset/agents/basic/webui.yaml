@@ -18,7 +18,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      session_secret_key: ${SESSION_SECRET_KEY}
+      session_secret_key: "${SESSION_SECRET_KEY}"
 
       artifact_service: *default_artifact_service
 
