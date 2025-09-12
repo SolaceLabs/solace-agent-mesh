@@ -1,5 +1,5 @@
 import React from "react";
-import { Download, Eye, ChevronDown, ChevronRight, Trash, Info } from "lucide-react";
+import { Download, Eye, ChevronDown, ChevronRight, Trash, Info, ChevronUp } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
 import { FileIcon } from "../file/FileIcon";
@@ -241,9 +241,9 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                             className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                         >
                             {expanded ? (
-                                <ChevronDown className="h-4 w-4" />
+                                <ChevronUp className="h-4 w-4" />
                             ) : (
-                                <ChevronRight className="h-4 w-4" />
+                                <ChevronDown className="h-4 w-4" />
                             )}
                         </Button>
                     )}
@@ -297,9 +297,9 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                         className="h-8 w-8 p-0 flex-shrink-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
                         {expanded ? (
-                            <ChevronDown className="h-4 w-4 transition-transform duration-200" />
+                            <ChevronUp className="h-4 w-4 transition-transform duration-200" />
                         ) : (
-                            <ChevronRight className="h-4 w-4 transition-transform duration-200" />
+                            <ChevronDown className="h-4 w-4 transition-transform duration-200" />
                         )}
                     </Button>
                 )}
