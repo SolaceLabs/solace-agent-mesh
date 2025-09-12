@@ -113,7 +113,7 @@ Lifecycle functions allow you to manage resources that should persist for the ag
 Lifecycle functions are optional but recommended for managing resources effectively.
 :::
 
-## Step-by-Step Guide
+## Creating an Agent Plugin: Step-by-Step
 
 Create a simple agent that can greet users and demonstrate the core concepts.
 
@@ -267,12 +267,14 @@ async def farewell_tool(
 Create the main configuration file for your agent:
 
 ```yaml
+# File: config.yaml (at root of project directory)
 # ... (additional services and configurations)
 
 apps:
   - name: my-hello-agent
     app_module: solace_agent_mesh.agent.sac.app 
     broker:
+      # Can be found in configs/shared_config.yaml after running sam init
       <<: *broker_connection
     
     # Agent-specific configuration
