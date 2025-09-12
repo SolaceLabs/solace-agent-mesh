@@ -13,7 +13,7 @@ import { useChatContext, useSessionPreview, useTaskContext } from "@/lib/hooks";
 import { ChatSidePanel } from "../chat/ChatSidePanel";
 import { ChatSessionDialog } from "../chat/ChatSessionDialog";
 import { SessionSidePanel } from "../chat/SessionSidePanel";
-import DeleteConfirmationModal from "../chat/DeleteConfirmationModal";
+import { ChatSessionDeleteDialog } from "../chat/ChatSessionDeleteDialog";
 import type { ChatMessageListRef } from "../ui/chat/chat-message-list";
 
 // Constants for sidepanel behavior
@@ -251,7 +251,7 @@ export function ChatPage() {
                 </div>
             </div>
             <ChatSessionDialog isOpen={isChatSessionDialogOpen} onClose={() => setChatSessionDialogOpen(false)} />
-            <DeleteConfirmationModal
+            <ChatSessionDeleteDialog
                 isOpen={!!sessionToDelete}
                 onClose={closeSessionDeleteModal}
                 onConfirm={confirmSessionDelete}

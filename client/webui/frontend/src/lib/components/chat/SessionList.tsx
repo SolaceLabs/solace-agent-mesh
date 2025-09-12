@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useRef } from "react";
-import { useChatContext } from "@/lib/hooks";
+import React, { useEffect, useState, useRef, useCallback } from "react";
+
+import { Trash2, Check, X, Pencil, MessageCircle } from "lucide-react";
+
+import { useChatContext, useConfigContext } from "@/lib/hooks";
 import { authenticatedFetch } from "@/lib/utils/api";
-import { useConfigContext } from "@/lib/hooks";
-import { useAuthContext } from "@/lib/hooks";
-import { Edit, Trash2, Check, X } from "lucide-react";
+import { Button } from "@/lib/components/ui/button";
 
 interface Session {
     id: string;
@@ -15,15 +16,14 @@ interface Session {
 export const SessionList: React.FC = () => {
     const { handleSwitchSession, updateSessionName, openSessionDeleteModal } = useChatContext();
     const { configServerUrl } = useConfigContext();
-    useAuthContext();
-    const apiPrefix = `${configServerUrl}/api/v1`;
+    const inputRef = useRef<HTMLInputElement>(null);
+
     const [sessions, setSessions] = useState<Session[]>([]);
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
     const [editingSessionName, setEditingSessionName] = useState<string>("");
-    const inputRef = useRef<HTMLInputElement>(null);
 
-    const fetchSessions = async () => {
-        const url = `${apiPrefix}/sessions`;
+    const fetchSessions = useCallback(async () => {
+        const url = `${configServerUrl}/api/v1/sessions`;
         try {
             const response = await authenticatedFetch(url);
             if (response.ok) {
@@ -35,7 +35,7 @@ export const SessionList: React.FC = () => {
         } catch (error) {
             console.error("An error occurred while fetching sessions:", error);
         }
-    };
+    }, [configServerUrl]);
 
     useEffect(() => {
         fetchSessions();
@@ -59,7 +59,7 @@ export const SessionList: React.FC = () => {
             window.removeEventListener("new-chat-session", handleNewSession);
             window.removeEventListener("session-updated", handleSessionUpdated as EventListener);
         };
-    }, [apiPrefix]);
+    }, [fetchSessions]);
 
     useEffect(() => {
         if (editingSessionId && inputRef.current) {
@@ -111,47 +111,55 @@ export const SessionList: React.FC = () => {
     };
 
     return (
-        <div className="p-4">
-            <h2 className="text-lg font-bold mb-4">Chat History</h2>
-            <ul>
-                {sessions.map((session) => (
-                    <li key={session.id} className="mb-2 group">
-                        <div className="flex items-center justify-between p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700">
-                            {editingSessionId === session.id ? (
-                                <input
-                                    ref={inputRef}
-                                    type="text"
-                                    value={editingSessionName}
-                                    onChange={(e) => setEditingSessionName(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleRename()}
-                                    onBlur={handleRename}
-                                    className="flex-grow bg-transparent focus:outline-none"
-                                />
-                            ) : (
-                                <button onClick={() => handleSessionClick(session.id)} className="flex-grow text-left">
-                                    <div className="flex flex-col">
-                                        <span className="font-semibold">{getSessionDisplayName(session)}</span>
-                                        <span className="text-xs text-gray-500">{formatSessionDate(session.updated_at)}</span>
-                                    </div>
-                                </button>
-                            )}
-                            <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="p-4 flex flex-col h-full">
+            <div className="text-lg">Chat Session History</div>
+            {sessions.length > 0 && (
+                <ul>
+                    {sessions.map((session) => (
+                        <li key={session.id} className="my-2 group">
+                            <div className="flex items-center justify-between px-4 py-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700">
                                 {editingSessionId === session.id ? (
-                                    <>
-                                        <button onClick={handleRename} className="p-1 hover:bg-gray-300 dark:hover:bg-gray-700 rounded"><Check size={16} /></button>
-                                        <button onClick={() => setEditingSessionId(null)} className="p-1 hover:bg-gray-300 dark:hover:bg-gray-700 rounded"><X size={16} /></button>
-                                    </>
+                                    <input
+                                        ref={inputRef}
+                                        type="text"
+                                        value={editingSessionName}
+                                        onChange={(e) => setEditingSessionName(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleRename()}
+                                        onBlur={handleRename}
+                                        className="flex-grow bg-transparent focus:outline-none"
+                                    />
                                 ) : (
-                                    <>
-                                        <button onClick={() => handleEditClick(session)} className="p-1 hover:bg-gray-300 dark:hover:bg-gray-700 rounded"><Edit size={16} /></button>
-                                        <button onClick={() => handleDeleteClick(session)} className="p-1 hover:bg-gray-300 dark:hover:bg-gray-700 rounded"><Trash2 size={16} /></button>
-                                    </>
+                                    <button onClick={() => handleSessionClick(session.id)} className="flex-grow text-left">
+                                        <div className="flex flex-col">
+                                            <span className="font-semibold">{getSessionDisplayName(session)}</span>
+                                            <span className="text-xs text-muted-foreground">{formatSessionDate(session.updated_at)}</span>
+                                        </div>
+                                    </button>
                                 )}
+                                <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {editingSessionId === session.id ? (
+                                        <>
+                                            <Button variant="ghost" onClick={handleRename}><Check size={16} /></Button>
+                                            <Button variant="ghost" onClick={() => setEditingSessionId(null)}><X size={16} /></Button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Button variant="ghost" onClick={() => handleEditClick(session)}><Pencil size={16} /></Button>
+                                            <Button variant="ghost" onClick={() => handleDeleteClick(session)}><Trash2 size={16} /></Button>
+                                        </>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    </li>
-                ))}
-            </ul>
+                        </li>
+                    ))}
+                </ul>
+            )}
+            {sessions.length === 0 && (
+                <div className="flex flex-col flex-1 h-full text-sm text-muted-foreground items-center justify-center">
+                    <MessageCircle className="mx-auto mb-4 h-12 w-12" />
+                    No chat sessions available
+                </div>
+            )}
         </div>
     );
 };

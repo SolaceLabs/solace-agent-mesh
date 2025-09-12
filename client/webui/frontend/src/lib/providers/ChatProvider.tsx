@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
+import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode, useMemo } from "react";
 
-import { useConfigContext, useArtifacts, useAgents } from "@/lib/hooks";
+import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
 import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
 import type { ArtifactInfo, CancelTaskRequest, FileAttachment, FilePart, JSONRPCErrorResponse, Message, MessageFE, Notification, Part, SendStreamingMessageRequest, SendStreamingMessageSuccessResponse, Session, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart } from "@/lib/types";
@@ -17,19 +17,20 @@ interface HistoryMessage {
     created_at: string;
 }
 
+// File utils
+const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
+const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve((reader.result as string).split(",")[1]);
+        reader.onerror = error => reject(error);
+    });
+};
+
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, configServerUrl } = useConfigContext();
-    const apiPrefix = `${configServerUrl}/api/v1`;
-
-    const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
-
-    const fileToBase64 = (file: File): Promise<string> =>
-        new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve((reader.result as string).split(",")[1]);
-            reader.onerror = error => reject(error);
-        });
+    const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
 
     // State Variables from useChat
     const [sessionId, setSessionId] = useState<string>("");
@@ -40,16 +41,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
     const currentEventSource = useRef<EventSource | null>(null);
     const [selectedAgentName, setSelectedAgentName] = useState<string>("");
-    const [isCancelling, setIsCancelling] = useState<boolean>(false); // New state for cancellation
-    const isCancellingRef = useRef(isCancelling);
-    useEffect(() => {
-        isCancellingRef.current = isCancelling;
-    }, [isCancelling]);
+    const [isCancelling, setIsCancelling] = useState<boolean>(false);
     const [taskIdInSidePanel, setTaskIdInSidePanel] = useState<string | null>(null);
-    const cancelTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Ref for cancel timeout
+
+    // Refs
+    const cancelTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isFinalizing = useRef(false);
     const latestStatusText = useRef<string | null>(null);
     const sseEventSequenceRef = useRef<number>(0);
+    const isCancellingRef = useRef(isCancelling);
+
+    useEffect(() => {
+        isCancellingRef.current = isCancelling;
+    }, [isCancelling]);
 
     // Agents State
     const {
@@ -57,7 +61,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         error: agentsError,
         isLoading: agentsLoading,
         refetch: agentsRefetch,
-    } = useAgents();
+    } = useAgentCards();
 
     // Chat Side Panel State
     const {
@@ -85,6 +89,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [currentPreviewedVersionNumber, setCurrentPreviewedVersionNumber] = useState<number | null>(null);
     const [previewFileContent, setPreviewFileContent] = useState<FileAttachment | null>(null);
 
+    // Session State
+    const [sessionName, setSessionName] = useState<string | null>(null);
+    const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
 
     // Notification Helper
     const addNotification = useCallback((message: string, type?: "success" | "info" | "error") => {
@@ -142,13 +149,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return null;
             }
         },
-        [apiPrefix, addNotification, artifactsRefetch]
+        [apiPrefix, sessionId, addNotification, artifactsRefetch]
     );
-
-    const [sessionName, setSessionName] = useState<string | null>(null);
-    // Note: Other state variables are already declared above (lines 36-52)
-
-    const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
 
     const deleteArtifactInternal = useCallback(
         async (filename: string) => {
@@ -167,7 +169,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 addNotification(`Error deleting file "${filename}": ${error instanceof Error ? error.message : "Unknown error"}`);
             }
         },
-        [apiPrefix, addNotification, artifactsRefetch]
+        [apiPrefix, sessionId, addNotification, artifactsRefetch]
     );
 
     const openDeleteModal = useCallback((artifact: ArtifactInfo) => {
@@ -256,7 +258,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return null;
             }
         },
-        [apiPrefix, addNotification, artifacts]
+        [apiPrefix, sessionId, artifacts, addNotification]
     );
 
     const navigateArtifactVersion = useCallback(
@@ -291,7 +293,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return null;
             }
         },
-        [apiPrefix, addNotification, artifacts, previewedArtifactAvailableVersions]
+        [apiPrefix, addNotification, artifacts, previewedArtifactAvailableVersions, sessionId]
     );
 
     const openMessageAttachmentForPreview = useCallback(
@@ -658,7 +660,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
         // Note: No session events dispatched here since no session exists yet.
         // Session creation event will be dispatched when first message creates the actual session.
-    }, [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, configWelcomeMessage, addNotification, artifactsRefetch]);
+    }, [apiPrefix, isResponding, currentTaskId, selectedAgentName, isCancelling, configWelcomeMessage, addNotification, artifactsRefetch, closeCurrentEventSource]);
 
     const handleSwitchSession = useCallback(
         async (newSessionId: string) => {
