@@ -306,14 +306,23 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
             </div>
             
             {/* Expanded Content Section */}
-            {expanded && expandedContent && (
-                <>
-                    <hr className="border-t border-[#e0e0e0] dark:border-[#404040]" />
-                    <div className="p-3">
-                        {expandedContent}
-                    </div>
-                </>
-            )}
+            <div
+                className={cn(
+                    "grid grid-rows-[0fr] transition-[grid-template-rows] duration-300 ease-in-out",
+                    expanded && expandedContent && "grid-rows-[1fr]"
+                )}
+            >
+                <div className="overflow-hidden">
+                    {expandedContent && (
+                        <>
+                            <hr className="border-t border-[#e0e0e0] dark:border-[#404040]" />
+                            <div className="p-3">
+                                {expandedContent}
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
         </div>
     );
 };
