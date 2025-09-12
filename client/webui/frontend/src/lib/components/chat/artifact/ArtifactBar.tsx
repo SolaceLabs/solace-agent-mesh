@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Download, Eye, ChevronDown, ChevronRight, Trash, Info, ChevronUp } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
@@ -45,6 +45,20 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
     content,
     expandedContent,
 }) => {
+    const [contentForAnimation, setContentForAnimation] = useState(expandedContent);
+
+    useEffect(() => {
+        if (expandedContent) {
+            setContentForAnimation(expandedContent);
+        } else {
+            // When expandedContent is removed, wait for animation to finish before removing from DOM
+            const timer = setTimeout(() => {
+                setContentForAnimation(undefined);
+            }, 300); // Corresponds to duration-300
+            return () => clearTimeout(timer);
+        }
+    }, [expandedContent]);
+
     console.log(`[ArtifactBar] Rendering ${filename} with status: ${status}, bytesTransferred: ${bytesTransferred}`);
     
     // Validate required props
@@ -313,11 +327,11 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                 )}
             >
                 <div className="overflow-hidden">
-                    {expandedContent && (
+                    {contentForAnimation && (
                         <>
                             <hr className="border-t border-[#e0e0e0] dark:border-[#404040]" />
                             <div className="p-3">
-                                {expandedContent}
+                                {contentForAnimation}
                             </div>
                         </>
                     )}
