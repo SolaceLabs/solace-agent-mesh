@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 
 import { Button } from "@/lib/components/ui";
-import type { AgentInfo } from "@/lib/types";
+import type { AgentCardInfo } from "@/lib/types";
 
 import { AgentDisplayCard } from "./AgentDisplayCard";
 
 interface AgentMeshCardsProps {
-    agents: AgentInfo[];
+    agents: AgentCardInfo[];
 }
 
 export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
@@ -17,7 +17,7 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
         setExpandedAgentName(prev => (prev === agentName ? null : agentName));
     };
 
-    const filteredAgents = agents.filter(agent => (agent.display_name || agent.name)?.toLowerCase().includes(searchQuery.toLowerCase()));
+    const filteredAgents = agents.filter(agent => (agent.displayName || agent.name)?.toLowerCase().includes(searchQuery.toLowerCase()));
 
     return (
         <div>

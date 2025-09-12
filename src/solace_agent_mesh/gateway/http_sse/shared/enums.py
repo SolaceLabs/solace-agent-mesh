@@ -21,11 +21,6 @@ class TaskStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class SessionStatus(str, Enum):
-    """Session status."""
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    ARCHIVED = "archived"
 
 
 class MessageType(str, Enum):

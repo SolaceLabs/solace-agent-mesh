@@ -16,10 +16,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import StaticPool
 
-from solace_agent_mesh.gateway.http_sse.infrastructure.persistence.database_persistence_service import (
-    DatabasePersistenceService,
-)
-from solace_agent_mesh.gateway.http_sse.infrastructure.persistence.models import Base
+# Remove old persistence service import - using direct SQLAlchemy now
+from solace_agent_mesh.gateway.http_sse.repository.models.base import Base
 
 # Import FastAPI components
 from solace_agent_mesh.gateway.http_sse.main import app as fastapi_app
@@ -66,13 +64,10 @@ def test_database_engine(test_database_url):
 
 
 @pytest.fixture(scope="session")
-def test_persistence_service(test_database_url):
-    """Creates DatabasePersistenceService with test database"""
-
-    service = DatabasePersistenceService(db_url=test_database_url)
-    print("[API Tests] Test persistence service created")
-
-    yield service
+def test_database_url_for_setup(test_database_url):
+    """Provides database URL for setup - replaces persistence service"""
+    print("[API Tests] Test database URL prepared for setup")
+    yield test_database_url
 
 
 @pytest.fixture(scope="session")
@@ -152,10 +147,10 @@ def mock_component():
 
 
 @pytest.fixture(scope="session")
-def test_app(test_persistence_service, mock_component):
+def test_app(test_database_url_for_setup, mock_component):
     """Creates configured FastAPI test application"""
     # Set up dependencies and configure the app properly
-    setup_dependencies(mock_component, test_persistence_service)
+    setup_dependencies(mock_component, test_database_url_for_setup)
 
     print("[API Tests] FastAPI app configured with test dependencies")
     yield fastapi_app
@@ -183,25 +178,28 @@ def authenticated_user():
 
 
 @pytest.fixture(autouse=True)
-def clean_database_between_tests(request, test_persistence_service):
+def clean_database_between_tests(request, test_database_engine):
     """Cleans database state between tests"""
 
     # Clean BEFORE the test runs to ensure clean starting state
-    _clean_main_database(test_persistence_service)
+    _clean_main_database(test_database_engine)
     _clean_simple_databases_if_needed(request)
 
     yield  # Let the test run
 
     # Clean AFTER the test runs to clean up
-    _clean_main_database(test_persistence_service)
+    _clean_main_database(test_database_engine)
     _clean_simple_databases_if_needed(request)
 
     print("[API Tests] Database cleaned between tests")
 
 
-def _clean_main_database(test_persistence_service):
+def _clean_main_database(test_database_engine):
     """Clean the main API test database"""
-    session = test_persistence_service.Session()
+    from sqlalchemy.orm import sessionmaker
+    
+    SessionLocal = sessionmaker(bind=test_database_engine)
+    session = SessionLocal()
     try:
         # Check if tables exist before trying to delete from them
         inspector = sa.inspect(session.bind)
@@ -343,7 +341,7 @@ def simple_gateway_adapter(simple_database_manager):
 __all__ = [
     "test_database_url",
     "test_database_engine",
-    "test_persistence_service",
+    "test_database_url_for_setup",
     "mock_component",
     "test_app",
     "api_client",

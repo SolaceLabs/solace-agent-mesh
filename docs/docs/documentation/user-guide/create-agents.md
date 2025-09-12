@@ -174,6 +174,8 @@ The following arguments are provided by the framework:
 - tool_context: SAM framework context
 - tool_config: Tool-specific configuration (from config.yaml)
 
+For a complete guide on creating python tools, see our **[Creating Python Tools](./creating-python-tools.md)** documentation.
+
 ```python
 # src/my_hello_agent/tools.py
 """

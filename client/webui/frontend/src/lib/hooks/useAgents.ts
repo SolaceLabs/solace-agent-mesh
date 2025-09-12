@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-import type { AgentCard, AgentExtension, AgentInfo, AgentSkill } from "@/lib/types";
+import type { AgentCard, AgentExtension, AgentCardInfo, AgentSkill } from "@/lib/types";
 import { authenticatedFetch } from "@/lib/utils/api";
 
 import { useConfigContext } from "./useConfigContext";
@@ -10,10 +10,10 @@ const PEER_AGENT_TOPOLOGY_EXTENSION_URI = "https://solace.com/a2a/extensions/pee
 const TOOL_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/tools";
 
 /**
- * Transforms a raw A2A AgentCard into a UI-friendly AgentInfo object,
- * extracting the display_name and peer_agents from the extensions array.
+ * Transforms a raw A2A AgentCard into a UI-friendly AgentCardInfo object,
+ * extracting the displayName and peer_agents from the extensions array.
  */
-const transformAgentCard = (card: AgentCard): AgentInfo => {
+const transformAgentCard = (card: AgentCard): AgentCardInfo => {
     let displayName: string | undefined;
     let peerAgents: string[] | undefined;
     let tools: AgentSkill[] | undefined;
@@ -36,14 +36,18 @@ const transformAgentCard = (card: AgentCard): AgentInfo => {
     }
     return {
         ...card,
+        // deprecated fields, remove when no longer used
         display_name: displayName,
         peer_agents: peerAgents || [],
+        // end deprecated fields
         tools: tools || [],
+        displayName: displayName,
+        peerAgents: peerAgents || []
     };
 };
 
 interface UseAgentsReturn {
-    agents: AgentInfo[];
+    agents: AgentCardInfo[];
     isLoading: boolean;
     error: string | null;
     refetch: () => Promise<void>;
@@ -51,7 +55,7 @@ interface UseAgentsReturn {
 
 export const useAgents = (): UseAgentsReturn => {
     const { configServerUrl } = useConfigContext();
-    const [agents, setAgents] = useState<AgentInfo[]>([]);
+    const [agents, setAgents] = useState<AgentCardInfo[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -61,7 +65,7 @@ export const useAgents = (): UseAgentsReturn => {
         setIsLoading(true);
         setError(null);
         try {
-            const response = await authenticatedFetch(`${apiPrefix}/agents`, { credentials: "include" });
+            const response = await authenticatedFetch(`${apiPrefix}/agentCards`, { credentials: "include" });
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ message: `Failed to fetch agents: ${response.statusText}` }));
                 throw new Error(errorData.message || `Failed to fetch agents: ${response.statusText}`);

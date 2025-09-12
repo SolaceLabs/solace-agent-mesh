@@ -8,6 +8,7 @@ export interface ConfigContextValue {
     configRedirectUrl: string;
     configCollectFeedback: boolean;
     configBotName: string;
+    configFeatureEnablement?: Record<string, boolean>;
     /**
      * Authorization flag from frontend config
      * @deprecated Consider using configUseAuthorization instead as this may be redundant

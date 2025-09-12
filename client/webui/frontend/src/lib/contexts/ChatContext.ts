@@ -1,6 +1,6 @@
 import React, { createContext, type FormEvent } from "react";
 
-import type { AgentInfo, ArtifactInfo, ArtifactRenderingState, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
+import type { AgentCardInfo, ArtifactInfo, ArtifactRenderingState, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
 
 export interface ChatState {
     sessionId: string;
@@ -14,7 +14,7 @@ export interface ChatState {
     isCancelling: boolean;
     latestStatusText: string | null;
     // Agents
-    agents: AgentInfo[];
+    agents: AgentCardInfo[];
     agentsError: string | null;
     agentsLoading: boolean;
     agentsRefetch: () => Promise<void>;
@@ -61,29 +61,29 @@ export interface ChatActions {
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
     setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "workflow">>;
     openSidePanelTab: (tab: "files" | "workflow") => void;
-    
+
     openDeleteModal: (artifact: ArtifactInfo) => void;
     closeDeleteModal: () => void;
     confirmDelete: () => Promise<void>;
     openSessionDeleteModal: (session: Session) => void;
     closeSessionDeleteModal: () => void;
     confirmSessionDelete: () => Promise<void>;
-    
+
     setIsArtifactEditMode: React.Dispatch<React.SetStateAction<boolean>>;
     setSelectedArtifactFilenames: React.Dispatch<React.SetStateAction<Set<string>>>;
     handleDeleteSelectedArtifacts: () => void;
     confirmBatchDeleteArtifacts: () => Promise<void>;
     setIsBatchDeleteModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
-    
+
     setPreviewArtifact: React.Dispatch<React.SetStateAction<ArtifactInfo | null>>;
     openArtifactForPreview: (artifactFilename: string, autoRun?: boolean) => Promise<FileAttachment | null>;
     navigateArtifactVersion: (artifactFilename: string, targetVersion: number) => Promise<FileAttachment | null>;
-    
+
     openMessageAttachmentForPreview: (file: FileAttachment, autoRun?: boolean) => void;
     /* Session Management Actions */
     updateSessionName: (sessionId: string, newName: string) => Promise<void>;
     deleteSession: (sessionId: string) => Promise<void>;
-    
+
     /** Artifact Rendering Actions */
     toggleArtifactExpanded: (filename: string) => void;
     isArtifactExpanded: (filename: string) => boolean;

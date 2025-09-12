@@ -33,7 +33,7 @@ class EvaluationConfig:
     """Centralized configuration with validation and defaults."""
 
     # Constants
-    DEFAULT_STARTUP_WAIT_TIME = 20
+    DEFAULT_STARTUP_WAIT_TIME = 60
     DEFAULT_TEST_TIMEOUT = 60
 
     def __init__(self, config_data: Dict[str, Any]):
@@ -108,12 +108,33 @@ class ProcessManager:
             command, stdout=sys.stdout, stderr=sys.stderr, cwd=project_root
         )
 
-        print(
-            f"Waiting for server to start... ({self.config.DEFAULT_STARTUP_WAIT_TIME} seconds)"
-        )
-        time.sleep(self.config.DEFAULT_STARTUP_WAIT_TIME)
+        print("Waiting for server to become healthy...")
+        self._wait_for_server_ready()
 
         return self.process, self.namespace
+
+    def _wait_for_server_ready(self):
+        """Poll the health endpoint until the server is ready."""
+        start_time = time.time()
+        health_url = f"{self.config.API_BASE_URL.replace('/api/v2', '')}/health"
+
+        while time.time() - start_time < self.config.DEFAULT_STARTUP_WAIT_TIME:
+            try:
+                response = requests.get(health_url)
+                if response.status_code == 200:
+                    print("Server is healthy.")
+                    time.sleep(1)  # Wait an extra second as requested
+                    return
+            except requests.ConnectionError:
+                # Server is not yet available, wait and retry
+                time.sleep(1)
+            except Exception as e:
+                print(f"An unexpected error occurred during health check: {e}")
+                time.sleep(1)
+
+        raise RuntimeError(
+            f"Server did not become healthy within {self.config.DEFAULT_STARTUP_WAIT_TIME} seconds."
+        )
 
     def stop_services(self, subscriber: Optional[Subscriber] = None):
         """Clean up running processes."""

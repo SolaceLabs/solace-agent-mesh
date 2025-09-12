@@ -43,6 +43,7 @@ async def get_app_config(
                 "frontend_collect_feedback", False
             ),
             "frontend_bot_name": component.get_config("frontend_bot_name", "A2A Agent"),
+            "frontend_feature_enablement": component.get_config("frontend_feature_enablement", {}),
             "persistence_enabled": api_config.get("persistence_enabled", False),
         }
         log.info("%sReturning frontend configuration.", log_prefix)
