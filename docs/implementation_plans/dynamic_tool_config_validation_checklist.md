@@ -25,14 +25,14 @@ This checklist outlines the development tasks required to implement Pydantic-bas
 ## Phase 2: Documentation
 
 3.  **Update `docs/docs/documentation/user-guide/creating-python-tools.md`:**
-    - [ ] 3.1. Add a new section (e.g., "Pattern 4: Pydantic-Based Configuration") to introduce the feature.
-    - [ ] 3.2. Explain the key benefits: automatic validation at startup, type safety in tool code, and self-documenting configuration.
-    - [ ] 3.3. Provide a complete, copy-paste-friendly code example that includes:
+    - [x] 3.1. Add a new section (e.g., "Pattern 4: Pydantic-Based Configuration") to introduce the feature.
+    - [x] 3.2. Explain the key benefits: automatic validation at startup, type safety in tool code, and self-documenting configuration.
+    - [x] 3.3. Provide a complete, copy-paste-friendly code example that includes:
         - A Pydantic `BaseModel` defining the configuration.
         - A `DynamicTool` or `DynamicToolProvider` subclass that links the model via the `config_model` attribute.
         - The tool's `__init__` or `create_tools` method demonstrating type-safe access to the configuration object.
-    - [ ] 3.4. Show the corresponding valid YAML `tool_config` block.
-    - [ ] 3.5. Clearly explain that the agent will fail to start with a precise error message if the YAML configuration does not match the Pydantic model.
+    - [x] 3.4. Show the corresponding valid YAML `tool_config` block.
+    - [x] 3.5. Clearly explain that the agent will fail to start with a precise error message if the YAML configuration does not match the Pydantic model.
 
 ## Phase 3: Finalization
 
