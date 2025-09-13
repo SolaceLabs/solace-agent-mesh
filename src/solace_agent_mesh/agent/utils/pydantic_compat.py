@@ -32,8 +32,11 @@ class BackwardCompatibleModel(BaseModel):
         return getattr(self, key)
 
     def __contains__(self, key: str) -> bool:
-        """Provides dict-like 'in' support."""
-        return hasattr(self, key)
+        """
+        Provides dict-like 'in' support that mimics the old behavior.
+        Returns True only if the key was explicitly provided during model creation.
+        """
+        return key in self.model_fields_set
 
     def keys(self):
         """Provides dict-like .keys() method."""
