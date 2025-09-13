@@ -44,7 +44,11 @@ class LifecycleTestTool(DynamicTool):
         """On init, write to the tracker file."""
         log.info("LifecycleTestTool: init() called.")
         tracker_file = Path(self.tool_config["tracker_file"])
-        track(tracker_file, "dynamic_init_called")
+        # Check if we are in the mixed test by seeing if a YAML hook is also configured
+        if tool_config.init_function:
+            track(tracker_file, "step_2_dynamic_init")
+        else:
+            track(tracker_file, "dynamic_init_called")
 
     async def cleanup(
         self, component: "SamAgentComponent", tool_config: "AnyToolConfig"
@@ -52,7 +56,11 @@ class LifecycleTestTool(DynamicTool):
         """On cleanup, write to the tracker file."""
         log.info("LifecycleTestTool: cleanup() called.")
         tracker_file = Path(self.tool_config["tracker_file"])
-        track(tracker_file, "dynamic_cleanup_called")
+        # Check if we are in the mixed test by seeing if a YAML hook is also configured
+        if tool_config.cleanup_function:
+            track(tracker_file, "step_3_dynamic_cleanup")
+        else:
+            track(tracker_file, "dynamic_cleanup_called")
 
     async def _run_async_impl(
         self, args: dict, tool_context: ToolContext, credential: Optional[str] = None
