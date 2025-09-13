@@ -15,6 +15,7 @@ from typing import (
     get_args,
     Union,
     Literal,
+    TYPE_CHECKING,
 )
 import inspect
 
@@ -33,6 +34,11 @@ from ...common.utils.embeds import (
 )
 
 
+if TYPE_CHECKING:
+    from ..sac.component import SamAgentComponent
+    from .tool_config_types import AnyToolConfig
+
+
 # --- Base Class for Programmatic Tools ---
 
 
@@ -48,6 +54,18 @@ class DynamicTool(BaseTool, ABC):
             name="dynamic_tool_placeholder", description="dynamic_tool_placeholder"
         )
         self.tool_config = tool_config or {}
+
+    async def init(
+        self, component: "SamAgentComponent", tool_config: "AnyToolConfig"
+    ) -> None:
+        """(Optional) Initializes resources for the tool. Called once on startup."""
+        pass
+
+    async def cleanup(
+        self, component: "SamAgentComponent", tool_config: "AnyToolConfig"
+    ) -> None:
+        """(Optional) Cleans up resources used by the tool. Called once on shutdown."""
+        pass
 
     @property
     @abstractmethod

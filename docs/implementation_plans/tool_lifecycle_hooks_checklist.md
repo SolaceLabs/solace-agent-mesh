@@ -5,7 +5,7 @@
     2.  Add `init_function: Optional[ToolLifecycleHookConfig]` to `BaseToolConfig`.
     3.  Add `cleanup_function: Optional[ToolLifecycleHookConfig]` to `BaseToolConfig`.
 
-2.  **Extend Dynamic Tool Interface** (`src/solace_agent_mesh/agent/tools/dynamic_tool.py`)
+2.  **Extend Dynamic Tool Interface** (`src/solace_agent_mesh/agent/tools/dynamic_tool.py`) - DONE
     1.  Add `async def init(self, component, tool_config)` method to `DynamicTool` with a `pass` implementation.
     2.  Add `async def cleanup(self, component, tool_config)` method to `DynamicTool` with a `pass` implementation.
 
