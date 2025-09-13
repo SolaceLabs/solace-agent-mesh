@@ -40,3 +40,40 @@ async def mixed_yaml_cleanup(
     log.info("mixed_yaml_cleanup called.")
     tracker_file = Path(tool_config.tool_config["tracker_file"])
     track(tracker_file, "step_4_yaml_cleanup")
+
+
+async def failing_init_hook(component: "SamAgentComponent", tool_config: "AnyToolConfig"):
+    """An init hook that always fails."""
+    log.info("failing_init_hook called, will raise ValueError.")
+    raise ValueError("Simulated fatal init failure")
+
+
+async def failing_cleanup_hook(
+    component: "SamAgentComponent", tool_config: "AnyToolConfig"
+):
+    """A cleanup hook that always fails."""
+    log.info("failing_cleanup_hook called, will raise ValueError.")
+    tracker_file = Path(tool_config.tool_config["tracker_file"])
+    track(tracker_file, "failing_cleanup_hook_started")
+    raise ValueError("Simulated non-fatal cleanup failure")
+
+
+async def succeeding_cleanup_hook(
+    component: "SamAgentComponent", tool_config: "AnyToolConfig"
+):
+    """A cleanup hook that always succeeds."""
+    log.info("succeeding_cleanup_hook called.")
+    tracker_file = Path(tool_config.tool_config["tracker_file"])
+    track(tracker_file, "succeeding_cleanup_hook_called")
+
+
+async def arg_inspector_init_hook(
+    component: "SamAgentComponent", tool_config: "AnyToolConfig"
+):
+    """An init hook that inspects its arguments and records them."""
+    log.info("arg_inspector_init_hook called.")
+    tracker_file = Path(tool_config.tool_config["tracker_file"])
+    agent_name = component.agent_name
+    my_value = tool_config.tool_config.get("my_value")
+    track(tracker_file, f"yaml_init_agent_name:{agent_name}")
+    track(tracker_file, f"yaml_init_my_value:{my_value}")

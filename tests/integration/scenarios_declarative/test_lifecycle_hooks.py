@@ -244,3 +244,188 @@ def test_mixed_hooks_lifo_cleanup_order(
         "step_3_dynamic_cleanup",
         "step_4_yaml_cleanup",
     ], "Expected cleanup hooks to be called in LIFO order: DynamicTool method, then YAML."
+
+
+@pytest.fixture
+def fatal_init_agent_config(lifecycle_tracker_path: Path) -> Dict[str, Any]:
+    """Provides agent config where the tool's init hook is designed to fail."""
+    agent_config = {
+        "namespace": "test_namespace/lifecycle_fatal",
+        "agent_name": "FatalInitAgent",
+        "model": {"model": "placeholder"},  # Model won't be reached
+        "session_service": {"type": "memory"},
+        "artifact_service": {"type": "memory"},
+        "agent_card": {"description": "Fatal init test agent"},
+        "agent_card_publishing": {"interval_seconds": 0},
+        "tools": [
+            {
+                "tool_type": "python",
+                "component_module": "tests.integration.test_support.tools",
+                "function_name": "get_weather_tool",
+                "tool_config": {"tracker_file": str(lifecycle_tracker_path)},
+                "init_function": {
+                    "module": "tests.integration.test_support.dynamic_tools.lifecycle_yaml_hooks",
+                    "name": "failing_init_hook",
+                },
+            }
+        ],
+    }
+    return {
+        "apps": [
+            {
+                "name": "FatalInitAgentApp",
+                "app_config": agent_config,
+                "broker": {"dev_mode": True},
+                "app_module": "solace_agent_mesh.agent.sac.app",
+            }
+        ],
+        "log": {"stdout_log_level": "INFO"},
+    }
+
+
+def test_fatal_init_failure(fatal_init_agent_config: Dict[str, Any]):
+    """
+    Tests that an exception during an init hook is fatal and prevents startup.
+    """
+    with pytest.raises(RuntimeError, match="Tool lifecycle initialization failed"):
+        connector = SolaceAiConnector(config=fatal_init_agent_config)
+        connector.run()
+
+
+@pytest.fixture
+def non_fatal_cleanup_agent_config(
+    lifecycle_tracker_path: Path, test_llm_server
+) -> Dict[str, Any]:
+    """
+    Provides agent config where one cleanup hook fails, to test resilience.
+    """
+    agent_config = {
+        "namespace": "test_namespace/lifecycle_cleanup_fail",
+        "agent_name": "CleanupFailAgent",
+        "model": {"model": "placeholder"},
+        "session_service": {"type": "memory"},
+        "artifact_service": {"type": "memory"},
+        "agent_card": {"description": "Cleanup failure test agent"},
+        "agent_card_publishing": {"interval_seconds": 0},
+        "tools": [
+            {
+                "tool_type": "python",
+                "component_module": "tests.integration.test_support.dynamic_tools.lifecycle_tool",
+                "class_name": "LifecycleTestTool",
+                "tool_config": {
+                    "tracker_file": str(lifecycle_tracker_path),
+                    "test_mode": "cleanup_failure",
+                },
+                "init_function": {  # Add a dummy init to match LIFO test
+                    "module": "tests.integration.test_support.dynamic_tools.lifecycle_yaml_hooks",
+                    "name": "mixed_yaml_init",
+                },
+                "cleanup_function": {  # This one should still run
+                    "module": "tests.integration.test_support.dynamic_tools.lifecycle_yaml_hooks",
+                    "name": "succeeding_cleanup_hook",
+                },
+            }
+        ],
+    }
+    return {
+        "apps": [
+            {
+                "name": "CleanupFailAgentApp",
+                "app_config": agent_config,
+                "broker": {"dev_mode": True},
+                "app_module": "solace_agent_mesh.agent.sac.app",
+            }
+        ],
+        "log": {"stdout_log_level": "INFO"},
+    }
+
+
+def test_non_fatal_cleanup_failure(
+    non_fatal_cleanup_agent_config: Dict[str, Any], lifecycle_tracker_path: Path
+):
+    """
+    Tests that a failure in one cleanup hook does not prevent others from running.
+    """
+    connector = SolaceAiConnector(config=non_fatal_cleanup_agent_config)
+    connector.run()
+    time.sleep(2)
+
+    # Stop the connector. This should trigger cleanup.
+    # The test should not crash.
+    connector.stop()
+    connector.cleanup()
+
+    # Assert that the succeeding hook was still called
+    tracked_lines = get_tracked_lines(lifecycle_tracker_path)
+    assert "step_2_dynamic_init" in tracked_lines
+    assert "dynamic_cleanup_started_and_will_fail" in tracked_lines
+    assert (
+        "succeeding_cleanup_hook_called" in tracked_lines
+    ), "The succeeding cleanup hook should have run despite the previous one failing."
+
+
+@pytest.fixture
+def arg_injection_agent_config(
+    lifecycle_tracker_path: Path, test_llm_server
+) -> Dict[str, Any]:
+    """Provides agent config for testing argument injection into lifecycle hooks."""
+    agent_config = {
+        "namespace": "test_namespace/lifecycle_args",
+        "agent_name": "ArgInjectionAgent",
+        "model": {"model": "placeholder"},
+        "session_service": {"type": "memory"},
+        "artifact_service": {"type": "memory"},
+        "agent_card": {"description": "Arg injection test agent"},
+        "agent_card_publishing": {"interval_seconds": 0},
+        "tools": [
+            {
+                "tool_type": "python",
+                "component_module": "tests.integration.test_support.dynamic_tools.lifecycle_tool",
+                "class_name": "LifecycleTestTool",
+                "tool_config": {
+                    "tracker_file": str(lifecycle_tracker_path),
+                    "test_mode": "arg_injection",
+                    "my_value": "hello_from_config",
+                },
+                "init_function": {
+                    "module": "tests.integration.test_support.dynamic_tools.lifecycle_yaml_hooks",
+                    "name": "arg_inspector_init_hook",
+                },
+            }
+        ],
+    }
+    return {
+        "apps": [
+            {
+                "name": "ArgInjectionAgentApp",
+                "app_config": agent_config,
+                "broker": {"dev_mode": True},
+                "app_module": "solace_agent_mesh.agent.sac.app",
+            }
+        ],
+        "log": {"stdout_log_level": "INFO"},
+    }
+
+
+def test_argument_injection(
+    arg_injection_agent_config: Dict[str, Any], lifecycle_tracker_path: Path
+):
+    """
+    Tests that 'component' and 'tool_config' are correctly passed to hooks.
+    """
+    connector = SolaceAiConnector(config=arg_injection_agent_config)
+    connector.run()
+    time.sleep(2)
+
+    tracked_lines = get_tracked_lines(lifecycle_tracker_path)
+
+    # Assertions for YAML hook
+    assert "yaml_init_agent_name:ArgInjectionAgent" in tracked_lines
+    assert "yaml_init_my_value:hello_from_config" in tracked_lines
+
+    # Assertions for DynamicTool hook
+    assert "dynamic_init_agent_name:ArgInjectionAgent" in tracked_lines
+    assert "dynamic_init_my_value:hello_from_config" in tracked_lines
+
+    connector.stop()
+    connector.cleanup()

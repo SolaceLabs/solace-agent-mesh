@@ -44,6 +44,15 @@ class LifecycleTestTool(DynamicTool):
         """On init, write to the tracker file."""
         log.info("LifecycleTestTool: init() called.")
         tracker_file = Path(self.tool_config["tracker_file"])
+
+        # Check for argument injection test mode
+        if self.tool_config.get("test_mode") == "arg_injection":
+            agent_name = component.agent_name
+            my_value = self.tool_config.get("my_value")
+            track(tracker_file, f"dynamic_init_agent_name:{agent_name}")
+            track(tracker_file, f"dynamic_init_my_value:{my_value}")
+            return  # Exit early to not interfere with other tests
+
         # Check if we are in the mixed test by seeing if a YAML hook is also configured
         if tool_config.init_function:
             track(tracker_file, "step_2_dynamic_init")
@@ -56,6 +65,16 @@ class LifecycleTestTool(DynamicTool):
         """On cleanup, write to the tracker file."""
         log.info("LifecycleTestTool: cleanup() called.")
         tracker_file = Path(self.tool_config["tracker_file"])
+
+        # Check for non-fatal failure test mode
+        if self.tool_config.get("test_mode") == "cleanup_failure":
+            track(tracker_file, "dynamic_cleanup_started_and_will_fail")
+            raise ValueError("Simulated non-fatal cleanup failure")
+
+        # Check for argument injection test mode
+        if self.tool_config.get("test_mode") == "arg_injection":
+            return  # Not needed for this test
+
         # Check if we are in the mixed test by seeing if a YAML hook is also configured
         if tool_config.cleanup_function:
             track(tracker_file, "step_3_dynamic_cleanup")
