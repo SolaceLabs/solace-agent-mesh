@@ -19,7 +19,7 @@
         -   Add the YAML-configured `cleanup_function`.
     4.  Return the collected list of cleanup hooks.
 
-4.  **Manage and Execute Cleanup Hooks** (`src/solace_agent_mesh/agent/sac/component.py`)
+4.  **Manage and Execute Cleanup Hooks** (`src/solace_agent_mesh/agent/sac/component.py`) - DONE
     1.  In `SamAgentComponent.__init__`, add `self._tool_cleanup_hooks: List[Callable] = []`.
     2.  In `_perform_async_init`, capture the cleanup hooks from `load_adk_tools` and store them in `self._tool_cleanup_hooks`.
     3.  In the `cleanup` method, schedule and execute all functions in `self._tool_cleanup_hooks` on the component's event loop, logging any errors.
