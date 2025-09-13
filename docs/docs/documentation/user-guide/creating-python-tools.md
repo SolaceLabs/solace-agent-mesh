@@ -226,6 +226,140 @@ This approach is incredibly scalable, as one configuration entry can bootstrap a
 
 ---
 
+## Managing Tool Lifecycles with `init` and `cleanup`
+
+For tools that need to manage resources—such as database connections, API clients, or temporary files—Solace Agent Mesh provides optional `init` and `cleanup` lifecycle hooks. These allow you to run code when the agent starts up and shuts down, ensuring that resources are acquired and released gracefully.
+
+There are two ways to define these hooks:
+- **YAML-based (`init_function`, `cleanup_function`):** A flexible method that works for *any* Python tool, including simple function-based ones.
+- **Class-based (`init`, `cleanup` methods):** The idiomatic and recommended way for `DynamicTool` and `DynamicToolProvider` classes.
+
+### YAML-Based Lifecycle Hooks
+
+You can add `init_function` and `cleanup_function` blocks to any tool's configuration in your agent's YAML. This is useful for separating resource management logic from the tool's core implementation.
+
+#### Step 1: Define the Hook Functions
+
+Create a separate Python file (e.g., `my_agent/lifecycle.py`) for your lifecycle functions. These functions must be `async` and will receive the agent component instance and the tool's configuration dictionary as arguments.
+
+```python
+# src/my_agent/lifecycle.py
+from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from typing import Dict, Any
+
+async def initialize_db_connection(component: SamAgentComponent, tool_config: Dict[str, Any]):
+    """Initializes a database connection and stores it for the agent to use."""
+    print("INFO: Initializing database connection...")
+    # In a real scenario, you would create a client instance
+    db_client = {"connection_string": tool_config.get("connection_string")}
+    # Store the client in a shared state accessible by the component
+    component.set_agent_specific_state("db_client", db_client)
+    print("INFO: Database client initialized.")
+
+async def close_db_connection(component: SamAgentComponent, tool_config: Dict[str, Any]):
+    """Retrieves and closes the database connection."""
+    print("INFO: Closing database connection...")
+    db_client = component.get_agent_specific_state("db_client")
+    if db_client:
+        # In a real scenario, you would call db_client.close()
+        print("INFO: Database connection closed.")
+```
+
+#### Step 2: Configure the Hooks in YAML
+
+Reference these functions from your tool's configuration.
+
+```yaml
+# In your agent's app_config:
+tools:
+  - tool_type: python
+    component_module: "my_agent.db_tools"
+    function_name: "query_database"
+    tool_config:
+      connection_string: "postgresql://user:pass@host/db"
+
+    # Initialize the tool on startup
+    init_function:
+      module: "my_agent.lifecycle"
+      name: "initialize_db_connection"
+
+    # Clean up the tool on shutdown
+    cleanup_function:
+      module: "my_agent.lifecycle"
+      name: "close_db_connection"
+```
+
+### Class-Based Lifecycle Methods (for `DynamicTool`)
+
+For tools built with `DynamicTool` or `DynamicToolProvider`, the recommended approach is to override the `init` and `cleanup` methods directly within the class. This co-locates the entire tool's logic and improves encapsulation.
+
+**Example: Adding Lifecycle Methods to a `DynamicTool`**
+
+Here, we extend a `DynamicTool` to manage its own API client.
+
+```python
+# src/my_agent/api_tool.py
+from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool
+from solace_agent_mesh.agent.tools.tool_config_types import AnyToolConfig
+# Assume WeatherApiClient is a custom class for an external service
+from my_agent.api_client import WeatherApiClient
+
+class WeatherTool(DynamicTool):
+    """A dynamic tool that fetches weather and manages its own API client."""
+
+    async def init(self, component: SamAgentComponent, tool_config: AnyToolConfig) -> None:
+        """Initializes the API client when the agent starts."""
+        print("INFO: Initializing Weather API client...")
+        # The tool_config is passed from the YAML
+        api_key = self.tool_config.get("api_key")
+        self.api_client = WeatherApiClient(api_key=api_key)
+        print("INFO: Weather API client initialized.")
+
+    async def cleanup(self, component: SamAgentComponent, tool_config: AnyToolConfig) -> None:
+        """Closes the API client connection when the agent shuts down."""
+        print("INFO: Closing Weather API client...")
+        if hasattr(self, "api_client"):
+            await self.api_client.close()
+            print("INFO: Weather API client closed.")
+
+    # ... other required properties like tool_name, tool_description, etc. ...
+
+    async def _run_async_impl(self, args: dict, **kwargs) -> dict:
+        """Uses the initialized client to perform its task."""
+        location = args.get("location")
+        weather_data = await self.api_client.get_weather(location)
+        return {"weather": weather_data}
+```
+
+The YAML configuration remains simple, as the lifecycle logic is now part of the tool's code.
+
+```yaml
+# In your agent's app_config:
+tools:
+  - tool_type: python
+    component_module: "my_agent.api_tool"
+    class_name: "WeatherTool"
+    tool_config:
+      api_key: ${WEATHER_API_KEY}
+```
+
+### Execution Order and Guarantees
+
+It's important to understand the order in which lifecycle hooks are executed, especially if you mix both YAML-based and class-based methods for a single tool.
+
+- **Initialization (`init`):** All `init` hooks are awaited during agent startup. A failure in any `init` hook will prevent the agent from starting.
+  1. The YAML-based `init_function` is executed first.
+  2. The class-based `init()` method is executed second.
+
+- **Cleanup (`cleanup`):** All registered `cleanup` hooks are executed during agent shutdown. They run in **LIFO (Last-In, First-Out)** order relative to initialization.
+  1. The class-based `cleanup()` method is executed first.
+  2. The YAML-based `cleanup_function` is executed second.
+
+This LIFO order for cleanup is intuitive: the resource that was initialized last is the first one to be torn down.
+
+---
+
 ## Adding Validated Configuration to Dynamic Tools
 
 For any class-based tool (`DynamicTool` or `DynamicToolProvider`) that requires configuration, this is the recommended pattern. By linking a Pydantic model to your tool class, you can add automatic validation and type safety to your `tool_config`. This provides several key benefits:
