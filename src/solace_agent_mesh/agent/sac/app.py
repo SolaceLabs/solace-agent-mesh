@@ -371,8 +371,8 @@ class SamAgentApp(App):
 
         # --- NEW: VALIDATION STEP ---
         try:
-            # Validate the raw dict and get a backward-compatible Pydantic object
-            app_config = SamAgentAppConfig.model_validate(app_config_dict)
+            # Validate the raw dict, cleaning None values to allow defaults to apply
+            app_config = SamAgentAppConfig.model_validate_and_clean(app_config_dict)
             # Overwrite the raw dict with the validated object for downstream use
             app_info["app_config"] = app_config
         except ValidationError as e:

@@ -48,7 +48,10 @@ class TestGatewayApp(BaseGatewayApp):
         # --- Pydantic Validation ---
         app_config_dict = app_info.get("app_config", {})
         try:
-            app_config = TestGatewayAppConfig.model_validate(app_config_dict)
+            # Validate the raw dict, cleaning None values to allow defaults to apply
+            app_config = TestGatewayAppConfig.model_validate_and_clean(
+                app_config_dict
+            )
             app_info["app_config"] = app_config
         except ValidationError as e:
             log.error("Test Gateway configuration validation failed:\n%s", e)
