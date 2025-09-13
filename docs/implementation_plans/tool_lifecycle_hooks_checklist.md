@@ -9,7 +9,7 @@
     1.  Add `async def init(self, component, tool_config)` method to `DynamicTool` with a `pass` implementation.
     2.  Add `async def cleanup(self, component, tool_config)` method to `DynamicTool` with a `pass` implementation.
 
-3.  **Implement Initialization and Cleanup Collection** (`src/solace_agent_mesh/agent/adk/setup.py`)
+3.  **Implement Initialization and Cleanup Collection** (`src/solace_agent_mesh/agent/adk/setup.py`) - DONE
     1.  Update `load_adk_tools` return signature to include a list of cleanup hooks: `Tuple[List, List, List[Callable]]`.
     2.  Inside `load_adk_tools`, for each tool, implement the initialization logic:
         -   Execute the YAML-configured `init_function` if it exists.
