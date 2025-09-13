@@ -8,7 +8,7 @@
 
 ### Phase 2: Refactor Application Configuration Schemas
 
-3.  Refactor `src/solace_agent_mesh/agent/sac/app.py`:
+3.  [x] Refactor `src/solace_agent_mesh/agent/sac/app.py`:
     -   Define a new `SamAgentAppConfig(BackwardCompatibleModel)` class that fully models the existing `app_schema` dictionary, preserving all field descriptions using `pydantic.Field`.
     -   In the `SamAgentApp.__init__` method, add logic to validate the incoming `app_config` dictionary against the `SamAgentAppConfig` model.
     -   Replace the raw dictionary in `app_info["app_config"]` with the validated, backward-compatible Pydantic object.
