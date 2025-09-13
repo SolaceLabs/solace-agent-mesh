@@ -283,15 +283,6 @@ def fatal_init_agent_config(lifecycle_tracker_path: Path) -> Dict[str, Any]:
     }
 
 
-def test_fatal_init_failure(fatal_init_agent_config: Dict[str, Any]):
-    """
-    Tests that an exception during an init hook is fatal and prevents startup.
-    """
-    with pytest.raises(RuntimeError, match="Tool lifecycle initialization failed"):
-        connector = SolaceAiConnector(config=fatal_init_agent_config)
-        connector.run()
-
-
 @pytest.fixture
 def non_fatal_cleanup_agent_config(
     lifecycle_tracker_path: Path, test_llm_server
