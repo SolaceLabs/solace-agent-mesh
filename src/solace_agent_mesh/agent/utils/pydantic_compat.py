@@ -34,3 +34,19 @@ class BackwardCompatibleModel(BaseModel):
     def __contains__(self, key: str) -> bool:
         """Provides dict-like 'in' support."""
         return hasattr(self, key)
+
+    def keys(self):
+        """Provides dict-like .keys() method."""
+        return self.model_dump().keys()
+
+    def values(self):
+        """Provides dict-like .values() method."""
+        return self.model_dump().values()
+
+    def items(self):
+        """Provides dict-like .items() method."""
+        return self.model_dump().items()
+
+    def __iter__(self):
+        """Provides dict-like iteration over keys."""
+        return iter(self.model_dump())
