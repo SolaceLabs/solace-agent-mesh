@@ -1,6 +1,6 @@
 # Implementation Checklist: Tool Lifecycle Hooks
 
-1.  **Define Configuration Models** (`src/solace_agent_mesh/agent/tools/tool_config_types.py`)
+1.  **Define Configuration Models** (`src/solace_agent_mesh/agent/tools/tool_config_types.py`) - DONE
     1.  Create `ToolLifecycleHookConfig` Pydantic model.
     2.  Add `init_function: Optional[ToolLifecycleHookConfig]` to `BaseToolConfig`.
     3.  Add `cleanup_function: Optional[ToolLifecycleHookConfig]` to `BaseToolConfig`.

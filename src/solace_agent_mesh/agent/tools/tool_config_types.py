@@ -5,10 +5,31 @@ from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import Field
 from ...agent.utils.pydantic_compat import BackwardCompatibleModel
 
+
+class ToolLifecycleHookConfig(BackwardCompatibleModel):
+    """Configuration for a tool's lifecycle hook function."""
+
+    module: str = Field(
+        ...,
+        description="Python module path for the function (e.g., 'my_plugin.initializers').",
+    )
+    name: str = Field(..., description="Name of the function within the module.")
+    base_path: Optional[str] = Field(
+        default=None,
+        description="Optional base path for module resolution if not in PYTHONPATH.",
+    )
+    config: Dict[str, Any] = Field(
+        default_factory=dict, description="Configuration dictionary for the function."
+    )
+
+
 class BaseToolConfig(BackwardCompatibleModel):
     """Base model for common tool configuration fields."""
+
     required_scopes: List[str] = Field(default_factory=list)
     tool_config: Dict[str, Any] = Field(default_factory=dict)
+    init_function: Optional[ToolLifecycleHookConfig] = None
+    cleanup_function: Optional[ToolLifecycleHookConfig] = None
 
 class BuiltinToolConfig(BaseToolConfig):
     """Configuration for a single built-in tool."""
