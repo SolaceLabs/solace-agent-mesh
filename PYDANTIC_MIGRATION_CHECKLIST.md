@@ -2,7 +2,7 @@
 
 ### Phase 1: Create Core Compatibility and Type Definition Files
 
-1.  Create the new file `src/solace_agent_mesh/agent/utils/pydantic_compat.py` to define the `BackwardCompatibleModel` class, which will provide dictionary-like access methods (`.get()`, `[]`, `in`) for Pydantic objects.
+1.  [x] Create the new file `src/solace_agent_mesh/agent/utils/pydantic_compat.py` to define the `BackwardCompatibleModel` class, which will provide dictionary-like access methods (`.get()`, `[]`, `in`) for Pydantic objects.
 
 2.  Create the new file `src/solace_agent_mesh/agent/tools/tool_config_types.py` to define all Pydantic models related to agent tool configurations (`BuiltinToolConfig`, `PythonToolConfig`, etc.) using a discriminated union. These models will inherit from `BackwardCompatibleModel`.
 
