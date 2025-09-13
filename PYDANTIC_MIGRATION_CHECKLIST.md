@@ -18,7 +18,7 @@
     -   Define a new `BaseGatewayAppConfig(BackwardCompatibleModel)` class to model the fields from `BASE_GATEWAY_APP_SCHEMA`. This will serve as a base for concrete gateway configurations.
     -   Remove the now-redundant `BASE_GATEWAY_APP_SCHEMA` dictionary.
 
-5.  Refactor `src/solace_agent_mesh/gateway/http_sse/app.py`:
+5.  [x] Refactor `src/solace_agent_mesh/gateway/http_sse/app.py`:
     -   Define a new `WebUIBackendAppConfig(BaseGatewayAppConfig)` class that inherits from the base gateway model and adds fields from `SPECIFIC_APP_SCHEMA_PARAMS`.
     -   In the `WebUIBackendApp.__init__` method, add logic to validate the `app_config` against the new `WebUIBackendAppConfig` model.
 
