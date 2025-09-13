@@ -14,7 +14,7 @@
     -   Replace the raw dictionary in `app_info["app_config"]` with the validated, backward-compatible Pydantic object.
     -   Remove the now-redundant `app_schema` dictionary.
 
-4.  Refactor `src/solace_agent_mesh/gateway/base/app.py`:
+4.  [x] Refactor `src/solace_agent_mesh/gateway/base/app.py`:
     -   Define a new `BaseGatewayAppConfig(BackwardCompatibleModel)` class to model the fields from `BASE_GATEWAY_APP_SCHEMA`. This will serve as a base for concrete gateway configurations.
     -   Remove the now-redundant `BASE_GATEWAY_APP_SCHEMA` dictionary.
 
