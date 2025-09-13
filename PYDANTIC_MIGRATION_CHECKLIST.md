@@ -22,7 +22,7 @@
     -   Define a new `WebUIBackendAppConfig(BaseGatewayAppConfig)` class that inherits from the base gateway model and adds fields from `SPECIFIC_APP_SCHEMA_PARAMS`.
     -   In the `WebUIBackendApp.__init__` method, add logic to validate the `app_config` against the new `WebUIBackendAppConfig` model.
 
-6.  Refactor `tests/sam-test-infrastructure/src/sam_test_infrastructure/gateway_interface/app.py`:
+6.  [x] Refactor `tests/sam-test-infrastructure/src/sam_test_infrastructure/gateway_interface/app.py`:
     -   Define a new `TestGatewayAppConfig(BaseGatewayAppConfig)` class.
     -   In the `TestGatewayApp.__init__` method, add logic to validate the `app_config` against the new `TestGatewayAppConfig` model.
 
