@@ -5,12 +5,12 @@ This checklist outlines the development tasks required to implement Pydantic-bas
 ## Phase 1: Core Framework Changes
 
 1.  **Modify `src/solace_agent_mesh/agent/tools/dynamic_tool.py`:**
-    - [ ] 1.1. Import `BaseModel` from `pydantic` and `Type` from `typing`.
-    - [ ] 1.2. In the `DynamicTool` class, add the class attribute `config_model: Optional[Type[BaseModel]] = None`.
-    - [ ] 1.3. Update the `DynamicTool.__init__` method's type hint for `tool_config` to `Optional[Union[dict, BaseModel]]`.
-    - [ ] 1.4. In the `DynamicToolProvider` class, add the class attribute `config_model: Optional[Type[BaseModel]] = None`.
-    - [ ] 1.5. Update the `DynamicToolProvider.get_all_tools_for_framework` method signature to accept `tool_config: Optional[Union[dict, BaseModel]] = None`.
-    - [ ] 1.6. Update the `DynamicToolProvider.create_tools` method signature to accept `tool_config: Optional[Union[dict, BaseModel]] = None`.
+    - [x] 1.1. Import `BaseModel` from `pydantic` and `Type` from `typing`.
+    - [x] 1.2. In the `DynamicTool` class, add the class attribute `config_model: Optional[Type[BaseModel]] = None`.
+    - [x] 1.3. Update the `DynamicTool.__init__` method's type hint for `tool_config` to `Optional[Union[dict, BaseModel]]`.
+    - [x] 1.4. In the `DynamicToolProvider` class, add the class attribute `config_model: Optional[Type[BaseModel]] = None`.
+    - [x] 1.5. Update the `DynamicToolProvider.get_all_tools_for_framework` method signature to accept `tool_config: Optional[Union[dict, BaseModel]] = None`.
+    - [x] 1.6. Update the `DynamicToolProvider.create_tools` method signature to accept `tool_config: Optional[Union[dict, BaseModel]] = None`.
 
 2.  **Modify `src/solace_agent_mesh/agent/adk/setup.py`:**
     - [ ] 2.1. Import `BaseModel` and `ValidationError` from `pydantic`.
