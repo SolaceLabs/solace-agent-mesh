@@ -18,7 +18,6 @@ There are three primary patterns for creating Python tools, ranging from simple 
 | **Function-Based**        | Simple, self-contained tools with static inputs.                         | Quick and easy; uses function signature.  |
 | **Single `DynamicTool` Class** | Tools that require complex logic or a programmatically defined interface. | Full control over the tool's definition.  |
 | **`DynamicToolProvider` Class** | Generating multiple related tools from a single, configurable source.    | Maximum scalability and code reuse.       |
-| **Pydantic-Based Config** | Any tool that requires configuration.                                    | Automatic validation and type safety.     |
 
 All three patterns are configured in your agent's YAML file under the `tools` list with `tool_type: python`.
 
@@ -227,35 +226,41 @@ This approach is incredibly scalable, as one configuration entry can bootstrap a
 
 ---
 
-## Pattern 4: Pydantic-Based Configuration
+## Adding Validated Configuration to Dynamic Tools
 
-This is the recommended pattern for any tool that requires configuration. It combines the power of `DynamicTool` with the safety and clarity of Pydantic models. By defining a Pydantic model for your `tool_config`, you get:
+For any class-based tool (`DynamicTool` or `DynamicToolProvider`) that requires configuration, this is the recommended pattern. By linking a Pydantic model to your tool class, you can add automatic validation and type safety to your `tool_config`. This provides several key benefits:
 
 - **Automatic Validation:** The agent will fail to start if the YAML configuration doesn't match your model, providing clear error messages.
 - **Type Safety:** Inside your tool, `self.tool_config` is a fully typed Pydantic object, not a dictionary, enabling autocompletion and preventing common errors.
 - **Self-Documentation:** The Pydantic model itself serves as clear, machine-readable documentation for your tool's required configuration.
 
-### Step 1: Define a Pydantic Model and Link It
+### Example 1: Using a Pydantic Model with a Single `DynamicTool`
 
-In your tools file, define a class that inherits from `pydantic.BaseModel`. Then, in your `DynamicTool` or `DynamicToolProvider` class, link to it using the `config_model` class attribute.
+This example shows how to add a validated configuration to a standalone `DynamicTool` class.
+
+#### Step 1: Define the Model and Tool Class
+
+In your tools file, define a `pydantic.BaseModel` for your configuration. Then, in your `DynamicTool` class, link to it using the `config_model` class attribute.
 
 ```python
 # src/my_agent/weather_tools.py
-from typing import List
+from typing import Dict, Any
 from pydantic import BaseModel, Field
 from google.genai import types as adk_types
-from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool, DynamicToolProvider
+from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool
 
 # 1. Define the configuration model
-class WeatherProviderConfig(BaseModel):
+class WeatherConfig(BaseModel):
     api_key: str = Field(..., description="The API key for the weather service.")
     default_unit: str = Field(default="celsius", description="The default temperature unit.")
 
-# 2. Create a tool that uses the typed config
+# 2. Create a tool and link the config model
 class GetCurrentWeatherTool(DynamicTool):
-    def __init__(self, tool_config: WeatherProviderConfig):
+    config_model = WeatherConfig
+
+    def __init__(self, tool_config: WeatherConfig):
         super().__init__(tool_config)
-        # self.tool_config is now a validated WeatherProviderConfig instance
+        # self.tool_config is now a validated WeatherConfig instance
         # You can safely access attributes with type safety
         self.api_key = self.tool_config.api_key
         self.unit = self.tool_config.default_unit
@@ -278,22 +283,12 @@ class GetCurrentWeatherTool(DynamicTool):
             required=["location"],
         )
 
-    async def _run_async_impl(self, args: dict, **kwargs) -> dict:
+    async def _run_async_impl(self, args: Dict[str, Any], **kwargs) -> Dict[str, Any]:
         # ... implementation using self.api_key ...
         return {"weather": f"Sunny in {args['location']}"}
-
-# 3. Create a provider and link the config model
-class WeatherToolProvider(DynamicToolProvider):
-    config_model = WeatherProviderConfig
-
-    def create_tools(self, tool_config: WeatherProviderConfig) -> List[DynamicTool]:
-        # The framework passes a validated WeatherProviderConfig instance here
-        return [
-            GetCurrentWeatherTool(tool_config=tool_config)
-        ]
 ```
 
-### Step 2: Configure the Tool in YAML
+#### Step 2: Configure the Tool in YAML
 
 The YAML configuration remains simple. The framework handles the validation against your Pydantic model automatically.
 
@@ -302,10 +297,53 @@ The YAML configuration remains simple. The framework handles the validation agai
 tools:
   - tool_type: python
     component_module: "my_agent.weather_tools"
-    # The framework will auto-discover the WeatherToolProvider
+    # The framework will auto-discover the GetCurrentWeatherTool class
     tool_config:
       api_key: ${WEATHER_API_KEY}
       default_unit: "fahrenheit" # Optional, overrides the model's default
 ```
 
 If you were to forget `api_key` in the YAML, the agent would fail to start and print a clear error message indicating that the `api_key` field is required, making debugging configuration issues much easier.
+
+### Example 2: Using a Pydantic Model with a `DynamicToolProvider`
+
+The same pattern applies to tool providers, allowing you to pass a validated, type-safe configuration object to your tool factory.
+
+#### Step 1: Define the Model and Provider Class
+
+```python
+# src/my_agent/weather_tools_provider.py
+from typing import List
+from pydantic import BaseModel, Field
+from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool, DynamicToolProvider
+# ... assume GetCurrentWeatherTool is defined in this file or imported ...
+
+# 1. Define the configuration model
+class WeatherProviderConfig(BaseModel):
+    api_key: str = Field(..., description="The API key for the weather service.")
+    default_unit: str = Field(default="celsius", description="The default temperature unit.")
+
+# 2. Create a provider and link the config model
+class WeatherToolProvider(DynamicToolProvider):
+    config_model = WeatherProviderConfig
+
+    def create_tools(self, tool_config: WeatherProviderConfig) -> List[DynamicTool]:
+        # The framework passes a validated WeatherProviderConfig instance here
+        return [
+            GetCurrentWeatherTool(tool_config=tool_config)
+            # You could create other tools here that also use the config
+        ]
+```
+
+#### Step 2: Configure the Provider in YAML
+
+```yaml
+# In your agent's app_config:
+tools:
+  - tool_type: python
+    component_module: "my_agent.weather_tools_provider"
+    # The framework will auto-discover the WeatherToolProvider
+    tool_config:
+      api_key: ${WEATHER_API_KEY}
+      default_unit: "fahrenheit" # Optional, overrides the model's default
+```
