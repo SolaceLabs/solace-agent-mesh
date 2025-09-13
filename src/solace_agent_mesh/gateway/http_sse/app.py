@@ -116,7 +116,6 @@ class WebUIBackendApp(BaseGatewayApp):
             app_info.get("name", "WebUIBackendApp"),
         )
 
-        # --- Pydantic Validation ---
         app_config_dict = app_info.get("app_config", {})
         try:
             # Validate the raw dict, cleaning None values to allow defaults to apply
@@ -127,7 +126,6 @@ class WebUIBackendApp(BaseGatewayApp):
         except ValidationError as e:
             log.error("Web UI Gateway configuration validation failed:\n%s", e)
             raise ValueError(f"Invalid Web UI Gateway configuration: {e}") from e
-        # --- End Validation ---
 
         super().__init__(app_info, **kwargs)
 

@@ -369,7 +369,6 @@ class SamAgentApp(App):
 
         app_config_dict = app_info.get("app_config", {})
 
-        # --- NEW: VALIDATION STEP ---
         try:
             # Validate the raw dict, cleaning None values to allow defaults to apply
             app_config = SamAgentAppConfig.model_validate_and_clean(app_config_dict)
@@ -378,7 +377,6 @@ class SamAgentApp(App):
         except ValidationError as e:
             log.error("Agent configuration validation failed:\n%s", e)
             raise ValueError(f"Invalid agent configuration: {e}") from e
-        # --- END VALIDATION STEP ---
 
         # The rest of the method can now safely use .get() on the app_config object,
         # ensuring full backward compatibility.

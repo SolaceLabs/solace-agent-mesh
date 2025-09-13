@@ -45,7 +45,6 @@ class TestGatewayApp(BaseGatewayApp):
             app_info.get("name", "TestGatewayApp"),
         )
 
-        # --- Pydantic Validation ---
         app_config_dict = app_info.get("app_config", {})
         try:
             # Validate the raw dict, cleaning None values to allow defaults to apply
@@ -56,7 +55,6 @@ class TestGatewayApp(BaseGatewayApp):
         except ValidationError as e:
             log.error("Test Gateway configuration validation failed:\n%s", e)
             raise ValueError(f"Invalid Test Gateway configuration: {e}") from e
-        # --- End Validation ---
 
         app_info.setdefault("broker", {})
         app_info["broker"]["dev_mode"] = True
