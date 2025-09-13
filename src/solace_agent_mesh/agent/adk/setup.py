@@ -2,7 +2,7 @@
 Handles ADK Agent and Runner initialization, including tool loading and callback assignment.
 """
 
-from typing import Dict, List, Optional, Union, Callable, Tuple, Set, Any, TYPE_CHECKING
+from typing import Dict, List, Optional, Union, Callable, Tuple, Set, Any, TYPE_CHECKING, Type
 import functools
 import inspect
 from solace_ai_connector.common.log import log
@@ -182,7 +182,7 @@ async def load_adk_tools(
     cleanup_hooks: List[Callable] = []
     tools_config = component.get_config("tools", [])
 
-    from pydantic import TypeAdapter
+    from pydantic import TypeAdapter, BaseModel, ValidationError
 
     any_tool_adapter = TypeAdapter(AnyToolConfig)
 
@@ -287,12 +287,44 @@ async def load_adk_tools(
                                 "and no DynamicTool or DynamicToolProvider subclass could be auto-discovered."
                             )
 
+                        # Check for a Pydantic model declaration on the tool class
+                        config_model: Optional[Type["BaseModel"]] = getattr(
+                            tool_class, "config_model", None
+                        )
+                        validated_config: Union[dict, "BaseModel"] = specific_tool_config
+
+                        if config_model:
+                            log.debug(
+                                "%s Found config_model '%s' for tool class '%s'. Validating...",
+                                component.log_identifier,
+                                config_model.__name__,
+                                tool_class.__name__,
+                            )
+                            try:
+                                # Validate the raw dict and get a Pydantic model instance
+                                validated_config = config_model.model_validate(
+                                    specific_tool_config or {}
+                                )
+                                log.debug(
+                                    "%s Successfully validated tool_config for '%s'.",
+                                    component.log_identifier,
+                                    tool_class.__name__,
+                                )
+                            except ValidationError as e:
+                                # Provide a clear error message and raise
+                                error_msg = (
+                                    f"Configuration error for tool '{tool_class.__name__}' from module '{module_name}'. "
+                                    f"The provided 'tool_config' in your YAML is invalid:\n{e}"
+                                )
+                                log.error("%s %s", component.log_identifier, error_msg)
+                                raise ValueError(error_msg) from e
+
                         # Instantiate tools from the class
                         if issubclass(tool_class, DynamicToolProvider):
                             provider_instance = tool_class()
                             dynamic_tools = (
                                 provider_instance.get_all_tools_for_framework(
-                                    tool_config=specific_tool_config
+                                    tool_config=validated_config
                                 )
                             )
                             log.info(
@@ -303,7 +335,7 @@ async def load_adk_tools(
                                 module_name,
                             )
                         elif issubclass(tool_class, DynamicTool):
-                            tool_instance = tool_class(tool_config=specific_tool_config)
+                            tool_instance = tool_class(tool_config=validated_config)
                             dynamic_tools = [tool_instance]
                         else:
                             raise TypeError(

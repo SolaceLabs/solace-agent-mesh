@@ -13,14 +13,14 @@ This checklist outlines the development tasks required to implement Pydantic-bas
     - [x] 1.6. Update the `DynamicToolProvider.create_tools` method signature to accept `tool_config: Optional[Union[dict, BaseModel]] = None`.
 
 2.  **Modify `src/solace_agent_mesh/agent/adk/setup.py`:**
-    - [ ] 2.1. Import `BaseModel` and `ValidationError` from `pydantic`.
-    - [ ] 2.2. In `load_adk_tools`, locate the logic block for `tool_type: "python"` where `DynamicTool` and `DynamicToolProvider` classes are handled.
-    - [ ] 2.3. After the `tool_class` is determined, add logic to get the `config_model` using `getattr(tool_class, "config_model", None)`.
-    - [ ] 2.4. If a `config_model` is found, validate the `specific_tool_config` dictionary against it using `config_model.model_validate(specific_tool_config)`.
-    - [ ] 2.5. Wrap the validation logic in a `try...except ValidationError` block. On failure, log a clear error message and raise a `ValueError`.
-    - [ ] 2.6. Store the result of the validation (either the new Pydantic model instance or the original dictionary) in a `validated_config` variable.
-    - [ ] 2.7. Update the `DynamicToolProvider` instantiation logic to pass `tool_config=validated_config` to the `get_all_tools_for_framework` method.
-    - [ ] 2.8. Update the `DynamicTool` instantiation logic to pass `tool_config=validated_config` to the class constructor.
+    - [x] 2.1. Import `BaseModel` and `ValidationError` from `pydantic`.
+    - [x] 2.2. In `load_adk_tools`, locate the logic block for `tool_type: "python"` where `DynamicTool` and `DynamicToolProvider` classes are handled.
+    - [x] 2.3. After the `tool_class` is determined, add logic to get the `config_model` using `getattr(tool_class, "config_model", None)`.
+    - [x] 2.4. If a `config_model` is found, validate the `specific_tool_config` dictionary against it using `config_model.model_validate(specific_tool_config)`.
+    - [x] 2.5. Wrap the validation logic in a `try...except ValidationError` block. On failure, log a clear error message and raise a `ValueError`.
+    - [x] 2.6. Store the result of the validation (either the new Pydantic model instance or the original dictionary) in a `validated_config` variable.
+    - [x] 2.7. Update the `DynamicToolProvider` instantiation logic to pass `tool_config=validated_config` to the `get_all_tools_for_framework` method.
+    - [x] 2.8. Update the `DynamicTool` instantiation logic to pass `tool_config=validated_config` to the class constructor.
 
 ## Phase 2: Documentation
 
