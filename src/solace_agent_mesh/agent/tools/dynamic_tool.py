@@ -62,13 +62,21 @@ class DynamicTool(BaseTool, ABC):
     async def init(
         self, component: "SamAgentComponent", tool_config: "AnyToolConfig"
     ) -> None:
-        """(Optional) Initializes resources for the tool. Called once on startup."""
+        """
+        (Optional) Asynchronously initializes resources for the tool.
+        This method is called once when the agent starts up.
+        The `component` provides access to agent-wide state, and `tool_config`
+        is the validated Pydantic model instance if `config_model` is defined.
+        """
         pass
 
     async def cleanup(
         self, component: "SamAgentComponent", tool_config: "AnyToolConfig"
     ) -> None:
-        """(Optional) Cleans up resources used by the tool. Called once on shutdown."""
+        """
+        (Optional) Asynchronously cleans up resources used by the tool.
+        This method is called once when the agent is shutting down.
+        """
         pass
 
     @property
