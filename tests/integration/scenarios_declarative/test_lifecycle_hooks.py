@@ -114,14 +114,8 @@ def yaml_lifecycle_agent_config(
                 "component_module": "tests.integration.test_support.tools",
                 "function_name": "get_weather_tool",
                 "tool_config": {"tracker_file": str(lifecycle_tracker_path)},
-                "init_function": {
-                    "module": "tests.integration.test_support.dynamic_tools.lifecycle_yaml_hooks",
-                    "name": "yaml_init_hook",
-                },
-                "cleanup_function": {
-                    "module": "tests.integration.test_support.dynamic_tools.lifecycle_yaml_hooks",
-                    "name": "yaml_cleanup_hook",
-                },
+                "init_function": "yaml_init_hook",
+                "cleanup_function": "yaml_cleanup_hook",
             }
         ],
     }
@@ -190,14 +184,8 @@ def mixed_lifecycle_agent_config(
                 "component_module": "tests.integration.test_support.dynamic_tools.lifecycle_tool",
                 "class_name": "LifecycleTestTool",
                 "tool_config": {"tracker_file": str(lifecycle_tracker_path)},
-                "init_function": {
-                    "module": "tests.integration.test_support.dynamic_tools.lifecycle_yaml_hooks",
-                    "name": "mixed_yaml_init",
-                },
-                "cleanup_function": {
-                    "module": "tests.integration.test_support.dynamic_tools.lifecycle_yaml_hooks",
-                    "name": "mixed_yaml_cleanup",
-                },
+                "init_function": "mixed_yaml_init",
+                "cleanup_function": "mixed_yaml_cleanup",
             }
         ],
     }
@@ -263,10 +251,7 @@ def fatal_init_agent_config(lifecycle_tracker_path: Path) -> Dict[str, Any]:
                 "component_module": "tests.integration.test_support.tools",
                 "function_name": "get_weather_tool",
                 "tool_config": {"tracker_file": str(lifecycle_tracker_path)},
-                "init_function": {
-                    "module": "tests.integration.test_support.dynamic_tools.lifecycle_yaml_hooks",
-                    "name": "failing_init_hook",
-                },
+                "init_function": "failing_init_hook",
             }
         ],
     }
@@ -307,14 +292,8 @@ def non_fatal_cleanup_agent_config(
                     "tracker_file": str(lifecycle_tracker_path),
                     "test_mode": "cleanup_failure",
                 },
-                "init_function": {  # Add a dummy init to match LIFO test
-                    "module": "tests.integration.test_support.dynamic_tools.lifecycle_yaml_hooks",
-                    "name": "mixed_yaml_init",
-                },
-                "cleanup_function": {  # This one should still run
-                    "module": "tests.integration.test_support.dynamic_tools.lifecycle_yaml_hooks",
-                    "name": "succeeding_cleanup_hook",
-                },
+                "init_function": "mixed_yaml_init",  # Add a dummy init to match LIFO test
+                "cleanup_function": "succeeding_cleanup_hook",  # This one should still run
             }
         ],
     }
@@ -378,10 +357,7 @@ def arg_injection_agent_config(
                     "test_mode": "arg_injection",
                     "my_value": "hello_from_config",
                 },
-                "init_function": {
-                    "module": "tests.integration.test_support.dynamic_tools.lifecycle_yaml_hooks",
-                    "name": "arg_inspector_init_hook",
-                },
+                "init_function": "arg_inspector_init_hook",
             }
         ],
     }
