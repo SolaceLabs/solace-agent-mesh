@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 from ..tools.registry import tool_registry
 from ..tools.tool_definition import BuiltinTool
 from ..tools.dynamic_tool import DynamicTool, DynamicToolProvider
-from ..tools.tool_config_types import AnyToolConfig, ToolLifecycleHookConfig
+from ..tools.tool_config_types import AnyToolConfig
 
 
 from ...agent.adk import callbacks as adk_callbacks
@@ -58,16 +58,14 @@ def _find_dynamic_tool_class(module) -> Optional[type]:
 
 async def _execute_lifecycle_hook(
     component: "SamAgentComponent",
-    hook_config: Optional[ToolLifecycleHookConfig],
+    func_name: Optional[str],
+    module_name: str,
+    base_path: Optional[str],
     tool_config_model: AnyToolConfig,
 ):
     """Dynamically loads and executes a lifecycle hook function."""
-    if not hook_config:
+    if not func_name:
         return
-
-    module_name = hook_config.module
-    func_name = hook_config.name
-    base_path = hook_config.base_path
 
     log.info(
         "%s Executing lifecycle hook: %s.%s",
@@ -105,16 +103,14 @@ async def _execute_lifecycle_hook(
 
 def _create_cleanup_partial(
     component: "SamAgentComponent",
-    hook_config: Optional[ToolLifecycleHookConfig],
+    func_name: Optional[str],
+    module_name: str,
+    base_path: Optional[str],
     tool_config_model: AnyToolConfig,
 ) -> Optional[Callable]:
     """Creates a functools.partial for a cleanup hook function."""
-    if not hook_config:
+    if not func_name:
         return None
-
-    module_name = hook_config.module
-    func_name = hook_config.name
-    base_path = hook_config.base_path
 
     try:
         module = import_module(module_name, base_path=base_path)
@@ -367,6 +363,54 @@ async def load_adk_tools(
                                 module_name,
                             )
 
+                    # --- Lifecycle Hook Execution for Python Tools ---
+                    module_name = tool_config_model.component_module
+                    base_path = tool_config_model.component_base_path
+
+                    # 1. YAML Init
+                    await _execute_lifecycle_hook(
+                        component,
+                        tool_config_model.init_function,
+                        module_name,
+                        base_path,
+                        tool_config_model,
+                    )
+
+                    # 2. DynamicTool Init
+                    for tool_instance in newly_loaded_tools:
+                        if isinstance(tool_instance, DynamicTool):
+                            log.info(
+                                "%s Executing .init() method for DynamicTool '%s'.",
+                                component.log_identifier,
+                                tool_instance.tool_name,
+                            )
+                            await tool_instance.init(component, tool_config_model)
+
+                    # 3. Collect Cleanup Hooks (LIFO order)
+                    yaml_cleanup_partial = _create_cleanup_partial(
+                        component,
+                        tool_config_model.cleanup_function,
+                        module_name,
+                        base_path,
+                        tool_config_model,
+                    )
+
+                    dynamic_cleanup_partials = []
+                    for tool_instance in newly_loaded_tools:
+                        if isinstance(tool_instance, DynamicTool):
+                            dynamic_cleanup_partials.append(
+                                functools.partial(
+                                    tool_instance.cleanup, component, tool_config_model
+                                )
+                            )
+
+                    # Add to main list, prepending to get LIFO execution
+                    if yaml_cleanup_partial:
+                        cleanup_hooks.insert(0, yaml_cleanup_partial)
+
+                    for partial_func in reversed(dynamic_cleanup_partials):
+                        cleanup_hooks.insert(0, partial_func)
+
                 elif tool_type == "builtin":
                     tool_name = tool_config.get("tool_name")
                     if not tool_name:
@@ -604,48 +648,6 @@ async def load_adk_tools(
                         tool_type,
                         tool_config,
                     )
-
-                # --- Lifecycle Hook Execution ---
-
-                # 1. YAML Init
-                await _execute_lifecycle_hook(
-                    component,
-                    tool_config_model.init_function,
-                    tool_config_model,
-                )
-
-                # 2. DynamicTool Init
-                for tool_instance in newly_loaded_tools:
-                    if isinstance(tool_instance, DynamicTool):
-                        log.info(
-                            "%s Executing .init() method for DynamicTool '%s'.",
-                            component.log_identifier,
-                            tool_instance.tool_name,
-                        )
-                        await tool_instance.init(component, tool_config_model)
-
-                # 3. Collect Cleanup Hooks (LIFO order)
-                yaml_cleanup_partial = _create_cleanup_partial(
-                    component,
-                    tool_config_model.cleanup_function,
-                    tool_config_model,
-                )
-
-                dynamic_cleanup_partials = []
-                for tool_instance in newly_loaded_tools:
-                    if isinstance(tool_instance, DynamicTool):
-                        dynamic_cleanup_partials.append(
-                            functools.partial(
-                                tool_instance.cleanup, component, tool_config_model
-                            )
-                        )
-
-                # Add to main list, prepending to get LIFO execution
-                if yaml_cleanup_partial:
-                    cleanup_hooks.insert(0, yaml_cleanup_partial)
-
-                for partial_func in reversed(dynamic_cleanup_partials):
-                    cleanup_hooks.insert(0, partial_func)
 
             except Exception as e:
                 log.error(
