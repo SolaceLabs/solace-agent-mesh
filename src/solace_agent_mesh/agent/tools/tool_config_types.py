@@ -6,30 +6,12 @@ from pydantic import Field
 from ...agent.utils.pydantic_compat import BackwardCompatibleModel
 
 
-class ToolLifecycleHookConfig(BackwardCompatibleModel):
-    """Configuration for a tool's lifecycle hook function."""
-
-    module: str = Field(
-        ...,
-        description="Python module path for the function (e.g., 'my_plugin.initializers').",
-    )
-    name: str = Field(..., description="Name of the function within the module.")
-    base_path: Optional[str] = Field(
-        default=None,
-        description="Optional base path for module resolution if not in PYTHONPATH.",
-    )
-    config: Dict[str, Any] = Field(
-        default_factory=dict, description="Configuration dictionary for the function."
-    )
-
-
 class BaseToolConfig(BackwardCompatibleModel):
     """Base model for common tool configuration fields."""
 
     required_scopes: List[str] = Field(default_factory=list)
     tool_config: Dict[str, Any] = Field(default_factory=dict)
-    init_function: Optional[ToolLifecycleHookConfig] = None
-    cleanup_function: Optional[ToolLifecycleHookConfig] = None
+
 
 class BuiltinToolConfig(BaseToolConfig):
     """Configuration for a single built-in tool."""
@@ -50,7 +32,16 @@ class PythonToolConfig(BaseToolConfig):
     tool_name: Optional[str] = None
     tool_description: Optional[str] = None
     class_name: Optional[str] = None
+    init_function: Optional[str] = Field(
+        default=None,
+        description="Name of the lifecycle init function in the same component_module.",
+    )
+    cleanup_function: Optional[str] = Field(
+        default=None,
+        description="Name of the lifecycle cleanup function in the same component_module.",
+    )
     raw_string_args: List[str] = Field(default_factory=list)
+
 
 class McpToolConfig(BaseToolConfig):
     """Configuration for an MCP tool or toolset."""
