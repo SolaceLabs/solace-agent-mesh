@@ -12,7 +12,7 @@ from solace_ai_connector.common.utils import deep_merge
 from solace_ai_connector.flow.app import App
 from solace_ai_connector.components.component_base import ComponentBase
 
-from ...agent.utils.pydantic_compat import BackwardCompatibleModel
+from ...common.utils.pydantic_utils import SamConfigBase
 from ...common.a2a import (
     get_discovery_topic,
     get_gateway_response_subscription_topic,
@@ -24,7 +24,7 @@ class BaseGatewayComponent(ComponentBase):
     pass
 
 
-class BaseGatewayAppConfig(BackwardCompatibleModel):
+class BaseGatewayAppConfig(SamConfigBase):
     """Base Pydantic model for gateway application configuration."""
 
     namespace: str = Field(

@@ -1,13 +1,14 @@
-"""Provides a Pydantic BaseModel that is backward-compatible with dict access."""
+"""Provides a Pydantic BaseModel for SAM configuration with dict-like access."""
 from pydantic import BaseModel
 from typing import Any, Dict, Type, TypeVar
 
-T = TypeVar("T", bound="BackwardCompatibleModel")
+T = TypeVar("T", bound="SamConfigBase")
 
 
-class BackwardCompatibleModel(BaseModel):
+class SamConfigBase(BaseModel):
     """
-    A Pydantic BaseModel that allows dictionary-style access for backward compatibility.
+    A Pydantic BaseModel for SAM configuration that allows dictionary-style access
+    for backward compatibility with components expecting dicts.
     Supports .get(), ['key'], and 'in' operator.
     """
 

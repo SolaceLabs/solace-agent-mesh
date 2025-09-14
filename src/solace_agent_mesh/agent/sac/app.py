@@ -26,7 +26,7 @@ from ...common.a2a import (
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...agent.sac.component import SamAgentComponent
 from ...agent.utils.artifact_helpers import DEFAULT_SCHEMA_MAX_KEYS
-from ..utils.pydantic_compat import BackwardCompatibleModel
+from ...common.utils.pydantic_utils import SamConfigBase
 from ..tools.tool_config_types import AnyToolConfig
 
 info = {
@@ -38,7 +38,7 @@ info = {
 # --- Pydantic Models for Configuration Validation ---
 
 
-class AgentCardConfig(BackwardCompatibleModel):
+class AgentCardConfig(SamConfigBase):
     """Configuration for the agent's self-description card."""
 
     description: str = Field(
@@ -62,7 +62,7 @@ class AgentCardConfig(BackwardCompatibleModel):
     )
 
 
-class AgentCardPublishingConfig(BackwardCompatibleModel):
+class AgentCardPublishingConfig(SamConfigBase):
     """Configuration for publishing the agent card."""
 
     interval_seconds: int = Field(
@@ -70,13 +70,13 @@ class AgentCardPublishingConfig(BackwardCompatibleModel):
     )
 
 
-class AgentDiscoveryConfig(BackwardCompatibleModel):
+class AgentDiscoveryConfig(SamConfigBase):
     """Configuration for discovering other agents."""
 
     enabled: bool = Field(default=True, description="Enable discovery and instruction injection.")
 
 
-class InterAgentCommunicationConfig(BackwardCompatibleModel):
+class InterAgentCommunicationConfig(SamConfigBase):
     """Configuration for interacting with peer agents."""
 
     allow_list: List[str] = Field(
@@ -90,7 +90,7 @@ class InterAgentCommunicationConfig(BackwardCompatibleModel):
     )
 
 
-class AgentInitCleanupConfig(BackwardCompatibleModel):
+class AgentInitCleanupConfig(SamConfigBase):
     """Configuration for custom agent initialization or cleanup functions."""
 
     module: str = Field(
@@ -106,7 +106,7 @@ class AgentInitCleanupConfig(BackwardCompatibleModel):
     )
 
 
-class DataToolsConfig(BackwardCompatibleModel):
+class DataToolsConfig(SamConfigBase):
     """Configuration for built-in data analysis tools."""
 
     sqlite_memory_threshold_mb: int = Field(
@@ -122,7 +122,7 @@ class DataToolsConfig(BackwardCompatibleModel):
     )
 
 
-class ExtractContentConfig(BackwardCompatibleModel):
+class ExtractContentConfig(SamConfigBase):
     """Configuration for the LLM-powered artifact extraction tool."""
 
     supported_binary_mime_types: List[str] = Field(
@@ -135,7 +135,7 @@ class ExtractContentConfig(BackwardCompatibleModel):
     )
 
 
-class McpProcessingConfig(BackwardCompatibleModel):
+class McpProcessingConfig(SamConfigBase):
     """Configuration for intelligent processing of MCP tool responses."""
 
     enable_intelligent_processing: bool = Field(
@@ -167,7 +167,7 @@ class McpProcessingConfig(BackwardCompatibleModel):
     )
 
 
-class ArtifactServiceConfig(BackwardCompatibleModel):
+class ArtifactServiceConfig(SamConfigBase):
     """Configuration for the ADK Artifact Service."""
 
     type: str = Field(..., description="Service type (e.g., 'memory', 'gcs', 'filesystem').")
@@ -198,7 +198,7 @@ class ArtifactServiceConfig(BackwardCompatibleModel):
         return self
 
 
-class SessionServiceConfig(BackwardCompatibleModel):
+class SessionServiceConfig(SamConfigBase):
     """Configuration for the ADK Session Service."""
 
     type: str = Field(..., description="Service type (e.g., 'memory', 'vertex_rag').")
@@ -207,7 +207,7 @@ class SessionServiceConfig(BackwardCompatibleModel):
     )
 
 
-class SamAgentAppConfig(BackwardCompatibleModel):
+class SamAgentAppConfig(SamConfigBase):
     """Pydantic model for the complete agent application configuration."""
 
     namespace: str = Field(

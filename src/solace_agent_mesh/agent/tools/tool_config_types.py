@@ -3,10 +3,10 @@ Pydantic models for agent tool configurations defined in YAML.
 """
 from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import Field
-from ...agent.utils.pydantic_compat import BackwardCompatibleModel
+from ...common.utils.pydantic_utils import SamConfigBase
 
 
-class BaseToolConfig(BackwardCompatibleModel):
+class BaseToolConfig(SamConfigBase):
     """Base model for common tool configuration fields."""
 
     required_scopes: List[str] = Field(default_factory=list)
