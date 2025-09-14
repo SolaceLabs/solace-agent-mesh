@@ -32,25 +32,9 @@ async def get_weather_tool(
         }
 
 
-async def yaml_init_hook(component: "SamAgentComponent", tool_config: "AnyToolConfig"):
-    """A simple init hook for YAML configuration tests."""
-    log.info("yaml_init_hook called.")
-    tracker_file = Path(tool_config.tool_config["tracker_file"])
-    track(tracker_file, "yaml_init_called")
-
-
-async def yaml_cleanup_hook(
-    component: "SamAgentComponent", tool_config: "AnyToolConfig"
-):
-    """A simple cleanup hook for YAML configuration tests."""
-    log.info("yaml_cleanup_hook called.")
-    tracker_file = Path(tool_config.tool_config["tracker_file"])
-    track(tracker_file, "yaml_cleanup_called")
-
-
-async def failing_init_hook(
-    component: "SamAgentComponent", tool_config: "AnyToolConfig"
-):
-    """An init hook that always fails."""
-    log.info("failing_init_hook called, will raise ValueError.")
-    raise ValueError("Simulated fatal init failure")
+# Import hooks to make them available in this module's namespace for the framework
+from tests.integration.test_support.dynamic_tools.lifecycle_yaml_hooks import (
+    yaml_init_hook,
+    yaml_cleanup_hook,
+    failing_init_hook,
+)
