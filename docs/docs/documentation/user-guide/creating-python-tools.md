@@ -236,38 +236,53 @@ There are two ways to define these hooks:
 
 ### YAML-Based Lifecycle Hooks
 
-You can add `init_function` and `cleanup_function` blocks to any tool's configuration in your agent's YAML. This is useful for separating resource management logic from the tool's core implementation.
+You can add `init_function` and `cleanup_function` to any Python tool's configuration in your agent's YAML. The lifecycle functions must be defined in the same module as the tool itself.
 
-#### Step 1: Define the Hook Functions
+#### Step 1: Define the Tool and Hook Functions
 
-Create a separate Python file (e.g., `my_agent/lifecycle.py`) for your lifecycle functions. These functions must be `async` and will receive the agent component instance and the tool's configuration dictionary as arguments.
+In your tool's Python file (e.g., `src/my_agent/db_tools.py`), define the tool function and its corresponding `init` and `cleanup` functions. These functions must be `async` and will receive the agent component instance and the tool's configuration model object as arguments.
 
 ```python
-# src/my_agent/lifecycle.py
+# src/my_agent/db_tools.py
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from solace_agent_mesh.agent.tools.tool_config_types import AnyToolConfig
+from google.adk.tools import ToolContext
 from typing import Dict, Any
 
-async def initialize_db_connection(component: SamAgentComponent, tool_config: Dict[str, Any]):
+# --- Lifecycle Hooks ---
+
+async def initialize_db_connection(component: SamAgentComponent, tool_config_model: AnyToolConfig):
     """Initializes a database connection and stores it for the agent to use."""
     print("INFO: Initializing database connection...")
     # In a real scenario, you would create a client instance
-    db_client = {"connection_string": tool_config.get("connection_string")}
+    db_client = {"connection_string": tool_config_model.tool_config.get("connection_string")}
     # Store the client in a shared state accessible by the component
     component.set_agent_specific_state("db_client", db_client)
     print("INFO: Database client initialized.")
 
-async def close_db_connection(component: SamAgentComponent, tool_config: Dict[str, Any]):
+async def close_db_connection(component: SamAgentComponent, tool_config_model: AnyToolConfig):
     """Retrieves and closes the database connection."""
     print("INFO: Closing database connection...")
     db_client = component.get_agent_specific_state("db_client")
     if db_client:
         # In a real scenario, you would call db_client.close()
         print("INFO: Database connection closed.")
+
+# --- Tool Function ---
+
+async def query_database(query: str, tool_context: ToolContext, **kwargs) -> Dict[str, Any]:
+    """Queries the database using the initialized connection."""
+    host_component = tool_context._invocation_context.agent.host_component
+    db_client = host_component.get_agent_specific_state("db_client")
+    if not db_client:
+        return {"error": "Database connection not initialized."}
+    # ... use db_client to run query ...
+    return {"result": "some data"}
 ```
 
 #### Step 2: Configure the Hooks in YAML
 
-Reference these functions from your tool's configuration.
+In your YAML configuration, reference the lifecycle functions by name. The framework will automatically look for them in the `component_module`.
 
 ```yaml
 # In your agent's app_config:
@@ -279,14 +294,10 @@ tools:
       connection_string: "postgresql://user:pass@host/db"
 
     # Initialize the tool on startup
-    init_function:
-      module: "my_agent.lifecycle"
-      name: "initialize_db_connection"
+    init_function: "initialize_db_connection"
 
     # Clean up the tool on shutdown
-    cleanup_function:
-      module: "my_agent.lifecycle"
-      name: "close_db_connection"
+    cleanup_function: "close_db_connection"
 ```
 
 ### Class-Based Lifecycle Methods (for `DynamicTool`)
@@ -308,15 +319,15 @@ from my_agent.api_client import WeatherApiClient
 class WeatherTool(DynamicTool):
     """A dynamic tool that fetches weather and manages its own API client."""
 
-    async def init(self, component: SamAgentComponent, tool_config: AnyToolConfig) -> None:
+    async def init(self, component: "SamAgentComponent", tool_config: "AnyToolConfig") -> None:
         """Initializes the API client when the agent starts."""
         print("INFO: Initializing Weather API client...")
-        # The tool_config is passed from the YAML
+        # self.tool_config is the validated Pydantic model or dict from YAML
         api_key = self.tool_config.get("api_key")
         self.api_client = WeatherApiClient(api_key=api_key)
         print("INFO: Weather API client initialized.")
 
-    async def cleanup(self, component: SamAgentComponent, tool_config: AnyToolConfig) -> None:
+    async def cleanup(self, component: "SamAgentComponent", tool_config: "AnyToolConfig") -> None:
         """Closes the API client connection when the agent shuts down."""
         print("INFO: Closing Weather API client...")
         if hasattr(self, "api_client"):
@@ -328,6 +339,8 @@ class WeatherTool(DynamicTool):
     async def _run_async_impl(self, args: dict, **kwargs) -> dict:
         """Uses the initialized client to perform its task."""
         location = args.get("location")
+        if not hasattr(self, "api_client"):
+            return {"error": "API client not initialized. Check lifecycle hooks."}
         weather_data = await self.api_client.get_weather(location)
         return {"weather": weather_data}
 ```
