@@ -61,6 +61,8 @@ def setup_dependencies(component: "WebUIBackendComponent", database_url: str = N
         log.info("Persistence enabled - sessions will be stored in database")
         
         log.info("Checking database migrations...")
+
+        # Run community migrations first
         try:
             from sqlalchemy import create_engine
             engine = create_engine(database_url)
@@ -68,7 +70,7 @@ def setup_dependencies(component: "WebUIBackendComponent", database_url: str = N
             existing_tables = inspector.get_table_names()
 
             if not existing_tables or "sessions" not in existing_tables:
-                log.info("Running database migrations...")
+                log.info("Running community database migrations...")
                 alembic_cfg = Config()
                 alembic_cfg.set_main_option(
                     "script_location",
@@ -76,13 +78,11 @@ def setup_dependencies(component: "WebUIBackendComponent", database_url: str = N
                 )
                 alembic_cfg.set_main_option("sqlalchemy.url", database_url)
                 command.upgrade(alembic_cfg, "head")
-                log.info("Database migrations complete.")
+                log.info("Community database migrations complete.")
             else:
-                log.info("Database tables already exist, skipping migrations.")
+                log.info("Community database tables already exist, skipping community migrations.")
         except Exception as e:
-            log.warning(
-                f"Migration check failed, attempting to run migrations anyway: {e}"
-            )
+            log.warning("Community migration check failed, attempting to run migrations anyway: %s", e)
             try:
                 alembic_cfg = Config()
                 alembic_cfg.set_main_option(
@@ -91,9 +91,21 @@ def setup_dependencies(component: "WebUIBackendComponent", database_url: str = N
                 )
                 alembic_cfg.set_main_option("sqlalchemy.url", database_url)
                 command.upgrade(alembic_cfg, "head")
-                log.info("Database migrations complete.")
+                log.info("Community database migrations complete.")
             except Exception as migration_error:
-                log.warning(f"Migration failed but continuing: {migration_error}")
+                log.warning("Community migration failed but continuing: %s", migration_error)
+
+        # Run enterprise migrations after community migrations
+        try:
+            from solace_agent_mesh_enterprise.migration_runner import run_migrations
+            webui_app = component.get_app()
+            app_config = getattr(webui_app, "app_config", {}) if webui_app else {}
+            run_migrations(database_url, app_config)
+            log.info("Enterprise migrations completed")
+        except ImportError:
+            log.debug("No enterprise package detected - skipping enterprise migrations")
+        except Exception as e:
+            log.warning("Enterprise migration failed but continuing: %s", e)
     else:
         log.warning(
             "No database URL provided - using in-memory session storage (data not persisted across restarts)"
