@@ -285,9 +285,10 @@ sam plugin installs [OPTIONS] PLUGIN_SOURCE
 ```
 
 PLUGIN_SOURCE can be:
-  - An installed module name (e.g., 'my_plugin')
-  - A local path to a directory or wheel file (e.g., '/path/to/plugin' or '/path/to/plugin.whl')
+  - A local path to a directory (e.g., '/path/to/plugin')
+  - A local path to a wheel file (e.g., '/path/to/plugin.whl')
   - A Git URL (e.g., 'https://github.com/user/repo.git')
+  - The name of the plugin from https://github.com/SolaceLabs/solace-agent-mesh-core-plugins
 
 ##### Options:
 
