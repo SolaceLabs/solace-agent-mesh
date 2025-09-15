@@ -103,11 +103,33 @@
 
 ## Architecture Overview
 
-The Solace Agent Mesh is a distributed AI agent communication system built on the Solace event mesh. It enables real-time Agent-to-Agent (A2A) communication, task delegation, and multi-platform integration through four main subsystems:
+The Solace Agent Mesh is a distributed AI agent communication system built on the Solace event mesh. It enables real-time Agent-to-Agent (A2A) communication, task delegation, and multi-platform integration through event-driven architecture principles.
 
-### Core Architecture Components
+### Architectural Principles
 
-#### 1. Agent Framework (`src/solace_agent_mesh/agent/`)
+Built on three primary technologies:
+- **Solace PubSub+ Event Broker**: Messaging fabric for all asynchronous communication using topic-based routing for A2A protocol
+- **Solace AI Connector (SAC)**: Runtime environment for hosting and managing lifecycle of all system components (Agents and Gateways)  
+- **Google Agent Development Kit (ADK)**: Core logic for individual agents, including LLM interaction, tool execution, and state management
+
+Key architectural principles:
+- **Event-Driven Architecture (EDA)**: All interactions are asynchronous and mediated by the event broker
+- **Component Decoupling**: Gateways, Agent Hosts communicate through standardized A2A protocol messages
+- **Scalability and Resilience**: Supports horizontal scaling with fault tolerance and guaranteed message delivery
+
+### Core System Components
+
+#### 1. Solace PubSub+ Event Broker
+**Purpose**: Central messaging fabric routing A2A protocol messages between components using hierarchical topic structure.
+
+**A2A Protocol Topics**:
+- **Agent Discovery**: `{namespace}/a2a/v1/discovery/agentcards`
+- **Task Requests**: `{namespace}/a2a/v1/agent/request/{target_agent_name}`
+- **Status Updates**: `{namespace}/a2a/v1/gateway/status/{gateway_id}/{task_id}`
+- **Final Responses**: `{namespace}/a2a/v1/gateway/response/{gateway_id}/{task_id}`
+- **Peer Delegation**: `{namespace}/a2a/v1/agent/status|response/{delegating_agent_name}/{sub_task_id}`
+
+#### 2. Agent Framework (`src/solace_agent_mesh/agent/`)
 **Purpose**: Complete framework for hosting Google ADK (Agent Development Kit) agents with A2A protocol support and comprehensive tool library.
 
 **Key Subsystems**:
@@ -151,6 +173,18 @@ from solace_agent_mesh.common.utils.embeds import resolve_embeds_recursively_in_
 from solace_agent_mesh.core_a2a.service import CoreA2AService
 ```
 
+#### 5. Orchestrator Agent
+**Purpose**: Specialized agent that provides centralized workflow management and task coordination in the distributed system.
+
+**Key Functions**:
+- **Request Analysis**: Receives high-level goals and analyzes them in context of available agent capabilities
+- **Action Planning**: Uses AI to plan sequences of actions to fulfill complex requests
+- **Task Distribution**: Creates and distributes tasks to appropriate agents with parallel processing
+- **Workflow Management**: Tracks outstanding tasks and aggregates responses coherently
+- **Response Formatting**: Formats aggregated responses suitable for gateways
+
+**Configuration**: Typically configured as `main_orchestrator.yaml` in `configs/agents/` directory.
+
 #### 4. Gateway Framework (`src/solace_agent_mesh/gateway/`)
 **Purpose**: Framework for building gateways that bridge external platforms with the A2A messaging system.
 
@@ -165,6 +199,75 @@ from solace_agent_mesh.gateway.base.app import BaseGatewayApp
 from solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
 from solace_agent_mesh.gateway.slack.app import SlackGatewayApp
 from solace_agent_mesh.gateway.webhook.app import WebhookGatewayApp
+```
+
+## Project Structure and Configuration
+
+### Standard Project Organization
+```
+my-sam-project/
+├── configs/
+│   ├── shared_config.yaml           # Shared broker, models, and services config
+│   ├── agents/
+│   │   └── main_orchestrator.yaml   # Default orchestrator agent
+│   └── gateways/
+│       └── webui.yaml              # Default web UI gateway
+│   ├── plugins/                    # Plugin configurations (auto-created)
+├── src/                            # Custom Python components (optional)
+│   └── __init__.py
+├── .env                           # Environment variables
+└── requirements.txt               # Custom dependencies
+```
+
+### Configuration Management Patterns
+- **Shared Configuration**: `shared_config.yaml` contains common elements (broker, models, services) referenced via YAML anchors (`&name` and `*name`)
+- **Environment Variables**: Configuration values use env vars for flexibility across environments  
+- **Automatic Generation**: `sam add agent`, `sam add gateway`, `sam plugin add` generate appropriate config files
+- **File Discovery**: CLI crawls configs directory, ignores files starting with `_` or `shared_config`
+- **Standalone Execution**: Each config file can run independently with `sam run <config-file>`
+
+### YAML Configuration Structure
+Each configuration file defines applications that can run independently:
+- **Agent Applications**: A2A-enabled agents using Google ADK runtime and SAM framework
+- **Gateway Applications**: Protocol translators bridging external interfaces to A2A protocol  
+- **Plugin Applications**: Specialized components extending framework capabilities
+
+## Built-in Tool Groups and Configuration
+
+SAM provides comprehensive built-in tools organized into logical groups for easy configuration:
+
+**Tool Groups** (recommended approach for enabling related tools):
+```yaml
+tools:
+  - tool_type: builtin-group
+    group_name: "artifact_management"
+  - tool_type: builtin-group  
+    group_name: "data_analysis"
+  - tool_type: builtin-group
+    group_name: "web"
+  - tool_type: builtin-group
+    group_name: "audio"
+  - tool_type: builtin-group
+    group_name: "communication"
+```
+
+**Available Tool Groups**:
+- **`artifact_management`**: create_artifact, append_to_artifact, list_artifacts, load_artifact, signal_artifact_for_return, extract_content_from_artifact
+- **`data_analysis`**: query_data_with_sql, create_sqlite_db, transform_data_with_jq, create_chart_from_plotly_config
+- **`web`**: web_request, web_scraping tools
+- **`audio`**: text_to_speech, multi_speaker_text_to_speech, audio processing tools
+- **`communication`**: peer_agent_tool for inter-agent delegation
+
+**Individual Tool Configuration**:
+```yaml
+tools:
+  - tool_type: builtin
+    tool_name: "peer_agent_tool"
+  - tool_type: builtin
+    tool_name: "web_request"
+    tool_config:
+      timeout: 30
+      max_retries: 3
 ```
 
 ## Development Patterns & Usage
@@ -530,6 +633,123 @@ async def client_integration():
 - **Frontend changes**: Trigger pre-commit hook automatically
 - **CLI changes**: Test basic functionality with `sam --help`  
 - **Configuration changes**: Validate YAML generation with CLI commands
+
+## Repository-Specific Commands
+
+### Quick Status Check
+```bash
+# Check repo structure
+ls -la  # Should see: cli/, src/, client/, tests/, docs/, pyproject.toml
+
+# Test basic CLI (may need dependencies)
+PYTHONPATH=cli:src python3 cli/main.py --version
+
+# Test frontend
+cd client/webui/frontend && npm run lint
+```
+
+### Common File Paths
+- **Main CLI entry**: `cli/main.py`
+- **Core framework**: `src/solace_agent_mesh/`
+- **Frontend app**: `client/webui/frontend/src/`
+- **Unit tests**: `tests/unit/`
+- **Integration tests**: `tests/integration/`  
+- **Build config**: `pyproject.toml`, `client/webui/frontend/package.json`
+- **CI workflows**: `.github/workflows/ci.yaml`, `.github/workflows/ui-ci.yml`
+
+## Plugin Ecosystem and Deployment
+
+### Plugin Management
+- **Add Plugin**: `sam plugin add <plugin-name>` - Installs and configures community plugins
+- **Available Plugin Types**: Agents, Gateways, Tools, Service Providers
+- **Core Plugins**: Official plugins for Event Mesh Gateway, specialized agents, and integrations
+- **Custom Plugins**: Create reusable components with `sam plugin create`
+
+### Deployment Patterns
+- **Single Process**: `sam run` - All components in one multi-threaded application
+- **Isolated Components**: `sam run configs/agents/my_agent.yaml configs/gateways/webui.yaml` - Run specific components
+- **Docker Deployment**: Official `solace/solace-agent-mesh:latest` image with preset configurations
+- **Custom Docker Build**: Extend official image for custom dependencies and plugins
+
+### Environment Configuration
+```bash
+# Core LLM settings
+LLM_SERVICE_ENDPOINT=<your-llm-endpoint>
+LLM_SERVICE_API_KEY=<your-llm-api-key>
+LLM_SERVICE_PLANNING_MODEL_NAME=<planning-model>
+LLM_SERVICE_GENERAL_MODEL_NAME=<general-model>
+
+# Web UI settings  
+FASTAPI_HOST=0.0.0.0  # Required for Docker deployments
+FASTAPI_PORT=8000
+
+# Broker configuration
+SOLACE_BROKER_URL=<broker-url>
+SOLACE_BROKER_VPN=<vpn-name>
+SOLACE_BROKER_USERNAME=<username>
+SOLACE_BROKER_PASSWORD=<password>
+```
+
+## Debugging and Troubleshooting
+
+### Common Debugging Approaches
+- **Isolate Components**: Run specific configs only: `sam run configs/agents/my_tool.yaml`
+- **Debug Mode**: Use IDE breakpoints with `module: solace_agent_mesh.cli.main`
+- **STIM Files**: Examine stimulus lifecycle traces in storage location
+- **Broker Monitoring**: Monitor message flows via Solace broker observability tools
+
+### VSCode Debug Configuration
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "sam-debug",
+      "type": "debugpy", 
+      "request": "launch",
+      "module": "solace_agent_mesh.cli.main",
+      "console": "integratedTerminal",
+      "envFile": "${workspaceFolder}/.env",
+      "args": ["run", "configs/agents/main_orchestrator.yaml", "configs/gateways/webui.yaml"],
+      "justMyCode": false
+    }
+  ]
+}
+```
+
+### Direct Agent Testing
+- **Web UI**: Select specific agent in dropdown for direct testing
+- **A2A Protocol**: Send direct messages to agent topics using Solace Try Me tools
+- **Topic Format**: `{namespace}/a2a/v1/agent/request/<agent_name>`
+- **Required Headers**: `userId`, `clientId`, `replyTo`, `a2aUserConfig`
+
+## Tutorial Workflows and Integration Patterns
+
+### Common Tutorial Scenarios
+- **SQL Database Integration**: Add SQL agent plugin, configure database connections, query data with natural language
+- **RAG (Retrieval Augmented Generation)**: Configure vector databases, embedding models, and knowledge retrieval agents
+- **MongoDB Integration**: Connect to MongoDB, perform document queries and aggregations
+- **MCP Integration**: Add Model Context Protocol servers as tools for extended capabilities  
+- **Custom Agent Creation**: Build specialized agents with custom tools and domain knowledge
+- **Event Mesh Gateway**: External broker connectivity with message transformation
+- **Slack Integration**: Team collaboration through Slack bot interface
+- **Bedrock Agents**: Integration with AWS Bedrock agent services
+
+### Agent Card Configuration
+Essential for agent discovery and interoperability:
+```yaml
+agent_card:
+  description: "AI agent for data analysis and reporting"
+  defaultInputModes: ["text/plain", "application/json", "file"]
+  defaultOutputModes: ["text", "file"] 
+  skills:
+  - id: "data_analysis"
+    name: "Data Analysis"
+    description: "Analyzes data using SQL queries and generates visualizations"
+  - id: "chart_generation"
+    name: "Chart Generation"
+    description: "Creates interactive charts from data using Plotly"
+```
 
 ## Repository-Specific Commands
 
