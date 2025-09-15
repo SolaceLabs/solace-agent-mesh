@@ -24,6 +24,7 @@ from google.adk.events import Event as ADKEvent
 from google.adk.events.event_actions import EventActions
 
 from ...common import a2a
+from ...common.middleware.registry import MiddlewareRegistry
 
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
@@ -305,6 +306,11 @@ async def run_adk_async_task(
                 task_context.set_event_loop(current_loop)
                 a2a_context["invocation_id"] = event.invocation_id
                 event_loop_stored = True
+
+            # Use middleware-based authentication handler
+            auth_handler = MiddlewareRegistry.get_auth_handler()
+            if auth_handler:
+                await auth_handler(event, component, a2a_context)
 
             try:
                 await component.process_and_publish_adk_event(event, a2a_context)

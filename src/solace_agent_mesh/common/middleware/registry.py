@@ -23,6 +23,7 @@ class MiddlewareRegistry:
     _config_resolver: Optional[Type] = None
     _initialization_callbacks: List[callable] = []
     _tool_configurator: Optional[Callable] = None
+    _auth_handler: Optional[Callable] = None
 
     @classmethod
     def bind_config_resolver(cls, resolver_class: Type):
@@ -124,6 +125,32 @@ class MiddlewareRegistry:
         return cls._tool_configurator
 
     @classmethod
+    def bind_auth_handler(cls, auth_handler: Callable):
+        """
+        Bind an authentication handler function.
+
+        Args:
+            auth_handler: A callable that handles authentication requests with signature:
+                         (event, component, a2a_context) -> None
+        """
+        cls._auth_handler = auth_handler
+        log.info(
+            "%s Bound authentication handler: %s",
+            LOG_IDENTIFIER,
+            auth_handler.__name__,
+        )
+
+    @classmethod
+    def get_auth_handler(cls) -> Optional[Callable]:
+        """
+        Get the registered authentication handler.
+
+        Returns:
+            The authentication handler function if registered, None otherwise
+        """
+        return cls._auth_handler
+
+    @classmethod
     def reset_bindings(cls):
         """
         Reset all bindings to defaults.
@@ -134,6 +161,7 @@ class MiddlewareRegistry:
         cls._config_resolver = None
         cls._initialization_callbacks = []
         cls._tool_configurator = None
+        cls._auth_handler = None
         log.info("%s Reset all middleware bindings", LOG_IDENTIFIER)
 
     @classmethod
@@ -151,6 +179,9 @@ class MiddlewareRegistry:
             "initialization_callbacks": len(cls._initialization_callbacks),
             "tool_configurator": (
                 cls._tool_configurator.__name__ if cls._tool_configurator else "none"
+            ),
+            "auth_handler": (
+                cls._auth_handler.__name__ if cls._auth_handler else "none"
             ),
             "has_custom_bindings": cls._config_resolver is not None,
         }

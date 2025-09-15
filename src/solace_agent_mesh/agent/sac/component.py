@@ -61,6 +61,7 @@ from ...agent.adk.setup import (
     initialize_adk_agent,
     initialize_adk_runner,
 )
+from ...common.middleware.registry import MiddlewareRegistry
 from ...agent.protocol.event_handlers import (
     process_event,
     publish_agent_card,
@@ -103,6 +104,14 @@ info = {
 InstructionProvider = Callable[[ReadonlyContext], str]
 
 
+async def noop_auth_handler(
+    event: ADKEvent,
+    component: "SamAgentComponent",
+    a2a_context: Dict[str, Any],
+) -> None:
+    pass
+
+
 class SamAgentComponent(SamComponentBase):
     """
     A Solace AI Connector component that hosts a Google ADK agent,
@@ -127,6 +136,25 @@ class SamAgentComponent(SamComponentBase):
         super().__init__(info, **kwargs)
         self.agent_name = self.get_config("agent_name")
         log.info("%s Initializing A2A ADK Host Component...", self.log_identifier)
+
+        self._register_default_auth_handler()
+        self._initialize_instance_variables()
+        try:
+            self._execute_custom_agent_init_function()
+            self._initialize_invocation_monitor()
+            self._initialize_adk_services()
+            self._setup_async_initialization()
+            self._setup_agent_card_publishing()
+            log.info(
+                "%s Initialization complete for agent: %s",
+                self.log_identifier,
+                self.agent_name,
+            )
+        except Exception as e:
+            log.exception("%s Initialization failed: %s", self.log_identifier, e)
+            raise
+
+        # Continue with the original try block for configuration retrieval
         try:
             self.namespace = self.get_config("namespace")
             if not self.namespace:
@@ -243,189 +271,203 @@ class SamAgentComponent(SamComponentBase):
         self.agent_specific_state: Dict[str, Any] = {}
         self.active_tasks: Dict[str, "TaskExecutionContext"] = {}
         self.active_tasks_lock = threading.Lock()
+
+    def _register_default_auth_handler(self):
+        """Register the default no-op authentication handler in the middleware registry."""
+        # Only register if no auth handler is already bound
+        if not MiddlewareRegistry.get_auth_handler():
+            MiddlewareRegistry.bind_auth_handler(noop_auth_handler)
+            log.info(
+                "%s Registered default no-op authentication handler in middleware registry.",
+                self.log_identifier,
+            )
+        else:
+            log.debug(
+                "%s Authentication handler already registered in middleware registry.",
+                self.log_identifier,
+            )
+
+    def _initialize_instance_variables(self):
+        """Initialize instance variables for the component."""
         self._agent_system_instruction_string: Optional[str] = None
         self._agent_system_instruction_callback: Optional[
             Callable[[CallbackContext, LlmRequest], Optional[str]]
         ] = None
         self.invocation_monitor: Optional[InvocationMonitor] = None
         self._active_background_tasks = set()
-        try:
-            self.agent_specific_state: Dict[str, Any] = {}
-            init_func_details = self.get_config("agent_init_function")
-            if init_func_details and isinstance(init_func_details, dict):
-                module_name = init_func_details.get("module")
-                func_name = init_func_details.get("name")
-                base_path = init_func_details.get("base_path")
-                specific_init_params_dict = init_func_details.get("config", {})
-                if module_name and func_name:
+        self.agent_specific_state: Dict[str, Any] = {}
+
+    def _execute_custom_agent_init_function(self):
+        """Execute custom agent initialization function if configured."""
+        init_func_details = self.get_config("agent_init_function")
+        if init_func_details and isinstance(init_func_details, dict):
+            module_name = init_func_details.get("module")
+            func_name = init_func_details.get("name")
+            base_path = init_func_details.get("base_path")
+            specific_init_params_dict = init_func_details.get("config", {})
+            if module_name and func_name:
+                log.info(
+                    "%s Attempting to load init_function: %s.%s",
+                    self.log_identifier,
+                    module_name,
+                    func_name,
+                )
+                try:
+                    module = import_module(module_name, base_path=base_path)
+                    init_function = getattr(module, func_name)
+                    if not callable(init_function):
+                        raise TypeError(
+                            f"Init function '{func_name}' in module '{module_name}' is not callable."
+                        )
+                    sig = inspect.signature(init_function)
+                    pydantic_config_model = None
+                    config_param_name = None
+                    validated_config_arg = specific_init_params_dict
+                    for param_name_sig, param_sig in sig.parameters.items():
+                        if (
+                            param_sig.annotation is not inspect.Parameter.empty
+                            and isinstance(param_sig.annotation, type)
+                            and issubclass(param_sig.annotation, BaseModel)
+                        ):
+                            pydantic_config_model = param_sig.annotation
+                            config_param_name = param_name_sig
+                            break
+                    if pydantic_config_model and config_param_name:
+                        log.info(
+                            "%s Found Pydantic config model '%s' for init_function parameter '%s'.",
+                            self.log_identifier,
+                            pydantic_config_model.__name__,
+                            config_param_name,
+                        )
+                        try:
+                            validated_config_arg = pydantic_config_model(
+                                **specific_init_params_dict
+                            )
+                        except ValidationError as ve:
+                            log.error(
+                                "%s Validation error for init_function config using Pydantic model '%s': %s",
+                                self.log_identifier,
+                                pydantic_config_model.__name__,
+                                ve,
+                            )
+                            raise ValueError(
+                                f"Invalid configuration for init_function '{func_name}': {ve}"
+                            ) from ve
+                    elif (
+                        config_param_name
+                        and param_sig.annotation is not inspect.Parameter.empty
+                    ):
+                        log.warning(
+                            "%s Config parameter '%s' for init_function '%s' has a type hint '%s', but it's not a Pydantic BaseModel. Passing raw dict.",
+                            self.log_identifier,
+                            config_param_name,
+                            func_name,
+                            param_sig.annotation,
+                        )
+                    else:
+                        log.info(
+                            "%s No Pydantic model type hint found for a config parameter of init_function '%s'. Passing raw dict if a config param exists, or only host_component.",
+                            self.log_identifier,
+                            func_name,
+                        )
+                    func_params_list = list(sig.parameters.values())
+                    num_actual_params = len(func_params_list)
+                    if num_actual_params == 1:
+                        if specific_init_params_dict:
+                            log.warning(
+                                "%s Init function '%s' takes 1 argument, but 'config' was provided in YAML. Config will be ignored.",
+                                self.log_identifier,
+                                func_name,
+                            )
+                        init_function(self)
+                    elif num_actual_params == 2:
+                        actual_config_param_name_in_signature = func_params_list[1].name
+                        init_function(
+                            self,
+                            **{
+                                actual_config_param_name_in_signature: validated_config_arg
+                            },
+                        )
+                    else:
+                        raise TypeError(
+                            f"Init function '{func_name}' has an unsupported signature. "
+                            f"Expected (host_component_instance) or (host_component_instance, config_param), "
+                            f"but got {num_actual_params} parameters."
+                        )
                     log.info(
-                        "%s Attempting to load init_function: %s.%s",
+                        "%s Successfully executed init_function: %s.%s",
                         self.log_identifier,
                         module_name,
                         func_name,
                     )
-                    try:
-                        module = import_module(module_name, base_path=base_path)
-                        init_function = getattr(module, func_name)
-                        if not callable(init_function):
-                            raise TypeError(
-                                f"Init function '{func_name}' in module '{module_name}' is not callable."
-                            )
-                        sig = inspect.signature(init_function)
-                        pydantic_config_model = None
-                        config_param_name = None
-                        validated_config_arg = specific_init_params_dict
-                        for param_name_sig, param_sig in sig.parameters.items():
-                            if (
-                                param_sig.annotation is not inspect.Parameter.empty
-                                and isinstance(param_sig.annotation, type)
-                                and issubclass(param_sig.annotation, BaseModel)
-                            ):
-                                pydantic_config_model = param_sig.annotation
-                                config_param_name = param_name_sig
-                                break
-                        if pydantic_config_model and config_param_name:
-                            log.info(
-                                "%s Found Pydantic config model '%s' for init_function parameter '%s'.",
-                                self.log_identifier,
-                                pydantic_config_model.__name__,
-                                config_param_name,
-                            )
-                            try:
-                                validated_config_arg = pydantic_config_model(
-                                    **specific_init_params_dict
-                                )
-                            except ValidationError as ve:
-                                log.error(
-                                    "%s Validation error for init_function config using Pydantic model '%s': %s",
-                                    self.log_identifier,
-                                    pydantic_config_model.__name__,
-                                    ve,
-                                )
-                                raise ValueError(
-                                    f"Invalid configuration for init_function '{func_name}': {ve}"
-                                ) from ve
-                        elif (
-                            config_param_name
-                            and param_sig.annotation is not inspect.Parameter.empty
-                        ):
-                            log.warning(
-                                "%s Config parameter '%s' for init_function '%s' has a type hint '%s', but it's not a Pydantic BaseModel. Passing raw dict.",
-                                self.log_identifier,
-                                config_param_name,
-                                func_name,
-                                param_sig.annotation,
-                            )
-                        else:
-                            log.info(
-                                "%s No Pydantic model type hint found for a config parameter of init_function '%s'. Passing raw dict if a config param exists, or only host_component.",
-                                self.log_identifier,
-                                func_name,
-                            )
-                        func_params_list = list(sig.parameters.values())
-                        num_actual_params = len(func_params_list)
-                        if num_actual_params == 1:
-                            if specific_init_params_dict:
-                                log.warning(
-                                    "%s Init function '%s' takes 1 argument, but 'config' was provided in YAML. Config will be ignored.",
-                                    self.log_identifier,
-                                    func_name,
-                                )
-                            init_function(self)
-                        elif num_actual_params == 2:
-                            actual_config_param_name_in_signature = func_params_list[
-                                1
-                            ].name
-                            init_function(
-                                self,
-                                **{
-                                    actual_config_param_name_in_signature: validated_config_arg
-                                },
-                            )
-                        else:
-                            raise TypeError(
-                                f"Init function '{func_name}' has an unsupported signature. "
-                                f"Expected (host_component_instance) or (host_component_instance, config_param), "
-                                f"but got {num_actual_params} parameters."
-                            )
-                        log.info(
-                            "%s Successfully executed init_function: %s.%s",
-                            self.log_identifier,
-                            module_name,
-                            func_name,
-                        )
-                    except Exception as e:
-                        log.exception(
-                            "%s Fatal error during agent initialization via init_function '%s.%s': %s",
-                            self.log_identifier,
-                            module_name,
-                            func_name,
-                            e,
-                        )
-                        raise RuntimeError(
-                            f"Agent custom initialization failed: {e}"
-                        ) from e
-            try:
-                self.invocation_monitor = InvocationMonitor()
-            except Exception as im_e:
-                log.error(
-                    "%s Failed to initialize InvocationMonitor: %s",
-                    self.log_identifier,
-                    im_e,
-                )
-                self.invocation_monitor = None
-            try:
-                log.info(
-                    "%s Initializing synchronous ADK services...", self.log_identifier
-                )
-                self.session_service = initialize_session_service(self)
-                self.artifact_service = initialize_artifact_service(self)
-                self.memory_service = initialize_memory_service(self)
+                except Exception as e:
+                    log.exception(
+                        "%s Fatal error during agent initialization via init_function '%s.%s': %s",
+                        self.log_identifier,
+                        module_name,
+                        func_name,
+                        e,
+                    )
+                    raise RuntimeError(
+                        f"Agent custom initialization failed: {e}"
+                    ) from e
 
-                log.info(
-                    "%s Synchronous ADK services initialized.", self.log_identifier
-                )
-            except Exception as service_err:
-                log.exception(
-                    "%s Failed to initialize synchronous ADK services: %s",
-                    self.log_identifier,
-                    service_err,
-                )
-                raise RuntimeError(
-                    f"Failed to initialize synchronous ADK services: {service_err}"
-                ) from service_err
-
-            # Async init is now handled by the base class `run` method.
-            # We still need a future to signal completion from the async thread.
-            self._async_init_future = concurrent.futures.Future()
-
-            publish_interval_sec = self.agent_card_publishing_config.get(
-                "interval_seconds"
-            )
-            if publish_interval_sec and publish_interval_sec > 0:
-                log.info(
-                    "%s Scheduling agent card publishing every %d seconds.",
-                    self.log_identifier,
-                    publish_interval_sec,
-                )
-                self.add_timer(
-                    delay_ms=1000,
-                    timer_id=self._card_publish_timer_id,
-                    interval_ms=publish_interval_sec * 1000,
-                )
-            else:
-                log.warning(
-                    "%s Agent card publishing interval not configured or invalid, card will not be published periodically.",
-                    self.log_identifier,
-                )
-            log.info(
-                "%s Initialization complete for agent: %s",
+    def _initialize_invocation_monitor(self):
+        """Initialize the invocation monitor."""
+        try:
+            self.invocation_monitor = InvocationMonitor()
+        except Exception as im_e:
+            log.error(
+                "%s Failed to initialize InvocationMonitor: %s",
                 self.log_identifier,
-                self.agent_name,
+                im_e,
             )
-        except Exception as e:
-            log.exception("%s Initialization failed: %s", self.log_identifier, e)
-            raise
+            self.invocation_monitor = None
+
+    def _initialize_adk_services(self):
+        """Initialize synchronous ADK services."""
+        try:
+            log.info("%s Initializing synchronous ADK services...", self.log_identifier)
+            self.session_service = initialize_session_service(self)
+            self.artifact_service = initialize_artifact_service(self)
+            self.memory_service = initialize_memory_service(self)
+
+            log.info("%s Synchronous ADK services initialized.", self.log_identifier)
+        except Exception as service_err:
+            log.exception(
+                "%s Failed to initialize synchronous ADK services: %s",
+                self.log_identifier,
+                service_err,
+            )
+            raise RuntimeError(
+                f"Failed to initialize synchronous ADK services: {service_err}"
+            ) from service_err
+
+    def _setup_async_initialization(self):
+        """Set up async initialization future."""
+        # Async init is now handled by the base class `run` method.
+        # We still need a future to signal completion from the async thread.
+        self._async_init_future = concurrent.futures.Future()
+
+    def _setup_agent_card_publishing(self):
+        """Set up agent card publishing timer."""
+        publish_interval_sec = self.agent_card_publishing_config.get("interval_seconds")
+        if publish_interval_sec and publish_interval_sec > 0:
+            log.info(
+                "%s Scheduling agent card publishing every %d seconds.",
+                self.log_identifier,
+                publish_interval_sec,
+            )
+            self.add_timer(
+                delay_ms=1000,
+                timer_id=self._card_publish_timer_id,
+                interval_ms=publish_interval_sec * 1000,
+            )
+        else:
+            log.warning(
+                "%s Agent card publishing interval not configured or invalid, card will not be published periodically.",
+                self.log_identifier,
+            )
 
     def invoke(self, message: SolaceMessage, data: dict) -> dict:
         """Placeholder invoke method. Primary logic resides in process_event."""
