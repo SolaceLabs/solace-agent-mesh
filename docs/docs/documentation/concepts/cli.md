@@ -281,7 +281,7 @@ sam plugin add [OPTIONS] COMPONENT_NAME
 Installs a plugin from a specified plugin source.
 
 ```sh
-sam plugin installs [OPTIONS] PLUGIN_SOURCE
+sam plugin install [OPTIONS] PLUGIN_SOURCE
 ```
 
 PLUGIN_SOURCE can be:
