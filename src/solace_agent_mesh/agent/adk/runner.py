@@ -307,7 +307,6 @@ async def run_adk_async_task(
                 a2a_context["invocation_id"] = event.invocation_id
                 event_loop_stored = True
 
-            # Use middleware-based authentication handler
             auth_handler = MiddlewareRegistry.get_auth_handler()
             if auth_handler:
                 await auth_handler(event, component, a2a_context)
