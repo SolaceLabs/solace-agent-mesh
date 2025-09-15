@@ -59,7 +59,7 @@ def _get_plugin_type_from_pyproject(source_path: pathlib.Path) -> str | None:
 def add_plugin_component_cmd(
     component_name: str, plugin_source: str, installer_command: str | None = None
 ):
-    """Installs and creates a new component instance from a specified plugin source."""
+    """Installs the plugin and creates a new component instance from a specified plugin source."""
 
     click.echo(
         f"Attempting to add component '{component_name}' using plugin source '{plugin_source}'..."
