@@ -109,10 +109,9 @@ class RegistryManager:
                 final_name = Path(original_path_or_url).name.replace(".git", "")
             else:
                 final_name = Path(path_or_url).name
-        else:
-            # Sanitize name to be filesystem-friendly
-            final_name = "".join(c if c.isalnum() else '_' for c in final_name)
 
+        # Sanitize name to be filesystem-friendly
+        final_name = "".join(c if c.isalnum() else '_' for c in final_name)
         is_official_src = path_or_url == DEFAULT_OFFICIAL_REGISTRY_URL
 
         try:
