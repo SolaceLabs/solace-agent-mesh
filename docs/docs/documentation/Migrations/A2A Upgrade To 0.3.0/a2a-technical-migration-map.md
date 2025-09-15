@@ -1,6 +1,6 @@
 # A2A Technical Migration Map
 
-This document provides a comprehensive, technical mapping for migrating Solace Agent Mesh (SAM) components from the legacy A2A implementation to the new `a2a-sdk`-based protocol. It is designed to be used as a reference for automated or semi-automated code refactoring.
+This document provides a comprehensive, technical mapping for migrating Solace Agent Mesh components from the legacy A2A implementation to the new `a2a-sdk`-based protocol. It is designed to be used as a reference for automated or semi-automated code refactoring.
 
 ## 1. Core Concept Changes
 

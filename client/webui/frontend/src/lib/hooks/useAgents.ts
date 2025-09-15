@@ -20,8 +20,8 @@ const transformAgentCard = (card: AgentCard): AgentCardInfo => {
 
     if (card.capabilities?.extensions) {
         const displayNameExtension = card.capabilities.extensions.find((ext: AgentExtension) => ext.uri === DISPLAY_NAME_EXTENSION_URI);
-        if (displayNameExtension?.params?.displayName) {
-            displayName = displayNameExtension.params.displayName as string;
+        if (displayNameExtension?.params?.display_name) {
+            displayName = displayNameExtension.params.display_name as string;
         }
 
         const peerAgentTopologyExtension = card.capabilities.extensions.find((ext: AgentExtension) => ext.uri === PEER_AGENT_TOPOLOGY_EXTENSION_URI);

@@ -5,7 +5,7 @@ sidebar_position: 20
 
 # Data Analysis Tools
 
-Solace Agent Mesh (SAM) includes a suite of optional built-in tools that enable agents to perform data analysis tasks directly on artifacts. These tools provide functionality for SQL querying, JQ transformations, and Plotly chart generation.
+Solace Agent Mesh includes a suite of optional built-in tools that enable agents to perform data analysis tasks directly on artifacts. These tools provide functionality for SQL querying, JQ transformations, and Plotly chart generation.
 
 ## Setup and Configuration
 

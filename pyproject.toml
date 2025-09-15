@@ -82,7 +82,7 @@ dependencies = [
     "pytest>=7.0",
     "pytest-asyncio>=0.20",
     "ruff",
-    "solace-agent-mesh[database,cli,gcs,vertex,employee_tools]",
+    "solace-agent-mesh[database,cli,gcs,vertex,employee_tools,postgresql,s3]",
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
 ]
 

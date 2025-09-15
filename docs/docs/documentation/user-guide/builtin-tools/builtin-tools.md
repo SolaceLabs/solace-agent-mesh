@@ -5,7 +5,7 @@ sidebar_position: 60
 
 # Configuring Built-in Tools
 
-This guide provides instructions for enabling and configuring the built-in tools provided by Solace Agent Mesh (SAM) framework.
+This guide provides instructions for enabling and configuring the built-in tools provided by Solace Agent Mesh framework.
 
 ## Overview
 

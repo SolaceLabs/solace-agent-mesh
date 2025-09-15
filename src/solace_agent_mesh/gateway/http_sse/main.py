@@ -8,8 +8,9 @@ from a2a.types import InternalError, JSONRPCError
 from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
 from alembic import command
 from alembic.config import Config
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException
 from fastapi import Request as FastAPIRequest
+from fastapi import status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -31,10 +32,9 @@ from ...gateway.http_sse.routers import (
 )
 
 # Import persistence-aware controllers
-from .api.controllers.session_controller import router as session_router
-from .api.controllers.task_controller import router as task_router
-from .api.controllers.user_controller import router as user_router
-from .infrastructure.persistence.database_service import DatabaseService
+from .routers.sessions import router as session_router
+from .routers.tasks import router as task_router
+from .routers.users import router as user_router
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
@@ -46,39 +46,25 @@ app = FastAPI(
 )
 
 
-def setup_dependencies(component: "WebUIBackendComponent", persistence_service=None):
+def setup_dependencies(component: "WebUIBackendComponent", database_url: str = None):
     """
-    This function initializes the modern architecture while maintaining full
+    This function initializes the simplified architecture while maintaining full
     backward compatibility with existing API contracts.
 
-    If persistence_service is None, runs in compatibility mode with in-memory sessions.
+    If database_url is None, runs in compatibility mode with in-memory sessions.
     """
-
-    if persistence_service:
-        database_url = persistence_service.engine.url.__str__()
-        global database_service
-        database_service = DatabaseService(database_url)
-        log.info("Database service initialized")
-
-        from .infrastructure.dependency_injection.container import initialize_container
-
-        initialize_container(database_url)
-        log.info("Persistence enabled - sessions will be stored in database")
-    else:
-        from .infrastructure.dependency_injection.container import initialize_container
-
-        initialize_container()
-        log.warning(
-            "No persistence service provided - using in-memory session storage (data not persisted across restarts)"
-        )
-        log.info("This maintains backward compatibility for existing SAM installations")
 
     dependencies.set_component_instance(component)
 
-    if persistence_service:
+    if database_url:
+        dependencies.init_database(database_url)
+        log.info("Persistence enabled - sessions will be stored in database")
+        
         log.info("Checking database migrations...")
         try:
-            inspector = sa.inspect(persistence_service.engine)
+            from sqlalchemy import create_engine
+            engine = create_engine(database_url)
+            inspector = sa.inspect(engine)
             existing_tables = inspector.get_table_names()
 
             if not existing_tables or "sessions" not in existing_tables:
@@ -108,10 +94,11 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service=N
                 log.info("Database migrations complete.")
             except Exception as migration_error:
                 log.warning(f"Migration failed but continuing: {migration_error}")
-
-        dependencies.set_persistence_service(persistence_service)
     else:
-        log.info("Skipping database migrations - no persistence service configured")
+        log.warning(
+            "No database URL provided - using in-memory session storage (data not persisted across restarts)"
+        )
+        log.info("This maintains backward compatibility for existing SAM installations")
 
     webui_app = component.get_app()
     app_config = {}
@@ -137,7 +124,7 @@ def setup_dependencies(component: "WebUIBackendComponent", persistence_service=N
         "frontend_redirect_url": app_config.get(
             "frontend_redirect_url", "http://localhost:3000"
         ),
-        "persistence_enabled": persistence_service is not None,
+        "persistence_enabled": database_url is not None,
     }
 
     dependencies.set_api_config(api_config_dict)

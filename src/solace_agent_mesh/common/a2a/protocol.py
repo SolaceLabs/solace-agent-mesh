@@ -176,6 +176,26 @@ def get_client_status_subscription_topic(namespace: str, client_id: str) -> str:
     return f"{get_a2a_base_topic(namespace)}/client/status/{client_id}/>"
 
 
+def get_sam_events_topic(namespace: str, category: str, action: str) -> str:
+    """Returns SAM system events topic."""
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    if not category:
+        raise ValueError("Category cannot be empty.")
+    if not action:
+        raise ValueError("Action cannot be empty.")
+    return f"{namespace.rstrip('/')}/sam/events/{category}/{action}"
+
+
+def get_sam_events_subscription_topic(namespace: str, category: str) -> str:
+    """Returns SAM system events subscription topic."""
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    if not category:
+        raise ValueError("Category cannot be empty.")
+    return f"{namespace.rstrip('/')}/sam/events/{category}/>"
+
+
 def subscription_to_regex(subscription: str) -> str:
     """Converts a Solace topic subscription string to a regex pattern."""
     # Escape regex special characters except for Solace wildcards

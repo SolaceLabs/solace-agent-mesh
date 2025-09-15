@@ -24,7 +24,6 @@ from ...gateway.base.component import BaseGatewayComponent
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .components import VisualizationForwarderComponent
-from .infrastructure.persistence_service import PersistenceService
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -131,10 +130,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     f"{self.log_identifier} Session service type is 'sql' but no database_url provided. "
                     "Please provide a database_url in the session_service configuration or use type 'memory'."
                 )
-            self.persistence_service = PersistenceService(database_url)
+            self.database_url = database_url
         else:
             # Memory storage or no explicit configuration - no persistence service needed
-            self.persistence_service = None
+            self.database_url = None
 
         component_config = self.get_config("component_config", {})
         app_config = component_config.get("app_config", {})
@@ -142,7 +141,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self.session_manager = SessionManager(
             secret_key=self.session_secret_key,
             app_config=app_config,
-            persistence_service=self.persistence_service,
         )
 
         self.fastapi_app: FastAPI | None = None
@@ -158,6 +156,14 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self._visualization_locks_lock = threading.Lock()
         self._global_visualization_subscriptions: dict[str, int] = {}
         self._visualization_processor_task: asyncio.Task | None = None
+        
+        # Initialize SAM Events service for system events
+        from ...common.sam_events import SamEventService
+        self.sam_events = SamEventService(
+            namespace=self.namespace,
+            component_name=f"{self.name}_gateway", 
+            publish_func=self.publish_a2a
+        )
 
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
 
@@ -881,7 +887,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
             self.fastapi_app = fastapi_app_instance
 
-            setup_dependencies(self, self.persistence_service)
+            setup_dependencies(self, self.database_url)
 
             port = (
                 self.fastapi_https_port
@@ -991,7 +997,16 @@ class WebUIBackendComponent(BaseGatewayComponent):
         This method can be called from FastAPI handlers (via dependency injection).
         It's thread-safe as it uses the SAC App instance.
         """
-        super().publish_a2a_message(topic, payload, user_properties)
+        log.debug(f"[publish_a2a] Starting to publish message to topic: {topic}")
+        log.debug(f"[publish_a2a] Payload type: {type(payload)}, size: {len(str(payload))} chars")
+        log.debug(f"[publish_a2a] User properties: {user_properties}")
+        
+        try:
+            super().publish_a2a_message(payload, topic, user_properties)
+            log.debug(f"[publish_a2a] Successfully called super().publish_a2a_message for topic: {topic}")
+        except Exception as e:
+            log.error(f"[publish_a2a] Exception in publish_a2a: {e}", exc_info=True)
+            raise
 
     def _cleanup_visualization_locks(self):
         """Remove locks for closed event loops to prevent memory leaks."""
@@ -1063,6 +1078,16 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         # --- Phase 1: Parse the payload to extract core info ---
         try:
+            # Handle SAM Events (system events)
+            event_type = payload.get("event_type")
+            if event_type:
+                details["direction"] = "system_event"
+                details["debug_type"] = "sam_event"
+                details["payload_summary"]["method"] = event_type
+                details["source_entity"] = payload.get("source_component", "unknown")
+                details["target_entity"] = "system"
+                return details
+                
             # Try to parse as a JSON-RPC response first
             if "result" in payload or "error" in payload:
                 rpc_response = JSONRPCResponse.model_validate(payload)
@@ -1613,15 +1638,12 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
 
             # Store final agent response in persistence layer if available
-            if hasattr(self, "persistence_service") and self.persistence_service:
+            if hasattr(self, "database_url") and self.database_url:
                 try:
                     session_id = external_request_context.get("a2a_session_id")
                     user_id = external_request_context.get("user_id_for_a2a")
-                    agent_name = external_request_context.get(
-                        "target_agent_name", "agent"
-                    )
+                    agent_name = external_request_context.get("target_agent_name", "agent")
 
-                    # Extract message content from the task status
                     message_text = ""
                     if task_data.status and task_data.status.message:
                         parts = a2a.get_parts_from_message(task_data.status.message)
@@ -1631,30 +1653,19 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                     message_text += "\n"
                                 message_text += part.text
 
-                    log.info(
-                        "%s Final agent response storage debug - session_id: %s, user_id: %s, message_text: '%s', parts_count: %s",
-                        log_id_prefix,
-                        session_id,
-                        user_id,
-                        message_text[:100] if message_text else None,
-                        len(a2a.get_parts_from_message(task_data.status.message))
-                        if task_data.status and task_data.status.message
-                        else 0,
-                    )
-
                     if message_text and session_id and user_id:
-                        from .dependencies import get_session_service
-                        from .shared.enums import SenderType
+                        from .dependencies import create_session_service_with_transaction
+                        from ...gateway.http_sse.shared.enums import SenderType
 
-                        session_service = get_session_service(self)
-                        session_service.add_message_to_session(
-                            session_id=session_id,
-                            user_id=user_id,
-                            message=message_text,
-                            sender_type=SenderType.AGENT,
-                            sender_name=agent_name,
-                            agent_id=agent_name,
-                        )
+                        with create_session_service_with_transaction() as (session_service, db):
+                            session_service.add_message_to_session(
+                                session_id=session_id,
+                                user_id=user_id,
+                                message=message_text,
+                                sender_type=SenderType.AGENT,
+                                sender_name=agent_name,
+                                agent_id=agent_name,
+                            )
                         log.info(
                             "%s Final agent response stored in session %s",
                             log_id_prefix,
@@ -1666,7 +1677,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         log_id_prefix,
                         storage_error,
                     )
-                    # Don't fail the SSE send if storage fails
 
         except Exception as e:
             log.exception(

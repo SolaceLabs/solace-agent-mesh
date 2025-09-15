@@ -5,7 +5,7 @@ sidebar_position: 35
 
 # Creating Python Tools
 
-Solace Agent Mesh (SAM) provides a powerful and unified system for creating custom agent tools using Python. This is the primary way to extend an agent's capabilities with your own business logic, integrate with proprietary APIs, or perform specialized data processing.
+Solace Agent Mesh provides a powerful and unified system for creating custom agent tools using Python. This is the primary way to extend an agent's capabilities with your own business logic, integrate with proprietary APIs, or perform specialized data processing.
 
 This guide covers the different patterns for creating custom tools, all of which are configured using the versatile `tool_type: python`.
 
@@ -25,7 +25,7 @@ All three patterns are configured in your agent's YAML file under the `tools` li
 
 ## Pattern 1: Simple Function-Based Tools
 
-This is the most straightforward way to create a custom tool. You define a standard Python `async` function, and SAM automatically introspects its signature and docstring to create the tool definition for the LLM.
+This is the most straightforward way to create a custom tool. You define a standard Python `async` function, and Solace Agent Mesh automatically introspects its signature and docstring to create the tool definition for the LLM.
 
 ### Step 1: Write the Tool Function
 
@@ -137,7 +137,7 @@ class WeatherTool(DynamicTool):
 
 ### Step 2: Configure the Tool
 
-The YAML configuration is very similar. You can either specify the `class_name` or let SAM auto-discover it if it's the only `DynamicTool` in the module.
+The YAML configuration is very similar. You can either specify the `class_name` or let Solace Agent Mesh auto-discover it if it's the only `DynamicTool` in the module.
 
 ```yaml
 # In your agent's app_config:
@@ -208,7 +208,7 @@ async def get_database_server_version(tool_config: dict, **kwargs) -> dict:
 
 ### Step 2: Configure the Provider
 
-You only need a single YAML block. SAM will automatically detect the `DynamicToolProvider` and use it to load all the tools it generates.
+You only need a single YAML block. Solace Agent Mesh will automatically detect the `DynamicToolProvider` and use it to load all the tools it generates.
 
 ```yaml
 # In your agent's app_config:
