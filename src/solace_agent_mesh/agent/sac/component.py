@@ -104,12 +104,13 @@ info = {
 InstructionProvider = Callable[[ReadonlyContext], str]
 
 
-async def noop_auth_handler(
+async def default_auth_handler(
     event: ADKEvent,
     component: "SamAgentComponent",
     a2a_context: Dict[str, Any],
-) -> None:
-    pass
+) -> ADKEvent:
+    """Default authentication handler that returns the event unchanged."""
+    return event
 
 
 class SamAgentComponent(SamComponentBase):
@@ -430,7 +431,7 @@ class SamAgentComponent(SamComponentBase):
                 )
 
             self._register_default_auth_handler()
-            
+
             log.info(
                 "%s Initialization complete for agent: %s",
                 self.log_identifier,
@@ -441,12 +442,11 @@ class SamAgentComponent(SamComponentBase):
             raise
 
     def _register_default_auth_handler(self):
-        """Register the default no-op authentication handler in the middleware registry."""
-        # Only register if no auth handler is already bound
+        """Register the default authentication handler in the middleware registry."""
         if not MiddlewareRegistry.get_auth_handler():
-            MiddlewareRegistry.bind_auth_handler(noop_auth_handler)
+            MiddlewareRegistry.bind_auth_handler(default_auth_handler)
             log.info(
-                "%s Registered default no-op authentication handler in middleware registry.",
+                "%s Registered default authentication handler in middleware registry.",
                 self.log_identifier,
             )
         else:
