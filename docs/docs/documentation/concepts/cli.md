@@ -278,7 +278,7 @@ sam plugin add [OPTIONS] COMPONENT_NAME
 
 #### `installs` - Installs a Plugin
 
-Installs a plugins from a specified plugin source.
+Installs a plugin from a specified plugin source.
 
 ```sh
 sam plugin installs [OPTIONS] PLUGIN_SOURCE
