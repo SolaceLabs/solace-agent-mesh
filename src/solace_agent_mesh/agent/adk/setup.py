@@ -7,6 +7,7 @@ import functools
 import inspect
 from solace_ai_connector.common.log import log
 from solace_ai_connector.common.utils import import_module
+from ...common.utils.type_utils import is_subclass_by_name
 
 from .app_llm_agent import AppLlmAgent
 from .tool_wrapper import ADKToolWrapper
@@ -43,8 +44,8 @@ def _find_dynamic_tool_class(module) -> Optional[type]:
     found_classes = []
     for name, obj in inspect.getmembers(module, inspect.isclass):
         if (
-            issubclass(obj, DynamicTool)
-            and obj is not DynamicTool
+            is_subclass_by_name(obj, "DynamicTool")
+            and not is_subclass_by_name(obj, "DynamicToolProvider")
             and not inspect.isabstract(obj)
         ):
             found_classes.append(obj)
@@ -137,10 +138,8 @@ def _find_dynamic_tool_provider_class(module) -> Optional[type]:
     """Finds a single non-abstract DynamicToolProvider subclass in a module."""
     found_classes = []
     for name, obj in inspect.getmembers(module, inspect.isclass):
-        if (
-            issubclass(obj, DynamicToolProvider)
-            and obj is not DynamicToolProvider
-            and not inspect.isabstract(obj)
+        if is_subclass_by_name(obj, "DynamicToolProvider") and not inspect.isabstract(
+            obj
         ):
             found_classes.append(obj)
     if len(found_classes) > 1:
@@ -316,7 +315,7 @@ async def load_adk_tools(
                                 raise ValueError(error_msg) from e
 
                         # Instantiate tools from the class
-                        if issubclass(tool_class, DynamicToolProvider):
+                        if is_subclass_by_name(tool_class, "DynamicToolProvider"):
                             provider_instance = tool_class()
                             dynamic_tools = (
                                 provider_instance.get_all_tools_for_framework(
@@ -330,7 +329,7 @@ async def load_adk_tools(
                                 tool_class.__name__,
                                 module_name,
                             )
-                        elif issubclass(tool_class, DynamicTool):
+                        elif is_subclass_by_name(tool_class, "DynamicTool"):
                             tool_instance = tool_class(tool_config=validated_config)
                             dynamic_tools = [tool_instance]
                         else:
