@@ -91,7 +91,7 @@ class SSEManager:
                     await connection_queue.put(event)
 
             self._connections[task_id].append(connection_queue)
-            log.info(
+            log.debug(
                 "%s Created SSE connection queue for Task ID: %s. Total queues for task: %d",
                 self.log_identifier,
                 task_id,
@@ -114,7 +114,7 @@ class SSEManager:
             if task_id in self._connections:
                 try:
                     self._connections[task_id].remove(connection_queue)
-                    log.info(
+                    log.debug(
                         "%s Removed SSE connection queue for Task ID: %s. Remaining queues: %d",
                         self.log_identifier,
                         task_id,
@@ -122,7 +122,7 @@ class SSEManager:
                     )
                     if not self._connections[task_id]:
                         del self._connections[task_id]
-                        log.info(
+                        log.debug(
                             "%s Removed Task ID entry: %s as no connections remain.",
                             self.log_identifier,
                             task_id,
@@ -236,7 +236,7 @@ class SSEManager:
 
                 if not current_queues:
                     del self._connections[task_id]
-                    log.info(
+                    log.debug(
                         "%s Removed Task ID entry: %s after cleaning queues.",
                         self.log_identifier,
                         task_id,
@@ -247,7 +247,7 @@ class SSEManager:
         Signals a specific SSE connection queue to close by putting None.
         Also removes the queue from the manager.
         """
-        log.info(
+        log.debug(
             "%s Closing specific SSE connection queue for Task ID: %s",
             self.log_identifier,
             task_id,
@@ -288,7 +288,7 @@ class SSEManager:
                 # This is the "normal" case: a client is or was connected.
                 # It's safe to clean up everything.
                 queues_to_close = self._connections.pop(task_id)
-                log.info(
+                log.debug(
                     "%s Closing %d SSE connections for Task ID: %s and cleaning up buffer.",
                     self.log_identifier,
                     len(queues_to_close),
@@ -319,7 +319,7 @@ class SSEManager:
 
                 # Since a connection existed, the buffer is no longer needed.
                 self._event_buffer.remove_buffer(task_id)
-                log.info(
+                log.debug(
                     "%s Removed Task ID entry: %s and signaled queues to close.",
                     self.log_identifier,
                     task_id,
@@ -350,7 +350,7 @@ class SSEManager:
         self.cleanup_old_locks()
         lock = self._get_lock()
         async with lock:
-            log.info("%s Closing all active SSE connections...", self.log_identifier)
+            log.debug("%s Closing all active SSE connections...", self.log_identifier)
             all_task_ids = list(self._connections.keys())
             closed_count = 0
             for task_id in all_task_ids:
@@ -362,7 +362,7 @@ class SSEManager:
                             await asyncio.wait_for(q.put(None), timeout=0.1)
                         except Exception:
                             pass
-            log.info(
+            log.debug(
                 "%s Closed %d connections for tasks: %s",
                 self.log_identifier,
                 closed_count,

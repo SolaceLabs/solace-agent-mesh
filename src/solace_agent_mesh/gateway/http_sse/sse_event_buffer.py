@@ -1,6 +1,7 @@
 """
 A thread-safe buffer for holding early SSE events before a client connects.
 """
+
 import datetime
 import threading
 from typing import Any, Dict, List, Optional, Tuple
@@ -12,12 +13,14 @@ class SSEEventBuffer:
     """Manages buffering and cleanup of SSE events for tasks without active listeners."""
 
     def __init__(self, max_queue_size: int, max_age_seconds: int):
-        self._pending_events: Dict[str, Tuple[datetime.datetime, List[Dict[str, Any]]]] = {}
+        self._pending_events: Dict[
+            str, Tuple[datetime.datetime, List[Dict[str, Any]]]
+        ] = {}
         self._lock = threading.Lock()
         self._max_queue_size = max_queue_size
         self._max_age_seconds = max_age_seconds
         self.log_identifier = "[SSEEventBuffer]"
-        log.info(
+        log.debug(
             "%s Initialized with max_age:%ds, max_size:%d",
             self.log_identifier,
             self._max_age_seconds,
@@ -28,7 +31,10 @@ class SSEEventBuffer:
         """Buffers an event for a given task ID."""
         with self._lock:
             if task_id not in self._pending_events:
-                self._pending_events[task_id] = (datetime.datetime.now(datetime.timezone.utc), [])
+                self._pending_events[task_id] = (
+                    datetime.datetime.now(datetime.timezone.utc),
+                    [],
+                )
 
             if len(self._pending_events[task_id][1]) < self._max_queue_size:
                 self._pending_events[task_id][1].append(event)
@@ -44,7 +50,7 @@ class SSEEventBuffer:
         with self._lock:
             buffer_tuple = self._pending_events.pop(task_id, None)
             if buffer_tuple:
-                log.info(
+                log.debug(
                     "%s Flushing %d events for Task ID: %s",
                     self.log_identifier,
                     len(buffer_tuple[1]),
@@ -57,7 +63,9 @@ class SSEEventBuffer:
         """Explicitly removes a buffer for a task, e.g., on finalization."""
         with self._lock:
             if self._pending_events.pop(task_id, None):
-                log.debug("%s Removed buffer for task %s.", self.log_identifier, task_id)
+                log.debug(
+                    "%s Removed buffer for task %s.", self.log_identifier, task_id
+                )
 
     def cleanup_stale_buffers(self):
         """Removes all pending event buffers older than the max age."""
@@ -70,7 +78,7 @@ class SSEEventBuffer:
             ]
 
             if stale_tasks:
-                log.info(
+                log.debug(
                     "%s Cleaning up %d stale event buffers.",
                     self.log_identifier,
                     len(stale_tasks),
