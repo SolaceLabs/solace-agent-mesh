@@ -26,7 +26,7 @@ from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
-CATEGORY_NAME = "Image Tools"
+CATEGORY_NAME = "internal"
 CATEGORY_DESCRIPTION = "Tools for image generation, manipulation, and multimodal content analysis."
 
 async def create_image_from_description(

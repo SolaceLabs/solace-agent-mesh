@@ -32,7 +32,7 @@ from ...agent.utils.context_helpers import get_original_session_id
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
-CATEGORY_NAME = "Audio Tools"
+CATEGORY_NAME = "internal"
 CATEGORY_DESCRIPTION = "Tools for audio processing and text-to-speech generation."
 
 VOICE_TONE_MAPPING = {

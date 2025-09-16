@@ -12,7 +12,7 @@ from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
-CATEGORY_NAME = "Test Tools"
+CATEGORY_NAME = "internal"
 CATEGORY_DESCRIPTION = "Tools for testing and debugging."
 
 async def time_delay(

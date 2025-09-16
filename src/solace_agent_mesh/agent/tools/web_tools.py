@@ -27,8 +27,8 @@ from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
-CATEGORY_NAME = "Web Tools"
-CATEGORY_DESCRIPTION = "Tools for interacting with the web."
+CATEGORY_NAME = "Web Access"
+CATEGORY_DESCRIPTION = "Access the web to find information to complete user requests."
 
 def _is_safe_url(url: str) -> bool:
     """
