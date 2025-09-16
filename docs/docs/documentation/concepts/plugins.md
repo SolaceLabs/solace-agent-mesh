@@ -8,7 +8,7 @@ sidebar_position: 60
 Plugins provide a mechanism to extend the functionality of Solace Agent Mesh in a modular, shareable, and reusable way. The current plugin ecosystem includes agents, gateways, and specialized integrations.
 
 :::tip[In one sentence]
-Plugins are modular Python packages that extend SAM's capabilities through agents, gateways, and specialized integrations.
+Plugins are modular Python packages that extend Solace Agent Mesh's capabilities through agents, gateways, and specialized integrations.
 :::
 
 Plugins are packaged as Python modules that can be installed using various package managers (`pip`, `uv`, `poetry`, `conda`). They integrate seamlessly with the A2A protocol and can provide:
@@ -17,7 +17,7 @@ Plugins are packaged as Python modules that can be installed using various packa
 - **Gateway Plugins**: New interface types for external system integration
 - **Custom Plugins**: Custom integrations such as HR providers.
 
-All plugin interactions (create, build, add) are managed through the SAM CLI.
+All plugin interactions (create, build, add) are managed through the Solace Agent Mesh CLI.
 
 :::info
 Run `sam plugin --help` to see the list of available commands for plugins.
@@ -32,7 +32,7 @@ For more information about how to use the official core plugins, see [Use Plugin
 
 ## Create a Plugin
 
-To get started, [install the SAM CLI](../getting-started/installation.md) and run the following command:
+To get started, [install the Solace Agent Mesh CLI](../getting-started/installation.md) and run the following command:
 
 ```bash
 solace-agent-mesh plugin create <plugin-name>
@@ -43,7 +43,7 @@ Follow the prompts to create a new plugin. A plugin can be one of the following 
 - **Gateway Plugin**: Contains custom gateways that can be used in a Solace Agent Mesh project.
 - **Custom Plugin**: Contains custom integrations such as HR providers or other specialized functionality.
 
-Solace Agent Mesh (SAM) CLI creates a directory with the provided name and the following structure:
+Solace Agent Mesh CLI creates a directory with the provided name and the following structure:
 
 ```
 plugin-name/
@@ -57,7 +57,7 @@ plugin-name/
 ```
 
 - The `src` directory contains the python source code. 
-- The `config.yaml` file holds the configuration for the plugin, and how to be used in a SAM application.
+- The `config.yaml` file holds the configuration for the plugin, and how to be used in a Solace Agent Mesh application.
 
 Once the plugin is created, you can start customizing the config.yaml or the python files.
 
@@ -67,7 +67,7 @@ Building the plugin creates a Python wheel package that can be installed using `
 
 Python `build` package must be installed already since `sam plugin build` command uses `build` package, if not, run `pip install build`.
 
-To build the plugin, run the following SAM CLI command:
+To build the plugin, run the following Solace Agent Mesh CLI command:
 
 ```bash
 solace-agent-mesh plugin build
@@ -140,8 +140,8 @@ Here’s a detailed comparison to help you decide.
 | Feature | Standalone Agent (`sam add agent`) | Agent Plugin (`sam plugin create`) |
 | :--- | :--- | :--- |
 | **Creation** | A single command creates a configuration file in your project. | Creates a complete, standard Python project structure. |
-| **Structure** | Consists of a YAML configuration file and associated Python tool files within a SAM project. | A self-contained Python package with `pyproject.toml`, a `src` directory, and configuration templates. |
-| **Packaging** | Not packaged. It exists as a component within a larger SAM project. | Packaged into a standard Python wheel (`.whl`) file using `sam plugin build`. |
+| **Structure** | Consists of a YAML configuration file and associated Python tool files within a Solace Agent Mesh project. | A self-contained Python package with `pyproject.toml`, a `src` directory, and configuration templates. |
+| **Packaging** | Not packaged. It exists as a component within a larger Solace Agent Mesh project. | Packaged into a standard Python wheel (`.whl`) file using `sam plugin build`. |
 | **Distribution** | Shared by copying files or sharing the entire project. | Easily distributed as a wheel file, via a Git repository, or published to a package index like PyPI. |
 | **Reusability** | Primarily for use within the project where it was created. | Designed for high reusability across different projects, teams, and communities. |
 | **Installation** | No installation needed. The agent is configured and run as part of the main project. | Installed into the Python environment using `sam plugin add`, which handles the package installation. |

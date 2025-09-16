@@ -61,7 +61,7 @@ Further values can be added to the shared configuration file as needed, and they
 
 Each configuration file defines one [recommended] or more applications that can be run independently. The framework supports:
 
-- **Agent Applications**: A2A-enabled agents that use Google ADK runtime and SAM framework
+- **Agent Applications**: A2A-enabled agents that use Google ADK runtime and Solace Agent Mesh framework
 - **Gateway Applications**: Protocol translators that bridge external interfaces to adopted A2A protocol
 - **Plugin Applications**: Specialized components that extend framework capabilities
 

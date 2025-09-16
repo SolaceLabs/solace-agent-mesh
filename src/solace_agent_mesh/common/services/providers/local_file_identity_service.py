@@ -68,7 +68,7 @@ class LocalFileIdentityService(BaseIdentityService):
             raise
 
     async def get_user_profile(
-        self, auth_claims: Dict[str, Any]
+        self, auth_claims: Dict[str, Any], **kwargs: Any
     ) -> Optional[Dict[str, Any]]:
         """Looks up a user profile from the in-memory index."""
         lookup_value = auth_claims.get(self.lookup_key)

@@ -13,7 +13,7 @@ If you already have an [event mesh](https://solace.com/what-is-an-event-mesh/) i
 - **Event-Driven Automation**: Intelligent event processing based on patterns and AI-driven insights
 - **Scalability**: Solace Agent Mesh can dynamically participate in large-scale event-driven systems
 
-The Event Mesh Gateway connects Solace Agent Mesh (SAM) to your existing event mesh infrastructure. Through its asynchronous interfaces, applications within your event mesh can seamlessly access and utilize Solace Agent Mesh capabilities.
+The Event Mesh Gateway connects Solace Agent Mesh to your existing event mesh infrastructure. Through its asynchronous interfaces, applications within your event mesh can seamlessly access and utilize Solace Agent Mesh capabilities.
 
 This tutorial shows you how to build an Event Mesh Gateway that automatically generates and adds concise summaries to Jira bug reports, making them easier to understand at a glance.
 
@@ -34,7 +34,7 @@ This creates a streamlined workflow where bug reports are automatically enhanced
 
 ## Setting Up the Environment
 
-First, you need to [install Solace Agent Mesh and the SAM CLI](../getting-started/installation.md), and then [create a new Solace Agent Mesh project](../getting-started/quick-start.md).
+First, you need to [install Solace Agent Mesh and the Solace Agent Mesh CLI](../getting-started/installation.md), and then [create a new Solace Agent Mesh project](../getting-started/quick-start.md).
 
 For this tutorial, you need to create or use an existing [Solace Event Broker](https://solace.com/products/event-broker/) or [event mesh](https://solace.com/solutions/initiative/event-mesh/) created using PubSub+ event brokers.
 

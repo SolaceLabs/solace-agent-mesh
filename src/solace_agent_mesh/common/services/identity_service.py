@@ -33,7 +33,7 @@ class BaseIdentityService(ABC):
 
     @abstractmethod
     async def get_user_profile(
-        self, auth_claims: Dict[str, Any]
+        self, auth_claims: Dict[str, Any], **kwargs: Any
     ) -> Optional[Dict[str, Any]]:
         """
         Fetches additional profile details for an already authenticated user.
@@ -42,6 +42,7 @@ class BaseIdentityService(ABC):
             auth_claims: A dictionary of claims from the primary authentication
                          system (e.g., decoded JWT, session data). It's guaranteed
                          to contain at least a primary user identifier.
+            kwargs: Optional additional parameters for provider-specific logic.
 
         Returns:
             A dictionary containing additional user details (e.g., title, manager)

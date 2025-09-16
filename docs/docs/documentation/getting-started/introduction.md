@@ -7,16 +7,16 @@ sidebar_position: 10
 
 Modern AI development faces a fundamental challenge: while powerful AI models are readily available, the real complexity lies in connecting them to the data and systems where they can provide value. Data exists in isolated silos - spread across databases, SaaS platforms, APIs, and legacy systems - making it difficult to build AI applications that can work across these boundaries.
 
-Solace Agent Mesh (SAM) is an open-source framework that tackles this challenge head-on by integrating the Google Agent Development Kit (ADK) with the Solace AI Connector (SAC) to provide a "Universal A2A Agent Host" that enables scalable, distributed AI agent communication through Solace PubSub+. Whether you're an AI enthusiast experimenting with new models, or an enterprise developer building production systems, SAM gives you the tools to:
+Solace Agent Mesh is an open-source framework that tackles this challenge head-on by integrating the Google Agent Development Kit (ADK) with the Solace AI Connector (SAC) to provide a "Universal A2A Agent Host" that enables scalable, distributed AI agent communication through Solace PubSub+. Whether you're an AI enthusiast experimenting with new models, or an enterprise developer building production systems, Solace Agent Mesh gives you the tools to:
 
 - connect AI agents to real-world data sources and systems through a standardized A2A (Agent-to-Agent) protocol
 - add gateways to provide event-based integrations or interactive UI connections
 - monitor and debug AI interactions in real-time through comprehensive observability
 - deploy solutions that scale from prototype to production with enterprise-grade reliability
 
-Rather than trying to be a monolithic AI platform, SAM focuses on being an excellent integration layer built on proven event-driven architecture. It brings together specialized agents - whether they're using local databases, accessing cloud APIs, or interfacing with enterprise systems - and helps them collaborate through standardized A2A communication to solve complex problems.
+Rather than trying to be a monolithic AI platform, Solace Agent Mesh focuses on being an excellent integration layer built on proven event-driven architecture. It brings together specialized agents - whether they're using local databases, accessing cloud APIs, or interfacing with enterprise systems - and helps them collaborate through standardized A2A communication to solve complex problems.
 
-Built on event-driven architecture technology from Solace with Google ADK integration, SAM provides the robust foundation needed for both experimental and production deployments.
+Built on event-driven architecture technology from Solace with Google ADK integration, Solace Agent Mesh provides the robust foundation needed for both experimental and production deployments.
 
 ![Solace Agent Mesh Overview](../../../static/img/Solace_AI_Framework_With_Broker.png)
 

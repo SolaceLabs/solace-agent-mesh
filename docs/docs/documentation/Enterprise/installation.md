@@ -19,7 +19,7 @@ Once loaded, you can verify the image locally using the following command:
 docker images
 ```
 
-## Running SAM Enterprise
+## Running Solace Agent Mesh Enterprise
 
 Here are two examples of Docker run commands for both a development use case as well as a production use case:
 
@@ -59,4 +59,4 @@ docker run -itd -p 8000:8000 \
 solace-agent-mesh-enterprise:<tag>
 ```
 
-You can then access SAM Enterprise UI through http://localhost:8000
+You can then access Solace Agent Mesh Enterprise UI through http://localhost:8000

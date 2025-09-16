@@ -2,7 +2,7 @@
 Handles ADK Agent and Runner initialization, including tool loading and callback assignment.
 """
 
-from typing import Dict, List, Optional, Union, Callable, Tuple, Set
+from typing import Dict, List, Optional, Union, Callable, Tuple, Set, Any, TYPE_CHECKING, Type
 import functools
 import inspect
 from solace_ai_connector.common.log import log
@@ -25,9 +25,13 @@ from google.adk.tools.mcp_tool.mcp_session_manager import (
 
 from mcp import StdioServerParameters
 
+if TYPE_CHECKING:
+    from ..sac.component import SamAgentComponent
+
 from ..tools.registry import tool_registry
 from ..tools.tool_definition import BuiltinTool
 from ..tools.dynamic_tool import DynamicTool, DynamicToolProvider
+from ..tools.tool_config_types import AnyToolConfig
 
 
 from ...agent.adk import callbacks as adk_callbacks
@@ -52,6 +56,83 @@ def _find_dynamic_tool_class(module) -> Optional[type]:
     return found_classes[0] if found_classes else None
 
 
+async def _execute_lifecycle_hook(
+    component: "SamAgentComponent",
+    func_name: Optional[str],
+    module_name: str,
+    base_path: Optional[str],
+    tool_config_model: AnyToolConfig,
+):
+    """Dynamically loads and executes a lifecycle hook function."""
+    if not func_name:
+        return
+
+    log.info(
+        "%s Executing lifecycle hook: %s.%s",
+        component.log_identifier,
+        module_name,
+        func_name,
+    )
+
+    try:
+        module = import_module(module_name, base_path=base_path)
+        func = getattr(module, func_name)
+
+        if not inspect.iscoroutinefunction(func):
+            raise TypeError(
+                f"Lifecycle hook '{func_name}' in module '{module_name}' must be an async function."
+            )
+
+        await func(component, tool_config_model)
+        log.info(
+            "%s Successfully executed lifecycle hook: %s.%s",
+            component.log_identifier,
+            module_name,
+            func_name,
+        )
+    except Exception as e:
+        log.exception(
+            "%s Fatal error during lifecycle hook execution for '%s.%s': %s",
+            component.log_identifier,
+            module_name,
+            func_name,
+            e,
+        )
+        raise RuntimeError(f"Tool lifecycle initialization failed: {e}") from e
+
+
+def _create_cleanup_partial(
+    component: "SamAgentComponent",
+    func_name: Optional[str],
+    module_name: str,
+    base_path: Optional[str],
+    tool_config_model: AnyToolConfig,
+) -> Optional[Callable]:
+    """Creates a functools.partial for a cleanup hook function."""
+    if not func_name:
+        return None
+
+    try:
+        module = import_module(module_name, base_path=base_path)
+        func = getattr(module, func_name)
+
+        if not inspect.iscoroutinefunction(func):
+            raise TypeError(
+                f"Lifecycle hook '{func_name}' in module '{module_name}' must be an async function."
+            )
+
+        return functools.partial(func, component, tool_config_model)
+    except Exception as e:
+        log.exception(
+            "%s Fatal error creating partial for cleanup hook '%s.%s': %s",
+            component.log_identifier,
+            module_name,
+            func_name,
+            e,
+        )
+        raise RuntimeError(f"Tool lifecycle setup failed: {e}") from e
+
+
 def _find_dynamic_tool_provider_class(module) -> Optional[type]:
     """Finds a single non-abstract DynamicToolProvider subclass in a module."""
     found_classes = []
@@ -72,7 +153,7 @@ def _find_dynamic_tool_provider_class(module) -> Optional[type]:
 
 async def load_adk_tools(
     component,
-) -> Tuple[List[Union[BaseTool, Callable]], List[BuiltinTool]]:
+) -> Tuple[List[Union[BaseTool, Callable]], List[BuiltinTool], List[Callable]]:
     """
     Loads all configured tools for the agent.
     - Explicitly configured tools (Python, MCP, ADK Built-ins) from YAML.
@@ -86,6 +167,7 @@ async def load_adk_tools(
         A tuple containing:
         - A list of loaded tool callables/instances for the ADK agent.
         - A list of enabled BuiltinTool definition objects for prompt generation.
+        - A list of awaitable cleanup functions for the tools.
 
     Raises:
         ImportError: If a configured tool or its dependencies cannot be loaded.
@@ -93,7 +175,12 @@ async def load_adk_tools(
     loaded_tools: List[Union[BaseTool, Callable]] = []
     enabled_builtin_tools: List[BuiltinTool] = []
     loaded_tool_names: Set[str] = set()
+    cleanup_hooks: List[Callable] = []
     tools_config = component.get_config("tools", [])
+
+    from pydantic import TypeAdapter, BaseModel, ValidationError
+
+    any_tool_adapter = TypeAdapter(AnyToolConfig)
 
     def _check_and_register_tool_name(name: str, source: str):
         """Checks for duplicate tool names and raises ValueError if found."""
@@ -121,9 +208,11 @@ async def load_adk_tools(
             component.log_identifier,
         )
         for tool_config in tools_config:
-            tool_type = tool_config.get("tool_type", "").lower()
-
+            newly_loaded_tools = []
             try:
+                tool_config_model = any_tool_adapter.validate_python(tool_config)
+                tool_type = tool_config_model.tool_type.lower()
+
                 if tool_type == "python":
                     module_name = tool_config.get("component_module")
                     base_path = tool_config.get("component_base_path")
@@ -165,6 +254,7 @@ async def load_adk_tools(
                             function_name, f"python:{module_name}"
                         )
                         loaded_tools.append(tool_callable)
+                        newly_loaded_tools.append(tool_callable)
                         log.info(
                             "%s Loaded Python tool: %s from %s.",
                             component.log_identifier,
@@ -193,12 +283,44 @@ async def load_adk_tools(
                                 "and no DynamicTool or DynamicToolProvider subclass could be auto-discovered."
                             )
 
+                        # Check for a Pydantic model declaration on the tool class
+                        config_model: Optional[Type["BaseModel"]] = getattr(
+                            tool_class, "config_model", None
+                        )
+                        validated_config: Union[dict, "BaseModel"] = specific_tool_config
+
+                        if config_model:
+                            log.debug(
+                                "%s Found config_model '%s' for tool class '%s'. Validating...",
+                                component.log_identifier,
+                                config_model.__name__,
+                                tool_class.__name__,
+                            )
+                            try:
+                                # Validate the raw dict and get a Pydantic model instance
+                                validated_config = config_model.model_validate(
+                                    specific_tool_config or {}
+                                )
+                                log.debug(
+                                    "%s Successfully validated tool_config for '%s'.",
+                                    component.log_identifier,
+                                    tool_class.__name__,
+                                )
+                            except ValidationError as e:
+                                # Provide a clear error message and raise
+                                error_msg = (
+                                    f"Configuration error for tool '{tool_class.__name__}' from module '{module_name}'. "
+                                    f"The provided 'tool_config' in your YAML is invalid:\n{e}"
+                                )
+                                log.error("%s %s", component.log_identifier, error_msg)
+                                raise ValueError(error_msg) from e
+
                         # Instantiate tools from the class
                         if issubclass(tool_class, DynamicToolProvider):
                             provider_instance = tool_class()
                             dynamic_tools = (
                                 provider_instance.get_all_tools_for_framework(
-                                    tool_config=specific_tool_config
+                                    tool_config=validated_config
                                 )
                             )
                             log.info(
@@ -209,7 +331,7 @@ async def load_adk_tools(
                                 module_name,
                             )
                         elif issubclass(tool_class, DynamicTool):
-                            tool_instance = tool_class(tool_config=specific_tool_config)
+                            tool_instance = tool_class(tool_config=validated_config)
                             dynamic_tools = [tool_instance]
                         else:
                             raise TypeError(
@@ -233,12 +355,61 @@ async def load_adk_tools(
                                 declaration.name, f"dynamic:{module_name}"
                             )
                             loaded_tools.append(tool)
+                            newly_loaded_tools.append(tool)
                             log.info(
                                 "%s Loaded dynamic tool: %s from %s",
                                 component.log_identifier,
                                 declaration.name,
                                 module_name,
                             )
+
+                    # --- Lifecycle Hook Execution for Python Tools ---
+                    module_name = tool_config_model.component_module
+                    base_path = tool_config_model.component_base_path
+
+                    # 1. YAML Init
+                    await _execute_lifecycle_hook(
+                        component,
+                        tool_config_model.init_function,
+                        module_name,
+                        base_path,
+                        tool_config_model,
+                    )
+
+                    # 2. DynamicTool Init
+                    for tool_instance in newly_loaded_tools:
+                        if isinstance(tool_instance, DynamicTool):
+                            log.info(
+                                "%s Executing .init() method for DynamicTool '%s'.",
+                                component.log_identifier,
+                                tool_instance.tool_name,
+                            )
+                            await tool_instance.init(component, tool_config_model)
+
+                    # 3. Collect Cleanup Hooks (LIFO order)
+                    yaml_cleanup_partial = _create_cleanup_partial(
+                        component,
+                        tool_config_model.cleanup_function,
+                        module_name,
+                        base_path,
+                        tool_config_model,
+                    )
+
+                    dynamic_cleanup_partials = []
+                    for tool_instance in newly_loaded_tools:
+                        if isinstance(tool_instance, DynamicTool):
+                            dynamic_cleanup_partials.append(
+                                functools.partial(
+                                    tool_instance.cleanup, component, tool_config_model
+                                )
+                            )
+
+                    # Add to main list, prepending to get LIFO execution
+                    if yaml_cleanup_partial:
+                        cleanup_hooks.insert(0, yaml_cleanup_partial)
+
+                    for partial_func in reversed(dynamic_cleanup_partials):
+                        cleanup_hooks.insert(0, partial_func)
 
                 elif tool_type == "builtin":
                     tool_name = tool_config.get("tool_name")
@@ -258,6 +429,7 @@ async def load_adk_tools(
                             raw_string_args=sam_tool_def.raw_string_args,
                         )
                         loaded_tools.append(tool_callable)
+                        newly_loaded_tools.append(tool_callable)
                         enabled_builtin_tools.append(sam_tool_def)
                         log.info(
                             "%s Loaded SAM built-in tool: %s",
@@ -342,6 +514,7 @@ async def load_adk_tools(
                             raw_string_args=tool_def.raw_string_args,
                         )
                         loaded_tools.append(tool_callable)
+                        newly_loaded_tools.append(tool_callable)
                         enabled_builtin_tools.append(tool_def)
                         group_tool_count += 1
                     log.info(
@@ -460,6 +633,7 @@ async def load_adk_tools(
                         raise
 
                     loaded_tools.append(mcp_toolset_instance)
+                    newly_loaded_tools.append(mcp_toolset_instance)
                     log.info(
                         "%s Initialized MCPToolset (filter: %s) for server: %s",
                         component.log_identifier,
@@ -526,12 +700,13 @@ async def load_adk_tools(
             )
 
     log.info(
-        "%s Finished loading tools. Total tools for ADK: %d. Total SAM built-ins for prompt: %d. Peer tools added dynamically.",
+        "%s Finished loading tools. Total tools for ADK: %d. Total SAM built-ins for prompt: %d. Total cleanup hooks: %d. Peer tools added dynamically.",
         component.log_identifier,
         len(loaded_tools),
         len(enabled_builtin_tools),
+        len(cleanup_hooks),
     )
-    return loaded_tools, enabled_builtin_tools
+    return loaded_tools, enabled_builtin_tools, cleanup_hooks
 
 
 def initialize_adk_agent(

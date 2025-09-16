@@ -140,21 +140,29 @@ class FilesystemArtifactService(BaseArtifactService):
             if not artifact.inline_data or artifact.inline_data.data is None:
                 raise ValueError("Artifact Part has no inline_data to save.")
 
-            def _write_data_file():
-                with open(version_path, "wb") as f:
-                    f.write(artifact.inline_data.data)
-
-            await asyncio.to_thread(_write_data_file)
-            logger.debug("%sWrote data to %s", log_prefix, version_path)
-
             metadata = {"mime_type": artifact.inline_data.mime_type}
 
+            def _write_data_file():
+                """Write artifact data and fsync to disk."""
+                with open(version_path, "wb") as f:
+                    f.write(artifact.inline_data.data)
+                    f.flush()
+                    os.fsync(f.fileno())
+                logger.debug("%sWrote data to %s", log_prefix, version_path)
+
             def _write_metadata_file():
+                """Write artifact metadata and fsync to disk."""
                 with open(metadata_path, "w", encoding="utf-8") as f:
                     json.dump(metadata, f)
+                    f.flush()
+                    os.fsync(f.fileno())
+                logger.debug("%sWrote metadata to %s", log_prefix, metadata_path)
 
-            await asyncio.to_thread(_write_metadata_file)
-            logger.debug("%sWrote metadata to %s", log_prefix, metadata_path)
+            # Run file writes concurrently and wait for both to complete
+            await asyncio.gather(
+                asyncio.to_thread(_write_data_file),
+                asyncio.to_thread(_write_metadata_file),
+            )
 
             logger.info(
                 "%sSaved artifact '%s' version %d successfully.",

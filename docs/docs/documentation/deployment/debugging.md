@@ -10,7 +10,7 @@ The following sections provide common debugging approaches to help you diagnose 
 
 ## Isolate Components
 
-Running only the necessary components in isolation can help pinpoint issues. The `run` Solace Agent Mesh (SAM) CLI command allows you to specify which files to run.
+Running only the necessary components in isolation can help pinpoint issues. The `run` Solace Agent Mesh CLI command allows you to specify which files to run.
 
 For example:
 

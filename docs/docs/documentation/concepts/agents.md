@@ -74,7 +74,7 @@ There are three primary ways to add tools to an agent:
 
 ### 1. Built-in Tools
 
-SAM includes a rich library of pre-packaged tools for common tasks like data analysis, file management, and web requests. These are the easiest to use and can be enabled with just a few lines of configuration.
+Solace Agent Mesh includes a rich library of pre-packaged tools for common tasks like data analysis, file management, and web requests. These are the easiest to use and can be enabled with just a few lines of configuration.
 
 -   **Use Case**: For standard, out-of-the-box functionality.
 -   **Learn More**: See the [Built-in Tools Reference](../user-guide/builtin-tools/builtin-tools.md) for a complete list and configuration details.
@@ -138,7 +138,7 @@ This card clearly communicates that the agent can take text (the Mermaid syntax)
 
 ## User-Defined Agents
 
-Using Solace Agent Mesh and the SAM CLI, you can create your own agents. Agents are configured through YAML files that specify:
+Using Solace Agent Mesh and the Solace Agent Mesh CLI, you can create your own agents. Agents are configured through YAML files that specify:
 
 - Agent name and instructions
 - LLM model configuration
@@ -146,7 +146,7 @@ Using Solace Agent Mesh and the SAM CLI, you can create your own agents. Agents 
 - Artifact and session management settings
 - Discovery settings
 
-The following SAM CLI command creates an agent configuration:
+The following Solace Agent Mesh CLI command creates an agent configuration:
 
 ```sh
 sam add agent my-agent [--gui]

@@ -142,7 +142,7 @@ security:
 
 </details>
 
-## Running SAM Enterprise with SSO enabled
+## Running Solace Agent Mesh Enterprise with SSO enabled
 
 Here is an example of Docker run command with Azure SSO provider for production use case:
 
@@ -183,7 +183,7 @@ docker run -itd -p 8000:8000 -p 9000:9000 \
 solace-agent-mesh-enterprise:<tag> run config/sso_vol/oauth2_server.yaml config/webui_backend.yaml config/a2a_orchestrator.yaml config/a2a_agents.yaml
 ```
 
-You can then access SAM Enterprise UI through http://localhost:8000
+You can then access Solace Agent Mesh Enterprise UI through http://localhost:8000
 
 <details>
 

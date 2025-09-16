@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 
 import type { AgentCard, AgentExtension, AgentCardInfo, AgentSkill } from "@/lib/types";
 import { authenticatedFetch } from "@/lib/utils/api";
@@ -46,25 +46,26 @@ const transformAgentCard = (card: AgentCard): AgentCardInfo => {
     };
 };
 
-interface UseAgentsReturn {
+interface useAgentCardsReturn {
     agents: AgentCardInfo[];
+    agentNameMap: Record<string, string>;
     isLoading: boolean;
     error: string | null;
     refetch: () => Promise<void>;
 }
 
-export const useAgents = (): UseAgentsReturn => {
+export const useAgentCards = (): useAgentCardsReturn => {
     const { configServerUrl } = useConfigContext();
     const [agents, setAgents] = useState<AgentCardInfo[]>([]);
+    const [agentNameMap, setAgentNameMap] = useState<Record<string, string>>({});
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
-
-    const apiPrefix = `${configServerUrl}/api/v1`;
 
     const fetchAgents = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
+            const apiPrefix = `${configServerUrl}/api/v1`;
             const response = await authenticatedFetch(`${apiPrefix}/agentCards`, { credentials: "include" });
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ message: `Failed to fetch agents: ${response.statusText}` }));
@@ -73,6 +74,15 @@ export const useAgents = (): UseAgentsReturn => {
             const data: AgentCard[] = await response.json();
             const transformedAgents = data.map(transformAgentCard);
             setAgents(transformedAgents);
+
+            // Create a mapping of agent names to display names for easy lookup
+            const nameDisplayNameMap: Record<string, string> = {};
+            transformedAgents.forEach(agent => {
+                if (agent.name) {
+                    nameDisplayNameMap[agent.name] = agent.displayName || agent.name;
+                }
+            });
+            setAgentNameMap(nameDisplayNameMap);
         } catch (err: unknown) {
             console.error("Error fetching agents:", err);
             setError(err instanceof Error ? err.message : "Could not load agent information.");
@@ -80,16 +90,17 @@ export const useAgents = (): UseAgentsReturn => {
         } finally {
             setIsLoading(false);
         }
-    }, [apiPrefix]);
+    }, [configServerUrl]);
 
     useEffect(() => {
         fetchAgents();
     }, [fetchAgents]);
 
-    return {
+    return useMemo(() => ({
         agents,
+        agentNameMap,
         isLoading,
         error,
         refetch: fetchAgents,
-    };
+    }), [agents, agentNameMap, isLoading, error, fetchAgents]);
 };
