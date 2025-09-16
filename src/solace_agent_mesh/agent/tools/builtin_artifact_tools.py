@@ -36,7 +36,7 @@ from ...common.utils.embeds import (
 )
 from ...agent.utils.context_helpers import get_original_session_id
 from ...agent.adk.models.lite_llm import LiteLlm
-from google.adk.models import LlmRequest
+from google.adk.models.llm_request import LlmRequest
 from google.adk.models.registry import LLMRegistry
 from ...common.utils.mime_helpers import is_text_based_file
 
