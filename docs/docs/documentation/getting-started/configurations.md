@@ -182,7 +182,7 @@ The `data_tools_config` section configures the behavior of data analysis tools.
 
 ## SSL Configuration 
 
-Solace agent mesh allows for fine tunning SSL connection to your LLM endpoints through environment variables. he connection parameters are described in the following table:
+Solace agent mesh allows for fine tunning SSL connection to your LLM endpoints through environment variables. The connection parameters are described in the following table:
 
 | Parameter                  | Type      | Description                                                        | Default   |
 |----------------------------|-----------|--------------------------------------------------------------------|-----------|
