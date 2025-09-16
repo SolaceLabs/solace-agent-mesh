@@ -100,10 +100,13 @@ def setup_dependencies(component: "WebUIBackendComponent", database_url: str = N
             from solace_agent_mesh_enterprise.migration_runner import run_migrations
             webui_app = component.get_app()
             app_config = getattr(webui_app, "app_config", {}) if webui_app else {}
+            log.info("Running enterprise migrations...")
             run_migrations(database_url, app_config)
             log.info("Enterprise migrations completed")
         except ImportError:
             log.debug("No enterprise package detected - skipping enterprise migrations")
+        except ModuleNotFoundError:
+            log.debug("Enterprise module not found - skipping enterprise migrations")
         except Exception as e:
             log.warning("Enterprise migration failed but continuing: %s", e)
     else:
