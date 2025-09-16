@@ -1556,6 +1556,14 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
             return
 
+        # Intercept for input-required notifications
+        try:
+            from solace_agent_mesh_enterprise.auth.input_required import handle_update
+            handle_update(event_data, sse_task_id)
+        except ImportError:
+            pass
+        
+
         log.debug(
             "%s Sending update for A2A Task ID %s to SSE Task ID %s. Final chunk: %s",
             log_id_prefix,
