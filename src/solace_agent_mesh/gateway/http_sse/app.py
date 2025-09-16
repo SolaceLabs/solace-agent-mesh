@@ -44,6 +44,14 @@ class WebUIBackendAppConfig(BaseGatewayAppConfig):
         default=200,
         description="Maximum size of the SSE connection queues. Adjust based on expected load.",
     )
+    sse_buffer_max_age_seconds: int = Field(
+        default=600,  # 10 minutes
+        description="Maximum age in seconds for a pending event buffer before it is cleaned up.",
+    )
+    sse_buffer_cleanup_interval_seconds: int = Field(
+        default=300,  # 5 minutes
+        description="How often to run the cleanup task for stale pending event buffers.",
+    )
     resolve_artifact_uris_in_gateway: bool = Field(
         default=True,
         description="If true, the gateway will resolve artifact:// URIs found in A2A messages and embed the content as bytes before sending to the UI. If false, URIs are passed through.",
