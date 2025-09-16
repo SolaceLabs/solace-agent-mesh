@@ -13,6 +13,8 @@ from typing import Any, Dict, Optional, Union, TYPE_CHECKING
 from datetime import datetime, timezone
 from google.adk.tools import ToolContext
 
+from solace_agent_mesh.agent.tools.general_agent_tools import convert_file_to_markdown
+
 if TYPE_CHECKING:
     from google.adk.agents.invocation_context import InvocationContext
 from google.genai import types as adk_types
@@ -37,6 +39,7 @@ from ...agent.adk.models.lite_llm import LiteLlm
 from google.adk.models import LlmRequest
 from google.adk.models.registry import LLMRegistry
 from ...common.utils.mime_helpers import is_text_based_file
+
 
 async def _internal_create_artifact(
     filename: str,
@@ -971,7 +974,7 @@ async def extract_content_from_artifact(
         mime_type=normalized_source_mime_type,
         content_bytes=source_artifact_content_bytes,
     )
-            
+
     if is_text_based:
         try:
             artifact_text_content = source_artifact_content_bytes.decode("utf-8")
@@ -1836,6 +1839,24 @@ extract_content_from_artifact_tool_def = BuiltinTool(
     examples=[],
 )
 
+convert_file_to_markdown_tool_def = BuiltinTool(
+    name="convert_file_to_markdown",
+    implementation=convert_file_to_markdown,
+    description="Convert supported file types into markdown.",
+    category="artifact_management",
+    required_scopes=["tool:artifact:load", "tool:artifact:create"],
+    parameters=adk_types.Schema(
+        type=adk_types.Type.OBJECT,
+        properties={
+            "input_filename": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="Name of the source artifact.",
+            )
+        },
+    ),
+    examples=[],
+)
+
 tool_registry.register(_notify_artifact_save_tool_def)
 tool_registry.register(append_to_artifact_tool_def)
 tool_registry.register(list_artifacts_tool_def)
@@ -1843,6 +1864,7 @@ tool_registry.register(load_artifact_tool_def)
 tool_registry.register(signal_artifact_for_return_tool_def)
 tool_registry.register(apply_embed_and_create_artifact_tool_def)
 tool_registry.register(extract_content_from_artifact_tool_def)
+tool_registry.register(convert_file_to_markdown_tool_def)
 
 
 async def delete_artifact(
