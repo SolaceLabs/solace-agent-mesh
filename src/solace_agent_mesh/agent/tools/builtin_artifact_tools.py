@@ -39,7 +39,7 @@ from google.adk.models.registry import LLMRegistry
 from ...common.utils.mime_helpers import is_text_based_file
 
 CATEGORY_NAME = "Artifact Management"
-CATEGORY_DESCRIPTION = "Manage artifacts and be able to read, create, update and delete artifacts."
+CATEGORY_DESCRIPTION = "List, read, create, update, and delete artifacts."
 
 async def _internal_create_artifact(
     filename: str,
