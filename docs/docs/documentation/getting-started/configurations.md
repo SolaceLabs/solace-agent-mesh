@@ -180,7 +180,7 @@ The `data_tools_config` section configures the behavior of data analysis tools.
 | `max_result_preview_rows` | `integer` | The maximum number of rows to show in a result preview. | `50` |
 | `max_result_preview_bytes` | `integer` | The maximum number of bytes to show in a result preview. | `4096` |
 
-## SSL Configuration 
+## SSL/TLS Configuration 
 
 Solace agent mesh allows for fine tunning SSL connection to your LLM endpoints through environment variables. The connection parameters are described in the following table:
 
