@@ -12,7 +12,7 @@ from .models import MessageModel, SessionModel
 
 class SessionRepository(ISessionRepository):
     """SQLAlchemy implementation of session repository."""
-    
+
     def __init__(self, db: DBSession):
         self.db = db
 
@@ -26,7 +26,7 @@ class SessionRepository(ISessionRepository):
             offset = (pagination.page - 1) * pagination.page_size
             query = query.offset(offset).limit(pagination.page_size)
 
-        models = query.order_by(SessionModel.updated_at.desc()).all()
+        models = query.order_by(SessionModel.updated_time.desc()).all()
         return [self._model_to_entity(model) for model in models]
 
     def find_user_session(
@@ -45,13 +45,15 @@ class SessionRepository(ISessionRepository):
 
     def save(self, session: Session) -> Session:
         """Save or update a session."""
-        model = self.db.query(SessionModel).filter(SessionModel.id == session.id).first()
+        model = (
+            self.db.query(SessionModel).filter(SessionModel.id == session.id).first()
+        )
 
         if model:
             # Update existing
             model.name = session.name
             model.agent_id = session.agent_id
-            model.updated_at = session.updated_at
+            model.updated_time = session.updated_time
         else:
             # Create new
             model = SessionModel(
@@ -59,8 +61,8 @@ class SessionRepository(ISessionRepository):
                 name=session.name,
                 user_id=session.user_id,
                 agent_id=session.agent_id,
-                created_at=session.created_at,
-                updated_at=session.updated_at,
+                created_time=session.created_time,
+                updated_time=session.updated_time,
             )
             self.db.add(model)
 
@@ -82,7 +84,10 @@ class SessionRepository(ISessionRepository):
         return result > 0
 
     def find_user_session_with_messages(
-        self, session_id: SessionId, user_id: UserId, pagination: PaginationInfo | None = None
+        self,
+        session_id: SessionId,
+        user_id: UserId,
+        pagination: PaginationInfo | None = None,
     ) -> tuple[Session, list[Message]] | None:
         """Find a session with its messages."""
         session_model = (
@@ -105,7 +110,7 @@ class SessionRepository(ISessionRepository):
             offset = (pagination.page - 1) * pagination.page_size
             message_query = message_query.offset(offset).limit(pagination.page_size)
 
-        message_models = message_query.order_by(MessageModel.created_at.asc()).all()
+        message_models = message_query.order_by(MessageModel.created_time.asc()).all()
 
         session = self._model_to_entity(session_model)
         messages = [self._message_model_to_entity(model) for model in message_models]
@@ -119,15 +124,14 @@ class SessionRepository(ISessionRepository):
             user_id=model.user_id,
             name=model.name,
             agent_id=model.agent_id,
-            created_at=model.created_at,
-            updated_at=model.updated_at,
-            last_activity=model.updated_at,
+            created_time=model.created_time,
+            updated_time=model.updated_time,
         )
 
     def _message_model_to_entity(self, model: MessageModel) -> Message:
         """Convert SQLAlchemy message model to domain entity."""
         from ..shared.enums import MessageType, SenderType
-        
+
         return Message(
             id=model.id,
             session_id=model.session_id,
@@ -135,5 +139,5 @@ class SessionRepository(ISessionRepository):
             sender_type=SenderType(model.sender_type),
             sender_name=model.sender_name,
             message_type=MessageType.TEXT,  # Default for now
-            created_at=model.created_at,
+            created_time=model.created_time,
         )

@@ -6,17 +6,16 @@ Create Date: 2025-07-31 17:21:00.000000
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "d5b3f8f2e9a0"
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -32,21 +31,19 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
-    
+
     # Create chat_messages table with CASCADE constraint and correct schema
     op.create_table(
         "chat_messages",
         sa.Column("id", sa.String(), nullable=False),
         sa.Column("session_id", sa.String(), nullable=False),
-        sa.Column("message", sa.Text(), nullable=False),  # Keep as 'message' for now to match current schema
+        sa.Column(
+            "message", sa.Text(), nullable=False
+        ),  # Keep as 'message' for now to match current schema
         sa.Column("created_at", sa.DateTime(), nullable=True),
         sa.Column("sender_type", sa.String(), nullable=True),
         sa.Column("sender_name", sa.String(), nullable=True),
-        sa.ForeignKeyConstraint(
-            ["session_id"],
-            ["sessions.id"],
-            ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["session_id"], ["sessions.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
 

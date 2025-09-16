@@ -191,7 +191,7 @@ export interface NavigationContextValue {
 
 export interface Session {
     id: string;
-    created_at: string;
-    updated_at: string;
+    createdTime: string;
+    updatedTime: string;
     name: string | null;
 }

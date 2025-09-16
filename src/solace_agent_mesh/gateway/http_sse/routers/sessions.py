@@ -1,13 +1,10 @@
-from fastapi import APIRouter, Body, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from solace_ai_connector.common.log import log
 
+from ..dependencies import get_session_business_service
 from ..services.session_service import SessionService
-from ..dependencies import (
-    get_session_business_service,
-)
 from ..shared.auth_utils import get_current_user
 from .dto.requests.session_requests import (
-    DeleteSessionRequest,
     GetSessionHistoryRequest,
     GetSessionRequest,
     GetSessionsRequest,
@@ -44,9 +41,8 @@ async def get_all_sessions(
                 user_id=domain.user_id,
                 name=domain.name,
                 agent_id=domain.agent_id,
-                created_at=domain.created_at,
-                updated_at=domain.updated_at,
-                last_activity=domain.last_activity,
+                created_time=domain.created_time,
+                updated_time=domain.updated_time,
             )
             session_responses.append(session_response)
 
@@ -101,9 +97,8 @@ async def get_session(
             user_id=session_domain.user_id,
             name=session_domain.name,
             agent_id=session_domain.agent_id,
-            created_at=session_domain.created_at,
-            updated_at=session_domain.updated_at,
-            last_activity=session_domain.last_activity,
+            created_time=session_domain.created_time,
+            updated_time=session_domain.updated_time,
         )
 
     except HTTPException:
@@ -170,8 +165,7 @@ async def get_session_history(
                 sender_type=message_domain.sender_type,
                 sender_name=message_domain.sender_name,
                 message_type=message_domain.message_type,
-                timestamp=message_domain.created_at,
-                created_at=message_domain.created_at,
+                created_time=message_domain.created_time,
             )
             message_responses.append(message_response)
 
@@ -234,9 +228,8 @@ async def update_session_name(
             user_id=updated_domain.user_id,
             name=updated_domain.name,
             agent_id=updated_domain.agent_id,
-            created_at=updated_domain.created_at,
-            updated_at=updated_domain.updated_at,
-            last_activity=updated_domain.last_activity,
+            created_time=updated_domain.created_time,
+            updated_time=updated_domain.updated_time,
         )
 
     except HTTPException:
@@ -282,9 +275,7 @@ async def delete_session(
 
     except ValueError as e:
         log.warning("Validation error deleting session %s: %s", session_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         log.error(
             "Error deleting session %s for user %s: %s",

@@ -29,9 +29,9 @@ interface ChatProviderProps {
 interface HistoryMessage {
     id: string;
     message: string;
-    sender_type: "user" | "llm";
-    session_id: string;
-    created_at: string;
+    senderType: "user" | "llm";
+    sessionId: string;
+    createdTime: string;
 }
 
 // File utils
@@ -702,11 +702,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const history = await getHistory(newSessionId);
                 const formattedMessages: MessageFE[] = history.map((msg: HistoryMessage) => ({
                     parts: [{ kind: "text", text: msg.message }],
-                    isUser: msg.sender_type === "user",
+                    isUser: msg.senderType === "user",
                     isComplete: true,
-                    role: msg.sender_type === "user" ? "user" : "agent",
+                    role: msg.senderType === "user" ? "user" : "agent",
                     metadata: {
-                        sessionId: msg.session_id,
+                        sessionId: msg.sessionId,
                         messageId: msg.id,
                         lastProcessedEventSequence: 0,
                     },

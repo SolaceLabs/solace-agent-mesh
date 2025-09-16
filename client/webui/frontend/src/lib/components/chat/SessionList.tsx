@@ -4,12 +4,13 @@ import { Trash2, Check, X, Pencil, MessageCircle } from "lucide-react";
 
 import { useChatContext, useConfigContext } from "@/lib/hooks";
 import { authenticatedFetch } from "@/lib/utils/api";
+import { formatTimestamp } from "@/lib/utils/format";
 import { Button } from "@/lib/components/ui/button";
 
 interface Session {
     id: string;
-    created_at: string;
-    updated_at: string;
+    createdTime: string;
+    updatedTime: string;
     name: string | null;
 }
 
@@ -91,7 +92,7 @@ export const SessionList: React.FC = () => {
     };
 
     const formatSessionDate = (dateString: string) => {
-        return new Date(dateString).toLocaleString();
+        return formatTimestamp(dateString);
     };
 
     const getSessionDisplayName = (session: Session) => {
@@ -132,7 +133,7 @@ export const SessionList: React.FC = () => {
                                     <button onClick={() => handleSessionClick(session.id)} className="flex-grow text-left">
                                         <div className="flex flex-col">
                                             <span className="font-semibold">{getSessionDisplayName(session)}</span>
-                                            <span className="text-muted-foreground text-xs">{formatSessionDate(session.updated_at)}</span>
+                                            <span className="text-muted-foreground text-xs">{formatSessionDate(session.updatedTime)}</span>
                                         </div>
                                     </button>
                                 )}
