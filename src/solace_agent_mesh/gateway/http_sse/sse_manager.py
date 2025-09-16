@@ -279,14 +279,17 @@ class SSEManager:
     async def close_all_for_task(self, task_id: str):
         """
         Closes all SSE connections associated with a specific task.
+        If a connection existed, it also cleans up the event buffer.
+        If no connection ever existed, the buffer is left for a late-connecting client.
         """
         lock = self._get_lock()
         async with lock:
-            self._event_buffer.remove_buffer(task_id)
             if task_id in self._connections:
+                # This is the "normal" case: a client is or was connected.
+                # It's safe to clean up everything.
                 queues_to_close = self._connections.pop(task_id)
                 log.info(
-                    "%s Closing %d SSE connections for Task ID: %s",
+                    "%s Closing %d SSE connections for Task ID: %s and cleaning up buffer.",
                     self.log_identifier,
                     len(queues_to_close),
                     task_id,
@@ -313,14 +316,19 @@ class SSEManager:
                             task_id,
                             e,
                         )
+
+                # Since a connection existed, the buffer is no longer needed.
+                self._event_buffer.remove_buffer(task_id)
                 log.info(
                     "%s Removed Task ID entry: %s and signaled queues to close.",
                     self.log_identifier,
                     task_id,
                 )
             else:
+                # This is the "race condition" case: no client has connected yet.
+                # We MUST leave the buffer intact for the late-connecting client.
                 log.debug(
-                    "%s No connections found to close for Task ID: %s",
+                    "%s No active connections found for Task ID: %s. Leaving event buffer intact.",
                     self.log_identifier,
                     task_id,
                 )
