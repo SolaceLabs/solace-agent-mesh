@@ -265,6 +265,10 @@ class SamAgentAppConfig(SamConfigBase):
         default={"type": "memory"},
         description="Configuration for ADK Memory Service (defaults to memory).",
     )
+    multi_session_request_response: Dict[str, Any] = Field(
+        default_factory=lambda: {"enabled": True},
+        description="Enables multi-session request/response capabilities for the agent, required for peer delegation.",
+    )
     tool_output_save_threshold_bytes: int = Field(
         default=2048,
         description="If any tool's processed output exceeds this size (bytes), its full content is saved as a new ADK artifact.",
@@ -444,8 +448,6 @@ class SamAgentApp(App):
 
         broker_config["temporary_queue"] = True
         log.debug("Set broker_config.temporary_queue = True")
-
-        app_info["multi_session_request_response"] = {"enabled": True}
 
         super().__init__(app_info, **kwargs)
         log.debug("%s Agent initialization complete.", agent_name)
