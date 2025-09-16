@@ -11,6 +11,8 @@ import math
 
 from solace_ai_connector.common.log import log
 
+from .sse_event_buffer import SSEEventBuffer
+
 
 class SSEManager:
     """
@@ -18,8 +20,9 @@ class SSEManager:
     Uses asyncio Queues for buffering events per connection.
     """
 
-    def __init__(self, max_queue_size: int = 200):
+    def __init__(self, max_queue_size: int, event_buffer: SSEEventBuffer):
         self._connections: Dict[str, List[asyncio.Queue]] = {}
+        self._event_buffer = event_buffer
         self._locks: Dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
         self._locks_lock = threading.Lock()
         self.log_identifier = "[SSEManager]"
@@ -81,6 +84,13 @@ class SSEManager:
                 self._connections[task_id] = []
 
             connection_queue = asyncio.Queue(maxsize=self._max_queue_size)
+
+            # Flush any pending events from the buffer to the new connection
+            buffered_events = self._event_buffer.get_and_remove_buffer(task_id)
+            if buffered_events:
+                for event in buffered_events:
+                    await connection_queue.put(event)
+
             self._connections[task_id].append(connection_queue)
             log.info(
                 "%s Created SSE connection queue for Task ID: %s. Total queues for task: %d",
@@ -145,15 +155,8 @@ class SSEManager:
         """
         lock = self._get_lock()
         async with lock:
-            if task_id not in self._connections:
-                log.debug(
-                    "%s No active SSE connections for Task ID: %s. Event not sent.",
-                    self.log_identifier,
-                    task_id,
-                )
-                return
+            queues = self._connections.get(task_id)
 
-            queues_to_remove = []
             try:
                 serialized_data = json.dumps(
                     self._sanitize_json(event_data),
@@ -169,6 +172,16 @@ class SSEManager:
                 return
 
             sse_payload = {"event": event_type, "data": serialized_data}
+
+            if not queues:
+                log.debug(
+                    "%s No active SSE connections for Task ID: %s. Buffering event.",
+                    self.log_identifier,
+                    task_id,
+                )
+                self._event_buffer.buffer_event(task_id, sse_payload)
+                return
+
             log.debug(
                 "%s Prepared SSE payload for Task ID %s: %s",
                 self.log_identifier,
@@ -176,6 +189,7 @@ class SSEManager:
                 sse_payload,
             )
 
+            queues_to_remove = []
             for connection_queue in list(self._connections.get(task_id, [])):
                 try:
                     await asyncio.wait_for(
@@ -270,6 +284,7 @@ class SSEManager:
         """
         lock = self._get_lock()
         async with lock:
+            self._event_buffer.remove_buffer(task_id)
             if task_id in self._connections:
                 queues_to_close = self._connections.pop(task_id)
                 log.info(
