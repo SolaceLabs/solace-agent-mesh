@@ -61,7 +61,6 @@ from ...agent.adk.setup import (
     initialize_adk_agent,
     initialize_adk_runner,
 )
-from ...common.middleware.registry import MiddlewareRegistry
 from ...agent.protocol.event_handlers import (
     process_event,
     publish_agent_card,
@@ -108,9 +107,9 @@ async def default_auth_handler(
     event: ADKEvent,
     component,
     a2a_context: Dict[str, Any],
-) -> ADKEvent:
-    """Default authentication handler that returns the event unchanged."""
-    return event
+) -> Optional[TaskStatusUpdateEvent]:
+    """Default authentication handler that returns nothing."""
+    return None
 
 
 class SamAgentComponent(SamComponentBase):
@@ -1617,7 +1616,15 @@ class SamAgentComponent(SamComponentBase):
 
         auth_handler = MiddlewareRegistry.get_auth_handler()
         if auth_handler:
-            await auth_handler(adk_event, self, a2a_context)
+            auth_status_update = await auth_handler(adk_event, self, a2a_context)
+            if auth_status_update:
+                await self._publish_status_update_with_buffer_flush(
+                    auth_status_update,
+                    a2a_context,
+                    skip_buffer_flush=False,
+                )
+                return
+
 
         if not is_final_turn_event:
             if adk_event.content and adk_event.content.parts:
