@@ -22,6 +22,7 @@ from a2a.types import (
     Task,
     TaskArtifactUpdateEvent,
     TaskStatusUpdateEvent,
+    TaskState,
     TextPart,
 )
 from ...common import a2a
@@ -46,6 +47,57 @@ from google.adk.agents import RunConfig
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
 from google.adk.agents.run_config import StreamingMode
+
+
+def _forward_jsonrpc_response(
+    component: "SamAgentComponent",
+    original_jsonrpc_request_id: str,
+    result_data: Any,
+    target_topic: str,
+    main_logical_task_id: str,
+    peer_agent_name: str,
+    message: SolaceMessage,
+) -> None:
+    """
+    Utility method to forward a JSONRPCResponse with the given result data.
+
+    Args:
+        component: The SamAgentComponent instance
+        original_jsonrpc_request_id: The original JSONRPC request ID
+        result_data: The data to include in the response result
+        target_topic: The topic to publish to
+        main_logical_task_id: The main logical task ID for logging
+        peer_agent_name: The peer agent name for logging
+        message: The original message to acknowledge
+    """
+    forwarded_rpc_response = JSONRPCResponse(
+        id=original_jsonrpc_request_id,
+        result=result_data,
+    )
+    payload_to_publish = forwarded_rpc_response.model_dump(
+        by_alias=True, exclude_none=True
+    )
+
+    try:
+        component.publish_a2a_message(
+            payload_to_publish,
+            target_topic,
+        )
+        log.info(
+            "%s Forwarded DataPart signal for main task %s (from peer %s) to %s.",
+            component.log_identifier,
+            main_logical_task_id,
+            peer_agent_name,
+            target_topic,
+        )
+    except Exception as pub_err:
+        log.exception(
+            "%s Failed to publish forwarded status signal for main task %s: %s",
+            component.log_identifier,
+            main_logical_task_id,
+            pub_err,
+        )
+    message.call_acknowledgements()
 
 
 def _register_peer_artifacts_in_parent_context(
@@ -238,12 +290,11 @@ async def handle_a2a_request(component, message: SolaceMessage):
         payload_dict = message.get_payload()
         if not isinstance(payload_dict, dict):
             raise ValueError("Payload is not a dictionary.")
-            
-            
+
         a2a_request: A2ARequest = A2ARequest.model_validate(payload_dict)
         jsonrpc_request_id = a2a.get_request_id(a2a_request)
 
-        # Extract properties from message user properties  
+        # Extract properties from message user properties
         client_id = message.get_user_properties().get("clientId", "default_client")
         status_topic_from_peer = message.get_user_properties().get("a2aStatusTopic")
         reply_topic_from_peer = message.get_user_properties().get("replyTo")
@@ -916,93 +967,123 @@ async def handle_a2a_response(component, message: SolaceMessage):
                     if isinstance(payload_data, TaskStatusUpdateEvent):
                         try:
                             status_event = payload_data
+
                             data_parts = a2a.get_data_parts_from_status_update(
                                 status_event
                             )
                             if data_parts:
+
+                                peer_agent_name = (
+                                    status_event.metadata.get(
+                                        "agent_name", "UnknownPeer"
+                                    )
+                                    if status_event.metadata
+                                    else "UnknownPeer"
+                                )
+
+                                correlation_data = (
+                                    await component._get_correlation_data_for_sub_task(
+                                        sub_task_id
+                                    )
+                                )
+                                if not correlation_data:
+                                    log.warning(
+                                        "%s Correlation data not found for sub-task %s. Cannot forward status signal.",
+                                        component.log_identifier,
+                                        sub_task_id,
+                                    )
+                                    message.call_acknowledgements()
+                                    return
+
+                                original_task_context = correlation_data.get(
+                                    "original_task_context"
+                                )
+                                if not original_task_context:
+                                    log.warning(
+                                        "%s original_task_context not found in correlation data for sub-task %s. Cannot forward status signal.",
+                                        component.log_identifier,
+                                        sub_task_id,
+                                    )
+                                    message.call_acknowledgements()
+                                    return
+
+                                main_logical_task_id = original_task_context.get(
+                                    "logical_task_id"
+                                )
+                                original_jsonrpc_request_id = original_task_context.get(
+                                    "jsonrpc_request_id"
+                                )
+                                main_context_id = original_task_context.get("contextId")
+
+                                target_topic_for_forward = original_task_context.get(
+                                    "statusTopic"
+                                )
+
+                                if (
+                                    not main_logical_task_id
+                                    or not original_jsonrpc_request_id
+                                    or not target_topic_for_forward
+                                ):
+                                    log.error(
+                                        "%s Missing critical info (main_task_id, original_rpc_id, or target_status_topic) in context for sub-task %s. Cannot forward. Context: %s",
+                                        component.log_identifier,
+                                        sub_task_id,
+                                        original_task_context,
+                                    )
+                                    message.call_acknowledgements()
+                                    return
+
+                                event_metadata = {
+                                    "agent_name": component.agent_name,
+                                    "forwarded_from_peer": peer_agent_name,
+                                    "original_peer_event_taskId": status_event.task_id,
+                                    "original_peer_event_timestamp": (
+                                        status_event.status.timestamp
+                                        if status_event.status
+                                        and status_event.status.timestamp
+                                        else None
+                                    ),
+                                    "function_call_id": correlation_data.get(
+                                        "adk_function_call_id", None
+                                    ),
+                                }
+
+                                if (
+                                    status_event.status.state
+                                    == TaskState.input_required
+                                ):
+                                    log.debug(
+                                        "%s Received input-required status for sub-task %s. Requesting user input. Forwarding to target.",
+                                        component.log_identifier,
+                                        sub_task_id,
+                                    )
+
+                                    status_event.metadata = event_metadata
+                                    status_event.task_id = main_logical_task_id
+
+                                    _forward_jsonrpc_response(
+                                        component=component,
+                                        original_jsonrpc_request_id=original_jsonrpc_request_id,
+                                        result_data=status_event,
+                                        target_topic=target_topic_for_forward,
+                                        main_logical_task_id=main_logical_task_id,
+                                        peer_agent_name=peer_agent_name,
+                                        message=message,
+                                    )
+                                    return
+
                                 for data_part in data_parts:
                                     log.info(
                                         "%s Received DataPart signal from peer for sub-task %s. Forwarding...",
                                         component.log_identifier,
                                         sub_task_id,
                                     )
-                                    correlation_data = await component._get_correlation_data_for_sub_task(
-                                        sub_task_id
-                                    )
-                                    if not correlation_data:
-                                        log.warning(
-                                            "%s Correlation data not found for sub-task %s. Cannot forward status signal.",
-                                            component.log_identifier,
-                                            sub_task_id,
-                                        )
-                                        message.call_acknowledgements()
-                                        return
-
-                                    original_task_context = correlation_data.get(
-                                        "original_task_context"
-                                    )
-                                    if not original_task_context:
-                                        log.warning(
-                                            "%s original_task_context not found in correlation data for sub-task %s. Cannot forward status signal.",
-                                            component.log_identifier,
-                                            sub_task_id,
-                                        )
-                                        message.call_acknowledgements()
-                                        return
-
-                                    main_logical_task_id = original_task_context.get(
-                                        "logical_task_id"
-                                    )
-                                    original_jsonrpc_request_id = (
-                                        original_task_context.get("jsonrpc_request_id")
-                                    )
-                                    main_context_id = original_task_context.get(
-                                        "contextId"
-                                    )
-
-                                    target_topic_for_forward = (
-                                        original_task_context.get("statusTopic")
-                                    )
-
-                                    if (
-                                        not main_logical_task_id
-                                        or not original_jsonrpc_request_id
-                                        or not target_topic_for_forward
-                                    ):
-                                        log.error(
-                                            "%s Missing critical info (main_task_id, original_rpc_id, or target_status_topic) in context for sub-task %s. Cannot forward. Context: %s",
-                                            component.log_identifier,
-                                            sub_task_id,
-                                            original_task_context,
-                                        )
-                                        message.call_acknowledgements()
-                                        return
-
-                                    peer_agent_name = (
-                                        status_event.metadata.get(
-                                            "agent_name", "UnknownPeer"
-                                        )
-                                        if status_event.metadata
-                                        else "UnknownPeer"
-                                    )
 
                                     forwarded_message = a2a.create_agent_parts_message(
                                         parts=[data_part],
-                                        metadata={
-                                            "agent_name": component.agent_name,
-                                            "forwarded_from_peer": peer_agent_name,
-                                            "original_peer_event_taskId": status_event.task_id,
-                                            "original_peer_event_timestamp": (
-                                                status_event.status.timestamp
-                                                if status_event.status
-                                                and status_event.status.timestamp
-                                                else None
-                                            ),
-                                            "function_call_id": correlation_data.get(
-                                                "adk_function_call_id", None
-                                            ),
-                                        },
+                                        metadata=event_metadata,
                                     )
+
                                     forwarded_event = a2a.create_status_update(
                                         task_id=main_logical_task_id,
                                         context_id=main_context_id,
@@ -1016,36 +1097,15 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                         forwarded_event.status.timestamp = (
                                             status_event.status.timestamp
                                         )
-                                    forwarded_rpc_response = JSONRPCResponse(
-                                        id=original_jsonrpc_request_id,
-                                        result=forwarded_event,
+                                    _forward_jsonrpc_response(
+                                        component=component,
+                                        original_jsonrpc_request_id=original_jsonrpc_request_id,
+                                        result_data=forwarded_event,
+                                        target_topic=target_topic_for_forward,
+                                        main_logical_task_id=main_logical_task_id,
+                                        peer_agent_name=peer_agent_name,
+                                        message=message,
                                     )
-                                    payload_to_publish = (
-                                        forwarded_rpc_response.model_dump(
-                                            by_alias=True, exclude_none=True
-                                        )
-                                    )
-
-                                    try:
-                                        component.publish_a2a_message(
-                                            payload_to_publish,
-                                            target_topic_for_forward,
-                                        )
-                                        log.info(
-                                            "%s Forwarded DataPart signal for main task %s (from peer %s) to %s.",
-                                            component.log_identifier,
-                                            main_logical_task_id,
-                                            peer_agent_name,
-                                            target_topic_for_forward,
-                                        )
-                                    except Exception as pub_err:
-                                        log.exception(
-                                            "%s Failed to publish forwarded status signal for main task %s: %s",
-                                            component.log_identifier,
-                                            main_logical_task_id,
-                                            pub_err,
-                                        )
-                                    message.call_acknowledgements()
                                     return
 
                             payload_to_queue = status_event.model_dump(
@@ -1552,81 +1612,95 @@ def handle_sam_event(component, message, topic):
     """Handle incoming SAM system events."""
     try:
         payload = message.get_payload()
-        
+
         if not isinstance(payload, dict):
             log.warning("Invalid SAM event payload - not a dict")
             message.call_acknowledgements()
             return
-        
+
         event_type = payload.get("event_type")
         if not event_type:
             log.warning("SAM event missing event_type field")
             message.call_acknowledgements()
             return
-            
+
         log.info("%s Received SAM event: %s", component.log_identifier, event_type)
-        
+
         if event_type == "session.deleted":
             data = payload.get("data", {})
             session_id = data.get("session_id")
             user_id = data.get("user_id")
             agent_id = data.get("agent_id")
-            
+
             if not all([session_id, user_id, agent_id]):
                 log.warning("Missing required fields in session.deleted event")
                 message.call_acknowledgements()
                 return
-                
+
             current_agent = component.get_config("agent_name")
-            
+
             if agent_id == current_agent:
-                log.info("%s Processing session.deleted event for session %s", 
-                        component.log_identifier, session_id)
-                asyncio.create_task(cleanup_agent_session(component, session_id, user_id))
+                log.info(
+                    "%s Processing session.deleted event for session %s",
+                    component.log_identifier,
+                    session_id,
+                )
+                asyncio.create_task(
+                    cleanup_agent_session(component, session_id, user_id)
+                )
             else:
-                log.debug("Session deletion event for different agent: %s != %s", agent_id, current_agent)
+                log.debug(
+                    "Session deletion event for different agent: %s != %s",
+                    agent_id,
+                    current_agent,
+                )
         else:
             log.debug("Unhandled SAM event type: %s", event_type)
-            
+
         message.call_acknowledgements()
-        
+
     except Exception as e:
         log.error("Error handling SAM event %s: %s", topic, e)
         message.call_acknowledgements()
-
 
 
 async def cleanup_agent_session(component, session_id: str, user_id: str):
     """Clean up agent-side session data."""
     try:
         log.info("Starting cleanup for session %s, user %s", session_id, user_id)
-        
-        if hasattr(component, 'session_service') and component.session_service:
+
+        if hasattr(component, "session_service") and component.session_service:
             agent_name = component.get_config("agent_name")
-            log.info("Deleting session %s from agent %s session service", session_id, agent_name)
+            log.info(
+                "Deleting session %s from agent %s session service",
+                session_id,
+                agent_name,
+            )
             await component.session_service.delete_session(
-                app_name=agent_name,
-                user_id=user_id,
-                session_id=session_id
+                app_name=agent_name, user_id=user_id, session_id=session_id
             )
             log.info("Successfully deleted session %s from session service", session_id)
         else:
             log.info("No session service available for cleanup")
-            
+
         with component.active_tasks_lock:
             tasks_to_cancel = []
             for task_id, context in component.active_tasks.items():
-                if (hasattr(context, 'a2a_context') and 
-                    context.a2a_context.get('session_id') == session_id):
+                if (
+                    hasattr(context, "a2a_context")
+                    and context.a2a_context.get("session_id") == session_id
+                ):
                     tasks_to_cancel.append(task_id)
-                    
+
             for task_id in tasks_to_cancel:
                 context = component.active_tasks.get(task_id)
                 if context:
                     context.cancel()
-                    log.info("Cancelled task %s for deleted session %s", task_id, session_id)
-        
+                    log.info(
+                        "Cancelled task %s for deleted session %s", task_id, session_id
+                    )
+
         log.info("Session cleanup completed for session %s", session_id)
-                    
+
     except Exception as e:
         log.error("Error cleaning up session %s: %s", session_id, e)
