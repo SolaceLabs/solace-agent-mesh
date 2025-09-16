@@ -307,10 +307,6 @@ async def run_adk_async_task(
                 a2a_context["invocation_id"] = event.invocation_id
                 event_loop_stored = True
 
-            auth_handler = MiddlewareRegistry.get_auth_handler()
-            if auth_handler:
-                event = await auth_handler(event, component, a2a_context)
-
             try:
                 await component.process_and_publish_adk_event(event, a2a_context)
             except Exception as process_err:

@@ -106,7 +106,6 @@ InstructionProvider = Callable[[ReadonlyContext], str]
 
 async def default_auth_handler(
     event: ADKEvent,
-    component: "SamAgentComponent",
     a2a_context: Dict[str, Any],
 ) -> ADKEvent:
     """Default authentication handler that returns the event unchanged."""
@@ -1614,6 +1613,10 @@ class SamAgentComponent(SamComponentBase):
 
         is_run_based_session = a2a_context.get("is_run_based_session", False)
         is_final_turn_event = not adk_event.partial
+
+        auth_handler = MiddlewareRegistry.get_auth_handler()
+        if auth_handler:
+            event = await auth_handler(event, a2a_context)
 
         if not is_final_turn_event:
             if adk_event.content and adk_event.content.parts:
