@@ -201,9 +201,12 @@ class ArtifactServiceConfig(SamConfigBase):
 class SessionServiceConfig(SamConfigBase):
     """Configuration for the ADK Session Service."""
 
-    type: str = Field(..., description="Service type (e.g., 'memory', 'vertex_rag').")
+    type: str = Field(..., description="Service type (e.g., 'memory', 'sql', 'vertex_rag').")
     default_behavior: Literal["PERSISTENT", "RUN_BASED"] = Field(
         default="PERSISTENT", description="Default behavior for session service."
+    )
+    database_url: Optional[str] = Field(
+        default=None, description="Database URL for SQL session services."
     )
 
 

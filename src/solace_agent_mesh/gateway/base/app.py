@@ -76,6 +76,10 @@ class BaseGatewayAppConfig(SamConfigBase):
         default=None,
         description="Configuration for the pluggable Identity Service provider.",
     )
+    session_service: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Configuration for the gateway's session service.",
+    )
 
 
 class BaseGatewayApp(App):
