@@ -1,5 +1,13 @@
 from typing import Dict, Any, Optional
 from google.adk.tools import ToolContext
+from pathlib import Path
+from solace_ai_connector.common.log import log
+from tests.integration.test_support.lifecycle_tracker import track
+
+if "SamAgentComponent" not in globals():
+    from solace_agent_mesh.agent.sac.component import SamAgentComponent
+if "AnyToolConfig" not in globals():
+    from solace_agent_mesh.agent.tools.tool_config_types import AnyToolConfig
 
 
 async def get_weather_tool(
@@ -22,3 +30,11 @@ async def get_weather_tool(
             "unit": unit or "celsius",
             "condition": "unknown",
         }
+
+
+# Import hooks to make them available in this module's namespace for the framework
+from tests.integration.test_support.dynamic_tools.lifecycle_yaml_hooks import (
+    yaml_init_hook,
+    yaml_cleanup_hook,
+    failing_init_hook,
+)

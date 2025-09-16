@@ -223,3 +223,274 @@ tools:
 ```
 
 This approach is incredibly scalable, as one configuration entry can bootstrap an entire suite of dynamically generated tools.
+
+---
+
+## Managing Tool Lifecycles with `init` and `cleanup`
+
+For tools that need to manage resources—such as database connections, API clients, or temporary files—Solace Agent Mesh provides optional `init` and `cleanup` lifecycle hooks. These allow you to run code when the agent starts up and shuts down, ensuring that resources are acquired and released gracefully.
+
+There are two ways to define these hooks:
+- **YAML-based (`init_function`, `cleanup_function`):** A flexible method that works for *any* Python tool, including simple function-based ones.
+- **Class-based (`init`, `cleanup` methods):** The idiomatic and recommended way for `DynamicTool` and `DynamicToolProvider` classes.
+
+### YAML-Based Lifecycle Hooks
+
+You can add `init_function` and `cleanup_function` to any Python tool's configuration in your agent's YAML. The lifecycle functions must be defined in the same module as the tool itself.
+
+#### Step 1: Define the Tool and Hook Functions
+
+In your tool's Python file (e.g., `src/my_agent/db_tools.py`), define the tool function and its corresponding `init` and `cleanup` functions. These functions must be `async` and will receive the agent component instance and the tool's configuration model object as arguments.
+
+```python
+# src/my_agent/db_tools.py
+from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from solace_agent_mesh.agent.tools.tool_config_types import AnyToolConfig
+from google.adk.tools import ToolContext
+from typing import Dict, Any
+
+# --- Lifecycle Hooks ---
+
+async def initialize_db_connection(component: SamAgentComponent, tool_config_model: AnyToolConfig):
+    """Initializes a database connection and stores it for the agent to use."""
+    print("INFO: Initializing database connection...")
+    # In a real scenario, you would create a client instance
+    db_client = {"connection_string": tool_config_model.tool_config.get("connection_string")}
+    # Store the client in a shared state accessible by the component
+    component.set_agent_specific_state("db_client", db_client)
+    print("INFO: Database client initialized.")
+
+async def close_db_connection(component: SamAgentComponent, tool_config_model: AnyToolConfig):
+    """Retrieves and closes the database connection."""
+    print("INFO: Closing database connection...")
+    db_client = component.get_agent_specific_state("db_client")
+    if db_client:
+        # In a real scenario, you would call db_client.close()
+        print("INFO: Database connection closed.")
+
+# --- Tool Function ---
+
+async def query_database(query: str, tool_context: ToolContext, **kwargs) -> Dict[str, Any]:
+    """Queries the database using the initialized connection."""
+    host_component = tool_context._invocation_context.agent.host_component
+    db_client = host_component.get_agent_specific_state("db_client")
+    if not db_client:
+        return {"error": "Database connection not initialized."}
+    # ... use db_client to run query ...
+    return {"result": "some data"}
+```
+
+#### Step 2: Configure the Hooks in YAML
+
+In your YAML configuration, reference the lifecycle functions by name. The framework will automatically look for them in the `component_module`.
+
+```yaml
+# In your agent's app_config:
+tools:
+  - tool_type: python
+    component_module: "my_agent.db_tools"
+    function_name: "query_database"
+    tool_config:
+      connection_string: "postgresql://user:pass@host/db"
+
+    # Initialize the tool on startup
+    init_function: "initialize_db_connection"
+
+    # Clean up the tool on shutdown
+    cleanup_function: "close_db_connection"
+```
+
+### Class-Based Lifecycle Methods (for `DynamicTool`)
+
+For tools built with `DynamicTool` or `DynamicToolProvider`, the recommended approach is to override the `init` and `cleanup` methods directly within the class. This co-locates the entire tool's logic and improves encapsulation.
+
+**Example: Adding Lifecycle Methods to a `DynamicTool`**
+
+Here, we extend a `DynamicTool` to manage its own API client.
+
+```python
+# src/my_agent/api_tool.py
+from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool
+from solace_agent_mesh.agent.tools.tool_config_types import AnyToolConfig
+# Assume WeatherApiClient is a custom class for an external service
+from my_agent.api_client import WeatherApiClient
+
+class WeatherTool(DynamicTool):
+    """A dynamic tool that fetches weather and manages its own API client."""
+
+    async def init(self, component: "SamAgentComponent", tool_config: "AnyToolConfig") -> None:
+        """Initializes the API client when the agent starts."""
+        print("INFO: Initializing Weather API client...")
+        # self.tool_config is the validated Pydantic model or dict from YAML
+        api_key = self.tool_config.get("api_key")
+        self.api_client = WeatherApiClient(api_key=api_key)
+        print("INFO: Weather API client initialized.")
+
+    async def cleanup(self, component: "SamAgentComponent", tool_config: "AnyToolConfig") -> None:
+        """Closes the API client connection when the agent shuts down."""
+        print("INFO: Closing Weather API client...")
+        if hasattr(self, "api_client"):
+            await self.api_client.close()
+            print("INFO: Weather API client closed.")
+
+    # ... other required properties like tool_name, tool_description, etc. ...
+
+    async def _run_async_impl(self, args: dict, **kwargs) -> dict:
+        """Uses the initialized client to perform its task."""
+        location = args.get("location")
+        if not hasattr(self, "api_client"):
+            return {"error": "API client not initialized. Check lifecycle hooks."}
+        weather_data = await self.api_client.get_weather(location)
+        return {"weather": weather_data}
+```
+
+The YAML configuration remains simple, as the lifecycle logic is now part of the tool's code.
+
+```yaml
+# In your agent's app_config:
+tools:
+  - tool_type: python
+    component_module: "my_agent.api_tool"
+    class_name: "WeatherTool"
+    tool_config:
+      api_key: ${WEATHER_API_KEY}
+```
+
+### Execution Order and Guarantees
+
+It's important to understand the order in which lifecycle hooks are executed, especially if you mix both YAML-based and class-based methods for a single tool.
+
+- **Initialization (`init`):** All `init` hooks are awaited during agent startup. A failure in any `init` hook will prevent the agent from starting.
+  1. The YAML-based `init_function` is executed first.
+  2. The class-based `init()` method is executed second.
+
+- **Cleanup (`cleanup`):** All registered `cleanup` hooks are executed during agent shutdown. They run in **LIFO (Last-In, First-Out)** order relative to initialization.
+  1. The class-based `cleanup()` method is executed first.
+  2. The YAML-based `cleanup_function` is executed second.
+
+This LIFO order for cleanup is intuitive: the resource that was initialized last is the first one to be torn down.
+
+---
+
+## Adding Validated Configuration to Dynamic Tools
+
+For any class-based tool (`DynamicTool` or `DynamicToolProvider`) that requires configuration, this is the recommended pattern. By linking a Pydantic model to your tool class, you can add automatic validation and type safety to your `tool_config`. This provides several key benefits:
+
+- **Automatic Validation:** The agent will fail to start if the YAML configuration doesn't match your model, providing clear error messages.
+- **Type Safety:** Inside your tool, `self.tool_config` is a fully typed Pydantic object, not a dictionary, enabling autocompletion and preventing common errors.
+- **Self-Documentation:** The Pydantic model itself serves as clear, machine-readable documentation for your tool's required configuration.
+
+### Example 1: Using a Pydantic Model with a Single `DynamicTool`
+
+This example shows how to add a validated configuration to a standalone `DynamicTool` class.
+
+#### Step 1: Define the Model and Tool Class
+
+In your tools file, define a `pydantic.BaseModel` for your configuration. Then, in your `DynamicTool` class, link to it using the `config_model` class attribute.
+
+```python
+# src/my_agent/weather_tools.py
+from typing import Dict, Any
+from pydantic import BaseModel, Field
+from google.genai import types as adk_types
+from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool
+
+# 1. Define the configuration model
+class WeatherConfig(BaseModel):
+    api_key: str = Field(..., description="The API key for the weather service.")
+    default_unit: str = Field(default="celsius", description="The default temperature unit.")
+
+# 2. Create a tool and link the config model
+class GetCurrentWeatherTool(DynamicTool):
+    config_model = WeatherConfig
+
+    def __init__(self, tool_config: WeatherConfig):
+        super().__init__(tool_config)
+        # self.tool_config is now a validated WeatherConfig instance
+        # You can safely access attributes with type safety
+        self.api_key = self.tool_config.api_key
+        self.unit = self.tool_config.default_unit
+
+    @property
+    def tool_name(self) -> str:
+        return "get_current_weather"
+
+    @property
+    def tool_description(self) -> str:
+        return f"Get the current weather. The default unit is {self.unit}."
+
+    @property
+    def parameters_schema(self) -> adk_types.Schema:
+        return adk_types.Schema(
+            type=adk_types.Type.OBJECT,
+            properties={
+                "location": adk_types.Schema(type=adk_types.Type.STRING, description="The city and state/country."),
+            },
+            required=["location"],
+        )
+
+    async def _run_async_impl(self, args: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+        # ... implementation using self.api_key ...
+        return {"weather": f"Sunny in {args['location']}"}
+```
+
+#### Step 2: Configure the Tool in YAML
+
+The YAML configuration remains simple. The framework handles the validation against your Pydantic model automatically.
+
+```yaml
+# In your agent's app_config:
+tools:
+  - tool_type: python
+    component_module: "my_agent.weather_tools"
+    # The framework will auto-discover the GetCurrentWeatherTool class
+    tool_config:
+      api_key: ${WEATHER_API_KEY}
+      default_unit: "fahrenheit" # Optional, overrides the model's default
+```
+
+If you were to forget `api_key` in the YAML, the agent would fail to start and print a clear error message indicating that the `api_key` field is required, making debugging configuration issues much easier.
+
+### Example 2: Using a Pydantic Model with a `DynamicToolProvider`
+
+The same pattern applies to tool providers, allowing you to pass a validated, type-safe configuration object to your tool factory.
+
+#### Step 1: Define the Model and Provider Class
+
+```python
+# src/my_agent/weather_tools_provider.py
+from typing import List
+from pydantic import BaseModel, Field
+from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool, DynamicToolProvider
+# ... assume GetCurrentWeatherTool is defined in this file or imported ...
+
+# 1. Define the configuration model
+class WeatherProviderConfig(BaseModel):
+    api_key: str = Field(..., description="The API key for the weather service.")
+    default_unit: str = Field(default="celsius", description="The default temperature unit.")
+
+# 2. Create a provider and link the config model
+class WeatherToolProvider(DynamicToolProvider):
+    config_model = WeatherProviderConfig
+
+    def create_tools(self, tool_config: WeatherProviderConfig) -> List[DynamicTool]:
+        # The framework passes a validated WeatherProviderConfig instance here
+        return [
+            GetCurrentWeatherTool(tool_config=tool_config)
+            # You could create other tools here that also use the config
+        ]
+```
+
+#### Step 2: Configure the Provider in YAML
+
+```yaml
+# In your agent's app_config:
+tools:
+  - tool_type: python
+    component_module: "my_agent.weather_tools_provider"
+    # The framework will auto-discover the WeatherToolProvider
+    tool_config:
+      api_key: ${WEATHER_API_KEY}
+      default_unit: "fahrenheit" # Optional, overrides the model's default
+```

@@ -5,7 +5,7 @@ import { useChatContext } from "./useChatContext";
 
 
 export const useSessionPreview = (): string => {
-    const { messages, sessionName } = useChatContext();
+    const { messages } = useChatContext();
 
     return useMemo(() => {
         const firstUserMessage = messages.find(msg => {
@@ -24,5 +24,5 @@ export const useSessionPreview = (): string => {
         }
 
         return "New Chat";
-    }, [messages, sessionName]);
+    }, [messages]);
 };

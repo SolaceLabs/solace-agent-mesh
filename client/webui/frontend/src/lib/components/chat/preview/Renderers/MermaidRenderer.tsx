@@ -196,12 +196,12 @@ export const MermaidRenderer: React.FC<BaseRendererProps> = ({ content, setRende
     }, [sanitizedContent]);
 
     return (
-        <div className="bg-background h-full max-w-[100vw] overflow-hidden p-4">
+        <div className="bg-background h-full p-4">
             <iframe
                 srcDoc={srcDoc}
                 title="Mermaid Diagram Preview"
                 sandbox="allow-scripts allow-same-origin allow-downloads"
-                className="h-full w-full border-none"
+                className="h-96 w-full resize border-none"
                 onError={() => setRenderError("Failed to load Mermaid content.")}
                 onLoad={() => setRenderError(null)}
             />

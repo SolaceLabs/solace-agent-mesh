@@ -69,7 +69,7 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
             const finalContent = decodeBase64Content(item.content);
             if (finalContent) {
                 contentElements.push(
-                    <div key={`embedded-${index}`} className="my-2 h-auto w-md max-w-md overflow-hidden">
+                    <div key={`embedded-${index}`} className="my-2 h-auto w-md max-w-md">
                         <ContentRenderer content={finalContent} rendererType={item.type} mime_type={item.mimeType} setRenderError={setRenderError} />
                     </div>
                 );
@@ -143,7 +143,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
             <ChatBubbleMessage variant={variant}>
                 {textContent && <MessageContent message={message} />}
                 {message.artifactNotification && (
-                    <div className="flex items-center p-2 my-1 bg-blue-100 dark:bg-blue-900/50 rounded-md">
+                    <div className="my-1 flex items-center rounded-md bg-blue-100 p-2 dark:bg-blue-900/50">
                         <FileText className="mr-2 text-blue-500 dark:text-blue-400" />
                         <span className="text-sm">
                             Artifact created: <strong>{message.artifactNotification.name}</strong>

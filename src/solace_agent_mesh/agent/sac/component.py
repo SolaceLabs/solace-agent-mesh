@@ -2867,7 +2867,11 @@ class SamAgentComponent(SamComponentBase):
                 "%s Loading tools asynchronously in dedicated thread...",
                 self.log_identifier,
             )
-            loaded_tools, enabled_builtin_tools = await load_adk_tools(self)
+            (
+                loaded_tools,
+                enabled_builtin_tools,
+                self._tool_cleanup_hooks,
+            ) = await load_adk_tools(self)
             log.info(
                 "%s Initializing ADK Agent/Runner asynchronously in dedicated thread...",
                 self.log_identifier,
@@ -3016,6 +3020,47 @@ class SamAgentComponent(SamComponentBase):
                     "%s Error during InvocationMonitor cleanup: %s",
                     self.log_identifier,
                     im_clean_e,
+                )
+
+        if self._tool_cleanup_hooks:
+            log.info(
+                "%s Executing %d tool cleanup hooks...",
+                self.log_identifier,
+                len(self._tool_cleanup_hooks),
+            )
+            if self._async_loop and self._async_loop.is_running():
+
+                async def run_tool_cleanup():
+                    results = await asyncio.gather(
+                        *[hook() for hook in self._tool_cleanup_hooks],
+                        return_exceptions=True,
+                    )
+                    for i, result in enumerate(results):
+                        if isinstance(result, Exception):
+                            log.error(
+                                "%s Error during tool cleanup hook #%d: %s",
+                                self.log_identifier,
+                                i,
+                                result,
+                                exc_info=result,
+                            )
+
+                future = asyncio.run_coroutine_threadsafe(
+                    run_tool_cleanup(), self._async_loop
+                )
+                try:
+                    future.result(timeout=15)  # Wait for cleanup to complete
+                    log.info("%s All tool cleanup hooks executed.", self.log_identifier)
+                except Exception as e:
+                    log.error(
+                        "%s Exception while waiting for tool cleanup hooks to finish: %s",
+                        self.log_identifier,
+                        e,
+                    )
+            else:
+                log.warning(
+                    "%s Cannot execute tool cleanup hooks because the async loop is not running.",
+                    self.log_identifier,
                 )
 
         # The base class cleanup() will handle stopping the async loop and joining the thread.
