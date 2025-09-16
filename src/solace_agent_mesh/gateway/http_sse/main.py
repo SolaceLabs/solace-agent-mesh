@@ -30,8 +30,6 @@ from ...gateway.http_sse.routers import (
     tasks,
     visualization,
 )
-
-# Import persistence-aware controllers
 from .routers.sessions import router as session_router
 from .routers.tasks import router as task_router
 from .routers.users import router as user_router
@@ -59,12 +57,13 @@ def setup_dependencies(component: "WebUIBackendComponent", database_url: str = N
     if database_url:
         dependencies.init_database(database_url)
         log.info("Persistence enabled - sessions will be stored in database")
-        
+
         log.info("Checking database migrations...")
 
         # Run community migrations first
         try:
             from sqlalchemy import create_engine
+
             engine = create_engine(database_url)
             inspector = sa.inspect(engine)
             existing_tables = inspector.get_table_names()
@@ -80,9 +79,14 @@ def setup_dependencies(component: "WebUIBackendComponent", database_url: str = N
                 command.upgrade(alembic_cfg, "head")
                 log.info("Community database migrations complete.")
             else:
-                log.info("Community database tables already exist, skipping community migrations.")
+                log.info(
+                    "Community database tables already exist, skipping community migrations."
+                )
         except Exception as e:
-            log.warning("Community migration check failed, attempting to run migrations anyway: %s", e)
+            log.warning(
+                "Community migration check failed, attempting to run migrations anyway: %s",
+                e,
+            )
             try:
                 alembic_cfg = Config()
                 alembic_cfg.set_main_option(
@@ -93,11 +97,16 @@ def setup_dependencies(component: "WebUIBackendComponent", database_url: str = N
                 command.upgrade(alembic_cfg, "head")
                 log.info("Community database migrations complete.")
             except Exception as migration_error:
-                log.warning("Community migration failed but continuing: %s", migration_error)
+                log.warning(
+                    "Community migration failed but continuing: %s", migration_error
+                )
 
         # Run enterprise migrations after community migrations
         try:
-            from solace_agent_mesh_enterprise.migration_runner import run_migrations
+            from solace_agent_mesh_enterprise.webui_backend.migration_runner import (
+                run_migrations,
+            )
+
             webui_app = component.get_app()
             app_config = getattr(webui_app, "app_config", {}) if webui_app else {}
             log.info("Running enterprise migrations...")
