@@ -44,8 +44,8 @@ from ...agent.utils.context_helpers import get_original_session_id
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
-CATEGORY_NAME = "Data Analysis Tools"
-CATEGORY_DESCRIPTION = "Tools for data analysis and visualization."
+CATEGORY_NAME = "Data Analysis"
+CATEGORY_DESCRIPTION = "Create static chart images from data in JSON or YAML format."
 
 async def create_chart_from_plotly_config(
     config_content: str,

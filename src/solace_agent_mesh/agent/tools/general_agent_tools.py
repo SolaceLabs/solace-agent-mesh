@@ -30,7 +30,7 @@ from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
-CATEGORY_NAME = "General Tools"
+CATEGORY_NAME = "internal"
 CATEGORY_DESCRIPTION = "Tools for general purpose tasks like file conversion and diagram generation."
 
 def _simple_truncate_text(text: str, max_bytes: int = 2048) -> Tuple[str, bool]:
