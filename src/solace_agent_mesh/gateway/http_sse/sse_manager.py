@@ -67,7 +67,6 @@ class SSEManager:
         else:
             return str(obj)
 
-
     async def create_sse_connection(self, task_id: str) -> asyncio.Queue:
         """
         Creates a new queue for an SSE connection subscribing to a task.
@@ -159,8 +158,7 @@ class SSEManager:
 
             try:
                 serialized_data = json.dumps(
-                    self._sanitize_json(event_data),
-                    allow_nan=False
+                    self._sanitize_json(event_data), allow_nan=False
                 )
             except Exception as json_err:
                 log.error(
