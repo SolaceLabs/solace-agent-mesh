@@ -377,7 +377,7 @@ async def load_adk_tools(
 
                     # 2. DynamicTool Init
                     for tool_instance in newly_loaded_tools:
-                        if isinstance(tool_instance, DynamicTool):
+                        if is_subclass_by_name(type(tool_instance), "DynamicTool"):
                             log.info(
                                 "%s Executing .init() method for DynamicTool '%s'.",
                                 component.log_identifier,
@@ -396,7 +396,7 @@ async def load_adk_tools(
 
                     dynamic_cleanup_partials = []
                     for tool_instance in newly_loaded_tools:
-                        if isinstance(tool_instance, DynamicTool):
+                        if is_subclass_by_name(type(tool_instance), "DynamicTool"):
                             dynamic_cleanup_partials.append(
                                 functools.partial(
                                     tool_instance.cleanup, component, tool_config_model
