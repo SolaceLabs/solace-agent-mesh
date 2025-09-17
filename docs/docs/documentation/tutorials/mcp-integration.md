@@ -17,7 +17,7 @@ MCP integration allows your agents to connect to external MCP servers and use th
 
 ## Setting Up the Environment
 
-You must [install Solace Agent Mesh and SAM CLI](../getting-started/installation.md), and then [create a new Solace Agent Mesh project](../getting-started/quick-start.md).
+You must [install Solace Agent Mesh and Solace Agent Mesh CLI](../getting-started/installation.md), and then [create a new Solace Agent Mesh project](../getting-started/quick-start.md).
 
 For this tutorial using the filesystem MCP server, you also need Node.js and NPM installed.
 

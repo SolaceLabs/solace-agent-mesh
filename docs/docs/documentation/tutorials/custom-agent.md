@@ -237,7 +237,7 @@ sam-project/
 ...
 ```
 :::tip
-IN SAM, you can create an agent either by using the `sam add agent` command or by creating a new plugin of type agent, `sam plugin create your-agent --type agent`. 
+IN Solace Agent Mesh, you can create an agent either by using the `sam add agent` command or by creating a new plugin of type agent, `sam plugin create your-agent --type agent`. 
 
 This tutorial uses the `sam add agent` command to create a new agent named "Weather Agent", for an example of creating a custom agent plugin, see the [Create Agents](../user-guide/create-agents.md) tutorial.
 
@@ -920,7 +920,7 @@ Before running your weather agent, you'll need to:
 
 ## Step 7: Running the Agent
 
-To start the agent, it is preferred to build the plugin and then install it with your agent name. But for debugging or isolated development testing, you can run your agent from the `src` directory directly using the SAM CLI.
+To start the agent, it is preferred to build the plugin and then install it with your agent name. But for debugging or isolated development testing, you can run your agent from the `src` directory directly using the Solace Agent Mesh CLI.
 
 Start your weather agent for development purposes run:
 

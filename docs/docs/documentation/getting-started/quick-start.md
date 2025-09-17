@@ -15,7 +15,7 @@ To get started with Solace Agent Mesh, you can either use the preset configurati
 
 ### Run Preset Agents
 
-You can run pre-made SAM agents to quickly get started with Solace Agent Mesh without needing to set up a project from scratch. 
+You can run pre-made Solace Agent Mesh agents to quickly get started with Solace Agent Mesh without needing to set up a project from scratch. 
 
 ```sh
 docker run --rm -it -p 8000:8000 --platform linux/amd64  --env-file <your-env-file-path> solace/solace-agent-mesh:latest
@@ -79,7 +79,7 @@ solace-agent-mesh init --gui
 <details>
   <summary>Docker Alternative for Initialization</summary>
 
-You can also initialize your Solace Agent Mesh project using the official Docker image. This is helpful if you want to avoid local Python/SAM CLI installation or prefer a containerized workflow from the start.
+You can also initialize your Solace Agent Mesh project using the official Docker image. This is helpful if you want to avoid local Python/Solace Agent Mesh CLI installation or prefer a containerized workflow from the start.
 
 ```sh
 docker run --rm -it -v "$(pwd):/app" --platform linux/amd64  -p 5002:5002 solace/solace-agent-mesh:latest init --gui
@@ -139,7 +139,7 @@ To learn more about the other CLI commands, see the [CLI documentation](../conce
 <details>
   <summary>Docker Alternative for Running the Project</summary>
 
-You can also run your Solace Agent Mesh project using the official Docker image. This is helpful if you want to avoid local Python/SAM CLI installation or prefer a containerized workflow from the start.
+You can also run your Solace Agent Mesh project using the official Docker image. This is helpful if you want to avoid local Python/Solace Agent Mesh CLI installation or prefer a containerized workflow from the start.
 
 ```sh
 docker run --rm -it -v "$(pwd):/app" --platform linux/amd64  -p 8000:8000 solace/solace-agent-mesh:latest run
@@ -176,7 +176,7 @@ docker run --rm -it -v "$(pwd):/app" --platform linux/amd64  -p 8000:8000 my-cus
 :::
 </details>
 
-## Interacting with SAM
+## Interacting with Solace Agent Mesh
 
 You can use different gateway interfaces to communicate with the system such as REST, Web UI, Slack, MS Teams, and so on. To keep it simple for this demo, we use the browser UI.
 

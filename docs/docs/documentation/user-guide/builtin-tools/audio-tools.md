@@ -5,7 +5,7 @@ sidebar_position: 30
 
 # Using Text-to-Speech (TTS) Tools
 
-This guide provides technical documentation for the text-to-speech (TTS) tools available in Solace Agent Mesh (SAM).
+This guide provides technical documentation for the text-to-speech (TTS) tools available in Solace Agent Mesh.
 
 ## Overview
 

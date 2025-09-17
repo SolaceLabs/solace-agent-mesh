@@ -4,7 +4,6 @@ import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 
 import type { GenericNodeData } from "./GenericAgentNode";
 
-
 export type LLMNodeType = Node<GenericNodeData>;
 
 const LLMNode: React.FC<NodeProps<LLMNodeType>> = ({ data }) => {

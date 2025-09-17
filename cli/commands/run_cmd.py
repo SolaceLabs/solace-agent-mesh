@@ -119,7 +119,7 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
                 "shared_config"
             ):
                 click.echo(
-                    f"  Skipping discovery: {filepath.relative_to(project_root)} (underscore prefix or shared_config)"
+                    f"  Skipping discovery: {filepath} (underscore prefix or shared_config)"
                 )
                 continue
             config_files_to_run.append(str(filepath.resolve()))
@@ -129,7 +129,7 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
                 "shared_config"
             ):
                 click.echo(
-                    f"  Skipping discovery: {filepath.relative_to(project_root)} (underscore prefix or shared_config)"
+                    f"  Skipping discovery: {filepath} (underscore prefix or shared_config)"
                 )
                 continue
             if str(filepath.resolve()) not in config_files_to_run:
@@ -148,7 +148,7 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
                             "shared_config"
                         ):
                             click.echo(
-                                f"  Skipping discovery: {filepath.relative_to(path)} (underscore prefix or shared_config)"
+                                f"  Skipping discovery: {filepath} (underscore prefix or shared_config)"
                             )
                             continue
                         processed_files.add(str(filepath.resolve()))
@@ -168,7 +168,7 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
         for cf in config_files_to_run:
             if os.path.basename(cf) in skipped_basenames:
                 click.echo(
-                    f"  Skipping execution: {Path(cf).relative_to(project_root)} (due to --skip)"
+                    f"  Skipping execution: {cf} (due to --skip)"
                 )
                 continue
             final_list.append(cf)
@@ -184,9 +184,6 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
 
     click.echo(click.style("Final list of configuration files to run:", bold=True))
     for cf_path_str in config_files_to_run:
-        try:
-            click.echo(f"  - {Path(cf_path_str).relative_to(project_root)}")
-        except ValueError:
             click.echo(f"  - {cf_path_str}")
 
     return_code = _execute_with_solace_ai_connector(config_files_to_run)

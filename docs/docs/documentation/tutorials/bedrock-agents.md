@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 # Amazon Bedrock Agents Integration
 
-This tutorial walks you through the process of integrating Amazon Bedrock Agents and Flows into Solace Agent Mesh (SAM). This integration allows you to create agents that can interact with one or multiple Bedrock Agents or Flows, extending your SAM project with powerful AI capabilities from AWS.
+This tutorial walks you through the process of integrating Amazon Bedrock Agents and Flows into Solace Agent Mesh. This integration allows you to create agents that can interact with one or multiple Bedrock Agents or Flows, extending your Solace Agent Mesh project with powerful AI capabilities from AWS.
 
 ## What are Amazon Bedrock Agents and Flows?
 
@@ -14,11 +14,11 @@ Amazon Bedrock Agents are AI assistants that can be customized to perform specif
 
 Amazon Bedrock Flows are visual workflows that orchestrate multiple foundation models to solve complex problems. They allow you to chain together different AI capabilities without writing code.
 
-By integrating these services with SAM, you can:
-- Use the extensible SAM framework to combine Bedrock agents and flows with other agents.
+By integrating these services with Solace Agent Mesh, you can:
+- Use the extensible Solace Agent Mesh framework to combine Bedrock agents and flows with other agents.
 - Create conversational interfaces that leverage Bedrock agents and flows.
-- Connect your SAM agents to enterprise data sources through Bedrock.
-- Maintain a consistent experience across different agent providers by centralizing them in SAM.
+- Connect your Solace Agent Mesh agents to enterprise data sources through Bedrock.
+- Maintain a consistent experience across different agent providers by centralizing them in Solace Agent Mesh.
 
 :::info[Learn about Bedrock Agents and Flows]
 Check the official documentation for [Amazon Bedrock Agents](https://aws.amazon.com/bedrock/agents/) and [Amazon Bedrock Flows](https://aws.amazon.com/bedrock/flows/) to learn more about these features.
@@ -43,7 +43,7 @@ Follow these steps to create your Bedrock resources:
      - Configure knowledge bases (optional)
      - Set up action groups (if needed)
    - Once created, **create an alias** for your agent by selecting it and clicking "Create alias"
-   - **Copy the Agent ID and Alias ID** from the agent details page - you'll need these for the SAM configuration
+   - **Copy the Agent ID and Alias ID** from the agent details page - you'll need these for the Solace Agent Mesh configuration
 
 3. **Create Bedrock Flows**
    - Go to the **Flows** tab in the Bedrock console
@@ -52,7 +52,7 @@ Follow these steps to create your Bedrock resources:
    - Connect nodes to create your workflow
    - Test and publish your flow
    - **Create an alias** for your flow
-   - **Copy the Flow ID and Alias ID** - you'll need these for the SAM configuration
+   - **Copy the Flow ID and Alias ID** - you'll need these for the Solace Agent Mesh configuration
 
 4. **Set up IAM permissions**
    - Ensure your IAM user or role has the following permissions:
@@ -60,18 +60,18 @@ Follow these steps to create your Bedrock resources:
      - `bedrock:InvokeFlow`
      - Any other permissions required by your specific Bedrock configuration
 
-### Create a SAM Project
+### Create a Solace Agent Mesh Project
 
-You must [install Solace Agent Mesh and Solace Mesh Agent (SAM) CLI](../getting-started/installation.md), and then you'll want to [create a new Solace Agent Mesh project](../getting-started/quick-start.md).
+You must [install Solace Agent Mesh and Solace Mesh Agent CLI](../getting-started/installation.md), and then you'll want to [create a new Solace Agent Mesh project](../getting-started/quick-start.md).
 
 
-## Integrating Bedrock with SAM
+## Integrating Bedrock with Solace Agent Mesh
 
 ### Adding the Bedrock Agent Plugin
 
-The `sam-bedrock-agent` plugin from the [solace-agent-mesh-core-plugins](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/sam-bedrock-agent) repository creates a bridge between SAM and Amazon Bedrock services. This plugin allows your SAM agents to invoke Bedrock Agents and Flows as tools.
+The `sam-bedrock-agent` plugin from the [solace-agent-mesh-core-plugins](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/sam-bedrock-agent) repository creates a bridge between Solace Agent Mesh and Amazon Bedrock services. This plugin allows your Solace Agent Mesh agents to invoke Bedrock Agents and Flows as tools.
 
-1. **Add the plugin to your SAM project**:
+1. **Add the plugin to your Solace Agent Mesh project**:
 
 ```sh
 sam plugin add aws-agent --plugin sam-bedrock-agent
@@ -86,10 +86,10 @@ This command:
 
 2. **Locate the configuration file**:
 
-The command creates an `aws-agent.yaml` file in the `configs/agents/` directory of your SAM project.
+The command creates an `aws-agent.yaml` file in the `configs/agents/` directory of your Solace Agent Mesh project.
 
 :::tip[Naming Convention]
-Choose a descriptive name that reflects the purpose of your Bedrock integration. This name is used to reference the agent in your SAM project.
+Choose a descriptive name that reflects the purpose of your Bedrock integration. This name is used to reference the agent in your Solace Agent Mesh project.
 :::
 
 ## Configuring the Bedrock Agent
@@ -239,7 +239,7 @@ The Bedrock agent integration requires standard Solace connection variables and 
 - **SOLACE_BROKER_USERNAME**: Username for Solace broker authentication
 - **SOLACE_BROKER_PASSWORD**: Password for Solace broker authentication
 - **SOLACE_BROKER_VPN**: Solace message VPN name
-- **SOLACE_AGENT_MESH_NAMESPACE**: Namespace for your SAM project
+- **SOLACE_AGENT_MESH_NAMESPACE**: Namespace for your Solace Agent Mesh project
 
 #### Optional AWS Variables:
 If you prefer to use environment variables for AWS authentication instead of configuration in the YAML file:
@@ -258,9 +258,9 @@ AWS credentials are loaded in this order:
 
 ## Running and Testing Your Integration
 
-### Starting Your SAM Project
+### Starting Your Solace Agent Mesh Project
 
-After configuring your Bedrock agent integration, run your SAM project:
+After configuring your Bedrock agent integration, run your Solace Agent Mesh project:
 
 ```sh
 sam run configs/agents/aws-agent.yaml
@@ -270,7 +270,7 @@ This command starts the Bedrock agent with your specific configuration.
 
 ### Testing the Integration
 
-You can test your Bedrock agent integration through any gateway in your SAM project:
+You can test your Bedrock agent integration through any gateway in your Solace Agent Mesh project:
 
 #### Using the Web UI Gateway
 
@@ -334,7 +334,7 @@ There's a limit of 5 files with a total size of 10MB per request.
 
 #### Connection Issues
 
-**Issue**: SAM can't connect to Bedrock services
+**Issue**: Solace Agent Mesh can't connect to Bedrock services
 **Solution**:
 - Check your network connectivity
 - Verify that Bedrock services are available in your configured region

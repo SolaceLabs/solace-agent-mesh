@@ -8,13 +8,13 @@ import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/
 import type { TextPart } from "@/lib/types";
 import { Button, ChatMessageList, CHAT_STYLES } from "@/lib/components/ui";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
-import { useChatContext, useSessionPreview, useTaskContext } from "@/lib/hooks";
+import { useChatContext, useTaskContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
 import { ChatSessionDialog } from "../chat/ChatSessionDialog";
 import { SessionSidePanel } from "../chat/SessionSidePanel";
-import DeleteConfirmationModal from "../chat/DeleteConfirmationModal";
+import { ChatSessionDeleteDialog } from "../chat/ChatSessionDeleteDialog";
 import type { ChatMessageListRef } from "../ui/chat/chat-message-list";
 
 // Constants for sidepanel behavior
@@ -44,12 +44,11 @@ export function ChatPage({ onExitProject }: ChatPageProps) {
 
     const { activeProject, setActiveProject } = useProjectContext();
     const { agents, sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete } = useChatContext();
+
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
-    const sessionPreview = useSessionPreview();
     const [isChatSessionDialogOpen, setChatSessionDialogOpen] = useState(false);
-
 
     // Refs for resizable panel state
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
@@ -138,7 +137,7 @@ export function ChatPage({ onExitProject }: ChatPageProps) {
             setSelectedAgentName(agentName);
 
             const selectedAgent = agents.find(agent => agent.name === agentName);
-            const displayedText = selectedAgent?.display_name ? `Hi! I'm the ${selectedAgent?.display_name} Agent. How can I help?` : `Hi! I'm ${agentName}. How can I help?`;
+            const displayedText = selectedAgent?.displayName ? `Hi! I'm the ${selectedAgent?.displayName} Agent. How can I help?` : `Hi! I'm ${agentName}. How can I help?`;
 
             setMessages(prev => {
                 const filteredMessages = prev.filter(msg => !msg.isStatusBubble);
@@ -211,7 +210,7 @@ export function ChatPage({ onExitProject }: ChatPageProps) {
             </div>
             <div className={`transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
                 <Header
-                    title={sessionPreview}
+                    title={sessionName || "New Chat"}
                     leadingAction={
                         isSessionSidePanelCollapsed ? (
                             <div className="flex items-center gap-2">
@@ -286,12 +285,7 @@ export function ChatPage({ onExitProject }: ChatPageProps) {
                 </div>
             </div>
             <ChatSessionDialog isOpen={isChatSessionDialogOpen} onClose={() => setChatSessionDialogOpen(false)} />
-            <DeleteConfirmationModal
-                isOpen={!!sessionToDelete}
-                onClose={closeSessionDeleteModal}
-                onConfirm={confirmSessionDelete}
-                sessionName={sessionToDelete?.name || `Session ${sessionToDelete?.id.substring(0, 8)}`}
-            />
+            <ChatSessionDeleteDialog isOpen={!!sessionToDelete} onClose={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || `Session ${sessionToDelete?.id.substring(0, 8)}`} />
         </div>
     );
 }

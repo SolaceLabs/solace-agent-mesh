@@ -14,7 +14,7 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-from solace_agent_mesh.gateway.http_sse.infrastructure.persistence.models import Base
+from solace_agent_mesh.gateway.http_sse.repository import Base
 
 target_metadata = Base.metadata
 

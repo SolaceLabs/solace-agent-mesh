@@ -3,27 +3,27 @@ Defines FastAPI dependency injectors to access shared resources
 managed by the WebUIBackendComponent.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
 from fastapi import Depends, HTTPException, Request, status
 from solace_ai_connector.common.log import log
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 from ...common.agent_registry import AgentRegistry
 from ...common.middleware.config_resolver import ConfigResolver
 from ...common.services.identity_service import BaseIdentityService
 from ...core_a2a.service import CoreA2AService
 from ...gateway.base.task_context import TaskContextManager
-from ...gateway.http_sse.services.agent_service import AgentService
+from ...gateway.http_sse.services.agent_card_service import AgentCardService
 from ...gateway.http_sse.services.people_service import PeopleService
 from ...gateway.http_sse.services.task_service import TaskService
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
-from .application.services.session_service import SessionService
-from .application.services.project_service import ProjectService
-from .domain.repositories.project_repository import IProjectRepository
-from .infrastructure.repositories.persistence_service import PersistenceService
-from .infrastructure.dependency_injection.container import get_container
+from .repository import Message, MessageRepository, SessionRepository
+from .services.session_service import SessionService
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
 
 sac_component_instance: "WebUIBackendComponent" = None
-persistence_service_instance: "PersistenceService" = None
+SessionLocal: sessionmaker = None
 
 api_config: dict[str, Any] | None = None
 
@@ -52,27 +52,15 @@ def set_component_instance(component: "WebUIBackendComponent"):
         log.warning("[Dependencies] SAC Component instance already set.")
 
 
-def set_persistence_service(persistence_service: "PersistenceService"):
-    """Called by the component during its startup to provide its instance."""
-    global persistence_service_instance
-    if persistence_service_instance is None:
-        persistence_service_instance = persistence_service
-        log.info("[Dependencies] Persistence Service instance provided.")
+def init_database(database_url: str):
+    """Initialize database with direct sessionmaker."""
+    global SessionLocal
+    if SessionLocal is None:
+        engine = create_engine(database_url)
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        log.info("[Dependencies] Database initialized.")
     else:
-        log.warning("[Dependencies] Persistence Service instance already set.")
-
-
-def get_persistence_service() -> "PersistenceService":
-    """FastAPI dependency to get the PersistenceService instance."""
-    if persistence_service_instance is None:
-        log.warning(
-            "[Dependencies] PersistenceService not available - running in compatibility mode"
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Persistence service not available in compatibility mode.",
-        )
-    return persistence_service_instance
+        log.warning("[Dependencies] Database already initialized.")
 
 
 def set_api_config(config: dict[str, Any]):
@@ -326,12 +314,12 @@ def get_task_context_manager_from_component(
     return component.task_context_manager
 
 
-def get_agent_service(
+def get_agent_card_service(
     registry: AgentRegistry = Depends(get_agent_registry),
-) -> AgentService:
-    """FastAPI dependency to get an instance of AgentService."""
-    log.debug("[Dependencies] get_agent_service called")
-    return AgentService(agent_registry=registry)
+) -> AgentCardService:
+    """FastAPI dependency to get an instance of AgentCardService."""
+    log.debug("[Dependencies] get_agent_card_service called")
+    return AgentCardService(agent_registry=registry)
 
 
 def get_task_service(
@@ -360,63 +348,141 @@ def get_task_service(
     )
 
 
-def get_session_service(
-    component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> SessionService:
-    log.debug("[Dependencies] get_session_service called")
-
-    if (
-        hasattr(component, "persistence_service")
-        and component.persistence_service is not None
-    ):
-        log.debug("Using database-backed session service")
-        container = component.persistence_service.container
-        return container.get_session_service()
-    else:
-        log.debug("No database configured - session persistence not available")
+def get_db() -> Generator[Session, None, None]:
+    if SessionLocal is None:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Session management requires database configuration. Configure 'database_url' in your gateway configuration.",
+            detail="Session management requires database configuration.",
         )
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def get_session_business_service(
+    db: Session = Depends(get_db),
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> SessionService:
+    log.debug("[Dependencies] get_session_business_service called")
+
+    session_repository = SessionRepository(db)
+    message_repository = MessageRepository(db)
+    return SessionService(session_repository, message_repository, component)
+
+
+@contextmanager
+def create_session_service_with_transaction():
+    """Create session data access service with its own transaction for non-HTTP contexts."""
+    if SessionLocal is None:
+        raise RuntimeError("Database not configured")
+
+    db = SessionLocal()
+    try:
+        session_repository = SessionRepository(db)
+        message_repository = MessageRepository(db)
+
+        # Create a simple data access object for transaction contexts
+        # This provides the basic repository operations without business logic
+        class SessionDataAccess:
+            def __init__(self, session_repo, message_repo):
+                self.session_repository = session_repo
+                self.message_repository = message_repo
+
+            def add_message_to_session(
+                self,
+                session_id,
+                user_id,
+                message,
+                sender_type,
+                sender_name,
+                agent_id=None,
+            ):
+                # Simple data access - just save the message
+                from uuid import uuid4
+
+                from .shared.enums import MessageType
+                from .shared import now_epoch_ms
+
+                message_entity = Message(
+                    id=str(uuid4()),
+                    session_id=session_id,
+                    message=message,
+                    sender_type=sender_type,
+                    sender_name=sender_name,
+                    message_type=MessageType.TEXT,
+                    created_time=now_epoch_ms(),
+                )
+                return self.message_repository.save(message_entity)
+
+            def get_session(self, session_id, user_id):
+                # Use the session repository to find the session
+                return self.session_repository.find_user_session(session_id, user_id)
+
+            def create_session(
+                self, user_id, name=None, agent_id=None, session_id=None
+            ):
+                # Create a new session using the session repository
+                from uuid import uuid4
+
+                from .repository.entities import Session
+                from .shared import now_epoch_ms
+
+                if not session_id:
+                    session_id = str(uuid4())
+
+                # Leave name as None/empty - frontend will generate display name if needed
+
+                now_ms = now_epoch_ms()
+                session = Session(
+                    id=session_id,
+                    user_id=user_id,
+                    name=name,
+                    agent_id=agent_id,
+                    created_time=now_ms,
+                    updated_time=now_ms,
+                )
+
+                return self.session_repository.save(session)
+
+        session_service = SessionDataAccess(session_repository, message_repository)
+        yield session_service, db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def get_session_validator(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> Callable[[str, str], bool]:
-    """
-    FastAPI dependency that returns a session validator function.
-
-    With database: Validates sessions against database
-    Without database: Validates sessions using basic checks (session exists in recent activity)
-    """
     log.debug("[Dependencies] get_session_validator called")
 
-    # Check if component has a persistence service (database-backed)
-    if (
-        hasattr(component, "persistence_service")
-        and component.persistence_service is not None
-    ):
+    if SessionLocal:
         log.debug("Using database-backed session validation")
 
         def validate_with_database(session_id: str, user_id: str) -> bool:
-            container = component.persistence_service.container
-            session_service = container.get_session_service()
-            session_domain = session_service.get_session(
-                session_id=session_id, user_id=user_id
-            )
-            return session_domain is not None
+            try:
+                with create_session_service_with_transaction() as (session_service, db):
+                    session_domain = session_service.get_session(session_id, user_id)
+                    return session_domain is not None
+            except:
+                return False
 
         return validate_with_database
     else:
         log.debug("No database configured - using basic session validation")
 
         def validate_without_database(session_id: str, user_id: str) -> bool:
-            """Basic validation: check session ID format and user authentication"""
-            # Validate session ID format (should be web-session-* format from SessionManager)
             if not session_id or not session_id.startswith("web-session-"):
                 return False
-            # If user_id is provided (authenticated), allow access
-            # This provides basic security while allowing filesystem-based artifacts
             return bool(user_id)
 
         return validate_without_database

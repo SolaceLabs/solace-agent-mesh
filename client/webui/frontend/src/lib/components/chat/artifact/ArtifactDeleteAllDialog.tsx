@@ -6,15 +6,15 @@ import { useChatContext } from "@/lib/hooks";
 export const ArtifactDeleteAllDialog: React.FC = () => {
     const { artifacts, isBatchDeleteModalOpen, setIsBatchDeleteModalOpen, confirmBatchDeleteArtifacts, setSelectedArtifactFilenames } = useChatContext();
 
-	useEffect(() => {
-		if (!isBatchDeleteModalOpen) {
-			return;
-		}
-		
-		setSelectedArtifactFilenames(new Set(artifacts.map(artifact => artifact.filename)));
-	}, [artifacts, isBatchDeleteModalOpen, setSelectedArtifactFilenames]);
+    useEffect(() => {
+        if (!isBatchDeleteModalOpen) {
+            return;
+        }
 
-    if (!isBatchDeleteModalOpen) {	
+        setSelectedArtifactFilenames(new Set(artifacts.map(artifact => artifact.filename)));
+    }, [artifacts, isBatchDeleteModalOpen, setSelectedArtifactFilenames]);
+
+    if (!isBatchDeleteModalOpen) {
         return null;
     }
 
@@ -23,9 +23,7 @@ export const ArtifactDeleteAllDialog: React.FC = () => {
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Delete All?</DialogTitle>
-                    <DialogDescription>
-                        {artifacts.length === 1 ? "One file" : `All ${artifacts.length} files`} will be permanently deleted.
-                    </DialogDescription>
+                    <DialogDescription>{artifacts.length === 1 ? "One file" : `All ${artifacts.length} files`} will be permanently deleted.</DialogDescription>
                 </DialogHeader>
                 <div className="flex justify-end space-x-2">
                     <Button variant="outline" onClick={() => setIsBatchDeleteModalOpen(false)}>

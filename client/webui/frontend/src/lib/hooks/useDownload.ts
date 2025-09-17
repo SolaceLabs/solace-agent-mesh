@@ -12,16 +12,16 @@ import { useConfigContext } from "./useConfigContext";
  * @param artifact - The artifact to download
  */
 const downloadArtifactFile = async (apiPrefix: string, sessionId: string, artifact: ArtifactInfo) => {
-	const response = await authenticatedFetch(`${apiPrefix}/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifact.filename)}`, {
-		credentials: "include",
-	});
+    const response = await authenticatedFetch(`${apiPrefix}/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifact.filename)}`, {
+        credentials: "include",
+    });
 
-	if (!response.ok) {
-		throw new Error(`Failed to download artifact: ${artifact.filename}. Status: ${response.status}`);
-	}
+    if (!response.ok) {
+        throw new Error(`Failed to download artifact: ${artifact.filename}. Status: ${response.status}`);
+    }
 
-	const blob = await response.blob();
-	downloadBlob(blob, artifact.filename);
+    const blob = await response.blob();
+    downloadBlob(blob, artifact.filename);
 };
 
 /**
@@ -29,24 +29,24 @@ const downloadArtifactFile = async (apiPrefix: string, sessionId: string, artifa
  * @returns Object containing download handler function
  */
 export const useDownload = () => {
-	const { configServerUrl } = useConfigContext();
-	const { addNotification, sessionId } = useChatContext();
+    const { configServerUrl } = useConfigContext();
+    const { addNotification, sessionId } = useChatContext();
 
-	const onDownload = async (artifact: ArtifactInfo) => {
-		if (!sessionId) {
-			addNotification(`Cannot download artifact: No active session.`, "error");
-			return;
-		}
+    const onDownload = async (artifact: ArtifactInfo) => {
+        if (!sessionId) {
+            addNotification(`Cannot download artifact: No active session.`, "error");
+            return;
+        }
 
-		try {
-			await downloadArtifactFile(configServerUrl, sessionId, artifact);
-			addNotification(`Downloaded artifact: ${artifact.filename}.`);
-		} catch {
-			addNotification(`Failed to download artifact: ${artifact.filename}.`, "error");
-		}
-	};
+        try {
+            await downloadArtifactFile(configServerUrl, sessionId, artifact);
+            addNotification(`Downloaded artifact: ${artifact.filename}.`);
+        } catch {
+            addNotification(`Failed to download artifact: ${artifact.filename}.`, "error");
+        }
+    };
 
-	return {
-		onDownload
-	}
+    return {
+        onDownload,
+    };
 };

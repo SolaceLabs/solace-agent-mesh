@@ -5,19 +5,19 @@ sidebar_position: 50
 
 # MongoDB Integration
 
-This tutorial sets up a MongoDB agent in Solace Agent Mesh (SAM), which allows the SAM agent to answer natural language queries about a Mongo database. The agent translates user questions into MongoDB aggregation pipelines and executes them against your database.
+This tutorial sets up a MongoDB agent in Solace Agent Mesh, which allows the Solace Agent Mesh agent to answer natural language queries about a Mongo database. The agent translates user questions into MongoDB aggregation pipelines and executes them against your database.
 
 ## Prerequisites
 
 Before starting this tutorial, ensure that you have installed and configured Solace Agent Mesh:
 
-- [Installed Solace Agent Mesh and the SAM CLI](../getting-started/installation.md)
+- [Installed Solace Agent Mesh and the Solace Agent Mesh CLI](../getting-started/installation.md)
 - [Created a new Solace Agent Mesh project](../getting-started/quick-start.md)
 - Access to a MongoDB database (local or remote)
 
 ## Adding the MongoDB Plugin
 
-Add the MongoDB plugin to your SAM project:
+Add the MongoDB plugin to your Solace Agent Mesh project:
 
 ```sh
 sam plugin add coffee-shop-mongo --plugin sam-mongodb
@@ -136,7 +136,7 @@ The agent:
 
 ## Interacting with the Database
 
-After your MongoDB agent is running, you can interact with the database through any gateway in your SAM project (such as the Web UI gateway at `http://localhost:8000`).
+After your MongoDB agent is running, you can interact with the database through any gateway in your Solace Agent Mesh project (such as the Web UI gateway at `http://localhost:8000`).
 
 You can ask natural language questions about your MongoDB database, such as:
 
@@ -248,7 +248,7 @@ apps:
 
 ## Customizing the Agent Card
 
-The `agent_card` section is crucial as it defines how other agents in your SAM ecosystem discover and understand this MongoDB agent's capabilities. When other agents use agent discovery, they can see this information to decide whether to delegate tasks to your database agent.
+The `agent_card` section is crucial as it defines how other agents in your Solace Agent Mesh ecosystem discover and understand this MongoDB agent's capabilities. When other agents use agent discovery, they can see this information to decide whether to delegate tasks to your database agent.
 
 ### Key Agent Card Elements
 

@@ -57,7 +57,7 @@ class RunSummary:
     query: str = ""
     target_agent: str = ""
     namespace: str = ""
-    session_id: str = ""
+    context_id: str = ""
     final_status: str = ""
     final_message: str = ""
     time_metrics: TimeMetrics = field(default_factory=TimeMetrics)
@@ -74,7 +74,7 @@ class RunSummary:
             "query": self.query,
             "target_agent": self.target_agent,
             "namespace": self.namespace,
-            "session_id": self.session_id,
+            "context_id": self.context_id,
             "final_status": self.final_status,
             "final_message": self.final_message,
             "start_time": self.time_metrics.start_time,
@@ -105,9 +105,6 @@ class RunSummary:
                     "artifact_name": art.artifact_name,
                     "directory": art.directory,
                     "versions": art.versions,
-                    "created_by_tool": art.created_by_tool,
-                    "created_by_call_id": art.created_by_call_id,
-                    "creation_timestamp": art.creation_timestamp,
                 }
                 for art in self.output_artifacts
             ],
@@ -311,12 +308,13 @@ class MessageProcessor:
         return None, None
 
     @staticmethod
-    def extract_session_id(first_message: Dict[str, Any]) -> Optional[str]:
-        """Extract session ID from the first message."""
+    def extract_context_id(first_message: Dict[str, Any]) -> Optional[str]:
+        """Extract context ID from the first message."""
         try:
             payload = first_message.get("payload", {})
             params = payload.get("params", {})
-            return params.get("sessionId")
+            message = params.get("message", {})
+            return message.get("contextId")
         except KeyError:
             return None
 
@@ -357,27 +355,22 @@ class MessageProcessor:
                 result = payload.get("result", {})
                 status = result.get("status", {})
                 message_data = status.get("message", {})
-                metadata = message_data.get("metadata", {})
-                data = metadata.get("data", {})
-                content = data.get("content", {})
-                parts = content.get("parts", [])
+                parts = message_data.get("parts", [])
 
                 for part in parts:
-                    function_call = part.get("function_call", {})
-                    if not function_call:
-                        continue
-
-                    call_id = function_call.get("id")
-                    if call_id and call_id not in processed_tool_calls:
-                        tool_call = ToolCall(
-                            call_id=call_id,
-                            agent=result.get("metadata", {}).get("agent_name", ""),
-                            tool_name=function_call.get("name", ""),
-                            arguments=function_call.get("args", {}),
-                            timestamp=status.get("timestamp", ""),
-                        )
-                        tool_calls.append(tool_call)
-                        processed_tool_calls.add(call_id)
+                    data = part.get("data", {})
+                    if data.get("type") == "tool_invocation_start":
+                        call_id = data.get("function_call_id")
+                        if call_id and call_id not in processed_tool_calls:
+                            tool_call = ToolCall(
+                                call_id=call_id,
+                                agent=result.get("metadata", {}).get("agent_name", ""),
+                                tool_name=data.get("tool_name", ""),
+                                arguments=data.get("tool_args", {}),
+                                timestamp=status.get("timestamp", ""),
+                            )
+                            tool_calls.append(tool_call)
+                            processed_tool_calls.add(call_id)
 
             except (KeyError, IndexError):
                 continue
@@ -392,11 +385,11 @@ class ArtifactService:
         self.base_path = base_path
         self.user_identity = user_identity
 
-    def get_artifact_info(self, namespace: str, session_id: str) -> List[ArtifactInfo]:
+    def get_artifact_info(self, namespace: str, context_id: str) -> List[ArtifactInfo]:
         """Retrieve information about artifacts from the session directory."""
         artifact_info = []
         session_dir = os.path.join(
-            self.base_path, namespace, self.user_identity, session_id
+            self.base_path, namespace, self.user_identity, context_id
         )
 
         if not os.path.isdir(session_dir):
@@ -652,9 +645,9 @@ class SummaryBuilder:
                 "Could not find target agent and namespace in the first message."
             )
 
-        session_id = self.message_processor.extract_session_id(first_message)
-        if session_id:
-            summary.session_id = session_id
+        context_id = self.message_processor.extract_context_id(first_message)
+        if context_id:
+            summary.context_id = context_id
 
         # Extract final status information
         final_status, final_message = self.message_processor.extract_final_status_info(
@@ -699,7 +692,7 @@ class SummaryBuilder:
 
     def _add_artifact_information(self, summary: RunSummary, test_case: Dict[str, Any]):
         """Add artifact information if configuration is available."""
-        if not summary.namespace or not summary.session_id:
+        if not summary.namespace or not summary.context_id:
             return
 
         try:
@@ -710,7 +703,7 @@ class SummaryBuilder:
 
             # Get and categorize artifacts
             all_artifacts = self.artifact_service.get_artifact_info(
-                summary.namespace, summary.session_id
+                summary.namespace, summary.context_id
             )
 
             input_artifacts, output_artifacts = (

@@ -21,17 +21,8 @@ apps:
     # --- App Level Config (Validated by WebUIBackendApp.app_schema) ---
     app_config:
       # --- Required ---
-      namespace: ${NAMESPACE, a2a/dev} # Namespace for A2A communication
-      session_secret_key: ${SESSION_SECRET_KEY, please_change_me_in_production} # Secret for web sessions
-      # --- Authorization Service (Required for proper access control) ---
-      authorization_service:
-        type: "default_rbac"
-        role_definitions_path: "examples/auth/dev-roles.yaml"
-        user_assignments_path: "examples/auth/dev-users.yaml"
-      session_service:
-        type: sql
-        database_url: ${WEB_UI_GATEWAY_DATABASE_URL}
-        default_behavior: "PERSISTENT"
+      namespace: ${NAMESPACE} # Namespace for A2A communication
+      session_secret_key: "${SESSION_SECRET_KEY}" # Secret for web sessions
 
       # --- Authorization Service (Required for proper access control) ---
       # authorization_service:
@@ -47,7 +38,10 @@ apps:
 
       # --- Artifact Service (Required) ---
       artifact_service: *default_artifact_service # Points to shared_config.yaml
-
+      session_service:
+        type: "sql"
+        database_url: "${WEB_UI_GATEWAY_DATABASE_URL}"
+        default_behavior: "PERSISTENT"
       # --- Optional with Defaults ---
       gateway_id: ${WEBUI_GATEWAY_ID} # Optional: Unique ID for this instance. If omitted, one will be generated.
       fastapi_host: ${FASTAPI_HOST, localhost} # Host for the FastAPI server

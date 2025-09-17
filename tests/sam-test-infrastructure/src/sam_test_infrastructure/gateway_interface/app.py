@@ -6,6 +6,7 @@ creates the TestGatewayComponent.
 
 from typing import Any, Dict, List, Type
 
+from pydantic import ValidationError
 from solace_ai_connector.common.log import log
 
 from solace_agent_mesh.gateway.base.app import BaseGatewayApp
@@ -37,6 +38,7 @@ class TestGatewayApp(BaseGatewayApp):
             "%s Initializing TestGatewayApp...",
             app_info.get("name", "TestGatewayApp"),
         )
+
         app_info.setdefault("broker", {})
         app_info["broker"]["dev_mode"] = True
 
