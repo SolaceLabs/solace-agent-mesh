@@ -245,7 +245,7 @@ async def auth_tool_callback(
     
     try:
         from solace_agent_mesh_enterprise.auth.input_required import process_response
-        process_response(component, code, state)
+        await process_response(component, code, state)
     except ImportError:
         pass
 
