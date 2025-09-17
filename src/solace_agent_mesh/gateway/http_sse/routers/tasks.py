@@ -15,7 +15,7 @@ from solace_ai_connector.common.log import log
 
 from ....gateway.http_sse.session_manager import SessionManager
 from ....gateway.http_sse.services.task_service import TaskService
-from ..application.services.project_service import ProjectService
+from ..services.project_service import ProjectService
 
 from a2a.types import (
     CancelTaskRequest,
@@ -30,6 +30,7 @@ from ....gateway.http_sse.dependencies import (
     get_session_manager,
     get_sac_component,
     get_task_service,
+    get_session_business_service,
 )
 from ....gateway.http_sse.dependencies import get_project_service
 from ....agent.utils.artifact_helpers import (
@@ -37,7 +38,7 @@ from ....agent.utils.artifact_helpers import (
     load_artifact_content_or_metadata,
     save_artifact_with_metadata,
 )
-from ..application.services.project_service import GLOBAL_PROJECT_USER_ID
+from ..services.project_service import GLOBAL_PROJECT_USER_ID
 from datetime import datetime, timezone
 
 from typing import TYPE_CHECKING
@@ -123,11 +124,11 @@ async def _submit_task(
                 from ....gateway.http_sse.dependencies import create_session_service_with_transaction
                 from ....gateway.http_sse.shared.enums import SenderType
                 
-                session_service = get_session_service(component)
+                session_service = get_session_business_service()
                 
                 # First ensure session exists in database - create it with the SessionManager's ID
                 # Handle race condition where multiple requests might try to create the same session
-                existing_session = session_service.get_session(session_id=session_id, user_id=user_id)
+                existing_session = session_service.get_session_details(session_id=session_id, user_id=user_id)
                 if not existing_session:
                     log.info("%sCreating new session in database: %s", log_prefix, session_id)
                     try:
@@ -141,7 +142,7 @@ async def _submit_task(
                     except Exception as create_error:
                         # Another request may have created the session concurrently
                         log.warning("%sSession creation failed, checking if session exists: %s", log_prefix, create_error)
-                        existing_session = session_service.get_session(session_id=session_id, user_id=user_id)
+                        existing_session = session_service.get_session(session_id, user_id)
                         if not existing_session:
                             # If session still doesn't exist, re-raise the original error
                             raise create_error
@@ -245,7 +246,7 @@ async def _submit_task(
                 else:
                     log.warning("%sFailed to store message in session %s", log_prefix, session_id)
                 with create_session_service_with_transaction() as (session_service, db):
-                    existing_session = session_service.get_session(session_id=session_id, user_id=user_id)
+                    existing_session = session_service.get_session(session_id, user_id)
                     if not existing_session:
                         log.info("%sCreating new session in database: %s", log_prefix, session_id)
                         try:
@@ -253,11 +254,12 @@ async def _submit_task(
                                 user_id=user_id,
                                 agent_id=agent_name,
                                 name=None,
-                                session_id=session_id
+                                session_id=session_id,
+                                project_id=project_id if project_id else None
                             )
                         except Exception as create_error:
                             log.warning("%sSession creation failed, checking if session exists: %s", log_prefix, create_error)
-                            existing_session = session_service.get_session(session_id=session_id, user_id=user_id)
+                            existing_session = session_service.get_session(session_id, user_id)
                             if not existing_session:
                                 raise create_error
                             log.info("%sSession was created by another request: %s", log_prefix, session_id)
