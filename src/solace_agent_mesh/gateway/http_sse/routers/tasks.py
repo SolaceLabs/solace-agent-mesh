@@ -30,7 +30,6 @@ from ....gateway.http_sse.dependencies import (
     get_session_manager,
     get_sac_component,
     get_task_service,
-    get_session_business_service,
 )
 from ....gateway.http_sse.dependencies import get_project_service
 from ....agent.utils.artifact_helpers import (
@@ -124,45 +123,38 @@ async def _submit_task(
                 from ....gateway.http_sse.dependencies import create_session_service_with_transaction
                 from ....gateway.http_sse.shared.enums import SenderType
                 
-                session_service = get_session_business_service()
-                
-                # First ensure session exists in database - create it with the SessionManager's ID
-                # Handle race condition where multiple requests might try to create the same session
-                existing_session = session_service.get_session_details(session_id=session_id, user_id=user_id)
-                if not existing_session:
-                    log.info("%sCreating new session in database: %s", log_prefix, session_id)
-                    try:
-                        session_service.create_session(
-                            user_id=user_id,
-                            agent_id=agent_name,
-                            name=None,  # Will be auto-generated if needed
-                            session_id=session_id,  # Use the SessionManager's session ID
-                            project_id=project_id if project_id else None
-                        )
-                    except Exception as create_error:
-                        # Another request may have created the session concurrently
-                        log.warning("%sSession creation failed, checking if session exists: %s", log_prefix, create_error)
-                        existing_session = session_service.get_session(session_id, user_id)
-                        if not existing_session:
-                            # If session still doesn't exist, re-raise the original error
-                            raise create_error
-                        log.info("%sSession was created by another request: %s", log_prefix, session_id)
-                
-                # Extract text content from the message for storage
-                message_text = ""
-                if payload.params and payload.params.message:
-                    parts = a2a.get_parts_from_message(payload.params.message)
-                    for part in parts:
-                        if hasattr(part, 'text'):
-                            message_text = part.text
-                            break
-                
-                # Project context injection for the first message in a session
-                if project_id and message_text:
-                    try:
-                        history = session_service.get_session_history(session_id=session_id, user_id=user_id)
-                        
-                        if not history or history.total_message_count == 0:  # First message
+                with create_session_service_with_transaction() as (session_service, db):
+                    existing_session = session_service.get_session(session_id, user_id)
+                    if not existing_session:
+                        log.info("%sCreating new session in database: %s", log_prefix, session_id)
+                        try:
+                            session_service.create_session(
+                                user_id=user_id,
+                                agent_id=agent_name,
+                                name=None,
+                                session_id=session_id,
+                                project_id=project_id if project_id else None
+                            )
+                        except Exception as create_error:
+                            log.warning("%sSession creation failed, checking if session exists: %s", log_prefix, create_error)
+                            existing_session = session_service.get_session(session_id, user_id)
+                            if not existing_session:
+                                raise create_error
+                            log.info("%sSession was created by another request: %s", log_prefix, session_id)
+                    
+                    message_text = ""
+                    if payload.params and payload.params.message:
+                        parts = a2a.get_parts_from_message(payload.params.message)
+                        for part in parts:
+                            if hasattr(part, 'text'):
+                                message_text = part.text
+                                break
+                    
+                    # Project context injection for the first message in a session
+                    if project_id and message_text:
+                        try:
+                            # Check if this is the first message by checking if session was just created
+                            # We'll use a simple heuristic: if we just created the session above, it's the first message
                             project = project_service.get_project(project_id, user_id)
                             if project:
                                 # 1. Inject project context (system prompt, description)
@@ -227,123 +219,6 @@ async def _submit_task(
                                     except Exception as e:
                                         log.warning("%sFailed to copy project artifacts to session: %s", log_prefix, e)
                                         # Do not fail the entire request, just log the warning
-                    except Exception as e:
-                        log.warning("%sFailed to inject project context: %s", log_prefix, e)
-                        # Continue without injection - don't fail the request
-                
-                # Now store the message in the existing session
-                message_domain = session_service.add_message_to_session(
-                    session_id=session_id,
-                    user_id=user_id,
-                    message=message_text or "Task submitted",
-                    sender_type=SenderType.USER,
-                    sender_name=user_id or "user",
-                    agent_id=agent_name,
-                )
-                
-                if message_domain:
-                    log.info("%sMessage stored in session %s", log_prefix, session_id)
-                else:
-                    log.warning("%sFailed to store message in session %s", log_prefix, session_id)
-                with create_session_service_with_transaction() as (session_service, db):
-                    existing_session = session_service.get_session(session_id, user_id)
-                    if not existing_session:
-                        log.info("%sCreating new session in database: %s", log_prefix, session_id)
-                        try:
-                            session_service.create_session(
-                                user_id=user_id,
-                                agent_id=agent_name,
-                                name=None,
-                                session_id=session_id,
-                                project_id=project_id if project_id else None
-                            )
-                        except Exception as create_error:
-                            log.warning("%sSession creation failed, checking if session exists: %s", log_prefix, create_error)
-                            existing_session = session_service.get_session(session_id, user_id)
-                            if not existing_session:
-                                raise create_error
-                            log.info("%sSession was created by another request: %s", log_prefix, session_id)
-                    
-                    message_text = ""
-                    if payload.params and payload.params.message:
-                        parts = a2a.get_parts_from_message(payload.params.message)
-                        for part in parts:
-                            if hasattr(part, 'text'):
-                                message_text = part.text
-                                break
-                    
-                    # Project context injection for the first message in a session
-                    if project_id and message_text:
-                        try:
-                            existing_session = session_service.get_session(session_id=session_id, user_id=user_id)
-                            if existing_session:
-                                # Check if this is the first message by getting session history
-                                # For now, we'll assume if we just created the session, it's the first message
-                                # This is a simplified approach since we don't have get_session_history in main
-                                project = project_service.get_project(project_id, user_id)
-                                if project:
-                                    # 1. Inject project context (system prompt, description)
-                                    context_parts = []
-                                    if project.system_prompt and project.system_prompt.strip():
-                                        context_parts.append(project.system_prompt.strip())
-                                    if project.description and project.description.strip():
-                                        context_parts.append(f"Project Context: {project.description.strip()}")
-                                    
-                                    if context_parts:
-                                        project_context = "\n\n".join(context_parts) + "\n\n"
-                                        message_text = project_context + message_text
-                                        log.info("%sInjected project context for project: %s", log_prefix, project_id)
-
-                                    # 2. Copy project artifacts to session
-                                    artifact_service = component.get_shared_artifact_service()
-                                    if artifact_service:
-                                        try:
-                                            source_user_id = GLOBAL_PROJECT_USER_ID if project.is_global else project.user_id
-                                            project_artifacts_session_id = f"project-{project.id}"
-                                            
-                                            log.info("%sChecking for artifacts in project %s (storage session: %s)", log_prefix, project.id, project_artifacts_session_id)
-                                            
-                                            project_artifacts = await get_artifact_info_list(
-                                                artifact_service=artifact_service,
-                                                app_name=project_service.app_name,
-                                                user_id=source_user_id,
-                                                session_id=project_artifacts_session_id,
-                                            )
-
-                                            if project_artifacts:
-                                                log.info("%sFound %d artifacts to copy from project %s.", log_prefix, len(project_artifacts), project.id)
-                                                for artifact_info in project_artifacts:
-                                                    # Load artifact content from project storage
-                                                    loaded_artifact = await load_artifact_content_or_metadata(
-                                                        artifact_service=artifact_service,
-                                                        app_name=project_service.app_name,
-                                                        user_id=source_user_id,
-                                                        session_id=project_artifacts_session_id,
-                                                        filename=artifact_info.filename,
-                                                        return_raw_bytes=True,
-                                                        version="latest"
-                                                    )
-                                                    
-                                                    # Save a copy to the current chat session
-                                                    if loaded_artifact.get("status") == "success":
-                                                        await save_artifact_with_metadata(
-                                                            artifact_service=artifact_service,
-                                                            app_name=project_service.app_name,
-                                                            user_id=user_id,
-                                                            session_id=session_id,
-                                                            filename=artifact_info.filename,
-                                                            content_bytes=loaded_artifact.get("raw_bytes"),
-                                                            mime_type=loaded_artifact.get("mime_type"),
-                                                            metadata_dict=loaded_artifact.get("metadata", {}),
-                                                            timestamp=datetime.now(timezone.utc),
-                                                        )
-                                                log.info("%sFinished copying %d artifacts to session %s.", log_prefix, len(project_artifacts), session_id)
-                                            else:
-                                                log.info("%sNo artifacts found in project %s to copy.", log_prefix, project.id)
-
-                                        except Exception as e:
-                                            log.warning("%sFailed to copy project artifacts to session: %s", log_prefix, e)
-                                            # Do not fail the entire request, just log the warning
                         except Exception as e:
                             log.warning("%sFailed to inject project context: %s", log_prefix, e)
                             # Continue without injection - don't fail the request
