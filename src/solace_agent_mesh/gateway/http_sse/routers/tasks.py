@@ -272,6 +272,82 @@ async def _submit_task(
                                 message_text = part.text
                                 break
                     
+                    # Project context injection for the first message in a session
+                    if project_id and message_text:
+                        try:
+                            existing_session = session_service.get_session(session_id=session_id, user_id=user_id)
+                            if existing_session:
+                                # Check if this is the first message by getting session history
+                                # For now, we'll assume if we just created the session, it's the first message
+                                # This is a simplified approach since we don't have get_session_history in main
+                                project = project_service.get_project(project_id, user_id)
+                                if project:
+                                    # 1. Inject project context (system prompt, description)
+                                    context_parts = []
+                                    if project.system_prompt and project.system_prompt.strip():
+                                        context_parts.append(project.system_prompt.strip())
+                                    if project.description and project.description.strip():
+                                        context_parts.append(f"Project Context: {project.description.strip()}")
+                                    
+                                    if context_parts:
+                                        project_context = "\n\n".join(context_parts) + "\n\n"
+                                        message_text = project_context + message_text
+                                        log.info("%sInjected project context for project: %s", log_prefix, project_id)
+
+                                    # 2. Copy project artifacts to session
+                                    artifact_service = component.get_shared_artifact_service()
+                                    if artifact_service:
+                                        try:
+                                            source_user_id = GLOBAL_PROJECT_USER_ID if project.is_global else project.user_id
+                                            project_artifacts_session_id = f"project-{project.id}"
+                                            
+                                            log.info("%sChecking for artifacts in project %s (storage session: %s)", log_prefix, project.id, project_artifacts_session_id)
+                                            
+                                            project_artifacts = await get_artifact_info_list(
+                                                artifact_service=artifact_service,
+                                                app_name=project_service.app_name,
+                                                user_id=source_user_id,
+                                                session_id=project_artifacts_session_id,
+                                            )
+
+                                            if project_artifacts:
+                                                log.info("%sFound %d artifacts to copy from project %s.", log_prefix, len(project_artifacts), project.id)
+                                                for artifact_info in project_artifacts:
+                                                    # Load artifact content from project storage
+                                                    loaded_artifact = await load_artifact_content_or_metadata(
+                                                        artifact_service=artifact_service,
+                                                        app_name=project_service.app_name,
+                                                        user_id=source_user_id,
+                                                        session_id=project_artifacts_session_id,
+                                                        filename=artifact_info.filename,
+                                                        return_raw_bytes=True,
+                                                        version="latest"
+                                                    )
+                                                    
+                                                    # Save a copy to the current chat session
+                                                    if loaded_artifact.get("status") == "success":
+                                                        await save_artifact_with_metadata(
+                                                            artifact_service=artifact_service,
+                                                            app_name=project_service.app_name,
+                                                            user_id=user_id,
+                                                            session_id=session_id,
+                                                            filename=artifact_info.filename,
+                                                            content_bytes=loaded_artifact.get("raw_bytes"),
+                                                            mime_type=loaded_artifact.get("mime_type"),
+                                                            metadata_dict=loaded_artifact.get("metadata", {}),
+                                                            timestamp=datetime.now(timezone.utc),
+                                                        )
+                                                log.info("%sFinished copying %d artifacts to session %s.", log_prefix, len(project_artifacts), session_id)
+                                            else:
+                                                log.info("%sNo artifacts found in project %s to copy.", log_prefix, project.id)
+
+                                        except Exception as e:
+                                            log.warning("%sFailed to copy project artifacts to session: %s", log_prefix, e)
+                                            # Do not fail the entire request, just log the warning
+                        except Exception as e:
+                            log.warning("%sFailed to inject project context: %s", log_prefix, e)
+                            # Continue without injection - don't fail the request
+                    
                     message_domain = session_service.add_message_to_session(
                         session_id=session_id,
                         user_id=user_id,
