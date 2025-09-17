@@ -221,7 +221,9 @@ async def auth_tool_callback(
     Handles OAuth2 authorization code grant response for tool authentication.
     """
     code = request.query_params.get("code")
+    state = request.query_params.get("state")
     
+
     if not code:
         log.warning("OAuth2 tool callback received without authorization code")
         return HTMLResponse(
@@ -241,6 +243,12 @@ async def auth_tool_callback(
     
     log.info(f"OAuth2 tool callback received authorization code: {code}")
     
+    try:
+        from solace_agent_mesh_enterprise.auth.input_required import process_response
+        process_response(component, code, state)
+    except ImportError:
+        pass
+
     # Return simple HTML page instructing user to close the window
     return HTMLResponse(
         content="""

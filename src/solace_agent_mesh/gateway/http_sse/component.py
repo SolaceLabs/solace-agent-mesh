@@ -1583,7 +1583,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
             return
 
-        # Intercept for input-required notifications
         try:
             from solace_agent_mesh_enterprise.auth.input_required import handle_update
             handle_update(event_data, sse_task_id)
