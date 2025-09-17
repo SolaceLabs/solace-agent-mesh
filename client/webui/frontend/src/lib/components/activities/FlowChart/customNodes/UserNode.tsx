@@ -2,7 +2,6 @@ import React from "react";
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 import type { GenericNodeData } from "./GenericAgentNode";
 
-
 export interface UserNodeData extends GenericNodeData {
     isTopNode?: boolean; // true if created by handleUserRequest
     isBottomNode?: boolean; // true if created by createNewUserNodeAtBottom

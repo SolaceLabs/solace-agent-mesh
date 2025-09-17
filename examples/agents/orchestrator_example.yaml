@@ -40,7 +40,11 @@ apps:
         - You must then review the list of artifacts and return the ones that are important for the user by using the `signal_artifact_for_return` tool.
         - Provide regular progress updates using `status_update` embed directives, especially before initiating any tool call.
 
-      session_service: *default_session_service # Points to shared_config.yaml
+      # session_service: *default_session_service # Points to shared_config.yaml
+      session_service:
+        type: "sql"
+        database_url: "${ORCHESTRATOR_DATABASE_URL}"
+        default_behavior: "PERSISTENT"    
       artifact_service: *default_artifact_service # Points to shared_config.yaml
       artifact_handling_mode: "reference" # Embed artifacts created by *this* agent
       enable_embed_resolution: true # Enable embed feature and instruction injection

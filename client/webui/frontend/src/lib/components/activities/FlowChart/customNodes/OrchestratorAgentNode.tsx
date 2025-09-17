@@ -4,7 +4,6 @@ import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 
 import type { GenericNodeData } from "./GenericAgentNode";
 
-
 export type OrchestratorAgentNodeType = Node<GenericNodeData>;
 
 const OrchestratorAgentNode: React.FC<NodeProps<OrchestratorAgentNodeType>> = ({ data }) => {

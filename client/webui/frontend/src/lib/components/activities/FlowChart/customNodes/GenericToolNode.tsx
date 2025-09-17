@@ -4,7 +4,6 @@ import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 
 import type { GenericNodeData } from "./GenericAgentNode";
 
-
 export type GenericToolNodeType = Node<GenericNodeData>;
 
 const GenericToolNode: React.FC<NodeProps<GenericToolNodeType>> = ({ data, id }) => {

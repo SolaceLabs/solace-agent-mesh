@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
-import {  Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
 const commonTextStyles = "text-[var(--color-primary-wMain)] hover:text-[var(--color-primary-text-w60)] dark:text-[var(--color-primary-w20)] dark:hover:text-[var(--color-primary-text-w10)]";
 const commonButtonStyles = commonTextStyles + " hover:bg-[var(--color-primary-w10)] dark:hover:bg-[var(--color-primary-w60)]";
@@ -56,12 +56,8 @@ function Button({
     if (tooltip) {
         return (
             <Tooltip>
-                <TooltipTrigger asChild>
-                    {ButtonComponent}
-                </TooltipTrigger>
-                <TooltipContent>
-                    {tooltip}
-                </TooltipContent>
+                <TooltipTrigger asChild>{ButtonComponent}</TooltipTrigger>
+                <TooltipContent>{tooltip}</TooltipContent>
             </Tooltip>
         );
     }

@@ -21,7 +21,7 @@ interface AgentDisplayCardProps {
 const DetailItem: React.FC<DetailItemProps> = ({ label, value, icon, fullWidthValue = false }) => {
     if (value === undefined || value === null || (typeof value === "string" && !value.trim())) return null;
     return (
-        <div className={`flex mb-1.5 text-sm ${fullWidthValue ? "flex-col items-start" : "items-center"}`}>
+        <div className={`mb-1.5 flex text-sm ${fullWidthValue ? "flex-col items-start" : "items-center"}`}>
             <div className="flex w-36 flex-shrink-0 items-center text-sm font-semibold text-nowrap">
                 {icon && <span className="mr-2">{icon}</span>}
                 {label}:
@@ -76,7 +76,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
             <div className="space-y-1">
                 {tools.map(tool => (
                     <div key={tool.name} className="rounded p-1.5 text-xs">
-                        <p className="font-semibold text-foreground">{tool.name}</p>
+                        <p className="text-foreground font-semibold">{tool.name}</p>
                         <p className="mb-1">{tool.description}</p>
                     </div>
                 ))}
@@ -85,19 +85,10 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
     };
 
     return (
-        <div
-            className="h-[400px] cursor-pointer w-full sm:w-[380px] flex-shrink-0 bg-card rounded-lg"
-            onClick={onToggleExpand}
-            role="button"
-            tabIndex={0}
-            aria-expanded={isExpanded}
-        >
+        <div className="bg-card h-[400px] w-full flex-shrink-0 cursor-pointer rounded-lg sm:w-[380px]" onClick={onToggleExpand} role="button" tabIndex={0} aria-expanded={isExpanded}>
             {/* Front face */}
             <div className={`transform-style-preserve-3d relative h-full w-full transition-transform duration-700 ${isExpanded ? "rotate-y-180" : ""}`} style={{ transformStyle: "preserve-3d" }}>
-                <div
-                    className="absolute flex h-full w-full flex-col overflow-hidden rounded-lg border shadow-xl"
-                    style={{ backfaceVisibility: "hidden", transform: "rotateY(0deg)" }}
-                >
+                <div className="absolute flex h-full w-full flex-col overflow-hidden rounded-lg border shadow-xl" style={{ backfaceVisibility: "hidden", transform: "rotateY(0deg)" }}>
                     <div className="flex items-center p-4">
                         <div className="flex min-w-0 items-center">
                             <Bot className="mr-3 h-8 w-8 flex-shrink-0 text-[var(--color-brand-wMain)]" />
@@ -109,22 +100,15 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                         </div>
                     </div>
                     <div className="scrollbar-themed flex-grow space-y-3 overflow-y-auto p-4">
-                        <div className="mb-2 line-clamp-4 text-base">
-                            {agent.description || "No description provided."}
-                        </div>
+                        <div className="mb-2 line-clamp-4 text-base">{agent.description || "No description provided."}</div>
                         <DetailItem label="Version" value={agent.version} icon={<GitMerge size={14} />} />
                         {agent.capabilities && Object.keys(agent.capabilities).length > 0 && <DetailItem label="Key Capabilities" value={renderCapabilities(agent.capabilities as { [key: string]: unknown })} icon={<Key size={14} />} fullWidthValue />}
                     </div>
-                    <div className="border-t p-2 text-center text-sm text-accent-foreground">
-                        Click for details
-                    </div>
+                    <div className="text-accent-foreground border-t p-2 text-center text-sm">Click for details</div>
                 </div>
 
                 {/* Back face */}
-                <div
-                    className="absolute flex h-full w-full flex-col overflow-hidden rounded-lg border shadow-xl"
-                    style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
-                >
+                <div className="absolute flex h-full w-full flex-col overflow-hidden rounded-lg border shadow-xl" style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}>
                     <div className="flex items-center p-3">
                         <h3 className="text-md truncate font-semibold" title={agent.name}>
                             Details: {agent.displayName || agent.name}
@@ -134,11 +118,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                         <DetailItem label="Name" value={agent.name} icon={<Info size={14} />} />
                         <DetailItem label="Description" value={agent.description} icon={<Book size={14} />} fullWidthValue />
                         <DetailItem label="Version" value={agent.version} icon={<GitMerge size={14} />} />
-                        <DetailItem
-                            label="Endpoint"
-                            value={agent.url || "N/A"}
-                            icon={<Link size={14} />}
-                        />
+                        <DetailItem label="Endpoint" value={agent.url || "N/A"} icon={<Link size={14} />} />
                         <DetailItem
                             label="Docs"
                             value={
@@ -156,10 +136,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                             <div className="mt-1.5 border-t pt-1.5">
                                 <h4 className="mb-0.5 text-xs font-semibold">Provider</h4>
                                 <DetailItem label="Name" value={agent.provider.organization} />
-                                <DetailItem
-                                    label="URL"
-                                    value={agent.provider.url || "N/A"}
-                                />
+                                <DetailItem label="URL" value={agent.provider.url || "N/A"} />
                             </div>
                         )}
                         <DetailItem label="Capabilities" value={renderCapabilities(agent.capabilities as { [key: string]: unknown })} icon={<Key size={14} />} fullWidthValue />
@@ -171,9 +148,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                             <DetailItem label="A2A Protocol" value={agent.protocolVersion} />
                         </div>
                     </div>
-                    <div className="border-t p-2 text-center text-sm text-accent-foreground">
-                        Click for summary
-                    </div>
+                    <div className="text-accent-foreground border-t p-2 text-center text-sm">Click for summary</div>
                 </div>
             </div>
         </div>

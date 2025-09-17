@@ -25,15 +25,18 @@ export interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ title, breadcrumbs, tabs, buttons, leadingAction }) => {
     return (
         <div className="relative flex max-h-[80px] min-h-[80px] w-full items-center border-b px-8">
-
             {/* Breadcrumbs */}
             {breadcrumbs && breadcrumbs.length > 0 && (
-                <div className="absolute top-1 left-8 flex items-center h-8">
+                <div className="absolute top-1 left-8 flex h-8 items-center">
                     {breadcrumbs.map((crumb, index) => (
                         <React.Fragment key={index}>
-                            {index > 0 && <span className="mx-1"><ChevronRight size={16}/></span>}
+                            {index > 0 && (
+                                <span className="mx-1">
+                                    <ChevronRight size={16} />
+                                </span>
+                            )}
                             {crumb.onClick ? (
-                                <Button variant="link" className="p-0 m-0" onClick={crumb.onClick}>
+                                <Button variant="link" className="m-0 p-0" onClick={crumb.onClick}>
                                     {crumb.label}
                                 </Button>
                             ) : (
@@ -43,12 +46,12 @@ export const Header: React.FC<HeaderProps> = ({ title, breadcrumbs, tabs, button
                     ))}
                 </div>
             )}
-            
+
             {/* Leading Action */}
             {leadingAction && <div className="mr-4 flex items-center pt-[35px]">{leadingAction}</div>}
 
             {/* Title */}
-            <div className="truncate text-xl text-nowrap pt-[35px]">{title}</div>
+            <div className="truncate pt-[35px] text-xl text-nowrap">{title}</div>
 
             {/* Tabs */}
             {tabs && tabs.length > 0 && (
