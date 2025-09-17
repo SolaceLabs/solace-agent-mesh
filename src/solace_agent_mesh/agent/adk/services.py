@@ -263,6 +263,7 @@ def initialize_artifact_service(component) -> BaseArtifactService:
             raise
     elif service_type == "s3":
         bucket_name = config.get("bucket_name")
+        log.info("flounder: %s, scope_type: %s", bucket_name, component.get_config("artifact_scope", "namespace"))
         if not bucket_name or not bucket_name.strip():
             raise ValueError(
                 f"{component.log_identifier} 'bucket_name' is required and cannot be empty for S3 artifact service."
@@ -274,7 +275,7 @@ def initialize_artifact_service(component) -> BaseArtifactService:
             s3_config = {}
             
             for key, value in config.items():
-                if key not in ["type", "bucket_name", "artifact_scope"]:
+                if key not in ["type", "bucket_name", "artifact_scope", "base_path", "artifact_scope_value"]:
                     s3_config[key] = value
             
             if "endpoint_url" not in s3_config:
@@ -287,7 +288,7 @@ def initialize_artifact_service(component) -> BaseArtifactService:
                 s3_config["aws_access_key_id"] = aws_access_key_id
             if aws_secret_access_key:
                 s3_config["aws_secret_access_key"] = aws_secret_access_key
-
+            log.info("stuff: %s", s3_config)
             concrete_service = S3ArtifactService(bucket_name=bucket_name, **s3_config)
         except ImportError as e:
             log.error(
