@@ -18,10 +18,10 @@ export const formatBytes = (bytes: number, decimals = 2): string => {
  * @param dateString
  */
 export const formatRelativeTime = (dateString: string): string => {
-    if (!dateString) return "Invalid date";
+    if (!dateString) return "N/A";
     try {
         const date = new Date(dateString);
-        if (isNaN(date.getTime())) return "Invalid date";
+        if (isNaN(date.getTime())) return "N/A";
 
         const now = new Date();
         const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
@@ -42,7 +42,7 @@ export const formatRelativeTime = (dateString: string): string => {
 };
 
 /**
- * Helper function to format ISO timestamp
+ * Helper function to format ISO string
  * @param isoString
  */
 export const formatTimestamp = (isoString?: string | null): string => {
