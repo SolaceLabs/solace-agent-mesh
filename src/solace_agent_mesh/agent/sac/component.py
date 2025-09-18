@@ -587,6 +587,9 @@ class SamAgentComponent(SamComponentBase):
                 if sub_task_id is not None and correlation_data is not None:
                     return sub_task_id, correlation_data
 
+            # There are no active peer sub-tasks, but the main task is still active
+            return logical_task_id, active_task_context
+        
         return None, None
 
     async def _get_correlation_data_for_sub_task(

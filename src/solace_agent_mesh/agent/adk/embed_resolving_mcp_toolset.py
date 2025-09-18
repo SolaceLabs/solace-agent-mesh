@@ -345,10 +345,16 @@ class EmbedResolvingMCPToolset(_OptimalToolsetClass):
                 auth_credential=auth_credential,
             )
 
+        self._tool_cache = []
+
     async def get_tools(self, readonly_context=None) -> List[MCPTool]:
         """
         Override get_tools to return EmbedResolvingMCPTool instances.
         """
+
+        if self._tool_cache:
+            return self._tool_cache
+        
         # Get the original tools from the parent class
         original_tools = await super().get_tools(readonly_context)
 
@@ -367,4 +373,5 @@ class EmbedResolvingMCPToolset(_OptimalToolsetClass):
             )
             embed_resolving_tools.append(embed_resolving_tool)
 
+        self._tool_cache = embed_resolving_tools
         return embed_resolving_tools
