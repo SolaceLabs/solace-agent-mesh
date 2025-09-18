@@ -563,6 +563,28 @@ class SamAgentComponent(SamComponentBase):
                 sub_task_id,
             )
 
+    async def _get_correlation_data_for_sub_task_using_logical_task_id(
+        self, logical_task_id: str):
+        """
+        Non-destructively retrieves correlation data for a super-task.
+        """
+        with self.active_tasks_lock:
+            active_task_context = self.active_tasks.get(logical_task_id)
+
+        if not active_task_context:
+            log.error(
+                "%s TaskExecutionContext not found for task %s. Cannot get correlation data.",
+                self.log_identifier,
+                logical_task_id,
+            )
+            return None
+        
+        with active_task_context.lock:
+            # Get the first key from the active_peer_sub_tasks dict and return the associated correlation data. (its not a list, just a dict of sub_task_id -> correlation_data)
+            # Only return the 1st one we find
+            for sub_task_id, correlation_data in active_task_context.active_peer_sub_tasks.items():
+                return sub_task_id, correlation_data
+
     async def _get_correlation_data_for_sub_task(
         self, sub_task_id: str
     ) -> Optional[Dict[str, Any]]:

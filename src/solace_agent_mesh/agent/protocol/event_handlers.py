@@ -414,6 +414,19 @@ async def handle_a2a_request(component, message: SolaceMessage):
             if not a2a_message:
                 raise ValueError("Could not extract message from SendMessageRequest")
 
+            try:
+                from solace_agent_mesh_enterprise.auth.input_required import a2a_auth_message_handler
+                message_handled = a2a_auth_message_handler(a2a_message)
+                if message_handled:
+                    message.call_acknowledgements()
+                    log.info(
+                        "%s ACKed message handled by input-required auth handler.",
+                        component.log_identifier,
+                    )
+                    return None
+            except ImportError:
+                pass
+            
             # The gateway/client is the source of truth for the task ID.
             # The agent adopts the ID from the JSON-RPC request envelope.
             logical_task_id = str(a2a.get_request_id(a2a_request))
