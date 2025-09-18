@@ -15,16 +15,15 @@ from fastapi import (
 )
 import logging
 
-from ...dependencies import get_user_id
-from ...application.services.project_service import ProjectService
-from ...domain.entities.project_domain import ProjectCopyRequest
-from ...dependencies import get_project_service
-from ..dto.requests.project_requests import (
+from ..dependencies import get_user_id, get_project_service
+from ..services.project_service import ProjectService
+from ..domain.entities.project_domain import ProjectCopyRequest
+from .dto.requests.project_requests import (
     CreateProjectRequest,
     UpdateProjectRequest,
     CopyProjectRequest,
 )
-from ..dto.responses.project_responses import (
+from .dto.responses.project_responses import (
     ProjectResponse,
     ProjectListResponse,
     GlobalProjectResponse,

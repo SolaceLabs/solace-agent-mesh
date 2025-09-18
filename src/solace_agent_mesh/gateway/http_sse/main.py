@@ -24,18 +24,19 @@ from solace_ai_connector.common.log import log
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 
-from .api.controllers import session_router, task_router, user_router, project_router
-from .infrastructure.persistence.database_service import DatabaseService
+from .routers.sessions import router as session_router
+from .routers.tasks import router as task_router
+from .routers.users import router as user_router
+# from .infrastructure.persistence.database_service import DatabaseService  # Removed with infrastructure
 from ...common import a2a
 from ...gateway.http_sse import dependencies
-from ...gateway.http_sse.routers import (
+from .routers import (
     agent_cards,
     artifacts,
     auth,
     config,
     people,
     sse,
-    tasks,
     visualization,
 )
 from .routers.sessions import router as session_router
@@ -50,7 +51,6 @@ from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
 from ...common import a2a
 from ...gateway.http_sse import dependencies
 from ...gateway.http_sse.routers import (
-    agents,
     artifacts,
     auth,
     config,
@@ -59,11 +59,8 @@ from ...gateway.http_sse.routers import (
     tasks,
     visualization,
 )
-# Import persistence-aware controllers
-from .api.controllers.session_controller import router as session_router
-from .api.controllers.task_controller import router as task_router
-from .api.controllers.user_controller import router as user_router
-from .infrastructure.persistence import DatabaseService
+
+# from .infrastructure.persistence import DatabaseService  # Removed with infrastructure
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
@@ -492,6 +489,7 @@ def _setup_routers() -> None:
     app.include_router(visualization.router, prefix=f"{api_prefix}/visualization", tags=["Visualization"])
     app.include_router(people.router, prefix=api_prefix, tags=["People"])
     app.include_router(auth.router, prefix=api_prefix, tags=["Auth"])
+    from .routers.project_controller import router as project_router
     app.include_router(project_router, prefix=api_prefix, tags=["Projects"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 

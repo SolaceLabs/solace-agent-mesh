@@ -208,7 +208,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                         <FormField
                             control={form.control}
                             name="files"
-                            render={({ field: { onChange, value, ...rest } }) => (
+                            render={() => (
                                 <FormItem>
                                     <FormLabel className="text-foreground">Artifacts (Optional)</FormLabel>
                                     <FormControl>

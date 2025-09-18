@@ -30,12 +30,19 @@ class SessionService:
         self.component = component
 
     def get_user_sessions(
-        self, user_id: UserId, pagination: PaginationInfo | None = None
+        self, user_id: UserId, pagination: PaginationInfo | None = None, project_id: str | None = None
     ) -> list[Session]:
         if not user_id or user_id.strip() == "":
             raise ValueError("User ID cannot be empty")
 
-        return self.session_repository.find_by_user(user_id, pagination)
+        sessions = self.session_repository.find_by_user(user_id, pagination)
+        
+        # Always filter by project_id to ensure proper segregation
+        # When project_id is None, only return sessions with no project_id (general chat)
+        # When project_id is specified, only return sessions with that specific project_id
+        sessions = [session for session in sessions if session.project_id == project_id]
+        
+        return sessions
 
     def get_session_details(
         self, session_id: SessionId, user_id: UserId
@@ -73,6 +80,7 @@ class SessionService:
         name: str | None = None,
         agent_id: str | None = None,
         session_id: str | None = None,
+        project_id: str | None = None,
     ) -> Session:
         if not user_id or user_id.strip() == "":
             raise ValueError("User ID cannot be empty")
@@ -88,6 +96,7 @@ class SessionService:
             user_id=user_id,
             name=name,
             agent_id=agent_id,
+            project_id=project_id,
             created_time=now_ms,
             updated_time=now_ms,
         )
@@ -175,6 +184,7 @@ class SessionService:
                 user_id=user_id,
                 agent_id=agent_id,
                 session_id=session_id,
+                project_id=None,  # Default to no project for auto-created sessions
             )
 
         message_entity = Message(

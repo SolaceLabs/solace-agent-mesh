@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import Depends, HTTPException, Request, status
 from solace_ai_connector.common.log import log
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session as DBSession, sessionmaker
 
 from ...common.agent_registry import AgentRegistry
 from ...common.middleware.config_resolver import ConfigResolver
@@ -19,10 +19,13 @@ from ...core_a2a.service import CoreA2AService
 from ...gateway.base.task_context import TaskContextManager
 from ...gateway.http_sse.services.agent_card_service import AgentCardService
 from ...gateway.http_sse.services.people_service import PeopleService
+from ...gateway.http_sse.services.project_service import ProjectService
 from ...gateway.http_sse.services.task_service import TaskService
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .repository import Message, MessageRepository, SessionRepository
+from .repository.interfaces import IProjectRepository
+from .repository.project_repository import ProjectRepository
 from .services.session_service import SessionService
 
 try:
@@ -348,7 +351,7 @@ def get_task_service(
     )
 
 
-def get_db() -> Generator[Session, None, None]:
+def get_db() -> Generator[DBSession, None, None]:
     if SessionLocal is None:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
@@ -366,7 +369,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def get_session_business_service(
-    db: Session = Depends(get_db),
+    db: DBSession = Depends(get_db),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> SessionService:
     log.debug("[Dependencies] get_session_business_service called")
@@ -425,7 +428,7 @@ def create_session_service_with_transaction():
                 return self.session_repository.find_user_session(session_id, user_id)
 
             def create_session(
-                self, user_id, name=None, agent_id=None, session_id=None
+                self, user_id, name=None, agent_id=None, session_id=None, project_id=None
             ):
                 # Create a new session using the session repository
                 from uuid import uuid4
@@ -444,6 +447,7 @@ def create_session_service_with_transaction():
                     user_id=user_id,
                     name=name,
                     agent_id=agent_id,
+                    project_id=project_id,
                     created_time=now_ms,
                     updated_time=now_ms,
                 )
@@ -489,11 +493,11 @@ def get_session_validator(
 
 
 def get_project_service(
+    db: DBSession = Depends(get_db),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> ProjectService:
     """Dependency factory for ProjectService."""
-    container = get_container()
-    project_repository = container.container.get(IProjectRepository)
+    project_repository = ProjectRepository(db)
     artifact_service = component.get_shared_artifact_service()
     app_name = component.get_config("name", "A2A_WebUI_App")
 

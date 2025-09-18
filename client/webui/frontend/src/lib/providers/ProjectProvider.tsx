@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import { useConfigContext } from "@/lib/hooks";
-import type { CreateProjectRequest, Project, ProjectContextValue, ProjectListResponse } from "@/lib/types/projects";
+import type { Project, ProjectContextValue, ProjectListResponse } from "@/lib/types/projects";
 import { authenticatedFetch } from "@/lib/utils/api";
 
 const ProjectContext = createContext<ProjectContextValue | undefined>(undefined);

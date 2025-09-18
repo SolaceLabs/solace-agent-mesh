@@ -2,9 +2,10 @@
 Domain models for project-related business logic.
 """
 
-from datetime import datetime, timezone
 from typing import Optional
 from pydantic import BaseModel, Field
+
+from ...shared import now_epoch_ms
 
 
 class ProjectDomain(BaseModel):
@@ -18,8 +19,8 @@ class ProjectDomain(BaseModel):
     is_global: bool = False
     template_id: Optional[str] = None  # Links to original template if copied
     created_by_user_id: str
-    created_at: datetime
-    updated_at: Optional[datetime] = None
+    created_at: int
+    updated_at: Optional[int] = None
     
     @property
     def is_template(self) -> bool:
@@ -44,7 +45,7 @@ class ProjectDomain(BaseModel):
             raise ValueError("Project name cannot exceed 255 characters")
         
         self.name = new_name.strip()
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = now_epoch_ms()
     
     def update_description(self, new_description: Optional[str]) -> None:
         """Update project description with validation."""
@@ -55,7 +56,7 @@ class ProjectDomain(BaseModel):
         else:
             self.description = None
         
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = now_epoch_ms()
     
     def can_be_accessed_by_user(self, user_id: str) -> bool:
         """Check if project can be accessed by the given user."""
@@ -100,15 +101,16 @@ class ProjectDomain(BaseModel):
             name=new_name.strip(),
             user_id=user_id,
             description=new_description or self.description,
+            system_prompt=self.system_prompt,
             is_global=False,
             template_id=self.id,
             created_by_user_id=user_id,
-            created_at=datetime.now(timezone.utc)
+            created_at=now_epoch_ms()
         )
     
     def mark_as_updated(self) -> None:
         """Mark project as updated."""
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = now_epoch_ms()
 
 
 class ProjectCopyRequest(BaseModel):

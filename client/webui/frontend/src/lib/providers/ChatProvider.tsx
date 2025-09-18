@@ -58,7 +58,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [userInput, setUserInput] = useState<string>("");
     const [isResponding, setIsResponding] = useState<boolean>(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [sessions, setSessions] = useState<Session[]>([]);
+    const [sessions] = useState<Session[]>([]);
 
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
     const currentEventSource = useRef<EventSource | null>(null);

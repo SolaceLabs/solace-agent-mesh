@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-import type { Project, CreateProjectRequest, ProjectListResponse, UseProjectsReturn } from "@/lib/types/projects";
+import type { Project, ProjectListResponse, UseProjectsReturn } from "@/lib/types/projects";
 import { authenticatedFetch } from "@/lib/utils/api";
 
 import { useConfigContext } from "./useConfigContext";
@@ -39,14 +39,12 @@ export const useProjects = (): UseProjectsReturn => {
         }
     }, [apiPrefix]);
 
-    const createProject = useCallback(async (projectData: CreateProjectRequest): Promise<Project> => {
+    const createProject = useCallback(async (projectData: FormData): Promise<Project> => {
         try {
             const response = await authenticatedFetch(`${apiPrefix}/projects`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(projectData),
+                // No 'Content-Type' header, browser will set it for FormData
+                body: projectData,
                 credentials: "include",
             });
 

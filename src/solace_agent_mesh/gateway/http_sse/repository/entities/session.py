@@ -15,6 +15,7 @@ class Session(BaseModel):
     user_id: UserId
     name: str | None = None
     agent_id: AgentId | None = None
+    project_id: str | None = None
     created_time: int
     updated_time: int | None = None
 

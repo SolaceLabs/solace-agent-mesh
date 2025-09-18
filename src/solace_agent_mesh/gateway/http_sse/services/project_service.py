@@ -7,7 +7,7 @@ import logging
 from fastapi import UploadFile
 from datetime import datetime, timezone
 
-from .....agent.utils.artifact_helpers import save_artifact_with_metadata
+from ....agent.utils.artifact_helpers import save_artifact_with_metadata
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -17,8 +17,8 @@ except ImportError:
         pass
 
 
-from ...domain.repositories.project_repository import IProjectRepository
-from ...domain.entities.project_domain import ProjectDomain, ProjectFilter, ProjectCopyRequest
+from ..repository.interfaces import IProjectRepository
+from ..domain.entities.project_domain import ProjectDomain, ProjectFilter, ProjectCopyRequest
 
 GLOBAL_PROJECT_USER_ID = "_global_"
 

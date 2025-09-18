@@ -26,6 +26,13 @@ export interface GlobalProject {
 }
 
 
+export interface CreateProjectRequest {
+    name: string;
+    description?: string;
+    system_prompt?: string;
+    files?: FileList | null;
+}
+
 export interface CopyProjectRequest {
     name: string;
     description?: string;

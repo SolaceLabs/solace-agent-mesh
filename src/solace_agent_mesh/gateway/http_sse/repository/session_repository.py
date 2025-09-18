@@ -53,6 +53,7 @@ class SessionRepository(ISessionRepository):
             # Update existing
             model.name = session.name
             model.agent_id = session.agent_id
+            model.project_id = session.project_id
             model.updated_time = session.updated_time
         else:
             # Create new
@@ -61,6 +62,7 @@ class SessionRepository(ISessionRepository):
                 name=session.name,
                 user_id=session.user_id,
                 agent_id=session.agent_id,
+                project_id=session.project_id,
                 created_time=session.created_time,
                 updated_time=session.updated_time,
             )
@@ -124,6 +126,7 @@ class SessionRepository(ISessionRepository):
             user_id=model.user_id,
             name=model.name,
             agent_id=model.agent_id,
+            project_id=model.project_id,
             created_time=model.created_time,
             updated_time=model.updated_time,
         )
