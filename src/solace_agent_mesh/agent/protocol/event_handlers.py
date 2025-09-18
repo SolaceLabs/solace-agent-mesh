@@ -420,7 +420,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
 
             try:
                 from solace_agent_mesh_enterprise.auth.input_required import a2a_auth_message_handler
-                message_handled = a2a_auth_message_handler(component, a2a_message, logical_task_id)
+                message_handled = await a2a_auth_message_handler(component, a2a_message, logical_task_id)
                 if message_handled:
                     message.call_acknowledgements()
                     log.info(
