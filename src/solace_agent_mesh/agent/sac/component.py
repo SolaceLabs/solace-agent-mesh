@@ -577,13 +577,17 @@ class SamAgentComponent(SamComponentBase):
                 self.log_identifier,
                 logical_task_id,
             )
-            return None
+            return None, None
         
         with active_task_context.lock:
-            # Get the first key from the active_peer_sub_tasks dict and return the associated correlation data. (its not a list, just a dict of sub_task_id -> correlation_data)
+            active_peer_sub_tasks = getattr(active_task_context, 'active_peer_sub_tasks', None) or {}
+            
             # Only return the 1st one we find
-            for sub_task_id, correlation_data in active_task_context.active_peer_sub_tasks.items():
-                return sub_task_id, correlation_data
+            for sub_task_id, correlation_data in active_peer_sub_tasks.items():
+                if sub_task_id is not None and correlation_data is not None:
+                    return sub_task_id, correlation_data
+
+        return None, None
 
     async def _get_correlation_data_for_sub_task(
         self, sub_task_id: str
