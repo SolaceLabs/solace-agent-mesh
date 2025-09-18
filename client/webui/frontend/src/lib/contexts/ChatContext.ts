@@ -3,7 +3,6 @@ import React, { createContext, type FormEvent } from "react";
 import type { AgentCardInfo, ArtifactInfo, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
 
 export interface ChatState {
-    sessions: Session[];
     sessionId: string;
     sessionName: string | null;
     messages: MessageFE[];

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import Depends, HTTPException, Request, status
 from solace_ai_connector.common.log import log
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session as DBSession, sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from ...common.agent_registry import AgentRegistry
 from ...common.middleware.config_resolver import ConfigResolver
@@ -351,7 +351,7 @@ def get_task_service(
     )
 
 
-def get_db() -> Generator[DBSession, None, None]:
+def get_db() -> Generator[Session, None, None]:
     if SessionLocal is None:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
@@ -369,7 +369,7 @@ def get_db() -> Generator[DBSession, None, None]:
 
 
 def get_session_business_service(
-    db: DBSession = Depends(get_db),
+    db: Session = Depends(get_db),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> SessionService:
     log.debug("[Dependencies] get_session_business_service called")
@@ -493,7 +493,7 @@ def get_session_validator(
 
 
 def get_project_service(
-    db: DBSession = Depends(get_db),
+    db: Session = Depends(get_db),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> ProjectService:
     """Dependency factory for ProjectService."""

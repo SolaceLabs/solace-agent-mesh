@@ -12,12 +12,34 @@ from ...utils import (
 def prompt_for_db_credentials(
     options: dict, db_type: str, skip_interactive: bool
 ) -> str:
-    db_url = ask_if_not_provided(
-        options,
-        f"{db_type}_database_url",
-        f"Enter the full database URL for the {db_type} (e.g., postgresql://user:pass@host/db)",
-        none_interactive=skip_interactive,
+    if skip_interactive:
+        db_url = options.get(f"{db_type}_database_url")
+        if not db_url:
+            raise ValueError(
+                f"Database URL for {db_type} is required in non-interactive mode"
+            )
+        return db_url
+
+    # Ask which database type to use
+    db_backend = ask_if_not_provided(
+        {},
+        "db_backend",
+        f"Which database would you like to use for {db_type}?",
+        choices=["sqlite", "postgresql"],
+        default="sqlite",
     )
+
+    if db_backend == "postgresql":
+        db_url = ask_if_not_provided(
+            options,
+            f"{db_type}_database_url",
+            f"Enter the PostgreSQL URL for {db_type} (e.g., postgresql://user:pass@host:5432/dbname)",
+            none_interactive=skip_interactive,
+        )
+    else:
+        # Use SQLite as fallback/default
+        return None  # Will be handled by the SQLite setup logic
+
     return db_url
 
 

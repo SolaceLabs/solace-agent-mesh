@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode, useMemo } from "react";
 
 import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
@@ -58,8 +57,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [userInput, setUserInput] = useState<string>("");
     const [isResponding, setIsResponding] = useState<boolean>(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [sessions] = useState<Session[]>([]);
-
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
     const currentEventSource = useRef<EventSource | null>(null);
     const [selectedAgentName, setSelectedAgentName] = useState<string>("");
@@ -657,6 +654,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         latestStatusText.current = null;
         sseEventSequenceRef.current = 0;
 
+        // Refresh artifacts (should be empty for new session)
+        console.log(`${log_prefix} Refreshing artifacts for new session...`);
+        await artifactsRefetch();
+
         // Success notification
         addNotification("New session started successfully.");
         console.log(`${log_prefix} New session setup complete - session will be created on first message.`);
@@ -782,7 +783,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 if (sessionIdToDelete === sessionId) {
                     handleNewSession();
                 }
-                // Session list will be refreshed by SessionList component
+                // Trigger session list refresh
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(new CustomEvent("new-chat-session"));
+                }
             } catch (error) {
                 addNotification(`Error deleting session: ${error instanceof Error ? error.message : "Unknown error"}`);
             }
@@ -1095,7 +1099,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [currentTaskId, apiPrefix, handleSseMessage, handleSseOpen, handleSseError, closeCurrentEventSource]);
 
     const contextValue: ChatContextValue = {
-        sessions,
         sessionId,
         setSessionId,
         sessionName,
