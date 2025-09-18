@@ -10,22 +10,29 @@ interface ArtifactMorePopoverProps {
 }
 
 export const ArtifactMorePopover: React.FC<ArtifactMorePopoverProps> = ({ children }) => {
-	const { artifactsRefetch, setIsBatchDeleteModalOpen } = useChatContext();
+    const { artifactsRefetch, setIsBatchDeleteModalOpen } = useChatContext();
 
-    const menuActions: MenuAction[] = [{
-        id: "refreshAll",
-        label: "Refresh",
-        onClick: () => { artifactsRefetch(); },
-        icon: <RefreshCcw />,
-        iconPosition: "left",
-    },{
-        id: "deleteAll",
-        label: "Delete All",
-        onClick: () => { setIsBatchDeleteModalOpen(true); },
-        icon: <Trash />,
-        iconPosition: "left",
-        divider: true,
-    }];
+    const menuActions: MenuAction[] = [
+        {
+            id: "refreshAll",
+            label: "Refresh",
+            onClick: () => {
+                artifactsRefetch();
+            },
+            icon: <RefreshCcw />,
+            iconPosition: "left",
+        },
+        {
+            id: "deleteAll",
+            label: "Delete All",
+            onClick: () => {
+                setIsBatchDeleteModalOpen(true);
+            },
+            icon: <Trash />,
+            iconPosition: "left",
+            divider: true,
+        },
+    ];
 
     return (
         <Popover>

@@ -1,35 +1,27 @@
 {
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "outDir": "dist",
-    "declaration": true,
-    "declarationDir": "dist",
-    "sourceMap": true,
-    "noEmit": false,
-    "emitDeclarationOnly": true,
-    "jsx": "react-jsx",
-    "jsxImportSource": "react",
-    "esModuleInterop": true,
-    "target": "ES2020",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "downlevelIteration": true,
-    "skipLibCheck": true,
-    "moduleResolution": "node",
-    "allowSyntheticDefaultImports": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"],
-      "@/lib/*": ["./src/lib/*"]
-    }
-  },
-  "include": ["src/lib/**/*"],
-  "exclude": [
-    "node_modules",
-    "**/*.test.ts",
-    "**/*.test.tsx",
-    "**/*.spec.ts",
-    "**/*.spec.tsx",
-    "**/*.stories.ts",
-    "**/*.stories.tsx"
-  ]
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "outDir": "dist",
+        "declaration": true,
+        "declarationDir": "dist",
+        "sourceMap": true,
+        "noEmit": false,
+        "emitDeclarationOnly": true,
+        "jsx": "react-jsx",
+        "jsxImportSource": "react",
+        "esModuleInterop": true,
+        "target": "ES2020",
+        "lib": ["ES2023", "DOM", "DOM.Iterable"],
+        "downlevelIteration": true,
+        "skipLibCheck": true,
+        "moduleResolution": "node",
+        "allowSyntheticDefaultImports": true,
+        "baseUrl": ".",
+        "paths": {
+            "@/*": ["./src/*"],
+            "@/lib/*": ["./src/lib/*"]
+        }
+    },
+    "include": ["src/lib/**/*"],
+    "exclude": ["node_modules", "**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "**/*.stories.ts", "**/*.stories.tsx"]
 }

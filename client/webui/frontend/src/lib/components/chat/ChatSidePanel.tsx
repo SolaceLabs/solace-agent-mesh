@@ -171,10 +171,11 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                                                 {emptyStateContent?.showButton && (
                                                     <div className="mt-4">
                                                         <Button onClick={emptyStateContent.buttonAction}>
-                                                            {emptyStateContent.buttonIcon && (() => {
-                                                                const ButtonIcon = emptyStateContent.buttonIcon;
-                                                                return <ButtonIcon className="h-4 w-4" />;
-                                                            })()}
+                                                            {emptyStateContent.buttonIcon &&
+                                                                (() => {
+                                                                    const ButtonIcon = emptyStateContent.buttonIcon;
+                                                                    return <ButtonIcon className="h-4 w-4" />;
+                                                                })()}
                                                             {emptyStateContent.buttonText}
                                                         </Button>
                                                     </div>

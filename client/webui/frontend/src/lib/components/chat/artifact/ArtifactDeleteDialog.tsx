@@ -14,7 +14,7 @@ export const ArtifactDeleteDialog: React.FC = () => {
         <Dialog open={isDeleteModalOpen} onOpenChange={closeDeleteModal}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle className="flex flex-row gap-1 max-w-[400px]">
+                    <DialogTitle className="flex max-w-[400px] flex-row gap-1">
                         Delete
                         <span className="inline-block truncate" title={artifactToDelete.filename}>
                             <code>{artifactToDelete.filename}</code>

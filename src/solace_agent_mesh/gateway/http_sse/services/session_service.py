@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from solace_ai_connector.common.log import log
@@ -13,6 +12,7 @@ from ..repository import (
 )
 from ..shared.enums import MessageType, SenderType
 from ..shared.types import PaginationInfo, SessionId, UserId
+from ..shared import now_epoch_ms
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
@@ -82,15 +82,14 @@ class SessionService:
 
         # Leave name as None/empty - frontend will generate display name if needed
 
-        now = datetime.now(timezone.utc)
+        now_ms = now_epoch_ms()
         session = Session(
             id=session_id,
             user_id=user_id,
             name=name,
             agent_id=agent_id,
-            created_at=now,
-            updated_at=now,
-            last_activity=now,
+            created_time=now_ms,
+            updated_time=now_ms,
         )
 
         created_session = self.session_repository.save(session)
@@ -185,7 +184,7 @@ class SessionService:
             sender_type=sender_type,
             sender_name=sender_name,
             message_type=message_type,
-            created_at=datetime.now(timezone.utc),
+            created_time=now_epoch_ms(),
         )
 
         saved_message = self.message_repository.save(message_entity)

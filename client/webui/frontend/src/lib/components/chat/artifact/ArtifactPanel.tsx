@@ -41,7 +41,7 @@ export const ArtifactPanel: React.FC = () => {
                 </div>
             );
         }
-        
+
         return (
             sortedArtifacts.length > 0 && (
                 <div className="flex items-center justify-end border-b p-2">
@@ -52,7 +52,7 @@ export const ArtifactPanel: React.FC = () => {
                         </Button>
                     </SortPopover>
                     <ArtifactMorePopover key="more-popover">
-                        <Button variant="ghost" tooltip="More" >
+                        <Button variant="ghost" tooltip="More">
                             <Ellipsis className="h-5 w-5" />
                         </Button>
                     </ArtifactMorePopover>
@@ -73,9 +73,7 @@ export const ArtifactPanel: React.FC = () => {
                         {sortedArtifacts.length === 0 && (
                             <div className="flex h-full items-center justify-center p-4">
                                 <div className="text-muted-foreground text-center">
-                                    {artifactsLoading && (
-                                        <Loader2 className="size-6 animate-spin" />
-                                    )}
+                                    {artifactsLoading && <Loader2 className="size-6 animate-spin" />}
                                     {!artifactsLoading && (
                                         <>
                                             <FileText className="mx-auto mb-4 h-12 w-12" />
@@ -89,9 +87,9 @@ export const ArtifactPanel: React.FC = () => {
                     </div>
                 )}
                 {previewArtifact && (
-                    <div className="flex flex-1 flex-col gap-2 min-h-0 min-w-0">
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
                         <ArtifactCard key={previewArtifact.filename} artifact={previewArtifact} isPreview={true} />
-                        <div className="flex-1 min-h-0 min-w-0 overflow-y-auto">
+                        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
                             <ArtifactPreviewContent artifact={previewArtifact} />
                         </div>
                     </div>

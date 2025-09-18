@@ -26,14 +26,7 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
             ) : (
                 <div className="mx-auto mt-[50px] ml-[50px]">
                     <div className="my-4">
-                        <input 
-                            type="text"
-                            data-testid="agent-search-input"
-                            placeholder="Search..." 
-                            value={searchQuery} 
-                            onChange={e => setSearchQuery(e.target.value)} 
-                            className="bg-background rounded-md border px-3 py-2" 
-                        />
+                        <input type="text" data-testid="agent-search-input" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="bg-background rounded-md border px-3 py-2" />
                     </div>
                     {filteredAgents.length === 0 && searchQuery ? (
                         <div className="flex h-[calc(100vh-250px)] flex-col items-center justify-center gap-6">

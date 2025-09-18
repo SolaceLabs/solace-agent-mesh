@@ -22,14 +22,7 @@ export const LayoutSelector: React.FC<LayoutSelectorProps> = ({ currentLayout, o
                     const isActive = currentLayout === layout.id;
 
                     return (
-                        <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            key={layout.id} 
-                            onClick={() => onLayoutChange(layout.id)} 
-                            title={layout.label} 
-                            className={isActive ? "bg-[var(--color-secondary-w20)] dark:bg-[var(--color-secondary-w80)]" : ""}
-                        >
+                        <Button variant="ghost" size="sm" key={layout.id} onClick={() => onLayoutChange(layout.id)} title={layout.label} className={isActive ? "bg-[var(--color-secondary-w20)] dark:bg-[var(--color-secondary-w80)]" : ""}>
                             {Icon && <Icon size={14} />}
                             <span>{layout.label}</span>
                         </Button>

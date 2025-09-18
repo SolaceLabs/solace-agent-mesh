@@ -30,7 +30,7 @@ You may need to include `--platform linux/amd64` depending on the host machine y
 ### Development Use Case
 
 ```bash
-docker run -itd -p 8000:8000 \
+docker run -itd -p 8001:8000 \
   -e LLM_SERVICE_API_KEY="<YOUR_LLM_TOKEN>" \
   -e LLM_SERVICE_ENDPOINT="<YOUR_LLM_SERVICE_ENDPOINT>" \
   -e LLM_SERVICE_PLANNING_MODEL_NAME="<YOUR_MODEL_NAME>" \
@@ -44,7 +44,7 @@ solace-agent-mesh-enterprise:<tag>
 ### Production Use Case
 
 ```bash
-docker run -itd -p 8000:8000 \
+docker run -itd -p 8001:8000 \
   -e LLM_SERVICE_API_KEY="<YOUR_LLM_TOKEN>" \
   -e LLM_SERVICE_ENDPOINT="<YOUR_LLM_SERVICE_ENDPOINT>" \
   -e LLM_SERVICE_PLANNING_MODEL_NAME="<YOUR_MODEL_NAME>" \

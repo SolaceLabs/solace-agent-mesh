@@ -9,7 +9,7 @@ import type { AgentCardInfo } from "@/lib/types";
 
 import { FileBadge } from "./file/FileBadge";
 
-export const ChatInputArea: React.FC<{ agents: AgentCardInfo[], scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
+export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const { isResponding, isCancelling, userInput, selectedAgentName, setSelectedAgentName, setUserInput, handleSubmit, handleCancel } = useChatContext();
 
     // File selection support
@@ -127,15 +127,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[], scrollToBottom?:
             onDrop={handleDrop}
         >
             {/* Hidden File Input */}
-            <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                multiple
-                onChange={handleFileChange}
-                accept="*/*"
-                disabled={isResponding}
-            />
+            <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileChange} accept="*/*" disabled={isResponding} />
 
             {/* Selected Files */}
             {selectedFiles.length > 0 && (
@@ -152,7 +144,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[], scrollToBottom?:
                 value={inputValue}
                 onChange={event => setInputValue(event.target.value)}
                 placeholder="How can I help you today?"
-                className="text-base/normal min-h-0 max-h-50 resize-none border-none p-3 shadow-none rounded-2xl focus-visible:outline-none field-sizing-content transition-[height] duration-500 ease-in-out"
+                className="field-sizing-content max-h-50 min-h-0 resize-none rounded-2xl border-none p-3 text-base/normal shadow-none transition-[height] duration-500 ease-in-out focus-visible:outline-none"
                 rows={1}
                 onPaste={handlePaste}
                 onKeyDown={event => {
@@ -163,7 +155,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[], scrollToBottom?:
             />
 
             {/* Buttons */}
-            <div className="flex items-center gap-2 m-2">
+            <div className="m-2 flex items-center gap-2">
                 <Button variant="ghost" onClick={handleFileSelect} disabled={isResponding} tooltip="Attach file">
                     <Paperclip className="size-4" />
                 </Button>
@@ -183,13 +175,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[], scrollToBottom?:
                 </Select>
 
                 {isResponding && !isCancelling ? (
-                    <Button
-                        className="ml-auto gap-1.5"
-                        onClick={handleCancel}
-                        variant="outline"
-                        disabled={isCancelling}
-                        tooltip="Cancel"
-                    >
+                    <Button className="ml-auto gap-1.5" onClick={handleCancel} variant="outline" disabled={isCancelling} tooltip="Cancel">
                         <Ban className="size-4" />
                         Stop
                     </Button>

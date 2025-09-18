@@ -54,7 +54,7 @@ export function AgentMeshPage() {
                     <Button variant="ghost" title="Refresh Agents" onClick={() => agentsRefetch()}>
                         <RefreshCcw className="size-4" />
                         Refresh Agents
-                    </Button>
+                    </Button>,
                 ]}
             />
             <div className={`relative flex-1 p-4 ${currentLayout === LayoutType.CARDS ? "" : "bg-[var(--muted)] dark:bg-[var(--color-bg-wMain)]"}`}>

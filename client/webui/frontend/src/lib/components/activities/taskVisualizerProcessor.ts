@@ -476,7 +476,11 @@ export const processTaskForVisualization = (
                                     });
                                     // ---
                                 } else {
-                                    const llmResponseText = contentParts?.filter(p => p.text).map(p => p.text).join("\n") || "";
+                                    const llmResponseText =
+                                        contentParts
+                                            ?.filter(p => p.text)
+                                            .map(p => p.text)
+                                            .join("\n") || "";
                                     const llmResponseToAgentData: LLMResponseToAgentData = {
                                         responsePreview: llmResponseText.substring(0, 200) + (llmResponseText.length > 200 ? "..." : ""),
                                         isFinalResponse: llmResponseData?.partial === false,
@@ -701,7 +705,6 @@ export const processTaskForVisualization = (
                 }
             }
         }
-
     });
 
     // Final flush for any remaining aggregated text

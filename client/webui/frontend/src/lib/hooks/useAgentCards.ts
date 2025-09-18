@@ -42,7 +42,7 @@ const transformAgentCard = (card: AgentCard): AgentCardInfo => {
         // end deprecated fields
         tools: tools || [],
         displayName: displayName,
-        peerAgents: peerAgents || []
+        peerAgents: peerAgents || [],
     };
 };
 
@@ -96,11 +96,14 @@ export const useAgentCards = (): useAgentCardsReturn => {
         fetchAgents();
     }, [fetchAgents]);
 
-    return useMemo(() => ({
-        agents,
-        agentNameMap,
-        isLoading,
-        error,
-        refetch: fetchAgents,
-    }), [agents, agentNameMap, isLoading, error, fetchAgents]);
+    return useMemo(
+        () => ({
+            agents,
+            agentNameMap,
+            isLoading,
+            error,
+            refetch: fetchAgents,
+        }),
+        [agents, agentNameMap, isLoading, error, fetchAgents]
+    );
 };

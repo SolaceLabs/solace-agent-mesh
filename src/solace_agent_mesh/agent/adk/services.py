@@ -164,8 +164,16 @@ def _sanitize_for_path(identifier: str) -> str:
 
 def initialize_session_service(component) -> BaseSessionService:
     """Initializes the ADK Session Service based on configuration."""
-    config: Dict = component.get_config("session_service", {})
-    service_type = config.get("type", "memory").lower()
+    config = component.get_config("session_service", {})
+
+    # Handle both dict and SessionServiceConfig object
+    if hasattr(config, 'type'):
+        service_type = config.type.lower()
+        db_url = getattr(config, 'database_url', None)
+    else:
+        service_type = config.get("type", "memory").lower()
+        db_url = config.get("database_url")
+
     log.info(
         "%s Initializing Session Service of type: %s",
         component.log_identifier,
@@ -175,7 +183,6 @@ def initialize_session_service(component) -> BaseSessionService:
     if service_type == "memory":
         return InMemorySessionService()
     elif service_type == "sql":
-        db_url = config.get("database_url")
         if not db_url:
             raise ValueError(
                 f"{component.log_identifier} 'database_url' is required for sql session service."

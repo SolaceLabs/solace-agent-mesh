@@ -32,11 +32,7 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
                 <ul className="space-y-1">
                     {bottomItems.map(item => (
                         <li key={item.id} className="my-4">
-                            {item.id === "theme-toggle" ? (
-                                <ToggleThemeButton />
-                            ) : (
-                                <NavigationButton key={item.id} item={item} isActive={activeItem === item.id} onItemClick={onItemClick} />
-                            )}
+                            {item.id === "theme-toggle" ? <ToggleThemeButton /> : <NavigationButton key={item.id} item={item} isActive={activeItem === item.id} onItemClick={onItemClick} />}
                         </li>
                     ))}
                 </ul>

@@ -1,10 +1,11 @@
 /**
  * Helper function to format file size
- * @param bytes 
- * @param decimals 
+ * @param bytes
+ * @param decimals
  */
 export const formatBytes = (bytes: number, decimals = 2): string => {
     if (bytes === 0) return "0 Bytes";
+    if (bytes < 0 || !Number.isFinite(bytes)) return "Invalid size";
     const k = 1024;
     const dm = decimals < 0 ? 0 : decimals;
     const sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
@@ -14,11 +15,14 @@ export const formatBytes = (bytes: number, decimals = 2): string => {
 
 /**
  * Helper function to format date (relative time)
- * @param dateString 
+ * @param dateString
  */
 export const formatRelativeTime = (dateString: string): string => {
+    if (!dateString) return "N/A";
     try {
         const date = new Date(dateString);
+        if (isNaN(date.getTime())) return "N/A";
+
         const now = new Date();
         const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
         const diffInMinutes = Math.floor(diffInSeconds / 60);
@@ -33,18 +37,20 @@ export const formatRelativeTime = (dateString: string): string => {
         return date.toLocaleDateString();
     } catch (e) {
         console.error("Error formatting date:", e);
-        return dateString;
+        return "Invalid date";
     }
 };
 
 /**
- * Helper function to format ISO timestamp
- * @param isoString 
+ * Helper function to format ISO string
+ * @param isoString
  */
 export const formatTimestamp = (isoString?: string | null): string => {
     if (!isoString) return "N/A";
     try {
-        return new Date(isoString).toLocaleString();
+        const date = new Date(isoString);
+        if (isNaN(date.getTime())) return "N/A";
+        return date.toLocaleString();
     } catch {
         return "N/A";
     }

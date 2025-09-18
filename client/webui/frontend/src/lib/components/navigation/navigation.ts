@@ -12,7 +12,7 @@ export const topNavigationItems: NavigationItem[] = [
         id: "agentMesh",
         label: "Agents",
         icon: Bot,
-    }
+    },
 ];
 
 export const bottomNavigationItems: NavigationItem[] = [

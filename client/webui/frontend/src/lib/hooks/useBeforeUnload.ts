@@ -2,7 +2,6 @@ import { useEffect, useCallback } from "react";
 import { useChatContext } from "./useChatContext";
 import { useConfigContext } from "./useConfigContext";
 
-
 export function useBeforeUnload() {
     const { messages } = useChatContext();
     const config = useConfigContext();

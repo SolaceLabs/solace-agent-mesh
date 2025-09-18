@@ -104,9 +104,7 @@ export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview 
             aria-expanded={isExpanded}
         >
             <div className="flex items-start space-x-2">
-                <div className="flex-shrink-0 pt-0.5">
-                    {getFileIcon(artifact, "h-4 w-4 flex-shrink-0")}
-                </div>
+                <div className="flex-shrink-0 pt-0.5">{getFileIcon(artifact, "h-4 w-4 flex-shrink-0")}</div>
                 <div className="min-w-0 flex-grow">
                     <ArtifactDetails artifactInfo={artifact} isExpanded={isExpanded} onDelete={onDelete} onDownload={onDownload} setIsExpanded={setIsExpanded} isPreview={isPreview} />
                     {isExpanded && (
