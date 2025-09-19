@@ -15,6 +15,8 @@ The image can be quite large.
 docker load -i solace-agent-mesh-enterprise-<tag>.tar.gz
 ```
 
+Ensure you replace `<tag>` with the appropriate version.
+
 ## Step 2: Get Image name
 
 Once loaded, run the following command to verify your installation.
