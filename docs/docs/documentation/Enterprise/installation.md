@@ -3,14 +3,16 @@ title: Installation
 sidebar_position: 5
 ---
 
-## Prepare the Enterprise Image
+## Step 1: Prepare the Enterprise Image
 
 Download the latest enterprise docker image tarball from the [Solace Product Portal](https://products.solace.com/).
 
-Load the image using Docker with the following command.
+Load the image using Docker with the following command. 
+
+This may take some time.
 
 ```bash
-docker load -i solace-agent-mesh-enterprise-<tag>.tar
+docker load -i solace-agent-mesh-enterprise-<tag>.tar.gz
 ```
 
 Once loaded, you can verify the image locally using the following command:
