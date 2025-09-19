@@ -5,6 +5,10 @@ sidebar_position: 5
 
 ## Step 1: Prepare the Enterprise Image
 
+:::tip
+All the docker commands can also be ran using any docker compatbile tool like [podman](https://podman.io/)
+:::
+
 Download the latest enterprise docker image tarball from the [Solace Product Portal](https://products.solace.com/).
 
 Load the image using Docker with the following command. 
