@@ -159,7 +159,7 @@ The parameters are described in the following table:
 
 | Parameter | Options | Description | Default |
 | :--- | :--- | :--- | :--- |
-| `type` | `memory`, `vertex_rag` | Configuration for ADK Session Service | `memory` |
+| `type` | `memory`, `sql`, `vertex_rag` | Configuration for ADK Session Service | `memory` |
 | `default_behavior` | `PERSISTENT`, `RUN_BASED` | The default behavior of keeping the session history | `PERSISTENT` |
 
 ##### Artifact Service
