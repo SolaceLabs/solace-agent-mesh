@@ -21,8 +21,6 @@ Ensure you replace `<tag>` with the appropriate version.
 
 Once loaded, run the following command to verify your installation.
 
-Also take note of the name and tag of the image.
-
 ```bash
 docker images
 ```
@@ -32,6 +30,8 @@ Example output:
 REPOSITORY                                                                 TAG                IMAGE ID      CREATED      SIZE
 868978040651.dkr.ecr.us-east-1.amazonaws.com/solace-agent-mesh-enterprise  1.0.37-c8890c7f31  2589d25d0917  9 days ago   5.25 GB
 ```
+
+Take note of the name and tag of the image.
 
 In this case our image name would be: <br />
 `868978040651.dkr.ecr.us-east-1.amazonaws.com/solace-agent-mesh-enterprise:1.0.37-c8890c7f31`
