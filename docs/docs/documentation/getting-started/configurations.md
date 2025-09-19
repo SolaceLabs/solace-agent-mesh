@@ -36,7 +36,7 @@ The file uses YAML anchors (`&anchor_name`) to create reusable configuration blo
 shared_config:
   - broker_connection: &broker_connection
       dev_mode: ${SOLACE_DEV_MODE, false}
-      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8080}
+      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8008}
       broker_username: ${SOLACE_BROKER_USERNAME, default}
       broker_password: ${SOLACE_BROKER_PASSWORD, default}
       broker_vpn: ${SOLACE_BROKER_VPN, default}
@@ -95,7 +95,7 @@ The `broker_connection` section configures the connection to the Solace event br
 | Parameter | Environment Variable | Description | Default |
 | :--- | :--- | :--- | :--- |
 | `dev_mode` | `SOLACE_DEV_MODE` | When set to `true`, uses an in-memory broker for testing. | `false` |
-| `broker_url` | `SOLACE_BROKER_URL` | The URL of the Solace broker. | `ws://localhost:8080` |
+| `broker_url` | `SOLACE_BROKER_URL` | The URL of the Solace broker. | `ws://localhost:8008` |
 | `broker_username` | `SOLACE_BROKER_USERNAME` | The username for authenticating with the broker. | `default` |
 | `broker_password` | `SOLACE_BROKER_PASSWORD` | The password for authenticating with the broker. | `default` |
 | `broker_vpn` | `SOLACE_BROKER_VPN` | The Message VPN to connect to on the broker. | `default` |
