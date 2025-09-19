@@ -253,7 +253,7 @@ class SamAgentComponent(SamComponentBase):
         try:
             self.agent_specific_state: Dict[str, Any] = {}
             init_func_details = self.get_config("agent_init_function")
-            if init_func_details and isinstance(init_func_details, dict):
+            if init_func_details:
                 module_name = init_func_details.get("module")
                 func_name = init_func_details.get("name")
                 base_path = init_func_details.get("base_path")
