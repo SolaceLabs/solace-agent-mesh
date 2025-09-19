@@ -32,7 +32,7 @@ interface OrchestratorData {
 
 const sessionServiceTypeOptions = [
   /* eslint-disable-next-line */
-  // { value: 'sql', label: 'SQL: Use a SQL database for session data' },
+  { value: 'sql', label: 'SQL: Use a SQL database for session data' },
   { value: 'memory', label: 'Memory: Store session data in memory' },
   { value: 'vertex_rag', label: 'Vertex RAG: Use Google Vertex AI for RAG capabilities' },
 ];
@@ -87,7 +87,7 @@ export default function OrchestratorSetup({
 
   const [agentName, setAgentName] = useState(orchestratorData.agent_name || 'OrchestratorAgent');
   const [supportsStreaming, setSupportsStreaming] = useState(orchestratorData.supports_streaming !== false);
-  const [sessionServiceType, setSessionServiceType] = useState(orchestratorData.session_service_type || 'memory');
+  const [sessionServiceType, setSessionServiceType] = useState(orchestratorData.session_service_type || 'sql');
   const [orchestratorDatabaseUrl, setOrchestratorDatabaseUrl] = useState(orchestratorData.orchestrator_database_url || '');
   const [sessionBehavior, setSessionBehavior] = useState(orchestratorData.session_service_behavior || 'PERSISTENT');
   const [artifactServiceType, setArtifactServiceType] = useState(orchestratorData.artifact_service_type || 'filesystem');
