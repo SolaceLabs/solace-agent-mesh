@@ -92,3 +92,5 @@ solace-agent-mesh-enterprise:<tag>
 ```
 
 You can then access Solace Agent Mesh Enterprise UI through http://localhost:8000
+
+You can then access Solace Agent Mesh Enterprise UI through http://localhost:8001
