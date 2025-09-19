@@ -88,9 +88,7 @@ docker run -itd -p 8001:8000 \
   -e SOLACE_BROKER_USERNAME="<YOUR_BROKER_USERNAME>" \
   -e SOLACE_BROKER_PASSWORD="<YOUR_BROKER_PASSWORD>" \
   --name sam-ent-prod \
-solace-agent-mesh-enterprise:<tag>
+  solace-agent-mesh-enterprise:<tag>
 ```
-
-You can then access Solace Agent Mesh Enterprise UI through http://localhost:8000
 
 You can then access Solace Agent Mesh Enterprise UI through http://localhost:8001
