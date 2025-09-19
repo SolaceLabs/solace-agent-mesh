@@ -107,6 +107,12 @@ docker run -itd -p 8001:8000 \
     Open the connect with Python dropdown
 
     Click Solace Python with smf as the protocol.
+    
+    Copy: 
+    - Username for SOLACE_BROKER_USERNAME,
+    - Password for SOLACE_BROKER_PASSWORD,
+    - Message VPN for SOLACE_BROKER_VPN
+    - Secured SMF URI for SOLACE_BROKER_URL
 
     ![How to get credentials](../../../static/img/sam-enterprise-credentials.png)
 
