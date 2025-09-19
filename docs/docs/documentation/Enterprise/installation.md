@@ -15,13 +15,27 @@ This may take some time.
 docker load -i solace-agent-mesh-enterprise-<tag>.tar.gz
 ```
 
-Once loaded, you can verify the image locally using the following command:
+## Step 2: Get Image name
+
+Once loaded, run the following command to verify your installation.
+
+Also take note of the name and tag of the image.
 
 ```bash
 docker images
 ```
 
-## Running Solace Agent Mesh Enterprise
+Example output:
+```bash
+REPOSITORY                                                                 TAG                IMAGE ID      CREATED      SIZE
+868978040651.dkr.ecr.us-east-1.amazonaws.com/solace-agent-mesh-enterprise  1.0.37-c8890c7f31  2589d25d0917  9 days ago   5.25 GB
+```
+
+In this case our image name would be: <br />
+`868978040651.dkr.ecr.us-east-1.amazonaws.com/solace-agent-mesh-enterprise:1.0.37-c8890c7f31`
+
+
+## Step 3: Running Solace Agent Mesh Enterprise
 
 Here are two examples of Docker run commands for both a development use case as well as a production use case:
 
