@@ -23,7 +23,7 @@ Solace agent mesh allows for fine tunning SSL connection to your LLM endpoints t
 More information about each setting and it's use case can be found in the [LiteLLM docs](https://docs.litellm.ai/docs/guides/security_settings) 
 
 ##### Example `.env` file
-```.env
+```bash
 # SSL Configuration
 SSL_VERIFY=true
 SSL_SECURITY_LEVEL=2
