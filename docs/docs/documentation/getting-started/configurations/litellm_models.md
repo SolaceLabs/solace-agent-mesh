@@ -19,3 +19,20 @@ Solace agent mesh allows for fine tunning SSL connection to your LLM endpoints t
 | `SSL_CERTIFICATE`          | `string`  | Direct content of the SSL certificate (PEM format).                | (none)    |
 | `DISABLE_AIOHTTP_TRANSPORT`| `boolean` | Flag to disable the use of aiohttp transport for HTTP requests.    | `false`   |
 | `AIOHTTP_TRUST_ENV`        | `boolean` | Flag to enable aiohttp to trust environment proxy settings.        | `false`   |
+
+More information about each setting and it's use case can be found in the [LiteLLM docs](https://docs.litellm.ai/docs/guides/security_settings) 
+
+##### Example `.env` file
+```.env
+# SSL Configuration
+SSL_VERIFY=true
+SSL_SECURITY_LEVEL=2
+SSL_CERT_FILE=/path/to/your/certificate.pem
+SSL_CERTIFICATE="-----BEGIN CERTIFICATE-----
+MIIDXTCCAkWgAwIBAg...T2u3V4w5X6y7Z8
+-----END CERTIFICATE-----"
+
+# HTTP Transport Configuration
+DISABLE_AIOHTTP_TRANSPORT=false
+AIOHTTP_TRUST_ENV=false
+```
