@@ -54,8 +54,24 @@ docker run -itd -p 8001:8000 \
   -e NAMESPACE="<YOUR_NAMESPACE>" \
   -e SOLACE_DEV_MODE="true" \
   --name sam-ent-dev \
-solace-agent-mesh-enterprise:<tag>
+  solace-agent-mesh-enterprise:<tag>
 ```
+
+<details>
+    <summary>Example</summary>
+
+    ```bash
+    docker run -itd -p 8001:8000 \
+      -e LLM_SERVICE_API_KEY="<YOUR_LLM_TOKEN>" \
+      -e LLM_SERVICE_ENDPOINT="https://lite-llm.mymaas.net/" \
+      -e LLM_SERVICE_PLANNING_MODEL_NAME="openai/vertex-claude-4-sonnet" \
+      -e LLM_SERVICE_GENERAL_MODEL_NAME="openai/vertex-claude-4-sonnet" \
+      -e NAMESPACE="sam-dev" \
+      -e SOLACE_DEV_MODE="true" \
+      --name sam-ent-dev \
+      868978040651.dkr.ecr.us-east-1.amazonaws.com/solace-agent-mesh-enterprise:1.0.37-c8890c7f31
+    ```
+</details>
 
 ### Production Use Case
 
