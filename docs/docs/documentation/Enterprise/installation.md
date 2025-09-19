@@ -9,7 +9,7 @@ sidebar_position: 5
 All the docker commands can also be ran using any docker compatbile tool like [podman](https://podman.io/)
 :::
 
-Download the latest enterprise docker image tarball from the [Solace Product Portal](https://products.solace.com/).
+Download the latest enterprise docker image tarball from the [Solace Product Portal](https://products.solace.com/prods/Agent_Mesh/Enterprise/).
 
 Load the image using Docker with the following command. 
 
