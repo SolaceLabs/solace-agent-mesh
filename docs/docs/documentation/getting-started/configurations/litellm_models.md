@@ -81,7 +81,7 @@ For a complete list of supported models and their configuration options, refer t
 
 ## SSL/TLS Configuration 
 
-Solace agent mesh allows for fine tunning SSL connection to your LLM endpoints through environment variables. The connection parameters are described in the following table:
+Solace Agent Mesh allows for fine tuning the security parameters on connections to your LLM endpoints through environment variables. The connection parameters are described in the following table:
 
 | Parameter                  | Type      | Description                                                        | Default   |
 |----------------------------|-----------|--------------------------------------------------------------------|-----------|
