@@ -210,6 +210,12 @@ class SessionServiceConfig(SamConfigBase):
     )
 
 
+class CredentialServiceConfig(SamConfigBase):
+    """Configuration for the ADK Credential Service."""
+
+    type: str = Field(..., description="Service type (e.g., 'memory').")
+
+
 class SamAgentAppConfig(SamConfigBase):
     """Pydantic model for the complete agent application configuration."""
 
@@ -255,6 +261,10 @@ class SamAgentAppConfig(SamConfigBase):
     memory_service: Dict[str, Any] = Field(
         default={"type": "memory"},
         description="Configuration for ADK Memory Service (defaults to memory).",
+    )
+    credential_service: Optional[CredentialServiceConfig] = Field(
+        default=None,
+        description="Configuration for ADK Credential Service (optional).",
     )
     tool_output_save_threshold_bytes: int = Field(
         default=2048,

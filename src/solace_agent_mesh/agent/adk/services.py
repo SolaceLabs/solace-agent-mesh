@@ -382,7 +382,7 @@ def initialize_memory_service(component) -> BaseMemoryService:
 
 def initialize_credential_service(component) -> Optional[BaseCredentialService]:
     """Initializes the ADK Credential Service based on configuration."""
-    config: Dict = component.get_config("credential_service", None)
+    config = component.get_config("credential_service", None)
 
     # If no credential service is configured, return None
     if config is None:
@@ -392,7 +392,12 @@ def initialize_credential_service(component) -> Optional[BaseCredentialService]:
         )
         return None
 
-    service_type = config.get("type", "memory").lower()
+    # Handle both dict and CredentialServiceConfig object
+    if hasattr(config, "type"):
+        service_type = config.type.lower()
+    else:
+        service_type = config.get("type", "memory").lower()
+
     log.info(
         "%s Initializing Credential Service of type: %s",
         component.log_identifier,
