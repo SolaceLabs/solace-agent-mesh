@@ -222,6 +222,30 @@ async def auth_tool_callback(
     """
     code = request.query_params.get("code")
     state = request.query_params.get("state")
+    error = request.query_params.get("error")
+    error_description = request.query_params.get("error_description")
+
+    if error:
+        log.error(f"OAuth2 tool callback received error: {error} - {error_description}")
+        return HTMLResponse(
+            content=f"""
+            <html>
+                <head>
+                    <title>Authorization Error</title>
+                </head>
+                <body>
+                    <h2>Authorization Error</h2>
+                    <p>Error: {error}</p>
+                    <p>Description: {error_description or 'No description provided'}</p>
+                    <p>Please close this window and try again.</p>
+                </body>
+            </html>
+            """,
+            status_code=400
+        )
+
+    # Get the current request URL for logging/debugging
+    url = str(request.url)
     
 
     if not code:
@@ -244,8 +268,8 @@ async def auth_tool_callback(
     log.info(f"OAuth2 tool callback received authorization code: {code}")
     
     try:
-        from solace_agent_mesh_enterprise.auth.input_required import process_response
-        await process_response(component, code, state)
+        from solace_agent_mesh_enterprise.auth.input_required import process_auth_grant_response
+        await process_auth_grant_response(component, code, state, url)
     except ImportError:
         pass
 
