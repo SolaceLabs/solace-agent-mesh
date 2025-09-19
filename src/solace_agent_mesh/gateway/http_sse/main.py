@@ -27,7 +27,6 @@ from starlette.staticfiles import StaticFiles
 from .routers.sessions import router as session_router
 from .routers.tasks import router as task_router
 from .routers.users import router as user_router
-# from .infrastructure.persistence.database_service import DatabaseService  # Removed with infrastructure
 from ...common import a2a
 from ...gateway.http_sse import dependencies
 from .routers import (
@@ -38,6 +37,7 @@ from .routers import (
     people,
     sse,
     visualization,
+    projects
 )
 from .routers.sessions import router as session_router
 from .routers.tasks import router as task_router
@@ -489,8 +489,7 @@ def _setup_routers() -> None:
     app.include_router(visualization.router, prefix=f"{api_prefix}/visualization", tags=["Visualization"])
     app.include_router(people.router, prefix=api_prefix, tags=["People"])
     app.include_router(auth.router, prefix=api_prefix, tags=["Auth"])
-    from .routers.project_controller import router as project_router
-    app.include_router(project_router, prefix=api_prefix, tags=["Projects"])
+    app.include_router(projects, prefix=api_prefix, tags=["Projects"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
 

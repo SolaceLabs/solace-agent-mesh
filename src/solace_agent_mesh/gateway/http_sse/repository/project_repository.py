@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session as DBSession
 
 from .interfaces import IProjectRepository
 from .models import ProjectModel
-from ..domain.entities.project_domain import ProjectDomain, ProjectFilter
+from .entities.project import Project
+from ..routers.dto.requests.project_requests import ProjectFilter
 from ..shared import now_epoch_ms
 
 
@@ -20,7 +21,7 @@ class ProjectRepository(IProjectRepository):
 
     def create_project(self, name: str, user_id: str, description: Optional[str] = None,
                       system_prompt: Optional[str] = None,
-                      created_by_user_id: Optional[str] = None) -> ProjectDomain:
+                      created_by_user_id: Optional[str] = None) -> Project:
         """Create a new user project."""
         model = ProjectModel(
             id=str(uuid.uuid4()),
@@ -39,7 +40,7 @@ class ProjectRepository(IProjectRepository):
         return self._model_to_entity(model)
 
     def create_global_project(self, name: str, description: Optional[str] = None,
-                             created_by_user_id: str = None) -> ProjectDomain:
+                             created_by_user_id: str = None) -> Project:
         """Create a new global project template."""
         model = ProjectModel(
             id=str(uuid.uuid4()),
@@ -58,7 +59,7 @@ class ProjectRepository(IProjectRepository):
         return self._model_to_entity(model)
 
     def copy_from_template(self, template_id: str, name: str, user_id: str,
-                          description: Optional[str] = None) -> Optional[ProjectDomain]:
+                          description: Optional[str] = None) -> Optional[Project]:
         """Create a new project by copying from a template."""
         # First verify template exists and is global
         template = self.get_by_id(template_id)
@@ -81,17 +82,17 @@ class ProjectRepository(IProjectRepository):
         self.db.refresh(model)
         return self._model_to_entity(model)
 
-    def get_user_projects(self, user_id: str) -> List[ProjectDomain]:
+    def get_user_projects(self, user_id: str) -> List[Project]:
         """Get all projects owned by a specific user."""
         models = self.db.query(ProjectModel).filter(ProjectModel.user_id == user_id).all()
         return [self._model_to_entity(model) for model in models]
 
-    def get_global_projects(self) -> List[ProjectDomain]:
+    def get_global_projects(self) -> List[Project]:
         """Get all global project templates."""
         models = self.db.query(ProjectModel).filter(ProjectModel.is_global == True).all()
         return [self._model_to_entity(model) for model in models]
 
-    def get_projects_by_template(self, template_id: str) -> List[ProjectDomain]:
+    def get_projects_by_template(self, template_id: str) -> List[Project]:
         """Get all projects copied from a specific template."""
         models = self.db.query(ProjectModel).filter(ProjectModel.template_id == template_id).all()
         return [self._model_to_entity(model) for model in models]
@@ -101,7 +102,7 @@ class ProjectRepository(IProjectRepository):
         count = self.db.query(ProjectModel).filter(ProjectModel.template_id == template_id).count()
         return count
 
-    def get_filtered_projects(self, project_filter: ProjectFilter) -> List[ProjectDomain]:
+    def get_filtered_projects(self, project_filter: ProjectFilter) -> List[Project]:
         """Get projects based on filter criteria."""
         query = self.db.query(ProjectModel)
         
@@ -120,14 +121,25 @@ class ProjectRepository(IProjectRepository):
         models = query.all()
         return [self._model_to_entity(model) for model in models]
 
-    def get_by_id(self, project_id: str) -> Optional[ProjectDomain]:
-        """Get a project by its ID."""
-        model = self.db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+    def get_by_id(self, project_id: str, user_id: str) -> Optional[Project]:
+        """Get a project by its ID, ensuring user access."""
+        query = self.db.query(ProjectModel).filter(ProjectModel.id == project_id)
+        
+        # Add user access filter: either user owns the project or it's a global project
+        query = query.filter(
+            (ProjectModel.user_id == user_id) | (ProjectModel.is_global == True)
+        )
+        
+        model = query.first()
         return self._model_to_entity(model) if model else None
 
-    def update(self, project_id: str, update_data: dict) -> Optional[ProjectDomain]:
-        """Update a project with the given data."""
-        model = self.db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+    def update(self, project_id: str, user_id: str, update_data: dict) -> Optional[Project]:
+        """Update a project with the given data, ensuring user access."""
+        model = self.db.query(ProjectModel).filter(
+            ProjectModel.id == project_id,
+            ProjectModel.user_id == user_id  # Only allow updates to user's own projects
+        ).first()
+        
         if not model:
             return None
         
@@ -140,15 +152,18 @@ class ProjectRepository(IProjectRepository):
         self.db.refresh(model)
         return self._model_to_entity(model)
 
-    def delete(self, project_id: str) -> bool:
-        """Delete a project by its ID."""
-        result = self.db.query(ProjectModel).filter(ProjectModel.id == project_id).delete()
+    def delete(self, project_id: str, user_id: str) -> bool:
+        """Delete a project by its ID, ensuring user access."""
+        result = self.db.query(ProjectModel).filter(
+            ProjectModel.id == project_id,
+            ProjectModel.user_id == user_id  # Only allow deletion of user's own projects
+        ).delete()
         self.db.commit()
         return result > 0
 
-    def _model_to_entity(self, model: ProjectModel) -> ProjectDomain:
+    def _model_to_entity(self, model: ProjectModel) -> Project:
         """Convert SQLAlchemy model to domain entity."""
-        return ProjectDomain(
+        return Project(
             id=model.id,
             name=model.name,
             user_id=model.user_id,

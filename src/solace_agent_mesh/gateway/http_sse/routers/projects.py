@@ -1,5 +1,5 @@
 """
-Project controller for handling HTTP requests in the presentation layer.
+Project API controller using 3-tiered architecture.
 """
 
 from typing import List, Optional
@@ -13,15 +13,18 @@ from fastapi import (
     File,
     UploadFile,
 )
-import logging
+from solace_ai_connector.common.log import log
 
-from ..dependencies import get_user_id, get_project_service
+from ..dependencies import get_project_service
 from ..services.project_service import ProjectService
-from ..domain.entities.project_domain import ProjectCopyRequest
+from ..shared.auth_utils import get_current_user
 from .dto.requests.project_requests import (
     CreateProjectRequest,
     UpdateProjectRequest,
     CopyProjectRequest,
+    GetProjectRequest,
+    GetProjectsRequest,
+    DeleteProjectRequest,
 )
 from .dto.responses.project_responses import (
     ProjectResponse,
@@ -29,8 +32,6 @@ from .dto.responses.project_responses import (
     GlobalProjectResponse,
     GlobalProjectListResponse,
 )
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -41,38 +42,35 @@ async def create_project(
     description: Optional[str] = Form(None),
     system_prompt: Optional[str] = Form(None),
     files: Optional[List[UploadFile]] = File(None),
-    user_id: str = Depends(get_user_id),
+    user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
 ):
     """
     Create a new project for the authenticated user.
-    
-    Args:
-        name: Project name
-        description: Optional project description
-        system_prompt: Optional system prompt
-        files: Optional list of files to attach to the project
-        user_id: Authenticated user ID
-        project_service: Injected project service
-        
-    Returns:
-        ProjectResponse: The created project
     """
+    user_id = user.get("id")
+    log.info(f"Creating project '{name}' for user {user_id}")
+
     try:
-        logger.info(f"Creating project '{name}' for user {user_id}")
-
         if files:
-            logger.info(f"Received {len(files)} files for project creation:")
+            log.info(f"Received {len(files)} files for project creation:")
             for file in files:
-                logger.info(f"  - Filename: {file.filename}, Content-Type: {file.content_type}")
+                log.info(f"  - Filename: {file.filename}, Content-Type: {file.content_type}")
         else:
-            logger.info("No files received for project creation.")
+            log.info("No files received for project creation.")
 
-        project = await project_service.create_project(
+        request_dto = CreateProjectRequest(
             name=name,
-            user_id=user_id,
             description=description,
             system_prompt=system_prompt,
+            user_id=user_id
+        )
+
+        project = await project_service.create_project(
+            name=request_dto.name,
+            user_id=request_dto.user_id,
+            description=request_dto.description,
+            system_prompt=request_dto.system_prompt,
             files=files,
         )
 
@@ -90,13 +88,13 @@ async def create_project(
         )
     
     except ValueError as e:
-        logger.warning(f"Validation error creating project: {e}")
+        log.warning(f"Validation error creating project: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
     except Exception as e:
-        logger.exception(f"Error creating project: {e}")
+        log.error("Error creating project for user %s: %s", user_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create project"
@@ -105,23 +103,19 @@ async def create_project(
 
 @router.get("/projects", response_model=ProjectListResponse)
 async def get_user_projects(
-    user_id: str = Depends(get_user_id),
+    user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
 ):
     """
     Get all projects owned by the authenticated user.
-    
-    Args:
-        user_id: Authenticated user ID
-        project_service: Injected project service
-        
-    Returns:
-        ProjectListResponse: List of user's projects
     """
+    user_id = user.get("id")
+    log.info(f"Fetching projects for user_id: {user_id}")
+
     try:
-        logger.debug(f"Retrieving projects for user {user_id}")
-        
-        projects = project_service.get_user_projects(user_id)
+        request_dto = GetProjectsRequest(user_id=user_id)
+
+        projects = project_service.get_user_projects(request_dto.user_id)
         
         project_responses = [
             ProjectResponse(
@@ -145,7 +139,7 @@ async def get_user_projects(
         )
     
     except Exception as e:
-        logger.exception(f"Error retrieving projects for user {user_id}: {e}")
+        log.error("Error fetching projects for user %s: %s", user_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve projects"
@@ -155,28 +149,39 @@ async def get_user_projects(
 @router.get("/projects/{project_id}", response_model=ProjectResponse)
 async def get_project(
     project_id: str,
-    user_id: str = Depends(get_user_id),
+    user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
 ):
     """
     Get a specific project by ID.
-    
-    Args:
-        project_id: The project ID
-        user_id: Authenticated user ID
-        project_service: Injected project service
-        
-    Returns:
-        ProjectResponse: The requested project
     """
+    user_id = user.get("id")
+    log.info("User %s attempting to fetch project_id: %s", user_id, project_id)
+
     try:
-        project = project_service.get_project(project_id, user_id)
+        if (
+            not project_id
+            or project_id.strip() == ""
+            or project_id in ["null", "undefined"]
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Project not found."
+            )
+
+        request_dto = GetProjectRequest(project_id=project_id, user_id=user_id)
+
+        project = project_service.get_project(
+            project_id=request_dto.project_id, 
+            user_id=request_dto.user_id
+        )
         
         if not project:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Project not found or access denied"
+                detail="Project not found."
             )
+
+        log.info("User %s authorized. Fetching project_id: %s", user_id, project_id)
         
         return ProjectResponse(
             id=project.id,
@@ -194,7 +199,12 @@ async def get_project(
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Error retrieving project {project_id}: {e}")
+        log.error(
+            "Error fetching project %s for user %s: %s",
+            project_id,
+            user_id,
+            e,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve project"
@@ -205,25 +215,32 @@ async def get_project(
 async def update_project(
     project_id: str,
     request: UpdateProjectRequest,
-    user_id: str = Depends(get_user_id),
+    user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
 ):
     """
     Update a project's details.
-    
-    Args:
-        project_id: The project ID
-        request: Update request
-        user_id: Authenticated user ID
-        project_service: Injected project service
-        
-    Returns:
-        ProjectResponse: The updated project
     """
+    user_id = user.get("id")
+    log.info("User %s attempting to update project %s", user_id, project_id)
+
     try:
+        if (
+            not project_id
+            or project_id.strip() == ""
+            or project_id in ["null", "undefined"]
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Project not found."
+            )
+
+        # Add user_id to the request
+        request.user_id = user_id
+        request.project_id = project_id
+
         project = project_service.update_project(
-            project_id=project_id,
-            user_id=user_id,
+            project_id=request.project_id,
+            user_id=request.user_id,
             name=request.name,
             description=request.description,
             system_prompt=request.system_prompt
@@ -232,8 +249,10 @@ async def update_project(
         if not project:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Project not found or access denied"
+                detail="Project not found."
             )
+
+        log.info("Project %s updated successfully", project_id)
         
         return ProjectResponse(
             id=project.id,
@@ -248,16 +267,20 @@ async def update_project(
             updated_at=project.updated_at,
         )
     
-    except ValueError as e:
-        logger.warning(f"Validation error updating project {project_id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
     except HTTPException:
         raise
+    except ValueError as e:
+        log.warning("Validation error updating project %s: %s", project_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        )
     except Exception as e:
-        logger.exception(f"Error updating project {project_id}: {e}")
+        log.error(
+            "Error updating project %s for user %s: %s",
+            project_id,
+            user_id,
+            e,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update project"
@@ -267,36 +290,43 @@ async def update_project(
 @router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(
     project_id: str,
-    user_id: str = Depends(get_user_id),
+    user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
 ):
     """
     Delete a project.
-    
-    Args:
-        project_id: The project ID
-        user_id: Authenticated user ID
-        project_service: Injected project service
     """
+    user_id = user.get("id")
+    log.info("User %s attempting to delete project %s", user_id, project_id)
+
     try:
-        success = project_service.delete_project(project_id, user_id)
+        request_dto = DeleteProjectRequest(project_id=project_id, user_id=user_id)
+
+        success = project_service.delete_project(
+            project_id=request_dto.project_id, 
+            user_id=request_dto.user_id
+        )
         
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Project not found or access denied"
+                detail="Project not found."
             )
+
+        log.info("Project %s deleted successfully", project_id)
     
     except ValueError as e:
-        logger.warning(f"Validation error deleting project {project_id}: {e}")
+        log.warning("Validation error deleting project %s: %s", project_id, e)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
         )
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.exception(f"Error deleting project {project_id}: {e}")
+        log.error(
+            "Error deleting project %s for user %s: %s",
+            project_id,
+            user_id,
+            e,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete project"
@@ -309,12 +339,6 @@ async def get_global_project_templates(
 ):
     """
     Get all available global project templates.
-    
-    Args:
-        project_service: Injected project service
-        
-    Returns:
-        GlobalProjectListResponse: List of global project templates
     """
     try:
         projects = project_service.get_global_projects()
@@ -342,7 +366,7 @@ async def get_global_project_templates(
         )
     
     except Exception as e:
-        logger.exception(f"Error retrieving global project templates: {e}")
+        log.error("Error retrieving global project templates: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve global project templates"
@@ -353,21 +377,15 @@ async def get_global_project_templates(
 async def copy_project_from_template(
     template_id: str,
     request: CopyProjectRequest,
-    user_id: str = Depends(get_user_id),
+    user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
 ):
     """
     Copy a project from a global template.
-    
-    Args:
-        template_id: The template project ID
-        request: Copy request
-        user_id: Authenticated user ID
-        project_service: Injected project service
-        
-    Returns:
-        ProjectResponse: The copied project
     """
+    user_id = user.get("id")
+    log.info("User %s attempting to copy from template %s", user_id, template_id)
+
     try:
         copy_request = ProjectCopyRequest(
             template_id=template_id,
@@ -383,6 +401,8 @@ async def copy_project_from_template(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Template not found or is not a global project"
             )
+
+        log.info("Project copied successfully from template %s", template_id)
         
         return ProjectResponse(
             id=project.id,
@@ -398,7 +418,7 @@ async def copy_project_from_template(
         )
     
     except ValueError as e:
-        logger.warning(f"Validation error copying from template {template_id}: {e}")
+        log.warning("Validation error copying from template %s: %s", template_id, e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
@@ -406,7 +426,7 @@ async def copy_project_from_template(
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Error copying from template {template_id}: {e}")
+        log.error("Error copying from template %s for user %s: %s", template_id, user_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to copy project from template"

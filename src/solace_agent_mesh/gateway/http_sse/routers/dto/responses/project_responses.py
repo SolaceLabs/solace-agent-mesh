@@ -4,7 +4,6 @@ Project-related response DTOs.
 
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional
-from datetime import datetime
 
 from .base_responses import BaseTimestampResponse
 
@@ -20,8 +19,8 @@ class ProjectResponse(BaseTimestampResponse):
     is_global: bool = Field(alias="isGlobal")
     template_id: Optional[str] = Field(default=None, alias="templateId")
     created_by_user_id: Optional[str] = Field(default=None, alias="createdByUserId")
-    created_at: datetime = Field(alias="createdAt")
-    updated_at: Optional[datetime] = Field(default=None, alias="updatedAt")
+    created_at: int = Field(alias="createdAt")
+    updated_at: Optional[int] = Field(default=None, alias="updatedAt")
 
 
 class ProjectListResponse(BaseModel):
@@ -41,8 +40,8 @@ class GlobalProjectResponse(BaseTimestampResponse):
     description: Optional[str] = None
     system_prompt: Optional[str] = Field(default=None, alias="systemPrompt")
     created_by_user_id: Optional[str] = Field(default=None, alias="createdByUserId")
-    created_at: datetime = Field(alias="createdAt")
-    updated_at: Optional[datetime] = Field(default=None, alias="updatedAt")
+    created_at: int = Field(alias="createdAt")
+    updated_at: Optional[int] = Field(default=None, alias="updatedAt")
     usage_count: int = Field(alias="usageCount")
 
 

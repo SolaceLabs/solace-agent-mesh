@@ -1,5 +1,5 @@
 """
-Domain models for project-related business logic.
+Project domain entity.
 """
 
 from typing import Optional
@@ -8,8 +8,8 @@ from pydantic import BaseModel, Field
 from ...shared import now_epoch_ms
 
 
-class ProjectDomain(BaseModel):
-    """Project domain entity with business rules."""
+class Project(BaseModel):
+    """Project domain entity with business logic."""
     
     id: str
     name: str = Field(..., min_length=1, max_length=255)
@@ -87,7 +87,7 @@ class ProjectDomain(BaseModel):
         # Only global templates can be copied
         return self.is_template
     
-    def create_copy_for_user(self, user_id: str, new_name: str, new_description: Optional[str] = None) -> 'ProjectDomain':
+    def create_copy_for_user(self, user_id: str, new_name: str, new_description: Optional[str] = None) -> 'Project':
         """Create a copy of this template for a user."""
         if not self.can_be_copied_by_user(user_id):
             raise ValueError("Only global templates can be copied")
@@ -96,7 +96,7 @@ class ProjectDomain(BaseModel):
             raise ValueError("Copy name cannot be empty")
         
         import uuid
-        return ProjectDomain(
+        return Project(
             id=str(uuid.uuid4()),
             name=new_name.strip(),
             user_id=user_id,
@@ -111,25 +111,3 @@ class ProjectDomain(BaseModel):
     def mark_as_updated(self) -> None:
         """Mark project as updated."""
         self.updated_at = now_epoch_ms()
-
-
-class ProjectCopyRequest(BaseModel):
-    """Domain model for copying a project from a template."""
-    
-    template_id: str
-    new_name: str = Field(..., min_length=1, max_length=255)
-    new_description: Optional[str] = Field(None, max_length=1000)
-    user_id: str
-
-
-class ProjectFilter(BaseModel):
-    """Domain model for filtering projects."""
-    
-    user_id: Optional[str] = None
-    is_global: Optional[bool] = None
-    template_id: Optional[str] = None
-    created_by_user_id: Optional[str] = None
-
-
-# Backward compatibility alias
-Project = ProjectDomain

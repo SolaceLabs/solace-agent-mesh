@@ -9,7 +9,8 @@ from datetime import datetime
 
 from ..shared.types import PaginationInfo, SessionId, UserId
 from .entities import Message, Session
-from ..domain.entities.project_domain import ProjectDomain, ProjectFilter
+from .entities.project import Project
+from ..routers.dto.requests.project_requests import ProjectFilter
 
 
 class ISessionRepository(ABC):
@@ -74,34 +75,34 @@ class IProjectRepository(ABC):
     @abstractmethod
     def create_project(self, name: str, user_id: str, description: Optional[str] = None,
                       system_prompt: Optional[str] = None,
-                      created_by_user_id: Optional[str] = None) -> ProjectDomain:
+                      created_by_user_id: Optional[str] = None) -> Project:
         """Create a new user project."""
         pass
 
     @abstractmethod
-    def create_global_project(self, name: str, description: Optional[str] = None, 
-                             created_by_user_id: str = None) -> ProjectDomain:
+    def create_global_project(self, name: str, description: Optional[str] = None,
+                             created_by_user_id: str = None) -> Project:
         """Create a new global project template."""
         pass
 
     @abstractmethod
-    def copy_from_template(self, template_id: str, name: str, user_id: str, 
-                          description: Optional[str] = None) -> Optional[ProjectDomain]:
+    def copy_from_template(self, template_id: str, name: str, user_id: str,
+                          description: Optional[str] = None) -> Optional[Project]:
         """Create a new project by copying from a template."""
         pass
 
     @abstractmethod
-    def get_user_projects(self, user_id: str) -> List[ProjectDomain]:
+    def get_user_projects(self, user_id: str) -> List[Project]:
         """Get all projects owned by a specific user."""
         pass
 
     @abstractmethod
-    def get_global_projects(self) -> List[ProjectDomain]:
+    def get_global_projects(self) -> List[Project]:
         """Get all global project templates."""
         pass
 
     @abstractmethod
-    def get_projects_by_template(self, template_id: str) -> List[ProjectDomain]:
+    def get_projects_by_template(self, template_id: str) -> List[Project]:
         """Get all projects copied from a specific template."""
         pass
 
@@ -111,21 +112,21 @@ class IProjectRepository(ABC):
         pass
 
     @abstractmethod
-    def get_filtered_projects(self, project_filter: ProjectFilter) -> List[ProjectDomain]:
+    def get_filtered_projects(self, project_filter: ProjectFilter) -> List[Project]:
         """Get projects based on filter criteria."""
         pass
 
     @abstractmethod
-    def get_by_id(self, project_id: str) -> Optional[ProjectDomain]:
-        """Get a project by its ID."""
+    def get_by_id(self, project_id: str, user_id: str) -> Optional[Project]:
+        """Get a project by its ID, ensuring user access."""
         pass
 
     @abstractmethod
-    def update(self, project_id: str, update_data: dict) -> Optional[ProjectDomain]:
-        """Update a project with the given data."""
+    def update(self, project_id: str, user_id: str, update_data: dict) -> Optional[Project]:
+        """Update a project with the given data, ensuring user access."""
         pass
 
     @abstractmethod
-    def delete(self, project_id: str) -> bool:
-        """Delete a project by its ID."""
+    def delete(self, project_id: str, user_id: str) -> bool:
+        """Delete a project by its ID, ensuring user access."""
         pass

@@ -2,7 +2,7 @@
 Business service for project-related operations.
 """
 
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 import logging
 from fastapi import UploadFile
 from datetime import datetime, timezone
@@ -18,7 +18,11 @@ except ImportError:
 
 
 from ..repository.interfaces import IProjectRepository
-from ..domain.entities.project_domain import ProjectDomain, ProjectFilter, ProjectCopyRequest
+from ..repository.entities.project import Project
+from ..routers.dto.requests.project_requests import ProjectFilter, ProjectCopyRequest
+
+if TYPE_CHECKING:
+    from ..component import WebUIBackendComponent
 
 GLOBAL_PROJECT_USER_ID = "_global_"
 
@@ -29,12 +33,12 @@ class ProjectService:
     def __init__(
         self,
         project_repository: IProjectRepository,
-        artifact_service: BaseArtifactService,
-        app_name: str,
+        component: "WebUIBackendComponent" = None,
     ):
         self.project_repository = project_repository
-        self.artifact_service = artifact_service
-        self.app_name = app_name
+        self.component = component
+        self.artifact_service = component.get_shared_artifact_service() if component else None
+        self.app_name = component.get_config("name", "WebUIBackendApp") if component else "WebUIBackendApp"
         self.logger = logging.getLogger(__name__)
 
     async def create_project(
@@ -44,7 +48,7 @@ class ProjectService:
         description: Optional[str] = None,
         system_prompt: Optional[str] = None,
         files: Optional[List[UploadFile]] = None,
-    ) -> ProjectDomain:
+    ) -> Project:
         """
         Create a new project for a user.
         
@@ -104,7 +108,7 @@ class ProjectService:
         )
         return project_domain
 
-    def get_project(self, project_id: str, user_id: str) -> Optional[ProjectDomain]:
+    def get_project(self, project_id: str, user_id: str) -> Optional[Project]:
         """
         Get a project by ID, ensuring the user has access to it.
         
@@ -113,20 +117,12 @@ class ProjectService:
             user_id: The requesting user ID
             
         Returns:
-            Optional[DomainProject]: The project if found and accessible, None otherwise
+            Optional[Project]: The project if found and accessible, None otherwise
         """
-        db_project = self.project_repository.get_by_id(project_id)
-        if not db_project:
-            return None
-        
-        # Check access permissions
-        if not self._user_can_access_project(db_project, user_id):
-            self.logger.warning(f"User {user_id} attempted to access unauthorized project {project_id}")
-            return None
-        
-        return self._model_to_domain(db_project)
+        # Repository now handles user access validation
+        return self.project_repository.get_by_id(project_id, user_id)
 
-    def get_user_projects(self, user_id: str) -> List[ProjectDomain]:
+    def get_user_projects(self, user_id: str) -> List[Project]:
         """
         Get all projects owned by a specific user.
         
@@ -138,9 +134,9 @@ class ProjectService:
         """
         self.logger.debug(f"Retrieving projects for user {user_id}")
         db_projects = self.project_repository.get_user_projects(user_id)
-        return self._models_to_domain_list(db_projects)
+        return db_projects
 
-    def get_global_projects(self) -> List[ProjectDomain]:
+    def get_global_projects(self) -> List[Project]:
         """
         Get all available global project templates.
         
@@ -149,10 +145,10 @@ class ProjectService:
         """
         self.logger.debug("Retrieving global project templates")
         db_projects = self.project_repository.get_global_projects()
-        return self._models_to_domain_list(db_projects)
+        return db_projects
 
     def update_project(self, project_id: str, user_id: str,
-                           name: Optional[str] = None, description: Optional[str] = None, system_prompt: Optional[str] = None) -> Optional[ProjectDomain]:
+                           name: Optional[str] = None, description: Optional[str] = None, system_prompt: Optional[str] = None) -> Optional[Project]:
         """
         Update a project's details.
         
@@ -164,13 +160,8 @@ class ProjectService:
             system_prompt: New system prompt (optional)
             
         Returns:
-            Optional[DomainProject]: The updated project if successful, None otherwise
+            Optional[Project]: The updated project if successful, None otherwise
         """
-        # First verify the project exists and user has access
-        existing_project = self.get_project(project_id, user_id)
-        if not existing_project:
-            return None
-        
         # Validate business rules
         if name is not None and not name.strip():
             raise ValueError("Project name cannot be empty")
@@ -185,17 +176,16 @@ class ProjectService:
             update_data["system_prompt"] = system_prompt.strip() if system_prompt else None
         
         if not update_data:
-            # Nothing to update
-            return existing_project
+            # Nothing to update - get existing project
+            return self.get_project(project_id, user_id)
         
         self.logger.info(f"Updating project {project_id} for user {user_id}")
-        db_project = self.project_repository.update(project_id, update_data)
+        updated_project = self.project_repository.update(project_id, user_id, update_data)
         
-        if db_project:
+        if updated_project:
             self.logger.info(f"Successfully updated project {project_id}")
-            return self._model_to_domain(db_project)
         
-        return None
+        return updated_project
 
     def delete_project(self, project_id: str, user_id: str) -> bool:
         """
@@ -217,18 +207,15 @@ class ProjectService:
         if existing_project.is_global:
             raise ValueError("Cannot delete global project templates")
         
-        if existing_project.user_id != user_id:
-            raise ValueError("Users can only delete their own projects")
-        
         self.logger.info(f"Deleting project {project_id} for user {user_id}")
-        success = self.project_repository.delete(project_id)
+        success = self.project_repository.delete(project_id, user_id)
         
         if success:
             self.logger.info(f"Successfully deleted project {project_id}")
         
         return success
 
-    def copy_project_from_template(self, copy_request: ProjectCopyRequest) -> Optional[ProjectDomain]:
+    def copy_project_from_template(self, copy_request: ProjectCopyRequest) -> Optional[Project]:
         """
         Copy a project from a global template.
         
@@ -259,9 +246,8 @@ class ProjectService:
         
         if db_project:
             self.logger.info(f"Successfully copied project {db_project.id} from template {copy_request.template_id}")
-            return self._model_to_domain(db_project)
         
-        return None
+        return db_project
 
     def get_template_usage_count(self, template_id: str) -> int:
         """
@@ -275,39 +261,3 @@ class ProjectService:
         """
         return self.project_repository.count_template_usage(template_id)
 
-    def _user_can_access_project(self, project, user_id: str) -> bool:
-        """
-        Check if a user can access a specific project.
-        
-        Args:
-            project: The database project model
-            user_id: The requesting user ID
-            
-        Returns:
-            bool: True if user can access the project
-        """
-        # Global projects are accessible by everyone
-        if project.is_global:
-            return True
-        
-        # User projects are only accessible by their owner
-        return project.user_id == user_id
-
-    def _model_to_domain(self, project) -> ProjectDomain:
-        """Convert database model to domain model."""
-        return ProjectDomain(
-            id=project.id,
-            name=project.name,
-            user_id=project.user_id,
-            description=project.description,
-            system_prompt=project.system_prompt,
-            is_global=project.is_global,
-            template_id=project.template_id,
-            created_by_user_id=project.created_by_user_id,
-            created_at=project.created_at,
-            updated_at=project.updated_at,
-        )
-
-    def _models_to_domain_list(self, projects) -> List[ProjectDomain]:
-        """Convert list of database models to domain models."""
-        return [self._model_to_domain(project) for project in projects]

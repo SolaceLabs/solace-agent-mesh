@@ -498,11 +498,4 @@ def get_project_service(
 ) -> ProjectService:
     """Dependency factory for ProjectService."""
     project_repository = ProjectRepository(db)
-    artifact_service = component.get_shared_artifact_service()
-    app_name = component.get_config("name", "A2A_WebUI_App")
-
-    return ProjectService(
-        project_repository=project_repository,
-        artifact_service=artifact_service,
-        app_name=app_name,
-    )
+    return ProjectService(project_repository, component)
