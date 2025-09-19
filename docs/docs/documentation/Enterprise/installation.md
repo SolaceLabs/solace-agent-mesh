@@ -91,4 +91,21 @@ docker run -itd -p 8001:8000 \
   solace-agent-mesh-enterprise:<tag>
 ```
 
+<details>
+    <summary>Find your credentials</summary>
+
+    Go to Solace Cloud.
+
+    Cluster manager > Your Service > Connect
+
+    Switch dropdown to View by Language
+
+    Open the connect with Python dropdown
+
+    Click Solace Python with smf as the protocol.
+
+    ![How to get credentials](../../../static/img/sam-enterprise-credentials.png)
+
+</details>
+
 You can then access Solace Agent Mesh Enterprise UI through http://localhost:8001
