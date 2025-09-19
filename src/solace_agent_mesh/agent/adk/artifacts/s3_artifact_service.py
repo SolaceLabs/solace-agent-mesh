@@ -75,6 +75,7 @@ class S3ArtifactService(BaseArtifactService):
         self.bucket_name = bucket_name
 
         if s3_client is None:
+            logger.info("kwargs for boto3 client: %s", kwargs)
             try:
                 self.s3 = boto3.client("s3", **kwargs)
             except NoCredentialsError as e:
