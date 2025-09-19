@@ -62,7 +62,7 @@ First, set up the required environment variables for the data plane connection:
 
 ```sh
 # Data plane Solace broker connection (can be same or different from control plane)
-export JIRA_EVENT_MESH_SOLACE_BROKER_URL="ws://localhost:8080"
+export JIRA_EVENT_MESH_SOLACE_BROKER_URL="ws://localhost:8008"
 export JIRA_EVENT_MESH_SOLACE_BROKER_VPN="default"
 export JIRA_EVENT_MESH_SOLACE_BROKER_USERNAME="default"
 export JIRA_EVENT_MESH_SOLACE_BROKER_PASSWORD="default"
