@@ -66,18 +66,18 @@ def run_init_flow(
 DEFAULT_INIT_VALUES: Dict[str, Any] = {
     # Broker Configuration
     "broker_type": "1",  # str - Default to existing Solace broker
-    "broker_url": "ws://localhost:8080",  # str
+    "broker_url": "ws://localhost:8008",  # str
     "broker_vpn": "default",  # str
     "broker_username": "default",  # str
     "broker_password": "default",  # str
     "container_engine": "docker",  # str - "docker" | "podman"
     
     # Environment Variables
-    "SOLACE_LOCAL_BROKER_URL": "ws://localhost:8080",  # str
+    "SOLACE_LOCAL_BROKER_URL": "ws://localhost:8008",  # str
     "SOLACE_LOCAL_BROKER_VPN": "default",  # str
     "SOLACE_LOCAL_BROKER_USERNAME": "default",  # str
     "SOLACE_LOCAL_BROKER_PASSWORD": "default",  # str
-    "DEV_BROKER_URL": "ws://localhost:8080",  # str
+    "DEV_BROKER_URL": "ws://localhost:8008",  # str
     "DEV_BROKER_VPN": "default",  # str
     "DEV_BROKER_USERNAME": "default",  # str
     "DEV_BROKER_PASSWORD": "default",  # str
@@ -168,7 +168,7 @@ ENV_DEFAULTS: Dict[str, str] = {
     "LLM_SERVICE_PLANNING_MODEL_NAME": "YOUR_LLM_SERVICE_PLANNING_MODEL_NAME_HERE",
     "LLM_SERVICE_GENERAL_MODEL_NAME": "YOUR_LLM_SERVICE_GENERAL_MODEL_NAME_HERE",
     "NAMESPACE": "my_project_namespace/",
-    "SOLACE_BROKER_URL": "ws://localhost:8080",
+    "SOLACE_BROKER_URL": "ws://localhost:8008",
     "SOLACE_BROKER_VPN": "default",
     "SOLACE_BROKER_USERNAME": "default", 
     "SOLACE_BROKER_PASSWORD": "default",
