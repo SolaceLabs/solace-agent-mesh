@@ -94,7 +94,7 @@ docker run -itd -p 8001:8000 \
 ```
 
 <details>
-    <summary>Find your credentials</summary>
+    <summary>How to find your credentials</summary>
 
     Go to Solace Cloud.
 
