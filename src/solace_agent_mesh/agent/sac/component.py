@@ -28,6 +28,9 @@ from google.adk.agents.run_config import StreamingMode
 from google.adk.sessions import BaseSessionService
 from google.adk.artifacts import BaseArtifactService
 from google.adk.memory import BaseMemoryService
+from google.adk.auth.credential_service.base_credential_service import (
+    BaseCredentialService,
+)
 from google.adk.agents import LlmAgent
 from google.adk.runners import Runner
 from google.adk.models import LlmResponse
@@ -55,6 +58,7 @@ from ...agent.adk.services import (
     initialize_session_service,
     initialize_artifact_service,
     initialize_memory_service,
+    initialize_credential_service,
 )
 from ...agent.adk.setup import (
     load_adk_tools,
@@ -241,6 +245,7 @@ class SamAgentComponent(SamComponentBase):
         self.session_service: BaseSessionService = None
         self.artifact_service: BaseArtifactService = None
         self.memory_service: BaseMemoryService = None
+        self.credential_service: Optional[BaseCredentialService] = None
         self.adk_agent: LlmAgent = None
         self.runner: Runner = None
         self.agent_card_tool_manifest: List[Dict[str, Any]] = []
@@ -391,6 +396,7 @@ class SamAgentComponent(SamComponentBase):
                 self.session_service = initialize_session_service(self)
                 self.artifact_service = initialize_artifact_service(self)
                 self.memory_service = initialize_memory_service(self)
+                self.credential_service = initialize_credential_service(self)
 
                 log.info(
                     "%s Synchronous ADK services initialized.", self.log_identifier
@@ -564,7 +570,8 @@ class SamAgentComponent(SamComponentBase):
             )
 
     async def _get_correlation_data_for_sub_task_using_logical_task_id(
-        self, logical_task_id: str):
+        self, logical_task_id: str
+    ):
         """
         Non-destructively retrieves correlation data for a super-task.
         """
@@ -578,10 +585,12 @@ class SamAgentComponent(SamComponentBase):
                 logical_task_id,
             )
             return None, None
-        
+
         with active_task_context.lock:
-            active_peer_sub_tasks = getattr(active_task_context, 'active_peer_sub_tasks', None) or {}
-            
+            active_peer_sub_tasks = (
+                getattr(active_task_context, "active_peer_sub_tasks", None) or {}
+            )
+
             # Only return the 1st one we find
             for sub_task_id, correlation_data in active_peer_sub_tasks.items():
                 if sub_task_id is not None and correlation_data is not None:
@@ -589,7 +598,7 @@ class SamAgentComponent(SamComponentBase):
 
             # There are no active peer sub-tasks, but the main task is still active
             return logical_task_id, active_task_context
-        
+
         return None, None
 
     async def _get_correlation_data_for_sub_task(
@@ -1653,7 +1662,6 @@ class SamAgentComponent(SamComponentBase):
                     skip_buffer_flush=False,
                 )
                 return
-
 
         if not is_final_turn_event:
             if adk_event.content and adk_event.content.parts:

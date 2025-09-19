@@ -1112,6 +1112,7 @@ def initialize_adk_runner(component) -> Runner:
             session_service=component.session_service,
             artifact_service=component.artifact_service,
             memory_service=component.memory_service,
+            credential_service=component.credential_service,
         )
         log.info("%s ADK Runner created successfully.", component.log_identifier)
         return runner

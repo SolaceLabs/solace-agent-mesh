@@ -21,6 +21,12 @@ from google.adk.artifacts import (
     InMemoryArtifactService,
     GcsArtifactService,
 )
+from google.adk.auth.credential_service.base_credential_service import (
+    BaseCredentialService,
+)
+from google.adk.auth.credential_service.in_memory_credential_service import (
+    InMemoryCredentialService,
+)
 from google.adk.memory import (
     BaseMemoryService,
     InMemoryMemoryService,
@@ -167,9 +173,9 @@ def initialize_session_service(component) -> BaseSessionService:
     config = component.get_config("session_service", {})
 
     # Handle both dict and SessionServiceConfig object
-    if hasattr(config, 'type'):
+    if hasattr(config, "type"):
         service_type = config.type.lower()
-        db_url = getattr(config, 'database_url', None)
+        db_url = getattr(config, "database_url", None)
     else:
         service_type = config.get("type", "memory").lower()
         db_url = config.get("database_url")
@@ -270,19 +276,23 @@ def initialize_artifact_service(component) -> BaseArtifactService:
 
         try:
             from .artifacts.s3_artifact_service import S3ArtifactService
-            
+
             s3_config = {}
-            
+
             for key, value in config.items():
                 if key not in ["type", "bucket_name", "artifact_scope"]:
                     s3_config[key] = value
-            
+
             if "endpoint_url" not in s3_config:
                 s3_config["endpoint_url"] = "https://s3.amazonaws.com"
-                
-            aws_access_key_id = config.get("aws_access_key_id") or os.environ.get("AWS_ACCESS_KEY_ID")
-            aws_secret_access_key = config.get("aws_secret_access_key") or os.environ.get("AWS_SECRET_ACCESS_KEY")
-            
+
+            aws_access_key_id = config.get("aws_access_key_id") or os.environ.get(
+                "AWS_ACCESS_KEY_ID"
+            )
+            aws_secret_access_key = config.get(
+                "aws_secret_access_key"
+            ) or os.environ.get("AWS_SECRET_ACCESS_KEY")
+
             if aws_access_key_id:
                 s3_config["aws_access_key_id"] = aws_access_key_id
             if aws_secret_access_key:
@@ -367,4 +377,31 @@ def initialize_memory_service(component) -> BaseMemoryService:
     else:
         raise ValueError(
             f"{component.log_identifier} Unsupported memory service type: {service_type}"
+        )
+
+
+def initialize_credential_service(component) -> Optional[BaseCredentialService]:
+    """Initializes the ADK Credential Service based on configuration."""
+    config: Dict = component.get_config("credential_service", None)
+
+    # If no credential service is configured, return None
+    if config is None:
+        log.info(
+            "%s No credential service configured, skipping initialization",
+            component.log_identifier,
+        )
+        return None
+
+    service_type = config.get("type", "memory").lower()
+    log.info(
+        "%s Initializing Credential Service of type: %s",
+        component.log_identifier,
+        service_type,
+    )
+
+    if service_type == "memory":
+        return InMemoryCredentialService()
+    else:
+        raise ValueError(
+            f"{component.log_identifier} Unsupported credential service type: {service_type}"
         )
