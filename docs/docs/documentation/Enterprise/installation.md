@@ -36,7 +36,7 @@ Take note of the name and tag of the image.
 In this case our image name would be: <br />
 `868978040651.dkr.ecr.us-east-1.amazonaws.com/solace-agent-mesh-enterprise:1.0.37-c8890c7f31`
 
-Note the hashes at the beginning and end (`868978040651` and `c8890c7f31`, respectively) will be different for each version.
+Note the hashes at the beginning and end (`868978040651` and `c8890c7f31`, respectively) could be different for each version.
 
 
 ## Step 3: Running Solace Agent Mesh Enterprise
