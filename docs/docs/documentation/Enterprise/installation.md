@@ -9,7 +9,7 @@ Download the latest enterprise docker image tarball from the [Solace Product Por
 
 Load the image using Docker with the following command. 
 
-This may take some time.
+The image can be quite large.
 
 ```bash
 docker load -i solace-agent-mesh-enterprise-<tag>.tar.gz
