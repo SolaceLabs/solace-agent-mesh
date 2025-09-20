@@ -165,9 +165,222 @@ def _check_and_register_tool_name(name: str, source: str, loaded_tool_names: Set
     loaded_tool_names.add(name)
 
 
+async def _create_python_tool_lifecycle_hooks(
+    component: "SamAgentComponent",
+    tool_config_model: "PythonToolConfig",
+    loaded_python_tools: List[Union[BaseTool, Callable]],
+) -> List[Callable]:
+    """
+    Executes init hooks and collects cleanup hooks for a Python tool.
+    Handles both YAML-defined hooks and class-based init/cleanup methods.
+    Returns cleanup hooks in LIFO order.
+    """
+    module_name = tool_config_model.component_module
+    base_path = tool_config_model.component_base_path
+    cleanup_hooks = []
+
+    # 1. YAML Init (runs first)
+    await _execute_lifecycle_hook(
+        component,
+        tool_config_model.init_function,
+        module_name,
+        base_path,
+        tool_config_model,
+    )
+
+    # 2. DynamicTool/Provider Init (runs second)
+    for tool_instance in loaded_python_tools:
+        if is_subclass_by_name(type(tool_instance), "DynamicTool"):
+            log.info(
+                "%s Executing .init() method for DynamicTool '%s'.",
+                component.log_identifier,
+                tool_instance.tool_name,
+            )
+            await tool_instance.init(component, tool_config_model)
+
+    # 3. Collect Cleanup Hooks (in reverse order of init)
+    # Class-based cleanup hook (will be executed first)
+    for tool_instance in loaded_python_tools:
+        if is_subclass_by_name(type(tool_instance), "DynamicTool"):
+            cleanup_hooks.append(
+                functools.partial(
+                    tool_instance.cleanup, component, tool_config_model
+                )
+            )
+
+    # YAML-based cleanup hook (will be executed second)
+    yaml_cleanup_partial = _create_cleanup_partial(
+        component,
+        tool_config_model.cleanup_function,
+        module_name,
+        base_path,
+        tool_config_model,
+    )
+    if yaml_cleanup_partial:
+        cleanup_hooks.append(yaml_cleanup_partial)
+
+    # Return in LIFO order relative to init
+    return list(reversed(cleanup_hooks))
+
+
+def _load_python_class_based_tool(
+    module: Any,
+    tool_config: Dict,
+    component: "SamAgentComponent",
+) -> List[DynamicTool]:
+    """
+    Loads a class-based tool, which can be a single DynamicTool or a
+    DynamicToolProvider that generates multiple tools.
+    """
+    from pydantic import BaseModel, ValidationError
+
+    specific_tool_config = tool_config.get("tool_config")
+    dynamic_tools: List[DynamicTool] = []
+    module_name = module.__name__
+
+    # Determine the class to load
+    tool_class = None
+    class_name = tool_config.get("class_name")
+    if class_name:
+        tool_class = getattr(module, class_name)
+    else:
+        # Auto-discover: provider first, then single tool
+        tool_class = _find_dynamic_tool_provider_class(module)
+        if not tool_class:
+            tool_class = _find_dynamic_tool_class(module)
+
+    if not tool_class:
+        raise TypeError(
+            f"Module '{module_name}' does not contain a 'function_name' or 'class_name' to load, "
+            "and no DynamicTool or DynamicToolProvider subclass could be auto-discovered."
+        )
+
+    # Check for a Pydantic model declaration on the tool class
+    config_model: Optional[Type["BaseModel"]] = getattr(
+        tool_class, "config_model", None
+    )
+    validated_config: Union[dict, "BaseModel"] = specific_tool_config
+
+    if config_model:
+        log.debug(
+            "%s Found config_model '%s' for tool class '%s'. Validating...",
+            component.log_identifier,
+            config_model.__name__,
+            tool_class.__name__,
+        )
+        try:
+            # Validate the raw dict and get a Pydantic model instance
+            validated_config = config_model.model_validate(specific_tool_config or {})
+            log.debug(
+                "%s Successfully validated tool_config for '%s'.",
+                component.log_identifier,
+                tool_class.__name__,
+            )
+        except ValidationError as e:
+            # Provide a clear error message and raise
+            error_msg = (
+                f"Configuration error for tool '{tool_class.__name__}' from module '{module_name}'. "
+                f"The provided 'tool_config' in your YAML is invalid:\n{e}"
+            )
+            log.error("%s %s", component.log_identifier, error_msg)
+            raise ValueError(error_msg) from e
+
+    # Instantiate tools from the class
+    if is_subclass_by_name(tool_class, "DynamicToolProvider"):
+        provider_instance = tool_class()
+        dynamic_tools = provider_instance.get_all_tools_for_framework(
+            tool_config=validated_config
+        )
+        log.info(
+            "%s Loaded %d tools from DynamicToolProvider '%s' in %s",
+            component.log_identifier,
+            len(dynamic_tools),
+            tool_class.__name__,
+            module_name,
+        )
+    elif is_subclass_by_name(tool_class, "DynamicTool"):
+        tool_instance = tool_class(tool_config=validated_config)
+        dynamic_tools = [tool_instance]
+    else:
+        raise TypeError(
+            f"Class '{tool_class.__name__}' in module '{module_name}' is not a valid "
+            "DynamicTool or DynamicToolProvider subclass."
+        )
+
+    # Post-process all generated tools
+    for tool in dynamic_tools:
+        tool.origin = "dynamic"
+        declaration = tool._get_declaration()
+        if not declaration:
+            log.warning(
+                "Dynamic tool '%s' from module '%s' did not generate a valid declaration. Skipping.",
+                tool.__class__.__name__,
+                module_name,
+            )
+            continue
+        log.info(
+            "%s Loaded dynamic tool: %s from %s",
+            component.log_identifier,
+            declaration.name,
+            module_name,
+        )
+
+    return dynamic_tools
+
+
 async def _load_python_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
-    # To be implemented in Step 4
-    pass
+    from pydantic import TypeAdapter
+
+    python_tool_adapter = TypeAdapter(PythonToolConfig)
+    tool_config_model = python_tool_adapter.validate_python(tool_config)
+
+    module_name = tool_config_model.component_module
+    base_path = tool_config_model.component_base_path
+    if not module_name:
+        raise ValueError("'component_module' is required for python tools.")
+    module = import_module(module_name, base_path=base_path)
+
+    loaded_python_tools: List[Union[BaseTool, Callable]] = []
+
+    # Case 1: Simple function-based tool
+    if tool_config_model.function_name:
+        func = getattr(module, tool_config_model.function_name)
+        if not callable(func):
+            raise TypeError(
+                f"'{tool_config_model.function_name}' in module '{module_name}' is not callable."
+            )
+
+        tool_callable = ADKToolWrapper(
+            func,
+            tool_config_model.tool_config,
+            tool_config_model.function_name,
+            origin="python",
+            raw_string_args=tool_config_model.raw_string_args,
+        )
+
+        if tool_config_model.tool_name:
+            tool_callable.__name__ = tool_config_model.tool_name
+        if tool_config_model.tool_description:
+            tool_callable.__doc__ = tool_config_model.tool_description
+
+        loaded_python_tools.append(tool_callable)
+        log.info(
+            "%s Loaded Python tool: %s from %s.",
+            component.log_identifier,
+            tool_callable.__name__,
+            module_name,
+        )
+    # Case 2: Advanced class-based dynamic tool or provider
+    else:
+        dynamic_tools = _load_python_class_based_tool(module, tool_config, component)
+        loaded_python_tools.extend(dynamic_tools)
+
+    # --- Lifecycle Hook Execution for all Python Tools ---
+    cleanup_hooks = await _create_python_tool_lifecycle_hooks(
+        component, tool_config_model, loaded_python_tools
+    )
+
+    return loaded_python_tools, [], cleanup_hooks
 
 async def _load_builtin_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
     # To be implemented in Step 5
