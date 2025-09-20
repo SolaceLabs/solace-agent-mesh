@@ -154,6 +154,27 @@ def _find_dynamic_tool_provider_class(module) -> Optional[type]:
     return found_classes[0] if found_classes else None
 
 
+async def _load_python_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
+    # To be implemented in Step 4
+    pass
+
+async def _load_builtin_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
+    # To be implemented in Step 5
+    pass
+
+async def _load_builtin_group_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
+    # To be implemented in Step 5
+    pass
+
+async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
+    # To be implemented in Step 5
+    pass
+
+def _load_internal_tools(component: "SamAgentComponent", loaded_tool_names: Set[str]) -> ToolLoadingResult:
+    # To be implemented in Step 6
+    pass
+
+
 async def load_adk_tools(
     component,
 ) -> Tuple[List[Union[BaseTool, Callable]], List[BuiltinTool], List[Callable]]:
