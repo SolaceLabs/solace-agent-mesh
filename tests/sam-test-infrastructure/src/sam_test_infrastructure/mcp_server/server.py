@@ -6,11 +6,8 @@ at runtime by directives passed from the test case.
 
 import argparse
 import base64
-import json
-import re
-import threading
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from fastmcp import Context, FastMCP
 from fastmcp.tools.tool import ToolResult
@@ -73,10 +70,12 @@ class TestMCPServer:
         """
         # Add diagnostic logging for multi-call debugging
         logging.info(
-            f"MCP Server: get_data called with response_to_return: {response_to_return}"
+            "MCP Server: get_data called with response_to_return: %r",
+            response_to_return,
         )
         logging.info(
-            f"MCP Server: Context info - session_id: {getattr(ctx, 'session_id', 'N/A')}"
+            "MCP Server: Context info - session_id: %s",
+            getattr(ctx, "session_id", "N/A"),
         )
         content_list = response_to_return.get("content", [])
         if not isinstance(content_list, list):
