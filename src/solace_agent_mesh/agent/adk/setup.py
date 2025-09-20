@@ -39,6 +39,10 @@ from ...agent.adk import callbacks as adk_callbacks
 from ...agent.adk.models.lite_llm import LiteLlm
 
 
+# Define a clear return type for all tool-loading helpers
+ToolLoadingResult = Tuple[List[Union[BaseTool, Callable]], List[BuiltinTool], List[Callable]]
+
+
 def _find_dynamic_tool_class(module) -> Optional[type]:
     """Finds a single non-abstract DynamicTool subclass in a module."""
     found_classes = []
