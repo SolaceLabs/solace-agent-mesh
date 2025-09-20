@@ -945,41 +945,24 @@ async def _assert_artifact_state(
         if spec.get("namespace") == "user":
             filename_for_lookup = f"user:{filename}"
         elif filename_regex:
-            found_on_attempt = -1
-            matching_filenames = []
-            all_keys_at_final_check = []
+            # List all keys from the artifact service
+            all_keys_raw = await test_artifact_service_instance.list_artifact_keys(
+                app_name=agent_name_for_artifacts,
+                user_id=user_id,
+                session_id=session_id,
+            )
+            # Explicitly filter out metadata files to prevent incorrect matches
+            all_keys_filtered = [
+                k for k in all_keys_raw if not k.endswith(".metadata.json")
+            ]
 
-            for attempt in range(5):
-                all_keys = await test_artifact_service_instance.list_artifact_keys(
-                    app_name=agent_name_for_artifacts,
-                    user_id=user_id,
-                    session_id=session_id,
-                )
-                all_keys_at_final_check = all_keys
-                matching_filenames = [
-                    k for k in all_keys if re.match(filename_regex, k)
-                ]
-
-                if len(matching_filenames) == 1:
-                    found_on_attempt = attempt + 1
-                    break
-
-                print(
-                    f"Scenario {scenario_id}: Artifact check attempt {attempt + 1}/5 failed. "
-                    f"Found {len(matching_filenames)} matches for regex '{filename_regex}'. Retrying in 1s..."
-                )
-                await asyncio.sleep(1)
-
-            if found_on_attempt > 1:
-                pytest.fail(
-                    f"Scenario {scenario_id}: '{context_path}' - CONFIRMED RACE CONDITION. "
-                    f"Artifact was not found on the first check but was found on attempt {found_on_attempt}. "
-                    f"This indicates the assertion ran before the async save operation completed."
-                )
+            matching_filenames = [
+                k for k in all_keys_filtered if re.match(filename_regex, k)
+            ]
 
             assert (
                 len(matching_filenames) == 1
-            ), f"Scenario {scenario_id}: '{context_path}' - Expected exactly one artifact matching regex '{filename_regex}', but found {len(matching_filenames)}: {matching_filenames}. All keys checked: {all_keys_at_final_check}"
+            ), f"Scenario {scenario_id}: '{context_path}' - Expected exactly one artifact matching regex '{filename_regex}', but found {len(matching_filenames)}: {matching_filenames}. All non-metadata keys checked: {all_keys_filtered}"
             filename_for_lookup = matching_filenames[0]
         details = await test_artifact_service_instance.get_artifact_details(
             app_name=agent_name_for_artifacts,
