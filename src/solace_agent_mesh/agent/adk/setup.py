@@ -32,7 +32,13 @@ if TYPE_CHECKING:
 from ..tools.registry import tool_registry
 from ..tools.tool_definition import BuiltinTool
 from ..tools.dynamic_tool import DynamicTool, DynamicToolProvider
-from ..tools.tool_config_types import AnyToolConfig
+from ..tools.tool_config_types import (
+    AnyToolConfig,
+    BuiltinToolConfig,
+    BuiltinGroupToolConfig,
+    McpToolConfig,
+    PythonToolConfig,
+)
 
 
 from ...agent.adk import callbacks as adk_callbacks
@@ -383,16 +389,211 @@ async def _load_python_tool(component: "SamAgentComponent", tool_config: Dict) -
     return loaded_python_tools, [], cleanup_hooks
 
 async def _load_builtin_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
-    # To be implemented in Step 5
-    pass
+    """Loads a single built-in tool from the SAM or ADK tool registry."""
+    from pydantic import TypeAdapter
+
+    builtin_tool_adapter = TypeAdapter(BuiltinToolConfig)
+    tool_config_model = builtin_tool_adapter.validate_python(tool_config)
+
+    tool_name = tool_config_model.tool_name
+    if not tool_name:
+        raise ValueError("'tool_name' required for builtin tool.")
+
+    # Check SAM registry first
+    sam_tool_def = tool_registry.get_tool_by_name(tool_name)
+    if sam_tool_def:
+        tool_callable = ADKToolWrapper(
+            sam_tool_def.implementation,
+            tool_config_model.tool_config,
+            sam_tool_def.name,
+            origin="builtin",
+            raw_string_args=sam_tool_def.raw_string_args,
+        )
+        log.info(
+            "%s Loaded SAM built-in tool: %s",
+            component.log_identifier,
+            sam_tool_def.name,
+        )
+        return [tool_callable], [sam_tool_def], []
+
+    # Fallback to ADK built-in tools module
+    adk_tool = getattr(adk_tools_module, tool_name, None)
+    if adk_tool and isinstance(adk_tool, (BaseTool, Callable)):
+        adk_tool.origin = "adk_builtin"
+        log.info(
+            "%s Loaded ADK built-in tool: %s",
+            component.log_identifier,
+            tool_name,
+        )
+        return [adk_tool], [], []
+
+    raise ValueError(
+        f"Built-in tool '{tool_name}' not found in SAM or ADK registry."
+    )
 
 async def _load_builtin_group_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
-    # To be implemented in Step 5
-    pass
+    """Loads a group of built-in tools by category from the SAM tool registry."""
+    from pydantic import TypeAdapter
+
+    group_tool_adapter = TypeAdapter(BuiltinGroupToolConfig)
+    tool_config_model = group_tool_adapter.validate_python(tool_config)
+
+    group_name = tool_config_model.group_name
+    if not group_name:
+        raise ValueError("'group_name' required for builtin-group.")
+
+    tools_in_group = tool_registry.get_tools_by_category(group_name)
+    if not tools_in_group:
+        log.warning("No tools found for built-in group: %s", group_name)
+        return [], [], []
+
+    # Run initializers for the group
+    initializers_to_run: Dict[Callable, Dict] = {}
+    for tool_def in tools_in_group:
+        if (
+            tool_def.initializer
+            and tool_def.initializer not in initializers_to_run
+        ):
+            initializers_to_run[tool_def.initializer] = tool_config_model.tool_config
+
+    for init_func, init_config in initializers_to_run.items():
+        try:
+            log.info(
+                "%s Running initializer '%s' for tool group '%s'.",
+                component.log_identifier,
+                init_func.__name__,
+                group_name,
+            )
+            init_func(component, init_config)
+            log.info(
+                "%s Successfully executed initializer '%s' for tool group '%s'.",
+                component.log_identifier,
+                init_func.__name__,
+                group_name,
+            )
+        except Exception as e:
+            log.exception(
+                "%s Failed to run initializer '%s' for tool group '%s': %s",
+                component.log_identifier,
+                init_func.__name__,
+                group_name,
+                e,
+            )
+            raise e
+
+    loaded_tools: List[Union[BaseTool, Callable]] = []
+    enabled_builtin_tools: List[BuiltinTool] = []
+    for tool_def in tools_in_group:
+        specific_tool_config = tool_config_model.tool_config.get(tool_def.name)
+        tool_callable = ADKToolWrapper(
+            tool_def.implementation,
+            specific_tool_config,
+            tool_def.name,
+            origin="builtin",
+            raw_string_args=tool_def.raw_string_args,
+        )
+        loaded_tools.append(tool_callable)
+        enabled_builtin_tools.append(tool_def)
+
+    log.info(
+        "Loaded %d tools from built-in group: %s",
+        len(loaded_tools),
+        group_name,
+    )
+    return loaded_tools, enabled_builtin_tools, []
 
 async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
-    # To be implemented in Step 5
-    pass
+    """Loads an MCP toolset based on connection parameters."""
+    from pydantic import TypeAdapter
+
+    mcp_tool_adapter = TypeAdapter(McpToolConfig)
+    tool_config_model = mcp_tool_adapter.validate_python(tool_config)
+
+    connection_params_config = tool_config_model.connection_params
+    if not connection_params_config:
+        raise ValueError("'connection_params' required for mcp tool.")
+
+    connection_type = connection_params_config.get("type", "").lower()
+    connection_args = {
+        k: v for k, v in connection_params_config.items() if k != "type"
+    }
+    connection_args["timeout"] = connection_args.get("timeout", 30)
+
+    environment_variables = tool_config_model.environment_variables
+    env_param = {}
+    if connection_type == "stdio" and environment_variables:
+        if isinstance(environment_variables, dict):
+            env_param = environment_variables
+            log.debug(
+                "%s Found environment_variables for stdio MCP tool.",
+                component.log_identifier,
+            )
+        else:
+            log.warning(
+                "%s 'environment_variables' provided for stdio MCP tool but it is not a dictionary. Ignoring.",
+                component.log_identifier,
+            )
+
+    if connection_type == "stdio":
+        cmd_arg = connection_args.get("command")
+        args_list = connection_args.get("args", [])
+        if isinstance(cmd_arg, list):
+            command_str = " ".join(cmd_arg)
+        elif isinstance(cmd_arg, str):
+            command_str = cmd_arg
+        else:
+            raise ValueError(
+                f"MCP tool 'command' parameter must be a string or a list of strings, got {type(cmd_arg)}"
+            )
+        if not isinstance(args_list, list):
+            raise ValueError(
+                f"MCP tool 'args' parameter must be a list, got {type(args_list)}"
+            )
+        final_connection_args = {
+            k: v
+            for k, v in connection_args.items()
+            if k not in ["command", "args", "timeout"]
+        }
+        connection_params = StdioConnectionParams(
+            server_params=StdioServerParameters(
+                command=command_str,
+                args=args_list,
+                **final_connection_args,
+                env=env_param if env_param else None,
+            ),
+            timeout=connection_args.get("timeout"),
+        )
+
+    elif connection_type == "sse":
+        connection_params = SseServerParams(**connection_args)
+    else:
+        raise ValueError(f"Unsupported MCP connection type: {connection_type}")
+
+    tool_filter_list = (
+        [tool_config_model.tool_name] if tool_config_model.tool_name else None
+    )
+    if tool_filter_list:
+        log.info(
+            "%s MCP tool config specifies tool_name: '%s'. Applying as tool_filter.",
+            component.log_identifier,
+            tool_config_model.tool_name,
+        )
+
+    mcp_toolset_instance = EmbedResolvingMCPToolset(
+        connection_params=connection_params,
+        tool_filter=tool_filter_list,
+        tool_config=tool_config,
+    )
+    mcp_toolset_instance.origin = "mcp"
+
+    log.info(
+        "%s Initialized MCPToolset (filter: %s) for server: %s",
+        component.log_identifier,
+        (tool_filter_list if tool_filter_list else "none (all tools)"),
+        connection_params,
+    )
+
+    return [mcp_toolset_instance], [], []
 
 def _load_internal_tools(component: "SamAgentComponent", loaded_tool_names: Set[str]) -> ToolLoadingResult:
     # To be implemented in Step 6
