@@ -596,8 +596,52 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
     return [mcp_toolset_instance], [], []
 
 def _load_internal_tools(component: "SamAgentComponent", loaded_tool_names: Set[str]) -> ToolLoadingResult:
-    # To be implemented in Step 6
-    pass
+    """Loads internal framework tools that are not explicitly configured by the user."""
+    loaded_tools: List[Union[BaseTool, Callable]] = []
+    enabled_builtin_tools: List[BuiltinTool] = []
+
+    internal_tool_names = ["_notify_artifact_save"]
+    if component.get_config("enable_auto_continuation", True):
+        internal_tool_names.append("_continue_generation")
+
+    for tool_name in internal_tool_names:
+        try:
+            _check_and_register_tool_name(tool_name, "internal", loaded_tool_names)
+        except ValueError:
+            log.debug(
+                "%s Internal tool '%s' was already loaded explicitly. Skipping implicit load.",
+                component.log_identifier,
+                tool_name,
+            )
+            continue
+
+        tool_def = tool_registry.get_tool_by_name(tool_name)
+        if tool_def:
+            # Wrap the implementation to ensure its description is passed to the LLM
+            tool_callable = ADKToolWrapper(
+                tool_def.implementation,
+                None,  # No specific config for internal tools
+                tool_def.name,
+                origin="internal",
+            )
+
+            tool_callable.__doc__ = tool_def.description
+
+            loaded_tools.append(tool_callable)
+            enabled_builtin_tools.append(tool_def)
+            log.info(
+                "%s Implicitly loaded internal framework tool: %s",
+                component.log_identifier,
+                tool_def.name,
+            )
+        else:
+            log.warning(
+                "%s Could not find internal framework tool '%s' in registry. Related features may not work.",
+                component.log_identifier,
+                tool_name,
+            )
+
+    return loaded_tools, enabled_builtin_tools, []
 
 
 async def load_adk_tools(
