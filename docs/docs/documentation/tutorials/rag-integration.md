@@ -272,7 +272,7 @@ Key features of Solace Agent Mesh include:
 - A flexible plugin architecture.
 - Integration with various LLMs and vector databases.
 - Scalable gateways for different communication protocols.
-- An event-driven design based on Solace PubSub+.
+- An event-driven design based on Solace event broker.
 ```
 
 **Step 2: Place the Document in the Scanned Directory**
