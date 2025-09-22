@@ -13,15 +13,17 @@ This plan outlines the steps to display project artifacts in the UI before a cha
 
 2.  **Frontend: Update Artifact Fetching Logic**
     *   **File:** `client/webui/frontend/src/lib/hooks/useArtifacts.ts`
-    *   **Action:** Modify the `useArtifacts` hook to accept an optional `projectId`.
+    *   **Action:** Modify the `useArtifacts` hook to use the `useProjectContext` hook internally. It will no longer accept a `projectId` prop.
     *   **Logic:**
-        *   If a `sessionId` is present, it will continue to fetch artifacts from `/api/v1/artifacts/{sessionId}` as it does now.
-        *   If `sessionId` is `null` or empty, but a `projectId` is provided, it will fetch artifacts from the new `/api/v1/projects/{projectId}/artifacts` endpoint.
+        *   The hook will get the `activeProject` from `useProjectContext`.
+        *   If a `sessionId` is present, it will fetch artifacts from `/api/v1/artifacts/{sessionId}`. This is the primary data source for an active chat.
+        *   If `sessionId` is `null` or empty, but an `activeProject.id` exists, it will fetch artifacts from the new `/api/v1/projects/{activeProject.id}/artifacts` endpoint. This covers the pre-session state.
         *   If neither is present, it will return an empty list.
 
 3.  **Frontend: Connect Project Context**
     *   **File:** `client/webui/frontend/src/lib/providers/ChatProvider.tsx`
-    *   **Action:** Pass the `activeProject?.id` from `useProjectContext` to the `useArtifacts` hook.
+    *   **Action:** Simplify the `useArtifacts` hook invocation.
+    *   **Logic:** The `useArtifacts` hook will no longer need the `activeProject.id` to be passed to it, as it now retrieves this internally. The call in `ChatProvider` will be simplified to just `useArtifacts(sessionId)`.
 
 #### **Phase 2: Differentiating Project Artifacts**
 
@@ -54,8 +56,9 @@ This plan outlines the steps to display project artifacts in the UI before a cha
 
 *   No new files are needed for this phase; the logic is handled by the changes in Phase 1.
 *   **Flow:**
-    1.  User activates a project. `activeProject` is set. `sessionId` is empty. The `useArtifacts` hook fetches from `/projects/{projectId}/artifacts`.
-    2.  User sends the first message.
-    3.  The backend creates a session, gets a `sessionId`, and copies project artifacts into that session's storage (as part of `_inject_project_context`).
-    4.  The frontend `ChatProvider` receives the new `sessionId` and updates its state.
-    5.  The `useArtifacts` hook re-renders. Now that `sessionId` is populated, it automatically switches to fetching from `/artifacts/{sessionId}`. The panel updates to show the artifacts from the session, which now includes the copied project artifacts with their `source` metadata.
+    1.  User activates a project in the UI. `ProjectProvider` updates its state, setting `activeProject`. `sessionId` in `ChatProvider` is empty.
+    2.  The `useArtifacts` hook, powered by `useProjectContext`, detects the `activeProject` and calls the `/api/v1/projects/{projectId}/artifacts` endpoint. The artifact panel populates.
+    3.  User sends the first message.
+    4.  The backend creates a session, gets a `sessionId`, and copies project artifacts into that session's storage (as part of `_inject_project_context`).
+    5.  The frontend `ChatProvider` receives the new `sessionId` and updates its state.
+    6.  The `useArtifacts` hook re-renders. Now that `sessionId` is populated, its logic prioritizes fetching from `/api/v1/artifacts/{sessionId}`. The panel updates to show the artifacts from the session, which now includes the copied project artifacts with their `source` metadata.
