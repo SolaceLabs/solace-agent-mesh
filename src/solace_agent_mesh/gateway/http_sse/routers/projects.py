@@ -26,6 +26,7 @@ from .dto.requests.project_requests import (
     GetProjectRequest,
     GetProjectsRequest,
     DeleteProjectRequest,
+    ProjectCopyRequest,
 )
 from .dto.responses.project_responses import (
     ProjectResponse,
