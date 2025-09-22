@@ -159,7 +159,7 @@ async def _inject_project_context(
         modified_message_text = message_text
         if context_parts:
             project_context = "\n\n".join(context_parts) + "\n\n"
-            modified_message_text = project_context + message_text
+            modified_message_text = project_context + f"User request: {message_text}"
             log.info("%sInjected project context for project: %s", log_prefix, project_id)
                 
         return modified_message_text
