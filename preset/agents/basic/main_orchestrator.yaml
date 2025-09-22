@@ -39,7 +39,7 @@ apps:
       inject_user_profile: true
       session_service:
         type: "${PERSISTENCE_TYPE, memory}"
-        database_url: "${ORCHESTRATOR_DATABASE_URL, sqlite://orchestrator-agent.db}"
+        database_url: "${ORCHESTRATOR_DATABASE_URL, sqlite:///orchestrator-agent.db}"
         default_behavior: "PERSISTENT"
       artifact_service: *default_artifact_service
       artifact_handling_mode: "reference" 

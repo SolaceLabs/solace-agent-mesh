@@ -22,7 +22,7 @@ apps:
 
       session_service:
         type: "${PERSISTENCE_TYPE, memory}"
-        database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite://webui-gateway.db}"
+        database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui-gateway.db}"
         default_behavior: "PERSISTENT"
 
       artifact_service: *default_artifact_service
