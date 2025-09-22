@@ -112,8 +112,21 @@ async def _inject_project_context(
                             version="latest"
                         )
                         
+                        # Load the full metadata separately
+                        loaded_metadata = await load_artifact_content_or_metadata(
+                            artifact_service=artifact_service,
+                            app_name=project_service.app_name,
+                            user_id=source_user_id,
+                            session_id=project_artifacts_session_id,
+                            filename=artifact_info.filename,
+                            load_metadata_only=True,
+                            version="latest"
+                        )
+                        
                         # Save a copy to the current chat session
                         if loaded_artifact.get("status") == "success":
+                            full_metadata = loaded_metadata.get("metadata", {}) if loaded_metadata.get("status") == "success" else {}
+                            
                             await save_artifact_with_metadata(
                                 artifact_service=artifact_service,
                                 app_name=project_service.app_name,
@@ -122,7 +135,7 @@ async def _inject_project_context(
                                 filename=artifact_info.filename,
                                 content_bytes=loaded_artifact.get("raw_bytes"),
                                 mime_type=loaded_artifact.get("mime_type"),
-                                metadata_dict=loaded_artifact.get("metadata", {}),
+                                metadata_dict=full_metadata,
                                 timestamp=datetime.now(timezone.utc),
                             )
                     log.info("%sFinished copying %d artifacts to session %s.", log_prefix, len(project_artifacts), session_id)
