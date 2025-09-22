@@ -104,7 +104,7 @@ class ProjectService:
                     session_id=project_session_id,
                     filename=file.filename,
                     content_bytes=content_bytes,
-mime_type=file.content_type,
+                    mime_type=file.content_type,
                     metadata_dict=metadata,
                     timestamp=datetime.now(timezone.utc),
                 )

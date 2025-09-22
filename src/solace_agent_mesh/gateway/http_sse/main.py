@@ -489,7 +489,7 @@ def _setup_routers() -> None:
     app.include_router(visualization.router, prefix=f"{api_prefix}/visualization", tags=["Visualization"])
     app.include_router(people.router, prefix=api_prefix, tags=["People"])
     app.include_router(auth.router, prefix=api_prefix, tags=["Auth"])
-    app.include_router(projects, prefix=api_prefix, tags=["Projects"])
+    app.include_router(projects.router, prefix=api_prefix, tags=["Projects"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
 

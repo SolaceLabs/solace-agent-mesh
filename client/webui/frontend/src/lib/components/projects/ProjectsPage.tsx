@@ -24,7 +24,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
             formData.append("description", data.description);
         }
         if (data.system_prompt) {
-            formData.append("system_prompt", data.system_prompt);
+            formData.append("systemPrompt", data.system_prompt);
         }
         if (data.files) {
             for (let i = 0; i < data.files.length; i++) {
@@ -39,7 +39,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
                 }
             }
             if (Object.keys(metadataPayload).length > 0) {
-                formData.append("file_metadata", JSON.stringify(metadataPayload));
+                formData.append("fileMetadata", JSON.stringify(metadataPayload));
             }
         }
 

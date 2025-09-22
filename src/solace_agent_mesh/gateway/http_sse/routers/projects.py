@@ -42,8 +42,8 @@ router = APIRouter()
 async def create_project(
     name: str = Form(...),
     description: Optional[str] = Form(None),
-    system_prompt: Optional[str] = Form(None),
-    file_metadata: Optional[str] = Form(None),
+    system_prompt: Optional[str] = Form(None, alias="systemPrompt"),
+    file_metadata: Optional[str] = Form(None, alias="fileMetadata"),
     files: Optional[List[UploadFile]] = File(None),
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
@@ -53,6 +53,8 @@ async def create_project(
     """
     user_id = user.get("id")
     log.info(f"Creating project '{name}' for user {user_id}")
+    log.info(f"Received system_prompt: {system_prompt}")
+    log.info(f"Received file_metadata: {file_metadata}")
 
     try:
         if files:
@@ -66,13 +68,14 @@ async def create_project(
             name=name,
             description=description,
             system_prompt=system_prompt,
+            file_metadata=file_metadata,
             user_id=user_id
         )
 
         parsed_file_metadata = {}
-        if file_metadata:
+        if request_dto.file_metadata:
             try:
-                parsed_file_metadata = json.loads(file_metadata)
+                parsed_file_metadata = json.loads(request_dto.file_metadata)
             except json.JSONDecodeError:
                 log.warning("Could not parse file_metadata JSON string, ignoring.")
                 pass
