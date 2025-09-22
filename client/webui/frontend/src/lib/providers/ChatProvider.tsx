@@ -439,9 +439,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 case "tool_invocation_start":
                                     break;
                                 case "authentication_required": {
-                                    const auth_uri = String(data?.auth_uri ?? "");
-                                    if (auth_uri && !auth_uri.startsWith("http")) {
-                                        // Pop open a new tab at auth_uri
+                                    const auth_uri = data?.auth_uri;
+                                    if (typeof auth_uri === "string" && auth_uri.startsWith("http")) {
                                         window.open(auth_uri, "_blank");
                                     }
                                     break;

@@ -1584,8 +1584,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
             return
 
         try:
-            from solace_agent_mesh_enterprise.auth.input_required import handle_update
-            event_data = handle_update(event_data, sse_task_id)
+            from solace_agent_mesh_enterprise.auth.input_required import handle_input_required_request
+            event_data = handle_input_required_request(event_data, sse_task_id)
         except ImportError:
             pass
         
