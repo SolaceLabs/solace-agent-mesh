@@ -7,6 +7,7 @@ import "@xyflow/react/dist/style.css";
 import { PopoverManual } from "@/lib/components/ui";
 import { useTaskContext } from "@/lib/hooks";
 import { useChatContext } from "@/lib/hooks";
+import { useAgentCards } from "@/lib/hooks";
 import type { VisualizerStep } from "@/lib/types";
 import { getThemeButtonHtmlStyles } from "@/lib/utils";
 
@@ -49,6 +50,7 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
     const { fitView } = useReactFlow();
     const { highlightedStepId, setHighlightedStepId } = useTaskContext();
     const { taskIdInSidePanel } = useChatContext();
+    const { agentNameMap } = useAgentCards();
 
     const prevProcessedStepsRef = useRef<VisualizerStep[]>([]);
     const [hasUserInteracted, setHasUserInteracted] = useState(false);
@@ -67,8 +69,8 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
         if (!processedSteps || processedSteps.length === 0) {
             return { nodes: [], edges: [] };
         }
-        return transformProcessedStepsToTimelineFlow(processedSteps);
-    }, [processedSteps]);
+        return transformProcessedStepsToTimelineFlow(processedSteps, agentNameMap);
+    }, [processedSteps, agentNameMap]);
 
     // Consolidated edge computation
     const computedEdges = useMemo(() => {
