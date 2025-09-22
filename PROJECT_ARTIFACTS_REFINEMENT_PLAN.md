@@ -48,7 +48,7 @@ This plan outlines the steps to display project artifacts in the UI before a cha
 4.  **Frontend: Render Visual Indicator**
     *   **File:** `client/webui/frontend/src/lib/components/chat/artifact/ArtifactCard.tsx`
     *   **Action:** In the component, check if `artifact.source === 'project'`.
-    *   **Logic:** If the condition is true, render a visual indicator, such as a `<Badge>` component, next to the artifact's name to clearly mark it as a project file.
+    *   **Logic:** If the condition is true, apply a different style or add a visual indicator to differentiate the artifact. The exact UI representation is to be determined.
 
 #### **Phase 3: Transition to Active Session**
 
