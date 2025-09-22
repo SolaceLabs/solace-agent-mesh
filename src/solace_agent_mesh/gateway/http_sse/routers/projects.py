@@ -2,6 +2,7 @@
 Project API controller using 3-tiered architecture.
 """
 
+import json
 from typing import List, Optional
 from fastapi import (
     APIRouter,
@@ -41,6 +42,7 @@ async def create_project(
     name: str = Form(...),
     description: Optional[str] = Form(None),
     system_prompt: Optional[str] = Form(None),
+    file_metadata: Optional[str] = Form(None),
     files: Optional[List[UploadFile]] = File(None),
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
@@ -66,12 +68,21 @@ async def create_project(
             user_id=user_id
         )
 
+        parsed_file_metadata = {}
+        if file_metadata:
+            try:
+                parsed_file_metadata = json.loads(file_metadata)
+            except json.JSONDecodeError:
+                log.warning("Could not parse file_metadata JSON string, ignoring.")
+                pass
+
         project = await project_service.create_project(
             name=request_dto.name,
             user_id=request_dto.user_id,
             description=request_dto.description,
             system_prompt=request_dto.system_prompt,
             files=files,
+            file_metadata=parsed_file_metadata,
         )
 
         return ProjectResponse(

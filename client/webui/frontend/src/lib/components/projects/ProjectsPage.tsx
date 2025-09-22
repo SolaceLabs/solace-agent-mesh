@@ -31,6 +31,17 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
                 formData.append("files", data.files[i]);
             }
         }
+        if (data.fileDescriptions && data.files) {
+            const metadataPayload: Record<string, string> = {};
+            for (const file of Array.from(data.files)) {
+                if (data.fileDescriptions[file.name]) {
+                    metadataPayload[file.name] = data.fileDescriptions[file.name];
+                }
+            }
+            if (Object.keys(metadataPayload).length > 0) {
+                formData.append("file_metadata", JSON.stringify(metadataPayload));
+            }
+        }
 
         await createProject(formData);
         setIsCreateDialogOpen(false);

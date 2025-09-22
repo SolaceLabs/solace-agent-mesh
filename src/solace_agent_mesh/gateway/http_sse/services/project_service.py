@@ -48,6 +48,7 @@ class ProjectService:
         description: Optional[str] = None,
         system_prompt: Optional[str] = None,
         files: Optional[List[UploadFile]] = None,
+        file_metadata: Optional[dict] = None,
     ) -> Project:
         """
         Create a new project for a user.
@@ -90,6 +91,12 @@ class ProjectService:
             project_session_id = f"project-{project_domain.id}"
             for file in files:
                 content_bytes = await file.read()
+                metadata = {"source": "project"}
+                if file_metadata and file.filename in file_metadata:
+                    desc = file_metadata[file.filename]
+                    if desc:
+                        metadata["description"] = desc
+
                 await save_artifact_with_metadata(
                     artifact_service=self.artifact_service,
                     app_name=self.app_name,
@@ -97,8 +104,8 @@ class ProjectService:
                     session_id=project_session_id,
                     filename=file.filename,
                     content_bytes=content_bytes,
-                    mime_type=file.content_type,
-                    metadata_dict={},
+mime_type=file.content_type,
+                    metadata_dict=metadata,
                     timestamp=datetime.now(timezone.utc),
                 )
             self.logger.info(f"Saved {len(files)} artifacts for project {project_domain.id}")

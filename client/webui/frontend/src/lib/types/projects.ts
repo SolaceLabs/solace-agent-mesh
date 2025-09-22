@@ -54,6 +54,7 @@ export interface ProjectFormData {
     description: string;
     system_prompt: string;
     files?: FileList | null;
+    fileDescriptions?: Record<string, string>;
 }
 
 export interface UseProjectsReturn {

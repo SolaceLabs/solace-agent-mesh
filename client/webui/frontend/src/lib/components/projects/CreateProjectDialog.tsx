@@ -43,6 +43,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
             description: "",
             system_prompt: "",
             files: null,
+            fileDescriptions: {},
         },
     });
 
@@ -80,10 +81,17 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
     const handleRemoveFile = useCallback((indexToRemove: number) => {
         if (!fileList) return;
         
+        const fileToRemove = fileList[indexToRemove];
         const newFiles = Array.from(fileList).filter((_, index) => index !== indexToRemove);
         const dataTransfer = new DataTransfer();
         newFiles.forEach(file => dataTransfer.items.add(file));
         form.setValue("files", dataTransfer.files.length > 0 ? dataTransfer.files : null);
+
+        const currentDescriptions = form.getValues("fileDescriptions");
+        if (currentDescriptions && fileToRemove.name in currentDescriptions) {
+            const { [fileToRemove.name]: _, ...rest } = currentDescriptions;
+            form.setValue("fileDescriptions", rest);
+        }
     }, [fileList, form]);
 
     const openFileDialog = useCallback(() => {
@@ -271,42 +279,58 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                                         type="button"
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => form.setValue("files", null)}
+                                        onClick={() => {
+                                            form.setValue("files", null);
+                                            form.setValue("fileDescriptions", {});
+                                        }}
                                         className="h-auto p-1 text-muted-foreground hover:text-foreground"
                                         disabled={isSubmitting || isLoading}
                                     >
                                         <X className="h-4 w-4" />
                                     </Button>
                                 </div>
-                                <div className="space-y-2 max-h-32 overflow-y-auto pr-2">
+                                <div className="space-y-3 max-h-48 overflow-y-auto pr-2">
                                     {Array.from(fileList).map((file, index) => (
                                         <div
                                             key={index}
-                                            className="flex items-center justify-between rounded-md border bg-background p-3"
+                                            className="space-y-2 rounded-md border bg-background p-3"
                                         >
-                                            <div className="flex items-center gap-3 min-w-0 flex-1">
-                                                <div className="flex-shrink-0">
-                                                    <FileText className="h-4 w-4 text-muted-foreground" />
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                    <div className="flex-shrink-0">
+                                                        <FileText className="h-4 w-4 text-muted-foreground" />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="text-sm font-medium text-foreground truncate">
+                                                            {file.name}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {(file.size / 1024).toFixed(1)} KB
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <p className="text-sm font-medium text-foreground truncate">
-                                                        {file.name}
-                                                    </p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {(file.size / 1024).toFixed(1)} KB
-                                                    </p>
-                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => handleRemoveFile(index)}
+                                                    className="h-auto p-1 text-muted-foreground hover:text-destructive"
+                                                    disabled={isSubmitting || isLoading}
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </Button>
                                             </div>
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => handleRemoveFile(index)}
-                                                className="h-auto p-1 text-muted-foreground hover:text-destructive"
+                                            <Textarea
+                                                placeholder={`Description for ${file.name} (optional)`}
+                                                className="bg-background text-foreground placeholder:text-muted-foreground"
+                                                rows={2}
                                                 disabled={isSubmitting || isLoading}
-                                            >
-                                                <X className="h-4 w-4" />
-                                            </Button>
+                                                value={form.watch("fileDescriptions")?.[file.name] || ""}
+                                                onChange={(e) => {
+                                                    const currentDescriptions = form.getValues("fileDescriptions") || {};
+                                                    form.setValue("fileDescriptions", { ...currentDescriptions, [file.name]: e.target.value });
+                                                }}
+                                            />
                                         </div>
                                     ))}
                                 </div>
