@@ -21,6 +21,8 @@ from google.adk.models.llm_response import LlmResponse
 from google.adk.tools.mcp_tool.mcp_session_manager import (
     SseServerParams,
     StdioConnectionParams,
+    StreamableHTTPServerParams,
+
 )
 
 from mcp import StdioServerParameters
@@ -588,6 +590,8 @@ async def load_adk_tools(
 
                     elif connection_type == "sse":
                         connection_params = SseServerParams(**connection_args)
+                    elif connection_type == "streamable-http":
+                        connection_params = StreamableHTTPServerParams(**connection_args)
                     else:
                         raise ValueError(
                             f"Unsupported MCP connection type: {connection_type}"
