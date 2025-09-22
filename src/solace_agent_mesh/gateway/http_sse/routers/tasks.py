@@ -218,6 +218,7 @@ async def _submit_task(
                 
                 with create_session_service_with_transaction() as (session_service, db):
                     existing_session = session_service.get_session(session_id, user_id)
+                    session_was_created = False
                     if not existing_session:
                         log.info("%sCreating new session in database: %s", log_prefix, session_id)
                         try:
@@ -228,6 +229,7 @@ async def _submit_task(
                                 session_id=session_id,
                                 project_id=project_id if project_id else None
                             )
+                            session_was_created = True
                         except Exception as create_error:
                             log.warning("%sSession creation failed, checking if session exists: %s", log_prefix, create_error)
                             existing_session = session_service.get_session(session_id, user_id)
@@ -243,8 +245,8 @@ async def _submit_task(
                                 message_text = part.text
                                 break
                     
-                    # Project context injection for the first message in a session
-                    if project_id and message_text:
+                    # Project context injection only for the first message (when session was just created)
+                    if project_id and message_text and session_was_created:
                         message_text = await _inject_project_context(
                             project_id=project_id,
                             message_text=message_text,
