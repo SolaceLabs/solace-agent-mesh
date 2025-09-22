@@ -69,20 +69,14 @@ async def _inject_project_context(
         if not project:
             return message_text
             
-        # 1. Inject project context (system prompt, description)
+        # 1. Gather context parts (system prompt, description, artifacts)
         context_parts = []
         if project.system_prompt and project.system_prompt.strip():
             context_parts.append(project.system_prompt.strip())
         if project.description and project.description.strip():
             context_parts.append(f"Project Context: {project.description.strip()}")
         
-        modified_message_text = message_text
-        if context_parts:
-            project_context = "\n\n".join(context_parts) + "\n\n"
-            modified_message_text = project_context + message_text
-            log.info("%sInjected project context for project: %s", log_prefix, project_id)
-
-        # 2. Copy project artifacts to session
+        # 2. Copy project artifacts to session and gather their descriptions for injection
         artifact_service = component.get_shared_artifact_service()
         if artifact_service:
             try:
@@ -100,7 +94,14 @@ async def _inject_project_context(
 
                 if project_artifacts:
                     log.info("%sFound %d artifacts to copy from project %s.", log_prefix, len(project_artifacts), project.id)
+                    artifact_descriptions = []
                     for artifact_info in project_artifacts:
+                        # Build description string for context injection
+                        desc_str = f"- {artifact_info.filename}"
+                        if artifact_info.description:
+                            desc_str += f": {artifact_info.description}"
+                        artifact_descriptions.append(desc_str)
+
                         # Load artifact content from project storage
                         loaded_artifact = await load_artifact_content_or_metadata(
                             artifact_service=artifact_service,
@@ -138,6 +139,14 @@ async def _inject_project_context(
                                 metadata_dict=full_metadata,
                                 timestamp=datetime.now(timezone.utc),
                             )
+
+                    if artifact_descriptions:
+                        artifacts_context = (
+                            "this project context contains the following artifacts\n"
+                            + "\n".join(artifact_descriptions)
+                        )
+                        context_parts.append(artifacts_context)
+                    
                     log.info("%sFinished copying %d artifacts to session %s.", log_prefix, len(project_artifacts), session_id)
                 else:
                     log.info("%sNo artifacts found in project %s to copy.", log_prefix, project.id)
@@ -145,6 +154,13 @@ async def _inject_project_context(
             except Exception as e:
                 log.warning("%sFailed to copy project artifacts to session: %s", log_prefix, e)
                 # Do not fail the entire request, just log the warning
+        
+        # 3. Inject all gathered context into the message
+        modified_message_text = message_text
+        if context_parts:
+            project_context = "\n\n".join(context_parts) + "\n\n"
+            modified_message_text = project_context + message_text
+            log.info("%sInjected project context for project: %s", log_prefix, project_id)
                 
         return modified_message_text
         
