@@ -82,8 +82,8 @@ from ...agent.tools.registry import tool_registry
 from ...common.sac.sam_component_base import SamComponentBase
 
 if TYPE_CHECKING:
+    from .app import AgentInitCleanupConfig
     from .task_execution_context import TaskExecutionContext
-
 
 info = {
     "class_name": "SamAgentComponent",
@@ -267,7 +267,9 @@ class SamAgentComponent(SamComponentBase):
         try:
             self.agent_specific_state: Dict[str, Any] = {}
             init_func_details = self.get_config("agent_init_function")
-            if init_func_details and isinstance(init_func_details, dict):
+
+            from .app import AgentInitCleanupConfig # delayed import to avoid circular dependency
+            if init_func_details and isinstance(init_func_details, AgentInitCleanupConfig):
                 module_name = init_func_details.get("module")
                 func_name = init_func_details.get("name")
                 base_path = init_func_details.get("base_path")
@@ -3010,7 +3012,9 @@ class SamAgentComponent(SamComponentBase):
         self.cancel_timer(self._card_publish_timer_id)
 
         cleanup_func_details = self.get_config("agent_cleanup_function")
-        if cleanup_func_details and isinstance(cleanup_func_details, dict):
+
+        from .app import AgentInitCleanupConfig # Avoid circular import
+        if cleanup_func_details and isinstance(cleanup_func_details, AgentInitCleanupConfig):
             module_name = cleanup_func_details.get("module")
             func_name = cleanup_func_details.get("name")
             base_path = cleanup_func_details.get("base_path")

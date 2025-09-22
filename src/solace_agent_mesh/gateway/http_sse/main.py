@@ -463,6 +463,25 @@ def _setup_routers() -> None:
     app.include_router(auth.router, prefix=api_prefix, tags=["Auth"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
+    try:
+        from solace_agent_mesh_enterprise.webui_backend.routers import get_enterprise_routers
+
+        enterprise_routers = get_enterprise_routers()
+        for router_config in enterprise_routers:
+            app.include_router(
+                router_config["router"],
+                prefix=router_config["prefix"],
+                tags=router_config["tags"]
+            )
+        log.info("Mounted %d enterprise routers", len(enterprise_routers))
+
+    except ImportError:
+        log.debug("No enterprise package detected - skipping enterprise routers")
+    except ModuleNotFoundError:
+        log.debug("Enterprise router module not found - skipping enterprise routers")
+    except Exception as e:
+        log.warning("Failed to load enterprise routers: %s", e)
+
 
 def _setup_static_files() -> None:
     current_dir = os.path.dirname(os.path.abspath(__file__))
