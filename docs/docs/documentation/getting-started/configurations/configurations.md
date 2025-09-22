@@ -163,7 +163,7 @@ The parameters are described in the following table:
 | `default_behavior` | `PERSISTENT`, `RUN_BASED` | The default behavior of keeping the session history | `PERSISTENT` |
 
 :::tip
-Although the default session service type is `memory`, both Orchestrator and Webui use `sql` as their session service to allow for persistent sessions.
+Although the default session service type is `memory`, both Orchestrator Agent and Web UI gateway use `sql` as their session service to allow for persistent sessions.
 :::
 
 ##### Artifact Service
