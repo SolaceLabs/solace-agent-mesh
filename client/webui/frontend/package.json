@@ -9,8 +9,7 @@
         "url": "https://github.com/SolaceLabs/solace-agent-mesh",
         "directory": "client/webui/frontend"
     },
-    "./dist/solace-agent-mesh-ui.css": "./dist/solace-agent-mesh-ui.css"
-  },
+    "./dist/solace-agent-mesh-ui.css": "./dist/solace-agent-mesh-ui.css",
   "files": [
     "dist",
     "README.md"
