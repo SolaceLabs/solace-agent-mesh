@@ -217,6 +217,7 @@ class SamAgentAppConfig(SamConfigBase):
         ..., description="Absolute topic prefix for A2A communication (e.g., 'myorg/dev')."
     )
     agent_name: str = Field(..., description="Unique name for this ADK agent instance.")
+    display_name: str = Field(default=None, description="Human-friendly display name for this ADK agent instance.")
     model: Union[str, Dict[str, Any]] = Field(
         ..., description="ADK model name (string) or BaseLlm config dict."
     )
