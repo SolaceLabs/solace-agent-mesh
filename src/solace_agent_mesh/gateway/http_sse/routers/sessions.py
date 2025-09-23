@@ -2,7 +2,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, status
 from fastapi import Request as FastAPIRequest
 from solace_ai_connector.common.log import log
 
-from ....common import a2a
+from a2a.types import JSONRPCSuccessResponse
 from ..dependencies import get_session_business_service, get_session_manager
 from ..services.session_service import SessionService
 from ..session_manager import SessionManager
@@ -18,11 +18,12 @@ from .dto.responses.session_responses import (
     SessionListResponse,
     SessionResponse,
 )
+from ....common.a2a import create_generic_success_response
 
 router = APIRouter()
 
 
-@router.post("/sessions/new", response_model=a2a.JSONRPCSuccessResponse)
+@router.post("/sessions/new", response_model=JSONRPCSuccessResponse)
 async def create_new_session(
     request: FastAPIRequest,
     user: dict = Depends(get_current_user),
@@ -49,7 +50,7 @@ async def create_new_session(
                 session_id=new_session_id,
             )
 
-        return a2a.create_generic_success_response(
+        return create_generic_success_response(
             result={"id": new_session_id}, request_id=None
         )
     except Exception as e:
