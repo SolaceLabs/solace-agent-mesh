@@ -136,7 +136,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const uploadArtifactFile = useCallback(
         async (file: File): Promise<string | null> => {
             const formData = new FormData();
-            formData.append("file", file);
+            formData.append("upload_file", file);
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(file.name)}`, {
                     method: "POST",
