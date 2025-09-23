@@ -6,18 +6,16 @@ at runtime by directives passed from the test case.
 
 import argparse
 import base64
-import json
-import re
-import threading
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from fastmcp import Context, FastMCP
 from fastmcp.tools.tool import ToolResult
-from fastmcp.utilities.types import Audio, Image
 from mcp.types import (
+    AudioContent,
     BlobResourceContents,
     EmbeddedResource,
+    ImageContent,
     TextContent,
     TextResourceContents,
 )
@@ -73,10 +71,12 @@ class TestMCPServer:
         """
         # Add diagnostic logging for multi-call debugging
         logging.info(
-            f"MCP Server: get_data called with response_to_return: {response_to_return}"
+            "MCP Server: get_data called with response_to_return: %r",
+            response_to_return,
         )
         logging.info(
-            f"MCP Server: Context info - session_id: {getattr(ctx, 'session_id', 'N/A')}"
+            "MCP Server: Context info - session_id: %s",
+            getattr(ctx, "session_id", "N/A"),
         )
         content_list = response_to_return.get("content", [])
         if not isinstance(content_list, list):
@@ -118,36 +118,28 @@ class TestMCPServer:
                     TextContent(type="text", text=item.get("text", ""))
                 )
             elif item_type == "image":
-                try:
-                    image_bytes = base64.b64decode(item.get("data", ""))
-                    # Extract format from mimeType (e.g., "image/png" -> "png")
-                    mime_type = item.get("mimeType", "image/png")
-                    format_type = (
-                        mime_type.split("/")[-1] if "/" in mime_type else "png"
+                result_objects.append(
+                    ImageContent(
+                        type="image",
+                        data=item.get("data", ""),
+                        mimeType=item.get("mimeType", "image/png"),
                     )
-                    result_objects.append(Image(data=image_bytes, format=format_type))
-                except (ValueError, TypeError) as e:
-                    result_objects.append(f"Error decoding image data: {e}")
+                )
             elif item_type == "audio":
-                try:
-                    audio_bytes = base64.b64decode(item.get("data", ""))
-                    # Extract format from mimeType (e.g., "audio/mp3" -> "mp3")
-                    mime_type = item.get("mimeType", "audio/mp3")
-                    format_type = (
-                        mime_type.split("/")[-1] if "/" in mime_type else "mp3"
+                result_objects.append(
+                    AudioContent(
+                        type="audio",
+                        data=item.get("data", ""),
+                        mimeType=item.get("mimeType", "audio/mpeg"),
                     )
-                    result_objects.append(Audio(data=audio_bytes, format=format_type))
-                except (ValueError, TypeError) as e:
-                    result_objects.append(f"Error decoding audio data: {e}")
+                )
             else:
                 # For unknown types, return the raw dictionary as structured content
                 result_objects.append(item)
 
-        if len(result_objects) == 1:
-            # If there's only one item, return it directly
-            return result_objects[0]
-
-        return result_objects
+        # Always wrap the result in a ToolResult to ensure correct multi-part
+        # content block serialization by the fastmcp framework.
+        return ToolResult(content=result_objects)
 
 
 def main():

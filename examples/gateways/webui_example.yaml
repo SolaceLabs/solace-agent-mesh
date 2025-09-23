@@ -40,7 +40,7 @@ apps:
       artifact_service: *default_artifact_service # Points to shared_config.yaml
       session_service:
         type: "sql"
-        database_url: "${WEB_UI_GATEWAY_DATABASE_URL}"
+        database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui-gateway.db}"
         default_behavior: "PERSISTENT"
       # --- Optional with Defaults ---
       gateway_id: ${WEBUI_GATEWAY_ID} # Optional: Unique ID for this instance. If omitted, one will be generated.

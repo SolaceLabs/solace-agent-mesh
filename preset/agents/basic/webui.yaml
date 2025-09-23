@@ -20,6 +20,11 @@ apps:
       namespace: ${NAMESPACE}
       session_secret_key: "${SESSION_SECRET_KEY}"
 
+      session_service:
+        type: "${PERSISTENCE_TYPE, memory}"
+        database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui-gateway.db}"
+        default_behavior: "PERSISTENT"
+
       artifact_service: *default_artifact_service
 
       gateway_id: ${WEBUI_GATEWAY_ID}
