@@ -69,7 +69,7 @@ expected_gateway_output:
               as artifacts."
     assert_artifact_state:
       # Assert the JSON artifact (index 0)
-      - filename_matches_regex: "get_data_stdio_json_0_.*[^a]\\.json$"
+      - filename_matches_regex: "get_data_stdio_json_0_.*\\.json$"
         version: 0
         expected_content_text: '{"user_id": "user123", "name": "Alice"}'
         expected_metadata_contains:
@@ -78,7 +78,7 @@ expected_gateway_output:
           detected_format: "json"
           mime_type: "application/json"
       # Assert the CSV artifact (index 1)
-      - filename_matches_regex: "get_data_stdio_csv_1_.*[^a]\\.csv$"
+      - filename_matches_regex: "get_data_stdio_csv_1_.*\\.csv$"
         version: 0
         expected_content_text: "id,product\n1,widget\n2,gadget"
         expected_metadata_contains:

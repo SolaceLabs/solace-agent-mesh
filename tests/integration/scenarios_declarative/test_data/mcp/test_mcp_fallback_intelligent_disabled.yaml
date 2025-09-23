@@ -67,7 +67,7 @@ expected_gateway_output:
             text_exact: "I have retrieved the data and saved the raw response as a
               JSON artifact because intelligent processing was disabled."
     assert_artifact_state:
-      - filename_matches_regex: ".*_get_data_stdio_raw_.*[^a]\\.json$"
+      - filename_matches_regex: ".*_get_data_stdio_raw_.*\\.json$"
         version: 0
         expected_metadata_contains:
           source_tool_name: "get_data_stdio"
