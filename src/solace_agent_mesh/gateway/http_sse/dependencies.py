@@ -293,8 +293,7 @@ def get_validated_user_config(required_scopes: list[str]):
     ) -> dict[str, Any]:
         user_id = user_config.get("user_profile", {}).get("id")
 
-        log.info(f"[Dependencies] get_validated_user_configzzzzzz called for user_id: {user_id} with required scopes: {required_scopes}")
-        log.info(f"config resolver: {config_resolver}")
+        log.info(f"[Dependencies] get_validated_user_config called for user_id: {user_id} with required scopes: {required_scopes}")
 
         # Validate scopes
         if not config_resolver.is_feature_enabled(
