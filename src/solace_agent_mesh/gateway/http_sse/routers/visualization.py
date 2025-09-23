@@ -275,18 +275,19 @@ def _include_for_visualization(event_payload: Dict[str, Any]) -> bool:
         if not metadata:
             return True
 
-
         # Check the visualization setting in metadata
         visualization_setting = metadata.get("visualization")
-        if visualization_setting is not None:
-            if (
+        if visualization_setting is not None and (
+            (
                 isinstance(visualization_setting, str)
                 and visualization_setting.lower() == "false"
-            ) or (
+            )
+            or (
                 isinstance(visualization_setting, bool)
                 and visualization_setting is False
-            ):
-                return False  # Exclude from visualization
+            )
+        ):
+            return False
 
         return True
 
