@@ -207,6 +207,7 @@ class BaseGatewayComponent(SamComponentBase):
         is_streaming: bool = True,
         api_version: str = "v2",
         task_id_override: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         log_id_prefix = f"{self.log_identifier}[SubmitA2ATask]"
         log.info(
@@ -299,6 +300,9 @@ class BaseGatewayComponent(SamComponentBase):
                 log_id_prefix,
                 len(invoked_artifacts),
             )
+        
+        if metadata:
+            a2a_metadata.update(metadata)
 
         # This correlation ID is used by the gateway to track the task
         if task_id_override:
