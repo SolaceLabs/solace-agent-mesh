@@ -125,39 +125,6 @@ async def _submit_task(
                 from ....gateway.http_sse.shared.enums import SenderType
 
                 with create_session_service_with_transaction() as (session_service, db):
-                    existing_session = session_service.get_session(
-                        session_id=session_id, user_id=user_id
-                    )
-                    if not existing_session:
-                        log.info(
-                            "%sCreating new session in database: %s",
-                            log_prefix,
-                            session_id,
-                        )
-                        try:
-                            session_service.create_session(
-                                user_id=user_id,
-                                agent_id=agent_name,
-                                name=None,
-                                session_id=session_id,
-                            )
-                        except Exception as create_error:
-                            log.warning(
-                                "%sSession creation failed, checking if session exists: %s",
-                                log_prefix,
-                                create_error,
-                            )
-                            existing_session = session_service.get_session(
-                                session_id=session_id, user_id=user_id
-                            )
-                            if not existing_session:
-                                raise create_error
-                            log.info(
-                                "%sSession was created by another request: %s",
-                                log_prefix,
-                                session_id,
-                            )
-
                     message_text = ""
                     if payload.params and payload.params.message:
                         parts = a2a.get_parts_from_message(payload.params.message)
@@ -166,7 +133,7 @@ async def _submit_task(
                                 message_text = part.text
                                 break
 
-                    message_domain = session_service.add_message_to_session(
+                    session_service.add_message_to_session(
                         session_id=session_id,
                         user_id=user_id,
                         message=message_text or "Task submitted",
@@ -175,16 +142,6 @@ async def _submit_task(
                         agent_id=agent_name,
                     )
 
-                    if message_domain:
-                        log.info(
-                            "%sMessage stored in session %s", log_prefix, session_id
-                        )
-                    else:
-                        log.warning(
-                            "%sFailed to store message in session %s",
-                            log_prefix,
-                            session_id,
-                        )
             except Exception as e:
                 log.error(
                     "%sFailed to store message in session service: %s", log_prefix, e

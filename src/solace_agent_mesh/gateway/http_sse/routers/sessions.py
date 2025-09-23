@@ -37,18 +37,14 @@ async def create_new_session(
         new_session_id = session_manager.create_new_session_id(request)
         log.info("Created new session ID: %s for user %s", new_session_id, user_id)
 
-        # If persistence is enabled, create the session record in the DB
-        if session_service.is_persistence_enabled():
-            log.info(
-                "Persistence enabled, creating session record in DB for %s",
-                new_session_id,
-            )
-            session_service.create_session(
-                user_id=user_id,
-                agent_id=None,  # Agent is not known at this point
-                name=None,
-                session_id=new_session_id,
-            )
+        # Attempt to create the session record in the DB.
+        # The service will handle the check for whether persistence is enabled.
+        session_service.create_session(
+            user_id=user_id,
+            agent_id=None,  # Agent is not known at this point
+            name=None,
+            session_id=new_session_id,
+        )
 
         return create_generic_success_response(
             result={"id": new_session_id}, request_id=None

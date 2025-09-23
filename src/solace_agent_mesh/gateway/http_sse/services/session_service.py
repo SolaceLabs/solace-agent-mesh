@@ -29,6 +29,12 @@ class SessionService:
         self.message_repository = message_repository
         self.component = component
 
+    def is_persistence_enabled(self) -> bool:
+        """Checks if the service is configured with a persistent backend."""
+        # The presence of a database_url on the component is the source of truth
+        # for whether SQL persistence is enabled.
+        return self.component and self.component.database_url is not None
+
     def get_user_sessions(
         self, user_id: UserId, pagination: PaginationInfo | None = None
     ) -> list[Session]:
@@ -73,7 +79,11 @@ class SessionService:
         name: str | None = None,
         agent_id: str | None = None,
         session_id: str | None = None,
-    ) -> Session:
+    ) -> Optional[Session]:
+        if not self.is_persistence_enabled():
+            log.debug("Persistence is not enabled. Skipping session creation in DB.")
+            return None
+
         if not user_id or user_id.strip() == "":
             raise ValueError("User ID cannot be empty")
 
