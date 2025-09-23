@@ -79,13 +79,6 @@ async def _submit_task(
 
         # Use session ID from frontend request (contextId) instead of cookie-based session
         # Handle various falsy values: None, empty string, whitespace-only string
-        if hasattr(payload.params.message, "context_id"):
-            log.info(
-                "%s[DEBUG] context_id value: %s",
-                log_prefix,
-                payload.params.message.context_id,
-            )
-
         frontend_session_id = None
         if (
             hasattr(payload.params.message, "context_id")
