@@ -32,7 +32,7 @@ apps:
           group_name: "artifact_management"
       session_service:
         type: "${PERSISTENCE_TYPE, memory}"
-        database_url: "${AGENT_WEB_DATABASE_URL, sqlite:///orchestrator-agent.db}"
+        database_url: "${AGENT_WEB_DATABASE_URL, sqlite:///web-agent.db}"
         default_behavior: "PERSISTENT"
       artifact_service: *default_artifact_service
       artifact_handling_mode: "reference"
