@@ -461,6 +461,265 @@ async def get_project_artifacts(
         )
 
 
+@router.get("/projects/{project_id}/artifacts/{filename}/versions", response_model=list[int])
+async def get_project_artifact_versions(
+    project_id: str,
+    filename: str,
+    user: dict = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
+    component = Depends(get_sac_component),
+):
+    """
+    Get all available versions for a specific project artifact.
+    """
+    user_id = user.get("id")
+    log.info("User %s attempting to fetch versions for artifact %s in project %s", user_id, filename, project_id)
+
+    try:
+        if (
+            not project_id
+            or project_id.strip() == ""
+            or project_id in ["null", "undefined"]
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="Project not found."
+            )
+
+        # Verify user has access to the project
+        project = project_service.get_project(project_id, user_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found."
+            )
+
+        if artifact_service is None:
+            log.warning("Artifact service not available for project %s", project_id)
+            return []
+
+        # Determine the user_id for artifact storage based on project type
+        storage_user_id = GLOBAL_PROJECT_USER_ID if project.is_global else project.user_id
+        project_session_id = f"project-{project_id}"
+        app_name = component.get_config("name", "WebUIBackendApp")
+
+        log.info("Fetching versions for artifact %s in project %s (storage_user_id: %s, session_id: %s)", 
+                filename, project_id, storage_user_id, project_session_id)
+
+        if not hasattr(artifact_service, "list_versions"):
+            log.warning("Configured artifact service does not support listing versions")
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Version listing not supported by the configured artifact service"
+            )
+
+        versions = await artifact_service.list_versions(
+            app_name=app_name,
+            user_id=storage_user_id,
+            session_id=project_session_id,
+            filename=filename,
+        )
+
+        log.info("Found %d versions for artifact %s in project %s", len(versions), filename, project_id)
+        return versions
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("Error fetching versions for artifact %s in project %s for user %s: %s", filename, project_id, user_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve artifact versions"
+        )
+
+
+@router.get("/projects/{project_id}/artifacts/{filename}")
+async def get_project_artifact_content(
+    project_id: str,
+    filename: str,
+    user: dict = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
+    component = Depends(get_sac_component),
+):
+    """
+    Get the latest version content of a specific project artifact.
+    """
+    user_id = user.get("id")
+    log.info("User %s attempting to fetch content for artifact %s in project %s", user_id, filename, project_id)
+
+    try:
+        if (
+            not project_id
+            or project_id.strip() == ""
+            or project_id in ["null", "undefined"]
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="Project not found."
+            )
+
+        # Verify user has access to the project
+        project = project_service.get_project(project_id, user_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found."
+            )
+
+        if artifact_service is None:
+            log.warning("Artifact service not available for project %s", project_id)
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Artifact service not configured"
+            )
+
+        # Determine the user_id for artifact storage based on project type
+        storage_user_id = GLOBAL_PROJECT_USER_ID if project.is_global else project.user_id
+        project_session_id = f"project-{project_id}"
+        app_name = component.get_config("name", "WebUIBackendApp")
+
+        log.info("Fetching content for artifact %s in project %s (storage_user_id: %s, session_id: %s)", 
+                filename, project_id, storage_user_id, project_session_id)
+
+        artifact_part = await artifact_service.load_artifact(
+            app_name=app_name,
+            user_id=storage_user_id,
+            session_id=project_session_id,
+            filename=filename,
+        )
+
+        if artifact_part is None or artifact_part.inline_data is None:
+            log.warning("Artifact %s not found in project %s", filename, project_id)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Artifact '{filename}' not found in project"
+            )
+
+        data_bytes = artifact_part.inline_data.data
+        mime_type = artifact_part.inline_data.mime_type or "application/octet-stream"
+        
+        log.info("Successfully loaded artifact %s from project %s (%d bytes, %s)", 
+                filename, project_id, len(data_bytes), mime_type)
+
+        from fastapi.responses import StreamingResponse
+        from urllib.parse import quote
+        import io
+
+        filename_encoded = quote(filename)
+        return StreamingResponse(
+            io.BytesIO(data_bytes),
+            media_type=mime_type,
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"
+            },
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("Error fetching content for artifact %s in project %s for user %s: %s", filename, project_id, user_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve artifact content"
+        )
+
+
+@router.get("/projects/{project_id}/artifacts/{filename}/versions/{version}")
+async def get_project_artifact_version_content(
+    project_id: str,
+    filename: str,
+    version: int,
+    user: dict = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
+    component = Depends(get_sac_component),
+):
+    """
+    Get a specific version of a project artifact.
+    """
+    user_id = user.get("id")
+    log.info("User %s attempting to fetch version %d of artifact %s in project %s", user_id, version, filename, project_id)
+
+    try:
+        if (
+            not project_id
+            or project_id.strip() == ""
+            or project_id in ["null", "undefined"]
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="Project not found."
+            )
+
+        # Verify user has access to the project
+        project = project_service.get_project(project_id, user_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found."
+            )
+
+        if artifact_service is None:
+            log.warning("Artifact service not available for project %s", project_id)
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Artifact service not configured"
+            )
+
+        # Determine the user_id for artifact storage based on project type
+        storage_user_id = GLOBAL_PROJECT_USER_ID if project.is_global else project.user_id
+        project_session_id = f"project-{project_id}"
+        app_name = component.get_config("name", "WebUIBackendApp")
+
+        log.info("Fetching version %d of artifact %s in project %s (storage_user_id: %s, session_id: %s)", 
+                version, filename, project_id, storage_user_id, project_session_id)
+
+        artifact_part = await artifact_service.load_artifact(
+            app_name=app_name,
+            user_id=storage_user_id,
+            session_id=project_session_id,
+            filename=filename,
+            version=version,
+        )
+
+        if artifact_part is None or artifact_part.inline_data is None:
+            log.warning("Artifact %s version %d not found in project %s", filename, version, project_id)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Artifact '{filename}' version {version} not found in project"
+            )
+
+        data_bytes = artifact_part.inline_data.data
+        mime_type = artifact_part.inline_data.mime_type or "application/octet-stream"
+        
+        log.info("Successfully loaded artifact %s version %d from project %s (%d bytes, %s)", 
+                filename, version, project_id, len(data_bytes), mime_type)
+
+        from fastapi.responses import StreamingResponse
+        from urllib.parse import quote
+        import io
+
+        filename_encoded = quote(filename)
+        return StreamingResponse(
+            io.BytesIO(data_bytes),
+            media_type=mime_type,
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"
+            },
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("Error fetching version %d of artifact %s in project %s for user %s: %s", version, filename, project_id, user_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve artifact version content"
+        )
+
+
 @router.post("/projects/templates/{template_id}/copy", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def copy_project_from_template(
     template_id: str,

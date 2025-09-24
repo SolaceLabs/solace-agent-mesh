@@ -237,14 +237,30 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setCurrentPreviewedVersionNumber(null);
             setPreviewFileContent(null);
             try {
-                const versionsResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions`, { credentials: "include" });
+                // Determine the correct endpoints based on context
+                let versionsUrl: string;
+                let contentUrl: string;
+                
+                if (sessionId && sessionId.trim()) {
+                    // Priority 1: Session artifacts
+                    versionsUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions`;
+                    contentUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions`;
+                } else if (activeProject?.id) {
+                    // Priority 2: Project artifacts
+                    versionsUrl = `${apiPrefix}/projects/${activeProject.id}/artifacts/${encodeURIComponent(artifactFilename)}/versions`;
+                    contentUrl = `${apiPrefix}/projects/${activeProject.id}/artifacts/${encodeURIComponent(artifactFilename)}/versions`;
+                } else {
+                    throw new Error("No valid context for artifact preview");
+                }
+
+                const versionsResponse = await authenticatedFetch(versionsUrl, { credentials: "include" });
                 if (!versionsResponse.ok) throw new Error("Error fetching version list");
                 const availableVersions: number[] = await versionsResponse.json();
                 if (!availableVersions || availableVersions.length === 0) throw new Error("No versions available");
                 setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
                 const latestVersion = Math.max(...availableVersions);
                 setCurrentPreviewedVersionNumber(latestVersion);
-                const contentResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}`, { credentials: "include" });
+                const contentResponse = await authenticatedFetch(`${contentUrl}/${latestVersion}`, { credentials: "include" });
                 if (!contentResponse.ok) throw new Error("Error fetching latest version content");
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
@@ -267,7 +283,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return null;
             }
         },
-        [apiPrefix, sessionId, artifacts, addNotification]
+        [apiPrefix, sessionId, activeProject?.id, artifacts, addNotification]
     );
 
     const navigateArtifactVersion = useCallback(
@@ -278,7 +294,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
             setPreviewFileContent(null);
             try {
-                const contentResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}`, { credentials: "include" });
+                // Determine the correct endpoint based on context
+                let contentUrl: string;
+                
+                if (sessionId && sessionId.trim()) {
+                    // Priority 1: Session artifacts
+                    contentUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}`;
+                } else if (activeProject?.id) {
+                    // Priority 2: Project artifacts
+                    contentUrl = `${apiPrefix}/projects/${activeProject.id}/artifacts/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}`;
+                } else {
+                    throw new Error("No valid context for artifact version navigation");
+                }
+
+                const contentResponse = await authenticatedFetch(contentUrl, { credentials: "include" });
                 if (!contentResponse.ok) throw new Error(`Error fetching version ${targetVersion}`);
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
@@ -302,7 +331,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return null;
             }
         },
-        [apiPrefix, addNotification, artifacts, previewedArtifactAvailableVersions, sessionId]
+        [apiPrefix, addNotification, artifacts, previewedArtifactAvailableVersions, sessionId, activeProject?.id]
     );
 
     const openMessageAttachmentForPreview = useCallback(
