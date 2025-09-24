@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 
+import { FolderOpen } from "lucide-react";
+
 import { useChatContext, useDownload } from "@/lib/hooks";
 import { formatBytes } from "@/lib/utils/format";
 import type { ArtifactInfo } from "@/lib/types";
@@ -17,6 +19,20 @@ export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview 
     const { onDownload } = useDownload();
 
     const [isExpanded, setIsExpanded] = useState(false);
+
+    const getArtifactBadge = (artifact: ArtifactInfo) => {
+        if (artifact.source === 'project') {
+            return {
+                label: 'Project',
+                icon: <FolderOpen className="h-3 w-3" />,
+                className: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+                readonly: true
+            };
+        }
+        return null;
+    };
+
+    const badge = getArtifactBadge(artifact);
 
     const onDelete = () => {
         if (isPreview) {
@@ -104,9 +120,17 @@ export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview 
             aria-expanded={isExpanded}
         >
             <div className="flex items-start space-x-2">
-                <div className="flex-shrink-0 pt-0.5">{getFileIcon(artifact, "h-4 w-4 flex-shrink-0")}</div>
+                <div className="flex-shrink-0 pt-0.5">
+                    {getFileIcon(artifact, "h-4 w-4 flex-shrink-0")}
+                    {badge && (
+                        <div className={`flex items-center gap-1 px-2 py-1 rounded-md mt-1 ${badge.className}`}>
+                            {badge.icon}
+                            <span className="text-xs font-medium">{badge.label}</span>
+                        </div>
+                    )}
+                </div>
                 <div className="min-w-0 flex-grow">
-                    <ArtifactDetails artifactInfo={artifact} isExpanded={isExpanded} onDelete={onDelete} onDownload={onDownload} setIsExpanded={setIsExpanded} isPreview={isPreview} />
+                    <ArtifactDetails artifactInfo={artifact} isExpanded={isExpanded} onDelete={badge?.readonly ? undefined : onDelete} onDownload={onDownload} setIsExpanded={setIsExpanded} isPreview={isPreview} />
                     {isExpanded && (
                         <div className={`text-xs`}>
                             <div className="mt-1 text-xs break-words whitespace-pre-wrap italic">{artifact.description || "No description."}</div>

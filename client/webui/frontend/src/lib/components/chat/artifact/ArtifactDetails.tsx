@@ -11,7 +11,7 @@ interface ArtifactDetailsProps {
     artifactInfo: ArtifactInfo;
     isPreview?: boolean;
     isExpanded?: boolean;
-    onDelete?: (artifact: ArtifactInfo) => void;
+    onDelete?: () => void;
     onDownload?: (artifact: ArtifactInfo) => void;
     setIsExpanded?: (expanded: boolean) => void;
 }
@@ -90,7 +90,7 @@ export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({ artifactInfo, 
                         onClick={e => {
                             e.preventDefault();
                             e.stopPropagation();
-                            onDelete(artifactInfo);
+                            onDelete();
                         }}
                         tooltip="Delete"
                     >
