@@ -25,8 +25,8 @@ const downloadArtifactFile = async (
         // Priority 1: Session artifacts
         downloadUrl = `${apiPrefix}/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifact.filename)}`;
     } else if (projectId) {
-        // Priority 2: Project artifacts
-        downloadUrl = `${apiPrefix}/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(artifact.filename)}`;
+        // Priority 2: Project artifacts - use unified endpoint
+        downloadUrl = `${apiPrefix}/api/v1/artifacts/null/${encodeURIComponent(artifact.filename)}?project_id=${projectId}`;
     } else {
         throw new Error("No valid context for downloading artifact");
     }

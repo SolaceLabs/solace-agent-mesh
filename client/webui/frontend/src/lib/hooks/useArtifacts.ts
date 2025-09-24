@@ -54,8 +54,8 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
             fetchUrl = `${apiPrefix}/artifacts/${sessionId}`;
             dataSource = "session";
         } else if (activeProject?.id) {
-            // Priority 2: Project artifacts
-            fetchUrl = `${apiPrefix}/projects/${activeProject.id}/artifacts`;
+            // Priority 2: Project artifacts - use unified endpoint
+            fetchUrl = `${apiPrefix}/artifacts/null?project_id=${activeProject.id}`;
             dataSource = "project";
         }
 
