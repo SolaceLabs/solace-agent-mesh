@@ -238,23 +238,32 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setPreviewFileContent(null);
             try {
                 // Determine the correct URL based on context
-                let baseUrl: string;
+                let versionsUrl: string;
                 if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    baseUrl = `${apiPrefix}/artifacts/${sessionId}`;
+                    versionsUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions`;
                 } else if (activeProject?.id) {
-                    baseUrl = `${apiPrefix}/artifacts/null?project_id=${activeProject.id}`;
+                    versionsUrl = `${apiPrefix}/artifacts/null/${encodeURIComponent(artifactFilename)}/versions?project_id=${activeProject.id}`;
                 } else {
                     throw new Error("No valid context for artifact preview");
                 }
 
-                const versionsResponse = await authenticatedFetch(`${baseUrl}/${encodeURIComponent(artifactFilename)}/versions`, { credentials: "include" });
+                const versionsResponse = await authenticatedFetch(versionsUrl, { credentials: "include" });
                 if (!versionsResponse.ok) throw new Error("Error fetching version list");
                 const availableVersions: number[] = await versionsResponse.json();
                 if (!availableVersions || availableVersions.length === 0) throw new Error("No versions available");
                 setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
                 const latestVersion = Math.max(...availableVersions);
                 setCurrentPreviewedVersionNumber(latestVersion);
-                const contentResponse = await authenticatedFetch(`${baseUrl}/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}`, { credentials: "include" });
+                let contentUrl: string;
+                if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
+                    contentUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}`;
+                } else if (activeProject?.id) {
+                    contentUrl = `${apiPrefix}/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}?project_id=${activeProject.id}`;
+                } else {
+                    throw new Error("No valid context for artifact content");
+                }
+
+                const contentResponse = await authenticatedFetch(contentUrl, { credentials: "include" });
                 if (!contentResponse.ok) throw new Error("Error fetching latest version content");
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
@@ -289,16 +298,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setPreviewFileContent(null);
             try {
                 // Determine the correct URL based on context
-                let baseUrl: string;
+                let contentUrl: string;
                 if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    baseUrl = `${apiPrefix}/artifacts/${sessionId}`;
+                    contentUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}`;
                 } else if (activeProject?.id) {
-                    baseUrl = `${apiPrefix}/artifacts/null?project_id=${activeProject.id}`;
+                    contentUrl = `${apiPrefix}/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}?project_id=${activeProject.id}`;
                 } else {
                     throw new Error("No valid context for artifact navigation");
                 }
 
-                const contentResponse = await authenticatedFetch(`${baseUrl}/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}`, { credentials: "include" });
+                const contentResponse = await authenticatedFetch(contentUrl, { credentials: "include" });
                 if (!contentResponse.ok) throw new Error(`Error fetching version ${targetVersion}`);
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
