@@ -21,6 +21,7 @@ export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview 
     const [isExpanded, setIsExpanded] = useState(false);
 
     const getArtifactBadge = (artifact: ArtifactInfo) => {
+        console.log("arttifact",artifact)
         if (artifact.source === 'project') {
             return {
                 label: 'Project',
