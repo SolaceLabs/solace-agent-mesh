@@ -11,6 +11,8 @@ from google.adk.tools.mcp_tool.mcp_session_manager import (
     StdioConnectionParams,
     StreamableHTTPConnectionParams,
 )
+from google.adk.auth.credential_manager import CredentialManager
+
 from google.adk.tools.tool_context import ToolContext
 from solace_ai_connector.common.log import log
 
@@ -72,7 +74,7 @@ class EmbedResolvingMCPTool(_OptimalToolClass):
     Uses factory pattern to conditionally inherit from McpToolWithManifest when available.
     """
 
-    def __init__(self, original_mcp_tool: MCPTool, tool_config: Optional[Dict] = None):
+    def __init__(self, original_mcp_tool: MCPTool, tool_config: Optional[Dict] = None, credential_manager: Optional[CredentialManager] = None):
         # Copy all attributes from the original tool
         if _tool_supports_tool_config:
             super().__init__(
@@ -81,6 +83,7 @@ class EmbedResolvingMCPTool(_OptimalToolClass):
                 auth_scheme=getattr(original_mcp_tool._mcp_tool, "auth_scheme", None),
                 auth_credential=getattr(original_mcp_tool._mcp_tool, "auth_credential", None),
                 auth_discovery=getattr(original_mcp_tool._mcp_tool, "auth_discovery", None),
+                credential_manager=credential_manager,
             )
         else:
             super().__init__(
@@ -322,6 +325,7 @@ class EmbedResolvingMCPToolset(_OptimalToolsetClass):
         auth_credential=None,
         auth_discovery=None,
         tool_config: Optional[Dict] = None,
+        credential_manager: Optional[CredentialManager] = None,
     ):
         # Store tool_config for later use
         self._tool_config = tool_config or {}
@@ -346,6 +350,7 @@ class EmbedResolvingMCPToolset(_OptimalToolsetClass):
             )
 
         self._tool_cache = []
+        self._credential_manager = credential_manager
 
     async def get_tools(self, readonly_context=None) -> List[MCPTool]:
         """
@@ -370,6 +375,7 @@ class EmbedResolvingMCPToolset(_OptimalToolsetClass):
             embed_resolving_tool = EmbedResolvingMCPTool(
                 original_mcp_tool=tool,
                 tool_config=tool_specific_config,
+                credential_manager=self._credential_manager,
             )
             embed_resolving_tools.append(embed_resolving_tool)
 
