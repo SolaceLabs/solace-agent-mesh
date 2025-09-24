@@ -14,9 +14,15 @@ interface ArtifactDetailsProps {
     onDelete?: () => void;
     onDownload?: (artifact: ArtifactInfo) => void;
     setIsExpanded?: (expanded: boolean) => void;
+    badge?: {
+        label: string;
+        icon: React.ReactNode;
+        className: string;
+        readonly?: boolean;
+    } | null;
 }
 
-export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({ artifactInfo, isPreview = false, isExpanded = false, onDelete, onDownload, setIsExpanded }) => {
+export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({ artifactInfo, isPreview = false, isExpanded = false, onDelete, onDownload, setIsExpanded, badge }) => {
     const { previewedArtifactAvailableVersions, currentPreviewedVersionNumber, navigateArtifactVersion } = useChatContext();
     const versions = useMemo(() => previewedArtifactAvailableVersions ?? [], [previewedArtifactAvailableVersions]);
 
@@ -24,8 +30,16 @@ export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({ artifactInfo, 
         <div className="flex flex-row justify-between gap-1">
             <div className="flex min-w-0 items-center gap-4">
                 <div className="min-w-0">
-                    <div className="truncate text-sm" title={artifactInfo.filename}>
-                        {artifactInfo.filename}
+                    <div className="flex items-center gap-2">
+                        <div className="truncate text-sm" title={artifactInfo.filename}>
+                            {artifactInfo.filename}
+                        </div>
+                        {badge && (
+                            <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${badge.className}`}>
+                                {badge.icon}
+                                <span>{badge.label}</span>
+                            </div>
+                        )}
                     </div>
                     <div className="truncate text-xs" title={formatRelativeTime(artifactInfo.last_modified)}>
                         {formatRelativeTime(artifactInfo.last_modified)}
