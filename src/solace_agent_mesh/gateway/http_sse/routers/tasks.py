@@ -128,6 +128,9 @@ async def _inject_project_context(
                         if loaded_artifact.get("status") == "success":
                             full_metadata = loaded_metadata.get("metadata", {}) if loaded_metadata.get("status") == "success" else {}
                             
+                            # Ensure the source is always set for copied project artifacts
+                            full_metadata["source"] = "project"
+
                             await save_artifact_with_metadata(
                                 artifact_service=artifact_service,
                                 app_name=project_service.app_name,
