@@ -16,9 +16,17 @@ from fastapi import (
 )
 from solace_ai_connector.common.log import log
 
-from ..dependencies import get_project_service
-from ..services.project_service import ProjectService
+from ..dependencies import get_project_service, get_sac_component, get_shared_artifact_service
+from ..services.project_service import ProjectService, GLOBAL_PROJECT_USER_ID
 from ..shared.auth_utils import get_current_user
+from ....agent.utils.artifact_helpers import get_artifact_info_list
+from ....common.a2a.types import ArtifactInfo
+
+try:
+    from google.adk.artifacts import BaseArtifactService
+except ImportError:
+    class BaseArtifactService:
+        pass
 from .dto.requests.project_requests import (
     CreateProjectRequest,
     UpdateProjectRequest,
@@ -385,6 +393,71 @@ async def get_global_project_templates(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve global project templates"
+        )
+
+
+@router.get("/projects/{project_id}/artifacts", response_model=list[ArtifactInfo])
+async def get_project_artifacts(
+    project_id: str,
+    user: dict = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
+    component = Depends(get_sac_component),
+):
+    """
+    Get all artifacts associated with a specific project.
+    """
+    user_id = user.get("id")
+    log.info("User %s attempting to fetch artifacts for project %s", user_id, project_id)
+
+    try:
+        if (
+            not project_id
+            or project_id.strip() == ""
+            or project_id in ["null", "undefined"]
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="Project not found."
+            )
+
+        # Verify user has access to the project
+        project = project_service.get_project(project_id, user_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found."
+            )
+
+        if artifact_service is None:
+            log.warning("Artifact service not available for project %s", project_id)
+            return []
+
+        # Determine the user_id for artifact storage based on project type
+        storage_user_id = GLOBAL_PROJECT_USER_ID if project.is_global else project.user_id
+        project_session_id = f"project-{project_id}"
+        app_name = component.get_config("name", "WebUIBackendApp")
+
+        log.info("Fetching artifacts for project %s (storage_user_id: %s, session_id: %s)", 
+                project_id, storage_user_id, project_session_id)
+
+        artifact_info_list = await get_artifact_info_list(
+            artifact_service=artifact_service,
+            app_name=app_name,
+            user_id=storage_user_id,
+            session_id=project_session_id,
+        )
+
+        log.info("Found %d artifacts for project %s", len(artifact_info_list), project_id)
+        return artifact_info_list
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("Error fetching artifacts for project %s for user %s: %s", project_id, user_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve project artifacts"
         )
 
 
