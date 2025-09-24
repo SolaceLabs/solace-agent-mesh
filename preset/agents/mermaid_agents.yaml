@@ -37,7 +37,10 @@ apps:
           tool_name: "mermaid_diagram_generator"
         - tool_type: builtin-group
           group_name: "artifact_management"
-      session_service: *default_session_service
+      session_service:
+        type: "${PERSISTENCE_TYPE, memory}"
+        database_url: "${AGENT_MERMAID_DATABASE_URL, sqlite:///mermaid-agent.db}"
+        default_behavior: "PERSISTENT"
       artifact_service: *default_artifact_service
       artifact_handling_mode: "reference"
       enable_embed_resolution: true
