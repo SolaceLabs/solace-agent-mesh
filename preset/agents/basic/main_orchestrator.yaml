@@ -37,7 +37,10 @@ apps:
       inject_system_purpose: true
       inject_response_format: true
       inject_user_profile: true
-      session_service: *default_session_service
+      session_service:
+        type: "${PERSISTENCE_TYPE, memory}"
+        database_url: "${ORCHESTRATOR_DATABASE_URL, sqlite:///orchestrator-agent.db}"
+        default_behavior: "PERSISTENT"
       artifact_service: *default_artifact_service
       artifact_handling_mode: "reference" 
       enable_embed_resolution: true 

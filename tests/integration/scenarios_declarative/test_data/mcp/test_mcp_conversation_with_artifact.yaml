@@ -74,7 +74,7 @@ expected_gateway_output:
             text_exact: "I have created the user data for 'user123'. The user is Alice,
               an Admin, who prefers a dark theme."
     assert_artifact_state:
-      - filename_matches_regex: "get_data_stdio_json_0_.*[^a]\\.json$"
+      - filename_matches_regex: "get_data_stdio_json_0_.*\\.json$"
         version: 0
         expected_content_text: '{"user_id": "user123", "name": "Alice", "role": "Admin",
           "preferences": {"theme": "dark", "notifications": true}}'

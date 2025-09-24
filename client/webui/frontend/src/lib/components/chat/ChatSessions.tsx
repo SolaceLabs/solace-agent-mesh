@@ -1,9 +1,9 @@
 import { SessionList } from "./SessionList";
-import { useConfigContext, useSessionPreview } from "@/lib/hooks";
+import { useConfigContext, useChatContext } from "@/lib/hooks";
 
 export const ChatSessions = () => {
     const { persistenceEnabled } = useConfigContext();
-    const sessionPreview = useSessionPreview();
+    const { sessionName } = useChatContext();
 
     // When persistence is disabled, show simple single-session view like in main
     if (persistenceEnabled === false) {
@@ -12,7 +12,7 @@ export const ChatSessions = () => {
                 <div className="flex-1 overflow-y-auto px-4">
                     {/* Current Session */}
                     <div className="bg-accent/50 hover:bg-accent mb-3 cursor-pointer rounded-md p-3">
-                        <div className="text-foreground truncate text-sm font-medium text-nowrap">{sessionPreview}</div>
+                        <div className="text-foreground truncate text-sm font-medium text-nowrap">{sessionName || "New Chat"}</div>
                         <div className="text-muted-foreground mt-1 text-xs">Current session</div>
                     </div>
 
@@ -24,11 +24,5 @@ export const ChatSessions = () => {
     }
 
     // When persistence is enabled, show full session list
-    return (
-        <div className="flex h-full flex-col">
-            <div className="flex-1 overflow-y-auto px-4">
-                <SessionList />
-            </div>
-        </div>
-    );
+    return <SessionList />;
 };

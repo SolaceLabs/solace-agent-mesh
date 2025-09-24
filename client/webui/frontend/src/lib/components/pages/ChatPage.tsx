@@ -8,7 +8,7 @@ import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/
 import type { TextPart } from "@/lib/types";
 import { Button, ChatMessageList, CHAT_STYLES } from "@/lib/components/ui";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
-import { useChatContext, useSessionPreview, useTaskContext } from "@/lib/hooks";
+import { useChatContext, useTaskContext } from "@/lib/hooks";
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
 import { ChatSessionDialog } from "../chat/ChatSessionDialog";
@@ -52,11 +52,11 @@ export function ChatPage() {
         sessionToDelete,
         closeSessionDeleteModal,
         confirmSessionDelete,
+        sessionName,
     } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
-    const sessionPreview = useSessionPreview();
     const [isChatSessionDialogOpen, setChatSessionDialogOpen] = useState(false);
 
     // Refs for resizable panel state
@@ -211,7 +211,7 @@ export function ChatPage() {
             </div>
             <div className={`transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
                 <Header
-                    title={sessionPreview}
+                    title={sessionName || "New Chat"}
                     leadingAction={
                         isSessionSidePanelCollapsed ? (
                             <div className="flex items-center gap-2">

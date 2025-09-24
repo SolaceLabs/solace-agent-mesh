@@ -112,63 +112,67 @@ export const SessionList: React.FC = () => {
     };
 
     return (
-        <div className="flex h-full flex-col p-4">
+        <div className="flex h-full flex-col gap-4 py-6 pl-6">
             <div className="text-lg">Chat Session History</div>
-            {sessions.length > 0 && (
-                <ul>
-                    {sessions.map(session => (
-                        <li key={session.id} className="group my-2">
-                            <div className="flex items-center justify-between rounded px-4 py-2 hover:bg-gray-200 dark:hover:bg-gray-700">
-                                {editingSessionId === session.id ? (
-                                    <input
-                                        ref={inputRef}
-                                        type="text"
-                                        value={editingSessionName}
-                                        onChange={e => setEditingSessionName(e.target.value)}
-                                        onKeyDown={e => e.key === "Enter" && handleRename()}
-                                        onBlur={handleRename}
-                                        className="flex-grow bg-transparent focus:outline-none"
-                                    />
-                                ) : (
-                                    <button onClick={() => handleSessionClick(session.id)} className="flex-grow text-left">
-                                        <div className="flex flex-col">
-                                            <span className="font-semibold">{getSessionDisplayName(session)}</span>
-                                            <span className="text-muted-foreground text-xs">{formatSessionDate(session.updatedTime)}</span>
-                                        </div>
-                                    </button>
-                                )}
-                                <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">
+            <div className="flex-1 overflow-y-auto">
+                {sessions.length > 0 && (
+                    <ul>
+                        {sessions.map(session => (
+                            <li key={session.id} className="group my-2 pr-4">
+                                <div className="flex items-center justify-between rounded px-4 py-2 hover:bg-gray-200 dark:hover:bg-gray-700">
                                     {editingSessionId === session.id ? (
-                                        <>
-                                            <Button variant="ghost" onClick={handleRename}>
-                                                <Check size={16} />
-                                            </Button>
-                                            <Button variant="ghost" onClick={() => setEditingSessionId(null)}>
-                                                <X size={16} />
-                                            </Button>
-                                        </>
+                                        <input
+                                            ref={inputRef}
+                                            type="text"
+                                            value={editingSessionName}
+                                            onChange={e => setEditingSessionName(e.target.value)}
+                                            onKeyDown={e => e.key === "Enter" && handleRename()}
+                                            onBlur={handleRename}
+                                            className="flex-grow bg-transparent focus:outline-none"
+                                        />
                                     ) : (
-                                        <>
-                                            <Button variant="ghost" onClick={() => handleEditClick(session)}>
-                                                <Pencil size={16} />
-                                            </Button>
-                                            <Button variant="ghost" onClick={() => handleDeleteClick(session)}>
-                                                <Trash2 size={16} />
-                                            </Button>
-                                        </>
+                                        <button onClick={() => handleSessionClick(session.id)} className="flex-grow text-left">
+                                            <div className="flex max-w-50 flex-col">
+                                                <span className="truncate font-semibold" title={getSessionDisplayName(session)}>
+                                                    {getSessionDisplayName(session)}
+                                                </span>
+                                                <span className="text-muted-foreground text-xs">{formatSessionDate(session.updatedTime)}</span>
+                                            </div>
+                                        </button>
                                     )}
+                                    <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">
+                                        {editingSessionId === session.id ? (
+                                            <>
+                                                <Button variant="ghost" onClick={handleRename}>
+                                                    <Check size={16} />
+                                                </Button>
+                                                <Button variant="ghost" onClick={() => setEditingSessionId(null)}>
+                                                    <X size={16} />
+                                                </Button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Button variant="ghost" onClick={() => handleEditClick(session)}>
+                                                    <Pencil size={16} />
+                                                </Button>
+                                                <Button variant="ghost" onClick={() => handleDeleteClick(session)}>
+                                                    <Trash2 size={16} />
+                                                </Button>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        </li>
-                    ))}
-                </ul>
-            )}
-            {sessions.length === 0 && (
-                <div className="text-muted-foreground flex h-full flex-1 flex-col items-center justify-center text-sm">
-                    <MessageCircle className="mx-auto mb-4 h-12 w-12" />
-                    No chat sessions available
-                </div>
-            )}
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                {sessions.length === 0 && (
+                    <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-sm">
+                        <MessageCircle className="mx-auto mb-4 h-12 w-12" />
+                        No chat sessions available
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

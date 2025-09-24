@@ -76,7 +76,7 @@ export const Header: React.FC<HeaderProps> = ({ title, breadcrumbs, tabs, button
 
             {/* Buttons */}
             {buttons && buttons.length > 0 && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 pt-[35px]">
                     {buttons.map((button, index) => (
                         <React.Fragment key={index}>{button}</React.Fragment>
                     ))}

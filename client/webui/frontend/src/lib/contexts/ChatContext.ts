@@ -78,7 +78,7 @@ export interface ChatActions {
 
     openMessageAttachmentForPreview: (file: FileAttachment, autoRun?: boolean) => void;
     /* Session Management Actions */
-    updateSessionName: (sessionId: string, newName: string) => Promise<void>;
+    updateSessionName: (sessionId: string, newName: string, showNotification?: boolean) => Promise<void>;
     deleteSession: (sessionId: string) => Promise<void>;
 }
 

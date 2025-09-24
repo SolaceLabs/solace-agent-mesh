@@ -44,6 +44,8 @@ from ...agent.utils.context_helpers import get_original_session_id
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
+CATEGORY_NAME = "Data Analysis"
+CATEGORY_DESCRIPTION = "Create static chart images from data in JSON or YAML format."
 
 async def create_chart_from_plotly_config(
     config_content: str,
@@ -207,6 +209,8 @@ create_chart_from_plotly_config_tool_def = BuiltinTool(
     implementation=create_chart_from_plotly_config,
     description="Generates a static chart image (PNG, JPG, SVG, PDF) from a Plotly configuration provided directly as a JSON or YAML string in `config_content`. Specify the format of the string in `config_format` and the desired output filename and image format.",
     category="data_analysis",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:data:chart"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,

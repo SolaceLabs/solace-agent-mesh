@@ -1,5 +1,5 @@
 import click
-import pkg_resources
+from importlib import metadata
 from pathlib import Path
 
 from evaluation.run import main as run_evaluation_main
@@ -9,8 +9,8 @@ from cli.utils import error_exit, load_template
 def _ensure_sam_rest_gateway_installed():
     """Checks if the sam-rest-gateway package is installed."""
     try:
-        pkg_resources.get_distribution("sam-rest-gateway")
-    except pkg_resources.DistributionNotFound:
+        metadata.distribution("sam-rest-gateway")
+    except metadata.PackageNotFoundError:
         error_exit(
             "Error: 'sam-rest-gateway' is not installed. "
             "Please install it using: "

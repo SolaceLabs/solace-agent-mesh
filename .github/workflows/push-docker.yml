@@ -120,6 +120,7 @@ jobs:
         with:
           context: .
           file: Dockerfile
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.ecr_tags.outputs.tags }}
           push: true
           cache-from: type=gha

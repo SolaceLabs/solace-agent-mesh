@@ -19,7 +19,7 @@ export const ChatSessionDeleteDialog = ({ isOpen, onClose, onConfirm, sessionNam
                 <DialogHeader>
                     <DialogTitle>Delete Chat Session?</DialogTitle>
                     <DialogDescription>
-                        This action cannot be undone. This chat session and any associated artifacts will be permanently deleted: <strong>{sessionName}</strong>.
+                        This action cannot be undone. This chat session and any associated artifacts will be permanently deleted: <strong>{sessionName}</strong>
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>

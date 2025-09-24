@@ -28,6 +28,9 @@ from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
 
+CATEGORY_NAME = "Web Access"
+CATEGORY_DESCRIPTION = "Access the web to find information to complete user requests."
+
 def _is_safe_url(url: str) -> bool:
     """
     Checks if a URL is safe to request by resolving its hostname and checking
@@ -345,6 +348,8 @@ web_request_tool_def = BuiltinTool(
     implementation=web_request,
     description="Makes an HTTP request to a URL, processes content (e.g., HTML to Markdown), and saves the result as an artifact.",
     category="web",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:web:request"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,

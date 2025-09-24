@@ -4,15 +4,13 @@ Base App class for Gateway implementations in the Solace AI Connector.
 
 import uuid
 from abc import abstractmethod
-from typing import Any, Dict, List, Type, Optional, Literal
+from typing import Any, Dict, List, Type
 
-from pydantic import Field, ValidationError
 from solace_ai_connector.common.log import log
 from solace_ai_connector.common.utils import deep_merge
 from solace_ai_connector.flow.app import App
 from solace_ai_connector.components.component_base import ComponentBase
 
-from ...common.utils.pydantic_utils import SamConfigBase
 from ...common.a2a import (
     get_discovery_topic,
     get_gateway_response_subscription_topic,
@@ -24,62 +22,91 @@ class BaseGatewayComponent(ComponentBase):
     pass
 
 
-class BaseGatewayAppConfig(SamConfigBase):
-    """Base Pydantic model for gateway application configuration."""
-
-    namespace: str = Field(
-        ...,
-        description="Absolute topic prefix for A2A communication (e.g., 'myorg/dev').",
-    )
-    gateway_id: Optional[str] = Field(
-        default=None,
-        description="Unique ID for this gateway instance. Auto-generated if omitted.",
-    )
-    artifact_service: Dict[str, Any] = Field(
-        ...,
-        description="Configuration for the SHARED ADK Artifact Service.",
-    )
-    enable_embed_resolution: bool = Field(
-        default=True,
-        description="Enable late-stage 'artifact_content' embed resolution in the gateway.",
-    )
-    gateway_max_artifact_resolve_size_bytes: int = Field(
-        default=104857600,  # 100MB
-        description="Maximum size of an individual artifact's raw content for 'artifact_content' embeds and max total accumulated size for a parent artifact after internal recursive resolution.",
-    )
-    gateway_recursive_embed_depth: int = Field(
-        default=12,
-        description="Maximum depth for recursively resolving 'artifact_content' embeds within files.",
-    )
-    artifact_handling_mode: Literal["reference", "embed", "passthrough"] = Field(
-        default="reference",
-        description=(
-            "How the gateway handles file parts from clients. "
-            "'reference': Save inline file bytes to the artifact store and replace with a URI. "
-            "'embed': Resolve file URIs and embed content as bytes. "
-            "'passthrough': Send file parts to the agent as-is."
-        ),
-    )
-    gateway_max_message_size_bytes: int = Field(
-        default=10_000_000,  # 10MB
-        description="Maximum allowed message size in bytes for messages published by the gateway.",
-    )
-    default_user_identity: Optional[str] = Field(
-        default=None,
-        description="Default user identity to use when no user authentication is provided. WARNING: Only use in development environments with trusted access!",
-    )
-    force_user_identity: Optional[str] = Field(
-        default=None,
-        description="Override any provided user identity with this value. WARNING: Development only! This completely replaces authentication.",
-    )
-    identity_service: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Configuration for the pluggable Identity Service provider.",
-    )
-    session_service: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Configuration for the gateway's session service.",
-    )
+BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
+    "config_parameters": [
+        {
+            "name": "namespace",
+            "required": True,
+            "type": "string",
+            "description": "Absolute topic prefix for A2A communication (e.g., 'myorg/dev').",
+        },
+        {
+            "name": "gateway_id",
+            "required": False,
+            "type": "string",
+            "default": None,
+            "description": "Unique ID for this gateway instance. Auto-generated if omitted.",
+        },
+        {
+            "name": "artifact_service",
+            "required": True,
+            "type": "object",
+            "description": "Configuration for the SHARED ADK Artifact Service.",
+        },
+        {
+            "name": "enable_embed_resolution",
+            "required": False,
+            "type": "boolean",
+            "default": True,
+            "description": "Enable late-stage 'artifact_content' embed resolution in the gateway.",
+        },
+        {
+            "name": "gateway_max_artifact_resolve_size_bytes",
+            "required": False,
+            "type": "integer",
+            "default": 104857600,  # 100MB
+            "description": "Maximum size of an individual artifact's raw content for 'artifact_content' embeds and max total accumulated size for a parent artifact after internal recursive resolution.",
+        },
+        {
+            "name": "gateway_recursive_embed_depth",
+            "required": False,
+            "type": "integer",
+            "default": 12,
+            "description": "Maximum depth for recursively resolving 'artifact_content' embeds within files.",
+        },
+        {
+            "name": "artifact_handling_mode",
+            "required": False,
+            "type": "string",
+            "default": "reference",
+            "description": (
+                "How the gateway handles file parts from clients. "
+                "'reference': Save inline file bytes to the artifact store and replace with a URI. "
+                "'embed': Resolve file URIs and embed content as bytes. "
+                "'passthrough': Send file parts to the agent as-is."
+            ),
+            "enum": ["reference", "embed", "passthrough"],
+        },
+        {
+            "name": "gateway_max_message_size_bytes",
+            "required": False,
+            "type": "integer",
+            "default": 10_000_000,  # 10MB
+            "description": "Maximum allowed message size in bytes for messages published by the gateway.",
+        },
+        # --- Default User Identity Configuration ---
+        {
+            "name": "default_user_identity",
+            "required": False,
+            "type": "string",
+            "description": "Default user identity to use when no user authentication is provided. WARNING: Only use in development environments with trusted access!",
+        },
+        {
+            "name": "force_user_identity",
+            "required": False,
+            "type": "string",
+            "description": "Override any provided user identity with this value. WARNING: Development only! This completely replaces authentication.",
+        },
+        # --- Identity Service Configuration ---
+        {
+            "name": "identity_service",
+            "required": False,
+            "type": "object",
+            "default": None,
+            "description": "Configuration for the pluggable Identity Service provider.",
+        },
+    ]
+}
 
 
 class BaseGatewayApp(App):
@@ -87,14 +114,45 @@ class BaseGatewayApp(App):
     Base class for Gateway applications.
 
     Handles common configuration, Solace broker setup, and instantiation
-    of the gateway-specific component.
+    of the gateway-specific component. It also automatically merges its
+    base schema with specific schema parameters defined by subclasses.
     """
 
-    # This is now a placeholder. Validation is handled by Pydantic models in subclasses.
-    app_schema: Dict[str, List[Dict[str, Any]]] = {"config_parameters": []}
+    app_schema: Dict[str, List[Dict[str, Any]]] = BASE_GATEWAY_APP_SCHEMA
     SPECIFIC_APP_SCHEMA_PARAMS_ATTRIBUTE_NAME = "SPECIFIC_APP_SCHEMA_PARAMS"
 
-    def __init__(self, app_info: Dict[str, Any], gateway_app_config=BaseGatewayAppConfig, **kwargs):
+    def __init_subclass__(cls, **kwargs):
+        """
+        Automatically merges the base gateway schema with specific schema
+        parameters defined in any subclass.
+        """
+        super().__init_subclass__(**kwargs)
+
+        specific_params = getattr(
+            cls, cls.SPECIFIC_APP_SCHEMA_PARAMS_ATTRIBUTE_NAME, []
+        )
+
+        if not isinstance(specific_params, list):
+            log.warning(
+                "Class attribute '%s' in %s is not a list. Schema merging might be incorrect.",
+                cls.SPECIFIC_APP_SCHEMA_PARAMS_ATTRIBUTE_NAME,
+                cls.__name__,
+            )
+            specific_params = []
+
+        base_params = BaseGatewayApp.app_schema.get("config_parameters", [])
+
+        merged_config_parameters = list(base_params)
+        merged_config_parameters.extend(specific_params)
+
+        cls.app_schema = {"config_parameters": merged_config_parameters}
+        log.debug(
+            "BaseGatewayApp.__init_subclass__ created merged app_schema for %s with %d params.",
+            cls.__name__,
+            len(merged_config_parameters),
+        )
+
+    def __init__(self, app_info: Dict[str, Any], **kwargs):
         """
         Initializes the BaseGatewayApp.
 
@@ -114,17 +172,6 @@ class BaseGatewayApp(App):
         resolved_app_config_block = deep_merge(
             code_config_app_block, yaml_app_config_block
         )
-
-        try:
-            # Validate the configuration against the base model
-            validated_config = gateway_app_config.model_validate_and_clean(
-                resolved_app_config_block
-            )
-            # Use the validated model's dict representation
-            resolved_app_config_block = validated_config
-        except ValidationError as e:
-            log.error("Base Gateway configuration validation failed:\n%s", e)
-            raise ValueError(f"Invalid Base Gateway configuration: {e}") from e
 
         self.namespace: str = resolved_app_config_block.get("namespace")
         if not self.namespace:
