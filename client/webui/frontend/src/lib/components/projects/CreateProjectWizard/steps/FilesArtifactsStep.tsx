@@ -188,15 +188,15 @@ export const FilesArtifactsStep: React.FC<FilesArtifactsStepProps> = ({
                                     </Button>
                                 </div>
 
-                                <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+                                <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
                                     {Array.from(fileList).map((file, index) => (
                                         <Card key={index} className="bg-muted/20">
-                                            <CardContent className="p-4">
-                                                <div className="space-y-3">
+                                            <CardContent className="p-3">
+                                                <div className="space-y-2">
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-center gap-3 min-w-0 flex-1">
                                                             <div className="flex-shrink-0">
-                                                                <FileText className="h-5 w-5 text-muted-foreground" />
+                                                                <FileText className="h-4 w-4 text-muted-foreground" />
                                                             </div>
                                                             <div className="min-w-0 flex-1">
                                                                 <p className="text-sm font-medium text-foreground truncate" title={file.name}>
