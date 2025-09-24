@@ -3,7 +3,7 @@ import { Plus } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
 import { Header } from "@/lib/components/header";
-import { CreateProjectDialog } from "./CreateProjectDialog";
+import { CreateProjectWizard } from "./CreateProjectWizard";
 import { ProjectDetailView } from "./ProjectDetailView";
 import { ProjectList } from "./ProjectList";
 import { useProjectContext } from "@/lib/providers";
@@ -14,7 +14,7 @@ interface ProjectsPageProps {
 }
 
 export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }) => {
-    const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+    const [showCreateWizard, setShowCreateWizard] = useState(false);
     const { projects, isLoading, error, createProject, currentProject, setCurrentProject, activeProject, setActiveProject } = useProjectContext();
 
     const handleCreateProject = async (data: ProjectFormData) => {
@@ -44,7 +44,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
         }
 
         await createProject(formData);
-        setIsCreateDialogOpen(false);
+        setShowCreateWizard(false);
     };
 
     const handleActivateProject = (project: Project) => {
@@ -68,6 +68,17 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
         );
     }
 
+    // Show wizard if in create mode
+    if (showCreateWizard) {
+        return (
+            <CreateProjectWizard
+                onComplete={() => setShowCreateWizard(false)}
+                onCancel={() => setShowCreateWizard(false)}
+                onSubmit={handleCreateProject}
+            />
+        );
+    }
+
     return (
         <div className="flex h-full w-full flex-col">
             <Header
@@ -75,7 +86,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
                 buttons={
                     !currentProject
                         ? [
-                              <Button key="create-project" onClick={() => setIsCreateDialogOpen(true)} className="flex items-center gap-2">
+                              <Button key="create-project" onClick={() => setShowCreateWizard(true)} className="flex items-center gap-2">
                                   <Plus className="h-4 w-4" />
                                   Create Project
                               </Button>,
@@ -99,8 +110,6 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
                         <ProjectList projects={projects} onProjectSelect={setCurrentProject} />
                     </>
                 )}
-
-                <CreateProjectDialog isOpen={isCreateDialogOpen} onClose={() => setIsCreateDialogOpen(false)} onSubmit={handleCreateProject} />
             </div>
         </div>
     );
