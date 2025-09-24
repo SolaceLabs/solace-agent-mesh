@@ -275,6 +275,7 @@ class SamAgentComponent(SamComponentBase):
                 self.session_service = initialize_session_service(self)
                 self.artifact_service = initialize_artifact_service(self)
                 self.memory_service = initialize_memory_service(self)
+                self.credential_service = initialize_credential_service(self)
 
                 log.info(
                     "%s Synchronous ADK services initialized.", self.log_identifier
