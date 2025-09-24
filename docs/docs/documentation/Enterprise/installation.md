@@ -121,3 +121,7 @@ docker run -itd -p 8001:8000 \
 </details>
 
 You can then access Solace Agent Mesh Enterprise UI through http://localhost:8001
+
+:::tip
+If you want to see logs for debugging, check `.log` files. If you want to change debug levels, see more [here](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/deployment/debugging/)
+:::

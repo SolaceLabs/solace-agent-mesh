@@ -268,6 +268,27 @@ class SamAgentComponent(SamComponentBase):
             self.agent_specific_state: Dict[str, Any] = {}
             init_func_details = self.get_config("agent_init_function")
 
+            try:
+                log.info(
+                    "%s Initializing synchronous ADK services...", self.log_identifier
+                )
+                self.session_service = initialize_session_service(self)
+                self.artifact_service = initialize_artifact_service(self)
+                self.memory_service = initialize_memory_service(self)
+
+                log.info(
+                    "%s Synchronous ADK services initialized.", self.log_identifier
+                )
+            except Exception as service_err:
+                log.exception(
+                    "%s Failed to initialize synchronous ADK services: %s",
+                    self.log_identifier,
+                    service_err,
+                )
+                raise RuntimeError(
+                    f"Failed to initialize synchronous ADK services: {service_err}"
+                ) from service_err
+
             from .app import AgentInitCleanupConfig # delayed import to avoid circular dependency
             if init_func_details and isinstance(init_func_details, AgentInitCleanupConfig):
                 module_name = init_func_details.get("module")
@@ -391,27 +412,6 @@ class SamAgentComponent(SamComponentBase):
                     im_e,
                 )
                 self.invocation_monitor = None
-            try:
-                log.info(
-                    "%s Initializing synchronous ADK services...", self.log_identifier
-                )
-                self.session_service = initialize_session_service(self)
-                self.artifact_service = initialize_artifact_service(self)
-                self.memory_service = initialize_memory_service(self)
-                self.credential_service = initialize_credential_service(self)
-
-                log.info(
-                    "%s Synchronous ADK services initialized.", self.log_identifier
-                )
-            except Exception as service_err:
-                log.exception(
-                    "%s Failed to initialize synchronous ADK services: %s",
-                    self.log_identifier,
-                    service_err,
-                )
-                raise RuntimeError(
-                    f"Failed to initialize synchronous ADK services: {service_err}"
-                ) from service_err
 
             # Async init is now handled by the base class `run` method.
             # We still need a future to signal completion from the async thread.
