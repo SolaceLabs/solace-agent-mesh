@@ -14,6 +14,7 @@ const sessionServiceTypeOptions = [
     label: "Use Default (from shared_config.yaml)",
   },
   { value: "memory", label: "Memory (In-Process)" },
+  { value: "sql", label: "SQL (Relational Database)" },
   { value: "vertex_rag", label: "Vertex RAG (Google Cloud)" },
 ];
 
