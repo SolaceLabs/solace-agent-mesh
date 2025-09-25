@@ -40,12 +40,12 @@ from ....common.utils.embeds import (
 )
 from ....common.utils.mime_helpers import is_text_based_mime_type
 from ..dependencies import (
+    ValidatedUserConfig,
     get_sac_component,
     get_session_validator,
     get_shared_artifact_service,
     get_user_config,
     get_user_id,
-    get_validated_user_config,
 )
 
 if TYPE_CHECKING:
@@ -77,7 +77,7 @@ async def list_artifact_versions(
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    user_config: dict = Depends(get_validated_user_config(["tool:artifact:list"])),
+    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
 ):
     """
     Lists the available integer versions for a given artifact filename
@@ -158,7 +158,7 @@ async def list_artifacts(
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    user_config: dict = Depends(get_validated_user_config(["tool:artifact:list"])),
+    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
 ):
     """
     Lists detailed information (filename, size, type, modified date, uri)
@@ -228,7 +228,7 @@ async def get_latest_artifact(
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    user_config: dict = Depends(get_validated_user_config(["tool:artifact:load"])),
+    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:load"])),
 ):
     """
     Retrieves the content of the latest version of the specified artifact
@@ -368,7 +368,7 @@ async def get_specific_artifact_version(
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    user_config: dict = Depends(get_validated_user_config(["tool:artifact:load"])),
+    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:load"])),
 ):
     """
     Retrieves the content of a specific version of the specified artifact
@@ -543,7 +543,7 @@ async def get_artifact_by_uri(
     uri: str,
     requesting_user_id: str = Depends(get_user_id),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    user_config: dict = Depends(get_validated_user_config(["tool:artifact:load"])),
+    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:load"])),
 ):
     """
     Resolves an artifact:// URI and streams its content.
@@ -659,7 +659,7 @@ async def upload_artifact(
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    user_config: dict = Depends(get_validated_user_config(["tool:artifact:create"])),
+    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:create"])),
 ):
     """
     Uploads a file to create a new version of the specified artifact
@@ -810,7 +810,7 @@ async def delete_artifact(
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    user_config: dict = Depends(get_validated_user_config(["tool:artifact:delete"])),
+    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:delete"])),
 ):
     """
     Deletes the specified artifact (including all its versions)
