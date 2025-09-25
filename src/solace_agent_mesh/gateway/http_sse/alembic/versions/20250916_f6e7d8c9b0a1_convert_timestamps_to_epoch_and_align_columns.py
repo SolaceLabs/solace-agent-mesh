@@ -199,18 +199,39 @@ def _create_updated_indexes() -> None:
 
 def _create_indexes_safe(index_name: str, table_name: str, columns: list) -> None:
     """Create index only if it doesn't exist."""
-    try:
-        op.create_index(index_name, table_name, columns)
-    except Exception:
-        pass  # Index might already exist
+    bind = op.get_bind()
+
+    if bind.dialect.name == 'postgresql':
+        # Use PostgreSQL's IF NOT EXISTS to avoid transaction issues
+        columns_str = ', '.join(columns)
+        bind.execute(sa.text(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({columns_str})"))
+    else:
+        # For other databases, check existence first to avoid exceptions
+        result = bind.execute(sa.text("""
+            SELECT 1 FROM information_schema.statistics
+            WHERE table_name = :table_name AND index_name = :index_name
+        """), {"table_name": table_name, "index_name": index_name}).fetchone()
+
+        if not result:
+            op.create_index(index_name, table_name, columns)
 
 
 def _drop_index_safe(index_name: str, table_name: str) -> None:
     """Drop index only if it exists."""
-    try:
-        op.drop_index(index_name, table_name=table_name)
-    except Exception:
-        pass  # Index might not exist
+    bind = op.get_bind()
+
+    if bind.dialect.name == 'postgresql':
+        # Use PostgreSQL's IF EXISTS to avoid transaction issues
+        bind.execute(sa.text(f"DROP INDEX IF EXISTS {index_name}"))
+    else:
+        # For other databases, check existence first to avoid exceptions
+        result = bind.execute(sa.text("""
+            SELECT 1 FROM information_schema.statistics
+            WHERE table_name = :table_name AND index_name = :index_name
+        """), {"table_name": table_name, "index_name": index_name}).fetchone()
+
+        if result:
+            op.drop_index(index_name, table_name=table_name)
 
 
 def downgrade() -> None:

@@ -336,9 +336,8 @@ def _run_community_migrations(database_url: str) -> None:
             command.upgrade(alembic_cfg, "head")
             log.info("Community database migrations complete.")
         except Exception as migration_error:
-            log.warning(
-                "Community migration failed but continuing: %s", migration_error
-            )
+            log.error("Community migration failed: %s", migration_error)
+            raise
 
 
 def _run_enterprise_migrations(component: "WebUIBackendComponent", database_url: str) -> None:
@@ -355,7 +354,8 @@ def _run_enterprise_migrations(component: "WebUIBackendComponent", database_url:
     except (ImportError, ModuleNotFoundError):
         log.debug("Enterprise module not found - skipping enterprise migrations")
     except Exception as e:
-        log.warning("Enterprise migration failed but continuing: %s", e)
+        log.error("Enterprise migration failed: %s", e)
+        raise
 
 
 def _setup_database(component: "WebUIBackendComponent", database_url: str) -> None:
