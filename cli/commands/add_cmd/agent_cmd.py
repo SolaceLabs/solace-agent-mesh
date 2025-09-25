@@ -5,7 +5,7 @@ from pathlib import Path
 import click
 import yaml
 
-from config_portal.backend.common import AGENT_DEFAULTS, USE_DEFAULT_SHARED_ARTIFACT
+from config_portal.backend.common import AGENT_DEFAULTS, USE_DEFAULT_SHARED_ARTIFACT, USE_DEFAULT_SHARED_SESSION
 
 from ...utils import (
     ask_if_not_provided,
@@ -53,7 +53,7 @@ def _write_agent_yaml_from_data(
     try:
         modified_content = load_template("agent_template.yaml")
         session_service_type_opt = config_options.get("session_service_type")
-        if session_service_type_opt and session_service_type_opt != "memory":
+        if session_service_type_opt and session_service_type_opt != USE_DEFAULT_SHARED_SESSION:
             type_val = session_service_type_opt
             behavior_val = config_options.get(
                 "session_service_behavior", AGENT_DEFAULTS["session_service_behavior"]
@@ -386,7 +386,7 @@ def create_agent_config(
         "Session service type",
         AGENT_DEFAULTS["session_service_type"],
         skip_interactive,
-        choices=["sql", "memory", "vertex_rag"],
+        choices=[USE_DEFAULT_SHARED_SESSION, "sql", "memory", "vertex_rag"],
     )
 
     if collected_options.get("session_service_type") == "sql":
