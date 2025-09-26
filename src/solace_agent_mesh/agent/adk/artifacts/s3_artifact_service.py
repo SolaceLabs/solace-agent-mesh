@@ -123,6 +123,7 @@ class S3ArtifactService(BaseArtifactService):
     ) -> str:
         """Constructs the S3 object key for an artifact."""
         filename = self._normalize_filename_unicode(filename)
+        app_name = app_name.strip('/')
 
         if self._file_has_user_namespace(filename):
             filename_clean = filename.split(":", 1)[1]
@@ -149,6 +150,7 @@ class S3ArtifactService(BaseArtifactService):
             raise ValueError("Artifact Part has no inline_data to save.")
 
         filename = self._normalize_filename_unicode(filename)
+        app_name = app_name.strip('/')
 
         # Get existing versions to determine next version number
         versions = await self.list_versions(
@@ -225,6 +227,7 @@ class S3ArtifactService(BaseArtifactService):
     ) -> adk_types.Part | None:
         log_prefix = f"[S3Artifact:Load:{filename}] "
         filename = self._normalize_filename_unicode(filename)
+        app_name = app_name.strip('/')
 
         load_version = version
         if load_version is None:
@@ -354,6 +357,7 @@ class S3ArtifactService(BaseArtifactService):
     ) -> None:
         log_prefix = f"[S3Artifact:Delete:{filename}] "
         filename = self._normalize_filename_unicode(filename)
+        app_name = app_name.strip('/')
 
         # Get all versions to delete
         versions = await self.list_versions(
@@ -405,6 +409,7 @@ class S3ArtifactService(BaseArtifactService):
     ) -> list[int]:
         log_prefix = f"[S3Artifact:ListVersions:{filename}] "
         filename = self._normalize_filename_unicode(filename)
+        app_name = app_name.strip('/')
 
         # Get the prefix for this specific artifact (without version)
         prefix = self._get_object_key(app_name, user_id, session_id, filename, "")
