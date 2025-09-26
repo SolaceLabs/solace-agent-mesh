@@ -373,7 +373,15 @@ async def handle_a2a_request(component, message: SolaceMessage):
             system_purpose = task_metadata.get("system_purpose")
             response_format = task_metadata.get("response_format")
             session_behavior_from_meta = task_metadata.get("sessionBehavior")
-            if session_behavior_from_meta:
+
+            # Side quests force RUN_BASED behavior.
+            if task_metadata.get("is_side_quest", False):
+                session_behavior = "RUN_BASED"
+                log.info(
+                    "%s Side quest detected. Forcing session behavior to RUN_BASED.",
+                    component.log_identifier,
+                )
+            elif session_behavior_from_meta:
                 session_behavior = str(session_behavior_from_meta).upper()
                 if session_behavior not in ["PERSISTENT", "RUN_BASED"]:
                     log.warning(
