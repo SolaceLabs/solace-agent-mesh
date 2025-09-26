@@ -234,6 +234,42 @@ async def get_project(
         )
 
 
+@router.get("/projects/{project_id}/artifacts", response_model=List[ArtifactInfo])
+async def get_project_artifacts(
+    project_id: str,
+    user: dict = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+):
+    """
+    Get all artifacts for a specific project.
+    """
+    user_id = user.get("id")
+    log.info("User %s attempting to fetch artifacts for project_id: %s", user_id, project_id)
+
+    try:
+        artifacts = await project_service.get_project_artifacts(
+            project_id=project_id, user_id=user_id
+        )
+        return artifacts
+    except ValueError as e:
+        log.warning(f"Validation error getting project artifacts: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        log.error(
+            "Error fetching artifacts for project %s for user %s: %s",
+            project_id,
+            user_id,
+            e,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve project artifacts"
+        )
+
+
 @router.put("/projects/{project_id}", response_model=ProjectResponse)
 async def update_project(
     project_id: str,

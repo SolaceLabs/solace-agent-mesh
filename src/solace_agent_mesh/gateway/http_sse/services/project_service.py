@@ -7,7 +7,7 @@ import logging
 from fastapi import UploadFile
 from datetime import datetime, timezone
 
-from ....agent.utils.artifact_helpers import save_artifact_with_metadata
+from ....agent.utils.artifact_helpers import get_artifact_info_list, save_artifact_with_metadata
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -17,6 +17,7 @@ except ImportError:
         pass
 
 
+from ....common.a2a.types import ArtifactInfo
 from ..repository.interfaces import IProjectRepository
 from ..repository.entities.project import Project
 from ..routers.dto.requests.project_requests import ProjectFilter, ProjectCopyRequest
@@ -153,6 +154,41 @@ class ProjectService:
         self.logger.debug("Retrieving global project templates")
         db_projects = self.project_repository.get_global_projects()
         return db_projects
+
+    async def get_project_artifacts(self, project_id: str, user_id: str) -> List[ArtifactInfo]:
+        """
+        Get a list of artifacts for a given project.
+        
+        Args:
+            project_id: The project ID
+            user_id: The requesting user ID
+            
+        Returns:
+            List[ArtifactInfo]: A list of artifacts
+            
+        Raises:
+            ValueError: If project not found or access denied
+        """
+        project = self.get_project(project_id, user_id)
+        if not project:
+            raise ValueError("Project not found or access denied")
+
+        if not self.artifact_service:
+            self.logger.warning(f"Attempted to get artifacts for project {project_id} but no artifact service is configured.")
+            return []
+
+        storage_user_id = GLOBAL_PROJECT_USER_ID if project.is_global else project.user_id
+        storage_session_id = f"project-{project.id}"
+
+        self.logger.info(f"Fetching artifacts for project {project.id} with storage session {storage_session_id} and user {storage_user_id}")
+
+        artifacts = await get_artifact_info_list(
+            artifact_service=self.artifact_service,
+            app_name=self.app_name,
+            user_id=storage_user_id,
+            session_id=storage_session_id,
+        )
+        return artifacts
 
     def update_project(self, project_id: str, user_id: str,
                            name: Optional[str] = None, description: Optional[str] = None, system_prompt: Optional[str] = None) -> Optional[Project]:

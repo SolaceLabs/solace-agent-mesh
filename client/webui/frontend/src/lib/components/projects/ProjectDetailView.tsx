@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/lib/components/ui/card";
 import type { Project } from "@/lib/types/projects";
+import { ProjectFilesManager } from ".";
 
 interface ProjectDetailViewProps {
     project: Project;
@@ -34,6 +35,11 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, i
                             </p>
                         </div>
                     )}
+
+                    <div className="mb-6">
+                        <ProjectFilesManager project={project} />
+                    </div>
+
                     <div className="flex justify-start">
                         {isActive ? (
                             <Button variant="outline" disabled className="flex items-center gap-2">
