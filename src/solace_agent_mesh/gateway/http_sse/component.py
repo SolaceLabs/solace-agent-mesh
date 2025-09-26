@@ -1377,6 +1377,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
     def get_session_manager(self) -> SessionManager:
         return self.session_manager
 
+    def get_feedback_service(self) -> FeedbackService:
+        """Returns the shared FeedbackService instance."""
+        return self.feedback_service
+
     def get_namespace(self) -> str:
         return self.namespace
 

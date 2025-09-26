@@ -12,7 +12,7 @@
 
 5.  [x] **Instantiate Service:** In `src/solace_agent_mesh/gateway/http_sse/component.py`, import and create an instance of `FeedbackService` in the `WebUIBackendComponent`.
 
-6.  **Create Service Getter:** In `component.py`, add a `get_feedback_service()` method to expose the service instance.
+6.  [x] **Create Service Getter:** In `component.py`, add a `get_feedback_service()` method to expose the service instance.
 
 7.  **Create Dependency Injector:** In `src/solace_agent_mesh/gateway/http_sse/dependencies.py`, add a `get_feedback_service()` dependency injector function.
 
