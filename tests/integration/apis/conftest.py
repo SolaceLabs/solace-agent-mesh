@@ -30,6 +30,11 @@ from .infrastructure.simple_database_manager import SimpleDatabaseManager
 from .infrastructure.simple_gateway_adapter import SimpleGatewayAdapter
 
 
+# Imports for feedback test fixture
+from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
+from solace_agent_mesh.gateway.http_sse import dependencies
+
+
 @pytest.fixture(scope="session")
 def test_database_url():
     """Creates a temporary SQLite database URL for testing"""
@@ -353,4 +358,47 @@ __all__ = [
     "simple_database_manager",
     "simple_database_inspector",
     "simple_gateway_adapter",
+    "configured_feedback_client",
 ]
+
+
+@pytest.fixture(scope="function")
+def configured_feedback_client(request, tmp_path: Path, monkeypatch):
+    """
+    Provides a FastAPI TestClient configured with a specific feedback service.
+
+    This fixture is parameterized to accept feedback service configurations.
+    It creates a real WebUIBackendComponent for each test, ensuring isolation.
+    """
+    # Get feedback config from the test's parameterization
+    feedback_config = request.param
+
+    # If it's a CSV test, point the filename to the temporary directory
+    if feedback_config.get("type") == "csv":
+        feedback_config["filename"] = str(tmp_path / "feedback.csv")
+
+    # Create a minimal but valid app_config for the component
+    app_config = {
+        "namespace": "test_namespace",
+        "gateway_id": "test-gateway",
+        "session_secret_key": "a-very-secret-key-for-testing",
+        "frontend_use_authorization": False,
+        "feedback_service": feedback_config,
+    }
+    component_config = {"app_config": app_config, "name": "TestWebUIComponent"}
+
+    # Instantiate a real component with this config
+    real_component = WebUIBackendComponent(component_config=component_config)
+
+    # Use monkeypatch to manage the global state in the dependencies module
+    monkeypatch.setattr(dependencies, "sac_component_instance", real_component)
+
+    # We don't need a database for this test, so pass None for the URL.
+    setup_dependencies(real_component, database_url=None)
+
+    # Create and yield the TestClient
+    with TestClient(fastapi_app) as client:
+        yield client, tmp_path
+
+    # Cleanup
+    real_component.cleanup()
