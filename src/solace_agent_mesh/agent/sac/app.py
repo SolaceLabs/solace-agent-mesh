@@ -306,6 +306,10 @@ class SamAgentAppConfig(SamConfigBase):
         default=True,
         description="If true, automatically attempts to continue LLM generation if it is interrupted by a token limit.",
     )
+    enable_side_quests: bool = Field(
+        default=False,
+        description="If true, enables the 'self_side_quest' tool, allowing the agent to start isolated sub-tasks.",
+    )
     stream_batching_threshold_bytes: int = Field(
         default=0,
         description="Minimum size in bytes for accumulated text from LLM stream before sending a status update.",

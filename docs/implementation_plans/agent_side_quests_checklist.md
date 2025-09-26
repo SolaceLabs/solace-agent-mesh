@@ -1,6 +1,6 @@
 # Agent Side Quest: Implementation Checklist
 
-- [ ] 1. **Config Flag**: Add `enable_side_quests` flag to `SamAgentAppConfig` in `src/solace_agent_mesh/agent/sac/app.py`.
+- [x] 1. **Config Flag**: Add `enable_side_quests` flag to `SamAgentAppConfig` in `src/solace_agent_mesh/agent/sac/app.py`.
 - [ ] 2. **Create Tool Class**: Create `SelfSideQuestTool` class in new file `src/solace_agent_mesh/agent/tools/self_side_quest_tool.py`.
 - [ ] 3. **Register Tool**: Conditionally register `SelfSideQuestTool` in `load_adk_tools` in `src/solace_agent_mesh/agent/adk/setup.py`.
 - [ ] 4. **Update Request Handler**: In `handle_a2a_request` (`event_handlers.py`), detect `is_side_quest` metadata and force `RUN_BASED` session behavior.
