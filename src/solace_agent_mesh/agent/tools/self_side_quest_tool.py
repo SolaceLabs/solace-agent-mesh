@@ -37,10 +37,16 @@ class SelfSideQuestTool(BaseTool):
         super().__init__(
             name="self_side_quest",
             description=(
-                "Initiates an isolated, self-contained 'side quest' sub-task on this agent. "
-                "Use this for complex, multi-step reasoning or data processing that requires a clean context. "
-                "The side quest inherits the current conversation history but its intermediate steps will not "
-                "pollute the main conversation. Only the final result is returned."
+                "Use this tool to start a complex, multi-step sub-task in an isolated 'side quest' context. "
+                "This is essential for tasks that require deep analysis, data processing, or multiple tool calls, "
+                "as it keeps the main conversation clean and efficient. The side quest inherits the current "
+                "conversation history, but its intermediate steps are discarded, and only the final result is returned.\n\n"
+                "Good use cases for a side quest:\n"
+                "- Analyzing multiple large documents to synthesize a summary or report.\n"
+                "- Performing a sequence of data transformations (e.g., filtering, aggregating) before presenting a final result.\n"
+                "- When a user's request is ambiguous and requires exploratory steps or tool calls that shouldn't clutter the main chat.\n"
+                "- Decomposing a very large, complex problem into a smaller, manageable sub-problem.\n\n"
+                "Do NOT use for simple, single-step tasks."
             ),
             is_long_running=True,
         )
