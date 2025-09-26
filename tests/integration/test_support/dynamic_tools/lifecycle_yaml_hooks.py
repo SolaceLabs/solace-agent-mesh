@@ -1,10 +1,12 @@
 """
 A set of simple functions to be used as YAML-configured lifecycle hooks in tests.
 """
+import logging
 from pathlib import Path
-from solace_ai_connector.common.log import log
 
 from tests.integration.test_support.lifecycle_tracker import track
+
+log = logging.getLogger(__name__)
 
 if "SamAgentComponent" not in globals():
     from solace_agent_mesh.agent.sac.component import SamAgentComponent

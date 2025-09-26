@@ -2,6 +2,7 @@
 API Router for submitting and managing tasks to agents.
 """
 
+import logging
 from fastapi import (
     APIRouter,
     Depends,
@@ -11,7 +12,6 @@ from fastapi import (
 )
 from typing import Union
 
-from solace_ai_connector.common.log import log
 
 from ....gateway.http_sse.session_manager import SessionManager
 from ....gateway.http_sse.services.task_service import TaskService
@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 
 router = APIRouter()
 
+log = logging.getLogger(__name__)
 
 async def _submit_task(
     request: FastAPIRequest,

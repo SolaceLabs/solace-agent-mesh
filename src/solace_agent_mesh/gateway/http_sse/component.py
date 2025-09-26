@@ -2,6 +2,7 @@
 Custom Solace AI Connector Component to host the FastAPI backend for the Web UI.
 """
 
+import logging
 import asyncio
 import json
 import queue
@@ -14,7 +15,7 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, UploadFile
 from fastapi import Request as FastAPIRequest
-from solace_ai_connector.common.log import log
+
 from solace_ai_connector.components.inputs_outputs.broker_input import BrokerInput
 from solace_ai_connector.flow.app import App as SACApp
 from solace_ai_connector.common.event import Event, EventType
@@ -26,6 +27,8 @@ from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .sse_event_buffer import SSEEventBuffer
 from .components import VisualizationForwarderComponent
+
+log = logging.getLogger(__name__)
 
 try:
     from google.adk.artifacts import BaseArtifactService

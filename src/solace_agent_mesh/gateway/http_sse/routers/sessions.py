@@ -1,5 +1,5 @@
+import logging
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
-from solace_ai_connector.common.log import log
 from sqlalchemy.orm import Session
 
 from ..dependencies import get_session_business_service, get_db
@@ -13,6 +13,8 @@ from .dto.requests.session_requests import (
     UpdateSessionRequest,
 )
 from .dto.responses.session_responses import MessageResponse, SessionResponse
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 

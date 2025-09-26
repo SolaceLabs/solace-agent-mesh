@@ -2,14 +2,15 @@
 Defines the abstract base class and factory for creating Identity Service providers.
 """
 
+import logging
 import importlib
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 import importlib.metadata as metadata
 
-from solace_ai_connector.common.log import log
 from ...common.utils.in_memory_cache import InMemoryCache
 
+log = logging.getLogger(__name__)
 
 class BaseIdentityService(ABC):
     """Abstract base class for all Identity Service providers."""

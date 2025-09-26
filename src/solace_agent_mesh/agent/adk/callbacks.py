@@ -4,6 +4,7 @@ Includes dynamic instruction injection, artifact metadata injection,
 embed resolution, and logging.
 """
 
+import logging
 import json
 import asyncio
 import uuid
@@ -18,7 +19,7 @@ from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types as adk_types
 from google.adk.tools.mcp_tool import MCPTool
-from solace_ai_connector.common.log import log
+
 from .intelligent_mcp_callbacks import (
     save_mcp_response_as_artifact_intelligent,
     McpSaveStatus,
@@ -75,6 +76,8 @@ from ...agent.adk.stream_parser import (
     ARTIFACT_BLOCK_DELIMITER_OPEN,
     ARTIFACT_BLOCK_DELIMITER_CLOSE,
 )
+
+log = logging.getLogger(__name__)
 
 A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY = "temp:llm_stream_chunks_processed"
 

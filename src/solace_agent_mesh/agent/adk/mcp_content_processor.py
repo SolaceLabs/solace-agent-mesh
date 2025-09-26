@@ -12,6 +12,7 @@ Supports:
 - Resource content with URI-based filename extraction
 """
 
+import logging
 import base64
 import csv
 import json
@@ -23,7 +24,7 @@ from io import StringIO
 from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
-from solace_ai_connector.common.log import log
+log = logging.getLogger(__name__)
 
 from ...common.utils.mime_helpers import (
     is_text_based_mime_type,

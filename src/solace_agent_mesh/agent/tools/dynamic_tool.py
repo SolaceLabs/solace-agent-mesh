@@ -4,6 +4,7 @@ Dynamic tools allow for programmatic definition of tool names, descriptions,
 and parameter schemas, offering more flexibility than standard Python tools.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from typing import (
     Optional,
@@ -23,7 +24,6 @@ import inspect
 from pydantic import BaseModel
 from google.adk.tools import BaseTool, ToolContext
 from google.genai import types as adk_types
-from solace_ai_connector.common.log import log
 
 from solace_agent_mesh.agent.utils.context_helpers import get_original_session_id
 
@@ -35,6 +35,7 @@ from ...common.utils.embeds import (
     EMBED_DELIMITER_OPEN,
 )
 
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent

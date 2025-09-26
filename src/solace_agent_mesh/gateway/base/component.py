@@ -2,6 +2,7 @@
 Base Component class for Gateway implementations in the Solace AI Connector.
 """
 
+import logging
 import asyncio
 import queue
 import base64
@@ -9,7 +10,6 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, List, Tuple, Union
 
-from solace_ai_connector.common.log import log
 from google.adk.artifacts import BaseArtifactService
 
 from ...common.agent_registry import AgentRegistry
@@ -52,6 +52,8 @@ from solace_ai_connector.common.event import Event, EventType
 from abc import abstractmethod
 
 from ...common.middleware.registry import MiddlewareRegistry
+
+log = logging.getLogger(__name__)
 
 info = {
     "class_name": "BaseGatewayComponent",

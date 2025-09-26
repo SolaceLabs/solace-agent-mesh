@@ -1,7 +1,9 @@
+import logging
 import os
 import json
-from solace_ai_connector.common.log import log
 from solace_ai_connector.main import load_config
+
+log = logging.getLogger(__name__)
 
 _has_initialized_system = False
 

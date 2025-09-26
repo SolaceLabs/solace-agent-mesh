@@ -3,14 +3,15 @@ Custom Solace AI Connector App class for the Web UI Backend.
 Defines configuration schema and programmatically creates the WebUIBackendComponent.
 """
 
+import logging
 from typing import Any, Dict, List
-from solace_ai_connector.common.log import log
 
 from ...gateway.http_sse.component import WebUIBackendComponent
 
 from ...gateway.base.app import BaseGatewayApp
 from ...gateway.base.component import BaseGatewayComponent
 
+log = logging.getLogger(__name__)
 
 info = {
     "class_name": "WebUIBackendApp",

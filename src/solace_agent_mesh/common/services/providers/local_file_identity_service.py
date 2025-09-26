@@ -3,12 +3,13 @@ A simple, file-based implementation of the BaseIdentityService.
 Useful for development, testing, or small-scale deployments.
 """
 
+import logging
 import json
 from typing import Any, Dict, List, Optional
 
-from solace_ai_connector.common.log import log
 from ..identity_service import BaseIdentityService
 
+log = logging.getLogger(__name__)
 
 class LocalFileIdentityService(BaseIdentityService):
     """

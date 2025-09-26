@@ -1,10 +1,11 @@
+import logging
 import copy
 import datetime
 import json
 import os
 import yaml
 
-from solace_ai_connector.common.log import log
+log = logging.getLogger(__name__)
 
 
 class InvocationMonitor:

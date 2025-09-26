@@ -2,9 +2,11 @@
 Common utility functions for working with ADK artifacts.
 """
 
+import logging
 from typing import Optional
 from google.adk.artifacts import BaseArtifactService
-from solace_ai_connector.common.log import log
+
+log = logging.getLogger(__name__)
 
 
 async def get_latest_artifact_version(
