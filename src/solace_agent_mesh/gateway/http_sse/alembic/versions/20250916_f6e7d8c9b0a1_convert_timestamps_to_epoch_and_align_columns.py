@@ -200,37 +200,39 @@ def _create_updated_indexes() -> None:
 def _create_indexes_safe(index_name: str, table_name: str, columns: list) -> None:
     """Create index only if it doesn't exist."""
     bind = op.get_bind()
+    inspector = sa.inspect(bind)
 
     if bind.dialect.name == 'postgresql':
-        # Use PostgreSQL's IF NOT EXISTS to avoid transaction issues
         columns_str = ', '.join(columns)
         bind.execute(sa.text(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({columns_str})"))
+    elif bind.dialect.name == 'sqlite':
+        try:
+            op.create_index(index_name, table_name, columns)
+        except Exception:
+            pass
     else:
-        # For other databases, check existence first to avoid exceptions
-        result = bind.execute(sa.text("""
-            SELECT 1 FROM information_schema.statistics
-            WHERE table_name = :table_name AND index_name = :index_name
-        """), {"table_name": table_name, "index_name": index_name}).fetchone()
-
-        if not result:
+        existing_indexes = inspector.get_indexes(table_name)
+        index_exists = any(idx['name'] == index_name for idx in existing_indexes)
+        if not index_exists:
             op.create_index(index_name, table_name, columns)
 
 
 def _drop_index_safe(index_name: str, table_name: str) -> None:
     """Drop index only if it exists."""
     bind = op.get_bind()
+    inspector = sa.inspect(bind)
 
     if bind.dialect.name == 'postgresql':
-        # Use PostgreSQL's IF EXISTS to avoid transaction issues
         bind.execute(sa.text(f"DROP INDEX IF EXISTS {index_name}"))
+    elif bind.dialect.name == 'sqlite':
+        try:
+            op.drop_index(index_name, table_name=table_name)
+        except Exception:
+            pass
     else:
-        # For other databases, check existence first to avoid exceptions
-        result = bind.execute(sa.text("""
-            SELECT 1 FROM information_schema.statistics
-            WHERE table_name = :table_name AND index_name = :index_name
-        """), {"table_name": table_name, "index_name": index_name}).fetchone()
-
-        if result:
+        existing_indexes = inspector.get_indexes(table_name)
+        index_exists = any(idx['name'] == index_name for idx in existing_indexes)
+        if index_exists:
             op.drop_index(index_name, table_name=table_name)
 
 
@@ -318,6 +320,7 @@ def _downgrade_sqlite() -> None:
 
 def _downgrade_standard_sql() -> None:
     """Handle PostgreSQL/MySQL downgrade using ALTER COLUMN."""
+    bind = op.get_bind()
 
     # Drop indexes on new columns
     _drop_index_safe("ix_chat_messages_session_id_created_time", "chat_messages")
@@ -329,18 +332,32 @@ def _downgrade_standard_sql() -> None:
     op.add_column("sessions", sa.Column("created_at", sa.DateTime(), nullable=True))
     op.add_column("sessions", sa.Column("updated_at", sa.DateTime(), nullable=True))
 
-    # Convert epoch milliseconds back to datetime
-    op.execute("""
-        UPDATE sessions
-        SET created_at = to_timestamp(created_time / 1000.0)
-        WHERE created_time IS NOT NULL
-    """)
+    # Convert epoch milliseconds back to datetime based on database type
+    if bind.dialect.name == 'postgresql':
+        op.execute("""
+            UPDATE sessions
+            SET created_at = to_timestamp(created_time / 1000.0)
+            WHERE created_time IS NOT NULL
+        """)
 
-    op.execute("""
-        UPDATE sessions
-        SET updated_at = to_timestamp(updated_time / 1000.0)
-        WHERE updated_time IS NOT NULL
-    """)
+        op.execute("""
+            UPDATE sessions
+            SET updated_at = to_timestamp(updated_time / 1000.0)
+            WHERE updated_time IS NOT NULL
+        """)
+    else:
+        # MySQL and other databases
+        op.execute("""
+            UPDATE sessions
+            SET created_at = FROM_UNIXTIME(created_time / 1000.0)
+            WHERE created_time IS NOT NULL
+        """)
+
+        op.execute("""
+            UPDATE sessions
+            SET updated_at = FROM_UNIXTIME(updated_time / 1000.0)
+            WHERE updated_time IS NOT NULL
+        """)
 
     op.drop_column("sessions", "created_time")
     op.drop_column("sessions", "updated_time")
@@ -348,11 +365,19 @@ def _downgrade_standard_sql() -> None:
     # For chat_messages table: convert back to datetime column
     op.add_column("chat_messages", sa.Column("created_at", sa.DateTime(), nullable=True))
 
-    op.execute("""
-        UPDATE chat_messages
-        SET created_at = to_timestamp(created_time / 1000.0)
-        WHERE created_time IS NOT NULL
-    """)
+    if bind.dialect.name == 'postgresql':
+        op.execute("""
+            UPDATE chat_messages
+            SET created_at = to_timestamp(created_time / 1000.0)
+            WHERE created_time IS NOT NULL
+        """)
+    else:
+        # MySQL and other databases
+        op.execute("""
+            UPDATE chat_messages
+            SET created_at = FROM_UNIXTIME(created_time / 1000.0)
+            WHERE created_time IS NOT NULL
+        """)
 
     op.drop_column("chat_messages", "created_time")
 
