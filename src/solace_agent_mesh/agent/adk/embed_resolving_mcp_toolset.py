@@ -2,6 +2,7 @@
 Custom MCPToolset that resolves embeds in tool parameters before calling MCP tools.
 """
 
+import logging
 import asyncio
 from typing import Dict, List, Optional, Any
 
@@ -12,7 +13,7 @@ from google.adk.tools.mcp_tool.mcp_session_manager import (
     StreamableHTTPConnectionParams,
 )
 from google.adk.tools.tool_context import ToolContext
-from solace_ai_connector.common.log import log
+
 
 from ..utils.context_helpers import get_original_session_id
 from ...common.utils.embeds import (
@@ -23,6 +24,7 @@ from ...common.utils.embeds import (
     EMBED_DELIMITER_OPEN,
 )
 
+log = logging.getLogger(__name__)
 
 class EmbedResolvingMCPTool(MCPTool):
     """

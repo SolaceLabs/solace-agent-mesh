@@ -2,6 +2,7 @@
 Collection of Python tools for audio processing and text-to-speech generation.
 """
 
+import logging
 import asyncio
 import inspect
 import io
@@ -20,7 +21,6 @@ from google import genai
 from google.genai import types as adk_types
 from google.adk.tools import ToolContext
 from pydub import AudioSegment
-from solace_ai_connector.common.log import log
 
 from ...agent.utils.artifact_helpers import (
     load_artifact_content_or_metadata,
@@ -32,6 +32,7 @@ from ...agent.utils.context_helpers import get_original_session_id
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
+log = logging.getLogger(__name__)
 
 VOICE_TONE_MAPPING = {
     "bright": ["Zephyr", "Autonoe"],

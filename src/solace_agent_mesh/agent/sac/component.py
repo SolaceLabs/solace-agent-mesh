@@ -2,6 +2,7 @@
 Custom Solace AI Connector Component to Host Google ADK Agents via A2A Protocol.
 """
 
+import logging
 from typing import Any, Dict, Optional, Union, Callable, List, Tuple, TYPE_CHECKING
 import asyncio
 import functools
@@ -15,8 +16,8 @@ import json
 from solace_ai_connector.common.message import (
     Message as SolaceMessage,
 )
-from solace_ai_connector.common.log import log
 from solace_ai_connector.common.event import Event, EventType
+
 from solace_ai_connector.common.utils import import_module
 import inspect
 from pydantic import BaseModel, ValidationError
@@ -75,6 +76,8 @@ from ...common.middleware.registry import MiddlewareRegistry
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...agent.tools.registry import tool_registry
 from ...common.sac.sam_component_base import SamComponentBase
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .app import AgentInitCleanupConfig

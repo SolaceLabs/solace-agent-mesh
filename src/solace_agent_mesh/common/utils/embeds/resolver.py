@@ -2,9 +2,9 @@
 Contains the main embed resolution functions, including the chain executor.
 """
 
+import logging
 import asyncio
 import json
-from solace_ai_connector.common.log import log
 from typing import Any, Callable, Dict, Optional, Set, Tuple, List, Union
 from .constants import (
     EMBED_REGEX,
@@ -23,6 +23,7 @@ from .converter import (
 from .types import DataFormat
 from ..mime_helpers import is_text_based_mime_type
 
+log = logging.getLogger(__name__)
 
 try:
     import yaml

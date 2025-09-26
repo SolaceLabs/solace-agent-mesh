@@ -2,16 +2,17 @@
 API Router for Server-Sent Events (SSE) subscriptions.
 """
 
+import logging
 import asyncio
 import json
 from fastapi import APIRouter, Depends, Request as FastAPIRequest, HTTPException, status
-
-from solace_ai_connector.common.log import log
 
 from sse_starlette.sse import EventSourceResponse
 
 from ....gateway.http_sse.sse_manager import SSEManager
 from ....gateway.http_sse.dependencies import get_sse_manager
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 

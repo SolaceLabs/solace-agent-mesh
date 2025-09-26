@@ -2,6 +2,7 @@
 API Router for managing A2A message visualization streams.
 """
 
+import logging
 import asyncio
 import uuid
 from fastapi import (
@@ -15,7 +16,6 @@ from fastapi import (
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Set
 
-from solace_ai_connector.common.log import log
 
 from ....gateway.http_sse.dependencies import (
     get_sac_component,
@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ....gateway.http_sse.component import WebUIBackendComponent
 
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 

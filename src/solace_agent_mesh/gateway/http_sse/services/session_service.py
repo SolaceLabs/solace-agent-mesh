@@ -1,7 +1,7 @@
+import logging
 import uuid
 from typing import TYPE_CHECKING, Optional, List, Dict, Any
 
-from solace_ai_connector.common.log import log
 from sqlalchemy.orm import Session as DbSession
 
 from ..repository import (
@@ -14,6 +14,8 @@ from ..shared.enums import SenderType
 from ..shared.types import SessionId, UserId
 from ..shared import now_epoch_ms
 from ..shared.pagination import PaginationParams, PaginatedResponse, get_pagination_or_default
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent

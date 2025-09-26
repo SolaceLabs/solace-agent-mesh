@@ -2,9 +2,9 @@
 Solace Agent Mesh Component class for the __GATEWAY_NAME_PASCAL_CASE__ Gateway.
 """
 
+import logging
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from solace_ai_connector.common.log import log
 from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
 from a2a.types import (
     TextPart,
@@ -17,6 +17,8 @@ from a2a.types import (
 )
 from ...common import a2a
 from ...common.a2a import ContentPart
+
+log = logging.getLogger(__name__)
 
 info = {
     "class_name": "__GATEWAY_NAME_PASCAL_CASE__GatewayComponent",

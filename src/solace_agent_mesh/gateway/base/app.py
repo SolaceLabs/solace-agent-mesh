@@ -2,11 +2,11 @@
 Base App class for Gateway implementations in the Solace AI Connector.
 """
 
+import logging
 import uuid
 from abc import abstractmethod
 from typing import Any, Dict, List, Type
 
-from solace_ai_connector.common.log import log
 from solace_ai_connector.common.utils import deep_merge
 from solace_ai_connector.flow.app import App
 from solace_ai_connector.components.component_base import ComponentBase
@@ -17,6 +17,7 @@ from ...common.a2a import (
     get_gateway_status_subscription_topic,
 )
 
+log = logging.getLogger(__name__)
 
 class BaseGatewayComponent(ComponentBase):
     pass
