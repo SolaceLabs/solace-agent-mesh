@@ -69,7 +69,7 @@ const FeedbackActions: React.FC<{ message: MessageFE }> = ({ message }) => {
 
     if (feedbackState === "prompting") {
         return (
-            <div className="mt-2 flex flex-col items-end gap-2">
+            <div className="mt-2 flex w-full flex-col items-end gap-2">
                 <Textarea
                     placeholder="Provide additional feedback..."
                     value={feedbackText}
@@ -84,10 +84,14 @@ const FeedbackActions: React.FC<{ message: MessageFE }> = ({ message }) => {
     }
 
     return (
-        <ChatBubbleActionWrapper variant="received" className="mt-2">
-            <ChatBubbleAction icon={<ThumbsUp className="h-4 w-4" />} onClick={() => handleThumbClick("up")} />
-            <ChatBubbleAction icon={<ThumbsDown className="h-4 w-4" />} onClick={() => handleThumbClick("down")} />
-        </ChatBubbleActionWrapper>
+        <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleThumbClick("up")}>
+                <ThumbsUp className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleThumbClick("down")}>
+                <ThumbsDown className="h-4 w-4" />
+            </Button>
+        </div>
     );
 };
 
@@ -227,12 +231,12 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                         </span>
                     </div>
                 )}
-                {showWorkflowButton && (
-                    <div className="mt-3">
-                        <ViewWorkflowButton onClick={handleViewWorkflowClick} />
+                {(showWorkflowButton || showFeedbackActions) && (
+                    <div className="mt-3 flex items-end justify-between">
+                        <div>{showWorkflowButton && <ViewWorkflowButton onClick={handleViewWorkflowClick} />}</div>
+                        <div>{showFeedbackActions && <FeedbackActions message={message} />}</div>
                     </div>
                 )}
-                {showFeedbackActions && <FeedbackActions message={message} />}
             </ChatBubbleMessage>
         </ChatBubble>
     );
