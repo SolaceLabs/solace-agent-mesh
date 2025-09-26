@@ -30,4 +30,4 @@
 
 13. [x] **Create API Client Function:** In `client/webui/frontend/src/lib/utils/api.ts`, create a new `submitFeedback` function to send the feedback data to the backend.
 
-14. **Connect UI to API:** Call the new `submitFeedback` function from the `FeedbackActions` component when the user submits their feedback.
+14. [x] **Connect UI to API:** Call the new `submitFeedback` function from the `FeedbackActions` component when the user submits their feedback.

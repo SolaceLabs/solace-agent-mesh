@@ -15,6 +15,7 @@ import { Button, Textarea } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
 import type { FileAttachment, MessageFE, TextPart } from "@/lib/types";
+import { submitFeedback } from "@/lib/utils/api";
 import type { ChatContextValue } from "@/lib/contexts";
 
 import { FileAttachmentMessage, FileMessage } from "./file/FileMessage";
@@ -45,14 +46,25 @@ const FeedbackActions: React.FC<{ message: MessageFE }> = ({ message }) => {
     };
 
     const handleSubmit = async () => {
-        // Placeholder for API call (Step 13)
-        console.log("Submitting feedback:", {
-            messageId: message.metadata?.messageId,
-            sessionId: message.metadata?.sessionId,
-            feedbackType: feedbackType,
-            feedbackText: feedbackText,
-        });
-        setFeedbackState("submitted");
+        if (!feedbackType || !message.metadata?.messageId || !message.metadata?.sessionId) {
+            console.error("Cannot submit feedback: missing required data.");
+            setFeedbackState("submitted"); // Still show thank you to not block user
+            return;
+        }
+
+        try {
+            await submitFeedback({
+                messageId: message.metadata.messageId,
+                sessionId: message.metadata.sessionId,
+                feedbackType: feedbackType,
+                feedbackText: feedbackText,
+            });
+        } catch (error) {
+            console.error("Failed to submit feedback:", error);
+            // Silently fail but still show "submitted" state to user
+        } finally {
+            setFeedbackState("submitted");
+        }
     };
 
     if (feedbackState === "prompting") {
