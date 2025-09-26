@@ -24,7 +24,7 @@
 
 10. [x] **Create Feedback UI Component:** In `client/webui/frontend/src/lib/components/chat/ChatMessage.tsx`, create a new internal React component named `FeedbackActions`.
 
-11. **Manage UI State:** Inside `FeedbackActions`, use `useState` to manage the display state (e.g., showing icons, showing the text input, or showing a "thank you" message).
+11. [x] **Manage UI State:** Inside `FeedbackActions`, use `useState` to manage the display state (e.g., showing icons, showing the text input, or showing a "thank you" message).
 
 12. **Conditionally Render UI:** In `ChatMessage.tsx`, render the `FeedbackActions` component only for completed agent messages and only if the `configCollectFeedback` feature flag is true.
 
