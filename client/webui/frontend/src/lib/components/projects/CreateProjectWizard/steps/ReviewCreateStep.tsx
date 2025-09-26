@@ -46,18 +46,16 @@ export const ReviewCreateStep: React.FC<ReviewCreateStepProps> = ({
             <Card>
                 <CardHeader>
                     <div className="flex items-center justify-between">
-                        <div>
-                            <CardTitle className="flex items-center gap-2">
-                                <User className="h-5 w-5" />
-                                Project Details
-                            </CardTitle>
-                            <CardDescription>Basic information about your project</CardDescription>
-                        </div>
+                        <CardTitle className="flex items-center gap-2">
+                            <User className="h-5 w-5" />
+                            Project Details
+                        </CardTitle>
                         <Button variant="outline" size="sm" onClick={() => goToStep(1)} disabled={isSubmitting}>
                             <Edit className="h-4 w-4 mr-2" />
                             Edit
                         </Button>
                     </div>
+                    <CardDescription>Basic information about your project</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-4">
@@ -87,20 +85,18 @@ export const ReviewCreateStep: React.FC<ReviewCreateStepProps> = ({
             <Card>
                 <CardHeader>
                     <div className="flex items-center justify-between">
-                        <div>
-                            <CardTitle className="flex items-center gap-2">
-                                <FileText className="h-5 w-5" />
-                                Files & Artifacts
-                            </CardTitle>
-                            <CardDescription>
-                                {fileCount > 0 ? `${fileCount} file${fileCount > 1 ? "s" : ""} selected` : "No files selected"}
-                            </CardDescription>
-                        </div>
+                        <CardTitle className="flex items-center gap-2">
+                            <FileText className="h-5 w-5" />
+                            Files & Artifacts
+                        </CardTitle>
                         <Button variant="outline" size="sm" onClick={() => goToStep(2)} disabled={isSubmitting}>
                             <Edit className="h-4 w-4 mr-2" />
                             Edit
                         </Button>
                     </div>
+                    <CardDescription>
+                        {fileCount > 0 ? `${fileCount} file${fileCount > 1 ? "s" : ""} selected` : "No files selected"}
+                    </CardDescription>
                 </CardHeader>
                 <CardContent>
                     {fileCount > 0 ? (
