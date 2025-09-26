@@ -190,6 +190,108 @@ class ProjectService:
         )
         return artifacts
 
+    async def add_artifacts_to_project(
+        self,
+        project_id: str,
+        user_id: str,
+        files: List[UploadFile],
+        file_metadata: Optional[dict] = None
+    ) -> List[dict]:
+        """
+        Add one or more artifacts to a project.
+        
+        Args:
+            project_id: The project ID
+            user_id: The requesting user ID
+            files: List of files to add
+            file_metadata: Optional dictionary of metadata (e.g., descriptions)
+            
+        Returns:
+            List[dict]: A list of results from the save operations
+            
+        Raises:
+            ValueError: If project not found or access denied
+        """
+        project = self.get_project(project_id, user_id)
+        if not project:
+            raise ValueError("Project not found or access denied")
+        
+        if project.is_global:
+            raise ValueError("Cannot add files to a global project template")
+
+        if not self.artifact_service:
+            self.logger.warning(f"Attempted to add artifacts to project {project_id} but no artifact service is configured.")
+            raise ValueError("Artifact service is not configured")
+        
+        if not files:
+            return []
+
+        self.logger.info(f"Adding {len(files)} artifacts to project {project_id} for user {user_id}")
+        storage_session_id = f"project-{project.id}"
+        results = []
+
+        for file in files:
+            content_bytes = await file.read()
+            metadata = {"source": "project"}
+            if file_metadata and file.filename in file_metadata:
+                desc = file_metadata[file.filename]
+                if desc:
+                    metadata["description"] = desc
+            
+            result = await save_artifact_with_metadata(
+                artifact_service=self.artifact_service,
+                app_name=self.app_name,
+                user_id=project.user_id, # Always use project owner's ID for storage
+                session_id=storage_session_id,
+                filename=file.filename,
+                content_bytes=content_bytes,
+                mime_type=file.content_type,
+                metadata_dict=metadata,
+                timestamp=datetime.now(timezone.utc),
+            )
+            results.append(result)
+        
+        self.logger.info(f"Finished adding {len(files)} artifacts to project {project_id}")
+        return results
+
+    async def delete_artifact_from_project(self, project_id: str, user_id: str, filename: str) -> bool:
+        """
+        Deletes an artifact from a project.
+        
+        Args:
+            project_id: The project ID
+            user_id: The requesting user ID
+            filename: The filename of the artifact to delete
+            
+        Returns:
+            bool: True if deletion was attempted, False if project not found
+            
+        Raises:
+            ValueError: If user cannot modify the project or artifact service is missing
+        """
+        project = self.get_project(project_id, user_id)
+        if not project:
+            return False
+            
+        if project.is_global:
+            raise ValueError("Cannot delete files from a global project template")
+
+        if not self.artifact_service:
+            self.logger.warning(f"Attempted to delete artifact from project {project_id} but no artifact service is configured.")
+            raise ValueError("Artifact service is not configured")
+
+        storage_session_id = f"project-{project.id}"
+        
+        self.logger.info(f"Deleting artifact '{filename}' from project {project_id} for user {user_id}")
+        
+        await self.artifact_service.delete_artifact(
+            app_name=self.app_name,
+            user_id=project.user_id, # Always use project owner's ID for storage
+            session_id=storage_session_id,
+            filename=filename,
+        )
+        return True
+
     def update_project(self, project_id: str, user_id: str,
                            name: Optional[str] = None, description: Optional[str] = None, system_prompt: Optional[str] = None) -> Optional[Project]:
         """

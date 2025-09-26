@@ -270,6 +270,100 @@ async def get_project_artifacts(
         )
 
 
+@router.post("/projects/{project_id}/artifacts", status_code=status.HTTP_201_CREATED)
+async def add_project_artifacts(
+    project_id: str,
+    files: List[UploadFile] = File(...),
+    file_metadata: Optional[str] = Form(None, alias="fileMetadata"),
+    user: dict = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+):
+    """
+    Add one or more artifacts to a project.
+    """
+    user_id = user.get("id")
+    log.info(f"User {user_id} attempting to add artifacts to project {project_id}")
+
+    try:
+        parsed_file_metadata = {}
+        if file_metadata:
+            try:
+                parsed_file_metadata = json.loads(file_metadata)
+            except json.JSONDecodeError:
+                log.warning(f"Could not parse file_metadata for project {project_id}, ignoring.")
+                pass
+
+        results = await project_service.add_artifacts_to_project(
+            project_id=project_id,
+            user_id=user_id,
+            files=files,
+            file_metadata=parsed_file_metadata
+        )
+        return results
+    except ValueError as e:
+        log.warning(f"Validation error adding artifacts to project {project_id}: {e}")
+        # Could be 404 if project not found, or 400 if other validation fails
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        log.error(
+            "Error adding artifacts to project %s for user %s: %s",
+            project_id,
+            user_id,
+            e,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to add artifacts to project"
+        )
+
+
+@router.delete("/projects/{project_id}/artifacts/{filename}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project_artifact(
+    project_id: str,
+    filename: str,
+    user: dict = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+):
+    """
+    Delete an artifact from a project.
+    """
+    user_id = user.get("id")
+    log.info(f"User {user_id} attempting to delete artifact '{filename}' from project {project_id}")
+
+    try:
+        success = await project_service.delete_artifact_from_project(
+            project_id=project_id,
+            user_id=user_id,
+            filename=filename,
+        )
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found or access denied."
+            )
+        
+        return
+    except ValueError as e:
+        log.warning(f"Validation error deleting artifact from project {project_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(
+            "Error deleting artifact '%s' from project %s for user %s: %s",
+            filename,
+            project_id,
+            user_id,
+            e,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete artifact from project"
+        )
+
+
 @router.put("/projects/{project_id}", response_model=ProjectResponse)
 async def update_project(
     project_id: str,
