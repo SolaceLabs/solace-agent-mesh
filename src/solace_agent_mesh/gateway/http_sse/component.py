@@ -186,7 +186,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
             publish_func=self.publish_a2a,
         )
 
-        self.feedback_service = FeedbackService()
+        feedback_config = self.get_config("feedback_service", {})
+        self.feedback_service = FeedbackService(config=feedback_config)
 
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
 
