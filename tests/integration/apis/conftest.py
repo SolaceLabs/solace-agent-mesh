@@ -377,7 +377,7 @@ def configured_feedback_client(request, tmp_path: Path, monkeypatch):
     if feedback_config.get("type") == "csv":
         feedback_config["filename"] = str(tmp_path / "feedback.csv")
 
-    # Create a minimal but valid app_config for the component
+    # Create a minimal but valid app_config for the component.
     app_config = {
         "namespace": "test_namespace",
         "gateway_id": "test-gateway",
@@ -385,7 +385,14 @@ def configured_feedback_client(request, tmp_path: Path, monkeypatch):
         "frontend_use_authorization": False,
         "feedback_service": feedback_config,
     }
-    component_config = {"app_config": app_config, "name": "TestWebUIComponent"}
+
+    # The component needs a config that is both flat (for get_config) and
+    # has a nested app_config (for base class __init__ validation).
+    component_config = {
+        **app_config,
+        "app_config": app_config,
+        "name": "TestWebUIComponent",
+    }
 
     # Instantiate a real component with this config
     real_component = WebUIBackendComponent(component_config=component_config)
