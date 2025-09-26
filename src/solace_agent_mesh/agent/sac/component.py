@@ -449,20 +449,6 @@ class SamAgentComponent(SamComponentBase):
             log.exception("%s Initialization failed: %s", self.log_identifier, e)
             raise
 
-    def _register_default_auth_handler(self):
-        """Register the default authentication handler in the middleware registry."""
-        if not MiddlewareRegistry.get_auth_handler():
-            MiddlewareRegistry.bind_auth_handler(default_auth_handler)
-            log.info(
-                "%s Registered default authentication handler in middleware registry.",
-                self.log_identifier,
-            )
-        else:
-            log.debug(
-                "%s Authentication handler already registered in middleware registry.",
-                self.log_identifier,
-            )
-
     def invoke(self, message: SolaceMessage, data: dict) -> dict:
         """Placeholder invoke method. Primary logic resides in process_event."""
         log.warning(
@@ -1655,9 +1641,9 @@ class SamAgentComponent(SamComponentBase):
         is_run_based_session = a2a_context.get("is_run_based_session", False)
         is_final_turn_event = not adk_event.partial
 
-        auth_handler = MiddlewareRegistry.get_auth_handler()
-        if auth_handler:
-            auth_status_update = await auth_handler(adk_event, self, a2a_context)
+        try:
+            from solace_agent_mesh_enterprise.auth.tool_auth import handle_tool_auth_event
+            auth_status_update = await handle_tool_auth_event(adk_event, self, a2a_context)
             if auth_status_update:
                 await self._publish_status_update_with_buffer_flush(
                     auth_status_update,
@@ -1665,6 +1651,8 @@ class SamAgentComponent(SamComponentBase):
                     skip_buffer_flush=False,
                 )
                 return
+        except ImportError:
+            pass
 
         if not is_final_turn_event:
             if adk_event.content and adk_event.content.parts:
