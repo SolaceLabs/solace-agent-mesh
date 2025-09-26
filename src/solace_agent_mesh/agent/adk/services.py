@@ -216,6 +216,7 @@ def initialize_artifact_service(component) -> BaseArtifactService:
     the ScopedArtifactServiceWrapper to enforce artifact scoping rules dynamically.
     """
     config: Dict = component.get_config("artifact_service", {"type": "memory"})
+    log.info("founder2: %s", config)
     service_type = config.get("type", "memory").lower()
     log.info(
         "%s Initializing Artifact Service of type: %s",
