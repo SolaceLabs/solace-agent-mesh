@@ -216,7 +216,6 @@ def initialize_artifact_service(component) -> BaseArtifactService:
     the ScopedArtifactServiceWrapper to enforce artifact scoping rules dynamically.
     """
     config: Dict = component.get_config("artifact_service", {"type": "memory"})
-    log.info("founder2: %s", config)
     service_type = config.get("type", "memory").lower()
     log.info(
         "%s Initializing Artifact Service of type: %s",
@@ -264,7 +263,6 @@ def initialize_artifact_service(component) -> BaseArtifactService:
             raise
     elif service_type == "s3":
         bucket_name = config.get("bucket_name")
-        log.info("flounder: %s, scope_type: %s", bucket_name, component.get_config("artifact_scope", "namespace"))
         if not bucket_name or not bucket_name.strip():
             raise ValueError(
                 f"{component.log_identifier} 'bucket_name' is required and cannot be empty for S3 artifact service."
@@ -292,10 +290,7 @@ def initialize_artifact_service(component) -> BaseArtifactService:
                 s3_config["aws_access_key_id"] = aws_access_key_id
             if aws_secret_access_key:
                 s3_config["aws_secret_access_key"] = aws_secret_access_key
-            if "region_name" not in s3_config and "region" in config:
-                s3_config["region_name"] = config["region"]
 
-            log.info("stuff: %s", s3_config)
             concrete_service = S3ArtifactService(bucket_name=bucket_name, **s3_config)
         except ImportError as e:
             log.error(
