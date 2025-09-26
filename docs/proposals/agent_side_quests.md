@@ -34,6 +34,7 @@ The feature must satisfy the following requirements:
 6.  **Parallelism:** An agent must be able to initiate multiple side quests in parallel. It must also be able to run side quests in parallel with peer agent calls.
 7.  **Recursion:** A side quest must be able to initiate its own (recursive) side quests.
 8.  **Artifact Pre-loading:** The initiation of a side quest must support specifying one or more artifacts to be pre-loaded directly into its initial context, saving an LLM turn.
+9.  **Status Forwarding:** All intermediate status updates (e.g., tool calls, LLM invocations) and artifact creation events generated during a side quest must be forwarded to the original requester, providing real-time visibility into the sub-task's progress.
 
 ## 4. Key Decisions
 
