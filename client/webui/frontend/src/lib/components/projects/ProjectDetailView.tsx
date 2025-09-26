@@ -74,7 +74,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, i
             <Card className="bg-card">
                 <CardHeader>
                     {isEditing ? (
-                        <div className="space-y-1">
+                        <div className="space-y-2">
                             <label htmlFor="projectName" className="text-sm font-medium text-muted-foreground">
                                 Project Name
                             </label>
