@@ -47,7 +47,7 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
-    const { configWelcomeMessage, configServerUrl, persistenceEnabled } = useConfigContext();
+    const { configWelcomeMessage, configServerUrl, persistenceEnabled, configCollectFeedback } = useConfigContext();
     const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
 
     // State Variables from useChat
@@ -1068,6 +1068,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [currentTaskId, apiPrefix, handleSseMessage, handleSseOpen, handleSseError, closeCurrentEventSource]);
 
     const contextValue: ChatContextValue = {
+        configCollectFeedback,
         sessionId,
         setSessionId,
         sessionName,
