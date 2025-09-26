@@ -1,9 +1,17 @@
 import React, { useState } from "react";
 import type { ReactNode } from "react";
 
-import { AlertCircle, FileText } from "lucide-react";
+import { AlertCircle, FileText, ThumbsDown, ThumbsUp } from "lucide-react";
 
-import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner } from "@/lib/components";
+import {
+    ChatBubble,
+    ChatBubbleAction,
+    ChatBubbleActionWrapper,
+    ChatBubbleMessage,
+    MarkdownHTMLConverter,
+    MessageBanner,
+} from "@/lib/components";
+import { Button, Textarea } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
 import type { FileAttachment, MessageFE, TextPart } from "@/lib/types";
@@ -16,6 +24,60 @@ import { decodeBase64Content } from "./preview/previewUtils";
 import type { ExtractedContent } from "./preview/contentUtils";
 
 const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
+
+const FeedbackActions: React.FC<{ message: MessageFE }> = ({ message }) => {
+    const { configCollectFeedback } = useChatContext();
+    const [feedbackState, setFeedbackState] = useState<"idle" | "prompting" | "submitted">("idle");
+    const [feedbackType, setFeedbackType] = useState<"up" | "down" | null>(null);
+    const [feedbackText, setFeedbackText] = useState("");
+
+    if (!configCollectFeedback) {
+        return null;
+    }
+
+    if (feedbackState === "submitted") {
+        return <div className="mt-2 text-xs text-gray-500">Thank you for your feedback!</div>;
+    }
+
+    const handleThumbClick = (type: "up" | "down") => {
+        setFeedbackType(type);
+        setFeedbackState("prompting");
+    };
+
+    const handleSubmit = async () => {
+        // Placeholder for API call (Step 13)
+        console.log("Submitting feedback:", {
+            messageId: message.metadata?.messageId,
+            sessionId: message.metadata?.sessionId,
+            feedbackType: feedbackType,
+            feedbackText: feedbackText,
+        });
+        setFeedbackState("submitted");
+    };
+
+    if (feedbackState === "prompting") {
+        return (
+            <div className="mt-2 flex flex-col items-end gap-2">
+                <Textarea
+                    placeholder="Provide additional feedback..."
+                    value={feedbackText}
+                    onChange={(e) => setFeedbackText(e.target.value)}
+                    className="text-sm"
+                />
+                <Button size="sm" onClick={handleSubmit}>
+                    Submit Feedback
+                </Button>
+            </div>
+        );
+    }
+
+    return (
+        <ChatBubbleActionWrapper variant="received" className="mt-2">
+            <ChatBubbleAction icon={<ThumbsUp className="h-4 w-4" />} onClick={() => handleThumbClick("up")} />
+            <ChatBubbleAction icon={<ThumbsDown className="h-4 w-4" />} onClick={() => handleThumbClick("down")} />
+        </ChatBubbleActionWrapper>
+    );
+};
 
 const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
@@ -131,6 +193,8 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 
     const variant = message.isUser ? "sent" : "received";
     const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && isLastWithTaskId;
+    const showFeedbackActions = !message.isUser && message.isComplete;
+
     const handleViewWorkflowClick = () => {
         if (message.taskId) {
             setTaskIdInSidePanel(message.taskId);
@@ -156,6 +220,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                         <ViewWorkflowButton onClick={handleViewWorkflowClick} />
                     </div>
                 )}
+                {showFeedbackActions && <FeedbackActions message={message} />}
             </ChatBubbleMessage>
         </ChatBubble>
     );

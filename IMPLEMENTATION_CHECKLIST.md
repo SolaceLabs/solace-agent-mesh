@@ -22,7 +22,7 @@
 
 9.  [x] **Verify Config Context:** Confirm that `configCollectFeedback: boolean;` exists in the `ConfigContextValue` interface in `client/webui/frontend/src/lib/contexts/ConfigContext.ts`.
 
-10. **Create Feedback UI Component:** In `client/webui/frontend/src/lib/components/chat/ChatMessage.tsx`, create a new internal React component named `FeedbackActions`.
+10. [x] **Create Feedback UI Component:** In `client/webui/frontend/src/lib/components/chat/ChatMessage.tsx`, create a new internal React component named `FeedbackActions`.
 
 11. **Manage UI State:** Inside `FeedbackActions`, use `useState` to manage the display state (e.g., showing icons, showing the text input, or showing a "thank you" message).
 
