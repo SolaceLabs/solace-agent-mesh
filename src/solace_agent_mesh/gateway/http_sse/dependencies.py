@@ -20,6 +20,7 @@ from ...gateway.base.task_context import TaskContextManager
 from ...gateway.http_sse.services.agent_card_service import AgentCardService
 from ...gateway.http_sse.services.people_service import PeopleService
 from ...gateway.http_sse.services.task_service import TaskService
+from ...gateway.http_sse.services.feedback_service import FeedbackService
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .repository import Message, MessageRepository, SessionRepository
@@ -205,6 +206,14 @@ def get_people_service(
     """FastAPI dependency to get an instance of PeopleService."""
     log.debug("[Dependencies] get_people_service called")
     return PeopleService(identity_service=identity_service)
+
+
+def get_feedback_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> FeedbackService:
+    """FastAPI dependency to get an instance of FeedbackService."""
+    log.debug("[Dependencies] get_feedback_service called")
+    return component.get_feedback_service()
 
 
 PublishFunc = Callable[[str, dict, dict | None], None]
