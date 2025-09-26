@@ -55,7 +55,6 @@ export const ReviewCreateStep: React.FC<ReviewCreateStepProps> = ({
                             Edit
                         </Button>
                     </div>
-                    <CardDescription>Basic information about your project</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-4">
@@ -94,20 +93,19 @@ export const ReviewCreateStep: React.FC<ReviewCreateStepProps> = ({
                             Edit
                         </Button>
                     </div>
-                    <CardDescription>
-                        {fileCount > 0 ? `${fileCount} file${fileCount > 1 ? "s" : ""} selected` : "No files selected"}
-                    </CardDescription>
                 </CardHeader>
                 <CardContent>
                     {fileCount > 0 ? (
                         <div className="space-y-4">
-                            <div className="flex items-center justify-between text-sm">
-                                <span className="text-muted-foreground">Total files:</span>
-                                <span className="font-medium">{fileCount}</span>
-                            </div>
-                            <div className="flex items-center justify-between text-sm">
-                                <span className="text-muted-foreground">Total size:</span>
-                                <span className="font-medium">{formatFileSize(totalFileSize)}</span>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="text-center p-3 bg-muted/20 rounded-lg">
+                                    <div className="text-2xl font-bold text-foreground">{fileCount}</div>
+                                    <div className="text-sm text-muted-foreground">Files</div>
+                                </div>
+                                <div className="text-center p-3 bg-muted/20 rounded-lg">
+                                    <div className="text-2xl font-bold text-foreground">{formatFileSize(totalFileSize)}</div>
+                                    <div className="text-sm text-muted-foreground">Total Size</div>
+                                </div>
                             </div>
                             <div className="space-y-2">
                                 <h4 className="text-sm font-medium text-muted-foreground">Files:</h4>
