@@ -75,6 +75,55 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         [apiPrefix]
     );
 
+    const addFilesToProject = useCallback(
+        async (projectId: string, formData: FormData): Promise<void> => {
+            try {
+                const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}/artifacts`, {
+                    method: "POST",
+                    body: formData,
+                    credentials: "include",
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({
+                        detail: `Failed to add files: ${response.statusText}`,
+                    }));
+                    throw new Error(errorData.detail || `Failed to add files: ${response.statusText}`);
+                }
+            } catch (err: unknown) {
+                console.error("Error adding files to project:", err);
+                const errorMessage = err instanceof Error ? err.message : "Could not add files to project.";
+                setError(errorMessage);
+                throw new Error(errorMessage);
+            }
+        },
+        [apiPrefix]
+    );
+
+    const removeFileFromProject = useCallback(
+        async (projectId: string, filename: string): Promise<void> => {
+            try {
+                const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, {
+                    method: "DELETE",
+                    credentials: "include",
+                });
+
+                if (!response.ok && response.status !== 204) {
+                    const errorData = await response.json().catch(() => ({
+                        detail: `Failed to remove file: ${response.statusText}`,
+                    }));
+                    throw new Error(errorData.detail || `Failed to remove file: ${response.statusText}`);
+                }
+            } catch (err: unknown) {
+                console.error("Error removing file from project:", err);
+                const errorMessage = err instanceof Error ? err.message : "Could not remove file from project.";
+                setError(errorMessage);
+                throw new Error(errorMessage);
+            }
+        },
+        [apiPrefix]
+    );
+
     useEffect(() => {
         fetchProjects();
     }, [fetchProjects]);
@@ -89,6 +138,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setCurrentProject,
         activeProject,
         setActiveProject,
+        addFilesToProject,
+        removeFileFromProject,
     };
 
     return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;

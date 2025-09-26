@@ -5,6 +5,7 @@ import { useProjectArtifacts } from "@/lib/hooks/useProjectArtifacts";
 import type { Project } from "@/lib/types/projects";
 import type { ArtifactInfo } from "@/lib/types";
 import { Button } from "@/lib/components/ui";
+import { useProjectContext } from "@/lib/providers";
 import { ArtifactCard } from "../chat/artifact/ArtifactCard";
 
 interface ProjectFilesManagerProps {
@@ -14,6 +15,7 @@ interface ProjectFilesManagerProps {
 
 export const ProjectFilesManager: React.FC<ProjectFilesManagerProps> = ({ project, isEditing }) => {
     const { artifacts, isLoading, error, refetch } = useProjectArtifacts(project.id);
+    const { addFilesToProject, removeFileFromProject } = useProjectContext();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleAddFilesClick = () => {
@@ -24,12 +26,17 @@ export const ProjectFilesManager: React.FC<ProjectFilesManagerProps> = ({ projec
         const files = event.target.files;
         if (!files || files.length === 0) return;
 
-        console.log("Files to add:", files);
-        // In the next step, we will call:
-        // const formData = new FormData();
-        // for (const file of files) { formData.append("files", file); }
-        // await addFilesToProject(project.id, formData);
-        // await refetch();
+        try {
+            const formData = new FormData();
+            for (const file of Array.from(files)) {
+                formData.append("files", file);
+            }
+            await addFilesToProject(project.id, formData);
+            await refetch();
+        } catch (e) {
+            // Error is handled in the provider, but we could add a local notification here if needed.
+            console.error("Failed to add files:", e);
+        }
 
         // Reset file input to allow selecting the same file again
         if (event.target) {
@@ -38,12 +45,14 @@ export const ProjectFilesManager: React.FC<ProjectFilesManagerProps> = ({ projec
     };
 
     const handleDeleteFile = async (artifact: ArtifactInfo) => {
-        console.log("File to delete:", artifact.filename);
-        // In the next step, we will call:
-        // if (window.confirm(`Are you sure you want to delete ${artifact.filename}?`)) {
-        //     await removeFileFromProject(project.id, artifact.filename);
-        //     await refetch();
-        // }
+        if (window.confirm(`Are you sure you want to delete ${artifact.filename}?`)) {
+            try {
+                await removeFileFromProject(project.id, artifact.filename);
+                await refetch();
+            } catch (e) {
+                console.error(`Failed to delete file ${artifact.filename}:`, e);
+            }
+        }
     };
 
     if (isLoading) {
