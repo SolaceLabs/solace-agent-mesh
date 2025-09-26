@@ -210,7 +210,9 @@ class ArtifactServiceConfig(SamConfigBase):
 class SessionServiceConfig(SamConfigBase):
     """Configuration for the ADK Session Service."""
 
-    type: str = Field(..., description="Service type (e.g., 'memory', 'sql', 'vertex_rag').")
+    type: str = Field(
+        ..., description="Service type (e.g., 'memory', 'sql', 'vertex_rag')."
+    )
     default_behavior: Literal["PERSISTENT", "RUN_BASED"] = Field(
         default="PERSISTENT", description="Default behavior for session service."
     )
@@ -227,7 +229,10 @@ class SamAgentAppConfig(SamConfigBase):
         description="Absolute topic prefix for A2A communication (e.g., 'myorg/dev').",
     )
     agent_name: str = Field(..., description="Unique name for this ADK agent instance.")
-    display_name: str = Field(default=None, description="Human-friendly display name for this ADK agent instance.")
+    display_name: str = Field(
+        default=None,
+        description="Human-friendly display name for this ADK agent instance.",
+    )
     model: Union[str, Dict[str, Any]] = Field(
         ..., description="ADK model name (string) or BaseLlm config dict."
     )
@@ -307,7 +312,7 @@ class SamAgentAppConfig(SamConfigBase):
         description="If true, automatically attempts to continue LLM generation if it is interrupted by a token limit.",
     )
     enable_side_quests: bool = Field(
-        default=False,
+        default=True,
         description="If true, enables the 'self_side_quest' tool, allowing the agent to start isolated sub-tasks.",
     )
     stream_batching_threshold_bytes: int = Field(

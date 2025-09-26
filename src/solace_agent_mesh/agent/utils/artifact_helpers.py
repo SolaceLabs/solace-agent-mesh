@@ -87,7 +87,11 @@ def ensure_correct_extension(filename_from_llm: str, desired_extension: str) -> 
 
 
 def format_artifact_uri(
-    app_name: str, user_id: str, session_id: str, filename: str, version: Union[int, str]
+    app_name: str,
+    user_id: str,
+    session_id: str,
+    filename: str,
+    version: Union[int, str],
 ) -> str:
     """Formats the components into a standard artifact:// URI."""
     path = f"/{user_id}/{session_id}/{filename}"
@@ -491,7 +495,7 @@ async def generate_artifact_metadata_summary(
                 metadata = metadata_result.get("metadata", {})
                 resolved_version = metadata_result.get("version", version)
                 artifact_header = (
-                    f"Artifact: '{filename}' (version: {resolved_version})"
+                    f"Artifact metadata: '{filename}' (version: {resolved_version})"
                 )
 
                 # Remove redundant fields before dumping to YAML
@@ -552,7 +556,9 @@ async def generate_artifact_metadata_summary(
                     version,
                     error_message,
                 )
-                artifact_header = f"Artifact: '{filename}' (version: {version})"
+                artifact_header = (
+                    f"Artifact metadata: '{filename}' (version: {version})"
+                )
                 summary_parts.append(f"---\n{artifact_header}\nError: {error_message}")
         except Exception as e_meta:
             log.error(
@@ -562,7 +568,7 @@ async def generate_artifact_metadata_summary(
                 version,
                 e_meta,
             )
-            artifact_header = f"Artifact: '{filename}' (version: {version})"
+            artifact_header = f"Artifact metadata: '{filename}' (version: {version})"
             summary_parts.append(
                 f"---\n{artifact_header}\nError: An unexpected error occurred while loading metadata."
             )
