@@ -57,6 +57,11 @@ const AgentServicesStep: React.FC<StepProps> = ({
       } else if (!data.session_service_behavior) {
         updates.session_service_behavior = "PERSISTENT";
       }
+      if (value === "sql") {
+        updates.database_url = "default_agent_db";
+      } else {
+        updates.database_url = undefined;
+      }
     } else if (name === "artifact_service_type") {
       if (value === USE_DEFAULT_SHARED_ARTIFACT) {
         updates.artifact_service_base_path = undefined;
