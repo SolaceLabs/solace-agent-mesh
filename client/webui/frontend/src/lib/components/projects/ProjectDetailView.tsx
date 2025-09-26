@@ -78,7 +78,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, i
                             <label htmlFor="projectName" className="text-sm font-medium text-muted-foreground">
                                 Project Name
                             </label>
-                            <Input id="projectName" value={name} onChange={e => setName(e.target.value)} className="text-2xl font-semibold h-auto p-0 border-0 rounded-none shadow-none focus-visible:ring-0" />
+                            <Input id="projectName" value={name} onChange={e => setName(e.target.value)} />
                         </div>
                     ) : (
                         <CardTitle className="text-2xl">{project.name}</CardTitle>
