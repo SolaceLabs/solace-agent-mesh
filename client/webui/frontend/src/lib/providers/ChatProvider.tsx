@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef, type FormEvent, type R
 import { v4 } from "uuid";
 
 import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
-import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
+import { authenticatedFetch, getAccessToken, submitFeedback } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
 import type {
     ArtifactInfo,
@@ -101,6 +101,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Session State
     const [sessionName, setSessionName] = useState<string | null>(null);
     const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
+
+    // Feedback State
+    const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, { type: "up" | "down"; text: string }>>({});
 
     // Notification Helper
     const addNotification = useCallback((message: string, type?: "success" | "info" | "error") => {
@@ -864,6 +867,33 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }
     }, [isResponding, isCancelling, currentTaskId, apiPrefix, addNotification, closeCurrentEventSource]);
 
+    const handleFeedbackSubmit = useCallback(
+        async (messageId: string, feedbackType: "up" | "down", feedbackText: string) => {
+            if (!sessionId) {
+                console.error("Cannot submit feedback without a session ID.");
+                return;
+            }
+            try {
+                await submitFeedback({
+                    messageId: messageId,
+                    sessionId: sessionId,
+                    feedbackType: feedbackType,
+                    feedbackText: feedbackText,
+                });
+                setSubmittedFeedback(prev => ({
+                    ...prev,
+                    [messageId]: { type: feedbackType, text: feedbackText },
+                }));
+            } catch (error) {
+                console.error("Failed to submit feedback:", error);
+                addNotification("Failed to submit feedback. Please try again.", "error");
+                // Re-throw to allow UI to handle the error if needed
+                throw error;
+            }
+        },
+        [sessionId, addNotification]
+    );
+
     const handleSseOpen = useCallback(() => {
         /* console.log for SSE open */
     }, []);
@@ -1069,6 +1099,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const contextValue: ChatContextValue = {
         configCollectFeedback,
+        submittedFeedback,
+        handleFeedbackSubmit,
         sessionId,
         setSessionId,
         sessionName,

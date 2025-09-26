@@ -15,7 +15,6 @@ import { Button, Textarea } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
 import type { FileAttachment, MessageFE, TextPart } from "@/lib/types";
-import { submitFeedback } from "@/lib/utils/api";
 import type { ChatContextValue } from "@/lib/contexts";
 
 import { FileAttachmentMessage, FileMessage } from "./file/FileMessage";
@@ -32,42 +31,34 @@ const MessageActions: React.FC<{
     showFeedbackActions: boolean;
     handleViewWorkflowClick: () => void;
 }> = ({ message, showWorkflowButton, showFeedbackActions, handleViewWorkflowClick }) => {
-    const { configCollectFeedback } = useChatContext();
-    const [feedbackState, setFeedbackState] = useState<"idle" | "prompting" | "submitted">("idle");
+    const { configCollectFeedback, submittedFeedback, handleFeedbackSubmit } = useChatContext();
+    const [isPrompting, setIsPrompting] = useState(false);
     const [feedbackType, setFeedbackType] = useState<"up" | "down" | null>(null);
     const [feedbackText, setFeedbackText] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+    const messageId = message.metadata?.messageId;
+    const hasSubmitted = messageId ? submittedFeedback[messageId] !== undefined : false;
+
     useEffect(() => {
-        if (feedbackState === "prompting") {
+        if (isPrompting) {
             textareaRef.current?.focus();
         }
-    }, [feedbackState]);
+    }, [isPrompting]);
 
     const handleThumbClick = (type: "up" | "down") => {
         setFeedbackType(type);
-        setFeedbackState("prompting");
+        setIsPrompting(true);
     };
 
     const handleSubmit = async () => {
-        if (!feedbackType || !message.metadata?.messageId || !message.metadata?.sessionId) {
-            console.error("Cannot submit feedback: missing required data.");
-            setFeedbackState("submitted"); // Still show thank you to not block user
-            return;
-        }
+        if (!feedbackType || !messageId) return;
 
         try {
-            await submitFeedback({
-                messageId: message.metadata.messageId,
-                sessionId: message.metadata.sessionId,
-                feedbackType: feedbackType,
-                feedbackText: feedbackText,
-            });
+            await handleFeedbackSubmit(messageId, feedbackType, feedbackText);
+            setIsPrompting(false); // Hide input on successful submission
         } catch (error) {
-            console.error("Failed to submit feedback:", error);
-            // Silently fail but still show "submitted" state to user
-        } finally {
-            setFeedbackState("submitted");
+            // Error is logged in the provider, UI doesn't need to do anything special
         }
     };
 
@@ -81,7 +72,7 @@ const MessageActions: React.FC<{
         <div className="mt-3 space-y-2">
             <div className="flex items-center justify-start gap-2">
                 {showWorkflowButton && <ViewWorkflowButton onClick={handleViewWorkflowClick} />}
-                {shouldShowFeedback && feedbackState === "idle" && (
+                {shouldShowFeedback && !hasSubmitted && !isPrompting && (
                     <div className="flex items-center gap-1">
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleThumbClick("up")}>
                             <ThumbsUp className="h-4 w-4" />
@@ -92,7 +83,7 @@ const MessageActions: React.FC<{
                     </div>
                 )}
             </div>
-            {shouldShowFeedback && feedbackState === "prompting" && (
+            {isPrompting && (
                 <div className="flex w-full min-w-[20rem] flex-col items-end gap-2">
                     <Textarea
                         ref={textareaRef}
@@ -106,7 +97,7 @@ const MessageActions: React.FC<{
                     </Button>
                 </div>
             )}
-            {shouldShowFeedback && feedbackState === "submitted" && <div className="text-xs text-gray-500">Thank you for your feedback!</div>}
+            {hasSubmitted && <div className="text-xs text-gray-500">Thank you for your feedback!</div>}
         </div>
     );
 };

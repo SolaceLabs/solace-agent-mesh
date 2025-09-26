@@ -40,6 +40,7 @@ export interface ChatState {
     previewedArtifactAvailableVersions: number[] | null;
     currentPreviewedVersionNumber: number | null;
     previewFileContent: FileAttachment | null;
+    submittedFeedback: Record<string, { type: "up" | "down"; text: string }>;
 }
 
 export interface ChatActions {
@@ -81,6 +82,7 @@ export interface ChatActions {
     /* Session Management Actions */
     updateSessionName: (sessionId: string, newName: string, showNotification?: boolean) => Promise<void>;
     deleteSession: (sessionId: string) => Promise<void>;
+    handleFeedbackSubmit: (messageId: string, feedbackType: "up" | "down", feedbackText: string) => Promise<void>;
 }
 
 export type ChatContextValue = ChatState & ChatActions;
