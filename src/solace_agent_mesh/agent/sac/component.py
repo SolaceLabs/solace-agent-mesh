@@ -997,7 +997,7 @@ class SamAgentComponent(SamComponentBase):
             for func_decl in original_tool.function_declarations:
                 func_decl_name = func_decl.name
                 tool_object = llm_request.tools_dict.get(func_decl_name)
-                origin = getattr(tool_object, "origin", "unknown")
+                origin = SamAgentComponent._extract_tool_origin(tool_object)
 
                 feature_descriptor = {
                     "feature_type": "tool_function",
@@ -1104,6 +1104,19 @@ class SamAgentComponent(SamComponentBase):
             )
 
         return None
+
+    @staticmethod
+    def _extract_tool_origin(tool) -> str:
+        """
+        Helper method to extract the origin of a tool from various possible attributes.
+        """
+        if hasattr(tool, 'origin'):
+            return tool.origin
+        elif hasattr(tool.func, 'origin'):
+            return tool.func.origin
+        else:
+            return getattr(tool, "origin", "unknown")
+
 
     def get_agent_context(self) -> Dict[str, Any]:
         """Get agent context for middleware calls."""

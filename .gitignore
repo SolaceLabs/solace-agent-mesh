@@ -152,6 +152,9 @@ playground.py
 evaluation/results/
 tests/integration/reports/
 
+#  JetBrains
+.idea/
+
 # Node
 node_modules/
 my-dev-project
