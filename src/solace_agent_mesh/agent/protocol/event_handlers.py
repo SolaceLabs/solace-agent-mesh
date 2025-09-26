@@ -573,13 +573,14 @@ async def handle_a2a_request(component, message: SolaceMessage):
             )
 
             a2a_message_for_adk = a2a_message
+            is_side_quest = task_metadata.get("is_side_quest", False)
             invoked_artifacts = (
                 a2a_message_for_adk.metadata.get("invoked_with_artifacts", [])
                 if a2a_message_for_adk.metadata
                 else []
             )
 
-            if invoked_artifacts:
+            if is_side_quest and invoked_artifacts:
                 log.info(
                     "%s Task %s invoked with %d artifact(s). Preparing context from metadata.",
                     component.log_identifier,
