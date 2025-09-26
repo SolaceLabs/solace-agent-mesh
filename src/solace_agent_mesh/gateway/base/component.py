@@ -92,10 +92,10 @@ class BaseGatewayComponent(SamComponentBase):
             value = self.component_config["app_config"].get(key)
             if value is not None:
                 return value
+
         return super().get_config(key, default)
 
     def __init__(self, resolve_artifact_uris_in_gateway: bool = True, **kwargs: Any):
-        log.info("Robert kwargs: %s", kwargs)
         super().__init__(info, **kwargs)
         self.resolve_artifact_uris_in_gateway = resolve_artifact_uris_in_gateway
         log.info("%s Initializing Base Gateway Component...", self.log_identifier)
