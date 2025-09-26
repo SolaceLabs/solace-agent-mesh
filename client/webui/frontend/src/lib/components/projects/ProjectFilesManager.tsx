@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { Loader2, FileText, AlertTriangle, Plus } from "lucide-react";
 
 import { useProjectArtifacts } from "@/lib/hooks/useProjectArtifacts";
@@ -7,6 +7,7 @@ import type { ArtifactInfo } from "@/lib/types";
 import { Button } from "@/lib/components/ui";
 import { useProjectContext } from "@/lib/providers";
 import { ArtifactCard } from "../chat/artifact/ArtifactCard";
+import { AddProjectFilesDialog } from "./AddProjectFilesDialog";
 
 interface ProjectFilesManagerProps {
     project: Project;
@@ -18,29 +19,36 @@ export const ProjectFilesManager: React.FC<ProjectFilesManagerProps> = ({ projec
     const { addFilesToProject, removeFileFromProject } = useProjectContext();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const [filesToUpload, setFilesToUpload] = useState<FileList | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
     const handleAddFilesClick = () => {
         fileInputRef.current?.click();
     };
 
-    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
-        if (!files || files.length === 0) return;
-
-        try {
-            const formData = new FormData();
-            for (const file of Array.from(files)) {
-                formData.append("files", file);
-            }
-            await addFilesToProject(project.id, formData);
-            await refetch();
-        } catch (e) {
-            // Error is handled in the provider, but we could add a local notification here if needed.
-            console.error("Failed to add files:", e);
+        if (files && files.length > 0) {
+            setFilesToUpload(files);
         }
 
         // Reset file input to allow selecting the same file again
         if (event.target) {
             event.target.value = "";
+        }
+    };
+
+    const handleConfirmUpload = async (formData: FormData) => {
+        setIsSubmitting(true);
+        try {
+            await addFilesToProject(project.id, formData);
+            await refetch();
+            setFilesToUpload(null); // Close dialog on success
+        } catch (e) {
+            // Error is handled in the provider, but we could add a local notification here if needed.
+            console.error("Failed to add files:", e);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -98,6 +106,13 @@ export const ProjectFilesManager: React.FC<ProjectFilesManagerProps> = ({ projec
                     ))}
                 </div>
             )}
+            <AddProjectFilesDialog
+                isOpen={!!filesToUpload}
+                files={filesToUpload}
+                onClose={() => setFilesToUpload(null)}
+                onConfirm={handleConfirmUpload}
+                isSubmitting={isSubmitting}
+            />
         </div>
     );
 };
