@@ -2,7 +2,7 @@
 
 ## Part 1: Backend
 
-1.  **Create Feedback Service:** Create a new file `src/solace_agent_mesh/gateway/http_sse/services/feedback_service.py` and define a `FeedbackService` class with a method to log feedback.
+1.  [x] **Create Feedback Service:** Create a new file `src/solace_agent_mesh/gateway/http_sse/services/feedback_service.py` and define a `FeedbackService` class with a method to log feedback.
 
 2.  **Create Feedback Router:** Create a new file `src/solace_agent_mesh/gateway/http_sse/routers/feedback.py`.
 
