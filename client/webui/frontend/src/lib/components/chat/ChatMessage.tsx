@@ -45,6 +45,7 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
 
     // Handle authentication link
     if (message.authenticationLink) {
+        console.log("DEBUG: Rendering authentication link", message.authenticationLink);
         const handleAuthClick = () => {
             const popup = window.open(
                 message.authenticationLink!.url,
@@ -150,7 +151,16 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 
     const textContent = message.parts?.some(p => p.kind === "text" && p.text.trim());
 
+    console.log("DEBUG: getChatBubble", {
+        messageId: message.metadata?.messageId,
+        textContent,
+        hasAuthLink: !!message.authenticationLink,
+        hasArtifactNotification: !!message.artifactNotification,
+        authLink: message.authenticationLink
+    });
+
     if (!textContent && !message.artifactNotification && !message.authenticationLink) {
+        console.log("DEBUG: Returning null - no content to show");
         return null;
     }
 

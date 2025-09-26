@@ -441,6 +441,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     break;
                                 case "authentication_required": {
                                     const auth_uri = data?.auth_uri;
+                                    console.log("DEBUG: Authentication required received", { auth_uri, data });
                                     if (typeof auth_uri === "string" && auth_uri.startsWith("http")) {
                                         const authMessage: MessageFE = {
                                             role: "agent",
@@ -453,7 +454,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                             isComplete: true,
                                             metadata: { messageId: `auth-${v4()}` }
                                         };
-                                        setMessages(prev => [...prev, authMessage]);
+                                        console.log("DEBUG: Created authentication message", authMessage);
+                                        setMessages(prev => {
+                                            console.log("DEBUG: Adding auth message to messages", prev.length);
+                                            return [...prev, authMessage];
+                                        });
+                                    } else {
+                                        console.log("DEBUG: Invalid auth_uri", { auth_uri, type: typeof auth_uri });
                                     }
                                     break;
                                 }
