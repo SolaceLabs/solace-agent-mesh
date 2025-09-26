@@ -86,7 +86,7 @@ const MessageActions: React.FC<{
                 )}
             </div>
             {shouldShowFeedback && feedbackState === "prompting" && (
-                <div className="flex w-full flex-col items-end gap-2">
+                <div className="flex w-full min-w-[20rem] flex-col items-end gap-2">
                     <Textarea
                         placeholder="Provide additional feedback..."
                         value={feedbackText}
