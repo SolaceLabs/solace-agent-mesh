@@ -29,7 +29,11 @@ export const ProjectFilesManager: React.FC<ProjectFilesManagerProps> = ({ projec
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
         if (files && files.length > 0) {
-            setFilesToUpload(files);
+            // Create a new FileList from the selected files to avoid issues with
+            // the input being cleared while the state update is pending.
+            const dataTransfer = new DataTransfer();
+            Array.from(files).forEach(file => dataTransfer.items.add(file));
+            setFilesToUpload(dataTransfer.files);
         }
 
         // Reset file input to allow selecting the same file again
