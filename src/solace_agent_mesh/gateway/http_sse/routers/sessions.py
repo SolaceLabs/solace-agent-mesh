@@ -1,8 +1,11 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import Request as FastAPIRequest
 from solace_ai_connector.common.log import log
 
-from ..dependencies import get_session_business_service
+from a2a.types import JSONRPCSuccessResponse
+from ..dependencies import get_session_business_service, get_session_manager
 from ..services.session_service import SessionService
+from ..session_manager import SessionManager
 from ..shared.auth_utils import get_current_user
 from .dto.requests.session_requests import (
     GetSessionHistoryRequest,
@@ -15,8 +18,43 @@ from .dto.responses.session_responses import (
     SessionListResponse,
     SessionResponse,
 )
+from ....common.a2a import create_generic_success_response
 
 router = APIRouter()
+
+
+@router.post("/sessions/new", response_model=JSONRPCSuccessResponse)
+async def create_new_session(
+    request: FastAPIRequest,
+    user: dict = Depends(get_current_user),
+    session_manager: SessionManager = Depends(get_session_manager),
+    session_service: SessionService = Depends(get_session_business_service),
+):
+    """Creates a new session on-demand and returns its ID."""
+    user_id = user.get("id")
+    log.info("User %s requesting new session", user_id)
+    try:
+        new_session_id = session_manager.create_new_session_id(request)
+        log.info("Created new session ID: %s for user %s", new_session_id, user_id)
+
+        # Attempt to create the session record in the DB.
+        # The service will handle the check for whether persistence is enabled.
+        session_service.create_session(
+            user_id=user_id,
+            agent_id=None,  # Agent is not known at this point
+            name=None,
+            session_id=new_session_id,
+        )
+
+        return create_generic_success_response(
+            result={"id": new_session_id}, request_id=None
+        )
+    except Exception as e:
+        log.error("Error creating new session for user %s: %s", user_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create a new session",
+        )
 
 
 @router.get("/sessions", response_model=SessionListResponse)

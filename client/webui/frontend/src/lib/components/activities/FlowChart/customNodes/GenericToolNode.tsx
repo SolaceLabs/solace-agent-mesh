@@ -31,7 +31,7 @@ const GenericToolNode: React.FC<NodeProps<GenericToolNodeType>> = ({ data, id })
             <Handle type="target" position={Position.Left} id={`${id}-tool-left-input`} className="!bg-cyan-500" isConnectable={true} style={{ top: "25%" }} />
             <div className="flex items-center justify-center">
                 <div className={`mr-2 h-2 w-2 rounded-full ${getStatusColor()}`} />
-                <div className="text-md">{data.label}</div>
+                <div className="text-md truncate" style={{ maxWidth: "200px" }}>{data.label}</div>
             </div>
             <Handle type="source" position={Position.Left} id={`${id}-tool-bottom-output`} className="!bg-cyan-500" isConnectable={true} style={{ top: "75%" }} />
         </div>

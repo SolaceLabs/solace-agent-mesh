@@ -43,7 +43,7 @@ apps:
       # session_service: *default_session_service # Points to shared_config.yaml
       session_service:
         type: "sql"
-        database_url: "${ORCHESTRATOR_DATABASE_URL}"
+        database_url: "${ORCHESTRATOR_DATABASE_URL, sqlite:///orchestrator-agent.db}"
         default_behavior: "PERSISTENT"    
       artifact_service: *default_artifact_service # Points to shared_config.yaml
       artifact_handling_mode: "reference" # Embed artifacts created by *this* agent

@@ -58,7 +58,8 @@ class AgentCardConfig(SamConfigBase):
         default=None, description="Optional URL for agent documentation."
     )
     provider: Optional[Dict[str, Any]] = Field(
-        default=None, description="Optional provider information (A2A AgentProvider structure)."
+        default=None,
+        description="Optional provider information (A2A AgentProvider structure).",
     )
 
 
@@ -73,7 +74,9 @@ class AgentCardPublishingConfig(SamConfigBase):
 class AgentDiscoveryConfig(SamConfigBase):
     """Configuration for discovering other agents."""
 
-    enabled: bool = Field(default=True, description="Enable discovery and instruction injection.")
+    enabled: bool = Field(
+        default=True, description="Enable discovery and instruction injection."
+    )
 
 
 class InterAgentCommunicationConfig(SamConfigBase):
@@ -86,7 +89,8 @@ class InterAgentCommunicationConfig(SamConfigBase):
         default_factory=list, description="Agent name patterns to deny delegation to."
     )
     request_timeout_seconds: int = Field(
-        default=DEFAULT_COMMUNICATION_TIMEOUT, description="Timeout for peer requests (seconds)."
+        default=DEFAULT_COMMUNICATION_TIMEOUT,
+        description="Timeout for peer requests (seconds).",
     )
 
 
@@ -99,7 +103,8 @@ class AgentInitCleanupConfig(SamConfigBase):
     )
     name: str = Field(..., description="Name of the function within the module.")
     base_path: Optional[str] = Field(
-        default=None, description="Optional base path for module resolution if not in PYTHONPATH."
+        default=None,
+        description="Optional base path for module resolution if not in PYTHONPATH.",
     )
     config: Dict[str, Any] = Field(
         default_factory=dict, description="Configuration dictionary for the function."
@@ -151,7 +156,8 @@ class McpProcessingConfig(SamConfigBase):
         description="Enable parsing and validation of detected content formats for enhanced metadata.",
     )
     fallback_to_raw_on_error: bool = Field(
-        default=True, description="Fall back to raw JSON saving if intelligent processing fails."
+        default=True,
+        description="Fall back to raw JSON saving if intelligent processing fails.",
     )
     save_raw_alongside_intelligent: bool = Field(
         default=False,
@@ -170,9 +176,12 @@ class McpProcessingConfig(SamConfigBase):
 class ArtifactServiceConfig(SamConfigBase):
     """Configuration for the ADK Artifact Service."""
 
-    type: str = Field(..., description="Service type (e.g., 'memory', 'gcs', 'filesystem').")
+    type: str = Field(
+        ..., description="Service type (e.g., 'memory', 'gcs', 'filesystem')."
+    )
     base_path: Optional[str] = Field(
-        default=None, description="Base directory path (required for type 'filesystem')."
+        default=None,
+        description="Base directory path (required for type 'filesystem').",
     )
     bucket_name: Optional[str] = Field(
         default=None, description="GCS bucket name (required for type 'gcs')."
@@ -214,7 +223,8 @@ class SamAgentAppConfig(SamConfigBase):
     """Pydantic model for the complete agent application configuration."""
 
     namespace: str = Field(
-        ..., description="Absolute topic prefix for A2A communication (e.g., 'myorg/dev')."
+        ...,
+        description="Absolute topic prefix for A2A communication (e.g., 'myorg/dev').",
     )
     agent_name: str = Field(..., description="Unique name for this ADK agent instance.")
     display_name: str = Field(default=None, description="Human-friendly display name for this ADK agent instance.")
@@ -234,7 +244,8 @@ class SamAgentAppConfig(SamConfigBase):
         description="List of tool configurations (python, mcp, built-in). Each tool can have 'required_scopes'.",
     )
     supports_streaming: bool = Field(
-        default=False, description="Whether this host supports A2A streaming (tasks/sendSubscribe)."
+        default=False,
+        description="Whether this host supports A2A streaming (tasks/sendSubscribe).",
     )
     planner: Optional[Dict[str, Any]] = Field(
         default=None, description="Optional configuration for an ADK planner."
@@ -243,7 +254,8 @@ class SamAgentAppConfig(SamConfigBase):
         default=None, description="Optional configuration for an ADK code executor."
     )
     inject_current_time: bool = Field(
-        default=True, description="Whether to inject the current time into the agent's instruction."
+        default=True,
+        description="Whether to inject the current time into the agent's instruction.",
     )
     session_service: SessionServiceConfig = Field(
         default_factory=lambda: SessionServiceConfig(type="memory"),
@@ -256,6 +268,10 @@ class SamAgentAppConfig(SamConfigBase):
     memory_service: Dict[str, Any] = Field(
         default={"type": "memory"},
         description="Configuration for ADK Memory Service (defaults to memory).",
+    )
+    multi_session_request_response: Dict[str, Any] = Field(
+        default_factory=lambda: {"enabled": True},
+        description="Enables multi-session request/response capabilities for the agent, required for peer delegation.",
     )
     tool_output_save_threshold_bytes: int = Field(
         default=2048,
@@ -274,7 +290,8 @@ class SamAgentAppConfig(SamConfigBase):
         description="Maximum size in bytes of MCP tool response content returned directly to the LLM.",
     )
     artifact_handling_mode: Literal["ignore", "embed", "reference"] = Field(
-        default="ignore", description="How to represent created artifacts in A2A messages."
+        default="ignore",
+        description="How to represent created artifacts in A2A messages.",
     )
     schema_max_keys: int = Field(
         default=DEFAULT_SCHEMA_MAX_KEYS,
@@ -328,10 +345,12 @@ class SamAgentAppConfig(SamConfigBase):
         description="If true, injects the user_profile received from the gateway into the agent's prompt.",
     )
     agent_init_function: Optional[AgentInitCleanupConfig] = Field(
-        default=None, description="Configuration for the agent's custom initialization function."
+        default=None,
+        description="Configuration for the agent's custom initialization function.",
     )
     agent_cleanup_function: Optional[AgentInitCleanupConfig] = Field(
-        default=None, description="Configuration for the agent's custom cleanup function."
+        default=None,
+        description="Configuration for the agent's custom cleanup function.",
     )
     text_artifact_content_max_length: int = Field(
         default=1000,
@@ -340,7 +359,8 @@ class SamAgentAppConfig(SamConfigBase):
         description="Maximum character length for text-based artifact content.",
     )
     max_llm_calls_per_task: int = Field(
-        default=20, description="Maximum number of LLM calls allowed for a single A2A task."
+        default=20,
+        description="Maximum number of LLM calls allowed for a single A2A task.",
     )
     data_tools_config: DataToolsConfig = Field(
         default_factory=DataToolsConfig,
@@ -434,4 +454,4 @@ class SamAgentApp(App):
         log.debug("Set broker_config.temporary_queue = True")
 
         super().__init__(app_info, **kwargs)
-        log.debug("A2A_ADK_App initialization complete.")
+        log.debug("%s Agent initialization complete.", agent_name)

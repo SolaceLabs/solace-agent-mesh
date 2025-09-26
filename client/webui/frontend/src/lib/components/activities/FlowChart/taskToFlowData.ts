@@ -636,7 +636,10 @@ function createErrorEdge(sourceNodeId: string, targetNodeId: string, step: Visua
 }
 
 // Main transformation function
-export const transformProcessedStepsToTimelineFlow = (processedSteps: VisualizerStep[]): FlowData => {
+export const transformProcessedStepsToTimelineFlow = (
+    processedSteps: VisualizerStep[],
+    agentNameMap: Record<string, string> = {}
+): FlowData => {
     const newNodes: Node[] = [];
     const newEdges: Edge[] = [];
 
@@ -661,6 +664,7 @@ export const transformProcessedStepsToTimelineFlow = (processedSteps: Visualizer
         agentRegistry: createAgentRegistry(),
         indentationLevel: 0,
         indentationStep: 50, // Pixels to indent per level
+        agentNameMap: agentNameMap,
     };
 
     const filteredSteps = processedSteps.filter(step => RELEVANT_STEP_TYPES.includes(step.type));

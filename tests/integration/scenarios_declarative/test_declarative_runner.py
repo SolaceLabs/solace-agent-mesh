@@ -6,6 +6,7 @@ import base64
 import pytest
 import yaml
 import os
+import asyncio
 from pathlib import Path
 from typing import Dict, Any, List, Union, Optional, Tuple
 
@@ -944,15 +945,24 @@ async def _assert_artifact_state(
         if spec.get("namespace") == "user":
             filename_for_lookup = f"user:{filename}"
         elif filename_regex:
-            all_keys = await test_artifact_service_instance.list_artifact_keys(
+            # List all keys from the artifact service
+            all_keys_raw = await test_artifact_service_instance.list_artifact_keys(
                 app_name=agent_name_for_artifacts,
                 user_id=user_id,
                 session_id=session_id,
             )
-            matching_filenames = [k for k in all_keys if re.match(filename_regex, k)]
+            # Explicitly filter out metadata files to prevent incorrect matches
+            all_keys_filtered = [
+                k for k in all_keys_raw if not k.endswith(".metadata.json")
+            ]
+
+            matching_filenames = [
+                k for k in all_keys_filtered if re.match(filename_regex, k)
+            ]
+
             assert (
                 len(matching_filenames) == 1
-            ), f"Scenario {scenario_id}: '{context_path}' - Expected exactly one artifact matching regex '{filename_regex}', but found {len(matching_filenames)}: {matching_filenames}"
+            ), f"Scenario {scenario_id}: '{context_path}' - Expected exactly one artifact matching regex '{filename_regex}', but found {len(matching_filenames)}: {matching_filenames}. All non-metadata keys checked: {all_keys_filtered}"
             filename_for_lookup = matching_filenames[0]
         details = await test_artifact_service_instance.get_artifact_details(
             app_name=agent_name_for_artifacts,
