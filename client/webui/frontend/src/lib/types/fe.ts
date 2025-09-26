@@ -121,6 +121,7 @@ export interface MessageFE {
     authenticationLink?: {
         url: string;
         text: string;
+        targetAgent?: string;
     };
     metadata?: {
         // Optional metadata, e.g., for feedback or correlation
