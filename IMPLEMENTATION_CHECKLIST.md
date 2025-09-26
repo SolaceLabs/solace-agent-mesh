@@ -10,7 +10,7 @@
 
 4.  [x] **Define API Endpoint:** In the new router file, create a `POST /api/v1/feedback` endpoint that uses the `FeedbackService`.
 
-5.  **Instantiate Service:** In `src/solace_agent_mesh/gateway/http_sse/component.py`, import and create an instance of `FeedbackService` in the `WebUIBackendComponent`.
+5.  [x] **Instantiate Service:** In `src/solace_agent_mesh/gateway/http_sse/component.py`, import and create an instance of `FeedbackService` in the `WebUIBackendComponent`.
 
 6.  **Create Service Getter:** In `component.py`, add a `get_feedback_service()` method to expose the service instance.
 

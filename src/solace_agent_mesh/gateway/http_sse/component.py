@@ -26,6 +26,7 @@ from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .sse_event_buffer import SSEEventBuffer
 from .components import VisualizationForwarderComponent
+from .services.feedback_service import FeedbackService
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -184,6 +185,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
             component_name=f"{self.name}_gateway",
             publish_func=self.publish_a2a,
         )
+
+        self.feedback_service = FeedbackService()
 
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
 
