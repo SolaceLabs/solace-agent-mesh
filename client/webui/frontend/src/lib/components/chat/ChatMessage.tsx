@@ -31,19 +31,7 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
         return <span>{combinedText}</span>;
     }
 
-    const trimmedText = combinedText.trim();
-    if (!trimmedText) return null;
-
-    if (message.isError) {
-        return (
-            <div className="flex items-center">
-                <AlertCircle className="mr-2 self-start text-[var(--color-error-wMain)]" />
-                <MarkdownHTMLConverter>{trimmedText}</MarkdownHTMLConverter>
-            </div>
-        );
-    }
-
-    // Handle authentication link
+    // Handle authentication link FIRST (before checking for empty text)
     if (message.authenticationLink) {
         console.log("DEBUG: Rendering authentication link", message.authenticationLink);
         const handleAuthClick = () => {
@@ -65,6 +53,18 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
                 >
                     {message.authenticationLink.text}
                 </button>
+            </div>
+        );
+    }
+
+    const trimmedText = combinedText.trim();
+    if (!trimmedText) return null;
+
+    if (message.isError) {
+        return (
+            <div className="flex items-center">
+                <AlertCircle className="mr-2 self-start text-[var(--color-error-wMain)]" />
+                <MarkdownHTMLConverter>{trimmedText}</MarkdownHTMLConverter>
             </div>
         );
     }
@@ -177,6 +177,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
         <ChatBubble key={message.metadata?.messageId} variant={variant}>
             <ChatBubbleMessage variant={variant}>
                 {textContent && <MessageContent message={message} />}
+                {!textContent && message.authenticationLink && <MessageContent message={message} />}
                 {message.artifactNotification && (
                     <div className="my-1 flex items-center rounded-md bg-blue-100 p-2 dark:bg-blue-900/50">
                         <FileText className="mr-2 text-blue-500 dark:text-blue-400" />
