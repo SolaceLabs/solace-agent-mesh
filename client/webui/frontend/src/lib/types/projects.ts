@@ -38,6 +38,12 @@ export interface CopyProjectRequest {
     description?: string;
 }
 
+export interface UpdateProjectData {
+    name?: string;
+    description?: string;
+    system_prompt?: string;
+}
+
 export interface ProjectListResponse {
     projects: Project[];
     total: number;
@@ -80,4 +86,5 @@ export interface ProjectContextValue extends UseProjectsReturn {
     setActiveProject: (project: Project | null) => void;
     addFilesToProject: (projectId: string, formData: FormData) => Promise<void>;
     removeFileFromProject: (projectId: string, filename: string) => Promise<void>;
+    updateProject: (projectId: string, data: UpdateProjectData) => Promise<Project>;
 }

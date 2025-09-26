@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ArrowLeft, CheckCircle, Edit } from "lucide-react";
 
-import { Button } from "@/lib/components/ui";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/lib/components/ui/card";
-import type { Project } from "@/lib/types/projects";
+import { Button, Input, Textarea } from "@/lib/components/ui";
+import { Card, CardContent, CardHeader, CardTitle } from "@/lib/components/ui/card";
+import { useProjectContext } from "@/lib/providers";
+import type { Project, UpdateProjectData } from "@/lib/types/projects";
 import { ProjectFilesManager } from ".";
 
 interface ProjectDetailViewProps {
@@ -14,7 +15,54 @@ interface ProjectDetailViewProps {
 }
 
 export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, isActive, onBack, onActivate }) => {
+    const { updateProject } = useProjectContext();
     const [isEditing, setIsEditing] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+
+    // Form state
+    const [name, setName] = useState(project.name);
+    const [description, setDescription] = useState(project.description || "");
+    const [systemPrompt, setSystemPrompt] = useState(project.system_prompt || "");
+
+    useEffect(() => {
+        // Reset form state if the project prop changes (e.g. after save)
+        setName(project.name);
+        setDescription(project.description || "");
+        setSystemPrompt(project.system_prompt || "");
+    }, [project]);
+
+    const handleEditToggle = () => {
+        if (isEditing) {
+            // Cancel editing
+            setName(project.name);
+            setDescription(project.description || "");
+            setSystemPrompt(project.system_prompt || "");
+        }
+        setIsEditing(!isEditing);
+    };
+
+    const handleSave = async () => {
+        const updateData: UpdateProjectData = {};
+        if (name.trim() !== project.name) updateData.name = name.trim();
+        if (description.trim() !== (project.description || "")) updateData.description = description.trim();
+        if (systemPrompt.trim() !== (project.system_prompt || "")) updateData.system_prompt = systemPrompt.trim();
+
+        if (Object.keys(updateData).length === 0) {
+            setIsEditing(false);
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            await updateProject(project.id, updateData);
+            setIsEditing(false);
+        } catch (error) {
+            console.error("Failed to save project changes:", error);
+            // Optionally show a notification to the user here
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -25,18 +73,31 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, i
 
             <Card className="bg-card">
                 <CardHeader>
-                    <CardTitle className="text-2xl">{project.name}</CardTitle>
-                    <CardDescription>{project.description || "No description provided."}</CardDescription>
+                    {isEditing ? (
+                        <div className="space-y-1">
+                            <label htmlFor="projectName" className="text-sm font-medium text-muted-foreground">
+                                Project Name
+                            </label>
+                            <Input id="projectName" value={name} onChange={e => setName(e.target.value)} className="text-2xl font-semibold h-auto p-0 border-0 rounded-none shadow-none focus-visible:ring-0" />
+                        </div>
+                    ) : (
+                        <CardTitle className="text-2xl">{project.name}</CardTitle>
+                    )}
                 </CardHeader>
                 <CardContent>
-                    {project.system_prompt && (
-                        <div className="mb-6 space-y-2">
-                            <h4 className="font-semibold text-foreground">System Prompt</h4>
-                            <p className="whitespace-pre-wrap rounded-md bg-muted p-4 text-sm text-muted-foreground">
-                                {project.system_prompt}
-                            </p>
-                        </div>
-                    )}
+                    <div className="mb-6 space-y-2">
+                        <h4 className="font-semibold text-foreground">Description</h4>
+                        {isEditing ? <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="No description provided." /> : <p className="text-sm text-muted-foreground min-h-[20px]">{project.description || <span className="italic">No description provided.</span>}</p>}
+                    </div>
+
+                    <div className="mb-6 space-y-2">
+                        <h4 className="font-semibold text-foreground">System Prompt</h4>
+                        {isEditing ? (
+                            <Textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)} placeholder="No system prompt provided." rows={5} />
+                        ) : (
+                            <p className="whitespace-pre-wrap rounded-md bg-muted p-4 text-sm text-muted-foreground min-h-[40px]">{project.system_prompt || <span className="italic">No system prompt provided.</span>}</p>
+                        )}
+                    </div>
 
                     <div className="mb-6">
                         <ProjectFilesManager project={project} isEditing={isEditing} />
@@ -44,10 +105,17 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, i
 
                     <div className="flex justify-start gap-2">
                         {isEditing ? (
-                            <Button onClick={() => setIsEditing(false)}>Done Editing</Button>
+                            <>
+                                <Button onClick={handleSave} disabled={isSaving}>
+                                    {isSaving ? "Saving..." : "Save Changes"}
+                                </Button>
+                                <Button variant="outline" onClick={handleEditToggle} disabled={isSaving}>
+                                    Cancel
+                                </Button>
+                            </>
                         ) : (
                             <>
-                                <Button variant="outline" onClick={() => setIsEditing(true)} className="flex items-center gap-2">
+                                <Button variant="outline" onClick={handleEditToggle} className="flex items-center gap-2">
                                     <Edit className="h-4 w-4" />
                                     Edit Project
                                 </Button>

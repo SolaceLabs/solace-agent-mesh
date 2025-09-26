@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import { useConfigContext } from "@/lib/hooks";
-import type { Project, ProjectContextValue, ProjectListResponse } from "@/lib/types/projects";
+import type { Project, ProjectContextValue, ProjectListResponse, UpdateProjectData } from "@/lib/types/projects";
 import { authenticatedFetch } from "@/lib/utils/api";
 
 const ProjectContext = createContext<ProjectContextValue | undefined>(undefined);
@@ -124,6 +124,43 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         [apiPrefix]
     );
 
+    const updateProject = useCallback(
+        async (projectId: string, data: UpdateProjectData): Promise<Project> => {
+            try {
+                const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(data),
+                    credentials: "include",
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({
+                        detail: `Failed to update project: ${response.statusText}`,
+                    }));
+                    throw new Error(errorData.detail || `Failed to update project: ${response.statusText}`);
+                }
+
+                const updatedProject: Project = await response.json();
+
+                // Update projects list
+                setProjects(prev => prev.map(p => (p.id === updatedProject.id ? updatedProject : p)));
+                // Update current project if it's the one being edited
+                setCurrentProject(current => (current?.id === updatedProject.id ? updatedProject : current));
+                // Update active project if it's the one being edited
+                setActiveProject(current => (current?.id === updatedProject.id ? updatedProject : current));
+
+                return updatedProject;
+            } catch (err: unknown) {
+                console.error("Error updating project:", err);
+                const errorMessage = err instanceof Error ? err.message : "Could not update project.";
+                setError(errorMessage);
+                throw new Error(errorMessage);
+            }
+        },
+        [apiPrefix]
+    );
+
     useEffect(() => {
         fetchProjects();
     }, [fetchProjects]);
@@ -140,6 +177,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setActiveProject,
         addFilesToProject,
         removeFileFromProject,
+        updateProject,
     };
 
     return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;
