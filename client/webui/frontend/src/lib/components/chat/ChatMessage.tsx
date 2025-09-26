@@ -150,7 +150,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 
     const textContent = message.parts?.some(p => p.kind === "text" && p.text.trim());
 
-    if (!textContent && !message.artifactNotification) {
+    if (!textContent && !message.artifactNotification && !message.authenticationLink) {
         return null;
     }
 
