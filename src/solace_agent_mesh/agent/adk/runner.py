@@ -3,8 +3,9 @@ Manages the asynchronous execution of the ADK Runner.
 """
 
 import asyncio
-import uuid
+
 from google.adk.agents.invocation_context import LlmCallsLimitExceededError
+from litellm.exceptions import BadRequestError
 
 
 class TaskCancelledError(Exception):
@@ -13,15 +14,14 @@ class TaskCancelledError(Exception):
     pass
 
 
-from typing import Dict, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from solace_ai_connector.common.log import log
-
-from google.adk.sessions import Session as ADKSession
 from google.adk.agents import RunConfig
-from google.genai import types as adk_types
 from google.adk.events import Event as ADKEvent
 from google.adk.events.event_actions import EventActions
+from google.adk.sessions import Session as ADKSession
+from google.genai import types as adk_types
+from solace_ai_connector.common.log import log
 
 from ...common import a2a
 from ...common.middleware.registry import MiddlewareRegistry
@@ -36,7 +36,7 @@ async def run_adk_async_task_thread_wrapper(
     adk_session: ADKSession,
     adk_content: adk_types.Content,
     run_config: RunConfig,
-    a2a_context: Dict[str, Any],
+    a2a_context: dict[str, Any],
     append_context_event: bool = True,
 ):
     """
@@ -194,6 +194,14 @@ async def run_adk_async_task_thread_wrapper(
             logical_task_id,
             llm_limit_e,
         )
+    except BadRequestError as e:
+        log.error(
+            "%s Bad Request for task %s: %s.",
+            component.log_identifier,
+            logical_task_id,
+            e.message
+        )
+        raise
     except Exception as e:
         exception_to_finalize_with = e
         log.exception(
@@ -236,7 +244,7 @@ async def run_adk_async_task(
     adk_session: ADKSession,
     adk_content: adk_types.Content,
     run_config: RunConfig,
-    a2a_context: Dict[str, Any],
+    a2a_context: dict[str, Any],
 ) -> bool:
     """
     Runs the ADK Runner asynchronously and calls component methods to process
@@ -332,6 +340,14 @@ async def run_adk_async_task(
                             pass
 
     except TaskCancelledError:
+        raise
+    except BadRequestError as e:
+        log.error(
+            "%s Bad Request for task %s: %s.",
+            component.log_identifier,
+            logical_task_id,
+            e.message
+        )
         raise
     except Exception as e:
         log.exception(

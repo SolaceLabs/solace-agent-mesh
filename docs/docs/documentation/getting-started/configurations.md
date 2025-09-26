@@ -90,7 +90,7 @@ shared_config:
 
 #### Broker Connection
 
-The `broker_connection` section configures the connection to the Solace PubSub+ event broker. The connection parameters are described in the following table:
+The `broker_connection` section configures the connection to the Solace event broker. The connection parameters are described in the following table:
 
 | Parameter | Environment Variable | Description | Default |
 | :--- | :--- | :--- | :--- |

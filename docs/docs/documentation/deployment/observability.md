@@ -28,9 +28,9 @@ To access the Agents view, open the web interface in your browser and switch to 
 
 ## Broker Observability
 
-Solace Agent Mesh relies on a PubSub+ event broker for all its communication. Various tools are available to monitor the event broker’s activity and message flows:
+Solace Agent Mesh relies on a Solace event broker for all its communication. Various tools are available to monitor the event broker’s activity and message flows:
 
-- **PubSub+ Broker Manager** – A web-based interface where you can use the *Try Me!* tab to send and receive messages interactively.
+- **Solace Broker Manager** – A web-based interface where you can use the *Try Me!* tab to send and receive messages interactively.
 - **[Solace Try Me VSCode Extension](https://marketplace.visualstudio.com/items?itemName=solace-tools.solace-try-me-vsc-extension)** – A convenient way to test message flows within Visual Studio Code.
 - **[Solace Try Me (STM) CLI Tool](https://github.com/SolaceLabs/solace-tryme-cli)** – A command-line tool for sending and receiving messages.
 
