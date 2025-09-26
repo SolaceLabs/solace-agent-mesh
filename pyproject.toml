@@ -58,7 +58,7 @@ dependencies = [
     "solace_ai_connector==1.2.0",
     "holidays==0.81.0",
     "rouge==1.0.1",
-    "SQLAalchemy==2.0.40",
+    "SQLAlchemy==2.0.40",
     "alembic==1.16.5",
     "openai==1.99.9"
 ]
