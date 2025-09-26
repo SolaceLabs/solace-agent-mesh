@@ -222,6 +222,89 @@ async def _publish_peer_tool_result_notification(
         )
 
 
+async def _copy_history_for_run_based_session(
+    component: "SamAgentComponent",
+    parent_session_id: str,
+    effective_session_id: str,
+    user_id: str,
+    agent_name: str,
+    is_side_quest: bool,
+    adk_session_for_run,
+    logical_task_id: str,
+):
+    """Copies history from a parent session to a new run-based session."""
+    log_identifier = f"{component.log_identifier}[CopyHistory]"
+    try:
+        parent_session_data = await component.session_service.get_session(
+            app_name=agent_name,
+            user_id=user_id,
+            session_id=parent_session_id,
+        )
+        if parent_session_data and hasattr(parent_session_data, "events"):
+            original_history_events = parent_session_data.events
+            if original_history_events:
+                log.debug(
+                    "%s Copying %d events from parent session '%s' to run-based session '%s'.",
+                    log_identifier,
+                    len(original_history_events),
+                    parent_session_id,
+                    effective_session_id,
+                )
+                for event_to_copy in original_history_events:
+                    await component.session_service.append_event(
+                        session=adk_session_for_run,
+                        event=event_to_copy,
+                    )
+
+                if is_side_quest:
+                    from google.genai import types as adk_types
+                    from google.adk.events import Event as ADKEvent
+
+                    side_quest_context_text = (
+                        "You are now in a temporary 'side quest' sub-task. "
+                        "This isolated session has inherited the history from the main conversation. "
+                        "Perform the requested task, using tools as needed. "
+                        "Your intermediate steps will not be part of the main conversation. "
+                        "When you are finished, provide a final, complete answer. "
+                        "Only this final answer will be returned to the main task."
+                    )
+                    context_event = ADKEvent(
+                        author="system",
+                        content=adk_types.Content(
+                            parts=[adk_types.Part(text=side_quest_context_text)]
+                        ),
+                    )
+                    await component.session_service.append_event(
+                        session=adk_session_for_run, event=context_event
+                    )
+                    log.info(
+                        "%s Injected side quest context message into session history.",
+                        log_identifier,
+                    )
+            else:
+                log.debug(
+                    "%s No history to copy from parent session '%s' for run-based task '%s'.",
+                    log_identifier,
+                    parent_session_id,
+                    logical_task_id,
+                )
+        else:
+            log.debug(
+                "%s Parent session '%s' not found or has no events, cannot copy for run-based task '%s'.",
+                log_identifier,
+                parent_session_id,
+                logical_task_id,
+            )
+    except Exception as e_copy:
+        log.error(
+            "%s Error copying history for run-based session '%s' (task '%s'): %s. Proceeding with empty session.",
+            log_identifier,
+            effective_session_id,
+            logical_task_id,
+            e_copy,
+        )
+
+
 async def handle_a2a_request(component, message: SolaceMessage):
     """
     Handles an incoming A2A request message.
@@ -476,96 +559,21 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 )
 
             if is_run_based_session:
-                # For side quests, the parent session ID is explicitly provided in metadata.
                 parent_session_id_for_copy = original_session_id
                 if task_metadata.get("is_side_quest"):
                     parent_session_id_for_copy = task_metadata.get(
                         "parent_session_id", original_session_id
                     )
-                    log.info(
-                        "%s Side quest detected. Using parent_session_id '%s' for history copy.",
-                        component.log_identifier,
-                        parent_session_id_for_copy,
-                    )
-                try:
-                    original_adk_session_data = (
-                        await component.session_service.get_session(
-                            app_name=agent_name,
-                            user_id=user_id,
-                            session_id=parent_session_id_for_copy,
-                        )
-                    )
-                    if original_adk_session_data and hasattr(
-                        original_adk_session_data, "history"
-                    ):
-                        original_history_events = original_adk_session_data.history
-                        if original_history_events:
-                            log.debug(
-                                "%s Copying %d events from parent session '%s' to run-based session '%s'.",
-                                component.log_identifier,
-                                len(original_history_events),
-                                parent_session_id_for_copy,
-                                effective_session_id,
-                            )
-                            # Use the active session object for this run, not a new one.
-                            for event_to_copy in original_history_events:
-                                await component.session_service.append_event(
-                                    session=adk_session_for_run,
-                                    event=event_to_copy,
-                                )
-
-                            # If it's a side quest, inject a context message.
-                            if task_metadata.get("is_side_quest"):
-                                from google.genai import types as adk_types
-                                from google.adk.events import Event as ADKEvent
-
-                                side_quest_context_text = (
-                                    "You are now in a temporary 'side quest' sub-task. "
-                                    "This isolated session has inherited the history from the main conversation. "
-                                    "Perform the requested task, using tools as needed. "
-                                    "Your intermediate steps will not be part of the main conversation. "
-                                    "When you are finished, provide a final, complete answer. "
-                                    "Only this final answer will be returned to the main task."
-                                )
-                                context_event = ADKEvent(
-                                    author="system",
-                                    content=adk_types.Content(
-                                        parts=[
-                                            adk_types.Part(
-                                                text=side_quest_context_text
-                                            )
-                                        ]
-                                    ),
-                                )
-                                await component.session_service.append_event(
-                                    session=adk_session_for_run, event=context_event
-                                )
-                                log.info(
-                                    "%s Injected side quest context message into session history.",
-                                    component.log_identifier,
-                                )
-                        else:
-                            log.debug(
-                                "%s No history to copy from parent session '%s' for run-based task '%s'.",
-                                component.log_identifier,
-                                parent_session_id_for_copy,
-                                logical_task_id,
-                            )
-                    else:
-                        log.debug(
-                            "%s Parent session '%s' not found or has no history, cannot copy for run-based task '%s'.",
-                            component.log_identifier,
-                            parent_session_id_for_copy,
-                            logical_task_id,
-                        )
-                except Exception as e_copy:
-                    log.error(
-                        "%s Error copying history for run-based session '%s' (task '%s'): %s. Proceeding with empty session.",
-                        component.log_identifier,
-                        effective_session_id,
-                        logical_task_id,
-                        e_copy,
-                    )
+                await _copy_history_for_run_based_session(
+                    component=component,
+                    parent_session_id=parent_session_id_for_copy,
+                    effective_session_id=effective_session_id,
+                    user_id=user_id,
+                    agent_name=agent_name,
+                    is_side_quest=task_metadata.get("is_side_quest", False),
+                    adk_session_for_run=adk_session_for_run,
+                    logical_task_id=logical_task_id,
+                )
             a2a_context = {
                 "jsonrpc_request_id": jsonrpc_request_id,
                 "logical_task_id": logical_task_id,
