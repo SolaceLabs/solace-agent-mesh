@@ -41,7 +41,7 @@ The core logic for handling a side quest request resides in `handle_a2a_request`
     *   If `invoked_with_artifacts` is present in the metadata, the handler will not use the standard `translate_a2a_to_adk_content` function.
     *   Instead, it will directly construct a multi-part `adk_types.Content` object.
     *   It will first load the content of each specified artifact using the `artifact_service`.
-    *   The final `adk_types.Content` will consist of the `task_description` text part, followed by the loaded artifact parts, each clearly delineated with headers (e.g., `--- Start of Artifact: report.csv ---`).
+    *   The final `adk_types.Content` will consist of the `task_description` text part, followed by the loaded artifact parts, each clearly delineated with headers (e.g., `--- Start of Artifact: report.csv version: 0 ---`).
     *   This rich, pre-populated content object is then passed to the ADK runner, saving an LLM turn.
 
 ### 2.4. Parallel and Recursive Execution
