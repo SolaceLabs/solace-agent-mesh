@@ -19,8 +19,6 @@ class CreateProjectRequest(BaseModel):
 class UpdateProjectRequest(BaseModel):
     """Request to update an existing project."""
     
-    project_id: str  # Set by router
-    user_id: str  # Set by router
     name: Optional[str] = Field(None, min_length=1, max_length=255, description="Project name")
     description: Optional[str] = Field(None, max_length=1000, description="Project description")
     system_prompt: Optional[str] = Field(None, max_length=4000, description="System prompt for the project")

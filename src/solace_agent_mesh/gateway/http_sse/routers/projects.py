@@ -387,13 +387,9 @@ async def update_project(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Project not found."
             )
 
-        # Add user_id to the request
-        request.user_id = user_id
-        request.project_id = project_id
-
         project = project_service.update_project(
-            project_id=request.project_id,
-            user_id=request.user_id,
+            project_id=project_id,
+            user_id=user_id,
             name=request.name,
             description=request.description,
             system_prompt=request.system_prompt
