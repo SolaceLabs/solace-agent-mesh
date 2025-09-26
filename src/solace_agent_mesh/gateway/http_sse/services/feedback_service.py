@@ -2,11 +2,13 @@
 Service layer for handling user feedback on chat messages.
 """
 
+from typing import TYPE_CHECKING
 from solace_ai_connector.common.log import log
 
 # The FeedbackPayload is defined in the router, this creates a forward reference
 # which is resolved at runtime.
-from ..routers.feedback import FeedbackPayload
+if TYPE_CHECKING:
+    from ..routers.feedback import FeedbackPayload
 
 
 class FeedbackService:
@@ -16,7 +18,7 @@ class FeedbackService:
         """Initializes the FeedbackService."""
         log.info("FeedbackService initialized.")
 
-    async def process_feedback(self, payload: FeedbackPayload, user_id: str):
+    async def process_feedback(self, payload: "FeedbackPayload", user_id: str):
         """
         Processes and stores the feedback.
 
