@@ -19,6 +19,8 @@ const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
 
 const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
+    const [isAuthClicked, setIsAuthClicked] = useState(false);
+    
     if (message.isStatusBubble) {
         return null;
     }
@@ -34,10 +36,13 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
     // Handle authentication link FIRST (before checking for empty text)
     if (message.authenticationLink) {
         const handleAuthClick = () => {
+            if (isAuthClicked) return; // Prevent multiple clicks
+            
+            setIsAuthClicked(true);
             const popup = window.open(
                 message.authenticationLink!.url,
                 "_blank",
-                "width=800,height=800,scrollbars=yes,resizable=yes"
+                "width=800,height=700,scrollbars=yes,resizable=yes"
             );
             if (popup) {
                 popup.focus();
@@ -53,9 +58,14 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
                 </div>
                 <button
                     onClick={handleAuthClick}
-                    className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    disabled={isAuthClicked}
+                    className={`rounded-md px-4 py-1 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                        isAuthClicked
+                            ? "bg-gray-400 cursor-not-allowed"
+                            : "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500"
+                    }`}
                 >
-                    {message.authenticationLink.text}
+                    {isAuthClicked ? "Authentication Window Opened" : message.authenticationLink.text}
                 </button>
             </div>
         );
