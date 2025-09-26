@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 from ..tools.registry import tool_registry
 from ..tools.tool_definition import BuiltinTool
 from ..tools.dynamic_tool import DynamicTool, DynamicToolProvider
+from ..tools.self_side_quest_tool import SelfSideQuestTool
 from ..tools.tool_config_types import (
     AnyToolConfig,
     BuiltinToolConfig,
@@ -763,6 +764,27 @@ async def load_adk_tools(
                     e,
                 )
                 raise e
+
+    # Conditionally load the SelfSideQuestTool
+    if component.get_config("enable_side_quests", False):
+        log.info(
+            "%s Side quests enabled. Loading SelfSideQuestTool.",
+            component.log_identifier,
+        )
+        try:
+            side_quest_tool = SelfSideQuestTool(host_component=component)
+            _check_and_register_tool_name(
+                side_quest_tool.name, "side_quest", loaded_tool_names
+            )
+            loaded_tools.append(side_quest_tool)
+            log.info(
+                "%s Successfully loaded SelfSideQuestTool.", component.log_identifier
+            )
+        except Exception as e:
+            log.error(
+                "%s Failed to load SelfSideQuestTool: %s", component.log_identifier, e
+            )
+            raise e
 
     # Load internal framework tools
     (
