@@ -16,7 +16,7 @@
 
 7.  [x] **Create Dependency Injector:** In `src/solace_agent_mesh/gateway/http_sse/dependencies.py`, add a `get_feedback_service()` dependency injector function.
 
-8.  **Mount Router:** In `src/solace_agent_mesh/gateway/http_sse/main.py`, import and mount the new feedback router in the FastAPI application.
+8.  [x] **Mount Router:** In `src/solace_agent_mesh/gateway/http_sse/main.py`, import and mount the new feedback router in the FastAPI application.
 
 ## Part 2: Frontend
 
