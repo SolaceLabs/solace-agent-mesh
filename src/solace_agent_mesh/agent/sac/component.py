@@ -438,8 +438,6 @@ class SamAgentComponent(SamComponentBase):
                     self.log_identifier,
                 )
 
-            self._register_default_auth_handler()
-
             log.info(
                 "%s Initialization complete for agent: %s",
                 self.log_identifier,
