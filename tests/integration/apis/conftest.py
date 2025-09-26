@@ -53,8 +53,6 @@ def test_database_engine(test_database_url):
         echo=False,  # Set to True for SQL debugging
         pool_pre_ping=True,
         pool_recycle=300,
-        # pool_timeout=30,
-        # max_overflow=0,
     )
 
     # Create all tables
