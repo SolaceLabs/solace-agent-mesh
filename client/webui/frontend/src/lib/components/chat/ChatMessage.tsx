@@ -217,7 +217,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 
     const variant = message.isUser ? "sent" : "received";
     const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && isLastWithTaskId;
-    const showFeedbackActions = !message.isUser && message.isComplete;
+    const showFeedbackActions = !message.isUser && message.isComplete && !!message.taskId;
 
     const handleViewWorkflowClick = () => {
         if (message.taskId) {
