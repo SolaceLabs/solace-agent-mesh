@@ -102,8 +102,14 @@ class SessionService:
             updated_time=now_ms,
         )
 
+        if not session:
+            raise ValueError(f"Failed to create session for {session_id}")
+
         created_session = self.session_repository.save(session)
         log.info("Created new session %s for user %s", created_session.id, user_id)
+
+        if not created_session:
+            raise ValueError(f"Failed to save session for {session_id}")
 
         return created_session
 
