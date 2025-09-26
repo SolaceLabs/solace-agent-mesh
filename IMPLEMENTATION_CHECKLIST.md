@@ -26,7 +26,7 @@
 
 11. [x] **Manage UI State:** Inside `FeedbackActions`, use `useState` to manage the display state (e.g., showing icons, showing the text input, or showing a "thank you" message).
 
-12. **Conditionally Render UI:** In `ChatMessage.tsx`, render the `FeedbackActions` component only for completed agent messages and only if the `configCollectFeedback` feature flag is true.
+12. [x] **Conditionally Render UI:** In `ChatMessage.tsx`, render the `FeedbackActions` component only for completed agent messages and only if the `configCollectFeedback` feature flag is true.
 
 13. **Create API Client Function:** In `client/webui/frontend/src/lib/utils/api.ts`, create a new `submitFeedback` function to send the feedback data to the backend.
 
