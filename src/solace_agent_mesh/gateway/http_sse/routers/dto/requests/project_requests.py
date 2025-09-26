@@ -21,7 +21,7 @@ class UpdateProjectRequest(BaseModel):
     
     name: Optional[str] = Field(None, min_length=1, max_length=255, description="Project name")
     description: Optional[str] = Field(None, max_length=1000, description="Project description")
-    system_prompt: Optional[str] = Field(None, max_length=4000, description="System prompt for the project")
+    system_prompt: Optional[str] = Field(None, alias="systemPrompt", max_length=4000, description="System prompt for the project")
 
 
 class CopyProjectRequest(BaseModel):
