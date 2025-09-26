@@ -1,5 +1,5 @@
-import React from "react";
-import { ArrowLeft, CheckCircle } from "lucide-react";
+import React, { useState } from "react";
+import { ArrowLeft, CheckCircle, Edit } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/lib/components/ui/card";
@@ -14,6 +14,8 @@ interface ProjectDetailViewProps {
 }
 
 export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, isActive, onBack, onActivate }) => {
+    const [isEditing, setIsEditing] = useState(false);
+
     return (
         <div className="space-y-6">
             <Button variant="ghost" onClick={onBack} className="flex items-center gap-2 text-muted-foreground">
@@ -37,17 +39,28 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, i
                     )}
 
                     <div className="mb-6">
-                        <ProjectFilesManager project={project} />
+                        <ProjectFilesManager project={project} isEditing={isEditing} />
                     </div>
 
-                    <div className="flex justify-start">
-                        {isActive ? (
-                            <Button variant="outline" disabled className="flex items-center gap-2">
-                                <CheckCircle className="h-4 w-4 text-green-500" />
-                                Active
-                            </Button>
+                    <div className="flex justify-start gap-2">
+                        {isEditing ? (
+                            <Button onClick={() => setIsEditing(false)}>Done Editing</Button>
                         ) : (
-                            <Button onClick={() => onActivate(project)}>Activate Project</Button>
+                            <>
+                                <Button variant="outline" onClick={() => setIsEditing(true)} className="flex items-center gap-2">
+                                    <Edit className="h-4 w-4" />
+                                    Edit Project
+                                </Button>
+
+                                {isActive ? (
+                                    <Button variant="outline" disabled className="flex items-center gap-2">
+                                        <CheckCircle className="h-4 w-4 text-green-500" />
+                                        Active
+                                    </Button>
+                                ) : (
+                                    <Button onClick={() => onActivate(project)}>Activate Project</Button>
+                                )}
+                            </>
                         )}
                     </div>
                 </CardContent>

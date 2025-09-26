@@ -1,16 +1,50 @@
-import React from "react";
-import { Loader2, FileText, AlertTriangle } from "lucide-react";
+import React, { useRef } from "react";
+import { Loader2, FileText, AlertTriangle, Plus } from "lucide-react";
 
 import { useProjectArtifacts } from "@/lib/hooks/useProjectArtifacts";
 import type { Project } from "@/lib/types/projects";
+import type { ArtifactInfo } from "@/lib/types";
+import { Button } from "@/lib/components/ui";
 import { ArtifactCard } from "../chat/artifact/ArtifactCard";
 
 interface ProjectFilesManagerProps {
     project: Project;
+    isEditing: boolean;
 }
 
-export const ProjectFilesManager: React.FC<ProjectFilesManagerProps> = ({ project }) => {
-    const { artifacts, isLoading, error } = useProjectArtifacts(project.id);
+export const ProjectFilesManager: React.FC<ProjectFilesManagerProps> = ({ project, isEditing }) => {
+    const { artifacts, isLoading, error, refetch } = useProjectArtifacts(project.id);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleAddFilesClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = event.target.files;
+        if (!files || files.length === 0) return;
+
+        console.log("Files to add:", files);
+        // In the next step, we will call:
+        // const formData = new FormData();
+        // for (const file of files) { formData.append("files", file); }
+        // await addFilesToProject(project.id, formData);
+        // await refetch();
+
+        // Reset file input to allow selecting the same file again
+        if (event.target) {
+            event.target.value = "";
+        }
+    };
+
+    const handleDeleteFile = async (artifact: ArtifactInfo) => {
+        console.log("File to delete:", artifact.filename);
+        // In the next step, we will call:
+        // if (window.confirm(`Are you sure you want to delete ${artifact.filename}?`)) {
+        //     await removeFileFromProject(project.id, artifact.filename);
+        //     await refetch();
+        // }
+    };
 
     if (isLoading) {
         return (
@@ -31,7 +65,18 @@ export const ProjectFilesManager: React.FC<ProjectFilesManagerProps> = ({ projec
 
     return (
         <div className="space-y-2">
-            <h4 className="font-semibold text-foreground">Project Files</h4>
+            <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-foreground">Project Files</h4>
+                {isEditing && (
+                    <>
+                        <Button onClick={handleAddFilesClick} variant="outline" size="sm" className="flex items-center gap-1">
+                            <Plus className="h-4 w-4" />
+                            Add File(s)
+                        </Button>
+                        <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple />
+                    </>
+                )}
+            </div>
             {artifacts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center rounded-md border border-dashed p-8 text-center text-muted-foreground">
                     <FileText className="mb-2 h-8 w-8" />
@@ -40,7 +85,7 @@ export const ProjectFilesManager: React.FC<ProjectFilesManagerProps> = ({ projec
             ) : (
                 <div className="overflow-hidden rounded-md border">
                     {artifacts.map(artifact => (
-                        <ArtifactCard key={artifact.filename} artifact={artifact} />
+                        <ArtifactCard key={artifact.filename} artifact={artifact} isProjectManagementContext={true} onDelete={isEditing ? () => handleDeleteFile(artifact) : undefined} />
                     ))}
                 </div>
             )}
