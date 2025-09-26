@@ -71,4 +71,7 @@ apps:
       # --- Frontend Config Passthrough ---
       frontend_welcome_message: ${FRONTEND_WELCOME_MESSAGE}
       frontend_bot_name: ${FRONTEND_BOT_NAME}
-      frontend_collect_feedback: ${FRONTEND_COLLECT_FEEDBACK}
+      frontend_collect_feedback: true
+      feedback_service:                                                                                                                                             
+        type: csv                                                                                                                                                   
+        filename: user_feedback.csv                                                                                                                                 
