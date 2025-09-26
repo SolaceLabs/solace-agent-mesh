@@ -26,19 +26,16 @@ import type { ExtractedContent } from "./preview/contentUtils";
 
 const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
 
-const FeedbackActions: React.FC<{ message: MessageFE }> = ({ message }) => {
+const MessageActions: React.FC<{
+    message: MessageFE;
+    showWorkflowButton: boolean;
+    showFeedbackActions: boolean;
+    handleViewWorkflowClick: () => void;
+}> = ({ message, showWorkflowButton, showFeedbackActions, handleViewWorkflowClick }) => {
     const { configCollectFeedback } = useChatContext();
     const [feedbackState, setFeedbackState] = useState<"idle" | "prompting" | "submitted">("idle");
     const [feedbackType, setFeedbackType] = useState<"up" | "down" | null>(null);
     const [feedbackText, setFeedbackText] = useState("");
-
-    if (!configCollectFeedback) {
-        return null;
-    }
-
-    if (feedbackState === "submitted") {
-        return <div className="mt-2 text-xs text-gray-500">Thank you for your feedback!</div>;
-    }
 
     const handleThumbClick = (type: "up" | "down") => {
         setFeedbackType(type);
@@ -67,30 +64,41 @@ const FeedbackActions: React.FC<{ message: MessageFE }> = ({ message }) => {
         }
     };
 
-    if (feedbackState === "prompting") {
-        return (
-            <div className="mt-2 flex w-full flex-col items-end gap-2">
-                <Textarea
-                    placeholder="Provide additional feedback..."
-                    value={feedbackText}
-                    onChange={(e) => setFeedbackText(e.target.value)}
-                    className="text-sm"
-                />
-                <Button size="sm" onClick={handleSubmit}>
-                    Submit Feedback
-                </Button>
-            </div>
-        );
+    const shouldShowFeedback = showFeedbackActions && configCollectFeedback;
+
+    if (!showWorkflowButton && !shouldShowFeedback) {
+        return null;
     }
 
     return (
-        <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleThumbClick("up")}>
-                <ThumbsUp className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleThumbClick("down")}>
-                <ThumbsDown className="h-4 w-4" />
-            </Button>
+        <div className="mt-3 space-y-2">
+            <div className="flex items-center justify-start gap-2">
+                {showWorkflowButton && <ViewWorkflowButton onClick={handleViewWorkflowClick} />}
+                {shouldShowFeedback && feedbackState === "idle" && (
+                    <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleThumbClick("up")}>
+                            <ThumbsUp className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleThumbClick("down")}>
+                            <ThumbsDown className="h-4 w-4" />
+                        </Button>
+                    </div>
+                )}
+            </div>
+            {shouldShowFeedback && feedbackState === "prompting" && (
+                <div className="flex w-full flex-col items-end gap-2">
+                    <Textarea
+                        placeholder="Provide additional feedback..."
+                        value={feedbackText}
+                        onChange={(e) => setFeedbackText(e.target.value)}
+                        className="text-sm"
+                    />
+                    <Button size="sm" onClick={handleSubmit}>
+                        Submit Feedback
+                    </Button>
+                </div>
+            )}
+            {shouldShowFeedback && feedbackState === "submitted" && <div className="text-xs text-gray-500">Thank you for your feedback!</div>}
         </div>
     );
 };
@@ -231,12 +239,12 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                         </span>
                     </div>
                 )}
-                {(showWorkflowButton || showFeedbackActions) && (
-                    <div className="mt-3 flex items-end justify-between">
-                        <div>{showWorkflowButton && <ViewWorkflowButton onClick={handleViewWorkflowClick} />}</div>
-                        <div>{showFeedbackActions && <FeedbackActions message={message} />}</div>
-                    </div>
-                )}
+                <MessageActions
+                    message={message}
+                    showWorkflowButton={showWorkflowButton}
+                    showFeedbackActions={showFeedbackActions}
+                    handleViewWorkflowClick={handleViewWorkflowClick}
+                />
             </ChatBubbleMessage>
         </ChatBubble>
     );
