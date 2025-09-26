@@ -104,22 +104,38 @@ def _upgrade_sqlite(current_time_ms: int) -> None:
 def _upgrade_standard_sql(current_time_ms: int) -> None:
     """Handle PostgreSQL/MySQL upgrade using ALTER COLUMN (standard SQL approach)."""
 
+    bind = op.get_bind()
+
     # For sessions table
     op.add_column("sessions", sa.Column("created_time", sa.BigInteger(), nullable=True))
     op.add_column("sessions", sa.Column("updated_time", sa.BigInteger(), nullable=True))
 
-    # Convert timestamps using EXTRACT function
-    op.execute("""
-        UPDATE sessions
-        SET created_time = CAST(EXTRACT(EPOCH FROM created_at) * 1000 AS BIGINT)
-        WHERE created_at IS NOT NULL
-    """)
+    # Convert timestamps using database-appropriate functions
+    if bind.dialect.name == 'postgresql':
+        op.execute("""
+            UPDATE sessions
+            SET created_time = CAST(EXTRACT(EPOCH FROM created_at) * 1000 AS BIGINT)
+            WHERE created_at IS NOT NULL
+        """)
 
-    op.execute("""
-        UPDATE sessions
-        SET updated_time = CAST(EXTRACT(EPOCH FROM updated_at) * 1000 AS BIGINT)
-        WHERE updated_at IS NOT NULL
-    """)
+        op.execute("""
+            UPDATE sessions
+            SET updated_time = CAST(EXTRACT(EPOCH FROM updated_at) * 1000 AS BIGINT)
+            WHERE updated_at IS NOT NULL
+        """)
+    else:
+        # MySQL and other databases use UNIX_TIMESTAMP
+        op.execute("""
+            UPDATE sessions
+            SET created_time = CAST(UNIX_TIMESTAMP(created_at) * 1000 AS UNSIGNED)
+            WHERE created_at IS NOT NULL
+        """)
+
+        op.execute("""
+            UPDATE sessions
+            SET updated_time = CAST(UNIX_TIMESTAMP(updated_at) * 1000 AS UNSIGNED)
+            WHERE updated_at IS NOT NULL
+        """)
 
     # Set current epoch ms for null values
     op.execute(f"""
@@ -145,11 +161,19 @@ def _upgrade_standard_sql(current_time_ms: int) -> None:
     # For chat_messages table
     op.add_column("chat_messages", sa.Column("created_time", sa.BigInteger(), nullable=True))
 
-    op.execute("""
-        UPDATE chat_messages
-        SET created_time = CAST(EXTRACT(EPOCH FROM created_at) * 1000 AS BIGINT)
-        WHERE created_at IS NOT NULL
-    """)
+    if bind.dialect.name == 'postgresql':
+        op.execute("""
+            UPDATE chat_messages
+            SET created_time = CAST(EXTRACT(EPOCH FROM created_at) * 1000 AS BIGINT)
+            WHERE created_at IS NOT NULL
+        """)
+    else:
+        # MySQL and other databases use UNIX_TIMESTAMP
+        op.execute("""
+            UPDATE chat_messages
+            SET created_time = CAST(UNIX_TIMESTAMP(created_at) * 1000 AS UNSIGNED)
+            WHERE created_at IS NOT NULL
+        """)
 
     op.execute(f"""
         UPDATE chat_messages
