@@ -22,6 +22,7 @@ export interface AgentFormData {
 
   session_service_type?: string;
   session_service_behavior?: string;
+  database_url?: string;
 
   artifact_service_type?: string;
   artifact_service_base_path?: string;
