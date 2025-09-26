@@ -43,6 +43,31 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
         );
     }
 
+    // Handle authentication link
+    if (message.authenticationLink) {
+        const handleAuthClick = () => {
+            const popup = window.open(
+                message.authenticationLink!.url,
+                "_blank",
+                "width=600,height=700,scrollbars=yes,resizable=yes"
+            );
+            if (popup) {
+                popup.focus();
+            }
+        };
+
+        return (
+            <div className="flex items-center justify-center p-4">
+                <button
+                    onClick={handleAuthClick}
+                    className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                    {message.authenticationLink.text}
+                </button>
+            </div>
+        );
+    }
+
     const embeddedContent = extractEmbeddedContent(trimmedText);
     if (embeddedContent.length === 0) {
         return <MarkdownHTMLConverter>{trimmedText}</MarkdownHTMLConverter>;

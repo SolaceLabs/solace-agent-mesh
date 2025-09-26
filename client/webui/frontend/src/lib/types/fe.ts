@@ -118,6 +118,10 @@ export interface MessageFE {
         version?: number; // Optional: If version info is available from metadata
     };
     toolEvents?: ToolEvent[]; // --- NEW: Array to hold tool call results ---
+    authenticationLink?: {
+        url: string;
+        text: string;
+    };
     metadata?: {
         // Optional metadata, e.g., for feedback or correlation
         messageId?: string; // Unique ID for the agent's message (if provided by backend)

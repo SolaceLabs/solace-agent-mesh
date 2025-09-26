@@ -442,7 +442,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 case "authentication_required": {
                                     const auth_uri = data?.auth_uri;
                                     if (typeof auth_uri === "string" && auth_uri.startsWith("http")) {
-                                        window.open(auth_uri, "_blank");
+                                        const authMessage: MessageFE = {
+                                            role: "agent",
+                                            parts: [{ kind: "text", text: "" }],
+                                            authenticationLink: {
+                                                url: auth_uri,
+                                                text: "Authenticate"
+                                            },
+                                            isUser: false,
+                                            isComplete: true,
+                                            metadata: { messageId: `auth-${v4()}` }
+                                        };
+                                        setMessages(prev => [...prev, authMessage]);
                                     }
                                     break;
                                 }
