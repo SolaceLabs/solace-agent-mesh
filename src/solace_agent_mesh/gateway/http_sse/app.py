@@ -113,6 +113,27 @@ class WebUIBackendApp(BaseGatewayApp):
             "description": "Enable/disable the feedback buttons in the UI.",
         },
         {
+            "name": "feedback_service",
+            "required": False,
+            "type": "dict",
+            "description": "Configuration for the user feedback storage service.",
+            "dict_schema": {
+                "type": {
+                    "type": "string",
+                    "required": True,
+                    "default": "log",
+                    "allowed": ["log", "csv"],
+                    "description": "The type of feedback service to use ('log' or 'csv').",
+                },
+                "filename": {
+                    "type": "string",
+                    "required": False,
+                    "default": "feedback.csv",
+                    "description": "The filename for the CSV feedback service. Only used if type is 'csv'.",
+                },
+            },
+        },
+        {
             "name": "frontend_auth_login_url",
             "required": False,
             "type": "string",
