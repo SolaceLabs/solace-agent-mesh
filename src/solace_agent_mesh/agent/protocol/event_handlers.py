@@ -476,12 +476,23 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 )
 
             if is_run_based_session:
+                # For side quests, the parent session ID is explicitly provided in metadata.
+                parent_session_id_for_copy = original_session_id
+                if task_metadata.get("is_side_quest"):
+                    parent_session_id_for_copy = task_metadata.get(
+                        "parent_session_id", original_session_id
+                    )
+                    log.info(
+                        "%s Side quest detected. Using parent_session_id '%s' for history copy.",
+                        component.log_identifier,
+                        parent_session_id_for_copy,
+                    )
                 try:
                     original_adk_session_data = (
                         await component.session_service.get_session(
                             app_name=agent_name,
                             user_id=user_id,
-                            session_id=original_session_id,
+                            session_id=parent_session_id_for_copy,
                         )
                     )
                     if original_adk_session_data and hasattr(
@@ -490,36 +501,61 @@ async def handle_a2a_request(component, message: SolaceMessage):
                         original_history_events = original_adk_session_data.history
                         if original_history_events:
                             log.debug(
-                                "%s Copying %d events from original session '%s' to run-based session '%s'.",
+                                "%s Copying %d events from parent session '%s' to run-based session '%s'.",
                                 component.log_identifier,
                                 len(original_history_events),
-                                original_session_id,
+                                parent_session_id_for_copy,
                                 effective_session_id,
                             )
-                            run_based_adk_session_for_copy = (
-                                await component.session_service.create_session(
-                                    app_name=agent_name,
-                                    user_id=user_id,
-                                    session_id=effective_session_id,
-                                )
-                            )
+                            # Use the active session object for this run, not a new one.
                             for event_to_copy in original_history_events:
                                 await component.session_service.append_event(
-                                    session=run_based_adk_session_for_copy,
+                                    session=adk_session_for_run,
                                     event=event_to_copy,
+                                )
+
+                            # If it's a side quest, inject a context message.
+                            if task_metadata.get("is_side_quest"):
+                                from google.genai import types as adk_types
+                                from google.adk.events import Event as ADKEvent
+
+                                side_quest_context_text = (
+                                    "You are now in a temporary 'side quest' sub-task. "
+                                    "This isolated session has inherited the history from the main conversation. "
+                                    "Perform the requested task, using tools as needed. "
+                                    "Your intermediate steps will not be part of the main conversation. "
+                                    "When you are finished, provide a final, complete answer. "
+                                    "Only this final answer will be returned to the main task."
+                                )
+                                context_event = ADKEvent(
+                                    author="system",
+                                    content=adk_types.Content(
+                                        parts=[
+                                            adk_types.Part(
+                                                text=side_quest_context_text
+                                            )
+                                        ]
+                                    ),
+                                )
+                                await component.session_service.append_event(
+                                    session=adk_session_for_run, event=context_event
+                                )
+                                log.info(
+                                    "%s Injected side quest context message into session history.",
+                                    component.log_identifier,
                                 )
                         else:
                             log.debug(
-                                "%s No history to copy from original session '%s' for run-based task '%s'.",
+                                "%s No history to copy from parent session '%s' for run-based task '%s'.",
                                 component.log_identifier,
-                                original_session_id,
+                                parent_session_id_for_copy,
                                 logical_task_id,
                             )
                     else:
                         log.debug(
-                            "%s Original session '%s' not found or has no history, cannot copy for run-based task '%s'.",
+                            "%s Parent session '%s' not found or has no history, cannot copy for run-based task '%s'.",
                             component.log_identifier,
-                            original_session_id,
+                            parent_session_id_for_copy,
                             logical_task_id,
                         )
                 except Exception as e_copy:
