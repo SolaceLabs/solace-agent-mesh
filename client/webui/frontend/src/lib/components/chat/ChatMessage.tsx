@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import type { ReactNode } from "react";
 
 import { AlertCircle, FileText, ThumbsDown, ThumbsUp } from "lucide-react";
@@ -36,6 +36,13 @@ const MessageActions: React.FC<{
     const [feedbackState, setFeedbackState] = useState<"idle" | "prompting" | "submitted">("idle");
     const [feedbackType, setFeedbackType] = useState<"up" | "down" | null>(null);
     const [feedbackText, setFeedbackText] = useState("");
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    useEffect(() => {
+        if (feedbackState === "prompting") {
+            textareaRef.current?.focus();
+        }
+    }, [feedbackState]);
 
     const handleThumbClick = (type: "up" | "down") => {
         setFeedbackType(type);
@@ -88,6 +95,7 @@ const MessageActions: React.FC<{
             {shouldShowFeedback && feedbackState === "prompting" && (
                 <div className="flex w-full min-w-[20rem] flex-col items-end gap-2">
                     <Textarea
+                        ref={textareaRef}
                         placeholder="Provide additional feedback..."
                         value={feedbackText}
                         onChange={(e) => setFeedbackText(e.target.value)}
