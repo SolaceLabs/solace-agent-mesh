@@ -53,8 +53,8 @@ def test_database_engine(test_database_url):
         echo=False,  # Set to True for SQL debugging
         pool_pre_ping=True,
         pool_recycle=300,
-        pool_timeout=30,
-        max_overflow=0,
+        # pool_timeout=30,
+        # max_overflow=0,
     )
 
     # Create all tables
@@ -202,7 +202,7 @@ def clean_database_between_tests(request, test_database_engine):
 def _clean_main_database(test_database_engine):
     """Clean the main API test database"""
     from sqlalchemy.orm import sessionmaker
-    
+
     SessionLocal = sessionmaker(bind=test_database_engine)
     session = SessionLocal()
     try:
