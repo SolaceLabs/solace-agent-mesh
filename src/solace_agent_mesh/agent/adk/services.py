@@ -272,9 +272,12 @@ def initialize_artifact_service(component) -> BaseArtifactService:
             from .artifacts.s3_artifact_service import S3ArtifactService
             
             s3_config = {}
+
+            if "region_name" not in s3_config and "region" in config:
+                s3_config["region_name"] = config["region"]
             
             for key, value in config.items():
-                if key not in ["type", "bucket_name", "artifact_scope"]:
+                if key not in ["type", "bucket_name", "artifact_scope", "base_path", "artifact_scope_value", "region"]:
                     s3_config[key] = value
             
             if "endpoint_url" not in s3_config:
