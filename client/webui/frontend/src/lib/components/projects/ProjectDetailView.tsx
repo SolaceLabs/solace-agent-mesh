@@ -22,13 +22,13 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, i
     // Form state
     const [name, setName] = useState(project.name);
     const [description, setDescription] = useState(project.description || "");
-    const [systemPrompt, setSystemPrompt] = useState(project.system_prompt || "");
+    const [systemPrompt, setSystemPrompt] = useState(project.systemPrompt || "");
 
     useEffect(() => {
         // Reset form state if the project prop changes (e.g. after save)
         setName(project.name);
         setDescription(project.description || "");
-        setSystemPrompt(project.system_prompt || "");
+        setSystemPrompt(project.systemPrompt || "");
     }, [project]);
 
     const handleEditToggle = () => {
@@ -36,7 +36,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, i
             // Cancel editing
             setName(project.name);
             setDescription(project.description || "");
-            setSystemPrompt(project.system_prompt || "");
+            setSystemPrompt(project.systemPrompt || "");
         }
         setIsEditing(!isEditing);
     };
@@ -45,7 +45,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, i
         const updateData: UpdateProjectData = {};
         if (name.trim() !== project.name) updateData.name = name.trim();
         if (description.trim() !== (project.description || "")) updateData.description = description.trim();
-        if (systemPrompt.trim() !== (project.system_prompt || "")) updateData.system_prompt = systemPrompt.trim();
+        if (systemPrompt.trim() !== (project.systemPrompt || "")) updateData.systemPrompt = systemPrompt.trim();
 
         if (Object.keys(updateData).length === 0) {
             setIsEditing(false);
@@ -95,7 +95,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, i
                         {isEditing ? (
                             <Textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)} placeholder="No system prompt provided." rows={5} />
                         ) : (
-                            <p className="whitespace-pre-wrap rounded-md bg-muted p-4 text-sm text-muted-foreground min-h-[40px]">{project.system_prompt || <span className="italic">No system prompt provided.</span>}</p>
+                            <p className="whitespace-pre-wrap rounded-md bg-muted p-4 text-sm text-muted-foreground min-h-[40px]">{project.systemPrompt || <span className="italic">No system prompt provided.</span>}</p>
                         )}
                     </div>
 

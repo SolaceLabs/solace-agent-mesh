@@ -33,18 +33,18 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick }) =>
                             {project.name}
                         </CardTitle>
                         <div className="flex items-center gap-2 mt-1">
-                            {project.is_global && (
+                            {project.isGlobal && (
                                 <Badge variant="secondary" className="text-xs">
                                     Template
                                 </Badge>
                             )}
-                            {project.template_id && (
+                            {project.templateId && (
                                 <Badge variant="outline" className="text-xs flex items-center gap-1">
                                     <Copy className="h-3 w-3" />
                                     Copy
                                 </Badge>
                             )}
-                            {!project.is_global && !project.template_id && (
+                            {!project.isGlobal && !project.templateId && (
                                 <Badge variant="default" className="text-xs">
                                     Owned by user
                                 </Badge>
@@ -72,14 +72,14 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick }) =>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <div className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            <span>Created {formatTimestamp(project.created_at)}</span>
+                            <span>Created {formatTimestamp(project.createdAt)}</span>
                         </div>
                         
-                        {!project.is_global && (
+                        {!project.isGlobal && (
                             <div className="flex items-center gap-1">
                                 <User className="h-3 w-3" />
-                                <span className="truncate max-w-[80px]" title={project.user_id}>
-                                    {project.user_id}
+                                <span className="truncate max-w-[80px]" title={project.userId}>
+                                    {project.userId}
                                 </span>
                             </div>
                         )}

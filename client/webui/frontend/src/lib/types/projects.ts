@@ -5,24 +5,24 @@
 export interface Project {
     id: string;
     name: string;
-    user_id: string;
+    userId: string;
     description?: string | null;
-    system_prompt?: string | null;
-    is_global: boolean;
-    template_id?: string | null;
-    created_by_user_id: string;
-    created_at: string; // ISO string
-    updated_at: string; // ISO string
+    systemPrompt?: string | null;
+    isGlobal: boolean;
+    templateId?: string | null;
+    createdByUserId: string;
+    createdAt: string; // ISO string
+    updatedAt: string; // ISO string
 }
 
 export interface GlobalProject {
     id: string;
     name: string;
     description?: string | null;
-    created_by_user_id: string;
-    created_at: string; // ISO string
-    updated_at: string; // ISO string
-    usage_count?: number | null;
+    createdByUserId: string;
+    createdAt: string; // ISO string
+    updatedAt: string; // ISO string
+    usageCount?: number | null;
 }
 
 
@@ -41,7 +41,7 @@ export interface CopyProjectRequest {
 export interface UpdateProjectData {
     name?: string;
     description?: string;
-    system_prompt?: string;
+    systemPrompt?: string;
 }
 
 export interface ProjectListResponse {

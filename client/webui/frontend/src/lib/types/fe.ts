@@ -195,5 +195,5 @@ export interface Session {
     createdTime: string;
     updatedTime: string;
     name: string | null;
-    project_id?: string | null;
+    projectId?: string | null;
 }
