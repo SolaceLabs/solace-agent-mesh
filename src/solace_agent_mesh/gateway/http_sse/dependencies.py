@@ -21,6 +21,7 @@ from ...gateway.http_sse.services.agent_card_service import AgentCardService
 from ...gateway.http_sse.services.people_service import PeopleService
 from ...gateway.http_sse.services.task_service import TaskService
 from ...gateway.http_sse.services.feedback_service import FeedbackService
+from ...gateway.http_sse.services.task_logger_service import TaskLoggerService
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .repository import Message, MessageRepository, SessionRepository
@@ -214,6 +215,21 @@ def get_feedback_service(
     """FastAPI dependency to get an instance of FeedbackService."""
     log.debug("[Dependencies] get_feedback_service called")
     return component.get_feedback_service()
+
+
+def get_task_logger_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> TaskLoggerService:
+    """FastAPI dependency to get an instance of TaskLoggerService."""
+    log.debug("[Dependencies] get_task_logger_service called")
+    task_logger_service = component.get_task_logger_service()
+    if task_logger_service is None:
+        log.error("[Dependencies] TaskLoggerService is not available.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Task logging service is not configured or available.",
+        )
+    return task_logger_service
 
 
 PublishFunc = Callable[[str, dict, dict | None], None]
