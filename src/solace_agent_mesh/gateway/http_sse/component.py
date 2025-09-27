@@ -1280,8 +1280,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
         log.info("%s Cleaning up Web UI Backend Component...", self.log_identifier)
         self.cancel_timer(self._sse_cleanup_timer_id)
         log.info("%s Cleaning up visualization resources...", self.log_identifier)
-        if self._a2a_message_queue:
-            self._a2a_message_queue.put(None)
+        if self._visualization_message_queue:
+            self._visualization_message_queue.put(None)
+        if self._task_logger_queue:
+            self._task_logger_queue.put(None)
 
         if (
             self._visualization_processor_task
