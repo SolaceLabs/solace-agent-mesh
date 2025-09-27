@@ -1299,6 +1299,17 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     e,
                 )
 
+        if self._task_logger_internal_app:
+            log.info("%s Cleaning up internal task logger app...", self.log_identifier)
+            try:
+                self._task_logger_internal_app.cleanup()
+            except Exception as e:
+                log.error(
+                    "%s Error cleaning up internal task logger app: %s",
+                    self.log_identifier,
+                    e,
+                )
+
         self._active_visualization_streams.clear()
         self._global_visualization_subscriptions.clear()
         self._cleanup_visualization_locks()
