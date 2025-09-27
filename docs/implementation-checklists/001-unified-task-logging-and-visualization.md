@@ -66,7 +66,7 @@ This checklist provides a terse summary of the steps outlined in the implementat
 - [x] **3.1.** Locate the `POST /api/v1/feedback` endpoint.
 - [x] **3.2.** Update the feedback request body model to accept `task_id` instead of `message_id`.
 - [x] **3.3.** Update the feedback endpoint implementation to use the new database-backed `FeedbackService`.
-- [ ] **4.1.** Modify `.../http_sse/main.py` to include the new endpoints from the `tasks` router.
+- [x] **4.1.** Modify `.../http_sse/main.py` to include the new endpoints from the `tasks` router.
 
 ---
 
