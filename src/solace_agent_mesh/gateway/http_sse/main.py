@@ -453,7 +453,6 @@ def _setup_routers() -> None:
 
     app.include_router(session_router, prefix=api_prefix, tags=["Sessions"])
     app.include_router(user_router, prefix=f"{api_prefix}/users", tags=["Users"])
-    app.include_router(task_router, prefix=f"{api_prefix}/tasks", tags=["Tasks"])
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
     app.include_router(agent_cards.router, prefix=api_prefix, tags=["Agent Cards"])
     app.include_router(tasks.router, prefix=api_prefix, tags=["A2A Messages"])

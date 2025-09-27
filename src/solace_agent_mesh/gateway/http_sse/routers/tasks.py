@@ -2,19 +2,25 @@
 API Router for submitting and managing tasks to agents.
 """
 
+import yaml
+from datetime import datetime
 from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
     Request as FastAPIRequest,
+    Response,
     status,
 )
-from typing import Union
+from typing import List, Optional, Union
 
 from solace_ai_connector.common.log import log
 
 from ....gateway.http_sse.session_manager import SessionManager
 from ....gateway.http_sse.services.task_service import TaskService
+from ....gateway.http_sse.repository.interfaces import ITaskRepository
+from ....gateway.http_sse.repository.entities import Task
+from ....gateway.http_sse.shared.types import PaginationInfo, UserId
 
 from a2a.types import (
     CancelTaskRequest,
@@ -29,6 +35,9 @@ from ....gateway.http_sse.dependencies import (
     get_session_manager,
     get_sac_component,
     get_task_service,
+    get_task_repository,
+    get_user_id,
+    get_user_config,
 )
 
 from typing import TYPE_CHECKING
@@ -196,6 +205,151 @@ async def _submit_task(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_resp.model_dump(exclude_none=True),
+        )
+
+
+@router.get("/tasks", response_model=List[Task], tags=["Tasks"])
+async def search_tasks(
+    request: FastAPIRequest,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    search: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+    query_user_id: Optional[str] = None,
+    user_id: UserId = Depends(get_user_id),
+    user_config: dict = Depends(get_user_config),
+    repo: ITaskRepository = Depends(get_task_repository),
+):
+    """
+    Lists and searches for historical tasks.
+    - Regular users can only search their own tasks.
+    - Users with the 'tasks:read:all' scope can search for any user's tasks by providing `query_user_id`.
+    """
+    log_prefix = f"[GET /api/v1/tasks] "
+    log.info("%sRequest from user %s", log_prefix, user_id)
+
+    target_user_id = user_id
+    can_query_all = user_config.get("scopes", {}).get("tasks:read:all", False)
+
+    if query_user_id:
+        if can_query_all:
+            target_user_id = query_user_id
+            log.info(
+                "%sAdmin user %s is querying for user %s",
+                log_prefix,
+                user_id,
+                target_user_id,
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to query for other users' tasks.",
+            )
+
+    start_time_ms = None
+    if start_date:
+        try:
+            start_time_ms = int(datetime.fromisoformat(start_date).timestamp() * 1000)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid start_date format. Use ISO 8601 format.",
+            )
+
+    end_time_ms = None
+    if end_date:
+        try:
+            end_time_ms = int(datetime.fromisoformat(end_date).timestamp() * 1000)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid end_date format. Use ISO 8601 format.",
+            )
+
+    pagination = PaginationInfo(page=page, page_size=page_size)
+
+    try:
+        tasks = repo.search(
+            user_id=target_user_id,
+            start_date=start_time_ms,
+            end_date=end_time_ms,
+            search_query=search,
+            pagination=pagination,
+        )
+        return tasks
+    except Exception as e:
+        log.exception("%sError searching for tasks: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while searching for tasks.",
+        )
+
+
+@router.get("/tasks/{task_id}", tags=["Tasks"])
+async def get_task_as_stim_file(
+    task_id: str,
+    request: FastAPIRequest,
+    user_id: UserId = Depends(get_user_id),
+    user_config: dict = Depends(get_user_config),
+    repo: ITaskRepository = Depends(get_task_repository),
+):
+    """
+    Retrieves the complete event history for a single task and returns it as a `.stim` file.
+    """
+    log_prefix = f"[GET /api/v1/tasks/{task_id}] "
+    log.info("%sRequest from user %s", log_prefix, user_id)
+
+    try:
+        result = repo.find_by_id_with_events(task_id)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task with ID '{task_id}' not found.",
+            )
+
+        task, events = result
+
+        can_read_all = user_config.get("scopes", {}).get("tasks:read:all", False)
+        if task.user_id != user_id and not can_read_all:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to view this task.",
+            )
+
+        # Format into .stim structure
+        stim_data = {
+            "invocation_details": {
+                "log_file_version": "2.0",  # New version for gateway-generated logs
+                "task_id": task.id,
+                "user_id": task.user_id,
+                "start_time": task.start_time,
+                "end_time": task.end_time,
+                "status": task.status,
+                "initial_request_text": task.initial_request_text,
+            },
+            "invocation_flow": [event.model_dump() for event in events],
+        }
+
+        yaml_content = yaml.dump(
+            stim_data,
+            sort_keys=False,
+            allow_unicode=True,
+            indent=2,
+            default_flow_style=False,
+        )
+
+        return Response(
+            content=yaml_content,
+            media_type="application/x-yaml",
+            headers={"Content-Disposition": f'attachment; filename="{task_id}.stim"'},
+        )
+
+    except Exception as e:
+        log.exception("%sError retrieving task: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while retrieving the task.",
         )
 
 

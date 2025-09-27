@@ -60,9 +60,9 @@ This checklist provides a terse summary of the steps outlined in the implementat
 ### Phase 5: API Layer
 
 - [x] **1.1.** Modify `.../http_sse/dependencies.py` to add `get_task_logger_service` and update `get_feedback_service`.
-- [ ] **2.1.** Create `.../http_sse/routers/tasks.py` (or add to the existing one).
-- [ ] **2.2.** Implement the `GET /api/v1/tasks` endpoint for listing and searching tasks.
-- [ ] **2.3.** Implement the `GET /api/v1/tasks/{task_id}` endpoint for retrieving a single task as a `.stim` file.
+- [x] **2.1.** Create `.../http_sse/routers/tasks.py` (or add to the existing one).
+- [x] **2.2.** Implement the `GET /api/v1/tasks` endpoint for listing and searching tasks.
+- [x] **2.3.** Implement the `GET /api/v1/tasks/{task_id}` endpoint for retrieving a single task as a `.stim` file.
 - [ ] **3.1.** Locate the `POST /api/v1/feedback` endpoint.
 - [ ] **3.2.** Update the feedback request body model to accept `task_id` instead of `message_id`.
 - [ ] **3.3.** Update the feedback endpoint implementation to use the new database-backed `FeedbackService`.

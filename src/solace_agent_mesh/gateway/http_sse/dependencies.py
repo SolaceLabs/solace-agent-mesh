@@ -25,6 +25,8 @@ from ...gateway.http_sse.services.task_logger_service import TaskLoggerService
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .repository import Message, MessageRepository, SessionRepository
+from .repository.interfaces import ITaskRepository
+from .repository.task_repository import TaskRepository
 from .services.session_service import SessionService
 
 try:
@@ -399,6 +401,12 @@ def get_session_business_service(
     session_repository = SessionRepository(db)
     message_repository = MessageRepository(db)
     return SessionService(session_repository, message_repository, component)
+
+
+def get_task_repository(db: Session = Depends(get_db)) -> ITaskRepository:
+    """FastAPI dependency to get an instance of TaskRepository."""
+    log.debug("[Dependencies] get_task_repository called")
+    return TaskRepository(db)
 
 
 @contextmanager
