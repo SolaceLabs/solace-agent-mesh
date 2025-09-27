@@ -37,9 +37,10 @@ The key purposes are:
 ### R2: Database-Backed Persistence
 
 -   **R2.1:** All captured A2A task events shall be stored in a new set of database tables (e.g., `tasks`, `task_events`).
--   **R2.2:** The persistence mechanism must follow the existing repository pattern (Interface -> SQLAlchemy Repository -> Model).
+-   **R2.2:** The persistence mechanism for tasks and feedback must follow the established pattern used for session storage, including the use of the repository pattern (Interface -> SQLAlchemy Repository -> Model).
 -   **R2.3:** User feedback shall be stored in a new `feedback` table in the same database, replacing the current CSV/log file implementation.
 -   **R2.4:** All new database tables must be created and managed via Alembic migrations.
+-   **R2.5:** To support efficient searching, the main `tasks` table must contain a denormalized, truncated copy of the initial request text from the first event of each task.
 
 ### R3: Configurable Logging Granularity
 
@@ -55,7 +56,10 @@ The key purposes are:
 
 ### R5: Historical Task Playback and Export
 
--   **R5.1:** A new, authorization-protected API endpoint shall be created to list historical tasks from the database.
+-   **R5.1:** A new, authorization-protected API endpoint shall be created to list historical tasks from the database. This endpoint must support comprehensive filtering, including:
+    -   Filtering by a date range.
+    -   Filtering by the user who initiated the task.
+    -   A keyword search against the text of the initial request.
 -   **R5.2:** A new, authorization-protected API endpoint shall be created to retrieve all recorded events for a specific task ID.
 -   **R5.3:** The retrieval endpoint must format the database events into the established `.stim` YAML file format for consumption by the frontend or for download. All data stored in the database for a given task shall be included in the export.
 
@@ -74,3 +78,4 @@ The following architectural and terminological decisions have been agreed upon:
 -   **Naming Convention:** The prefix "a2a" will **not** be used in new class, table, or service names, as the A2A context is implicit within the project's architecture.
 -   **Architectural Pattern:** The new logging service will be implemented within the WebUI Gateway. It will follow the existing `VisualizationForwarder` pattern, using a dedicated `BrokerInput` in an internal SAC flow to feed messages to a queue, which is then consumed by the `TaskLoggerService`.
 -   **Task Lifecycle Management:** The logger will be a stateless, passive listener. It will not be responsible for determining the "start" or "end" of a task. This logic is deferred to consumers of the logged data (e.g., the UI, an analyst). A separate system component is assumed to be responsible for detecting and reporting stuck tasks via A2A messages, which will be logged like any other event.
+-   **Search Performance:** To facilitate efficient keyword searches on historical tasks, a truncated version of the initial request text will be denormalized and stored in the main `tasks` table.
