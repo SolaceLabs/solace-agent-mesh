@@ -179,7 +179,7 @@ tools:
 2. **Set required environment variables**:
    ```sh
    export NAMESPACE="myorg/dev"
-   export SOLACE_BROKER_URL="ws://localhost:8080"
+   export SOLACE_BROKER_URL="ws://localhost:8008"
    # ... other Solace broker settings
    ```
 

@@ -53,7 +53,7 @@ Like other agents, the RAG agent needs a connection to the Solace broker and a c
 shared_config:
   - broker_connection: &broker_connection
       dev_mode: ${SOLACE_DEV_MODE, false}
-      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8080}
+      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8008}
       broker_username: ${SOLACE_BROKER_USERNAME, default}
       broker_password: ${SOLACE_BROKER_PASSWORD, default}
       broker_vpn: ${SOLACE_BROKER_VPN, default}
@@ -216,7 +216,7 @@ The RAG agent relies heavily on environment variables. Here are some of the most
 
 ```bash
 # Solace Connection
-SOLACE_BROKER_URL=ws://localhost:8080
+SOLACE_BROKER_URL=ws://localhost:8008
 SOLACE_BROKER_VPN=default
 SOLACE_BROKER_USERNAME=default
 SOLACE_BROKER_PASSWORD=default
