@@ -133,7 +133,7 @@ task_logging:
 
 ### 6.2. `feedback_service` Block
 
-The `feedback_service` configuration block will be removed. The database-backed feedback service will be enabled automatically whenever a `database_url` is configured for the gateway, simplifying the setup. The previous `log` and `csv` types will be removed.
+The `feedback_service` configuration block will be removed. The database-backed feedback service will be enabled automatically whenever a `database_url` is configured for the gateway, simplifying the setup. The previous `log` and `csv` types will be removed. The existing `frontend_collect_feedback` flag will be retained to control whether feedback UI elements are displayed to the user.
 
 ## 7. Deprecation of `InvocationMonitor`
 

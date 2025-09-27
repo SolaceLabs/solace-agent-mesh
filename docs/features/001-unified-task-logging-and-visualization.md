@@ -42,6 +42,7 @@ The key purposes are:
 -   **R2.4:** All new database tables must be created and managed via Alembic migrations.
 -   **R2.5:** To support efficient searching, the main `tasks` table must contain a denormalized, truncated copy of the initial request text from the first event of each task.
 -   **R2.6:** The database shall be the sole persistence mechanism for user feedback, replacing and removing the previous log and CSV file options.
+-   **R2.7:** The existing `frontend_collect_feedback` configuration flag shall continue to control the visibility of feedback UI elements in the frontend.
 
 ### R3: Configurable Logging Granularity
 
