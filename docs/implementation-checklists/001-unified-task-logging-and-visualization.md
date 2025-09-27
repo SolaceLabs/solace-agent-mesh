@@ -72,7 +72,7 @@ This checklist provides a terse summary of the steps outlined in the implementat
 
 ### Phase 6: Deprecation and Cleanup
 
-- [ ] **1.1.** Delete the file `src/solace_agent_mesh/agent/adk/invocation_monitor.py`.
-- [ ] **2.1.** In `.../agent/sac/component.py`, remove the `self.invocation_monitor` attribute and its initialization.
-- [ ] **2.2.** In `.../agent/sac/component.py`, remove the `cleanup` call for the monitor.
-- [ ] **3.1.** In `.../agent/protocol/event_handlers.py`, remove the call to `component.invocation_monitor.log_message_event()`.
+- [x] **1.1.** Delete the file `src/solace_agent_mesh/agent/adk/invocation_monitor.py`.
+- [x] **2.1.** In `.../agent/sac/component.py`, remove the `self.invocation_monitor` attribute and its initialization.
+- [x] **2.2.** In `.../agent/sac/component.py`, remove the `cleanup` call for the monitor.
+- [x] **3.1.** In `.../agent/protocol/event_handlers.py`, remove the call to `component.invocation_monitor.log_message_event()`.
