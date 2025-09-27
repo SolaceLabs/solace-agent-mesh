@@ -26,7 +26,7 @@ The new logging system will be integrated into the `WebUIBackendComponent` and w
 
 ### 2.2. Relationship to Existing Visualization
 
--   **Unified Data Source:** The existing `_visualization_message_processor_loop` will be modified to consume messages from the same new internal queue as the `_task_logger_loop`. This unifies the data source for both real-time visualization and persistent logging, ensuring consistency.
+-   **Unified Data Source:** The existing `_visualization_message_processor_loop` (for real-time UI updates) and the new `_task_logger_loop` (for database persistence) will both consume raw A2A messages from the same internal queue. This guarantees that the event data sent to the UI for live visualization is structurally identical to the data being stored in the database for historical playback.
 -   **Historical Playback:** The concept of replaying historical tasks will be implemented via new API endpoints that query the database, not through the real-time SSE mechanism.
 
 ## 3. Data Model Design
@@ -67,7 +67,7 @@ This table will replace the current CSV/log-based feedback storage.
 | -------------- | ------------ | ------------------------- | ------------------------------------------------------------------------ |
 | `id`           | `String`     | Primary Key (e.g., UUID)  | A unique identifier for the feedback entry.                              |
 | `session_id`   | `String`     | Not Null                  | The session ID in which feedback was provided.                           |
-| `message_id`   | `String`     | Not Null                  | The ID of the specific message being rated.                              |
+| `task_id`      | `String`     | Not Null, Indexed         | The ID of the task being rated.                                          |
 | `user_id`      | `String`     | Not Null, Indexed         | The ID of the user providing the feedback.                               |
 | `rating`       | `String`     | Not Null                  | The rating given (e.g., 'positive', 'negative').                         |
 | `comment`      | `Text`       | Nullable                  | Optional free-text comment from the user.                                |
@@ -79,8 +79,8 @@ This table will replace the current CSV/log-based feedback storage.
 
 -   **`TaskLoggerForwarderComponent`**: A new, simple SAC component that forwards messages from a `BrokerInput` to the `WebUIBackendComponent`'s internal queue.
 -   **`TaskLoggerService`**: A new service containing the core business logic for processing and persisting task events. It will be responsible for parsing raw messages, identifying the `task_id`, and using the `ITaskRepository` to write to the `tasks` and `task_events` tables.
--   **`ITaskRepository` / `TaskRepository`**: A new repository interface and its SQLAlchemy implementation for database operations on the `tasks` and `task_events` tables.
--   **`IFeedbackRepository` / `FeedbackRepository`**: A new repository interface and its SQLAlchemy implementation for the `feedback` table.
+-   **`ITaskRepository` / `TaskRepository`**: A new repository interface and its SQLAlchemy implementation for database operations on the `tasks` and `task_events` tables. This will follow the exact pattern established by `ISessionRepository` / `SessionRepository`.
+-   **`IFeedbackRepository` / `FeedbackRepository`**: A new repository interface and its SQLAlchemy implementation for the `feedback` table, also following the `ISessionRepository` pattern.
 
 ### 42. Modified Components and Services
 
@@ -95,7 +95,7 @@ This table will replace the current CSV/log-based feedback storage.
 
 ### 5.1. `POST /api/v1/feedback` (Modified)
 
--   **Behavior:** The endpoint's contract remains unchanged. Its internal implementation will be updated to use the new database-backed `FeedbackService`.
+-   **Behavior:** The endpoint's contract will be modified. The request body will now require a `task_id` instead of a `message_id`. The internal implementation will use the new database-backed `FeedbackService`.
 
 ### 5.2. `GET /api/v1/tasks` (New)
 
@@ -133,13 +133,7 @@ task_logging:
 
 ### 6.2. `feedback_service` Block
 
-The `allowed` values for the `type` parameter will be extended to include `"database"`.
-
-```yaml
-feedback_service:
-  type: string (allowed: ["log", "csv", "database"])
-  # ... other params
-```
+The `feedback_service` configuration block will be removed. The database-backed feedback service will be enabled automatically whenever a `database_url` is configured for the gateway, simplifying the setup. The previous `log` and `csv` types will be removed.
 
 ## 7. Deprecation of `InvocationMonitor`
 

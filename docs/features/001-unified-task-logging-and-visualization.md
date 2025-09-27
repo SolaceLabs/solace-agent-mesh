@@ -38,9 +38,10 @@ The key purposes are:
 
 -   **R2.1:** All captured A2A task events shall be stored in a new set of database tables (e.g., `tasks`, `task_events`).
 -   **R2.2:** The persistence mechanism for tasks and feedback must follow the established pattern used for session storage, including the use of the repository pattern (Interface -> SQLAlchemy Repository -> Model).
--   **R2.3:** User feedback shall be stored in a new `feedback` table in the same database, replacing the current CSV/log file implementation.
+-   **R2.3:** User feedback shall be stored in a new `feedback` table in the same database. This table must link feedback directly to a `task_id` to allow for direct correlation between user satisfaction and task performance.
 -   **R2.4:** All new database tables must be created and managed via Alembic migrations.
 -   **R2.5:** To support efficient searching, the main `tasks` table must contain a denormalized, truncated copy of the initial request text from the first event of each task.
+-   **R2.6:** The database shall be the sole persistence mechanism for user feedback, replacing and removing the previous log and CSV file options.
 
 ### R3: Configurable Logging Granularity
 
@@ -62,6 +63,7 @@ The key purposes are:
     -   A keyword search against the text of the initial request.
 -   **R5.2:** A new, authorization-protected API endpoint shall be created to retrieve all recorded events for a specific task ID.
 -   **R5.3:** The retrieval endpoint must format the database events into the established `.stim` YAML file format for consumption by the frontend or for download. All data stored in the database for a given task shall be included in the export.
+-   **R5.4:** The API for submitting user feedback must be updated to accept a `task_id` instead of a `message_id`.
 
 ### R6: Authorization
 
