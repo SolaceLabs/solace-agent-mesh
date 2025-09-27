@@ -26,7 +26,9 @@ from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .sse_event_buffer import SSEEventBuffer
 from .components import VisualizationForwarderComponent
+from .components.task_logger_forwarder import TaskLoggerForwarderComponent
 from .services.feedback_service import FeedbackService
+from .services.task_logger_service import TaskLoggerService
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -176,6 +178,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self._visualization_locks_lock = threading.Lock()
         self._global_visualization_subscriptions: dict[str, int] = {}
         self._visualization_processor_task: asyncio.Task | None = None
+
+        self._task_logger_internal_app: SACApp | None = None
+        self._task_logger_broker_input: BrokerInput | None = None
+        self._task_logger_processor_task: asyncio.Task | None = None
+        self.task_logger_service: TaskLoggerService | None = None
 
         # Initialize SAM Events service for system events
         from ...common.sam_events import SamEventService
@@ -355,6 +362,121 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     )
             self._visualization_internal_app = None
             self._visualization_broker_input = None
+            raise
+
+    def _ensure_task_logger_flow_is_running(self) -> None:
+        """
+        Ensures the internal SAC flow for A2A task logging is created and running.
+        """
+        log_id_prefix = f"{self.log_identifier}[EnsureTaskLogFlow]"
+        if self._task_logger_internal_app is not None:
+            log.debug("%s Task logger flow already running.", log_id_prefix)
+            return
+
+        log.info("%s Initializing internal A2A task logger flow...", log_id_prefix)
+        try:
+            main_app = self.get_app()
+            if not main_app or not main_app.connector:
+                raise RuntimeError(
+                    "Main app or connector not available for internal flow creation."
+                )
+
+            main_broker_config = main_app.app_info.get("broker", {})
+            if not main_broker_config:
+                raise ValueError("Main app broker configuration is missing.")
+
+            # The task logger needs to see ALL messages.
+            subscriptions = [{"topic": f"{self.namespace}/a2a/>"}]
+
+            broker_input_cfg = {
+                "component_module": "broker_input",
+                "component_name": f"{self.gateway_id}_task_log_broker_input",
+                "broker_queue_name": f"{self.namespace.strip('/')}/q/gdk/task_log/{self.gateway_id}/{uuid.uuid4().hex}",
+                "create_queue_on_start": True,
+                "component_config": {
+                    "broker_url": main_broker_config.get("broker_url"),
+                    "broker_username": main_broker_config.get("broker_username"),
+                    "broker_password": main_broker_config.get("broker_password"),
+                    "broker_vpn": main_broker_config.get("broker_vpn"),
+                    "trust_store_path": main_broker_config.get("trust_store_path"),
+                    "dev_mode": main_broker_config.get("dev_mode"),
+                    "broker_subscriptions": subscriptions,
+                    "reconnection_strategy": main_broker_config.get(
+                        "reconnection_strategy"
+                    ),
+                    "retry_interval": main_broker_config.get("retry_interval"),
+                    "retry_count": main_broker_config.get("retry_count"),
+                    "temporary_queue": True,
+                },
+            }
+
+            forwarder_cfg = {
+                "component_class": TaskLoggerForwarderComponent,
+                "component_name": f"{self.gateway_id}_task_log_forwarder",
+                "component_config": {"target_queue_ref": self._a2a_message_queue},
+            }
+
+            flow_config = {
+                "name": f"{self.gateway_id}_task_log_flow",
+                "components": [broker_input_cfg, forwarder_cfg],
+            }
+
+            internal_app_broker_config = main_broker_config.copy()
+            internal_app_broker_config["input_enabled"] = True
+            internal_app_broker_config["output_enabled"] = False
+
+            app_config_for_internal_flow = {
+                "name": f"{self.gateway_id}_task_log_internal_app",
+                "flows": [flow_config],
+                "broker": internal_app_broker_config,
+                "app_config": {},
+            }
+
+            self._task_logger_internal_app = main_app.connector.create_internal_app(
+                app_name=app_config_for_internal_flow["name"],
+                flows=app_config_for_internal_flow["flows"],
+            )
+
+            if (
+                not self._task_logger_internal_app
+                or not self._task_logger_internal_app.flows
+            ):
+                raise RuntimeError("Internal task logger app/flow creation failed.")
+
+            self._task_logger_internal_app.run()
+            log.info("%s Internal task logger app started.", log_id_prefix)
+
+            flow_instance = self._task_logger_internal_app.flows[0]
+            if flow_instance.component_groups and flow_instance.component_groups[0]:
+                self._task_logger_broker_input = flow_instance.component_groups[0][0]
+                if not isinstance(self._task_logger_broker_input, BrokerInput):
+                    raise RuntimeError(
+                        "Task logger flow setup error: BrokerInput not found."
+                    )
+                log.info(
+                    "%s Obtained reference to internal task logger BrokerInput component.",
+                    log_id_prefix,
+                )
+            else:
+                raise RuntimeError(
+                    "Task logger flow setup error: BrokerInput instance not accessible."
+                )
+
+        except Exception as e:
+            log.exception(
+                "%s Failed to ensure task logger flow is running: %s", log_id_prefix, e
+            )
+            if self._task_logger_internal_app:
+                try:
+                    self._task_logger_internal_app.cleanup()
+                except Exception as cleanup_err:
+                    log.error(
+                        "%s Error during cleanup after task logger flow init failure: %s",
+                        log_id_prefix,
+                        cleanup_err,
+                    )
+            self._task_logger_internal_app = None
+            self._task_logger_broker_input = None
             raise
 
     def _resolve_session_config(self) -> dict:
@@ -595,6 +717,63 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 await asyncio.sleep(1)
 
         log.info("%s Visualization message processor loop finished.", log_id_prefix)
+
+    async def _task_logger_loop(self) -> None:
+        """
+        Asynchronously consumes messages from the _a2a_message_queue and
+        passes them to the TaskLoggerService for persistence.
+        """
+        log_id_prefix = f"{self.log_identifier}[TaskLoggerLoop]"
+        log.info("%s Starting task logger loop...", log_id_prefix)
+        loop = asyncio.get_running_loop()
+
+        while not self.stop_signal.is_set():
+            msg_data = None
+            try:
+                # The visualization loop also consumes from this queue, so we don't
+                # want to block indefinitely. A short timeout is fine.
+                msg_data = await loop.run_in_executor(
+                    None,
+                    self._a2a_message_queue.get,
+                    True,
+                    1.0,
+                )
+
+                if msg_data is None:
+                    log.info(
+                        "%s Received shutdown signal for task logger loop.",
+                        log_id_prefix,
+                    )
+                    break
+
+                if self.task_logger_service:
+                    self.task_logger_service.log_event(msg_data)
+                else:
+                    log.warning(
+                        "%s Task logger service not available. Cannot log event.",
+                        log_id_prefix,
+                    )
+
+                # We must call task_done so the queue doesn't block forever if
+                # the visualization loop is disabled.
+                self._a2a_message_queue.task_done()
+
+            except queue.Empty:
+                continue
+            except asyncio.CancelledError:
+                log.info("%s Task logger loop cancelled.", log_id_prefix)
+                break
+            except Exception as e:
+                log.exception(
+                    "%s Error in task logger loop: %s",
+                    log_id_prefix,
+                    e,
+                )
+                if msg_data and self._a2a_message_queue:
+                    self._a2a_message_queue.task_done()
+                await asyncio.sleep(1)
+
+        log.info("%s Task logger loop finished.", log_id_prefix)
 
     async def _add_visualization_subscription(
         self, topic_str: str, stream_id: str
@@ -977,6 +1156,35 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                 "%s Visualization message processor task already running.",
                                 self.log_identifier,
                             )
+
+                        task_logging_config = self.get_config("task_logging", {})
+                        if task_logging_config.get("enabled", False):
+                            log.info(
+                                "%s Task logging is enabled. Ensuring flow is running...",
+                                self.log_identifier,
+                            )
+                            self._ensure_task_logger_flow_is_running()
+
+                            if (
+                                self._task_logger_processor_task is None
+                                or self._task_logger_processor_task.done()
+                            ):
+                                log.info(
+                                    "%s Starting task logger processor task.",
+                                    self.log_identifier,
+                                )
+                                self._task_logger_processor_task = (
+                                    self.fastapi_event_loop.create_task(
+                                        self._task_logger_loop()
+                                    )
+                                )
+                            else:
+                                log.info(
+                                    "%s Task logger processor task already running.",
+                                    self.log_identifier,
+                                )
+                        else:
+                            log.info("%s Task logging is disabled.", self.log_identifier)
                     else:
                         log.error(
                             "%s FastAPI event loop not captured. Cannot start visualization processor.",
@@ -1073,6 +1281,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Cancelling visualization processor task...", self.log_identifier
             )
             self._visualization_processor_task.cancel()
+
+        if self._task_logger_processor_task and not self._task_logger_processor_task.done():
+            log.info("%s Cancelling task logger processor task...", self.log_identifier)
+            self._task_logger_processor_task.cancel()
 
         if self._visualization_internal_app:
             log.info(
