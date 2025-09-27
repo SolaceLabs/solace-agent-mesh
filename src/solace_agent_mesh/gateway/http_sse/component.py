@@ -514,9 +514,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
     async def _visualization_message_processor_loop(self) -> None:
         """
-        Asynchronously consumes messages from the _a2a_message_queue,
+        Asynchronously consumes messages from the _visualization_message_queue,
         filters them, and forwards them to relevant SSE connections.
-        Placeholder for Phase 2: Just logs messages.
         """
         log_id_prefix = f"{self.log_identifier}[VizMsgProcessor]"
         log.info("%s Starting visualization message processor loop...", log_id_prefix)
@@ -527,7 +526,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             try:
                 msg_data = await loop.run_in_executor(
                     None,
-                    self._a2a_message_queue.get,
+                    self._visualization_message_queue.get,
                     True,
                     1.0,
                 )
@@ -539,11 +538,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     )
                     break
 
-                current_size = self._a2a_message_queue.qsize()
-                max_size = self._a2a_message_queue.maxsize
+                current_size = self._visualization_message_queue.qsize()
+                max_size = self._visualization_message_queue.maxsize
                 if max_size > 0 and (current_size / max_size) > 0.90:
                     log.warning(
-                        "%s A2A message queue is over 90%% full. Current size: %d/%d",
+                        "%s Visualization message queue is over 90%% full. Current size: %d/%d",
                         log_id_prefix,
                         current_size,
                         max_size,
@@ -699,7 +698,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         else:
                             pass
 
-                self._a2a_message_queue.task_done()
+                self._visualization_message_queue.task_done()
 
             except queue.Empty:
                 continue
@@ -714,15 +713,15 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     log_id_prefix,
                     e,
                 )
-                if msg_data and self._a2a_message_queue:
-                    self._a2a_message_queue.task_done()
+                if msg_data and self._visualization_message_queue:
+                    self._visualization_message_queue.task_done()
                 await asyncio.sleep(1)
 
         log.info("%s Visualization message processor loop finished.", log_id_prefix)
 
     async def _task_logger_loop(self) -> None:
         """
-        Asynchronously consumes messages from the _a2a_message_queue and
+        Asynchronously consumes messages from the _task_logger_queue and
         passes them to the TaskLoggerService for persistence.
         """
         log_id_prefix = f"{self.log_identifier}[TaskLoggerLoop]"
@@ -732,11 +731,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
         while not self.stop_signal.is_set():
             msg_data = None
             try:
-                # The visualization loop also consumes from this queue, so we don't
-                # want to block indefinitely. A short timeout is fine.
                 msg_data = await loop.run_in_executor(
                     None,
-                    self._a2a_message_queue.get,
+                    self._task_logger_queue.get,
                     True,
                     1.0,
                 )
@@ -756,9 +753,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         log_id_prefix,
                     )
 
-                # We must call task_done so the queue doesn't block forever if
-                # the visualization loop is disabled.
-                self._a2a_message_queue.task_done()
+                self._task_logger_queue.task_done()
 
             except queue.Empty:
                 continue
@@ -771,8 +766,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     log_id_prefix,
                     e,
                 )
-                if msg_data and self._a2a_message_queue:
-                    self._a2a_message_queue.task_done()
+                if msg_data and self._task_logger_queue:
+                    self._task_logger_queue.task_done()
                 await asyncio.sleep(1)
 
         log.info("%s Task logger loop finished.", log_id_prefix)
