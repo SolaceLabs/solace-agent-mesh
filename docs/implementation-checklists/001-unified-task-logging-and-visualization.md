@@ -20,9 +20,9 @@ This checklist provides a terse summary of the steps outlined in the implementat
 
 ### Phase 2: Data Access Layer (Repositories and Entities)
 
-- [ ] **1.1.** Create `.../repository/entities/task.py` for the `Task` Pydantic model.
-- [ ] **1.2.** Create `.../repository/entities/task_event.py` for the `TaskEvent` Pydantic model.
-- [ ] **1.3.** Create `.../repository/entities/feedback.py` for the `Feedback` Pydantic model.
+- [x] **1.1.** Create `.../repository/entities/task.py` for the `Task` Pydantic model.
+- [x] **1.2.** Create `.../repository/entities/task_event.py` for the `TaskEvent` Pydantic model.
+- [x] **1.3.** Create `.../repository/entities/feedback.py` for the `Feedback` Pydantic model.
 - [ ] **2.1.** Modify `.../repository/interfaces.py` to add the `ITaskRepository` interface.
 - [ ] **2.2.** In `.../repository/interfaces.py`, add the `IFeedbackRepository` interface.
 - [ ] **3.1.** Create `.../repository/task_repository.py` to implement `TaskRepository`.
