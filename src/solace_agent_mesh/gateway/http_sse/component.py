@@ -554,7 +554,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 log.debug("%s [VIZ_DATA_RAW] Topic: %s", log_id_prefix, topic)
 
                 if "/a2a/v1/discovery/" in topic:
-                    self._a2a_message_queue.task_done()
+                    self._visualization_message_queue.task_done()
                     continue
 
                 event_details_for_owner = self._infer_visualization_event_details(
