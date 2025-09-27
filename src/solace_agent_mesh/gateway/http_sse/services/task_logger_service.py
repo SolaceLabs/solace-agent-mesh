@@ -193,10 +193,12 @@ class TaskLoggerService:
         try:
             if "result" in payload and isinstance(payload["result"], dict):
                 result = payload["result"]
-                # Check if it's a final Task object
-                if "status" in result and "state" in result["status"]:
-                    task = A2ATask.model_validate(result)
-                    return task.status.state.value
+                # Check if it's a final Task object by checking the 'kind'
+                if result.get("kind") == "task":
+                    # Now it's safe to validate as a Task
+                    if "status" in result and "state" in result["status"]:
+                        task = A2ATask.model_validate(result)
+                        return task.status.state.value
             elif "error" in payload:
                 return "failed"
         except Exception:
