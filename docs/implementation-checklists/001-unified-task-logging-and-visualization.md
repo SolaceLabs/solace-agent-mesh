@@ -9,9 +9,9 @@ This checklist provides a terse summary of the steps outlined in the implementat
 - [x] **1.1.** Modify `src/solace_agent_mesh/gateway/http_sse/app.py` to add the `task_logging` configuration block.
 - [x] **1.2.** In `app.py`, remove the `feedback_service` configuration block.
 - [x] **1.3.** Update `WebUIBackendApp.__init__` to use `session_service.database_url` for Alembic migrations.
-- [ ] **2.1.** Create `.../repository/models/task_model.py` for `TaskModel`.
-- [ ] **2.2.** Create `.../repository/models/task_event_model.py` for `TaskEventModel`.
-- [ ] **2.3.** Create `.../repository/models/feedback_model.py` for `FeedbackModel`.
+- [x] **2.1.** Create `.../repository/models/task_model.py` for `TaskModel`.
+- [x] **2.2.** Create `.../repository/models/task_event_model.py` for `TaskEventModel`.
+- [x] **2.3.** Create `.../repository/models/feedback_model.py` for `FeedbackModel`.
 - [ ] **3.1.** Modify `.../alembic/env.py` to import the new models (`TaskModel`, `TaskEventModel`, `FeedbackModel`).
 - [ ] **4.1.** Run `alembic revision --autogenerate` to create the database migration script.
 - [ ] **4.2.** Review the generated migration script in `alembic/versions/`.
