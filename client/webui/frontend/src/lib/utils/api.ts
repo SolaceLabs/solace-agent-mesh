@@ -74,7 +74,7 @@ export const authenticatedFetch = async (url: string, options: RequestInit = {})
 };
 
 export interface FeedbackPayload {
-    messageId: string;
+    taskId: string;
     sessionId: string;
     feedbackType: "up" | "down";
     feedbackText?: string;

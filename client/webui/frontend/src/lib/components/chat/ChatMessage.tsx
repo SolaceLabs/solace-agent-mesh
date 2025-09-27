@@ -37,8 +37,8 @@ const MessageActions: React.FC<{
     const [feedbackText, setFeedbackText] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    const messageId = message.metadata?.messageId;
-    const hasSubmitted = messageId ? submittedFeedback[messageId] !== undefined : false;
+    const taskId = message.taskId;
+    const hasSubmitted = taskId ? submittedFeedback[taskId] !== undefined : false;
 
     useEffect(() => {
         if (isPrompting) {
@@ -52,10 +52,10 @@ const MessageActions: React.FC<{
     };
 
     const handleSubmit = async () => {
-        if (!feedbackType || !messageId) return;
+        if (!feedbackType || !taskId) return;
 
         try {
-            await handleFeedbackSubmit(messageId, feedbackType, feedbackText);
+            await handleFeedbackSubmit(taskId, feedbackType, feedbackText);
             setIsPrompting(false); // Hide input on successful submission
         } catch (error) {
             // Error is logged in the provider, UI doesn't need to do anything special

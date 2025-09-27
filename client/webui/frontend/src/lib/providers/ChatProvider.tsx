@@ -868,21 +868,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [isResponding, isCancelling, currentTaskId, apiPrefix, addNotification, closeCurrentEventSource]);
 
     const handleFeedbackSubmit = useCallback(
-        async (messageId: string, feedbackType: "up" | "down", feedbackText: string) => {
+        async (taskId: string, feedbackType: "up" | "down", feedbackText: string) => {
             if (!sessionId) {
                 console.error("Cannot submit feedback without a session ID.");
                 return;
             }
             try {
                 await submitFeedback({
-                    messageId: messageId,
+                    taskId: taskId,
                     sessionId: sessionId,
                     feedbackType: feedbackType,
                     feedbackText: feedbackText,
                 });
                 setSubmittedFeedback(prev => ({
                     ...prev,
-                    [messageId]: { type: feedbackType, text: feedbackText },
+                    [taskId]: { type: feedbackType, text: feedbackText },
                 }));
             } catch (error) {
                 console.error("Failed to submit feedback:", error);
