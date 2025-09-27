@@ -7,6 +7,7 @@ including writing to CSV files and logging.
 """
 
 import csv
+import logging
 from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
@@ -125,7 +126,7 @@ def test_feedback_logging_fallback(configured_feedback_client, caplog):
     }
 
     # Act
-    with caplog.at_level(log.INFO):
+    with caplog.at_level(logging.INFO):
         response = client.post("/api/v1/feedback", json=feedback_payload)
 
     # Assert HTTP response
