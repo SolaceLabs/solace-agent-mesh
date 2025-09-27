@@ -113,27 +113,6 @@ class WebUIBackendApp(BaseGatewayApp):
             "description": "Enable/disable the feedback buttons in the UI.",
         },
         {
-            "name": "feedback_service",
-            "required": False,
-            "type": "dict",
-            "description": "Configuration for the user feedback storage service.",
-            "dict_schema": {
-                "type": {
-                    "type": "string",
-                    "required": True,
-                    "default": "log",
-                    "allowed": ["log", "csv"],
-                    "description": "The type of feedback service to use ('log' or 'csv').",
-                },
-                "filename": {
-                    "type": "string",
-                    "required": False,
-                    "default": "feedback.csv",
-                    "description": "The filename for the CSV feedback service. Only used if type is 'csv'.",
-                },
-            },
-        },
-        {
             "name": "frontend_auth_login_url",
             "required": False,
             "type": "string",
@@ -195,6 +174,44 @@ class WebUIBackendApp(BaseGatewayApp):
             "type": "string",
             "default": "",
             "description": "The passphrase for the SSL private key.",
+        },
+        {
+            "name": "task_logging",
+            "required": False,
+            "type": "dict",
+            "description": "Configuration for the A2A task logging service.",
+            "dict_schema": {
+                "enabled": {
+                    "type": "boolean",
+                    "required": False,
+                    "default": False,
+                    "description": "Enable/disable the task logging service.",
+                },
+                "log_status_updates": {
+                    "type": "boolean",
+                    "required": False,
+                    "default": True,
+                    "description": "Log intermediate TaskStatusUpdate events.",
+                },
+                "log_artifact_events": {
+                    "type": "boolean",
+                    "required": False,
+                    "default": True,
+                    "description": "Log TaskArtifactUpdate events.",
+                },
+                "log_file_parts": {
+                    "type": "boolean",
+                    "required": False,
+                    "default": True,
+                    "description": "Log FilePart content within events.",
+                },
+                "max_file_part_size_bytes": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 102400,  # 100KB
+                    "description": "Maximum size of a FilePart's content to store in the database. Larger files will have their content stripped.",
+                },
+            },
         },
     ]
 

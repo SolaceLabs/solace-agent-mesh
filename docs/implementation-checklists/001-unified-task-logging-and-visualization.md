@@ -6,9 +6,9 @@ This checklist provides a terse summary of the steps outlined in the implementat
 
 ### Phase 1: Foundational Changes (Database and Configuration)
 
-- [ ] **1.1.** Modify `src/solace_agent_mesh/gateway/http_sse/app.py` to add the `task_logging` configuration block.
-- [ ] **1.2.** In `app.py`, remove the `feedback_service` configuration block.
-- [ ] **1.3.** Update `WebUIBackendApp.__init__` to use `session_service.database_url` for Alembic migrations.
+- [x] **1.1.** Modify `src/solace_agent_mesh/gateway/http_sse/app.py` to add the `task_logging` configuration block.
+- [x] **1.2.** In `app.py`, remove the `feedback_service` configuration block.
+- [x] **1.3.** Update `WebUIBackendApp.__init__` to use `session_service.database_url` for Alembic migrations.
 - [ ] **2.1.** Create `.../repository/models/task_model.py` for `TaskModel`.
 - [ ] **2.2.** Create `.../repository/models/task_event_model.py` for `TaskEventModel`.
 - [ ] **2.3.** Create `.../repository/models/feedback_model.py` for `FeedbackModel`.
