@@ -194,15 +194,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
             publish_func=self.publish_a2a,
         )
 
-        session_factory = None
-        if self.database_url:
-            session_factory = dependencies.SessionLocal
-
-        task_logging_config = self.get_config("task_logging", {})
-        self.task_logger_service = TaskLoggerService(
-            session_factory=session_factory, config=task_logging_config
-        )
-        self.feedback_service = FeedbackService(session_factory=session_factory)
+        # Services are initialized later, after the database session factory is created.
+        self.feedback_service: FeedbackService | None = None
 
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
 
@@ -1106,6 +1099,19 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.fastapi_app = fastapi_app_instance
 
             setup_dependencies(self, self.database_url)
+
+            # Instantiate services that depend on the database session factory.
+            # This must be done *after* setup_dependencies has run.
+            session_factory = dependencies.SessionLocal if self.database_url else None
+            task_logging_config = self.get_config("task_logging", {})
+            self.task_logger_service = TaskLoggerService(
+                session_factory=session_factory, config=task_logging_config
+            )
+            self.feedback_service = FeedbackService(session_factory=session_factory)
+            log.info(
+                "%s Services dependent on database session factory have been initialized.",
+                self.log_identifier,
+            )
 
             port = (
                 self.fastapi_https_port
