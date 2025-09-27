@@ -17,7 +17,7 @@ router = APIRouter()
 class FeedbackPayload(BaseModel):
     """Data model for the feedback submission payload."""
 
-    message_id: str = Field(..., alias="messageId")
+    task_id: str = Field(..., alias="taskId")
     session_id: str = Field(..., alias="sessionId")
     feedback_type: Literal["up", "down"] = Field(..., alias="feedbackType")
     feedback_text: Optional[str] = Field(None, alias="feedbackText")
@@ -31,7 +31,7 @@ async def submit_feedback(
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
     """
-    Receives and processes user feedback for a specific chat message.
+    Receives and processes user feedback for a specific task.
     """
     await feedback_service.process_feedback(payload, user_id)
     return {"status": "feedback received"}

@@ -63,9 +63,9 @@ This checklist provides a terse summary of the steps outlined in the implementat
 - [x] **2.1.** Create `.../http_sse/routers/tasks.py` (or add to the existing one).
 - [x] **2.2.** Implement the `GET /api/v1/tasks` endpoint for listing and searching tasks.
 - [x] **2.3.** Implement the `GET /api/v1/tasks/{task_id}` endpoint for retrieving a single task as a `.stim` file.
-- [ ] **3.1.** Locate the `POST /api/v1/feedback` endpoint.
-- [ ] **3.2.** Update the feedback request body model to accept `task_id` instead of `message_id`.
-- [ ] **3.3.** Update the feedback endpoint implementation to use the new database-backed `FeedbackService`.
+- [x] **3.1.** Locate the `POST /api/v1/feedback` endpoint.
+- [x] **3.2.** Update the feedback request body model to accept `task_id` instead of `message_id`.
+- [x] **3.3.** Update the feedback endpoint implementation to use the new database-backed `FeedbackService`.
 - [ ] **4.1.** Modify `.../http_sse/main.py` to include the new endpoints from the `tasks` router.
 
 ---
