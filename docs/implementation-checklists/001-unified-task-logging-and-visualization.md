@@ -32,9 +32,9 @@ This checklist provides a terse summary of the steps outlined in the implementat
 
 ### Phase 3: Business Logic (Services)
 
-- [ ] **1.1.** Create the `.../http_sse/services/` directory if it doesn't exist.
-- [ ] **1.2.** Create `.../services/task_logger_service.py`.
-- [ ] **1.3.** Implement the `TaskLoggerService` class.
+- [x] **1.1.** Create the `.../http_sse/services/` directory if it doesn't exist.
+- [x] **1.2.** Create `.../services/task_logger_service.py`.
+- [x] **1.3.** Implement the `TaskLoggerService` class.
 - [ ] **2.1.** Modify `.../services/feedback_service.py`.
 - [ ] **2.2.** Update `FeedbackService` constructor to accept an `IFeedbackRepository` dependency.
 - [ ] **2.3.** Update the `save_feedback` method to use the repository and remove old file-based logic.
