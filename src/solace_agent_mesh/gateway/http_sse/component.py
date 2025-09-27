@@ -29,6 +29,7 @@ from .components import VisualizationForwarderComponent
 from .components.task_logger_forwarder import TaskLoggerForwarderComponent
 from .services.feedback_service import FeedbackService
 from .services.task_logger_service import TaskLoggerService
+from . import dependencies
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -193,8 +194,15 @@ class WebUIBackendComponent(BaseGatewayComponent):
             publish_func=self.publish_a2a,
         )
 
-        feedback_config = self.get_config("feedback_service", {})
-        self.feedback_service = FeedbackService(config=feedback_config)
+        session_factory = None
+        if self.database_url:
+            session_factory = dependencies.SessionLocal
+
+        task_logging_config = self.get_config("task_logging", {})
+        self.task_logger_service = TaskLoggerService(
+            session_factory=session_factory, config=task_logging_config
+        )
+        self.feedback_service = FeedbackService(session_factory=session_factory)
 
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
 
@@ -1602,6 +1610,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
     def get_feedback_service(self) -> FeedbackService:
         """Returns the shared FeedbackService instance."""
         return self.feedback_service
+
+    def get_task_logger_service(self) -> TaskLoggerService | None:
+        """Returns the shared TaskLoggerService instance."""
+        return self.task_logger_service
 
     def get_namespace(self) -> str:
         return self.namespace

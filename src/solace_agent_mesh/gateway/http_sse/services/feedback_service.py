@@ -3,12 +3,13 @@ Service layer for handling user feedback on chat messages.
 """
 
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from solace_ai_connector.common.log import log
+from sqlalchemy.orm import Session as DBSession
 
 from ..repository.entities import Feedback
-from ..repository.interfaces import IFeedbackRepository
+from ..repository.feedback_repository import FeedbackRepository
 from ..shared import now_epoch_ms
 
 # The FeedbackPayload is defined in the router, this creates a forward reference
@@ -20,10 +21,10 @@ if TYPE_CHECKING:
 class FeedbackService:
     """Handles the business logic for processing user feedback."""
 
-    def __init__(self, feedback_repository: IFeedbackRepository | None = None):
+    def __init__(self, session_factory: Callable[[], DBSession] | None = None):
         """Initializes the FeedbackService."""
-        self.repo = feedback_repository
-        if self.repo:
+        self.session_factory = session_factory
+        if self.session_factory:
             log.info("FeedbackService initialized with database persistence.")
         else:
             log.info(
@@ -35,7 +36,7 @@ class FeedbackService:
         Processes and stores the feedback. If a repository is configured,
         it saves to the database. Otherwise, it logs the feedback.
         """
-        if not self.repo:
+        if not self.session_factory:
             log.warning(
                 "Feedback received but no database repository is configured. "
                 "Logging feedback only. Payload: %s",
@@ -43,7 +44,6 @@ class FeedbackService:
             )
             return
 
-        # The payload will be updated to include task_id in a later phase.
         task_id = getattr(payload, "task_id", None)
         if not task_id:
             log.error(
@@ -62,8 +62,11 @@ class FeedbackService:
             created_time=now_epoch_ms(),
         )
 
+        db = self.session_factory()
         try:
-            self.repo.save(feedback_entity)
+            repo = FeedbackRepository(db)
+            repo.save(feedback_entity)
+            db.commit()
             log.info(
                 "Feedback from user '%s' for task '%s' saved to database.",
                 user_id,
@@ -73,3 +76,6 @@ class FeedbackService:
             log.exception(
                 "Failed to save feedback for user '%s' to database: %s", user_id, e
             )
+            db.rollback()
+        finally:
+            db.close()

@@ -52,8 +52,8 @@ This checklist provides a terse summary of the steps outlined in the implementat
 - [x] **3.2.** Create the `_ensure_task_logger_flow_is_running` method.
 - [x] **3.3.** In `_start_fastapi_server` (or a `startup` event), call `_ensure_task_logger_flow_is_running` and start the `_task_logger_loop`.
 - [x] **3.4.** Implement the `_task_logger_loop` to consume messages and call the `TaskLoggerService`.
-- [ ] **4.1.** In `WebUIBackendComponent.__init__`, instantiate `TaskLoggerService` and the refactored `FeedbackService`.
-- [ ] **4.2.** Add getter methods in `WebUIBackendComponent` for the new services.
+- [x] **4.1.** In `WebUIBackendComponent.__init__`, instantiate `TaskLoggerService` and the refactored `FeedbackService`.
+- [x] **4.2.** Add getter methods in `WebUIBackendComponent` for the new services.
 
 ---
 

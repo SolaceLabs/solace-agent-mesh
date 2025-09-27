@@ -4,22 +4,25 @@ Service for logging A2A tasks and events to the database.
 
 import copy
 import uuid
-from typing import Any, Dict
+from typing import Any, Callable, Dict
 
 from a2a.types import Task as A2ATask
 from solace_ai_connector.common.log import log
+from sqlalchemy.orm import Session as DBSession
 
 from ....common import a2a
 from ..repository.entities import Task, TaskEvent
-from ..repository.interfaces import ITaskRepository
+from ..repository.task_repository import TaskRepository
 from ..shared import now_epoch_ms
 
 
 class TaskLoggerService:
     """Service for logging A2A tasks and events to the database."""
 
-    def __init__(self, task_repository: ITaskRepository, config: Dict[str, Any]):
-        self.repo = task_repository
+    def __init__(
+        self, session_factory: Callable[[], DBSession] | None, config: Dict[str, Any]
+    ):
+        self.session_factory = session_factory
         self.config = config
         self.log_identifier = "[TaskLoggerService]"
         log.info(f"{self.log_identifier} Initialized.")
@@ -30,6 +33,12 @@ class TaskLoggerService:
         Creates or updates the master task record as needed.
         """
         if not self.config.get("enabled", False):
+            return
+
+        if not self.session_factory:
+            log.warning(
+                f"{self.log_identifier} Task logging is enabled but no database is configured. Skipping event."
+            )
             return
 
         topic = event_data.get("topic")
@@ -46,7 +55,10 @@ class TaskLoggerService:
         if "/discovery/agentcards" in topic:
             return
 
+        db = self.session_factory()
         try:
+            repo = TaskRepository(db)
+
             # Infer details from the message
             direction, task_id, user_id = self._infer_event_details(
                 topic, payload, user_properties
@@ -69,7 +81,7 @@ class TaskLoggerService:
             sanitized_payload = self._sanitize_payload(payload)
 
             # Check for existing task or create a new one
-            task = self.repo.find_by_id(task_id)
+            task = repo.find_by_id(task_id)
             if not task:
                 if direction == "request":
                     initial_text = self._extract_initial_text(payload)
@@ -81,7 +93,7 @@ class TaskLoggerService:
                         if initial_text
                         else None,  # Truncate
                     )
-                    self.repo.save_task(new_task)
+                    repo.save_task(new_task)
                     log.info(
                         f"{self.log_identifier} Created new task record for ID: {task_id}"
                     )
@@ -94,7 +106,7 @@ class TaskLoggerService:
                         start_time=now_epoch_ms(),
                         initial_request_text="[Task started before logger was active]",
                     )
-                    self.repo.save_task(placeholder_task)
+                    repo.save_task(placeholder_task)
                     log.info(
                         f"{self.log_identifier} Created placeholder task record for ID: {task_id}"
                     )
@@ -109,24 +121,27 @@ class TaskLoggerService:
                 direction=direction,
                 payload=sanitized_payload,
             )
-            self.repo.save_event(task_event)
+            repo.save_event(task_event)
 
             # If it's a final event, update the master task record
             final_status = self._get_final_status(payload)
             if final_status:
-                task_to_update = self.repo.find_by_id(task_id)
+                task_to_update = repo.find_by_id(task_id)
                 if task_to_update:
                     task_to_update.end_time = now_epoch_ms()
                     task_to_update.status = final_status
-                    self.repo.save_task(task_to_update)
+                    repo.save_task(task_to_update)
                     log.info(
                         f"{self.log_identifier} Finalized task record for ID: {task_id} with status: {final_status}"
                     )
-
+            db.commit()
         except Exception as e:
             log.exception(
                 f"{self.log_identifier} Error logging event on topic {topic}: {e}"
             )
+            db.rollback()
+        finally:
+            db.close()
 
     def _infer_event_details(
         self, topic: str, payload: Dict, user_props: Dict
