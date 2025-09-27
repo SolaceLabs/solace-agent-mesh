@@ -283,7 +283,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             forwarder_cfg = {
                 "component_class": VisualizationForwarderComponent,
                 "component_name": f"{self.gateway_id}_viz_forwarder",
-                "component_config": {"target_queue_ref": self._a2a_message_queue},
+                "component_config": {"target_queue_ref": self._visualization_message_queue},
             }
 
             flow_config = {
@@ -415,7 +415,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             forwarder_cfg = {
                 "component_class": TaskLoggerForwarderComponent,
                 "component_name": f"{self.gateway_id}_task_log_forwarder",
-                "component_config": {"target_queue_ref": self._a2a_message_queue},
+                "component_config": {"target_queue_ref": self._task_logger_queue},
             }
 
             flow_config = {
