@@ -173,7 +173,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         self._visualization_internal_app: SACApp | None = None
         self._visualization_broker_input: BrokerInput | None = None
-        self._a2a_message_queue: queue.Queue = queue.Queue(maxsize=200)
+        self._visualization_message_queue: queue.Queue = queue.Queue(maxsize=200)
+        self._task_logger_queue: queue.Queue = queue.Queue(maxsize=200)
         self._active_visualization_streams: dict[str, dict[str, Any]] = {}
         self._visualization_locks: dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
         self._visualization_locks_lock = threading.Lock()
