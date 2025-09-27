@@ -12,7 +12,7 @@ This checklist provides a terse summary of the steps outlined in the implementat
 - [x] **2.1.** Create `.../repository/models/task_model.py` for `TaskModel`.
 - [x] **2.2.** Create `.../repository/models/task_event_model.py` for `TaskEventModel`.
 - [x] **2.3.** Create `.../repository/models/feedback_model.py` for `FeedbackModel`.
-- [ ] **3.1.** Modify `.../alembic/env.py` to import the new models (`TaskModel`, `TaskEventModel`, `FeedbackModel`).
+- [x] **3.1.** Modify `.../alembic/env.py` to import the new models (`TaskModel`, `TaskEventModel`, `FeedbackModel`).
 - [ ] **4.1.** Run `alembic revision --autogenerate` to create the database migration script.
 - [ ] **4.2.** Review the generated migration script in `alembic/versions/`.
 
