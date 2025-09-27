@@ -33,7 +33,6 @@ from urllib.parse import parse_qs, quote, urlparse
 from solace_ai_connector.common.log import log
 
 from ....common.a2a.types import ArtifactInfo
-from ....common.middleware import ConfigResolver
 from ....common.utils.embeds import (
     LATE_EMBED_TYPES,
     evaluate_embed,
@@ -41,7 +40,7 @@ from ....common.utils.embeds import (
 )
 from ....common.utils.mime_helpers import is_text_based_mime_type
 from ..dependencies import (
-    get_config_resolver,
+    ValidatedUserConfig,
     get_sac_component,
     get_session_validator,
     get_shared_artifact_service,
@@ -78,19 +77,12 @@ async def list_artifact_versions(
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    config_resolver: ConfigResolver = Depends(get_config_resolver),
-    user_config: dict = Depends(get_user_config),
+    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
 ):
     """
     Lists the available integer versions for a given artifact filename
     associated with the current user and session ID.
     """
-    if not config_resolver.is_feature_enabled(
-        user_config, {"required_scopes": ["tool:artifact:list"]}, {}
-    ):
-        raise HTTPException(
-            status_code=403, detail="Not authorized to list artifact versions"
-        )
 
     log_prefix = f"[ArtifactRouter:ListVersions:{filename}] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
@@ -166,18 +158,13 @@ async def list_artifacts(
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    config_resolver: ConfigResolver = Depends(get_config_resolver),
-    user_config: dict = Depends(get_user_config),
+    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
 ):
     """
     Lists detailed information (filename, size, type, modified date, uri)
     for all artifacts associated with the specified user and session ID
     by calling the artifact helper function.
     """
-    if not config_resolver.is_feature_enabled(
-        user_config, {"required_scopes": ["tool:artifact:list"]}, {}
-    ):
-        raise HTTPException(status_code=403, detail="Not authorized to list artifacts")
 
     log_prefix = f"[ArtifactRouter:ListInfo] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
@@ -241,17 +228,12 @@ async def get_latest_artifact(
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    config_resolver: ConfigResolver = Depends(get_config_resolver),
-    user_config: dict = Depends(get_user_config),
+    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:load"])),
 ):
     """
     Retrieves the content of the latest version of the specified artifact
     associated with the current user and session ID.
     """
-    if not config_resolver.is_feature_enabled(
-        user_config, {"required_scopes": ["tool:artifact:load"]}, {}
-    ):
-        raise HTTPException(status_code=403, detail="Not authorized to load artifact")
     log_prefix = (
         f"[ArtifactRouter:GetLatest:{filename}] User={user_id}, Session={session_id} -"
     )
@@ -386,19 +368,12 @@ async def get_specific_artifact_version(
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    config_resolver: ConfigResolver = Depends(get_config_resolver),
-    user_config: dict = Depends(get_user_config),
+    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:load"])),
 ):
     """
     Retrieves the content of a specific version of the specified artifact
     associated with the current user and session ID.
     """
-    if not config_resolver.is_feature_enabled(
-        user_config, {"required_scopes": ["tool:artifact:load"]}, {}
-    ):
-        raise HTTPException(
-            status_code=403, detail="Not authorized to load artifact version"
-        )
     log_prefix = f"[ArtifactRouter:GetVersion:{filename} v{version}] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
 
@@ -568,8 +543,7 @@ async def get_artifact_by_uri(
     uri: str,
     requesting_user_id: str = Depends(get_user_id),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    config_resolver: ConfigResolver = Depends(get_config_resolver),
-    user_config: dict = Depends(get_user_config),
+    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:load"])),
 ):
     """
     Resolves an artifact:// URI and streams its content.
@@ -620,21 +594,6 @@ async def get_artifact_by_uri(
             version,
         )
 
-        if not config_resolver.is_feature_enabled(
-            user_config, {"required_scopes": ["tool:artifact:load"]}, {}
-        ):
-            raise HTTPException(
-                status_code=403, detail="Not authorized to load artifact by URI"
-            )
-            log.warning(
-                "%s Authorization denied for user '%s' to access artifact URI '%s'",
-                log_id_prefix,
-                requesting_user_id,
-                uri,
-            )
-            raise HTTPException(
-                status_code=403, detail="Permission denied to access this artifact."
-            )
 
         log.info(
             "%s User '%s' authorized to access artifact URI.",
@@ -700,17 +659,12 @@ async def upload_artifact(
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    config_resolver: ConfigResolver = Depends(get_config_resolver),
-    user_config: dict = Depends(get_user_config),
+    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:create"])),
 ):
     """
     Uploads a file to create a new version of the specified artifact
     associated with the current user and session ID. Also saves associated metadata.
     """
-    if not config_resolver.is_feature_enabled(
-        user_config, {"required_scopes": ["tool:artifact:create"]}, {}
-    ):
-        raise HTTPException(status_code=403, detail="Not authorized to upload artifact")
     log_prefix = (
         f"[ArtifactRouter:Post:{filename}] User={user_id}, Session={session_id} -"
     )
@@ -856,17 +810,12 @@ async def delete_artifact(
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    config_resolver: ConfigResolver = Depends(get_config_resolver),
-    user_config: dict = Depends(get_user_config),
+    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:delete"])),
 ):
     """
     Deletes the specified artifact (including all its versions)
     associated with the current user and session ID.
     """
-    if not config_resolver.is_feature_enabled(
-        user_config, {"required_scopes": ["tool:artifact:delete"]}, {}
-    ):
-        raise HTTPException(status_code=403, detail="Not authorized to delete artifact")
     log_prefix = (
         f"[ArtifactRouter:Delete:{filename}] User={user_id}, Session={session_id} -"
     )
