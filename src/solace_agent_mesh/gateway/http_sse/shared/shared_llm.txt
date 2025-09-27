@@ -1,0 +1,152 @@
+# DEVELOPER GUIDE: shared
+
+## Quick Summary
+The `shared` directory contains common utilities, constants, enums, and types used across all layers of the HTTP SSE gateway. It provides authentication helpers, timestamp utilities for database portability, enumerations for consistent values, and type definitions for better code clarity.
+
+## Files Overview
+- `__init__.py` - Exports main shared utilities and constants
+- `auth_utils.py` - Authentication utilities for FastAPI applications
+- `enums.py` - Enumerations for message types, task status, and validation errors
+- `timestamp_utils.py` - Epoch timestamp utilities matching Java backend patterns
+- `types.py` - Custom types and type aliases for better type safety
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Central exports for shared utilities
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import get_current_user, now_epoch_ms, epoch_ms_to_iso8601`
+
+### auth_utils.py
+**Purpose:** Provides authentication utilities for FastAPI controllers
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user`
+
+**Functions:**
+- `get_current_user(request: FastAPIRequest) -> dict` - Extracts authenticated user from request state, returns user info or anonymous default
+
+**Usage Examples:**
+```python
+from fastapi import Depends
+from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
+
+@app.get("/protected")
+async def protected_endpoint(user: dict = Depends(get_current_user)):
+    return {"user_id": user["id"], "name": user["name"]}
+```
+
+### enums.py
+**Purpose:** Defines enumerations for consistent values across the application
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType, TaskStatus, MessageType, ValidationErrorType`
+
+**Classes:**
+- `SenderType(str, Enum)` - Types of message senders (USER, AGENT, SYSTEM)
+- `TaskStatus(str, Enum)` - Task execution status (PENDING, RUNNING, COMPLETED, FAILED, CANCELLED)
+- `MessageType(str, Enum)` - Types of messages (TEXT, FILE, IMAGE, DOCUMENT)
+- `ValidationErrorType(str, Enum)` - Types of validation errors (REQUIRED_FIELD, INVALID_FORMAT, OUT_OF_RANGE, DUPLICATE_VALUE, BUSINESS_RULE)
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType, TaskStatus
+
+# Use in message creation
+message = {
+    "sender_type": SenderType.USER,
+    "content": "Hello"
+}
+
+# Use in task status updates
+if task.status == TaskStatus.COMPLETED:
+    send_notification()
+```
+
+### timestamp_utils.py
+**Purpose:** Provides epoch timestamp utilities for database portability and timezone handling
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared.timestamp_utils import now_epoch_ms, epoch_ms_to_iso8601, iso8601_to_epoch_ms`
+
+**Functions:**
+- `now_epoch_ms() -> int` - Get current time as milliseconds since epoch
+- `epoch_ms_to_iso8601(epoch_ms: int) -> str` - Convert epoch milliseconds to ISO 8601 string
+- `iso8601_to_epoch_ms(iso8601_string: str) -> int` - Convert ISO 8601 string to epoch milliseconds
+- `datetime_to_epoch_ms(dt: datetime) -> int` - Convert datetime object to epoch milliseconds
+- `epoch_ms_to_datetime(epoch_ms: int) -> datetime` - Convert epoch milliseconds to datetime object
+- `validate_epoch_ms(epoch_ms: int | None) -> bool` - Validate that an epoch milliseconds value is reasonable
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared.timestamp_utils import (
+    now_epoch_ms, epoch_ms_to_iso8601, iso8601_to_epoch_ms
+)
+
+# Get current timestamp for database storage
+created_time = now_epoch_ms()
+
+# Convert for API response
+iso_string = epoch_ms_to_iso8601(created_time)
+
+# Parse from API request
+timestamp = iso8601_to_epoch_ms("2024-01-01T00:00:00Z")
+```
+
+### types.py
+**Purpose:** Defines custom types and type aliases for better type safety
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared.types import UserId, SessionId, Timestamp, PaginationInfo`
+
+**Type Aliases:**
+- `UserId: str` - User identifier type
+- `SessionId: str` - Session identifier type
+- `MessageId: str` - Message identifier type
+- `TaskId: str` - Task identifier type
+- `AgentId: str` - Agent identifier type
+- `JsonDict: dict[str, Any]` - Generic JSON dictionary
+- `Headers: dict[str, str]` - HTTP headers dictionary
+- `QueryParams: dict[str, str | list[str]]` - Query parameters dictionary
+
+**Classes:**
+- `Timestamp(BaseModel)` - Standardized timestamp using epoch milliseconds
+  - `created_time: int` - Creation time in epoch milliseconds
+  - `updated_time: int | None` - Update time in epoch milliseconds
+- `LegacyTimestamp(BaseModel)` - Legacy datetime-based timestamps (deprecated)
+  - `created_at: datetime` - Creation datetime
+  - `updated_at: datetime | None` - Update datetime
+- `PaginationInfo(BaseModel)` - Pagination information for list responses
+  - `page: int` - Current page number
+  - `page_size: int` - Items per page
+  - `total_items: int` - Total number of items
+  - `total_pages: int` - Total number of pages
+  - `has_next: bool` - Whether there's a next page
+  - `has_previous: bool` - Whether there's a previous page
+- `SortInfo(BaseModel)` - Sorting information for list requests
+  - `field: str` - Field to sort by
+  - `direction: str` - Sort direction ("asc" or "desc")
+- `FilterInfo(BaseModel)` - Filtering information for list requests
+  - `field: str` - Field to filter on
+  - `operator: str` - Filter operator (eq, ne, gt, lt, gte, lte, contains, in)
+  - `value: Any` - Filter value
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared.types import (
+    UserId, Timestamp, PaginationInfo, SortInfo
+)
+
+# Use type aliases for better type hints
+def get_user_messages(user_id: UserId) -> list[dict]:
+    pass
+
+# Use timestamp model
+timestamp = Timestamp(created_time=1704067200000, updated_time=None)
+
+# Use pagination info
+pagination = PaginationInfo(
+    page=1,
+    page_size=20,
+    total_items=100,
+    total_pages=5,
+    has_next=True,
+    has_previous=False
+)
+
+# Use sort info
+sort = SortInfo(field="created_time", direction="desc")
+```
+
+# content_hash: e3c0756d7fb614fa9afa3e8c5d73989abaf69313cdb6650d3a957980eb4d3849

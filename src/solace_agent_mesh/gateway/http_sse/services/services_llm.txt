@@ -1,12 +1,14 @@
 # DEVELOPER GUIDE: services
 
 ## Quick Summary
-The `services` directory contains the business logic layer for the HTTP SSE Gateway. It provides high-level services for agent management (discovering and retrieving A2A agents), user identity operations (searching for users), and task management (cancelling A2A tasks). These services abstract the complexities of interacting with agent registries, identity providers, and A2A messaging protocols.
+The `services` directory contains the business logic layer for the HTTP SSE Gateway. It provides high-level services for agent management (discovering and retrieving A2A agents), user feedback processing, user identity operations (searching for users), session management with persistence, and task management (cancelling A2A tasks). These services abstract the complexities of interacting with agent registries, identity providers, databases, and A2A messaging protocols.
 
 ## Files Overview
 - `__init__.py` - Package initialization file marking the directory as a Python package
-- `agent_service.py` - Service for retrieving information about discovered A2A agents from the registry
+- `agent_card_service.py` - Service for retrieving information about discovered A2A agents from the registry
+- `feedback_service.py` - Service for processing and storing user feedback on chat messages
 - `people_service.py` - Service for searching users via configured identity services
+- `session_service.py` - Service for managing chat sessions and messages with database persistence
 - `task_service.py` - Service for handling A2A task cancellation operations
 
 ## Developer API Reference
@@ -15,34 +17,65 @@ The `services` directory contains the business logic layer for the HTTP SSE Gate
 **Purpose:** Marks the services directory as a Python package
 **Import:** N/A - No public interfaces
 
-### agent_service.py
+### agent_card_service.py
 **Purpose:** Provides methods for accessing information about discovered A2A agents from the shared AgentRegistry
-**Import:** `from solace_agent_mesh.gateway.http_sse.services.agent_service import AgentService`
+**Import:** `from solace_agent_mesh.gateway.http_sse.services.agent_card_service import AgentCardService`
 
 **Classes:**
-- `AgentService(agent_registry: AgentRegistry)` - Service for accessing discovered A2A agent information
-  - `get_all_agents() -> List[AgentCard]` - Retrieves all currently discovered and registered agent cards
-  - `get_agent_by_name(agent_name: str) -> Optional[AgentCard]` - Retrieves a specific agent card by name, returns None if not found
+- `AgentCardService(agent_registry: AgentRegistry)` - Service for accessing discovered A2A agent information
+  - `get_all_agent_cards() -> List[AgentCard]` - Retrieves all currently discovered and registered agent cards
+  - `get_agent_card_by_name(agent_name: str) -> Optional[AgentCard]` - Retrieves a specific agent card by name, returns None if not found
 
 **Usage Examples:**
 ```python
-from solace_agent_mesh.gateway.http_sse.services.agent_service import AgentService
+from solace_agent_mesh.gateway.http_sse.services.agent_card_service import AgentCardService
 from solace_agent_mesh.common.agent_registry import AgentRegistry
 
 # Initialize with shared agent registry
 agent_registry = AgentRegistry()  # Usually injected as shared instance
-agent_service = AgentService(agent_registry=agent_registry)
+agent_service = AgentCardService(agent_registry=agent_registry)
 
 # Get all available agents
-all_agents = agent_service.get_all_agents()
+all_agents = agent_service.get_all_agent_cards()
 print(f"Found {len(all_agents)} agents")
 
 # Get specific agent by name
-agent = agent_service.get_agent_by_name("data-processor")
+agent = agent_service.get_agent_card_by_name("data-processor")
 if agent:
     print(f"Found agent: {agent.name}")
 else:
     print("Agent not found")
+```
+
+### feedback_service.py
+**Purpose:** Handles the business logic for processing and storing user feedback on chat messages
+**Import:** `from solace_agent_mesh.gateway.http_sse.services.feedback_service import FeedbackService`
+
+**Classes:**
+- `FeedbackService(config: Dict = None)` - Service for processing user feedback with configurable storage backends
+  - `process_feedback(payload: FeedbackPayload, user_id: str) -> None` - Asynchronously processes and stores feedback based on configured service type
+
+**Usage Examples:**
+```python
+import asyncio
+from solace_agent_mesh.gateway.http_sse.services.feedback_service import FeedbackService
+
+# Initialize with logging backend (default)
+feedback_service = FeedbackService()
+
+# Initialize with CSV backend
+csv_config = {
+    "type": "csv",
+    "filename": "user_feedback.csv"
+}
+csv_feedback_service = FeedbackService(config=csv_config)
+
+# Process feedback (requires FeedbackPayload from router)
+async def process_user_feedback():
+    # payload would be a FeedbackPayload instance from the router
+    await feedback_service.process_feedback(payload, user_id="user123")
+
+asyncio.run(process_user_feedback())
 ```
 
 ### people_service.py
@@ -74,6 +107,61 @@ people_service_no_id = PeopleService(identity_service=None)
 # search_for_users will return empty list
 
 asyncio.run(search_users())
+```
+
+### session_service.py
+**Purpose:** Manages chat sessions and messages with database persistence support
+**Import:** `from solace_agent_mesh.gateway.http_sse.services.session_service import SessionService`
+
+**Classes:**
+- `SessionService(session_repository: ISessionRepository, message_repository: IMessageRepository, component: WebUIBackendComponent = None)` - Service for managing chat sessions and messages
+  - `is_persistence_enabled() -> bool` - Checks if the service is configured with a persistent backend
+  - `get_user_sessions(user_id: UserId, pagination: PaginationInfo = None) -> List[Session]` - Retrieves sessions for a user with optional pagination
+  - `get_session_details(session_id: SessionId, user_id: UserId) -> Optional[Session]` - Gets session details for a specific session
+  - `get_session_history(session_id: SessionId, user_id: UserId, pagination: PaginationInfo = None) -> Optional[SessionHistory]` - Gets session with messages
+  - `create_session(user_id: UserId, name: str = None, agent_id: str = None, session_id: str = None) -> Optional[Session]` - Creates a new session
+  - `update_session_name(session_id: SessionId, user_id: UserId, name: str) -> Optional[Session]` - Updates session name
+  - `delete_session_with_notifications(session_id: SessionId, user_id: UserId) -> bool` - Deletes session and notifies agents
+  - `add_message_to_session(session_id: SessionId, user_id: UserId, message: str, sender_type: SenderType, sender_name: str, agent_id: str = None, message_type: MessageType = MessageType.TEXT) -> Message` - Adds a message to a session
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.services.session_service import SessionService
+from solace_agent_mesh.gateway.http_sse.repository import ISessionRepository, IMessageRepository
+from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType, MessageType
+
+# Initialize with repositories
+session_repo = YourSessionRepository()  # Your implementation
+message_repo = YourMessageRepository()  # Your implementation
+component = YourWebUIBackendComponent()  # Your component
+
+session_service = SessionService(
+    session_repository=session_repo,
+    message_repository=message_repo,
+    component=component
+)
+
+# Create a new session
+session = session_service.create_session(
+    user_id="user123",
+    name="My Chat Session",
+    agent_id="assistant-agent"
+)
+
+# Add a message to the session
+message = session_service.add_message_to_session(
+    session_id=session.id,
+    user_id="user123",
+    message="Hello, how can you help me?",
+    sender_type=SenderType.USER,
+    sender_name="John Doe"
+)
+
+# Get user's sessions
+user_sessions = session_service.get_user_sessions("user123")
+
+# Get session history
+history = session_service.get_session_history(session.id, "user123")
 ```
 
 ### task_service.py
@@ -130,4 +218,4 @@ async def cancel_task_example():
 asyncio.run(cancel_task_example())
 ```
 
-# content_hash: 83ddf6b403dc50598ed550e4b3a5445f832b3956dad75f7a3fbbb7e6e5c6c115
+# content_hash: 7b7d1b267f741da6fef96ac0bad0e8d214263abad3d492921943c0e4a740a47d

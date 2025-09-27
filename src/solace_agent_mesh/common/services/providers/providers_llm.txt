@@ -19,7 +19,7 @@ This file contains no public classes or functions - it serves only as package do
 
 **Classes:**
 - `LocalFileIdentityService(config: Dict[str, Any])` - Identity service that sources user data from a local JSON file
-  - `async get_user_profile(auth_claims: Dict[str, Any]) -> Optional[Dict[str, Any]]` - Looks up a user profile using the lookup key from auth claims
+  - `async get_user_profile(auth_claims: Dict[str, Any], **kwargs: Any) -> Optional[Dict[str, Any]]` - Looks up a user profile using the lookup key from auth claims
   - `async search_users(query: str, limit: int = 10) -> List[Dict[str, Any]]` - Performs case-insensitive search on user names and emails
   - `file_path: str` - Path to the JSON file containing user data
   - `lookup_key: str` - Key used to identify users (defaults to "id")
@@ -77,4 +77,4 @@ async def main():
 asyncio.run(main())
 ```
 
-# content_hash: 3661ffe07466b1391797c2feb90e2c97544b1a9c6c8cd15fc448cf95f4be6015
+# content_hash: dedeab896bc453e831712ed31f7cde65201aaf64df9c9b18a74c6c680ff5d007

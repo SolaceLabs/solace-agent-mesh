@@ -16,16 +16,21 @@ This design creates a clean separation of concerns, where the web layer (FastAPI
 ## Files and Subdirectories Overview
 - **Direct files:**
   - `__init__.py`: Standard Python package initializer.
+  - `alembic.ini`: Alembic database migration configuration file.
   - `app.py`: Defines the main SAC `WebUIBackendApp`, which specifies configuration and launches the component.
   - `component.py`: The core SAC component that hosts the FastAPI server and manages all shared resources and A2A logic.
   - `dependencies.py`: Provides FastAPI dependency injectors for accessing shared resources like services and managers.
   - `main.py`: The main FastAPI application instance, including middleware, router mounting, and exception handling.
   - `session_manager.py`: Manages web user sessions and maps them to unique A2A client and session IDs.
   - `sse_manager.py`: Manages Server-Sent Event (SSE) connections for streaming real-time updates to clients.
+  - `sse_event_buffer.py`: Thread-safe buffer for holding early SSE events before a client connects.
 - **Subdirectories:**
+  - `alembic/`: Database migration configuration and version files for schema management.
   - `components/`: Contains specialized SAC components, such as for forwarding messages to the visualization system.
+  - `repository/`: Data access layer implementing the Repository pattern with SQLAlchemy ORM models.
   - `routers/`: Defines the FastAPI `APIRouter` modules for all REST API endpoints.
   - `services/`: Encapsulates business logic for agents, tasks, and other domain-specific operations.
+  - `shared/`: Common utilities, constants, enums, and types used across all layers.
 
 ## Developer API Reference
 
@@ -83,7 +88,7 @@ This design creates a clean separation of concerns, where the web layer (FastAPI
 
 **Classes/Functions/Constants:**
 - **`app: FastAPI`**: The main FastAPI application instance.
-- **`setup_dependencies(component: WebUIBackendComponent)`**: Configures middleware, routers, and dependency injection based on the component instance.
+- **`setup_dependencies(component: WebUIBackendComponent, database_url: str = None)`**: Configures middleware, routers, and dependency injection based on the component instance.
 
 #### session_manager.py
 **Purpose:** Manages web user sessions and mapping to A2A Client IDs.
@@ -102,13 +107,34 @@ This design creates a clean separation of concerns, where the web layer (FastAPI
 **Import:** `from solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager`
 
 **Classes/Functions/Constants:**
-- **`SSEManager(max_queue_size: int = 200)`**: Manages active SSE connections and distributes events.
+- **`SSEManager(max_queue_size: int, event_buffer: SSEEventBuffer)`**: Manages active SSE connections and distributes events.
   - `create_sse_connection(task_id: str) -> asyncio.Queue`: Creates a new SSE connection queue for a task.
   - `send_event(task_id: str, event_data: Dict[str, Any], event_type: str)`: Sends an event to all connections for a task.
   - `close_all_for_task(task_id: str)`: Closes all SSE connections for a specific task.
   - `close_all()`: Closes all active SSE connections.
 
+#### sse_event_buffer.py
+**Purpose:** A thread-safe buffer for holding early SSE events before a client connects.
+**Import:** `from solace_agent_mesh.gateway.http_sse.sse_event_buffer import SSEEventBuffer`
+
+**Classes/Functions/Constants:**
+- **`SSEEventBuffer(max_queue_size: int, max_age_seconds: int)`**: Manages buffering and cleanup of SSE events.
+  - `buffer_event(task_id: str, event: Dict[str, Any])`: Buffers an event for a given task ID.
+  - `get_and_remove_buffer(task_id: str) -> Optional[List[Dict[str, Any]]]`: Atomically retrieves and removes the event buffer for a task.
+  - `cleanup_stale_buffers()`: Removes all pending event buffers older than the max age.
+
 ### Subdirectory APIs
+
+#### alembic/
+**Purpose:** Database migration configuration and version files for schema management
+**Key Exports:** Migration functions for schema evolution (upgrade/downgrade operations)
+**Import Examples:**
+```python
+# These are migration files executed by Alembic CLI, not directly imported
+# Access via Alembic commands:
+# alembic upgrade head
+# alembic downgrade base
+```
 
 #### components/
 **Purpose:** Contains specialized SAC components for message forwarding and visualization
@@ -116,6 +142,17 @@ This design creates a clean separation of concerns, where the web layer (FastAPI
 **Import Examples:**
 ```python
 from solace_agent_mesh.gateway.http_sse.components import VisualizationForwarderComponent
+```
+
+#### repository/
+**Purpose:** Data access layer implementing the Repository pattern with SQLAlchemy ORM models
+**Key Exports:** Repository interfaces, implementations, domain entities, and SQLAlchemy models
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository import (
+    ISessionRepository, IMessageRepository, SessionRepository, MessageRepository,
+    Session, Message, SessionHistory, Base, SessionModel, MessageModel
+)
 ```
 
 #### routers/
@@ -129,12 +166,22 @@ from solace_agent_mesh.gateway.http_sse.routers.tasks import CancelTaskApiPayloa
 
 #### services/
 **Purpose:** Encapsulates business logic for domain-specific operations
-**Key Exports:** `AgentService`, `TaskService`, `PeopleService`
+**Key Exports:** `AgentCardService`, `TaskService`, `PeopleService`, `SessionService`, `FeedbackService`
 **Import Examples:**
 ```python
-from solace_agent_mesh.gateway.http_sse.services.agent_service import AgentService
+from solace_agent_mesh.gateway.http_sse.services.agent_card_service import AgentCardService
 from solace_agent_mesh.gateway.http_sse.services.task_service import TaskService
 from solace_agent_mesh.gateway.http_sse.services.people_service import PeopleService
+```
+
+#### shared/
+**Purpose:** Common utilities, constants, enums, and types used across all layers
+**Key Exports:** Authentication utilities, timestamp functions, enums, and type definitions
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared import get_current_user, now_epoch_ms
+from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType, TaskStatus
+from solace_agent_mesh.gateway.http_sse.shared.types import UserId, SessionId, PaginationInfo
 ```
 
 ## Complete Usage Guide
@@ -155,6 +202,11 @@ app_config = {
     "cors_allowed_origins": ["http://localhost:3000"],
     "frontend_welcome_message": "Welcome to my A2A system!",
     "frontend_bot_name": "My Assistant",
+    # Database configuration for persistence
+    "session_service": {
+        "type": "sql",
+        "database_url": "sqlite:///./sessions.db"
+    },
     # ... other configuration parameters
 }
 
@@ -213,87 +265,5 @@ router = APIRouter()
 @router.get("/my-sse-endpoint/{task_id}")
 async def my_sse_endpoint(
     task_id: str,
-    sse_manager: SSEManager = Depends(get_sse_manager)
-):
-    # Create SSE connection for the task
-    connection_queue = await sse_manager.create_sse_connection(task_id)
-    
-    async def event_generator():
-        try:
-            while True:
-                # Wait for events from the queue
-                event = await connection_queue.get()
-                if event is None:  # Close signal
-                    break
-                
-                # Format as SSE
-                yield f"event: {event['event']}\n"
-                yield f"data: {event['data']}\n\n"
-                
-        except asyncio.CancelledError:
-            pass
-        finally:
-            # Clean up connection
-            await sse_manager.remove_sse_connection(task_id, connection_queue)
-    
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        }
-    )
 
-# Send events to SSE connections
-async def send_custom_event(sse_manager: SSEManager, task_id: str):
-    await sse_manager.send_event(
-        task_id=task_id,
-        event_data={"message": "Custom event", "timestamp": "2024-01-01T00:00:00Z"},
-        event_type="custom_event"
-    )
-```
-
-### 4. Working with Sessions and User Identity
-
-```python
-from fastapi import APIRouter, Depends, Request
-from solace_agent_mesh.gateway.http_sse.dependencies import (
-    get_session_manager,
-    get_user_id,
-    ensure_session_id
-)
-from solace_agent_mesh.gateway.http_sse.session_manager import SessionManager
-
-router = APIRouter()
-
-@router.post("/start-conversation")
-async def start_conversation(
-    request: Request,
-    user_id: str = Depends(get_user_id),
-    session_id: str = Depends(ensure_session_id),
-    session_manager: SessionManager = Depends(get_session_manager)
-):
-    # Start a new A2A session for this conversation
-    new_session_id = session_manager.start_new_a2a_session(request)
-    
-    return {
-        "user_id": user_id,
-        "old_session_id": session_id,
-        "new_session_id": new_session_id,
-        "message": "New conversation started"
-    }
-```
-
-### 5. Using Services for Business Logic
-
-```python
-from fastapi import APIRouter, Depends
-from solace_agent_mesh.gateway.http_sse.dependencies import (
-    get_agent_service,
-    get_task_service,
-    get_people_service
-)
-from solace_agent_mesh.gateway.http_sse.services.agent_service import AgentService
-
-# content_hash: 765fb33c6a30298c67ac7c1525df5787791b2b37e0d69b046e405aec85287feb
+# content_hash: 6d7b218a8dcbb741260b4375b7ab1630a530bb6c3ca37602bdac04eaab33df7b

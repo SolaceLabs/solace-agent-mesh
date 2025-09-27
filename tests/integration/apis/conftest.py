@@ -382,6 +382,7 @@ def configured_feedback_client(request, tmp_path: Path, monkeypatch):
         "session_secret_key": "a-very-secret-key-for-testing",
         "frontend_use_authorization": False,
         "feedback_service": feedback_config,
+        "gateway_max_message_size_bytes": 1000000,
     }
 
     # The component needs a config that is both flat (for get_config) and
@@ -393,7 +394,9 @@ def configured_feedback_client(request, tmp_path: Path, monkeypatch):
     }
 
     # Instantiate a real component with this config
-    real_component = WebUIBackendComponent(component_config=component_config)
+    real_component = WebUIBackendComponent(
+        component_config=component_config, config=component_config
+    )
 
     # Use monkeypatch to manage the global state in the dependencies module
     monkeypatch.setattr(dependencies, "sac_component_instance", real_component)

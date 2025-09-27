@@ -31,6 +31,8 @@ Together, these components form a cohesive ecosystem, enabling developers to eit
   - `a2a_spec/`: Complete JSON Schema specification for the A2A protocol.
   - `client/`: Provides a high-level client for discovering and communicating with remote A2A agents.
   - `middleware/`: A pluggable framework for configuration resolution and system extensibility.
+  - `sac/`: Base component framework for Solace Agent Mesh implementations in the Solace AI Connector.
+  - `sam_events/`: System-level event messaging for session lifecycle, agent health, and configuration changes.
   - `server/`: A complete A2A server implementation with JSON-RPC support and task management.
   - `services/`: Provides shared services like identity management using a factory pattern.
   - `utils/`: Contains common utility functions and an embedded expression processing system.
@@ -177,6 +179,22 @@ from solace_agent_mesh.common.client import A2AClient, A2ACardResolver
 from solace_agent_mesh.common.middleware import ConfigResolver, MiddlewareRegistry
 ```
 
+#### sac/
+**Purpose:** Base component framework for Solace Agent Mesh implementations in the Solace AI Connector with async operations management
+**Key Exports:** `SamComponentBase`
+**Import Examples:**
+```python
+from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase
+```
+
+#### sam_events/
+**Purpose:** System-level event messaging for session lifecycle, agent health, and configuration changes separate from A2A task communication
+**Key Exports:** `SamEventService`, `SamEvent`, `SessionDeletedEvent`
+**Import Examples:**
+```python
+from solace_agent_mesh.common.sam_events import SamEventService, SamEvent, SessionDeletedEvent
+```
+
 #### server/
 **Purpose:** A complete, stand-alone server for building A2A-compliant agents, handling HTTP requests, JSON-RPC, and task lifecycle management.
 **Key Exports:** `A2AServer`, `TaskManager`, `InMemoryTaskManager`
@@ -238,29 +256,6 @@ print(f"ADK Content: {adk_content}")
 
 # Generate topic names for communication
 namespace = "my-company/ai-agents"
-agent_name = "document-analyzer"
-gateway_id = "gateway-001"
-task_id = str(uuid.uuid4())
+agent
 
-request_topic = get_agent_request_topic(namespace, agent_name)
-status_topic = get_gateway_status_topic(namespace, gateway_id, task_id)
-
-print(f"Request Topic: {request_topic}")
-print(f"Status Topic: {status_topic}")
-
-# Use agent registry to track discovered agents
-registry = AgentRegistry()
-agent_card = AgentCard(
-    name="document-analyzer",
-    display_name="Document Analyzer",
-    description="Analyzes and extracts information from documents",
-    url="https://agents.company.com/document-analyzer",
-    version="1.0.0",
-    capabilities={"streaming": True, "pushNotifications": False},
-    skills=[],
-    peer_agents={}
-)
-
-registry.add_or_update_agent(agent_
-
-# content_hash: 1e02a8692a4f781b66ebf5b56ec8adedbbcfec3a02cc8f1cd02a22b95e057b14
+# content_hash: b14b9d0305354a2f2496cf813161323d2e6a889207620c93ca9a2f456c6eb2cf

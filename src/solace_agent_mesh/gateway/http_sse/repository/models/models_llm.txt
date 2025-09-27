@@ -1,0 +1,108 @@
+## Quick Summary
+This directory contains SQLAlchemy ORM models for database persistence in the HTTP SSE gateway. It provides models for managing chat sessions and messages with proper relationships and database schema definitions.
+
+## Files Overview
+- `__init__.py` - Package initialization exposing the main SQLAlchemy models
+- `base.py` - SQLAlchemy declarative base configuration
+- `message_model.py` - MessageModel for storing chat messages with session relationships
+- `session_model.py` - SessionModel for managing chat sessions with message relationships
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Package entry point that exposes the main SQLAlchemy models
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.models import Base, MessageModel, SessionModel`
+
+**Constants/Variables:**
+- `__all__: List[str]` - Public API exports: ["Base", "MessageModel", "SessionModel"]
+
+### base.py
+**Purpose:** Provides the SQLAlchemy declarative base for all models
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.models.base import Base`
+
+**Constants/Variables:**
+- `Base: DeclarativeMeta` - SQLAlchemy declarative base class for all models
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.models.base import Base
+from sqlalchemy import create_engine
+
+# Create all tables
+engine = create_engine("sqlite:///example.db")
+Base.metadata.create_all(engine)
+```
+
+### message_model.py
+**Purpose:** SQLAlchemy model for storing chat messages with session relationships
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.models.message_model import MessageModel`
+
+**Classes:**
+- `MessageModel(Base)` - SQLAlchemy model for chat messages
+  - `id: Column[String]` - Primary key message identifier
+  - `session_id: Column[String]` - Foreign key to sessions table
+  - `message: Column[Text]` - Message content
+  - `created_time: Column[BigInteger]` - Creation timestamp in epoch milliseconds
+  - `sender_type: Column[String]` - Type of message sender (max 50 chars)
+  - `sender_name: Column[String]` - Name of message sender (max 255 chars)
+  - `session: relationship` - SQLAlchemy relationship to SessionModel
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.models import MessageModel
+from sqlalchemy.orm import sessionmaker
+
+# Create a new message
+message = MessageModel(
+    id="msg_123",
+    session_id="session_456",
+    message="Hello, world!",
+    sender_type="user",
+    sender_name="John Doe"
+)
+
+# Add to database session
+Session = sessionmaker(bind=engine)
+db_session = Session()
+db_session.add(message)
+db_session.commit()
+```
+
+### session_model.py
+**Purpose:** SQLAlchemy model for managing chat sessions with message relationships
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.models.session_model import SessionModel`
+
+**Classes:**
+- `SessionModel(Base)` - SQLAlchemy model for chat sessions
+  - `id: Column[String]` - Primary key session identifier
+  - `name: Column[String]` - Optional session name
+  - `user_id: Column[String]` - Required user identifier
+  - `agent_id: Column[String]` - Optional agent identifier
+  - `created_time: Column[BigInteger]` - Creation timestamp in epoch milliseconds
+  - `updated_time: Column[BigInteger]` - Last update timestamp in epoch milliseconds
+  - `messages: relationship` - SQLAlchemy relationship to MessageModel with cascade delete
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.models import SessionModel, MessageModel
+from sqlalchemy.orm import sessionmaker
+
+# Create a new session
+session = SessionModel(
+    id="session_123",
+    name="My Chat Session",
+    user_id="user_456",
+    agent_id="agent_789"
+)
+
+# Add to database
+Session = sessionmaker(bind=engine)
+db_session = Session()
+db_session.add(session)
+db_session.commit()
+
+# Access related messages
+messages = session.messages  # Returns list of MessageModel instances
+```
+
+# content_hash: 89317f794bf15dc008c8297399e4bdbd761155f6bb35115094f6d86f11bd4fe3
