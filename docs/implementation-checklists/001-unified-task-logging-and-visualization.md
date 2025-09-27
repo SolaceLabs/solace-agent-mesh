@@ -45,9 +45,9 @@ This checklist provides a terse summary of the steps outlined in the implementat
 
 - [x] **1.1.** Create `.../components/task_logger_forwarder.py`.
 - [x] **1.2.** Implement the `TaskLoggerForwarderComponent` class, modeled on `VisualizationForwarderComponent`.
-- [ ] **2.1.** In `.../http_sse/component.py`, rename `_visualization_message_queue` to `_a2a_message_queue`.
-- [ ] **2.2.** Update `VisualizationForwarderComponent` instantiation to use the renamed queue.
-- [ ] **2.3.** Update `_visualization_message_processor_loop` to consume from the renamed queue.
+- [x] **2.1.** In `.../http_sse/component.py`, rename `_visualization_message_queue` to `_a2a_message_queue`.
+- [x] **2.2.** Update `VisualizationForwarderComponent` instantiation to use the renamed queue.
+- [x] **2.3.** Update `_visualization_message_processor_loop` to consume from the renamed queue.
 - [ ] **3.1.** In `WebUIBackendComponent`, add a `_task_logger_processor_task` attribute and a `_task_logger_loop` method.
 - [ ] **3.2.** Create the `_ensure_task_logger_flow_is_running` method.
 - [ ] **3.3.** In `_start_fastapi_server` (or a `startup` event), call `_ensure_task_logger_flow_is_running` and start the `_task_logger_loop`.

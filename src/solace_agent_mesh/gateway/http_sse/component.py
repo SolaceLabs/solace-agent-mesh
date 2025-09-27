@@ -170,7 +170,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         self._visualization_internal_app: SACApp | None = None
         self._visualization_broker_input: BrokerInput | None = None
-        self._visualization_message_queue: queue.Queue = queue.Queue(maxsize=200)
+        self._a2a_message_queue: queue.Queue = queue.Queue(maxsize=200)
         self._active_visualization_streams: dict[str, dict[str, Any]] = {}
         self._visualization_locks: dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
         self._visualization_locks_lock = threading.Lock()
@@ -274,9 +274,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             forwarder_cfg = {
                 "component_class": VisualizationForwarderComponent,
                 "component_name": f"{self.gateway_id}_viz_forwarder",
-                "component_config": {
-                    "target_queue_ref": self._visualization_message_queue
-                },
+                "component_config": {"target_queue_ref": self._a2a_message_queue},
             }
 
             flow_config = {
@@ -392,7 +390,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
     async def _visualization_message_processor_loop(self) -> None:
         """
-        Asynchronously consumes messages from the _visualization_message_queue,
+        Asynchronously consumes messages from the _a2a_message_queue,
         filters them, and forwards them to relevant SSE connections.
         Placeholder for Phase 2: Just logs messages.
         """
@@ -405,7 +403,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             try:
                 msg_data = await loop.run_in_executor(
                     None,
-                    self._visualization_message_queue.get,
+                    self._a2a_message_queue.get,
                     True,
                     1.0,
                 )
@@ -417,11 +415,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     )
                     break
 
-                current_size = self._visualization_message_queue.qsize()
-                max_size = self._visualization_message_queue.maxsize
+                current_size = self._a2a_message_queue.qsize()
+                max_size = self._a2a_message_queue.maxsize
                 if max_size > 0 and (current_size / max_size) > 0.90:
                     log.warning(
-                        "%s Visualization queue is over 90%% full. Current size: %d/%d",
+                        "%s A2A message queue is over 90%% full. Current size: %d/%d",
                         log_id_prefix,
                         current_size,
                         max_size,
@@ -433,7 +431,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 log.debug("%s [VIZ_DATA_RAW] Topic: %s", log_id_prefix, topic)
 
                 if "/a2a/v1/discovery/" in topic:
-                    self._visualization_message_queue.task_done()
+                    self._a2a_message_queue.task_done()
                     continue
 
                 event_details_for_owner = self._infer_visualization_event_details(
@@ -577,7 +575,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         else:
                             pass
 
-                self._visualization_message_queue.task_done()
+                self._a2a_message_queue.task_done()
 
             except queue.Empty:
                 continue
@@ -592,8 +590,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     log_id_prefix,
                     e,
                 )
-                if msg_data and self._visualization_message_queue:
-                    self._visualization_message_queue.task_done()
+                if msg_data and self._a2a_message_queue:
+                    self._a2a_message_queue.task_done()
                 await asyncio.sleep(1)
 
         log.info("%s Visualization message processor loop finished.", log_id_prefix)
@@ -1064,8 +1062,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
         log.info("%s Cleaning up Web UI Backend Component...", self.log_identifier)
         self.cancel_timer(self._sse_cleanup_timer_id)
         log.info("%s Cleaning up visualization resources...", self.log_identifier)
-        if self._visualization_message_queue:
-            self._visualization_message_queue.put(None)
+        if self._a2a_message_queue:
+            self._a2a_message_queue.put(None)
 
         if (
             self._visualization_processor_task
