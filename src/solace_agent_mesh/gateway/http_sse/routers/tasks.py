@@ -246,6 +246,9 @@ async def search_tasks(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have permission to query for other users' tasks.",
             )
+    elif can_query_all:
+        target_user_id = "*"
+        log.info("%sAdmin user %s is querying for all users.", log_prefix, user_id)
 
     start_time_ms = None
     if start_date:
