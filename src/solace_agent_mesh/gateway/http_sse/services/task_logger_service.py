@@ -89,9 +89,9 @@ class TaskLoggerService:
                         id=task_id,
                         user_id=user_id or "unknown",
                         start_time=now_epoch_ms(),
-                        initial_request_text=initial_text[:1024]
-                        if initial_text
-                        else None,  # Truncate
+                        initial_request_text=(
+                            initial_text[:1024] if initial_text else None
+                        ),  # Truncate
                     )
                     repo.save_task(new_task)
                     log.info(
@@ -171,7 +171,7 @@ class TaskLoggerService:
         """Extracts task ID from a JSON-RPC response payload."""
         if "result" in payload and isinstance(payload["result"], dict):
             result = payload["result"]
-            return result.get("task_id") or result.get("id")
+            return result.get("taskId") or result.get("id")
         if "error" in payload and isinstance(payload["error"], dict):
             error_data = payload["error"].get("data", {})
             if isinstance(error_data, dict):
@@ -234,19 +234,16 @@ class TaskLoggerService:
                                     continue  # Skip this part entirely
 
                                 file_dict = part.get("file")
-                                if (
-                                    isinstance(file_dict, dict)
-                                    and "bytes" in file_dict
-                                ):
+                                if isinstance(file_dict, dict) and "bytes" in file_dict:
                                     max_bytes = self.config.get(
                                         "max_file_part_size_bytes", 102400
                                     )
                                     file_bytes_b64 = file_dict.get("bytes")
                                     if isinstance(file_bytes_b64, str):
                                         if (len(file_bytes_b64) * 3 / 4) > max_bytes:
-                                            file_dict[
-                                                "bytes"
-                                            ] = f"[Content stripped, size > {max_bytes} bytes]"
+                                            file_dict["bytes"] = (
+                                                f"[Content stripped, size > {max_bytes} bytes]"
+                                            )
                                 new_parts.append(part)
                             else:
                                 walk_and_sanitize(part)

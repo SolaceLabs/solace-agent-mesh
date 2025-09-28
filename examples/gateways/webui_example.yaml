@@ -72,6 +72,10 @@ apps:
       frontend_welcome_message: ${FRONTEND_WELCOME_MESSAGE}
       frontend_bot_name: ${FRONTEND_BOT_NAME}
       frontend_collect_feedback: true
-      feedback_service:                                                                                                                                             
-        type: csv                                                                                                                                                   
-        filename: user_feedback.csv                                                                                                                                 
+
+      task_logging:                                                                                                                                               
+        enabled: true # <-- THIS IS THE KEY. It activates the TaskLoggerService.                                                                                  
+        log_status_updates: true                                                                                                                                  
+        log_artifact_events: true                                                                                                                                 
+        log_file_parts: true                                                                                                                                      
+        max_file_part_size_bytes: 102400                                                                                                                          

@@ -76,8 +76,9 @@ shared_config:
   - services:
     # Default session service configuration
     session_service: &default_session_service
-      type: "memory"
+      type: "sql"
       default_behavior: "PERSISTENT"
+      database_url: ${SESSION_DATABASE_URL, sqlite:///session.db}
     
     # Default artifact service configuration
     artifact_service: &default_artifact_service
