@@ -32,11 +32,11 @@ This checklist tracks the implementation of the declarative HTTP API testing fea
 
 ## Part 3: Create Initial Test Case and Cleanup
 
-- [ ] **Step 8: Create a "Smoke Test" Declarative Scenario**
-  - [ ] Create `tests/integration/scenarios_declarative/test_data/api/test_get_empty_tasks.yaml`.
+- [x] **Step 8: Create a "Smoke Test" Declarative Scenario**
+  - [x] Create `tests/integration/scenarios_declarative/test_data/api/test_get_empty_tasks.yaml`.
 
-- [ ] **Step 9: Create a Full End-to-End Declarative Test**
-  - [ ] Create `tests/integration/scenarios_declarative/test_data/api/test_create_and_get_task.yaml`.
+- [x] **Step 9: Create a Full End-to-End Declarative Test**
+  - [x] Create `tests/integration/scenarios_declarative/test_data/api/test_create_and_get_task.yaml`.
 
 - [ ] **Step 10: Remove Old API Test Framework**
   - [ ] Delete `tests/integration/apis/conftest.py`.
