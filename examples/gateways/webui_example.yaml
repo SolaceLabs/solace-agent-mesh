@@ -79,3 +79,9 @@ apps:
         log_artifact_events: true                                                                                                                                 
         log_file_parts: true                                                                                                                                      
         max_file_part_size_bytes: 102400                                                                                                                          
+
+      feedback_publishing:
+        enabled: true
+        topic: "${NAMESPACE}/sam/feedback/v1"
+        include_task_info: "stim" # Options: "none", "summary", "stim"
+        max_payload_size_bytes: 9000000 # 9MB default, safety margin below 10MB broker limit

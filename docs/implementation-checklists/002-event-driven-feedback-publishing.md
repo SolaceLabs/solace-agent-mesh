@@ -4,12 +4,12 @@ This checklist provides a terse summary of the implementation steps required for
 
 ## Step 1: Update Configuration
 
--   [ ] **1.1:** In `src/solace_agent_mesh/gateway/http_sse/app.py`, add the `feedback_publishing` dictionary schema to `WebUIBackendApp.SPECIFIC_APP_SCHEMA_PARAMS`.
-    -   [ ] `enabled` (boolean, default `False`)
-    -   [ ] `topic` (string, default `sam/feedback/v1`)
-    -   [ ] `include_task_info` (string enum: `none`, `summary`, `stim`, default `none`)
-    -   [ ] `max_payload_size_bytes` (integer, default `9000000`)
--   [ ] **1.2:** In `examples/gateways/webui_example.yaml`, add the `feedback_publishing` block to `app_config` with example values.
+-   [x] **1.1:** In `src/solace_agent_mesh/gateway/http_sse/app.py`, add the `feedback_publishing` dictionary schema to `WebUIBackendApp.SPECIFIC_APP_SCHEMA_PARAMS`.
+    -   [x] `enabled` (boolean, default `False`)
+    -   [x] `topic` (string, default `sam/feedback/v1`)
+    -   [x] `include_task_info` (string enum: `none`, `summary`, `stim`, default `none`)
+    -   [x] `max_payload_size_bytes` (integer, default `9000000`)
+-   [x] **1.2:** In `examples/gateways/webui_example.yaml`, add the `feedback_publishing` block to `app_config` with example values.
 
 ## Step 2: Refactor `.stim` File Generation
 

@@ -213,6 +213,39 @@ class WebUIBackendApp(BaseGatewayApp):
                 },
             },
         },
+        {
+            "name": "feedback_publishing",
+            "required": False,
+            "type": "dict",
+            "description": "Configuration for publishing user feedback to the message broker.",
+            "dict_schema": {
+                "enabled": {
+                    "type": "boolean",
+                    "required": False,
+                    "default": False,
+                    "description": "Enable/disable feedback publishing.",
+                },
+                "topic": {
+                    "type": "string",
+                    "required": False,
+                    "default": "sam/feedback/v1",
+                    "description": "The Solace topic to publish feedback events to.",
+                },
+                "include_task_info": {
+                    "type": "string",
+                    "required": False,
+                    "default": "none",
+                    "enum": ["none", "summary", "stim"],
+                    "description": "Level of task detail to include in the feedback event.",
+                },
+                "max_payload_size_bytes": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 9000000,
+                    "description": "Max payload size in bytes before 'stim' falls back to 'summary'.",
+                },
+            },
+        },
     ]
 
     def __init__(self, app_info: Dict[str, Any], **kwargs):
