@@ -209,8 +209,8 @@ This group validates that the task history API correctly enforces user-based acc
 ## Test Implementation Checklist
 
 ### Group 1: API Tests
-- [ ] Test 1.1: Empty State Retrieval
-- [ ] Test 1.2: Basic Task Creation and Retrieval
+- [x] Test 1.1: Empty State Retrieval
+- [x] Test 1.2: Basic Task Creation and Retrieval
 - [ ] Test 1.3: Search and Filtering Logic
 - [ ] Test 1.4: Pagination Logic
 - [ ] Test 1.5: Task Detail Retrieval as `.stim` File
