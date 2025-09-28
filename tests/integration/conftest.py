@@ -20,7 +20,6 @@ from sam_test_infrastructure.artifact_service.service import TestInMemoryArtifac
 from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
 from sam_test_infrastructure.gateway_interface.component import TestGatewayComponent
 from sam_test_infrastructure.llm_server.server import TestLLMServer
-from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
 from fastapi.testclient import TestClient
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
 
@@ -137,6 +136,10 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
     Yields:
         A dictionary containing the `connection_params` for both stdio and http.
     """
+    # Import moved inside the fixture to prevent module-level side effects (e.g., middleware patching)
+    # from affecting other apps in the unified test harness.
+    from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
+
     process = None
     port = 0
     SERVER_PATH = inspect.getfile(server_module)
