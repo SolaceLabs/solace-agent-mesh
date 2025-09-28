@@ -13,9 +13,9 @@ This checklist provides a terse summary of the implementation steps required for
 
 ## Step 2: Refactor `.stim` File Generation
 
--   [ ] **2.1:** Create a new file `src/solace_agent_mesh/gateway/http_sse/utils/stim_utils.py`.
--   [ ] **2.2:** In `stim_utils.py`, define a helper function `create_stim_from_task_data(task: Task, events: list[TaskEvent]) -> dict`.
--   [ ] **2.3:** In `src/solace_agent_mesh/gateway/http_sse/routers/tasks.py`, refactor the `get_task_as_stim_file` endpoint to import and use `create_stim_from_task_data`.
+-   [x] **2.1:** Create a new file `src/solace_agent_mesh/gateway/http_sse/utils/stim_utils.py`.
+-   [x] **2.2:** In `stim_utils.py`, define a helper function `create_stim_from_task_data(task: Task, events: list[TaskEvent]) -> dict`.
+-   [x] **2.3:** In `src/solace_agent_mesh/gateway/http_sse/routers/tasks.py`, refactor the `get_task_as_stim_file` endpoint to import and use `create_stim_from_task_data`.
 
 ## Step 3: Update Dependency Injection
 

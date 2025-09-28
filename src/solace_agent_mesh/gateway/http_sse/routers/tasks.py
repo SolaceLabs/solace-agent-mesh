@@ -21,6 +21,7 @@ from ....gateway.http_sse.services.task_service import TaskService
 from ....gateway.http_sse.repository.interfaces import ITaskRepository
 from ....gateway.http_sse.repository.entities import Task
 from ....gateway.http_sse.shared.types import PaginationInfo, UserId
+from ..utils.stim_utils import create_stim_from_task_data
 
 from a2a.types import (
     CancelTaskRequest,
@@ -318,18 +319,7 @@ async def get_task_as_stim_file(
             )
 
         # Format into .stim structure
-        stim_data = {
-            "invocation_details": {
-                "log_file_version": "2.0",  # New version for gateway-generated logs
-                "task_id": task.id,
-                "user_id": task.user_id,
-                "start_time": task.start_time,
-                "end_time": task.end_time,
-                "status": task.status,
-                "initial_request_text": task.initial_request_text,
-            },
-            "invocation_flow": [event.model_dump() for event in events],
-        }
+        stim_data = create_stim_from_task_data(task, events)
 
         yaml_content = yaml.dump(
             stim_data,
