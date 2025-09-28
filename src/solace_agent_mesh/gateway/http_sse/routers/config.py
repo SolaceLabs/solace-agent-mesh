@@ -27,6 +27,15 @@ async def get_app_config(
     log_prefix = "[GET /api/v1/config] "
     log.info("%sRequest received.", log_prefix)
     try:
+        # Start with explicitly defined feature flags
+        feature_enablement = component.get_config("frontend_feature_enablement", {})
+
+        # Manually check for the task_logging feature and add it
+        task_logging_config = component.get_config("task_logging", {})
+        if task_logging_config and task_logging_config.get("enabled", False):
+            feature_enablement["taskLogging"] = True
+            log.debug("%s taskLogging feature flag is enabled.", log_prefix)
+
         config_data = {
             "frontend_server_url": "",
             "frontend_auth_login_url": component.get_config(
@@ -43,7 +52,7 @@ async def get_app_config(
                 "frontend_collect_feedback", False
             ),
             "frontend_bot_name": component.get_config("frontend_bot_name", "A2A Agent"),
-            "frontend_feature_enablement": component.get_config("frontend_feature_enablement", {}),
+            "frontend_feature_enablement": feature_enablement,
             "persistence_enabled": api_config.get("persistence_enabled", False),
         }
         log.info("%sReturning frontend configuration.", log_prefix)
