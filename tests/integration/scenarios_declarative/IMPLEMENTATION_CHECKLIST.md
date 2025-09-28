@@ -38,9 +38,9 @@ This checklist tracks the implementation of the declarative HTTP API testing fea
 - [x] **Step 9: Create a Full End-to-End Declarative Test**
   - [x] Create `tests/integration/scenarios_declarative/test_data/api/test_create_and_get_task.yaml`.
 
-- [ ] **Step 10: Remove Old API Test Framework**
-  - [ ] Delete `tests/integration/apis/conftest.py`.
-  - [ ] Delete `tests/integration/apis/infrastructure/` directory.
-  - [ ] Delete `tests/integration/apis/persistence/` directory.
-  - [ ] Delete `tests/integration/apis/test_feedback_api.py`.
-  - [ ] Clean up `tests/integration/apis/__init__.py`.
+- [x] **Step 10: Remove Old API Test Framework**
+  - [x] Delete `tests/integration/apis/conftest.py`.
+  - [x] Delete `tests/integration/apis/infrastructure/` directory.
+  - [x] Delete `tests/integration/apis/persistence/` directory.
+  - [x] Delete `tests/integration/apis/test_feedback_api.py`.
+  - [x] Clean up `tests/integration/apis/__init__.py`.
