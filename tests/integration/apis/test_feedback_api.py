@@ -74,48 +74,55 @@ def test_submit_feedback_persists_to_database(api_client: TestClient, test_datab
         db_session.close()
 
 
-@pytest.mark.parametrize(
-    "configured_feedback_client",
-    [({"type": "csv", "filename": "feedback.csv"})],
-    indirect=True,
-)
-def test_feedback_csv_append(configured_feedback_client):
+def test_submit_multiple_feedback_records(api_client: TestClient, test_database_engine):
     """
-    Tests that subsequent feedback submissions append to the existing CSV file
-    without adding a new header.
+    Tests that multiple feedback submissions for the same task create distinct records.
     """
-    client, tmp_path = configured_feedback_client
-    payload1 = {
-        "messageId": "msg-1",
-        "sessionId": "session-1",
-        "feedbackType": "up",
-        "feedbackText": "First feedback",
+    # Arrange: Create one task
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Task for multiple feedback"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
     }
+    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
+    assert task_response.status_code == 200
+    task_result = task_response.json()["result"]
+    task_id = task_result["id"]
+    session_id = task_result["contextId"]
+
+    payload1 = {"taskId": task_id, "sessionId": session_id, "feedbackType": "up"}
     payload2 = {
-        "messageId": "msg-2",
-        "sessionId": "session-1",
+        "taskId": task_id,
+        "sessionId": session_id,
         "feedbackType": "down",
-        "feedbackText": "Second feedback, not good.",
+        "feedbackText": "Confusing",
     }
 
-    # Act
-    client.post("/api/v1/feedback", json=payload1)
-    response = client.post("/api/v1/feedback", json=payload2)
+    # Act: Submit two feedback payloads
+    api_client.post("/api/v1/feedback", json=payload1)
+    api_client.post("/api/v1/feedback", json=payload2)
 
-    # Assert HTTP response
-    assert response.status_code == 202
-
-    # Assert file content
-    csv_file = tmp_path / "feedback.csv"
-    with open(csv_file, "r", newline="", encoding="utf-8") as f:
-        reader = csv.reader(f)
-        rows = list(reader)
-
-    assert len(rows) == 3  # Header + 2 data rows
-    assert rows[0][0] == "timestamp_utc"  # Check header is still there
-    assert rows[2][3] == "msg-2"  # Check second data row content
-    assert rows[2][4] == "down"
-    assert rows[2][5] == "Second feedback, not good."
+    # Assert: Check database for two records
+    Session = sessionmaker(bind=test_database_engine)
+    db_session = Session()
+    try:
+        feedback_records = (
+            db_session.query(FeedbackModel).filter_by(task_id=task_id).all()
+        )
+        assert len(feedback_records) == 2
+        ratings = {record.rating for record in feedback_records}
+        assert ratings == {"up", "down"}
+    finally:
+        db_session.close()
 
 
 @pytest.mark.parametrize(
