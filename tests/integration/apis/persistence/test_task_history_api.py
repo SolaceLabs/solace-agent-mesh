@@ -5,9 +5,50 @@ These tests verify the functionality of the task history and retrieval endpoints
 """
 
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Tuple
 
+import pytest
 from fastapi.testclient import TestClient
+
+
+class TimeController:
+    """A simple class to control the 'current' time in tests."""
+
+    def __init__(self, start_time: datetime):
+        self._current_time = start_time
+
+    def now(self) -> int:
+        """Returns the current time as epoch milliseconds."""
+        return int(self._current_time.timestamp() * 1000)
+
+    def set_time(self, new_time: datetime):
+        """Sets the current time to a specific datetime."""
+        self._current_time = new_time
+
+    def advance(self, seconds: int = 0, minutes: int = 0, hours: int = 0):
+        """Advances the current time by a given amount."""
+        self._current_time += timedelta(seconds=seconds, minutes=minutes, hours=hours)
+
+
+@pytest.fixture
+def mock_time(monkeypatch) -> TimeController:
+    """
+    Pytest fixture that mocks the `now_epoch_ms` function used by services
+    and provides a TimeController to manipulate the time during tests.
+    """
+    # Start time is set to a fixed point to make tests deterministic
+    start_time = datetime(2025, 10, 1, 12, 0, 0, tzinfo=timezone.utc)
+    time_controller = TimeController(start_time)
+
+    # The target is the `now_epoch_ms` function inside the module where it's used.
+    # This ensures that when TaskLoggerService calls it, it gets our mocked version.
+    monkeypatch.setattr(
+        "solace_agent_mesh.gateway.http_sse.services.task_logger_service.now_epoch_ms",
+        time_controller.now,
+    )
+
+    yield time_controller
 
 
 def _create_task_and_get_ids(
