@@ -728,6 +728,7 @@ def shared_solace_connector(
                     "database_url": str(test_db_engine.url),
                 },
                 "task_logging": {"enabled": True},
+                "artifact_service": {"type": "test_in_memory"},
             },
         },
     ]
