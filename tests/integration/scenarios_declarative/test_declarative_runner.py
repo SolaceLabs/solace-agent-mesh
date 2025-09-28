@@ -1701,6 +1701,17 @@ async def test_declarative_scenario(
                 artifact_scope=artifact_scope,
             )
 
+        # --- Phase 3: Final Assertions ---
+        # Perform HTTP assertions if specified
+        expected_http_responses = declarative_scenario.get(
+            "expected_http_responses", []
+        )
+        await _assert_http_responses(
+            webui_api_client=webui_api_client,
+            http_responses_spec=expected_http_responses,
+            scenario_id=scenario_id,
+        )
+
         print(f"Scenario {scenario_id}: Completed.")
     except Exception as e:
         if task_id:
