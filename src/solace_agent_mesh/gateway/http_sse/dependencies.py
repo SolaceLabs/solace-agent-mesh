@@ -203,6 +203,23 @@ def get_identity_service(
     return component.identity_service
 
 
+def get_db() -> Generator[Session, None, None]:
+    if SessionLocal is None:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Session management requires database configuration.",
+        )
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def get_people_service(
     identity_service: BaseIdentityService | None = Depends(get_identity_service),
 ) -> PeopleService:
@@ -384,23 +401,6 @@ def get_task_service(
         task_context_lock=task_context_manager._lock,
         app_name=app_name,
     )
-
-
-def get_db() -> Generator[Session, None, None]:
-    if SessionLocal is None:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Session management requires database configuration.",
-        )
-    db = SessionLocal()
-    try:
-        yield db
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
 
 
 def get_session_business_service(
