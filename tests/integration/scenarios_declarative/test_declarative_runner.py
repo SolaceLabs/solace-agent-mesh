@@ -9,6 +9,7 @@ import os
 import asyncio
 from pathlib import Path
 from typing import Dict, Any, List, Union, Optional, Tuple
+from fastapi.testclient import TestClient
 
 from sam_test_infrastructure.llm_server.server import (
     TestLLMServer,
@@ -1299,6 +1300,7 @@ async def test_declarative_scenario(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
     test_artifact_service_instance: TestInMemoryArtifactService,
+    webui_api_client: TestClient,
     a2a_message_validator: A2AMessageValidator,
     mock_gemini_client: None,
     sam_app_under_test: SamAgentApp,
