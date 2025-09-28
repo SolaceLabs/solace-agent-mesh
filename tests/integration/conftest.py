@@ -21,11 +21,14 @@ from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
 from sam_test_infrastructure.gateway_interface.component import TestGatewayComponent
 from sam_test_infrastructure.llm_server.server import TestLLMServer
 from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
+from fastapi.testclient import TestClient
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
 
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.agent.tools.registry import tool_registry
+from solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
+from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
 from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
 from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
@@ -992,6 +995,32 @@ def config_context_agent_component(
 ) -> SamAgentComponent:
     """Retrieves the ConfigContextAgent component instance."""
     return get_component_from_app(config_context_agent_app_under_test)
+
+
+@pytest.fixture(scope="function")
+def webui_api_client(
+    shared_solace_connector: SolaceAiConnector,
+) -> Generator[TestClient, None, None]:
+    """
+    Provides a FastAPI TestClient for the running WebUIBackendApp.
+    """
+    app_instance = shared_solace_connector.get_app("WebUIBackendApp")
+    assert isinstance(
+        app_instance, WebUIBackendApp
+    ), "Failed to retrieve WebUIBackendApp from shared connector."
+
+    component_instance = app_instance.get_component()
+    assert isinstance(
+        component_instance, WebUIBackendComponent
+    ), "Failed to retrieve WebUIBackendComponent from WebUIBackendApp."
+
+    fastapi_app_instance = component_instance.fastapi_app
+    if not fastapi_app_instance:
+        pytest.fail("WebUIBackendComponent's FastAPI app is not initialized.")
+
+    with TestClient(fastapi_app_instance) as client:
+        print("[Fixture] TestClient for WebUIBackendApp created.")
+        yield client
 
 
 @pytest.fixture(scope="session")

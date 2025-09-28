@@ -12,8 +12,8 @@ This checklist tracks the implementation of the declarative HTTP API testing fea
   - [x] Modify `shared_solace_connector` in `tests/integration/conftest.py`.
   - [x] Add `WebUIBackendApp` definition to the `app_infos` list with correct configuration (namespace, DB URL, task logging).
 
-- [ ] **Step 3: Create API Client Fixture**
-  - [ ] Create `webui_api_client` function-scoped fixture in `tests/integration/conftest.py`.
+- [x] **Step 3: Create API Client Fixture**
+  - [x] Create `webui_api_client` function-scoped fixture in `tests/integration/conftest.py`.
 
 ## Part 2: Declarative Test Runner Implementation
 
