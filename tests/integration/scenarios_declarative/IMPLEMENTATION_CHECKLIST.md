@@ -24,8 +24,8 @@ This checklist tracks the implementation of the declarative HTTP API testing fea
   - [x] Create `_execute_http_and_collect_events` helper function in `test_declarative_runner.py`.
   - [x] Update `test_declarative_scenario` to handle `http_request_input` and `gateway_input` logic.
 
-- [ ] **Step 6: Implement HTTP Response Assertions**
-  - [ ] Create `_assert_http_responses` helper function in `test_declarative_runner.py`.
+- [x] **Step 6: Implement HTTP Response Assertions**
+  - [x] Create `_assert_http_responses` helper function in `test_declarative_runner.py`.
 
 - [ ] **Step 7: Integrate Assertions into Runner**
   - [ ] Add a call to `_assert_http_responses` at the end of the `test_declarative_scenario` function.

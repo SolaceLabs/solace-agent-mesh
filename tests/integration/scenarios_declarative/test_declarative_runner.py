@@ -284,6 +284,87 @@ async def _execute_http_and_collect_events(
     )
 
 
+async def _assert_http_responses(
+    webui_api_client: TestClient,
+    http_responses_spec: List[Dict[str, Any]],
+    scenario_id: str,
+):
+    """
+    Executes HTTP requests and asserts the responses against the expected specifications.
+    """
+    if not http_responses_spec:
+        return
+
+    print(f"Scenario {scenario_id}: Performing HTTP response assertions...")
+
+    for i, spec in enumerate(http_responses_spec):
+        context_path = f"expected_http_responses[{i}]"
+        description = spec.get("description", f"Assertion {i+1}")
+        print(f"  - {context_path}: {description}")
+
+        request_spec = spec.get("request")
+        if not request_spec:
+            pytest.fail(f"Scenario {scenario_id}: {context_path} is missing 'request' block.")
+
+        method = request_spec.get("method", "GET")
+        path = request_spec.get("path")
+        json_body = request_spec.get("json_body")
+        query_params = request_spec.get("query_params")
+
+        if not path:
+            pytest.fail(f"Scenario {scenario_id}: {context_path}.request is missing 'path'.")
+
+        response = webui_api_client.request(
+            method, path, params=query_params, json=json_body
+        )
+
+        if "expected_status_code" in spec:
+            assert response.status_code == spec["expected_status_code"], (
+                f"Scenario {scenario_id}: {context_path} - Status code mismatch. "
+                f"Expected {spec['expected_status_code']}, Got {response.status_code}. Response: {response.text}"
+            )
+
+        if spec.get("expected_body_is_empty_list", False):
+            assert response.json() == [], (
+                f"Scenario {scenario_id}: {context_path} - Expected an empty list, but got: {response.json()}"
+            )
+
+        if spec.get("expected_body_is_empty_dict", False):
+            assert response.json() == {}, (
+                f"Scenario {scenario_id}: {context_path} - Expected an empty dict, but got: {response.json()}"
+            )
+
+        if "expected_json_body_matches" in spec:
+            expected_subset = spec["expected_json_body_matches"]
+            try:
+                actual_json = response.json()
+            except json.JSONDecodeError:
+                pytest.fail(
+                    f"Scenario {scenario_id}: {context_path} - Response body was not valid JSON. Response: {response.text}"
+                )
+
+            if isinstance(expected_subset, list):
+                _assert_list_subset(
+                    expected_list_subset=expected_subset,
+                    actual_list_superset=actual_json,
+                    scenario_id=scenario_id,
+                    event_index=-1,  # Using -1 as this is not tied to a gateway event
+                    context_path=context_path,
+                )
+            elif isinstance(expected_subset, dict):
+                _assert_dict_subset(
+                    expected_subset=expected_subset,
+                    actual_superset=actual_json,
+                    scenario_id=scenario_id,
+                    event_index=-1,
+                    context_path=context_path,
+                )
+            else:
+                pytest.fail(
+                    f"Scenario {scenario_id}: {context_path} - 'expected_json_body_matches' must be a list or a dict."
+                )
+
+
 async def _assert_summary_in_text(
     text_to_search: str,
     artifact_identifiers: List[Dict[str, Any]],
