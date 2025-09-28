@@ -69,13 +69,13 @@ export const FlowChartDetails: React.FC<{ task: VisualizedTask }> = ({ task }) =
     }, [messages, task]);
 
     const handleDownloadStim = async () => {
-        if (!task.id) {
+        if (!task.taskId) {
             addNotification("Task ID is missing, cannot download.", "error");
             return;
         }
 
         try {
-            const response = await authenticatedFetch(`${apiPrefix}/tasks/${task.id}`);
+            const response = await authenticatedFetch(`${apiPrefix}/tasks/${task.taskId}`);
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ detail: `Failed to download: ${response.statusText}` }));
                 throw new Error(errorData.detail || `HTTP error ${response.status}`);
@@ -84,7 +84,7 @@ export const FlowChartDetails: React.FC<{ task: VisualizedTask }> = ({ task }) =
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `${task.id}.stim`;
+            a.download = `${task.taskId}.stim`;
             document.body.appendChild(a);
             a.click();
             a.remove();
