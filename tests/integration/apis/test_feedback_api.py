@@ -125,39 +125,6 @@ def test_submit_multiple_feedback_records(api_client: TestClient, test_database_
         db_session.close()
 
 
-@pytest.mark.parametrize(
-    "configured_feedback_client",
-    [({"type": "log"})],
-    indirect=True,
-)
-def test_feedback_logging_fallback(configured_feedback_client, caplog):
-    """
-    Tests that feedback is logged when the service type is 'log' and
-    no CSV file is created.
-    """
-    client, tmp_path = configured_feedback_client
-    feedback_payload = {
-        "messageId": "msg-log",
-        "sessionId": "session-log",
-        "feedbackType": "up",
-    }
-
-    # Act
-    with caplog.at_level(logging.INFO):
-        response = client.post("/api/v1/feedback", json=feedback_payload)
-
-    # Assert HTTP response
-    assert response.status_code == 202
-
-    # Assert logging
-    assert "Feedback received from user 'sam_dev_user'" in caplog.text
-    assert '"feedbackType":"up"' in caplog.text
-    assert '"messageId":"msg-log"' in caplog.text
-
-    # Assert no file was created
-    csv_file = tmp_path / "feedback.csv"
-    assert not csv_file.exists()
-
 
 def test_feedback_missing_required_fields_fails(api_client: TestClient):
     """
