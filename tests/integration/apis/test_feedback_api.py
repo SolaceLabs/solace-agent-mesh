@@ -15,8 +15,10 @@ import pytest
 from fastapi.testclient import TestClient
 from solace_ai_connector.common.log import log
 from sqlalchemy.orm import sessionmaker
+from unittest.mock import MagicMock
 
-from solace_agent_mesh.gateway.http_sse.repository.models import FeedbackModel
+from solace_agent_mesh.gateway.http_sse.repository.models import FeedbackModel, TaskModel
+from solace_agent_mesh.gateway.http_sse.shared import now_epoch_ms
 
 
 def test_submit_feedback_persists_to_database(api_client: TestClient, test_database_engine):
@@ -141,3 +143,90 @@ def test_feedback_missing_required_fields_fails(api_client: TestClient):
 
     # Assert
     assert response.status_code == 422
+
+
+def test_feedback_publishes_event_when_enabled(
+    api_client: TestClient, monkeypatch, test_database_engine
+):
+    """
+    Tests that feedback is published as an event when feedback_publishing is enabled.
+    """
+    # Arrange:
+    # 1. Mock the component's config to enable publishing
+    mock_publish_func = MagicMock()
+
+    # Get the actual component instance used by the test client
+    from solace_agent_mesh.gateway.http_sse import dependencies
+
+    component = dependencies.sac_component_instance
+
+    # Monkeypatch the component's config and publish method
+    monkeypatch.setattr(
+        component,
+        "get_config",
+        lambda key, default=None: {
+            "enabled": True,
+            "topic": "sam/feedback/test/v1",
+            "include_task_info": "summary",
+        }
+        if key == "feedback_publishing"
+        else default,
+    )
+    monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
+
+    # 2. Create a task via API
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Task for event publishing"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
+    assert task_response.status_code == 200
+    task_result = task_response.json()["result"]
+    task_id = task_result["id"]
+    session_id = task_result["contextId"]
+
+    # 3. Manually create a task record in the DB so that feedback service can find it
+    Session = sessionmaker(bind=test_database_engine)
+    db_session = Session()
+    try:
+        new_task = TaskModel(
+            id=task_id,
+            user_id="sam_dev_user",
+            start_time=now_epoch_ms(),
+            initial_request_text="Task for event publishing",
+        )
+        db_session.add(new_task)
+        db_session.commit()
+    finally:
+        db_session.close()
+
+    feedback_payload = {"taskId": task_id, "sessionId": session_id, "feedbackType": "up"}
+
+    # Act
+    response = api_client.post("/api/v1/feedback", json=feedback_payload)
+
+    # Assert
+    assert response.status_code == 202
+
+    # Verify the publish function was called
+    mock_publish_func.assert_called_once()
+    call_args, call_kwargs = mock_publish_func.call_args
+
+    published_topic = call_args[0]
+    published_payload = call_args[1]
+
+    assert published_topic == "sam/feedback/test/v1"
+    assert published_payload["feedback"]["task_id"] == task_id
+    assert published_payload["feedback"]["feedback_type"] == "up"
+    assert "task_summary" in published_payload
+    assert published_payload["task_summary"]["id"] == task_id
