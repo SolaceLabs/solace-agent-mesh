@@ -212,6 +212,12 @@ def _clean_main_database(test_database_engine):
         existing_tables = inspector.get_table_names()
 
         # Delete in correct order to handle foreign key constraints
+        if "feedback" in existing_tables:
+            session.execute(text("DELETE FROM feedback"))
+        if "task_events" in existing_tables:
+            session.execute(text("DELETE FROM task_events"))
+        if "tasks" in existing_tables:
+            session.execute(text("DELETE FROM tasks"))
         if "chat_messages" in existing_tables:
             session.execute(text("DELETE FROM chat_messages"))
         if "sessions" in existing_tables:
