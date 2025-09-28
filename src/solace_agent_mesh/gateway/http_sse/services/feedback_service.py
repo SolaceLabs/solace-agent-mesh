@@ -2,6 +2,7 @@
 Service layer for handling user feedback on chat messages.
 """
 
+import json
 import uuid
 from typing import TYPE_CHECKING, Callable
 
@@ -11,6 +12,7 @@ from sqlalchemy.orm import Session as DBSession
 from ..repository.entities import Feedback
 from ..repository.feedback_repository import FeedbackRepository
 from ..shared import now_epoch_ms
+from ..utils.stim_utils import create_stim_from_task_data
 
 # The FeedbackPayload is defined in the router, this creates a forward reference
 # which is resolved at runtime.
@@ -44,47 +46,137 @@ class FeedbackService:
         """
         Processes and stores the feedback. If a repository is configured,
         it saves to the database. Otherwise, it logs the feedback.
+        Also publishes feedback to a Solace topic if configured.
         """
-        if not self.session_factory:
+        if self.session_factory:
+            task_id = getattr(payload, "task_id", None)
+            if not task_id:
+                log.error(
+                    "Feedback payload is missing 'task_id'. Cannot save to database. Payload: %s",
+                    payload.model_dump_json(by_alias=True),
+                )
+                # We can still try to publish the event without saving to DB
+            else:
+                feedback_entity = Feedback(
+                    id=str(uuid.uuid4()),
+                    session_id=payload.session_id,
+                    task_id=task_id,
+                    user_id=user_id,
+                    rating=payload.feedback_type,
+                    comment=payload.feedback_text,
+                    created_time=now_epoch_ms(),
+                )
+
+                db = self.session_factory()
+                try:
+                    repo = FeedbackRepository(db)
+                    repo.save(feedback_entity)
+                    db.commit()
+                    log.info(
+                        "Feedback from user '%s' for task '%s' saved to database.",
+                        user_id,
+                        task_id,
+                    )
+                except Exception as e:
+                    log.exception(
+                        "Failed to save feedback for user '%s' to database: %s",
+                        user_id,
+                        e,
+                    )
+                    db.rollback()
+                finally:
+                    db.close()
+        else:
             log.warning(
                 "Feedback received but no database repository is configured. "
                 "Logging feedback only. Payload: %s",
                 payload.model_dump_json(by_alias=True),
             )
-            return
 
-        task_id = getattr(payload, "task_id", None)
-        if not task_id:
-            log.error(
-                "Feedback payload is missing 'task_id'. Cannot save to database. Payload: %s",
-                payload.model_dump_json(by_alias=True),
-            )
-            return
-
-        feedback_entity = Feedback(
-            id=str(uuid.uuid4()),
-            session_id=payload.session_id,
-            task_id=task_id,
-            user_id=user_id,
-            rating=payload.feedback_type,
-            comment=payload.feedback_text,
-            created_time=now_epoch_ms(),
-        )
-
-        db = self.session_factory()
+        # --- New event publishing logic ---
         try:
-            repo = FeedbackRepository(db)
-            repo.save(feedback_entity)
-            db.commit()
-            log.info(
-                "Feedback from user '%s' for task '%s' saved to database.",
-                user_id,
-                task_id,
-            )
+            await self._publish_feedback_event(payload, user_id)
         except Exception as e:
-            log.exception(
-                "Failed to save feedback for user '%s' to database: %s", user_id, e
+            log.error(
+                "Failed to publish feedback event for user '%s': %s", user_id, e
             )
-            db.rollback()
-        finally:
-            db.close()
+            # Do not re-raise, as the primary operation (DB save) may have succeeded.
+
+    async def _publish_feedback_event(self, payload: "FeedbackPayload", user_id: str):
+        """Publishes the feedback as an event to the message broker if configured."""
+        log_id = f"[FeedbackPublisher:{payload.task_id}]"
+        config = self.component.get_config("feedback_publishing", {})
+
+        if not config.get("enabled", False):
+            log.debug("%s Feedback publishing is disabled. Skipping.", log_id)
+            return
+
+        # Construct base payload
+        event_payload = {
+            "feedback": {
+                "task_id": payload.task_id,
+                "session_id": payload.session_id,
+                "feedback_type": payload.feedback_type,
+                "feedback_text": payload.feedback_text,
+                "user_id": user_id,
+            }
+        }
+
+        include_task_info = config.get("include_task_info", "none")
+        task_summary_data = None
+
+        if include_task_info == "summary":
+            log.debug("%s Including task summary.", log_id)
+            task_summary_data = self.task_repo.find_by_id(payload.task_id)
+            if task_summary_data:
+                event_payload["task_summary"] = task_summary_data.model_dump()
+
+        elif include_task_info == "stim":
+            log.debug("%s Including task stim data.", log_id)
+            task_with_events = self.task_repo.find_by_id_with_events(payload.task_id)
+            if task_with_events:
+                task, events = task_with_events
+                stim_data = create_stim_from_task_data(task, events)
+                event_payload["task_stim_data"] = stim_data
+
+                # Check payload size
+                max_size = config.get("max_payload_size_bytes", 9000000)
+                try:
+                    payload_bytes = json.dumps(event_payload).encode("utf-8")
+                    if len(payload_bytes) > max_size:
+                        log.warning(
+                            "%s Stim payload size (%d bytes) exceeds limit (%d bytes). Falling back to summary.",
+                            log_id,
+                            len(payload_bytes),
+                            max_size,
+                        )
+                        # Fallback to summary
+                        del event_payload["task_stim_data"]
+                        task_summary_data = self.task_repo.find_by_id(payload.task_id)
+                        if task_summary_data:
+                            event_payload[
+                                "task_summary"
+                            ] = task_summary_data.model_dump()
+                        event_payload["truncation_details"] = {
+                            "strategy": "fallback_to_summary",
+                            "reason": "payload_too_large",
+                        }
+                except Exception as e:
+                    log.error("%s Error checking payload size: %s", log_id, e)
+                    # If we can't check size, better to not send a potentially huge message
+                    if "task_stim_data" in event_payload:
+                        del event_payload["task_stim_data"]
+
+        # Publish the event
+        topic = config.get("topic", "sam/feedback/v1")
+        try:
+            log.info("%s Publishing feedback event to topic '%s'", log_id, topic)
+            self.component.publish_a2a(topic, event_payload)
+        except Exception as e:
+            log.error(
+                "%s Failed to publish feedback event to topic '%s': %s",
+                log_id,
+                topic,
+                e,
+            )
+            # Don't re-raise, this is a non-critical operation.

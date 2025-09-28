@@ -26,16 +26,16 @@ This checklist provides a terse summary of the implementation steps required for
 
 ## Step 4: Implement Core Publishing Logic
 
--   [ ] **4.1:** In `src/solace_agent_mesh/gateway/http_sse/services/feedback_service.py`, modify `process_feedback` to be an `async` method.
--   [ ] **4.2:** In `process_feedback`, read the `feedback_publishing` config from the injected component.
--   [ ] **4.3:** Implement the logic to return early if `enabled` is `False`.
--   [ ] **4.4:** Construct the base event payload.
--   [ ] **4.5:** Implement the `include_task_info` logic:
-    -   [ ] **`summary`:** Use the injected `task_repo` to fetch the task summary and add it to the payload.
-    -   [ ] **`stim`:** Use the `task_repo` and the new `create_stim_from_task_data` helper to generate the stim data.
--   [ ] **4.6:** Implement the "Try-Then-Fallback" logic for `stim` payloads:
-    -   [ ] Serialize the full payload to JSON.
-    -   [ ] Check size against `max_payload_size_bytes`.
-    -   [ ] If too large, replace `stim` data with `summary` data and add `truncation_details`.
--   [ ] **4.7:** Read the `topic` from config and call `self.component.publish_a2a(topic, payload)` to publish the event.
--   [ ] **4.8:** Wrap the publish call in a `try...except` block to handle broker errors gracefully.
+-   [x] **4.1:** In `src/solace_agent_mesh/gateway/http_sse/services/feedback_service.py`, modify `process_feedback` to be an `async` method.
+-   [x] **4.2:** In `process_feedback`, read the `feedback_publishing` config from the injected component.
+-   [x] **4.3:** Implement the logic to return early if `enabled` is `False`.
+-   [x] **4.4:** Construct the base event payload.
+-   [x] **4.5:** Implement the `include_task_info` logic:
+    -   [x] **`summary`:** Use the injected `task_repo` to fetch the task summary and add it to the payload.
+    -   [x] **`stim`:** Use the `task_repo` and the new `create_stim_from_task_data` helper to generate the stim data.
+-   [x] **4.6:** Implement the "Try-Then-Fallback" logic for `stim` payloads:
+    -   [x] Serialize the full payload to JSON.
+    -   [x] Check size against `max_payload_size_bytes`.
+    -   [x] If too large, replace `stim` data with `summary` data and add `truncation_details`.
+-   [x] **4.7:** Read the `topic` from config and call `self.component.publish_a2a(topic, payload)` to publish the event.
+-   [x] **4.8:** Wrap the publish call in a `try...except` block to handle broker errors gracefully.
