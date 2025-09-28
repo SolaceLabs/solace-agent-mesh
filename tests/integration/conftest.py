@@ -399,6 +399,7 @@ def shared_solace_connector(
     session_monkeypatch,
     request,
     mcp_server_harness,
+    test_db_engine,
 ) -> SolaceAiConnector:
     """
     Creates and manages a single SolaceAiConnector instance with multiple agents
@@ -710,6 +711,21 @@ def shared_solace_connector(
             "app_config": config_context_agent_config,
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.agent.sac.app",
+        },
+        {
+            "name": "WebUIBackendApp",
+            "app_module": "solace_agent_mesh.gateway.http_sse.app",
+            "broker": {"dev_mode": True},
+            "app_config": {
+                "namespace": "test_namespace",
+                "gateway_id": "TestWebUIGateway_01",
+                "session_secret_key": "a_secure_test_secret_key",
+                "session_service": {
+                    "type": "sql",
+                    "database_url": str(test_db_engine.url),
+                },
+                "task_logging": {"enabled": True},
+            },
         },
     ]
 
