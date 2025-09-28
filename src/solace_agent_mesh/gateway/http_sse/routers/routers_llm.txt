@@ -1,7 +1,7 @@
 # DEVELOPER GUIDE for the routers directory
 
 ## Quick Summary
-The `routers` directory contains FastAPI router modules that define the REST API endpoints for the HTTP SSE Gateway. Each router groups endpoints by functional domain (agent discovery, artifact management, authentication, sessions, etc.) and provides the primary interface for frontend applications and other clients to interact with the gateway. The routers work together to provide a complete web API with real-time capabilities through Server-Sent Events (SSE).
+The `routers` directory contains FastAPI router modules that define the REST API endpoints for the HTTP SSE Gateway. Each router groups endpoints by functional domain (agent discovery, artifact management, authentication, sessions, etc.) and provides the primary interface for frontend applications and other clients to interact with the gateway. The routers work together to provide a complete web API with real-time capabilities through Server-Sent Events (SSE), along with comprehensive session management, artifact handling, and A2A message visualization.
 
 ## Files and Subdirectories Overview
 - **Direct files:**
@@ -36,34 +36,34 @@ The `routers` directory contains FastAPI router modules that define the REST API
 - `get_discovered_agent_cards() -> List[AgentCard]` - Retrieves all currently discovered A2A agents
 
 #### artifacts.py
-**Purpose:** Manages session-specific artifacts via REST endpoints
+**Purpose:** Manages session-specific artifacts via REST endpoints with versioning and metadata support
 **Import:** `from solace_agent_mesh.gateway.http_sse.routers.artifacts import router`
 
 **Functions:**
 - `list_artifact_versions(session_id: str, filename: str) -> List[int]` - Lists available versions for an artifact
-- `list_artifacts(session_id: str) -> List[ArtifactInfo]` - Lists all artifacts in a session
-- `get_latest_artifact(session_id: str, filename: str) -> StreamingResponse` - Downloads latest artifact version
+- `list_artifacts(session_id: str) -> List[ArtifactInfo]` - Lists all artifacts in a session with metadata
+- `get_latest_artifact(session_id: str, filename: str) -> StreamingResponse` - Downloads latest artifact version with embed resolution
 - `get_specific_artifact_version(session_id: str, filename: str, version: Union[int, str]) -> StreamingResponse` - Downloads specific version
-- `get_artifact_by_uri(uri: str) -> StreamingResponse` - Downloads artifact by formal URI
-- `upload_artifact(session_id: str, filename: str, upload_file: UploadFile, metadata_json: Optional[str]) -> Dict[str, Any]` - Uploads new artifact version
+- `get_artifact_by_uri(uri: str) -> StreamingResponse` - Downloads artifact by formal artifact:// URI
+- `upload_artifact(session_id: str, filename: str, upload_file: UploadFile, metadata_json: Optional[str]) -> Dict[str, Any]` - Uploads new artifact version with metadata
 - `delete_artifact(session_id: str, filename: str) -> Response` - Deletes artifact and all versions
 
 #### auth.py
-**Purpose:** Handles user authentication flow
+**Purpose:** Handles OAuth-based user authentication flow with external authorization service
 **Import:** `from solace_agent_mesh.gateway.http_sse.routers.auth import router`
 
 **Functions:**
-- `initiate_login(request: FastAPIRequest) -> RedirectResponse` - Starts OAuth login flow
-- `get_csrf_token(response: Response) -> Dict[str, str]` - Generates CSRF token
-- `auth_callback(request: FastAPIRequest) -> RedirectResponse` - Handles OAuth callback
-- `refresh_token(request: FastAPIRequest) -> Dict[str, str]` - Refreshes access token
+- `initiate_login(request: FastAPIRequest) -> RedirectResponse` - Starts OAuth login flow with external service
+- `get_csrf_token(response: Response) -> Dict[str, str]` - Generates and sets CSRF token
+- `auth_callback(request: FastAPIRequest) -> RedirectResponse` - Handles OAuth callback and token exchange
+- `refresh_token(request: FastAPIRequest) -> Dict[str, str]` - Refreshes access token using refresh token
 
 #### config.py
-**Purpose:** Provides frontend configuration settings
+**Purpose:** Provides frontend configuration settings including feature flags
 **Import:** `from solace_agent_mesh.gateway.http_sse.routers.config import router`
 
 **Functions:**
-- `get_app_config() -> Dict[str, Any]` - Returns frontend configuration including auth URLs and feature flags
+- `get_app_config() -> Dict[str, Any]` - Returns frontend configuration including auth URLs, feature flags, and persistence settings
 
 #### feedback.py
 **Purpose:** Receives and processes user feedback on chat messages
@@ -71,73 +71,75 @@ The `routers` directory contains FastAPI router modules that define the REST API
 
 **Classes:**
 - `FeedbackPayload(BaseModel)` - Data model for feedback submission
-  - `message_id: str` - ID of the message being rated
-  - `session_id: str` - Session containing the message
+  - `task_id: str` - ID of the task being rated
+  - `session_id: str` - Session containing the task
   - `feedback_type: Literal["up", "down"]` - Type of feedback
   - `feedback_text: Optional[str]` - Optional text feedback
 
 **Functions:**
-- `submit_feedback(payload: FeedbackPayload, user_id: str) -> Dict[str, str]` - Processes user feedback
+- `submit_feedback(payload: FeedbackPayload, user_id: str) -> Dict[str, str]` - Processes user feedback asynchronously
 
 #### people.py
-**Purpose:** Provides user search functionality for autocomplete
+**Purpose:** Provides user search functionality for autocomplete features
 **Import:** `from solace_agent_mesh.gateway.http_sse.routers.people import router`
 
 **Functions:**
-- `search_people(q: str, limit: int = 10) -> List[Dict[str, Any]]` - Searches for users for autocomplete
+- `search_people(q: str, limit: int = 10) -> List[Dict[str, Any]]` - Searches for users for @mention autocomplete
 
 #### sessions.py
-**Purpose:** Manages user sessions including CRUD operations
+**Purpose:** Manages user sessions including CRUD operations with persistence
 **Import:** `from solace_agent_mesh.gateway.http_sse.routers.sessions import router`
 
 **Functions:**
-- `create_new_session(request: FastAPIRequest) -> JSONRPCSuccessResponse` - Creates new session
-- `get_all_sessions(user: dict) -> SessionListResponse` - Lists user's sessions
-- `get_session(session_id: str, user: dict) -> SessionResponse` - Gets session details
+- `create_new_session(request: FastAPIRequest) -> JSONRPCSuccessResponse` - Creates new session with optional persistence
+- `get_all_sessions(user: dict) -> SessionListResponse` - Lists user's sessions with pagination
+- `get_session(session_id: str, user: dict) -> SessionResponse` - Gets session details with authorization
 - `get_session_history(session_id: str, user: dict) -> List[MessageResponse]` - Gets session message history
-- `update_session_name(session_id: str, name: str, user: dict) -> SessionResponse` - Updates session name
-- `delete_session(session_id: str, user: dict) -> None` - Deletes session
+- `update_session_name(session_id: str, name: str, user: dict) -> SessionResponse` - Updates session name with validation
+- `delete_session(session_id: str, user: dict) -> None` - Deletes session with cascade notifications
 
 #### sse.py
 **Purpose:** Provides Server-Sent Events endpoint for real-time streaming
 **Import:** `from solace_agent_mesh.gateway.http_sse.routers.sse import router`
 
 **Functions:**
-- `subscribe_to_task_events(task_id: str, request: FastAPIRequest) -> EventSourceResponse` - Establishes SSE connection for task updates
+- `subscribe_to_task_events(task_id: str, request: FastAPIRequest) -> EventSourceResponse` - Establishes SSE connection for task updates with automatic cleanup
 
 #### tasks.py
-**Purpose:** Handles task submission and management
+**Purpose:** Handles task submission, management, and historical search
 **Import:** `from solace_agent_mesh.gateway.http_sse.routers.tasks import router`
 
 **Functions:**
+- `search_tasks(start_date: Optional[str], end_date: Optional[str], search: Optional[str], page: int, page_size: int, query_user_id: Optional[str]) -> List[Task]` - Searches historical tasks with admin capabilities
+- `get_task_as_stim_file(task_id: str) -> Response` - Downloads complete task history as .stim file
 - `send_task_to_agent(request: FastAPIRequest, payload: SendMessageRequest) -> SendMessageSuccessResponse` - Submits non-streaming task
 - `subscribe_task_from_agent(request: FastAPIRequest, payload: SendStreamingMessageRequest) -> SendStreamingMessageSuccessResponse` - Submits streaming task
 - `cancel_agent_task(request: FastAPIRequest, taskId: str, payload: CancelTaskRequest) -> Dict[str, str]` - Cancels active task
 
 #### users.py
-**Purpose:** Provides current user information
+**Purpose:** Provides current user information with authentication status
 **Import:** `from solace_agent_mesh.gateway.http_sse.routers.users import router`
 
 **Functions:**
-- `get_current_user_endpoint(user: dict) -> Dict[str, Any]` - Returns current user information
+- `get_current_user_endpoint(user: dict) -> Dict[str, Any]` - Returns current user information with auth status
 
 #### visualization.py
-**Purpose:** Manages A2A message visualization streams for monitoring
+**Purpose:** Manages A2A message visualization streams for real-time monitoring
 **Import:** `from solace_agent_mesh.gateway.http_sse.routers.visualization import router, SubscriptionTarget, VisualizationSubscribeRequest`
 
 **Classes:**
 - `SubscriptionTarget(BaseModel)` - Defines visualization target
-  - `type: str` - Target type (e.g., "current_namespace_a2a_messages")
-  - `identifier: Optional[str]` - Target identifier
+  - `type: str` - Target type (e.g., "current_namespace_a2a_messages", "agent_a2a_messages")
+  - `identifier: Optional[str]` - Target identifier (namespace or agent name)
 - `VisualizationSubscribeRequest(BaseModel)` - Subscription request
   - `subscription_targets: Optional[List[SubscriptionTarget]]` - Targets to monitor
-  - `client_stream_id: Optional[str]` - Client-generated stream ID
-- `VisualizationSubscribeResponse(BaseModel)` - Subscription response
+  - `client_stream_id: Optional[str]` - Client-generated stream ID for idempotency
+- `VisualizationSubscribeResponse(BaseModel)` - Subscription response with SSE URL
 - `VisualizationConfigUpdateRequest(BaseModel)` - Configuration update request
 - `VisualizationConfigUpdateResponse(BaseModel)` - Configuration update response
 
 **Functions:**
-- `subscribe_to_visualization_stream(request_data: VisualizationSubscribeRequest) -> VisualizationSubscribeResponse` - Starts visualization stream
+- `subscribe_to_visualization_stream(request_data: VisualizationSubscribeRequest) -> VisualizationSubscribeResponse` - Starts visualization stream with authorization
 - `get_visualization_stream_events(stream_id: str) -> EventSourceResponse` - SSE endpoint for visualization events
 - `update_visualization_stream_config(stream_id: str, update_request: VisualizationConfigUpdateRequest) -> VisualizationConfigUpdateResponse` - Updates stream configuration
 - `unsubscribe_from_visualization_stream(stream_id: str) -> Response` - Terminates visualization stream
@@ -145,8 +147,8 @@ The `routers` directory contains FastAPI router modules that define the REST API
 ### Subdirectory APIs
 
 #### dto/
-**Purpose:** Provides Data Transfer Objects for request/response validation and serialization
-**Key Exports:** Request and response DTOs for session management with automatic timestamp conversion
+**Purpose:** Provides Data Transfer Objects for request/response validation and serialization with automatic timestamp conversion
+**Key Exports:** Request and response DTOs for session management with field validation and camelCase aliasing
 **Import Examples:**
 ```python
 from solace_agent_mesh.gateway.http_sse.routers.dto.requests import GetSessionsRequest, UpdateSessionRequest
@@ -226,6 +228,21 @@ async def submit_streaming_task(agent_name: str, message_text: str, session_id: 
             json=payload.model_dump()
         )
         return response.json()
+
+# Search historical tasks (admin users can query all users)
+async def search_historical_tasks(start_date: str = None, query_user_id: str = None):
+    params = {}
+    if start_date:
+        params["start_date"] = start_date
+    if query_user_id:
+        params["query_user_id"] = query_user_id
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "http://localhost:8000/api/v1/tasks",
+            params=params
+        )
+        return response.json()
 ```
 
 ### 3. Real-time Event Streaming with SSE
@@ -233,9 +250,9 @@ async def submit_streaming_task(agent_name: str, message_text: str, session_id: 
 ```python
 import asyncio
 import httpx
-from sse_starlette import EventSourceResponse
+import json
 
-# Client-side SSE connection
+# Client-side SSE connection for task events
 async def listen_to_task_events(task_id: str):
     async with httpx.AsyncClient() as client:
         async with client.stream(
@@ -246,20 +263,35 @@ async def listen_to_task_events(task_id: str):
             async for line in response.aiter_lines():
                 if line.startswith("data: "):
                     event_data = line[6:]  # Remove "data: " prefix
-                    print(f"Received event: {event_data}")
+                    try:
+                        parsed_data = json.loads(event_data)
+                        print(f"Received event: {parsed_data}")
+                    except json.JSONDecodeError:
+                        print(f"Received raw data: {event_data}")
 
-# Server-side SSE setup (already handled by sse.py router)
-# The router automatically manages SSE connections and event distribution
+# Client-side SSE connection for visualization
+async def listen_to_visualization_events(stream_id: str):
+    async with httpx.AsyncClient() as client:
+        async with client.stream(
+            "GET",
+            f"http://localhost:8000/api/v1/visualization/{stream_id}/events",
+            headers={"Accept": "text/event-stream"}
+        ) as response:
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    event_data = line[6:]
+                    print(f"Visualization event: {event_data}")
 ```
 
-### 4. Artifact Management
+### 4. Comprehensive Artifact Management
 
 ```python
 import httpx
+import json
 from pathlib import Path
 
-# Upload an artifact
-async def upload_artifact(session_id: str, filename: str, file_path: Path, metadata: dict = None):
+# Upload an artifact with metadata
+async def upload_artifact_with_metadata(session_id: str, filename: str, file_path: Path, metadata: dict = None):
     files = {"upload_file": (filename, file_path.open("rb"))}
     data = {}
     
@@ -274,74 +306,15 @@ async def upload_artifact(session_id: str, filename: str, file_path: Path, metad
         )
         return response.json()
 
-# Download latest artifact
-async def download_artifact(session_id: str, filename: str):
+# List artifact versions
+async def list_artifact_versions(session_id: str, filename: str):
     async with httpx.AsyncClient() as client:
         response = await client.get(
-            f"http://localhost:8000/api/v1/artifacts/{session_id}/{filename}"
-        )
-        return response.content
-
-# List all artifacts in session
-async def list_session_artifacts(session_id: str):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"http://localhost:8000/api/v1/artifacts/{session_id}"
-        )
-        return response.json()
-```
-
-### 5. Session Management with DTOs
-
-```python
-from solace_agent_mesh.gateway.http_sse.routers.dto.requests import UpdateSessionRequest
-from solace_agent_mesh.gateway.http_sse.routers.dto.responses import SessionResponse
-
-# Create a new session
-async def create_session():
-    async with httpx.AsyncClient() as client:
-        response = await client.post("http://localhost:8000/api/v1/sessions/new")
-        return response.json()
-
-# Update session name using DTO validation
-async def update_session_name(session_id: str, new_name: str):
-    # DTO automatically validates name length (1-255 characters)
-    request_data = {"name": new_name}
-    
-    async with httpx.AsyncClient() as client:
-        response = await client.patch(
-            f"http://localhost:8000/api/v1/sessions/{session_id}",
-            json=request_data
+            f"http://localhost:8000/api/v1/artifacts/{session_id}/{filename}/versions"
         )
         return response.json()
 
-# Get session history
-async def get_session_messages(session_id: str):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"http://localhost:8000/api/v1/sessions/{session_id}/messages"
-        )
-        return response.json()
-```
+# Download specific artifact version
+async def download_
 
-### 6. Visualization Stream Management
-
-```python
-from solace_agent_mesh.gateway.http_sse.routers.visualization import (
-    SubscriptionTarget, 
-    VisualizationSubscribeRequest
-)
-
-# Subscribe to A2A message visualization
-async def start_visualization_stream():
-    # Define what to monitor
-    targets = [
-        SubscriptionTarget(type="current_namespace_a2a_messages"),
-        SubscriptionTarget(type="agent_a2a_messages", identifier="my_agent")
-    ]
-    
-    request = VisualizationSubscribeRequest(
-        subscription_targets=targets,
-        client_
-
-# content_hash: 52ea4de9973dc1c4788aceb3d145e8a4411af918c251e40ead11d6547d893412
+# content_hash: 9d7abd6933b70947b59623f9ebeb81341a5daf2349dfdd041daa5d21ad06ba45

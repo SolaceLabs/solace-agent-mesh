@@ -229,4 +229,4 @@ artifact_service = S3ArtifactService(bucket_name="my-artifacts-bucket")
 
 # Save an artifact
 
-# content_hash: 274dc455e87eefd072b5c4589010b55e8c5828af6a90a4c0e22188d1e2ea2911
+# content_hash: 7a50903e224a36fc219d042406944734a1ddd48a8da298fb1958c7b6938c2fc1

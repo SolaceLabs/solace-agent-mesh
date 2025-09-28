@@ -1,17 +1,19 @@
 ## Quick Summary
 
-The repository directory implements the data access layer for the HTTP SSE gateway using the Repository pattern. It provides a clean separation between domain entities and database persistence through SQLAlchemy ORM models. The architecture consists of abstract interfaces, concrete implementations, domain entities with business logic, and SQLAlchemy models for database operations. The two main subdirectories (entities and models) work together to provide a complete data persistence solution for chat sessions and messages.
+The repository directory implements the data access layer for the HTTP SSE gateway using the Repository pattern. It provides a clean separation between domain entities and database persistence through SQLAlchemy ORM models. The architecture consists of abstract interfaces, concrete implementations, domain entities with business logic, and SQLAlchemy models for database operations. The two main subdirectories (entities and models) work together to provide a complete data persistence solution for chat sessions, messages, tasks, feedback, and events.
 
 ## Files and Subdirectories Overview
 
 **Direct files:**
 - `__init__.py` - Main package exports for repository interfaces, implementations, entities, and models
-- `interfaces.py` - Abstract repository interfaces defining data access contracts
+- `interfaces.py` - Abstract repository interfaces defining data access contracts for sessions, messages, tasks, and feedback
 - `message_repository.py` - SQLAlchemy implementation of message data access operations
 - `session_repository.py` - SQLAlchemy implementation of session data access operations
+- `feedback_repository.py` - SQLAlchemy implementation of feedback data access operations
+- `task_repository.py` - SQLAlchemy implementation of task data access operations
 
 **Subdirectories:**
-- `entities/` - Domain entities with business logic for sessions, messages, and session history
+- `entities/` - Domain entities with business logic for sessions, messages, tasks, feedback, and events
 - `models/` - SQLAlchemy ORM models for database persistence and schema definition
 
 ## Developer API Reference
@@ -36,7 +38,7 @@ The repository directory implements the data access layer for the HTTP SSE gatew
 
 #### interfaces.py
 **Purpose:** Defines abstract repository interfaces for data access contracts
-**Import:** `from solace_agent_mesh.gateway.http_sse.repository.interfaces import ISessionRepository, IMessageRepository`
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.interfaces import ISessionRepository, IMessageRepository, ITaskRepository, IFeedbackRepository`
 
 **Classes:**
 - `ISessionRepository(ABC)` - Abstract interface for session data operations
@@ -50,6 +52,16 @@ The repository directory implements the data access layer for the HTTP SSE gatew
   - `find_by_session(session_id: SessionId, pagination: PaginationInfo | None = None) -> list[Message]` - Find messages in session
   - `save(message: Message) -> Message` - Save or update a message
   - `delete_by_session(session_id: SessionId) -> bool` - Delete all session messages
+
+- `ITaskRepository(ABC)` - Abstract interface for task data operations
+  - `save_task(task: Task) -> Task` - Create or update a task
+  - `save_event(event: TaskEvent) -> TaskEvent` - Save a task event
+  - `find_by_id(task_id: str) -> Task | None` - Find a task by its ID
+  - `find_by_id_with_events(task_id: str) -> tuple[Task, list[TaskEvent]] | None` - Find a task with all its events
+  - `search(user_id: UserId, start_date: int | None = None, end_date: int | None = None, search_query: str | None = None, pagination: PaginationInfo | None = None) -> list[Task]` - Search for tasks with filters
+
+- `IFeedbackRepository(ABC)` - Abstract interface for feedback data operations
+  - `save(feedback: Feedback) -> Feedback` - Save feedback
 
 #### message_repository.py
 **Purpose:** SQLAlchemy implementation of message repository interface
@@ -78,22 +90,47 @@ The repository directory implements the data access layer for the HTTP SSE gatew
   - `_model_to_entity(model: SessionModel) -> Session` - Convert session model to entity
   - `_message_model_to_entity(model: MessageModel) -> Message` - Convert message model to entity
 
+#### feedback_repository.py
+**Purpose:** SQLAlchemy implementation of feedback repository interface
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.feedback_repository import FeedbackRepository`
+
+**Classes:**
+- `FeedbackRepository(IFeedbackRepository)` - SQLAlchemy feedback repository implementation
+  - `__init__(db: DBSession)` - Initialize with database session
+  - `save(feedback: Feedback) -> Feedback` - Save feedback to database
+  - `_model_to_entity(model: FeedbackModel) -> Feedback` - Convert SQLAlchemy model to domain entity
+
+#### task_repository.py
+**Purpose:** SQLAlchemy implementation of task repository interface
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.task_repository import TaskRepository`
+
+**Classes:**
+- `TaskRepository(ITaskRepository)` - SQLAlchemy task repository implementation
+  - `__init__(db: DBSession)` - Initialize with database session
+  - `save_task(task: Task) -> Task` - Create or update a task
+  - `save_event(event: TaskEvent) -> TaskEvent` - Save a task event
+  - `find_by_id(task_id: str) -> Task | None` - Find a task by its ID
+  - `find_by_id_with_events(task_id: str) -> tuple[Task, list[TaskEvent]] | None` - Find a task with all its events
+  - `search(user_id: UserId, start_date: int | None = None, end_date: int | None = None, search_query: str | None = None, pagination: PaginationInfo | None = None) -> list[Task]` - Search for tasks with filters
+  - `_task_model_to_entity(model: TaskModel) -> Task` - Convert SQLAlchemy task model to domain entity
+  - `_event_model_to_entity(model: TaskEventModel) -> TaskEvent` - Convert SQLAlchemy event model to domain entity
+
 ### Subdirectory APIs
 
 #### entities/
-**Purpose:** Provides domain entities with business logic for sessions, messages, and session history
-**Key Exports:** Message, Session, SessionHistory
+**Purpose:** Provides domain entities with business logic for sessions, messages, tasks, feedback, and events
+**Key Exports:** Message, Session, SessionHistory, Task, TaskEvent, Feedback
 **Import Examples:**
 ```python
-from solace_agent_mesh.gateway.http_sse.repository.entities import Message, Session, SessionHistory
+from solace_agent_mesh.gateway.http_sse.repository.entities import Message, Session, SessionHistory, Task, TaskEvent, Feedback
 ```
 
 #### models/
 **Purpose:** Provides SQLAlchemy ORM models for database persistence and schema definition
-**Key Exports:** Base, MessageModel, SessionModel
+**Key Exports:** Base, MessageModel, SessionModel, TaskModel, TaskEventModel, FeedbackModel
 **Import Examples:**
 ```python
-from solace_agent_mesh.gateway.http_sse.repository.models import Base, MessageModel, SessionModel
+from solace_agent_mesh.gateway.http_sse.repository.models import Base, MessageModel, SessionModel, TaskModel, TaskEventModel, FeedbackModel
 ```
 
 ## Complete Usage Guide
@@ -104,7 +141,7 @@ from solace_agent_mesh.gateway.http_sse.repository.models import Base, MessageMo
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from solace_agent_mesh.gateway.http_sse.repository import (
-    Base, MessageRepository, SessionRepository
+    Base, MessageRepository, SessionRepository, TaskRepository, FeedbackRepository
 )
 
 # Create database engine and session
@@ -116,6 +153,8 @@ db_session = Session()
 # Initialize repositories
 message_repo = MessageRepository(db_session)
 session_repo = SessionRepository(db_session)
+task_repo = TaskRepository(db_session)
+feedback_repo = FeedbackRepository(db_session)
 ```
 
 ### 2. Working with Sessions
@@ -179,7 +218,72 @@ if message.is_from_agent():
     print("Message from agent")
 ```
 
-### 4. Working with Session History (Combined Operations)
+### 4. Working with Tasks and Events
+
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Task, TaskEvent
+
+# Create a new task
+task = Task(
+    id="task_123",
+    user_id="user_456",
+    start_time=int(time.time() * 1000),
+    status="in_progress",
+    initial_request_text="Help me with my order"
+)
+
+# Save task
+saved_task = task_repo.save_task(task)
+
+# Create task event
+event = TaskEvent(
+    id="event_123",
+    task_id="task_123",
+    user_id="user_456",
+    created_time=int(time.time() * 1000),
+    topic="task.status.changed",
+    direction="outbound",
+    payload={"status": "completed", "result": "success"}
+)
+
+# Save event
+saved_event = task_repo.save_event(event)
+
+# Find task with events
+result = task_repo.find_by_id_with_events("task_123")
+if result:
+    task, events = result
+    print(f"Task {task.id} has {len(events)} events")
+
+# Search tasks
+tasks = task_repo.search(
+    user_id="user_456",
+    search_query="order",
+    pagination=pagination
+)
+```
+
+### 5. Working with Feedback
+
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Feedback
+
+# Create feedback
+feedback = Feedback(
+    id="feedback_123",
+    session_id="session_123",
+    task_id="task_123",
+    user_id="user_456",
+    rating="up",
+    comment="Great service!",
+    created_time=int(time.time() * 1000)
+)
+
+# Save feedback
+saved_feedback = feedback_repo.save(feedback)
+```
+
+### 6. Working with Session History (Combined Operations)
 
 ```python
 from solace_agent_mesh.gateway.http_sse.repository.entities import SessionHistory
@@ -203,21 +307,25 @@ if result:
     print(f"Messages: {len(history.messages)}")
 ```
 
-### 5. Using Repository Interfaces for Dependency Injection
+### 7. Using Repository Interfaces for Dependency Injection
 
 ```python
 from solace_agent_mesh.gateway.http_sse.repository.interfaces import (
-    ISessionRepository, IMessageRepository
+    ISessionRepository, IMessageRepository, ITaskRepository, IFeedbackRepository
 )
 
 class ChatService:
     def __init__(
         self, 
         session_repo: ISessionRepository,
-        message_repo: IMessageRepository
+        message_repo: IMessageRepository,
+        task_repo: ITaskRepository,
+        feedback_repo: IFeedbackRepository
     ):
         self.session_repo = session_repo
         self.message_repo = message_repo
+        self.task_repo = task_repo
+        self.feedback_repo = feedback_repo
     
     def create_chat_session(self, user_id: str, name: str) -> Session:
         session = Session(
@@ -240,45 +348,6 @@ class ChatService:
         return self.message_repo.save(message)
 
 # Usage with dependency injection
-chat_service = ChatService(session_repo, message_repo)
-```
+chat_service = ChatService(session_repo, message_repo, task_
 
-### 6. Direct Database Model Access (Advanced)
-
-```python
-from solace_agent_mesh.gateway.http_sse.repository.models import SessionModel, MessageModel
-
-# Direct SQLAlchemy queries (when repository methods aren't sufficient)
-recent_sessions = db_session.query(SessionModel)\
-    .filter(SessionModel.user_id == "user_456")\
-    .order_by(SessionModel.updated_time.desc())\
-    .limit(5)\
-    .all()
-
-# Join queries
-session_with_message_count = db_session.query(
-    SessionModel, 
-    db_session.query(MessageModel.id).filter(
-        MessageModel.session_id == SessionModel.id
-    ).count().label('message_count')
-).all()
-```
-
-### 7. Error Handling and Cleanup
-
-```python
-try:
-    # Repository operations
-    session = session_repo.save(new_session)
-    message = message_repo.save(new_message)
-    
-except Exception as e:
-    db_session.rollback()
-    raise e
-finally:
-    db_session.close()
-```
-
-This repository layer provides a complete data access solution with clean separation of concerns, proper abstraction through interfaces, rich domain entities with business logic, and efficient SQLAlchemy-based persistence.
-
-# content_hash: a5b00eb97df5fdbd1775ed185878c9fefefd648eac8a541e533519289c42e683
+# content_hash: 418ee9be8ea5c4c7d698aa271c0bf892a046234009288f4bd43ca71a8a1b75a7

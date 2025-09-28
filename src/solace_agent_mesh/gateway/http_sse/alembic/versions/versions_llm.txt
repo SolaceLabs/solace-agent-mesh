@@ -1,12 +1,14 @@
 # DEVELOPER GUIDE: versions
 
 ## Quick Summary
-This directory contains Alembic database migration files for the HTTP SSE gateway. These migrations handle the evolution of the database schema, including initial table creation, performance optimization through indexing, and timestamp format standardization.
+This directory contains Alembic database migration files for the HTTP SSE gateway. These migrations handle the evolution of the database schema, including initial table creation, performance optimization through indexing, timestamp format standardization, and task management features.
 
 ## Files Overview
 - `20250910_d5b3f8f2e9a0_create_initial_database.py` - Creates the initial database schema with sessions and chat_messages tables
 - `20250911_b1c2d3e4f5g6_add_database_indexes.py` - Adds performance indexes for common query patterns
 - `20250916_f6e7d8c9b0a1_convert_timestamps_to_epoch_and_align_columns.py` - Converts datetime columns to epoch milliseconds and standardizes column names
+- `20250928_079e06e9b448_add_tasks_task_events_and_feedback_.py` - Adds task management tables (tasks, task_events, feedback)
+- `versions_llm.txt` - LLM-generated documentation for the versions directory
 
 ## Developer API Reference
 
@@ -15,12 +17,14 @@ This directory contains Alembic database migration files for the HTTP SSE gatewa
 **Import:** This is an Alembic migration file - not directly imported
 
 **Functions:**
-- `upgrade() -> None` - Creates sessions and chat_messages tables with proper relationships
-- `downgrade() -> None` - Drops all created tables
+- `upgrade() -> None` - Creates sessions and chat_messages tables with proper relationships and foreign key constraints
+- `downgrade() -> None` - Drops all created tables (chat_messages first, then sessions)
 
 **Constants/Variables:**
 - `revision: str` - Migration identifier "d5b3f8f2e9a0"
-- `down_revision: Union[str, None]` - Previous migration (None for initial)
+- `down_revision: Union[str, None]` - Previous migration (None for initial migration)
+- `branch_labels: Union[str, Sequence[str], None]` - Branch labels (None)
+- `depends_on: Union[str, Sequence[str], None]` - Dependencies (None)
 
 **Usage Examples:**
 ```bash
@@ -36,8 +40,8 @@ alembic downgrade base
 **Import:** This is an Alembic migration file - not directly imported
 
 **Functions:**
-- `upgrade() -> None` - Creates indexes on user_id, timestamps, and composite fields
-- `downgrade() -> None` - Removes all created indexes
+- `upgrade() -> None` - Creates indexes on user_id, timestamps, agent_id, and composite fields for optimal query performance
+- `downgrade() -> None` - Removes all created indexes in reverse order
 
 **Constants/Variables:**
 - `revision: str` - Migration identifier "b1c2d3e4f5g6"
@@ -53,19 +57,19 @@ alembic downgrade d5b3f8f2e9a0
 ```
 
 ### 20250916_f6e7d8c9b0a1_convert_timestamps_to_epoch_and_align_columns.py
-**Purpose:** Schema modernization migration that converts datetime columns to epoch milliseconds
+**Purpose:** Schema modernization migration that converts datetime columns to epoch milliseconds for cross-platform compatibility
 **Import:** This is an Alembic migration file - not directly imported
 
 **Functions:**
-- `upgrade() -> None` - Converts datetime columns to epoch milliseconds and renames columns
+- `upgrade() -> None` - Converts datetime columns to epoch milliseconds and renames columns (created_at → created_time, updated_at → updated_time)
 - `downgrade() -> None` - Reverts back to datetime columns with original names
-- `_upgrade_sqlite(current_time_ms: int) -> None` - SQLite-specific upgrade logic
-- `_upgrade_standard_sql(current_time_ms: int) -> None` - PostgreSQL/MySQL upgrade logic
+- `_upgrade_sqlite(current_time_ms: int) -> None` - SQLite-specific upgrade logic using table recreation
+- `_upgrade_standard_sql(current_time_ms: int) -> None` - PostgreSQL/MySQL upgrade logic using ALTER COLUMN
 - `_downgrade_sqlite() -> None` - SQLite-specific downgrade logic
 - `_downgrade_standard_sql() -> None` - PostgreSQL/MySQL downgrade logic
 - `_create_updated_indexes() -> None` - Creates indexes on new timestamp columns
-- `_create_indexes_safe(index_name: str, table_name: str, columns: list) -> None` - Safely creates indexes
-- `_drop_index_safe(index_name: str, table_name: str) -> None` - Safely drops indexes
+- `_create_indexes_safe(index_name: str, table_name: str, columns: list) -> None` - Safely creates indexes (ignores if exists)
+- `_drop_index_safe(index_name: str, table_name: str) -> None` - Safely drops indexes (ignores if not exists)
 
 **Constants/Variables:**
 - `revision: str` - Migration identifier "f6e7d8c9b0a1"
@@ -78,20 +82,48 @@ alembic upgrade f6e7d8c9b0a1
 
 # Rollback this migration
 alembic downgrade b1c2d3e4f5g6
+```
 
-# Run all migrations
+### 20250928_079e06e9b448_add_tasks_task_events_and_feedback_.py
+**Purpose:** Adds task management functionality with tables for tracking tasks, events, and user feedback
+**Import:** This is an Alembic migration file - not directly imported
+
+**Functions:**
+- `upgrade() -> None` - Creates tasks, task_events, and feedback tables with appropriate indexes and foreign key relationships
+- `downgrade() -> None` - Drops all task-related tables and recreates original session/message indexes
+
+**Constants/Variables:**
+- `revision: str` - Migration identifier "079e06e9b448"
+- `down_revision: Union[str, Sequence[str], None]` - Previous migration "f6e7d8c9b0a1"
+
+**Usage Examples:**
+```bash
+# Run this migration
+alembic upgrade 079e06e9b448
+
+# Rollback this migration
+alembic downgrade f6e7d8c9b0a1
+
+# Run all migrations to latest
 alembic upgrade head
 
 # Check current migration status
 alembic current
+
+# View migration history
+alembic history
 ```
 
-**Database Schema Changes:**
+**Database Schema After All Migrations:**
 ```sql
--- After all migrations, tables will have:
+-- Core tables with epoch millisecond timestamps:
 -- sessions: id, name, user_id, agent_id, created_time, updated_time
 -- chat_messages: id, session_id, message, sender_type, sender_name, created_time
--- All timestamp fields use epoch milliseconds (BigInteger)
+
+-- Task management tables:
+-- tasks: id, user_id, start_time, end_time, status, initial_request_text
+-- task_events: id, task_id, user_id, created_time, topic, direction, payload
+-- feedback: id, session_id, task_id, user_id, rating, comment, created_time
 ```
 
-# content_hash: dbdd0583b60d224cebf5480b8b5f323494cc3fdc362608d9382e467e93c0afd1
+# content_hash: f89c34895065e2d61071b6878df2dd1e13dea529f9e2ec12a72e4a1d767d2274

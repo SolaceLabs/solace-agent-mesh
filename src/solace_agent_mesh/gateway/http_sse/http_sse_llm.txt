@@ -31,6 +31,7 @@ This design creates a clean separation of concerns, where the web layer (FastAPI
   - `routers/`: Defines the FastAPI `APIRouter` modules for all REST API endpoints.
   - `services/`: Encapsulates business logic for agents, tasks, and other domain-specific operations.
   - `shared/`: Common utilities, constants, enums, and types used across all layers.
+  - `utils/`: Utility functions for creating .stim file structures from task data.
 
 ## Developer API Reference
 
@@ -138,10 +139,11 @@ This design creates a clean separation of concerns, where the web layer (FastAPI
 
 #### components/
 **Purpose:** Contains specialized SAC components for message forwarding and visualization
-**Key Exports:** `VisualizationForwarderComponent`
+**Key Exports:** `VisualizationForwarderComponent`, `TaskLoggerForwarderComponent`
 **Import Examples:**
 ```python
 from solace_agent_mesh.gateway.http_sse.components import VisualizationForwarderComponent
+from solace_agent_mesh.gateway.http_sse.components.task_logger_forwarder import TaskLoggerForwarderComponent
 ```
 
 #### repository/
@@ -166,7 +168,7 @@ from solace_agent_mesh.gateway.http_sse.routers.tasks import CancelTaskApiPayloa
 
 #### services/
 **Purpose:** Encapsulates business logic for domain-specific operations
-**Key Exports:** `AgentCardService`, `TaskService`, `PeopleService`, `SessionService`, `FeedbackService`
+**Key Exports:** `AgentCardService`, `TaskService`, `PeopleService`, `SessionService`, `FeedbackService`, `TaskLoggerService`
 **Import Examples:**
 ```python
 from solace_agent_mesh.gateway.http_sse.services.agent_card_service import AgentCardService
@@ -182,6 +184,14 @@ from solace_agent_mesh.gateway.http_sse.services.people_service import PeopleSer
 from solace_agent_mesh.gateway.http_sse.shared import get_current_user, now_epoch_ms
 from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType, TaskStatus
 from solace_agent_mesh.gateway.http_sse.shared.types import UserId, SessionId, PaginationInfo
+```
+
+#### utils/
+**Purpose:** Utility functions for creating .stim file structures from task data
+**Key Exports:** `create_stim_from_task_data`
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.utils.stim_utils import create_stim_from_task_data
 ```
 
 ## Complete Usage Guide
@@ -246,24 +256,5 @@ async def my_custom_endpoint(
         payload={"method": "custom/request", "params": {"user": user_id}},
         user_properties={"clientId": user_id}
     )
-    
-    return {"agents_count": len(agents), "user_id": user_id}
-```
 
-### 3. Managing SSE Connections
-
-```python
-from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse
-from solace_agent_mesh.gateway.http_sse.dependencies import get_sse_manager
-from solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager
-import asyncio
-import json
-
-router = APIRouter()
-
-@router.get("/my-sse-endpoint/{task_id}")
-async def my_sse_endpoint(
-    task_id: str,
-
-# content_hash: 6d7b218a8dcbb741260b4375b7ab1630a530bb6c3ca37602bdac04eaab33df7b
+# content_hash: dba213abef11ed3db4dc2fed21bd1e02457fa3726423d417d21efed8eacbff91

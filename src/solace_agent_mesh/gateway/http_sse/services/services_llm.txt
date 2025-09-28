@@ -1,15 +1,16 @@
 # DEVELOPER GUIDE: services
 
 ## Quick Summary
-The `services` directory contains the business logic layer for the HTTP SSE Gateway. It provides high-level services for agent management (discovering and retrieving A2A agents), user feedback processing, user identity operations (searching for users), session management with persistence, and task management (cancelling A2A tasks). These services abstract the complexities of interacting with agent registries, identity providers, databases, and A2A messaging protocols.
+The `services` directory contains the business logic layer for the HTTP SSE Gateway. It provides high-level services for agent management (discovering and retrieving A2A agents), user feedback processing with database persistence and event publishing, user search via identity services, session management with database persistence, task logging to database, and A2A task operations like cancellation.
 
 ## Files Overview
 - `__init__.py` - Package initialization file marking the directory as a Python package
 - `agent_card_service.py` - Service for retrieving information about discovered A2A agents from the registry
-- `feedback_service.py` - Service for processing and storing user feedback on chat messages
+- `feedback_service.py` - Service for processing and storing user feedback on chat messages with database and event publishing
 - `people_service.py` - Service for searching users via configured identity services
 - `session_service.py` - Service for managing chat sessions and messages with database persistence
-- `task_service.py` - Service for handling A2A task cancellation operations
+- `task_logger_service.py` - Service for logging A2A tasks and events to the database
+- `task_service.py` - Service for handling A2A task operations like cancellation
 
 ## Developer API Reference
 
@@ -48,27 +49,29 @@ else:
 ```
 
 ### feedback_service.py
-**Purpose:** Handles the business logic for processing and storing user feedback on chat messages
+**Purpose:** Handles the business logic for processing and storing user feedback with database persistence and event publishing
 **Import:** `from solace_agent_mesh.gateway.http_sse.services.feedback_service import FeedbackService`
 
 **Classes:**
-- `FeedbackService(config: Dict = None)` - Service for processing user feedback with configurable storage backends
-  - `process_feedback(payload: FeedbackPayload, user_id: str) -> None` - Asynchronously processes and stores feedback based on configured service type
+- `FeedbackService(session_factory: Callable[[], DBSession] | None, component: WebUIBackendComponent, task_repo: ITaskRepository)` - Service for processing user feedback with database persistence and event publishing
+  - `process_feedback(payload: FeedbackPayload, user_id: str) -> None` - Asynchronously processes and stores feedback, publishes events if configured
 
 **Usage Examples:**
 ```python
 import asyncio
 from solace_agent_mesh.gateway.http_sse.services.feedback_service import FeedbackService
+from sqlalchemy.orm import sessionmaker
 
-# Initialize with logging backend (default)
-feedback_service = FeedbackService()
+# Initialize with database session factory
+session_factory = sessionmaker(bind=your_engine)
+component = YourWebUIBackendComponent()  # Your component instance
+task_repo = YourTaskRepository()  # Your task repository
 
-# Initialize with CSV backend
-csv_config = {
-    "type": "csv",
-    "filename": "user_feedback.csv"
-}
-csv_feedback_service = FeedbackService(config=csv_config)
+feedback_service = FeedbackService(
+    session_factory=session_factory,
+    component=component,
+    task_repo=task_repo
+)
 
 # Process feedback (requires FeedbackPayload from router)
 async def process_user_feedback():
@@ -164,6 +167,44 @@ user_sessions = session_service.get_user_sessions("user123")
 history = session_service.get_session_history(session.id, "user123")
 ```
 
+### task_logger_service.py
+**Purpose:** Service for logging A2A tasks and events to the database with configurable filtering and sanitization
+**Import:** `from solace_agent_mesh.gateway.http_sse.services.task_logger_service import TaskLoggerService`
+
+**Classes:**
+- `TaskLoggerService(session_factory: Callable[[], DBSession] | None, config: Dict[str, Any])` - Service for logging A2A tasks and events to database
+  - `log_event(event_data: Dict[str, Any]) -> None` - Parses a raw A2A message and logs it as a task event, creates or updates master task record
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.services.task_logger_service import TaskLoggerService
+from sqlalchemy.orm import sessionmaker
+
+# Initialize with database session factory and config
+session_factory = sessionmaker(bind=your_engine)
+config = {
+    "enabled": True,
+    "log_status_updates": True,
+    "log_artifact_events": False,
+    "log_file_parts": True,
+    "max_file_part_size_bytes": 102400
+}
+
+task_logger = TaskLoggerService(
+    session_factory=session_factory,
+    config=config
+)
+
+# Log an A2A event
+event_data = {
+    "topic": "sam/agents/my-agent/request",
+    "payload": {"id": "task-123", "method": "sendMessage"},
+    "user_properties": {"userId": "user@example.com"}
+}
+
+task_logger.log_event(event_data)
+```
+
 ### task_service.py
 **Purpose:** Handles A2A task operations, specifically task cancellation using CoreA2AService and message publishing
 **Import:** `from solace_agent_mesh.gateway.http_sse.services.task_service import TaskService, PublishFunc`
@@ -218,4 +259,4 @@ async def cancel_task_example():
 asyncio.run(cancel_task_example())
 ```
 
-# content_hash: 7b7d1b267f741da6fef96ac0bad0e8d214263abad3d492921943c0e4a740a47d
+# content_hash: d5e3d77375414ebfa8e9b2cb06ccad09255d71862218179fcb551b7f597134dc

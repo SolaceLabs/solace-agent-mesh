@@ -78,4 +78,4 @@ await cleanup_agent_session(component, "session_123", "user_456")
 - Integrates with Google ADK for task execution
 - Manages task contexts through `TaskExecutionContext`
 
-# content_hash: a8ba50a06b01ffc65aceb16619d3e69820ce4e3264e96e8ec3c0582b967b9588
+# content_hash: 4b8a426320c6f06c621b469c79087c315f5590ef14497ccf17de02eeb66db91d

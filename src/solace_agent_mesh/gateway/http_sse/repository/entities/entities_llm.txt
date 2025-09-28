@@ -1,17 +1,52 @@
+# DEVELOPER GUIDE: entities
+
 ## Quick Summary
-The entities directory contains domain entities for the repository layer, providing core business objects for managing chat sessions, messages, and session history with built-in validation and business logic.
+The entities directory contains domain entities for the repository layer, providing core business objects for managing chat sessions, messages, tasks, feedback, and events with built-in validation and business logic.
 
 ## Files Overview
-- `__init__.py` - Exports the main domain entities (Message, Session, SessionHistory)
+- `__init__.py` - Exports the main domain entities (Feedback, Message, Session, SessionHistory, Task, TaskEvent)
+- `feedback.py` - Feedback entity for user ratings and comments on tasks
 - `message.py` - Message entity with content validation and sender type checking
 - `session.py` - Session entity with name management and access control
 - `session_history.py` - Composite entity combining sessions with their message history
+- `task.py` - Task entity for tracking user tasks and their status
+- `task_event.py` - Task event entity for tracking events related to tasks
 
 ## Developer API Reference
 
 ### __init__.py
 **Purpose:** Provides centralized imports for all domain entities
-**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Message, Session, SessionHistory`
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Feedback, Message, Session, SessionHistory, Task, TaskEvent`
+
+### feedback.py
+**Purpose:** Defines the Feedback domain entity for user ratings and comments
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Feedback`
+
+**Classes:**
+- `Feedback(id: str, session_id: str, task_id: str, user_id: str, rating: str, comment: str | None = None, created_time: int)` - Feedback domain entity
+  - `id: str` - Unique feedback identifier
+  - `session_id: str` - Associated session identifier
+  - `task_id: str` - Associated task identifier
+  - `user_id: str` - User who provided feedback
+  - `rating: str` - User rating
+  - `comment: str | None` - Optional feedback comment
+  - `created_time: int` - Feedback creation timestamp
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Feedback
+
+# Create feedback
+feedback = Feedback(
+    id="feedback_123",
+    session_id="session_456",
+    task_id="task_789",
+    user_id="user_123",
+    rating="5",
+    comment="Great service!",
+    created_time=1640995200000
+)
+```
 
 ### message.py
 **Purpose:** Defines the Message domain entity with business logic for chat messages
@@ -109,6 +144,7 @@ if session.can_be_accessed_by_user("user_456"):
 **Usage Examples:**
 ```python
 from solace_agent_mesh.gateway.http_sse.repository.entities import SessionHistory, Session, Message
+from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType
 
 # Create session history
 session = Session(
@@ -140,4 +176,80 @@ print(f"Message count: {len(history.messages)}")
 print(f"Total messages: {history.total_message_count}")
 ```
 
-# content_hash: 2f151fb3ddda579f84db4d4685763dc065e0ae4aa862fc4286815595dc742644
+### task.py
+**Purpose:** Defines the Task domain entity for tracking user tasks
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Task`
+
+**Classes:**
+- `Task(id: str, user_id: str, start_time: int, end_time: int | None = None, status: str | None = None, initial_request_text: str | None = None)` - Task domain entity
+  - `id: str` - Unique task identifier
+  - `user_id: str` - User who owns the task
+  - `start_time: int` - Task start timestamp
+  - `end_time: int | None` - Optional task end timestamp
+  - `status: str | None` - Optional task status
+  - `initial_request_text: str | None` - Optional initial request text
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Task
+
+# Create a task
+task = Task(
+    id="task_123",
+    user_id="user_456",
+    start_time=1640995200000,
+    status="in_progress",
+    initial_request_text="Help me with my order"
+)
+
+# Task with end time
+completed_task = Task(
+    id="task_124",
+    user_id="user_456",
+    start_time=1640995200000,
+    end_time=1640995800000,
+    status="completed"
+)
+```
+
+### task_event.py
+**Purpose:** Defines the TaskEvent domain entity for tracking events related to tasks
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import TaskEvent`
+
+**Classes:**
+- `TaskEvent(id: str, task_id: str, user_id: str | None = None, created_time: int, topic: str, direction: str, payload: dict[str, Any])` - TaskEvent domain entity
+  - `id: str` - Unique event identifier
+  - `task_id: str` - Associated task identifier
+  - `user_id: str | None` - Optional user identifier
+  - `created_time: int` - Event creation timestamp
+  - `topic: str` - Event topic
+  - `direction: str` - Event direction
+  - `payload: dict[str, Any]` - Event payload data
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import TaskEvent
+
+# Create a task event
+event = TaskEvent(
+    id="event_123",
+    task_id="task_456",
+    user_id="user_789",
+    created_time=1640995200000,
+    topic="task.status.changed",
+    direction="outbound",
+    payload={"status": "completed", "result": "success"}
+)
+
+# Event without user
+system_event = TaskEvent(
+    id="event_124",
+    task_id="task_456",
+    created_time=1640995200000,
+    topic="task.system.notification",
+    direction="inbound",
+    payload={"message": "Task processing started"}
+)
+```
+
+# content_hash: 7c248458b009f505d7f094fedaf55453845411d02dbd3d309cd14792e3356c6c
