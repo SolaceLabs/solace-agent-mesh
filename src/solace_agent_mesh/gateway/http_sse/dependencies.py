@@ -211,6 +211,12 @@ def get_people_service(
     return PeopleService(identity_service=identity_service)
 
 
+def get_task_repository(db: Session = Depends(get_db)) -> ITaskRepository:
+    """FastAPI dependency to get an instance of TaskRepository."""
+    log.debug("[Dependencies] get_task_repository called")
+    return TaskRepository(db)
+
+
 def get_feedback_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     task_repo: ITaskRepository = Depends(get_task_repository),
@@ -406,12 +412,6 @@ def get_session_business_service(
     session_repository = SessionRepository(db)
     message_repository = MessageRepository(db)
     return SessionService(session_repository, message_repository, component)
-
-
-def get_task_repository(db: Session = Depends(get_db)) -> ITaskRepository:
-    """FastAPI dependency to get an instance of TaskRepository."""
-    log.debug("[Dependencies] get_task_repository called")
-    return TaskRepository(db)
 
 
 @contextmanager
