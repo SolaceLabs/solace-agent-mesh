@@ -20,9 +20,9 @@ This checklist tracks the implementation of the declarative HTTP API testing fea
 - [x] **Step 4: Update Test Runner Signature**
   - [x] Modify `test_declarative_scenario` in `test_declarative_runner.py` to accept the `webui_api_client` fixture.
 
-- [ ] **Step 5: Implement HTTP Request Initiation**
-  - [ ] Create `_execute_http_and_collect_events` helper function in `test_declarative_runner.py`.
-  - [ ] Update `test_declarative_scenario` to handle `http_request_input` and `gateway_input` logic.
+- [x] **Step 5: Implement HTTP Request Initiation**
+  - [x] Create `_execute_http_and_collect_events` helper function in `test_declarative_runner.py`.
+  - [x] Update `test_declarative_scenario` to handle `http_request_input` and `gateway_input` logic.
 
 - [ ] **Step 6: Implement HTTP Response Assertions**
   - [ ] Create `_assert_http_responses` helper function in `test_declarative_runner.py`.

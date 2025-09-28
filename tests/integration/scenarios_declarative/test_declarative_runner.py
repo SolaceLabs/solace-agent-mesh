@@ -216,6 +216,74 @@ async def _execute_gateway_and_collect_events(
     )
 
 
+async def _execute_http_and_collect_events(
+    webui_api_client: TestClient,
+    http_request_input: Dict[str, Any],
+    test_gateway_app_instance: TestGatewayComponent,
+    overall_timeout: float,
+    scenario_id: str,
+) -> Tuple[
+    str,
+    str,
+    List[Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent, Task, JSONRPCError]],
+    Optional[str],
+    Optional[str],
+]:
+    """
+    Submits an HTTP request to the WebUI backend, collects all events, and extracts key text outputs.
+    """
+    method = http_request_input.get("method", "POST")
+    path = http_request_input.get("path")
+    json_body = http_request_input.get("json_body")
+    query_params = http_request_input.get("query_params")
+
+    if not path:
+        pytest.fail(f"Scenario {scenario_id}: http_request_input is missing 'path'.")
+
+    response = webui_api_client.request(
+        method, path, params=query_params, json=json_body
+    )
+
+    assert (
+        200 <= response.status_code < 300
+    ), f"Scenario {scenario_id}: Initial HTTP request failed with status {response.status_code}. Response: {response.text}"
+
+    response_data = response.json()
+    task_id = response_data.get("result", {}).get("id")
+    session_id = response_data.get("result", {}).get("contextId")
+
+    assert (
+        task_id
+    ), f"Scenario {scenario_id}: Failed to extract task_id from HTTP response. Response: {response_data}"
+    assert (
+        session_id
+    ), f"Scenario {scenario_id}: Failed to extract session_id (contextId) from HTTP response. Response: {response_data}"
+    print(f"Scenario {scenario_id}: Task {task_id} submitted via HTTP in session {session_id}.")
+
+    all_captured_events = await get_all_task_events(
+        gateway_component=test_gateway_app_instance,
+        task_id=task_id,
+        overall_timeout=overall_timeout,
+    )
+    assert (
+        all_captured_events
+    ), f"Scenario {scenario_id}: No events captured from gateway for task {task_id}."
+
+    (
+        _terminal_event_obj_for_text,
+        aggregated_stream_text_for_final_assert,
+        text_from_terminal_event_for_final_assert,
+    ) = extract_outputs_from_event_list(all_captured_events, scenario_id)
+
+    return (
+        task_id,
+        session_id,
+        all_captured_events,
+        aggregated_stream_text_for_final_assert,
+        text_from_terminal_event_for_final_assert,
+    )
+
+
 async def _assert_summary_in_text(
     text_to_search: str,
     artifact_identifiers: List[Dict[str, Any]],
@@ -1430,77 +1498,138 @@ async def test_declarative_scenario(
     )
 
     gateway_input_data = declarative_scenario.get("gateway_input")
-    if not gateway_input_data:
-        pytest.fail(f"Scenario {scenario_id}: 'gateway_input' is missing.")
+    http_request_input = declarative_scenario.get("http_request_input")
+    has_http_assertions = "expected_http_responses" in declarative_scenario
+
+    # --- Phase 2: Execute Task and Collect Events ---
+    task_id = None
+    all_captured_events = []
+    aggregated_stream_text_for_final_assert = None
+    text_from_terminal_event_for_final_assert = None
+    # This will hold the data needed for assertions, regardless of input method
+    assertion_context_data = {}
 
     overall_timeout = declarative_scenario.get(
-        "expected_completion_timeout_seconds", 10000.0
+        "expected_completion_timeout_seconds", 10.0
     )
 
-    (
-        task_id,
-        all_captured_events,
-        aggregated_stream_text_for_final_assert,
-        text_from_terminal_event_for_final_assert,
-    ) = await _execute_gateway_and_collect_events(
-        test_gateway_app_instance, gateway_input_data, overall_timeout, scenario_id
-    )
-    print(
-        f"Scenario {scenario_id}: Task {task_id} execution and event collection complete."
-    )
+    if gateway_input_data and http_request_input:
+        pytest.fail(
+            f"Scenario {scenario_id}: Cannot have both 'gateway_input' and 'http_request_input'."
+        )
+    elif gateway_input_data:
+        assertion_context_data = gateway_input_data
+        (
+            task_id,
+            all_captured_events,
+            aggregated_stream_text_for_final_assert,
+            text_from_terminal_event_for_final_assert,
+        ) = await _execute_gateway_and_collect_events(
+            test_gateway_app_instance, gateway_input_data, overall_timeout, scenario_id
+        )
+    elif http_request_input:
+        (
+            task_id,
+            session_id,
+            all_captured_events,
+            aggregated_stream_text_for_final_assert,
+            text_from_terminal_event_for_final_assert,
+        ) = await _execute_http_and_collect_events(
+            webui_api_client,
+            http_request_input,
+            test_gateway_app_instance,
+            overall_timeout,
+            scenario_id,
+        )
+        # The WebUI test setup uses a default user. This is how auth is set up for tests.
+        user_id_for_assertions = http_request_input.get(
+            "user_identity", "sam_dev_user"
+        )
+        agent_name = (
+            http_request_input.get("json_body", {})
+            .get("params", {})
+            .get("message", {})
+            .get("metadata", {})
+            .get("agent_name")
+        )
+        assertion_context_data = {
+            "user_identity": user_id_for_assertions,
+            "external_context": {"a2a_session_id": session_id},
+            "target_agent_name": agent_name,
+        }
+    elif has_http_assertions and not gateway_input_data and not http_request_input:
+        # This is a valid case for tests that only perform HTTP assertions on existing state
+        print(
+            f"Scenario {scenario_id}: No input specified, proceeding to HTTP assertions."
+        )
+        assertion_context_data = {}
+    else:
+        pytest.fail(
+            f"Scenario {scenario_id}: Must have one of 'gateway_input' or 'http_request_input' (or 'expected_http_responses' alone)."
+        )
+
+    if task_id:
+        print(
+            f"Scenario {scenario_id}: Task {task_id} execution and event collection complete."
+        )
 
     try:
-        actual_events_list = all_captured_events
-        captured_llm_requests = test_llm_server.get_captured_requests()
-        expected_llm_interactions = declarative_scenario.get("llm_interactions", [])
-        await _assert_llm_interactions(
-            expected_llm_interactions,
-            captured_llm_requests,
-            scenario_id,
-            test_artifact_service_instance,
-            gateway_input_data,
-            agent_components,
-            artifact_scope,
-        )
-        expected_gateway_outputs_spec_list = declarative_scenario.get(
-            "expected_gateway_output", []
-        )
-        await _assert_gateway_event_sequence(
-            expected_event_specs_list=expected_gateway_outputs_spec_list,
-            actual_events_list=actual_events_list,
-            scenario_id=scenario_id,
-            skip_intermediate_events=skip_intermediate_events,
-            expected_llm_interactions=expected_llm_interactions,
-            captured_llm_requests=captured_llm_requests,
-            aggregated_stream_text_for_final_assert=aggregated_stream_text_for_final_assert,
-            text_from_terminal_event_for_final_assert=text_from_terminal_event_for_final_assert,
-            test_artifact_service_instance=test_artifact_service_instance,
-            gateway_input_data=gateway_input_data,
-            agent_components=agent_components,
-            artifact_scope=artifact_scope,
-        )
-        expected_artifacts_spec_list = declarative_scenario.get(
-            "expected_artifacts", []
-        )
-        await _assert_generated_artifacts(
-            expected_artifacts_spec_list=expected_artifacts_spec_list,
-            test_artifact_service_instance=test_artifact_service_instance,
-            task_id=task_id,
-            gateway_input_data=gateway_input_data,
-            test_gateway_app_instance=test_gateway_app_instance,
-            scenario_id=scenario_id,
-            artifact_scope=artifact_scope,
-        )
+        # If a task was run, perform assertions on its execution
+        if task_id:
+            actual_events_list = all_captured_events
+            captured_llm_requests = test_llm_server.get_captured_requests()
+            expected_llm_interactions = declarative_scenario.get(
+                "llm_interactions", []
+            )
+            await _assert_llm_interactions(
+                expected_llm_interactions,
+                captured_llm_requests,
+                scenario_id,
+                test_artifact_service_instance,
+                assertion_context_data,
+                agent_components,
+                artifact_scope,
+            )
+            expected_gateway_outputs_spec_list = declarative_scenario.get(
+                "expected_gateway_output", []
+            )
+            await _assert_gateway_event_sequence(
+                expected_event_specs_list=expected_gateway_outputs_spec_list,
+                actual_events_list=actual_events_list,
+                scenario_id=scenario_id,
+                skip_intermediate_events=skip_intermediate_events,
+                expected_llm_interactions=expected_llm_interactions,
+                captured_llm_requests=captured_llm_requests,
+                aggregated_stream_text_for_final_assert=aggregated_stream_text_for_final_assert,
+                text_from_terminal_event_for_final_assert=text_from_terminal_event_for_final_assert,
+                test_artifact_service_instance=test_artifact_service_instance,
+                gateway_input_data=assertion_context_data,
+                agent_components=agent_components,
+                artifact_scope=artifact_scope,
+            )
+            expected_artifacts_spec_list = declarative_scenario.get(
+                "expected_artifacts", []
+            )
+            await _assert_generated_artifacts(
+                expected_artifacts_spec_list=expected_artifacts_spec_list,
+                test_artifact_service_instance=test_artifact_service_instance,
+                task_id=task_id,
+                gateway_input_data=assertion_context_data,
+                test_gateway_app_instance=test_gateway_app_instance,
+                scenario_id=scenario_id,
+                artifact_scope=artifact_scope,
+            )
 
         print(f"Scenario {scenario_id}: Completed.")
     except Exception as e:
-        print(
-            f"\n--- Test failed for scenario: {scenario_id}. Printing event history: ---"
-        )
-        event_payloads = [
-            event.model_dump(exclude_none=True) for event in all_captured_events
-        ]
-        pretty_print_event_history(event_payloads)
+        if task_id:
+            print(
+                f"\n--- Test failed for scenario: {scenario_id}. Printing event history: ---"
+            )
+            event_payloads = [
+                event.model_dump(exclude_none=True) for event in all_captured_events
+            ]
+            pretty_print_event_history(event_payloads)
         raise e
 
 
