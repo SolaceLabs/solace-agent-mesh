@@ -36,7 +36,6 @@ from sam_test_infrastructure.llm_server.server import TestLLMServer
 from sam_test_infrastructure.artifact_service.service import (
     TestInMemoryArtifactService,
 )
-from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
 from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
@@ -49,7 +48,6 @@ from sam_test_infrastructure.llm_server.server import TestLLMServer
 from sam_test_infrastructure.artifact_service.service import (
     TestInMemoryArtifactService,
 )
-from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
 from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
 from solace_agent_mesh.common import a2a
 from a2a.types import (
