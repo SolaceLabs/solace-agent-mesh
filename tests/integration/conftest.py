@@ -12,54 +12,32 @@ from typing import Any
 import httpx
 import pytest
 import sqlalchemy as sa
+from a2a.types import (
+    AgentCard,
+    AgentSkill,
+    PushNotificationConfig,
+    Task,
+    TaskPushNotificationConfig,
+    TaskState,
+    TaskStatusUpdateEvent,
+)
 from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
-from sqlalchemy import create_engine, text
+from fastapi.testclient import TestClient
 from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
 from sam_test_infrastructure.artifact_service.service import TestInMemoryArtifactService
 from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
 from sam_test_infrastructure.gateway_interface.component import TestGatewayComponent
 from sam_test_infrastructure.llm_server.server import TestLLMServer
-from fastapi.testclient import TestClient
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
+from sqlalchemy import create_engine, text
 
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.agent.tools.registry import tool_registry
+from solace_agent_mesh.common import a2a
 from solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
 from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
-from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
-from sam_test_infrastructure.gateway_interface.component import (
-    TestGatewayComponent,
-)
-from sam_test_infrastructure.llm_server.server import TestLLMServer
-from sam_test_infrastructure.artifact_service.service import (
-    TestInMemoryArtifactService,
-)
-from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
-from solace_agent_mesh.agent.sac.app import SamAgentApp
-from solace_agent_mesh.agent.sac.component import SamAgentComponent
-from solace_agent_mesh.agent.tools.registry import tool_registry
-from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
-from sam_test_infrastructure.gateway_interface.component import (
-    TestGatewayComponent,
-)
-from sam_test_infrastructure.llm_server.server import TestLLMServer
-from sam_test_infrastructure.artifact_service.service import (
-    TestInMemoryArtifactService,
-)
-from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
-from solace_agent_mesh.common import a2a
-from a2a.types import (
-    AgentCard,
-    AgentSkill,
-    Task,
-    TaskState,
-    TaskStatusUpdateEvent,
-    TaskPushNotificationConfig,
-    PushNotificationConfig,
-)
-from solace_ai_connector.solace_ai_connector import SolaceAiConnector
 
 
 @pytest.fixture(scope="session")
@@ -641,6 +619,22 @@ def shared_solace_connector(
 
     app_infos = [
         {
+            "name": "WebUIBackendApp",
+            "app_module": "solace_agent_mesh.gateway.http_sse.app",
+            "broker": {"dev_mode": True},
+            "app_config": {
+                "namespace": "test_namespace",
+                "gateway_id": "TestWebUIGateway_01",
+                "session_secret_key": "a_secure_test_secret_key",
+                "session_service": {
+                    "type": "sql",
+                    "database_url": str(test_db_engine.url),
+                },
+                "task_logging": {"enabled": True},
+                "artifact_service": {"type": "test_in_memory"},
+            },
+        },
+        {
             "name": "TestSamAgentApp",
             "app_config": sam_agent_app_config,
             "broker": {"dev_mode": True},
@@ -715,22 +709,6 @@ def shared_solace_connector(
             "app_config": config_context_agent_config,
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.agent.sac.app",
-        },
-        {
-            "name": "WebUIBackendApp",
-            "app_module": "solace_agent_mesh.gateway.http_sse.app",
-            "broker": {"dev_mode": True},
-            "app_config": {
-                "namespace": "test_namespace",
-                "gateway_id": "TestWebUIGateway_01",
-                "session_secret_key": "a_secure_test_secret_key",
-                "session_service": {
-                    "type": "sql",
-                    "database_url": str(test_db_engine.url),
-                },
-                "task_logging": {"enabled": True},
-                "artifact_service": {"type": "test_in_memory"},
-            },
         },
     ]
 
