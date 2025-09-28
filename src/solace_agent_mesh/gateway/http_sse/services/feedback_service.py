@@ -16,14 +16,23 @@ from ..shared import now_epoch_ms
 # which is resolved at runtime.
 if TYPE_CHECKING:
     from ..routers.feedback import FeedbackPayload
+    from ..component import WebUIBackendComponent
+    from ..repository.interfaces import ITaskRepository
 
 
 class FeedbackService:
     """Handles the business logic for processing user feedback."""
 
-    def __init__(self, session_factory: Callable[[], DBSession] | None = None):
+    def __init__(
+        self,
+        session_factory: Callable[[], DBSession] | None,
+        component: "WebUIBackendComponent",
+        task_repo: "ITaskRepository",
+    ):
         """Initializes the FeedbackService."""
         self.session_factory = session_factory
+        self.component = component
+        self.task_repo = task_repo
         if self.session_factory:
             log.info("FeedbackService initialized with database persistence.")
         else:

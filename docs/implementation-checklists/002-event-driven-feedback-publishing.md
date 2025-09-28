@@ -19,10 +19,10 @@ This checklist provides a terse summary of the implementation steps required for
 
 ## Step 3: Update Dependency Injection
 
--   [ ] **3.1:** In `src/solace_agent_mesh/gateway/http_sse/services/feedback_service.py`, update `FeedbackService.__init__` to accept `component: "WebUIBackendComponent"` and `task_repo: ITaskRepository`.
--   [ ] **3.2:** In `src/solace_agent_mesh/gateway/http_sse/dependencies.py`, modify `get_feedback_service` to instantiate `FeedbackService` and inject `get_sac_component` and `get_task_repository` dependencies.
--   [ ] **3.3:** In `src/solace_agent_mesh/gateway/http_sse/component.py`, remove the manual instantiation of `self.feedback_service` from `_start_fastapi_server`.
--   [ ] **3.4:** In `src/solace_agent_mesh/gateway/http_sse/component.py`, remove the `get_feedback_service` method.
+-   [x] **3.1:** In `src/solace_agent_mesh/gateway/http_sse/services/feedback_service.py`, update `FeedbackService.__init__` to accept `component: "WebUIBackendComponent"` and `task_repo: ITaskRepository`.
+-   [x] **3.2:** In `src/solace_agent_mesh/gateway/http_sse/dependencies.py`, modify `get_feedback_service` to instantiate `FeedbackService` and inject `get_sac_component` and `get_task_repository` dependencies.
+-   [x] **3.3:** In `src/solace_agent_mesh/gateway/http_sse/component.py`, remove the manual instantiation of `self.feedback_service` from `_start_fastapi_server`.
+-   [x] **3.4:** In `src/solace_agent_mesh/gateway/http_sse/component.py`, remove the `get_feedback_service` method.
 
 ## Step 4: Implement Core Publishing Logic
 

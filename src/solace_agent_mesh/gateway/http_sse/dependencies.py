@@ -213,10 +213,15 @@ def get_people_service(
 
 def get_feedback_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
+    task_repo: ITaskRepository = Depends(get_task_repository),
 ) -> FeedbackService:
     """FastAPI dependency to get an instance of FeedbackService."""
     log.debug("[Dependencies] get_feedback_service called")
-    return component.get_feedback_service()
+    # The session factory is needed for the existing DB save logic.
+    session_factory = SessionLocal if component.database_url else None
+    return FeedbackService(
+        session_factory=session_factory, component=component, task_repo=task_repo
+    )
 
 
 def get_task_logger_service(

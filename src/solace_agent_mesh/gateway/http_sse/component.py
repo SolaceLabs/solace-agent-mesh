@@ -195,9 +195,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
             publish_func=self.publish_a2a,
         )
 
-        # Services are initialized later, after the database session factory is created.
-        self.feedback_service: FeedbackService | None = None
-
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
 
     def process_event(self, event: Event):
@@ -1103,7 +1100,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.task_logger_service = TaskLoggerService(
                 session_factory=session_factory, config=task_logging_config
             )
-            self.feedback_service = FeedbackService(session_factory=session_factory)
             log.info(
                 "%s Services dependent on database session factory have been initialized.",
                 self.log_identifier,
@@ -1610,10 +1606,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
     def get_session_manager(self) -> SessionManager:
         return self.session_manager
-
-    def get_feedback_service(self) -> FeedbackService:
-        """Returns the shared FeedbackService instance."""
-        return self.feedback_service
 
     def get_task_logger_service(self) -> TaskLoggerService | None:
         """Returns the shared TaskLoggerService instance."""
