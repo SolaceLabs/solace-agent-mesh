@@ -101,6 +101,9 @@ def mock_component():
     mock_session_manager.ensure_a2a_session.side_effect = (
         lambda *args: f"test-session-{uuid.uuid4().hex[:8]}"
     )
+    mock_session_manager.create_new_session_id.side_effect = (
+        lambda *args: f"test-session-{uuid.uuid4().hex[:8]}"
+    )
     component.get_session_manager.return_value = mock_session_manager
 
     component.identity_service = None
