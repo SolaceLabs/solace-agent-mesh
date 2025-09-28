@@ -4,9 +4,9 @@ This checklist tracks the implementation of the declarative HTTP API testing fea
 
 ## Part 1: Test Harness and Fixture Setup
 
-- [ ] **Step 1: Create Database Fixtures**
-  - [ ] Create `test_db_engine` session-scoped fixture in `tests/integration/conftest.py`.
-  - [ ] Create `clean_db_fixture` function-scoped, `autouse` fixture in `tests/integration/conftest.py`.
+- [x] **Step 1: Create Database Fixtures**
+  - [x] Create `test_db_engine` session-scoped fixture in `tests/integration/conftest.py`.
+  - [x] Create `clean_db_fixture` function-scoped, `autouse` fixture in `tests/integration/conftest.py`.
 
 - [ ] **Step 2: Integrate `WebUIBackendApp` into Test Harness**
   - [ ] Modify `shared_solace_connector` in `tests/integration/conftest.py`.

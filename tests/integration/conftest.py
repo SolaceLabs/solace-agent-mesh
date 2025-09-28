@@ -1,13 +1,20 @@
 import inspect
+import os
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 from collections.abc import Generator
+from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
+import sqlalchemy as sa
+from alembic import command as alembic_command
+from alembic.config import Config as AlembicConfig
+from sqlalchemy import create_engine, text
 from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
 from sam_test_infrastructure.artifact_service.service import TestInMemoryArtifactService
 from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
@@ -53,6 +60,60 @@ from a2a.types import (
     PushNotificationConfig,
 )
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
+
+
+@pytest.fixture(scope="session")
+def test_db_engine():
+    """
+    Creates a temporary SQLite database for the test session, runs migrations,
+    and yields the SQLAlchemy engine.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        db_path = Path(temp_dir) / "test_integration.db"
+        database_url = f"sqlite:///{db_path}"
+        print(f"\n[SessionFixture] Creating test database at: {database_url}")
+
+        engine = create_engine(database_url)
+
+        # Run Alembic migrations
+        alembic_cfg = AlembicConfig()
+        # The script location is relative to the project root
+        script_location = "src/solace_agent_mesh/gateway/http_sse/alembic"
+        alembic_cfg.set_main_option("script_location", script_location)
+        alembic_cfg.set_main_option("sqlalchemy.url", database_url)
+
+        alembic_command.upgrade(alembic_cfg, "head")
+        print("[SessionFixture] Database migrations applied.")
+
+        yield engine
+
+        engine.dispose()
+        print("[SessionFixture] Test database engine disposed.")
+
+
+@pytest.fixture(autouse=True)
+def clean_db_fixture(test_db_engine):
+    """
+    Cleans all data from the test database before each test run.
+    """
+    with test_db_engine.connect() as connection:
+        with connection.begin():
+            inspector = sa.inspect(test_db_engine)
+            existing_tables = inspector.get_table_names()
+
+            # Delete in correct order to handle foreign key constraints
+            tables_to_clean = [
+                "feedback",
+                "task_events",
+                "chat_messages",
+                "tasks",
+                "sessions",
+                "users",
+            ]
+            for table_name in tables_to_clean:
+                if table_name in existing_tables:
+                    connection.execute(text(f"DELETE FROM {table_name}"))
+    yield
 
 
 def find_free_port() -> int:
