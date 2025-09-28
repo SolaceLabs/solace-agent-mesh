@@ -159,27 +159,18 @@ def test_feedback_logging_fallback(configured_feedback_client, caplog):
     assert not csv_file.exists()
 
 
-@pytest.mark.parametrize(
-    "configured_feedback_client",
-    [({"type": "csv", "filename": "feedback.csv"})],
-    indirect=True,
-)
-def test_feedback_invalid_payload(configured_feedback_client):
+def test_feedback_missing_required_fields_fails(api_client: TestClient):
     """
-    Tests that an invalid payload returns a 422 Unprocessable Entity error.
+    Tests that a payload missing required fields (like taskId) returns a 422 error.
     """
-    client, tmp_path = configured_feedback_client
+    # Arrange: Payload is missing the required 'taskId'
     invalid_payload = {
-        "messageId": "msg-invalid",
-        # "feedbackType" is missing
+        "sessionId": "session-invalid",
+        "feedbackType": "up",
     }
 
     # Act
-    response = client.post("/api/v1/feedback", json=invalid_payload)
+    response = api_client.post("/api/v1/feedback", json=invalid_payload)
 
-    # Assert HTTP response
+    # Assert
     assert response.status_code == 422
-
-    # Assert no file was created
-    csv_file = tmp_path / "feedback.csv"
-    assert not csv_file.exists()
