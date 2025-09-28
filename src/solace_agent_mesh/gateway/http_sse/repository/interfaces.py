@@ -4,7 +4,7 @@ Repository interfaces defining contracts for data access.
 
 from abc import ABC, abstractmethod
 
-from ..shared.types import PaginationInfo, SessionId, UserId
+from ..shared.types import PaginationInfo, PaginationParams, SessionId, UserId
 from .entities import Feedback, Message, Session, Task, TaskEvent
 
 
@@ -94,7 +94,7 @@ class ITaskRepository(ABC):
         start_date: int | None = None,
         end_date: int | None = None,
         search_query: str | None = None,
-        pagination: PaginationInfo | None = None,
+        pagination: PaginationParams | None = None,
     ) -> list[Task]:
         """Search for tasks with filters."""
         pass

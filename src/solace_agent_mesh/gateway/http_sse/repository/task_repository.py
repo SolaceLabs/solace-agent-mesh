@@ -4,7 +4,7 @@ Task repository implementation using SQLAlchemy.
 
 from sqlalchemy.orm import Session as DBSession
 
-from ..shared.types import PaginationInfo, UserId
+from ..shared.types import PaginationInfo, PaginationParams, UserId
 from .entities import Task, TaskEvent
 from .interfaces import ITaskRepository
 from .models import TaskEventModel, TaskModel
@@ -86,7 +86,7 @@ class TaskRepository(ITaskRepository):
         start_date: int | None = None,
         end_date: int | None = None,
         search_query: str | None = None,
-        pagination: PaginationInfo | None = None,
+        pagination: PaginationParams | None = None,
     ) -> list[Task]:
         """Search for tasks with filters."""
         query = self.db.query(TaskModel)

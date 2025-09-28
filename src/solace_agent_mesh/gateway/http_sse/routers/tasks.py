@@ -20,7 +20,7 @@ from ....gateway.http_sse.session_manager import SessionManager
 from ....gateway.http_sse.services.task_service import TaskService
 from ....gateway.http_sse.repository.interfaces import ITaskRepository
 from ....gateway.http_sse.repository.entities import Task
-from ....gateway.http_sse.shared.types import PaginationInfo, UserId
+from ....gateway.http_sse.shared.types import PaginationParams, UserId
 from ..utils.stim_utils import create_stim_from_task_data
 
 from a2a.types import (
@@ -271,7 +271,7 @@ async def search_tasks(
                 detail="Invalid end_date format. Use ISO 8601 format.",
             )
 
-    pagination = PaginationInfo(page=page, page_size=page_size)
+    pagination = PaginationParams(page=page, page_size=page_size)
 
     try:
         tasks = repo.search(
