@@ -148,6 +148,11 @@ def mock_component():
         }
     )
 
+    # Mock the config resolver to handle async user config resolution
+    mock_config_resolver = Mock()
+    mock_config_resolver.resolve_user_config = AsyncMock(return_value={})
+    component.get_config_resolver.return_value = mock_config_resolver
+
     print("[API Tests] Mock component created")
     yield component
 
