@@ -4,6 +4,7 @@ API integration tests for the /api/v1/tasks router.
 These tests verify the functionality of the task history and retrieval endpoints.
 """
 
+import base64
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Tuple
@@ -207,6 +208,113 @@ def test_task_logging_disabled(api_client: TestClient, test_db_engine, monkeypat
         assert (
             len(events) == 0
         ), "No task events should be created when logging is disabled."
+    finally:
+        db_session.close()
+
+
+def _create_file_part_event_data(
+    task_id: str, file_content: bytes, filename: str = "test.txt"
+) -> dict:
+    """Helper to create a mock event with a file part."""
+    encoded_content = base64.b64encode(file_content).decode("utf-8")
+    payload = {
+        "jsonrpc": "2.0",
+        "id": task_id,
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [
+                    {"kind": "text", "text": "Here is a file."},
+                    {
+                        "kind": "file",
+                        "file": {
+                            "name": filename,
+                            "bytes": encoded_content,
+                            "mime_type": "text/plain",
+                        },
+                    },
+                ],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    return {
+        "topic": f"test_namespace/a2a/v1/agent/request/TestAgent",
+        "payload": payload,
+        "user_properties": {"userId": "sam_dev_user"},
+    }
+
+
+def assert_file_part_stripped(payload: dict):
+    """Assert that the file part has been removed."""
+    parts = payload.get("params", {}).get("message", {}).get("parts", [])
+    assert len(parts) == 1, "Expected only one part after stripping file part."
+    assert parts[0]["kind"] == "text", "The remaining part should be the text part."
+
+
+def assert_file_content_truncated(payload: dict, max_bytes: int):
+    """Assert that the file content has been truncated."""
+    parts = payload.get("params", {}).get("message", {}).get("parts", [])
+    assert len(parts) == 2, "Expected two parts."
+    file_part = parts[1]
+    assert file_part["kind"] == "file"
+    file_content = file_part.get("file", {}).get("bytes", "")
+    assert file_content == f"[Content stripped, size > {max_bytes} bytes]"
+
+
+@pytest.mark.parametrize(
+    "config_to_set, file_content, assertion_func",
+    [
+        (
+            {"log_file_parts": False},
+            b"some file content",
+            assert_file_part_stripped,
+        ),
+        (
+            {"max_file_part_size_bytes": 50},
+            b"This is some file content that is definitely longer than fifty bytes.",
+            lambda p: assert_file_content_truncated(p, 50),
+        ),
+    ],
+    ids=["log_file_parts_false", "max_file_part_size_exceeded"],
+)
+def test_file_content_logging_config(
+    api_client: TestClient,
+    monkeypatch,
+    config_to_set: dict,
+    file_content: bytes,
+    assertion_func: callable,
+):
+    """
+    Tests that file content logging is correctly handled based on config.
+    Corresponds to Test Plan 3.3.
+    """
+    # Arrange: Set the configuration on the task logger service
+    task_logger_service = dependencies.sac_component_instance.get_task_logger_service()
+    for key, value in config_to_set.items():
+        monkeypatch.setitem(task_logger_service.config, key, value)
+
+    # Create a task to get a valid ID
+    task_id, _ = _create_task_and_get_ids(api_client, "Task for file logging test")
+
+    # Act: Log an event with a file part
+    event_data = _create_file_part_event_data(task_id, file_content)
+    task_logger_service.log_event(event_data)
+
+    # Assert: Check the database to see how the payload was stored
+    Session = task_logger_service.session_factory
+    db_session = Session()
+    try:
+        event_model = (
+            db_session.query(TaskEventModel)
+            .filter(TaskEventModel.task_id == task_id)
+            .one()
+        )
+        stored_payload = event_model.payload
+        assertion_func(stored_payload)
     finally:
         db_session.close()
 
