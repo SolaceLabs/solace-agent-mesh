@@ -4,9 +4,16 @@ Service for logging A2A tasks and events to the database.
 
 import copy
 import uuid
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Union
 
-from a2a.types import Task as A2ATask
+from a2a.types import (
+    A2ARequest,
+    JSONRPCError,
+    JSONRPCResponse,
+    Task as A2ATask,
+    TaskArtifactUpdateEvent,
+    TaskStatusUpdateEvent,
+)
 from solace_ai_connector.common.log import log
 from sqlalchemy.orm import Session as DBSession
 
@@ -142,6 +149,50 @@ class TaskLoggerService:
             db.rollback()
         finally:
             db.close()
+
+    def _parse_a2a_event(
+        self, topic: str, payload: dict
+    ) -> Union[
+        A2ARequest,
+        A2ATask,
+        TaskStatusUpdateEvent,
+        TaskArtifactUpdateEvent,
+        JSONRPCError,
+        None,
+    ]:
+        """
+        Safely parses a raw A2A message payload into a Pydantic model.
+        Returns the parsed model or None if parsing fails or is not applicable.
+        """
+        # Ignore discovery messages
+        if "/discovery/agentcards" in topic:
+            return None
+
+        try:
+            # Check if it's a response (has 'result' or 'error')
+            if "result" in payload or "error" in payload:
+                rpc_response = JSONRPCResponse.model_validate(payload)
+                error = a2a.get_response_error(rpc_response)
+                if error:
+                    return error
+                result = a2a.get_response_result(rpc_response)
+                if result:
+                    # The result is already a parsed Pydantic model
+                    return result
+            # Check if it's a request
+            elif "method" in payload:
+                return A2ARequest.model_validate(payload)
+
+            log.warning(
+                f"{self.log_identifier} Payload for topic '{topic}' is not a recognizable JSON-RPC request or response. Payload: {payload}"
+            )
+            return None
+
+        except Exception as e:
+            log.error(
+                f"{self.log_identifier} Failed to parse A2A event for topic '{topic}': {e}. Payload: {payload}"
+            )
+            return None
 
     def _infer_event_details(
         self, topic: str, payload: Dict, user_props: Dict
