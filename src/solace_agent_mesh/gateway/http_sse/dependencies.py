@@ -414,14 +414,22 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def get_session_business_service(
-    db: Session = Depends(get_db),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> SessionService:
+) -> SessionService | None:
     log.debug("[Dependencies] get_session_business_service called")
-
-    session_repository = SessionRepository(db)
-    message_repository = MessageRepository(db)
-    return SessionService(session_repository, message_repository, component)
+    
+    if SessionLocal is None:
+        log.debug("Database not configured - returning None for SessionService")
+        return None
+    
+    db = SessionLocal()
+    try:
+        session_repository = SessionRepository(db)
+        message_repository = MessageRepository(db)
+        return SessionService(session_repository, message_repository, component)
+    except Exception:
+        db.close()
+        raise
 
 
 @contextmanager

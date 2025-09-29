@@ -28,7 +28,7 @@ async def create_new_session(
     request: FastAPIRequest,
     user: dict = Depends(get_current_user),
     session_manager: SessionManager = Depends(get_session_manager),
-    session_service: SessionService = Depends(get_session_business_service),
+    session_service: SessionService | None = Depends(get_session_business_service),
 ):
     """Creates a new session on-demand and returns its ID."""
     user_id = user.get("id")
@@ -37,14 +37,16 @@ async def create_new_session(
         new_session_id = session_manager.create_new_session_id(request)
         log.info("Created new session ID: %s for user %s", new_session_id, user_id)
 
-        # Attempt to create the session record in the DB.
-        # The service will handle the check for whether persistence is enabled.
-        session_service.create_session(
-            user_id=user_id,
-            agent_id=None,  # Agent is not known at this point
-            name=None,
-            session_id=new_session_id,
-        )
+        # Only persist if database is available
+        if session_service:
+            session_service.create_session(
+                user_id=user_id,
+                agent_id=None,  # Agent is not known at this point
+                name=None,
+                session_id=new_session_id,
+            )
+        else:
+            log.debug("Database not configured - session %s created in-memory only", new_session_id)
 
         return create_generic_success_response(
             result={"id": new_session_id}, request_id=None
@@ -60,12 +62,18 @@ async def create_new_session(
 @router.get("/sessions", response_model=SessionListResponse)
 async def get_all_sessions(
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(get_session_business_service),
+    session_service: SessionService | None = Depends(get_session_business_service),
 ):
     user_id = user.get("id")
     log.info("Fetching sessions for user_id: %s", user_id)
 
     try:
+        if not session_service:
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Session management requires database configuration.",
+            )
+
         request_dto = GetSessionsRequest(user_id=user_id)
 
         session_domains = session_service.get_user_sessions(
@@ -102,12 +110,18 @@ async def get_all_sessions(
 async def get_session(
     session_id: str,
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(get_session_business_service),
+    session_service: SessionService | None = Depends(get_session_business_service),
 ):
     user_id = user.get("id")
     log.info("User %s attempting to fetch session_id: %s", user_id, session_id)
 
     try:
+        if not session_service:
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Session management requires database configuration.",
+            )
+
         if (
             not session_id
             or session_id.strip() == ""
@@ -158,7 +172,7 @@ async def get_session(
 async def get_session_history(
     session_id: str,
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(get_session_business_service),
+    session_service: SessionService | None = Depends(get_session_business_service),
 ):
     user_id = user.get("id")
     log.info(
@@ -166,6 +180,12 @@ async def get_session_history(
     )
 
     try:
+        if not session_service:
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Session management requires database configuration.",
+            )
+
         if (
             not session_id
             or session_id.strip() == ""
@@ -229,12 +249,18 @@ async def update_session_name(
     session_id: str,
     name: str = Body(..., embed=True),
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(get_session_business_service),
+    session_service: SessionService | None = Depends(get_session_business_service),
 ):
     user_id = user.get("id")
     log.info("User %s attempting to update session %s", user_id, session_id)
 
     try:
+        if not session_service:
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Session management requires database configuration.",
+            )
+
         if (
             not session_id
             or session_id.strip() == ""
@@ -294,12 +320,18 @@ async def update_session_name(
 async def delete_session(
     session_id: str,
     user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(get_session_business_service),
+    session_service: SessionService | None = Depends(get_session_business_service),
 ):
     user_id = user.get("id")
     log.info("User %s attempting to delete session %s", user_id, session_id)
 
     try:
+        if not session_service:
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Session management requires database configuration.",
+            )
+
         deleted = session_service.delete_session_with_notifications(
             session_id=session_id, user_id=user_id
         )
