@@ -209,3 +209,165 @@ def test_task_logging_disabled(api_client: TestClient, test_db_engine, monkeypat
         ), "No task events should be created when logging is disabled."
     finally:
         db_session.close()
+
+
+def _create_status_update_event_data(task_id: str) -> dict:
+    """Helper to create a mock status update event."""
+    payload = {
+        "jsonrpc": "2.0",
+        "id": task_id,
+        "result": {
+            "kind": "status-update",
+            "taskId": task_id,
+            "contextId": "some_session",
+            "final": False,
+            "status": {
+                "state": "working",
+                "message": {
+                    "role": "agent",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "working..."}],
+                },
+            },
+        },
+    }
+    return {
+        "topic": f"test_namespace/a2a/v1/gateway/status/TestWebUIGateway_01/{task_id}",
+        "payload": payload,
+        "user_properties": {"userId": "sam_dev_user"},
+    }
+
+
+def _create_artifact_update_event_data(task_id: str) -> dict:
+    """Helper to create a mock artifact update event."""
+    payload = {
+        "jsonrpc": "2.0",
+        "id": task_id,
+        "result": {
+            "kind": "artifact-update",
+            "taskId": task_id,
+            "contextId": "some_session",
+            "artifact": {
+                "id": "art-123",
+                "name": "test.txt",
+                "kind": "artifact",
+                "parts": [{"kind": "text", "text": "artifact content"}],
+            },
+        },
+    }
+    return {
+        "topic": f"test_namespace/a2a/v1/gateway/status/TestWebUIGateway_01/{task_id}",
+        "payload": payload,
+        "user_properties": {"userId": "sam_dev_user"},
+    }
+
+
+@pytest.mark.parametrize(
+    "config_to_disable, create_skipped_event_func, skipped_event_kind",
+    [
+        (
+            {"log_status_updates": False},
+            _create_status_update_event_data,
+            "status-update",
+        ),
+        (
+            {"log_artifact_events": False},
+            _create_artifact_update_event_data,
+            "artifact-update",
+        ),
+    ],
+    ids=["log_status_updates_false", "log_artifact_events_false"],
+)
+def test_event_type_logging_flags(
+    api_client: TestClient,
+    test_db_engine,
+    monkeypatch,
+    config_to_disable: dict,
+    create_skipped_event_func: callable,
+    skipped_event_kind: str,
+):
+    """
+    Tests that specific event types are not logged when their flags are false.
+    Corresponds to Test Plan 3.2.
+    """
+    # Arrange: Disable specific event logging
+    task_logger_service = dependencies.sac_component_instance.get_task_logger_service()
+    for key, value in config_to_disable.items():
+        monkeypatch.setitem(task_logger_service.config, key, value)
+
+    # Create a task to get a valid ID
+    task_id, _ = _create_task_and_get_ids(api_client, "Task for event flag test")
+
+    # Log a request event (should always be logged)
+    request_payload = {
+        "jsonrpc": "2.0",
+        "id": task_id,
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "hello"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    request_event_data = {
+        "topic": f"test_namespace/a2a/v1/agent/request/TestAgent",
+        "payload": request_payload,
+        "user_properties": {"userId": "sam_dev_user"},
+    }
+    task_logger_service.log_event(request_event_data)
+
+    # Log the event that should be skipped
+    skipped_event_data = create_skipped_event_func(task_id)
+    task_logger_service.log_event(skipped_event_data)
+
+    # Log a final response event (should always be logged)
+    final_response_payload = {
+        "jsonrpc": "2.0",
+        "id": task_id,
+        "result": {
+            "id": task_id,
+            "contextId": "some_session",
+            "kind": "task",
+            "status": {
+                "state": "completed",
+                "message": {
+                    "role": "agent",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Done."}],
+                },
+            },
+        },
+    }
+    final_response_event_data = {
+        "topic": f"test_namespace/a2a/v1/gateway/response/TestWebUIGateway_01/{task_id}",
+        "payload": final_response_payload,
+        "user_properties": {"userId": "sam_dev_user"},
+    }
+    task_logger_service.log_event(final_response_event_data)
+
+    # Assert: Check the database
+    Session = sessionmaker(bind=test_db_engine)
+    db_session = Session()
+    try:
+        events = (
+            db_session.query(TaskEventModel)
+            .filter(TaskEventModel.task_id == task_id)
+            .all()
+        )
+        # Should have 2 events: the request and the final response.
+        # The status/artifact update should be skipped.
+        assert len(events) == 2, f"Expected 2 events, but found {len(events)}"
+
+        # Verify that the skipped event kind is not in the logged events
+        for event in events:
+            payload = event.payload
+            if "result" in payload and isinstance(payload["result"], dict):
+                assert payload["result"].get("kind") != skipped_event_kind
+    finally:
+        db_session.close()
