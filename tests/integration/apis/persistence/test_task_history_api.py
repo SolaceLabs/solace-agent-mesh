@@ -10,8 +10,13 @@ from typing import Tuple
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import sessionmaker
 
 from solace_agent_mesh.gateway.http_sse import dependencies
+from solace_agent_mesh.gateway.http_sse.repository.models import (
+    TaskEventModel,
+    TaskModel,
+)
 
 
 class TimeController:
@@ -154,3 +159,53 @@ def test_create_and_get_basic_task(api_client: TestClient):
     assert isinstance(task["start_time"], int)
     assert task["end_time"] is None
     assert task["status"] is None
+
+
+def test_task_logging_disabled(api_client: TestClient, test_db_engine, monkeypatch):
+    """
+    Tests that no tasks or events are logged when task_logging is disabled.
+    Corresponds to Test Plan 3.1.
+    """
+    # Arrange: Disable task logging via monkeypatching the service's config
+    task_logger_service = dependencies.sac_component_instance.get_task_logger_service()
+    monkeypatch.setitem(task_logger_service.config, "enabled", False)
+
+    # Act: Create a task and attempt to log an event for it
+    message_text = "This task should not be logged."
+    task_id, _ = _create_task_and_get_ids(api_client, message_text)
+
+    request_payload = {
+        "jsonrpc": "2.0",
+        "id": task_id,
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": message_text}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    mock_event_data = {
+        "topic": f"test_namespace/a2a/v1/agent/request/TestAgent",
+        "payload": request_payload,
+        "user_properties": {"userId": "sam_dev_user"},
+    }
+    # This call should do nothing because logging is disabled
+    task_logger_service.log_event(mock_event_data)
+
+    # Assert: Verify that no records were created in the database
+    Session = sessionmaker(bind=test_db_engine)
+    db_session = Session()
+    try:
+        tasks = db_session.query(TaskModel).all()
+        events = db_session.query(TaskEventModel).all()
+
+        assert len(tasks) == 0, "No tasks should be created when logging is disabled."
+        assert (
+            len(events) == 0
+        ), "No task events should be created when logging is disabled."
+    finally:
+        db_session.close()

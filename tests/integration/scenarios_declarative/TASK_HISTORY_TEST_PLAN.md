@@ -109,7 +109,7 @@ These tests require a multi-user context and are best handled with imperative Py
 - [x] Test 2.3: Schema Integrity (Code Review & Runtime Test)
 
 ### Imperative Tests (Python)
-- [ ] Test 3.1: Master `enabled` Flag
+- [x] Test 3.1: Master `enabled` Flag
 - [ ] Test 3.2: Event Type Logging Flags
 - [ ] Test 3.3: File Content Logging Configuration
 - [ ] Test 4.1: User Data Isolation in List View
