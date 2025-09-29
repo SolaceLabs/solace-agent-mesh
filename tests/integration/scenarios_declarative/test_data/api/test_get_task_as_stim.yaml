@@ -51,6 +51,7 @@ expected_http_responses:
       - "log_file_version: '2.0'"
       - "task_id: {task_id}"
       - "user_id: sam_dev_user"
-      - "initial_request_text: This is a test task for .stim file download."
+      - "initial_request_text:"
+      - "This is a test task for .stim file download."
       - "direction: request"
       - "direction: response"
