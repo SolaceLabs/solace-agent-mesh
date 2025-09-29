@@ -1110,13 +1110,12 @@ class SamAgentComponent(SamComponentBase):
         """
         Helper method to extract the origin of a tool from various possible attributes.
         """
-        if hasattr(tool, 'origin'):
+        if hasattr(tool, "origin") and tool.origin is not None:
             return tool.origin
-        elif hasattr(tool.func, 'origin'):
+        elif hasattr(tool, "func") and hasattr(tool.func, "origin") and tool.func.origin is not None:
             return tool.func.origin
         else:
             return getattr(tool, "origin", "unknown")
-
 
     def get_agent_context(self) -> Dict[str, Any]:
         """Get agent context for middleware calls."""
