@@ -99,7 +99,7 @@ These tests require a multi-user context and are best handled with imperative Py
 ### Declarative Tests (YAML)
 - [x] Test 1.1: Empty State Retrieval
 - [x] Test 1.2: Basic Task Creation and Retrieval
-- [ ] Test 1.3: Search and Filtering Logic
+- [x] Test 1.3: Search and Filtering Logic
 - [ ] Test 1.4: Pagination Logic
 - [ ] Test 1.5: Task Detail Retrieval as `.stim` File
 - [x] Test 2.1: Task Lifecycle Status Updates (Basic)

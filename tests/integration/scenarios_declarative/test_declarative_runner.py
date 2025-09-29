@@ -82,6 +82,7 @@ async def _setup_scenario_environment(
     declarative_scenario: Dict[str, Any],
     test_llm_server: TestLLMServer,
     test_artifact_service_instance: TestInMemoryArtifactService,
+    test_db_engine,
     scenario_id: str,
     artifact_scope: str,
 ) -> None:
@@ -342,6 +343,11 @@ async def _assert_http_responses(
             except json.JSONDecodeError:
                 pytest.fail(
                     f"Scenario {scenario_id}: {context_path} - Response body was not valid JSON. Response: {response.text}"
+                )
+
+            if "expected_list_length" in spec:
+                assert len(actual_json) == spec["expected_list_length"], (
+                    f"Scenario {scenario_id}: {context_path} - Expected list of length {spec['expected_list_length']}, but got {len(actual_json)}."
                 )
 
             if isinstance(expected_subset, list):
@@ -1451,6 +1457,7 @@ async def test_declarative_scenario(
     test_gateway_app_instance: TestGatewayComponent,
     test_artifact_service_instance: TestInMemoryArtifactService,
     webui_api_client: TestClient,
+    test_db_engine,
     a2a_message_validator: A2AMessageValidator,
     mock_gemini_client: None,
     sam_app_under_test: SamAgentApp,
@@ -1571,6 +1578,7 @@ async def test_declarative_scenario(
         declarative_scenario,
         test_llm_server,
         test_artifact_service_instance,
+        test_db_engine,
         scenario_id,
         artifact_scope,
     )
