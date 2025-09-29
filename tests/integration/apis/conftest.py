@@ -33,6 +33,10 @@ from .infrastructure.simple_gateway_adapter import SimpleGatewayAdapter
 # Imports for feedback test fixture
 from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
 from solace_agent_mesh.gateway.http_sse import dependencies
+from solace_agent_mesh.gateway.http_sse.services.task_logger_service import (
+    TaskLoggerService,
+)
+from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture(scope="session")
@@ -74,7 +78,7 @@ def test_database_url_for_setup(test_database_url):
 
 
 @pytest.fixture(scope="session")
-def mock_component():
+def mock_component(test_database_engine):
     """Creates a mock WebUIBackendComponent for testing"""
     component = Mock()
 
@@ -152,6 +156,14 @@ def mock_component():
     mock_config_resolver = Mock()
     mock_config_resolver.resolve_user_config = AsyncMock(return_value={})
     component.get_config_resolver.return_value = mock_config_resolver
+
+    # Create a real TaskLoggerService instance for persistence tests
+    Session = sessionmaker(bind=test_database_engine)
+    task_logger_config = {"enabled": True}
+    real_task_logger_service = TaskLoggerService(
+        session_factory=Session, config=task_logger_config
+    )
+    component.get_task_logger_service.return_value = real_task_logger_service
 
     print("[API Tests] Mock component created")
     yield component
