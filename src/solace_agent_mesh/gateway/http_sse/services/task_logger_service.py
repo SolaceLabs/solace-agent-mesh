@@ -197,19 +197,27 @@ class TaskLoggerService:
             return None
 
     def _infer_event_details(
-        self, topic: str, payload: Dict, user_props: Dict
+        self, topic: str, parsed_event: Any, user_props: Dict
     ) -> tuple[str, str | None, str | None]:
-        """Infers direction, task_id, and user_id from message details."""
+        """Infers direction, task_id, and user_id from a parsed A2A event."""
         direction = "unknown"
         task_id = None
         user_id = user_props.get("userId")
 
-        if "request" in topic:
+        if isinstance(parsed_event, A2ARequest):
             direction = "request"
-            task_id = payload.get("id")
-        elif "response" in topic or "status" in topic:
-            direction = "response" if "response" in topic else "status_update"
-            task_id = self._extract_task_id_from_response(payload)
+            task_id = parsed_event.id
+        elif isinstance(
+            parsed_event, (A2ATask, TaskStatusUpdateEvent, TaskArtifactUpdateEvent)
+        ):
+            direction = "response" if isinstance(parsed_event, A2ATask) else "status"
+            task_id = getattr(parsed_event, "task_id", None) or getattr(
+                parsed_event, "id", None
+            )
+        elif isinstance(parsed_event, JSONRPCError):
+            direction = "error"
+            if isinstance(parsed_event.data, dict):
+                task_id = parsed_event.data.get("taskId")
 
         if not user_id:
             user_config = user_props.get("a2aUserConfig", {})
@@ -220,55 +228,35 @@ class TaskLoggerService:
 
         return direction, str(task_id) if task_id else None, user_id
 
-    def _extract_task_id_from_response(self, payload: Dict) -> str | None:
-        """Extracts task ID from a JSON-RPC response payload."""
-        if "result" in payload and isinstance(payload["result"], dict):
-            result = payload["result"]
-            return result.get("taskId") or result.get("id")
-        if "error" in payload and isinstance(payload["error"], dict):
-            error_data = payload["error"].get("data", {})
-            if isinstance(error_data, dict):
-                return error_data.get("taskId")
-        return None
-
-    def _extract_initial_text(self, payload: Dict) -> str | None:
+    def _extract_initial_text(self, parsed_event: Any) -> str | None:
         """Extracts the initial text from a send message request."""
         try:
-            message = a2a.get_message_from_send_request(payload)
-            if message:
-                return a2a.get_text_from_message(message)
+            if isinstance(parsed_event, A2ARequest) and parsed_event.method in [
+                "message/send",
+                "message/stream",
+            ]:
+                message = a2a.get_message_from_send_request(parsed_event)
+                if message:
+                    return a2a.get_text_from_message(message)
         except Exception:
             return None
         return None
 
-    def _get_final_status(self, payload: Dict) -> str | None:
-        """Checks if a payload represents a final task status and returns the state."""
-        try:
-            if "result" in payload and isinstance(payload["result"], dict):
-                result = payload["result"]
-                # Check if it's a final Task object by checking the 'kind'
-                if result.get("kind") == "task":
-                    # Now it's safe to validate as a Task
-                    if "status" in result and "state" in result["status"]:
-                        task = A2ATask.model_validate(result)
-                        return task.status.state.value
-            elif "error" in payload:
-                return "failed"
-        except Exception:
-            return None
+    def _get_final_status(self, parsed_event: Any) -> str | None:
+        """Checks if a parsed event represents a final task status and returns the state."""
+        if isinstance(parsed_event, A2ATask):
+            return parsed_event.status.state.value
+        elif isinstance(parsed_event, JSONRPCError):
+            return "failed"
         return None
 
-    def _should_log_event(self, topic: str, payload: Dict) -> bool:
+    def _should_log_event(self, topic: str, parsed_event: Any) -> bool:
         """Determines if an event should be logged based on configuration."""
         if not self.config.get("log_status_updates", True):
             if "status" in topic:
                 return False
         if not self.config.get("log_artifact_events", True):
-            if (
-                "result" in payload
-                and isinstance(payload["result"], dict)
-                and payload["result"].get("kind") == "artifact-update"
-            ):
+            if isinstance(parsed_event, TaskArtifactUpdateEvent):
                 return False
         return True
 
