@@ -1596,7 +1596,6 @@ async def test_declarative_scenario(
         ):
             # Call original to preserve SSE logic
             await original_send_update(
-                self,
                 external_request_context,
                 event_data,
                 is_final_chunk_of_update,
@@ -1608,7 +1607,7 @@ async def test_declarative_scenario(
 
         async def patched_send_final(self, external_request_context, task_data):
             # Call original to preserve SSE logic
-            await original_send_final(self, external_request_context, task_data)
+            await original_send_final(external_request_context, task_data)
             # Forward to test harness capture queue
             await test_gateway_app_instance._send_final_response_to_external(
                 external_request_context, task_data
@@ -1616,7 +1615,7 @@ async def test_declarative_scenario(
 
         async def patched_send_error(self, external_request_context, error_data):
             # Call original to preserve SSE logic
-            await original_send_error(self, external_request_context, error_data)
+            await original_send_error(external_request_context, error_data)
             # Forward to test harness capture queue
             await test_gateway_app_instance._send_error_to_external(
                 external_request_context, error_data
