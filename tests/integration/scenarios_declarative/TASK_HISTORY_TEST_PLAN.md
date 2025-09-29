@@ -112,6 +112,6 @@ These tests require a multi-user context and are best handled with imperative Py
 - [x] Test 3.1: Master `enabled` Flag
 - [x] Test 3.2: Event Type Logging Flags
 - [x] Test 3.3: File Content Logging Configuration
-- [ ] Test 4.1: User Data Isolation in List View
-- [ ] Test 4.2: Direct Access Control for Task Details
-- [ ] Test 4.3: Privileged Access with `tasks:read:all` Scope
+- [x] Test 4.1: User Data Isolation in List View
+- [x] Test 4.2: Direct Access Control for Task Details
+- [x] Test 4.3: Privileged Access with `tasks:read:all` Scope
