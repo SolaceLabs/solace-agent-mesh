@@ -174,6 +174,47 @@ async def _setup_scenario_environment(
                 )
             print(f"Scenario {scenario_id}: Setup artifact '{filename}' created.")
 
+    setup_tasks_spec = declarative_scenario.get("setup_tasks", [])
+    if setup_tasks_spec:
+        from sqlalchemy.orm import sessionmaker
+        from solace_agent_mesh.gateway.http_sse.repository.models import TaskModel
+        from datetime import datetime, timezone
+        import uuid
+
+        Session = sessionmaker(bind=test_db_engine)
+        db_session = Session()
+        try:
+            for task_spec in setup_tasks_spec:
+                start_time_iso = task_spec.get("start_time_iso")
+                start_time_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+                if start_time_iso:
+                    start_time_ms = int(
+                        datetime.fromisoformat(start_time_iso).timestamp() * 1000
+                    )
+
+                end_time_ms = None
+                if task_spec.get("end_time_iso"):
+                    end_time_ms = int(
+                        datetime.fromisoformat(task_spec.get("end_time_iso")).timestamp()
+                        * 1000
+                    )
+
+                new_task = TaskModel(
+                    id=task_spec.get("task_id", f"setup-task-{uuid.uuid4().hex}"),
+                    user_id=task_spec.get("user_id", "sam_dev_user"),
+                    start_time=start_time_ms,
+                    end_time=end_time_ms,
+                    status=task_spec.get("status", "completed"),
+                    initial_request_text=task_spec["message"],
+                )
+                db_session.add(new_task)
+            db_session.commit()
+            print(
+                f"Scenario {scenario_id}: Setup {len(setup_tasks_spec)} tasks directly in the database."
+            )
+        finally:
+            db_session.close()
+
 
 async def _execute_gateway_and_collect_events(
     test_gateway_app_instance: TestGatewayComponent,
