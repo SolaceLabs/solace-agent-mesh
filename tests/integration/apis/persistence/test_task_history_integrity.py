@@ -3,10 +3,12 @@ Database integrity tests for the task history feature.
 """
 
 import time
+import uuid
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 
+from solace_agent_mesh.gateway.http_sse import dependencies
 from solace_agent_mesh.gateway.http_sse.repository.models import (
     TaskEventModel,
     TaskModel,
@@ -28,25 +30,73 @@ def test_task_deletion_cascades_to_events(api_client: TestClient, test_db_engine
         api_client, "Test message for cascade delete"
     )
 
-    # The task logger runs asynchronously. We need to wait for events to be persisted.
-    # Polling is more robust than a fixed sleep.
+    # Manually log events to simulate the logger behavior, as the API test
+    # harness does not have a live message broker.
+    task_logger_service = dependencies.sac_component_instance.get_task_logger_service()
+    message_text = "Test message for cascade delete"
+
+    # Log request event
+    request_payload = {
+        "jsonrpc": "2.0",
+        "id": task_id,
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": message_text}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    task_logger_service.log_event(
+        {
+            "topic": "test_namespace/a2a/v1/agent/request/TestAgent",
+            "payload": request_payload,
+            "user_properties": {"userId": "sam_dev_user"},
+        }
+    )
+
+    # Log a final response event to complete the task record
+    response_payload = {
+        "jsonrpc": "2.0",
+        "id": task_id,
+        "result": {
+            "id": task_id,
+            "contextId": "some_session",
+            "kind": "task",
+            "status": {
+                "state": "completed",
+                "message": {
+                    "role": "agent",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Done"}],
+                },
+            },
+        },
+    }
+    task_logger_service.log_event(
+        {
+            "topic": f"test_namespace/a2a/v1/gateway/response/TestWebUIGateway_01/{task_id}",
+            "payload": response_payload,
+            "user_properties": {"userId": "sam_dev_user"},
+        }
+    )
+
+    # Now, check the database directly
     Session = sessionmaker(bind=test_db_engine)
     db_session = Session()
-    events = []
     try:
-        for _ in range(10):  # Poll for up to 5 seconds
-            events = (
-                db_session.query(TaskEventModel)
-                .filter(TaskEventModel.task_id == task_id)
-                .all()
-            )
-            if len(events) > 1:  # Wait for at least request and response
-                break
-            time.sleep(0.5)
-
+        events = (
+            db_session.query(TaskEventModel)
+            .filter(TaskEventModel.task_id == task_id)
+            .all()
+        )
         assert (
-            len(events) > 0
-        ), f"Task events were not logged for task {task_id} within the timeout period."
+            len(events) >= 2
+        ), f"Task events were not logged correctly for task {task_id}."
         print(f"Found {len(events)} events for task {task_id} before deletion.")
 
         task = db_session.query(TaskModel).filter(TaskModel.id == task_id).one()

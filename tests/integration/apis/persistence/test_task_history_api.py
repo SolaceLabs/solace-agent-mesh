@@ -11,6 +11,8 @@ from typing import Tuple
 import pytest
 from fastapi.testclient import TestClient
 
+from solace_agent_mesh.gateway.http_sse import dependencies
+
 
 class TimeController:
     """A simple class to control the 'current' time in tests."""
@@ -111,6 +113,30 @@ def test_create_and_get_basic_task(api_client: TestClient):
     # Arrange
     message_text = "This is a basic test task."
     task_id, _ = _create_task_and_get_ids(api_client, message_text)
+
+    # Manually log the task creation event to simulate the logger behavior,
+    # as the API test harness does not have a live message broker.
+    task_logger_service = dependencies.sac_component_instance.get_task_logger_service()
+    request_payload = {
+        "jsonrpc": "2.0",
+        "id": task_id,
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": message_text}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    mock_event_data = {
+        "topic": f"test_namespace/a2a/v1/agent/request/TestAgent",
+        "payload": request_payload,
+        "user_properties": {"userId": "sam_dev_user"},
+    }
+    task_logger_service.log_event(mock_event_data)
 
     # Act
     response = api_client.get("/api/v1/tasks")
