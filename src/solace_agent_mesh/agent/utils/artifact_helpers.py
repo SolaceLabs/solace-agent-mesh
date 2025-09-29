@@ -989,6 +989,7 @@ async def load_artifact_content_or_metadata(
                         if len(content_str) > max_content_length:
                             truncated_content = content_str[:max_content_length] + "..."
                             message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters. 
+                                                The artifact is larger ({len(content_str)} characters).
                                                 Please request again with larger max size up to {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} for the full artifact"""
                             log.info(
                                 "%s Loaded and decoded text artifact '%s' v%d. Returning truncated content (%d chars, limit: %d).",
