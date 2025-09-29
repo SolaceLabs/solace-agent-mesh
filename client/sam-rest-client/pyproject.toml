@@ -17,7 +17,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "httpx[http2]>=0.28.0",
+    "httpx[http2]==0.28.1",
     "pydantic==2.11.9",
     "rich==14.1.0",
 ]
