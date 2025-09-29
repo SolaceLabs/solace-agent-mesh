@@ -352,7 +352,9 @@ def test_event_type_logging_flags(
     task_logger_service.log_event(final_response_event_data)
 
     # Assert: Check the database
-    Session = sessionmaker(bind=test_db_engine)
+    # Use the service's own session factory to ensure we are in the same
+    # transactional context.
+    Session = task_logger_service.session_factory
     db_session = Session()
     try:
         events = (
