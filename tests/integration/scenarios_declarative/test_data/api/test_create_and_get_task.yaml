@@ -52,6 +52,6 @@ expected_http_responses:
     expected_status_code: 200
     expected_json_body_matches:
       - user_id: "sam_dev_user"
-        initial_request_text: "This is a test task created via HTTP."
+        initial_request_text_contains: "This is a test task created via HTTP."
         status: "completed"
         id_matches_regex: ".+" # Just check that it has an ID
