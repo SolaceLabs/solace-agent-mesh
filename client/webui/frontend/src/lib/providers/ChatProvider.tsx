@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode, useMemo } from "react";
+import { v4 } from "uuid";
 
 import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
 import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
@@ -134,11 +135,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const uploadArtifactFile = useCallback(
-        async (file: File): Promise<string | null> => {
+        async (file: File, overrideSessionId?: string): Promise<string | null> => {
+            const currentSessionId = overrideSessionId || sessionId;
+            if (!currentSessionId) {
+                throw new Error("Session ID is missing for file upload.");
+            }
             const formData = new FormData();
-            formData.append("file", file);
+            formData.append("upload_file", file);
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(file.name)}`, {
+                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${currentSessionId}/${encodeURIComponent(file.name)}`, {
                     method: "POST",
                     body: formData,
                     credentials: "include",
@@ -369,7 +374,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         isError: true,
                         isComplete: true,
                         metadata: {
-                            messageId: `msg-${crypto.randomUUID()}`,
+                            messageId: `msg-${v4()}`,
                             lastProcessedEventSequence: currentEventSequence,
                         },
                     });
@@ -522,7 +527,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             isUser: false,
                             isComplete: isFinalEvent || newFileAttachments.length > 0,
                             metadata: {
-                                messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
+                                messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
                                 sessionId: (result as TaskStatusUpdateEvent).contextId,
                                 lastProcessedEventSequence: currentEventSequence,
                             },
@@ -544,7 +549,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         isStatusBubble: true,
                         isComplete: false,
                         metadata: {
-                            messageId: `status-${crypto.randomUUID()}`,
+                            messageId: `status-${v4()}`,
                             lastProcessedEventSequence: currentEventSequence,
                         },
                     });
@@ -596,7 +601,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             try {
                 const cancelRequest = {
                     jsonrpc: "2.0",
-                    id: `req-${crypto.randomUUID()}`,
+                    id: `req-${v4()}`,
                     method: "tasks/cancel",
                     params: {
                         id: currentTaskId,
@@ -629,17 +634,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Reset UI state with empty session ID
         const welcomeMessages: MessageFE[] = configWelcomeMessage
             ? [
-                  {
-                      parts: [{ kind: "text", text: configWelcomeMessage }],
-                      isUser: false,
-                      isComplete: true,
-                      role: "agent",
-                      metadata: {
-                          sessionId: "", // Empty - will be populated when session is created
-                          lastProcessedEventSequence: 0,
-                      },
-                  },
-              ]
+                {
+                    parts: [{ kind: "text", text: configWelcomeMessage }],
+                    isUser: false,
+                    isComplete: true,
+                    role: "agent",
+                    metadata: {
+                        sessionId: "", // Empty - will be populated when session is created
+                        lastProcessedEventSequence: 0,
+                    },
+                },
+            ]
             : [];
 
         setMessages(welcomeMessages);
@@ -676,7 +681,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 try {
                     const cancelRequest = {
                         jsonrpc: "2.0",
-                        id: `req-${crypto.randomUUID()}`,
+                        id: `req-${v4()}`,
                         method: "tasks/cancel",
                         params: {
                             id: currentTaskId,
@@ -823,7 +828,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         try {
             const cancelRequest: CancelTaskRequest = {
                 jsonrpc: "2.0",
-                id: `req-${crypto.randomUUID()}`,
+                id: `req-${v4()}`,
                 method: "tasks/cancel",
                 params: {
                     id: currentTaskId,
@@ -880,15 +885,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const handleSubmit = useCallback(
         async (event: FormEvent, files?: File[] | null, userInputOverride?: string | null) => {
-            console.log("handleSubmit: using sessionId", sessionId);
             event.preventDefault();
             const currentInput = userInputOverride?.trim() || userInput.trim();
             const currentFiles = files || [];
+
             if ((!currentInput && currentFiles.length === 0) || isResponding || isCancelling || !selectedAgentName) {
                 if (!selectedAgentName) addNotification("Please select an agent first.");
                 if (isCancelling) addNotification("Cannot send new message while a task is being cancelled.");
                 return;
             }
+
             closeCurrentEventSource();
             isFinalizing.current = false;
             setIsResponding(true);
@@ -896,46 +902,50 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             latestStatusText.current = null;
             sseEventSequenceRef.current = 0;
 
+            let effectiveSessionId = sessionId;
+            const isNewSession = !effectiveSessionId;
+
             const userMsg: MessageFE = {
                 role: "user",
                 parts: [{ kind: "text", text: currentInput }],
                 isUser: true,
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
                 metadata: {
-                    messageId: `msg-${crypto.randomUUID()}`,
-                    sessionId: sessionId,
+                    messageId: `msg-${v4()}`,
+                    sessionId: effectiveSessionId,
                     lastProcessedEventSequence: 0,
                 },
             };
+
             latestStatusText.current = "Thinking";
             setMessages(prev => [...prev, userMsg]);
             setUserInput("");
+
             try {
+                // If it's a new session, create one on the backend first to get an ID for uploads.
+                if (isNewSession) {
+                    const sessionResponse = await authenticatedFetch(`${apiPrefix}/sessions/new`, { method: "POST" });
+                    if (!sessionResponse.ok) {
+                        throw new Error("Failed to create a new session on the backend.");
+                    }
+                    const newSessionData = await sessionResponse.json();
+                    effectiveSessionId = newSessionData.result.id;
+                    setSessionId(effectiveSessionId);
+                    console.log("Created new session on-demand:", effectiveSessionId);
+
+                    // Update the user message in state with the correct session ID
+                    setMessages(prev => prev.map(msg => (msg.metadata?.messageId === userMsg.metadata?.messageId ? { ...msg, metadata: { ...msg.metadata, sessionId: effectiveSessionId } } : msg)));
+                }
+
                 // 1. Process files using hybrid approach
                 const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
                     if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
-                        // Small file: send inline as base64
                         const base64Content = await fileToBase64(file);
-                        return {
-                            kind: "file",
-                            file: {
-                                bytes: base64Content,
-                                name: file.name,
-                                mimeType: file.type,
-                            },
-                        };
+                        return { kind: "file", file: { bytes: base64Content, name: file.name, mimeType: file.type } };
                     } else {
-                        // Large file: upload and get URI
-                        const uri = await uploadArtifactFile(file);
+                        const uri = await uploadArtifactFile(file, effectiveSessionId); // Pass the correct session ID
                         if (uri) {
-                            return {
-                                kind: "file",
-                                file: {
-                                    uri: uri,
-                                    name: file.name,
-                                    mimeType: file.type,
-                                },
-                            };
+                            return { kind: "file", file: { uri: uri, name: file.name, mimeType: file.type } };
                         } else {
                             addNotification(`Failed to upload large file: ${file.name}`, "error");
                             return null;
@@ -957,30 +967,24 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // 3. Construct the A2A message
-                console.log(`ChatProvider handleSubmit: Using sessionId for contextId: ${sessionId}`);
                 const a2aMessage: Message = {
                     role: "user",
                     parts: messageParts,
-                    messageId: `msg-${crypto.randomUUID()}`,
+                    messageId: `msg-${v4()}`,
                     kind: "message",
-                    contextId: sessionId,
-                    metadata: {
-                        agent_name: selectedAgentName, // For gateway routing
-                    },
+                    contextId: effectiveSessionId, // Use the definite session ID
+                    metadata: { agent_name: selectedAgentName },
                 };
 
                 // 4. Construct the SendStreamingMessageRequest
                 const sendMessageRequest: SendStreamingMessageRequest = {
                     jsonrpc: "2.0",
-                    id: `req-${crypto.randomUUID()}`,
+                    id: `req-${v4()}`,
                     method: "message/stream",
-                    params: {
-                        message: a2aMessage,
-                    },
+                    params: { message: a2aMessage },
                 };
 
                 // 5. Send the request
-                console.log("ChatProvider handleSubmit: Sending POST to /message:stream");
                 const response = await authenticatedFetch(`${apiPrefix}/message:stream`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -989,58 +993,39 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ detail: "Unknown error" }));
-                    console.error("ChatProvider handleSubmit: Error from /message:stream", response.status, errorData);
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
                 const result = await response.json();
-
                 const task = result?.result as Task | undefined;
                 const taskId = task?.id;
                 const responseSessionId = (task as Task & { contextId?: string })?.contextId;
 
-                console.log(`ChatProvider handleSubmit: Extracted responseSessionId: ${responseSessionId}, current sessionId: ${sessionId}`);
-                console.log(`ChatProvider handleSubmit: Full result object:`, result);
-
                 if (!taskId) {
-                    console.error("ChatProvider handleSubmit: Backend did not return a valid taskId. Result:", result);
                     throw new Error("Backend did not return a valid taskId.");
                 }
 
-                // Update session ID if backend provided one (for new sessions)
-                console.log(`ChatProvider handleSubmit: Checking session update condition - responseSessionId: ${responseSessionId}, sessionId: ${sessionId}, different: ${responseSessionId !== sessionId}`);
-                if (responseSessionId && responseSessionId !== sessionId) {
-                    console.log(`ChatProvider handleSubmit: Updating sessionId from ${sessionId} to ${responseSessionId}`);
-                    const isNewSession = !sessionId || sessionId === "";
-                    setSessionId(responseSessionId);
-                    // Update the user message metadata with the new session ID
-                    setMessages(prev => prev.map(msg => (msg.metadata?.messageId === userMsg.metadata?.messageId ? { ...msg, metadata: { ...msg.metadata, sessionId: responseSessionId } } : msg)));
+                if (responseSessionId && responseSessionId !== effectiveSessionId) {
+                    console.warn(`Backend returned a different session ID (${responseSessionId}) than expected (${effectiveSessionId}). This should not happen.`);
+                    setSessionId(responseSessionId); // Trust the backend's final say
+                }
 
-                    if (isNewSession) {
-                        // Generate and persist session name for new sessions
-                        const textParts = userMsg.parts.filter(p => p.kind === "text") as TextPart[];
-                        const combinedText = textParts
-                            .map(p => p.text)
-                            .join(" ")
-                            .trim();
-
-                        if (combinedText) {
-                            const newSessionName = combinedText.length > 100 ? `${combinedText.substring(0, 100)}...` : combinedText;
-
-                            setSessionName(newSessionName);
-                            updateSessionName(responseSessionId, newSessionName, false);
-                        }
-
-                        if (typeof window !== "undefined") {
-                            window.dispatchEvent(new CustomEvent("new-chat-session"));
-                        }
+                // If it was a new session, generate and persist its name.
+                if (isNewSession) {
+                    const textParts = userMsg.parts.filter(p => p.kind === "text") as TextPart[];
+                    const combinedText = textParts.map(p => p.text).join(" ").trim();
+                    if (combinedText) {
+                        const newSessionName = combinedText.length > 100 ? `${combinedText.substring(0, 100)}...` : combinedText;
+                        setSessionName(newSessionName);
+                        updateSessionName(effectiveSessionId, newSessionName, false);
+                    }
+                    if (typeof window !== "undefined") {
+                        window.dispatchEvent(new CustomEvent("new-chat-session"));
                     }
                 }
 
-                console.log(`ChatProvider handleSubmit: Received taskId ${taskId}. Setting currentTaskId and taskIdInSidePanel.`);
                 setCurrentTaskId(taskId);
                 setTaskIdInSidePanel(taskId);
             } catch (error) {
-                console.error("ChatProvider handleSubmit: Catch block error", error);
                 addNotification(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
                 setIsResponding(false);
                 setMessages(prev => prev.filter(msg => !msg.isStatusBubble));
