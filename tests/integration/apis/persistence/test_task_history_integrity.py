@@ -85,8 +85,9 @@ def test_task_deletion_cascades_to_events(api_client: TestClient, test_db_engine
         }
     )
 
-    # Now, check the database directly
-    Session = sessionmaker(bind=test_db_engine)
+    # Now, check the database directly. Use the service's own session factory
+    # to ensure we are in the same transactional context.
+    Session = task_logger_service.session_factory
     db_session = Session()
     try:
         events = (
