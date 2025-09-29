@@ -34,6 +34,7 @@ from a2a.types import (
 from a2a.utils.message import get_data_parts, get_message_text
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
 from google.genai import types as adk_types  # Add this import
 import re
 import json
@@ -1574,12 +1575,69 @@ async def test_declarative_scenario(
         artifact_scope,
     )
 
+    gateway_input_data = declarative_scenario.get("gateway_input")
+    http_request_input = declarative_scenario.get("http_request_input")
+
+    if http_request_input:
+        webui_app = request.getfixturevalue("shared_solace_connector").get_app(
+            "WebUIBackendApp"
+        )
+        webui_component = webui_app.get_component()
+
+        original_send_update = webui_component._send_update_to_external
+        original_send_final = webui_component._send_final_response_to_external
+        original_send_error = webui_component._send_error_to_external
+
+        async def patched_send_update(
+            self,
+            external_request_context,
+            event_data,
+            is_final_chunk_of_update,
+        ):
+            # Call original to preserve SSE logic
+            await original_send_update(
+                self,
+                external_request_context,
+                event_data,
+                is_final_chunk_of_update,
+            )
+            # Forward to test harness capture queue
+            await test_gateway_app_instance._send_update_to_external(
+                external_request_context, event_data, is_final_chunk_of_update
+            )
+
+        async def patched_send_final(self, external_request_context, task_data):
+            # Call original to preserve SSE logic
+            await original_send_final(self, external_request_context, task_data)
+            # Forward to test harness capture queue
+            await test_gateway_app_instance._send_final_response_to_external(
+                external_request_context, task_data
+            )
+
+        async def patched_send_error(self, external_request_context, error_data):
+            # Call original to preserve SSE logic
+            await original_send_error(self, external_request_context, error_data)
+            # Forward to test harness capture queue
+            await test_gateway_app_instance._send_error_to_external(
+                external_request_context, error_data
+            )
+
+        monkeypatch.setattr(
+            WebUIBackendComponent, "_send_update_to_external", patched_send_update
+        )
+        monkeypatch.setattr(
+            WebUIBackendComponent,
+            "_send_final_response_to_external",
+            patched_send_final,
+        )
+        monkeypatch.setattr(
+            WebUIBackendComponent, "_send_error_to_external", patched_send_error
+        )
+
     skip_intermediate_events = declarative_scenario.get(
         "skip_intermediate_events", False
     )
 
-    gateway_input_data = declarative_scenario.get("gateway_input")
-    http_request_input = declarative_scenario.get("http_request_input")
     has_http_assertions = "expected_http_responses" in declarative_scenario
 
     # --- Phase 2: Execute Task and Collect Events ---
