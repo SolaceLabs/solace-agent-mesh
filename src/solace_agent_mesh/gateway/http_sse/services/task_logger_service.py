@@ -58,6 +58,10 @@ class TaskLoggerService:
             )
             return
 
+        if "discovery" in topic:
+            # Ignore discovery messages
+            return
+
         # Parse the event into a Pydantic model first.
         parsed_event = self._parse_a2a_event(topic, payload)
         if parsed_event is None:
@@ -152,9 +156,7 @@ class TaskLoggerService:
         finally:
             db.close()
 
-    def _parse_a2a_event(
-        self, topic: str, payload: dict
-    ) -> Union[
+    def _parse_a2a_event(self, topic: str, payload: dict) -> Union[
         A2ARequest,
         A2ATask,
         TaskStatusUpdateEvent,
@@ -206,7 +208,7 @@ class TaskLoggerService:
 
         if isinstance(parsed_event, A2ARequest):
             direction = "request"
-            task_id = parsed_event.id
+            task_id = a2a.get_request_id(parsed_event)
         elif isinstance(
             parsed_event, (A2ATask, TaskStatusUpdateEvent, TaskArtifactUpdateEvent)
         ):
@@ -231,10 +233,7 @@ class TaskLoggerService:
     def _extract_initial_text(self, parsed_event: Any) -> str | None:
         """Extracts the initial text from a send message request."""
         try:
-            if isinstance(parsed_event, A2ARequest) and parsed_event.method in [
-                "message/send",
-                "message/stream",
-            ]:
+            if isinstance(parsed_event, A2ARequest):
                 message = a2a.get_message_from_send_request(parsed_event)
                 if message:
                     return a2a.get_text_from_message(message)
