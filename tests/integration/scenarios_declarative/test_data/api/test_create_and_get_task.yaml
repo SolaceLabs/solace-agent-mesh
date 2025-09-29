@@ -6,7 +6,7 @@ skip_intermediate_events: true
 http_request_input:
   method: "POST"
   path: "/api/v1/message:stream"
-  user_identity: "http_test_user@example.com"
+  user_identity: "sam_dev_user"
   json_body:
     jsonrpc: "2.0"
     id: "http-req-123"
@@ -51,7 +51,7 @@ expected_http_responses:
       path: "/api/v1/tasks"
     expected_status_code: 200
     expected_json_body_matches:
-      - user_id: "http_test_user@example.com"
+      - user_id: "sam_dev_user"
         initial_request_text: "This is a test task created via HTTP."
         status: "completed"
         id_matches_regex: ".+" # Just check that it has an ID
