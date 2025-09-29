@@ -58,17 +58,19 @@ class TaskLoggerService:
             )
             return
 
-        # Basic filtering
-        if "/discovery/agentcards" in topic:
+        # Parse the event into a Pydantic model first.
+        parsed_event = self._parse_a2a_event(topic, payload)
+        if parsed_event is None:
+            # Parsing failed or event should be ignored.
             return
 
         db = self.session_factory()
         try:
             repo = TaskRepository(db)
 
-            # Infer details from the message
+            # Infer details from the parsed event
             direction, task_id, user_id = self._infer_event_details(
-                topic, payload, user_properties
+                topic, parsed_event, user_properties
             )
 
             if not task_id:
@@ -78,20 +80,20 @@ class TaskLoggerService:
                 return
 
             # Check if we should log this event type
-            if not self._should_log_event(topic, payload):
+            if not self._should_log_event(topic, parsed_event):
                 log.debug(
                     f"{self.log_identifier} Event on topic {topic} is configured to be skipped."
                 )
                 return
 
-            # Sanitize payload before storing
+            # Sanitize the original raw payload before storing
             sanitized_payload = self._sanitize_payload(payload)
 
             # Check for existing task or create a new one
             task = repo.find_by_id(task_id)
             if not task:
                 if direction == "request":
-                    initial_text = self._extract_initial_text(payload)
+                    initial_text = self._extract_initial_text(parsed_event)
                     new_task = Task(
                         id=task_id,
                         user_id=user_id or "unknown",
@@ -118,7 +120,7 @@ class TaskLoggerService:
                         f"{self.log_identifier} Created placeholder task record for ID: {task_id}"
                     )
 
-            # Create and save the event
+            # Create and save the event using the sanitized raw payload
             task_event = TaskEvent(
                 id=str(uuid.uuid4()),
                 task_id=task_id,
@@ -131,7 +133,7 @@ class TaskLoggerService:
             repo.save_event(task_event)
 
             # If it's a final event, update the master task record
-            final_status = self._get_final_status(payload)
+            final_status = self._get_final_status(parsed_event)
             if final_status:
                 task_to_update = repo.find_by_id(task_id)
                 if task_to_update:
