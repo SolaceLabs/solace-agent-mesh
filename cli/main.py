@@ -1,6 +1,7 @@
 import click
 import os
 import sys
+import importlib
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
@@ -21,7 +22,7 @@ class LazyCommand(click.Command):
         """Load the actual command on first invocation"""
         if self._original_command is None:
             try:
-                module = __import__(self.module_path, fromlist=[self.command_name])
+                module = importlib.import_module(self.module_path)
                 self._original_command = getattr(module, self.command_name)
             except (ImportError, AttributeError) as e:
                 click.echo(f"Error loading command {self.name}: {e}", err=True)
@@ -35,7 +36,7 @@ class LazyCommand(click.Command):
         """Load command to get help text"""
         if self._original_command is None:
             try:
-                module = __import__(self.module_path, fromlist=[self.command_name])
+                module = importlib.import_module(self.module_path)
                 self._original_command = getattr(module, self.command_name)
             except (ImportError, AttributeError):
                 return "Help unavailable - command failed to load"
