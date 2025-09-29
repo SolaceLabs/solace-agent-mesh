@@ -331,6 +331,7 @@ async def _assert_http_responses(
     webui_api_client: TestClient,
     http_responses_spec: List[Dict[str, Any]],
     scenario_id: str,
+    task_id: Optional[str] = None,
 ):
     """
     Executes HTTP requests and asserts the responses against the expected specifications.
@@ -351,6 +352,8 @@ async def _assert_http_responses(
 
         method = request_spec.get("method", "GET")
         path = request_spec.get("path")
+        if task_id and path and "{task_id}" in path:
+            path = path.format(task_id=task_id)
         json_body = request_spec.get("json_body")
         query_params = request_spec.get("query_params")
 
@@ -366,6 +369,24 @@ async def _assert_http_responses(
                 f"Scenario {scenario_id}: {context_path} - Status code mismatch. "
                 f"Expected {spec['expected_status_code']}, Got {response.status_code}. Response: {response.text}"
             )
+
+        if "expected_content_type" in spec:
+            assert response.headers.get("content-type") == spec["expected_content_type"], (
+                f"Scenario {scenario_id}: {context_path} - Content-Type mismatch. "
+                f"Expected '{spec['expected_content_type']}', Got '{response.headers.get('content-type')}'."
+            )
+
+        if "text_contains" in spec:
+            expected_substrings = spec["text_contains"]
+            if not isinstance(expected_substrings, list):
+                expected_substrings = [expected_substrings]
+            for substring in expected_substrings:
+                if task_id and "{task_id}" in substring:
+                    substring = substring.format(task_id=task_id)
+                assert substring in response.text, (
+                    f"Scenario {scenario_id}: {context_path} - Expected text not found. "
+                    f"Substring '{substring}' not in response text:\n---\n{response.text}\n---"
+                )
 
         if spec.get("expected_body_is_empty_list", False):
             assert response.json() == [], (
@@ -1816,6 +1837,7 @@ async def test_declarative_scenario(
             webui_api_client=webui_api_client,
             http_responses_spec=expected_http_responses,
             scenario_id=scenario_id,
+            task_id=task_id,
         )
 
         print(f"Scenario {scenario_id}: Completed.")

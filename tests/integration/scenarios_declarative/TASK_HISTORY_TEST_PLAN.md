@@ -100,8 +100,8 @@ These tests require a multi-user context and are best handled with imperative Py
 - [x] Test 1.1: Empty State Retrieval
 - [x] Test 1.2: Basic Task Creation and Retrieval
 - [x] Test 1.3: Search and Filtering Logic
-- [ ] Test 1.4: Pagination Logic
-- [ ] Test 1.5: Task Detail Retrieval as `.stim` File
+- [x] Test 1.4: Pagination Logic
+- [x] Test 1.5: Task Detail Retrieval as `.stim` File
 - [x] Test 2.1: Task Lifecycle Status Updates (Basic)
 - [x] Test 2.2: Initial Request Text Extraction
 - [ ] Test 2.3: Schema Integrity (Code Review)
