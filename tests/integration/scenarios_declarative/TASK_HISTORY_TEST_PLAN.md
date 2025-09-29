@@ -66,11 +66,13 @@ This group focuses on the correctness and consistency of the data stored in the 
 *   **Implementation:** In a declarative test, assert that the `initial_request_text` field in the response from `GET /api/v1/tasks` matches (or contains) the text from the initial `http_request_input`.
 *   **Status:** Implemented in `api_create_and_get_task.yaml`.
 
-### Test 2.3: Schema Integrity (Code Review)
+### Test 2.3: Schema Integrity (Code Review & Runtime Test)
 
-*   **Objective:** Confirm that the database schema enforces referential integrity.
-*   **Action:** Review the Alembic migration file (`...add_tasks_task_events...py`).
-*   **Assertion:** Verify that the `ForeignKey` constraint on `task_events.task_id` includes the `ondelete='CASCADE'` option. This is a code inspection, not a runtime test.
+*   **Objective:** Confirm that the database schema enforces referential integrity for tasks and task events.
+*   **Action:**
+    1.  **Code Review:** The Alembic migration file (`...add_tasks_task_events...py`) was reviewed to confirm the `ForeignKey` constraint on `task_events.task_id` includes `ondelete='CASCADE'`.
+    2.  **Runtime Test:** An imperative test was added to verify this behavior by creating a task with events, deleting the task, and asserting that the associated events are automatically deleted by the database.
+*   **Status:** Implemented.
 
 ---
 
@@ -104,7 +106,7 @@ These tests require a multi-user context and are best handled with imperative Py
 - [x] Test 1.5: Task Detail Retrieval as `.stim` File
 - [x] Test 2.1: Task Lifecycle Status Updates (Basic)
 - [x] Test 2.2: Initial Request Text Extraction
-- [ ] Test 2.3: Schema Integrity (Code Review)
+- [x] Test 2.3: Schema Integrity (Code Review & Runtime Test)
 
 ### Imperative Tests (Python)
 - [ ] Test 3.1: Master `enabled` Flag
