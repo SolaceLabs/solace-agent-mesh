@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useInView } from "react-intersection-observer";
 
-import { Trash2, Check, X, Pencil, MessageCircle, Loader2 } from "lucide-react";
+import { Trash2, Check, X, Pencil, MessageCircle } from "lucide-react";
 
 import { useChatContext, useConfigContext } from "@/lib/hooks";
 import { authenticatedFetch } from "@/lib/utils/api";
 import { formatTimestamp } from "@/lib/utils/format";
 import { Button } from "@/lib/components/ui/button";
+import { Spinner } from "@/lib/components/ui/spinner";
 
 interface Session {
     id: string;
@@ -215,7 +216,7 @@ export const SessionList: React.FC = () => {
                 )}
                 {hasMore && (
                     <div ref={loadMoreRef} className="flex justify-center py-4">
-                        {isLoading && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
+                        {isLoading && <Spinner size="small" variant="muted" />}
                     </div>
                 )}
             </div>

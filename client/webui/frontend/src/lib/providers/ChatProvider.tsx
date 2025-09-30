@@ -135,7 +135,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const uploadArtifactFile = useCallback(
-        async (file: File, overrideSessionId?: string): Promise<string | null> => {
+        async (file: File, overrideSessionId?: string): Promise<{ uri: string; sessionId: string } | null> => {
             const currentSessionId = overrideSessionId || sessionId;
             const formData = new FormData();
             formData.append("upload_file", file);
@@ -157,7 +157,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const artifactData = result.data || result;
                 addNotification(`Artifact "${file.name}" uploaded successfully.`);
                 await artifactsRefetch();
-                return artifactData.uri || null;
+                return { uri: artifactData.uri, sessionId: artifactData.sessionId };
             } catch (error) {
                 addNotification(`Error uploading artifact "${file.name}": ${error instanceof Error ? error.message : "Unknown error"}`);
                 return null;
@@ -904,7 +904,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             sseEventSequenceRef.current = 0;
 
             const isNewSession = !sessionId;
-            const effectiveSessionId = sessionId || undefined;
+            let effectiveSessionId = sessionId || undefined;
 
             const userMsg: MessageFE = {
                 role: "user",
@@ -924,23 +924,55 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             try {
                 // 1. Process files using hybrid approach
-                // For new sessions, inline all files to avoid creating separate sessions
-                const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
-                    if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES || isNewSession) {
-                        const base64Content = await fileToBase64(file);
-                        return { kind: "file", file: { bytes: base64Content, name: file.name, mimeType: file.type } };
-                    } else {
-                        const uri = await uploadArtifactFile(file, effectiveSessionId);
-                        if (uri) {
-                            return { kind: "file", file: { uri: uri, name: file.name, mimeType: file.type } };
+                // For new sessions, process sequentially to ensure all files use the same session
+                // For existing sessions, process in parallel for better performance
+                const uploadedFileParts: FilePart[] = [];
+
+                if (isNewSession) {
+                    // Sequential processing for new sessions
+                    for (const file of currentFiles) {
+                        if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
+                            const base64Content = await fileToBase64(file);
+                            uploadedFileParts.push({ kind: "file", file: { bytes: base64Content, name: file.name, mimeType: file.type } });
                         } else {
-                            addNotification(`Failed to upload large file: ${file.name}`, "error");
-                            return null;
+                            const uploadResult = await uploadArtifactFile(file, effectiveSessionId);
+                            if (uploadResult) {
+                                // Capture session ID from first upload
+                                if (!effectiveSessionId && uploadResult.sessionId) {
+                                    effectiveSessionId = uploadResult.sessionId;
+                                    console.log(`Session created via artifact upload: ${effectiveSessionId}`);
+                                }
+                                uploadedFileParts.push({ kind: "file", file: { uri: uploadResult.uri, name: file.name, mimeType: file.type } });
+                            } else {
+                                addNotification(`Failed to upload large file: ${file.name}`, "error");
+                            }
                         }
                     }
-                });
+                } else {
+                    // Parallel processing for existing sessions
+                    const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
+                        if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
+                            const base64Content = await fileToBase64(file);
+                            return { kind: "file", file: { bytes: base64Content, name: file.name, mimeType: file.type } };
+                        } else {
+                            const uploadResult = await uploadArtifactFile(file, effectiveSessionId);
+                            if (uploadResult) {
+                                return { kind: "file", file: { uri: uploadResult.uri, name: file.name, mimeType: file.type } };
+                            } else {
+                                addNotification(`Failed to upload large file: ${file.name}`, "error");
+                                return null;
+                            }
+                        }
+                    });
+                    const results = await Promise.all(filePartsPromises);
+                    uploadedFileParts.push(...results.filter((p): p is FilePart => p !== null));
+                }
 
-                const uploadedFileParts = (await Promise.all(filePartsPromises)).filter((p): p is FilePart => p !== null);
+                // If we created a session via artifact upload, update the session state
+                if (isNewSession && effectiveSessionId && effectiveSessionId !== sessionId) {
+                    setSessionId(effectiveSessionId);
+                    console.log(`Session created via artifact upload: ${effectiveSessionId}`);
+                }
 
                 // 2. Construct message parts
                 const messageParts: Part[] = [];
