@@ -87,7 +87,7 @@ docker run --rm -it -v "$(pwd):/app" --platform linux/amd64  -p 5002:5002 solace
 
 If the OS architecture on your host is not linux/amd64, you must add --platform linux/amd64 when you run the container.
 
-For Broker Setup, do not select the Broker Type `New local Solace PubSub+ broker container`. This option is incompatible with Docker deployments because the `Download and Run Container` action attempts to download a container image from within the already running container, which causes the operation to fail.
+For Broker Setup, do not select the Broker Type `New local Solace broker container`. This option is incompatible with Docker deployments because the `Download and Run Container` action attempts to download a container image from within the already running container, which causes the operation to fail.
 
 </details>
 
@@ -149,7 +149,7 @@ If your host system architecture is not `linux/amd64`, add the `--platform linux
 
 :::info[Required Configurations]
 For deployments that use the official Docker image, ensure the following:
-- Do not use a local Solace PubSub+ broker container.
+- Do not use a local Solace broker container.
 - Set the environment variables `FASTAPI_HOST="0.0.0.0"` in your `.env` file or system environment variables. This is necessary to expose the FastAPI server to the host machine. 
 :::
 

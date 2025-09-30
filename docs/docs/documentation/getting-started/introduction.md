@@ -7,7 +7,7 @@ sidebar_position: 10
 
 Modern AI development faces a fundamental challenge: while powerful AI models are readily available, the real complexity lies in connecting them to the data and systems where they can provide value. Data exists in isolated silos - spread across databases, SaaS platforms, APIs, and legacy systems - making it difficult to build AI applications that can work across these boundaries.
 
-Solace Agent Mesh is an open-source framework that tackles this challenge head-on by integrating the Google Agent Development Kit (ADK) with the Solace AI Connector (SAC) to provide a "Universal A2A Agent Host" that enables scalable, distributed AI agent communication through Solace PubSub+. Whether you're an AI enthusiast experimenting with new models, or an enterprise developer building production systems, Solace Agent Mesh gives you the tools to:
+Solace Agent Mesh is an open-source framework that tackles this challenge head-on by integrating the Google Agent Development Kit (ADK) with the Solace AI Connector (SAC) to provide a "Universal A2A Agent Host" that enables scalable, distributed AI agent communication through the Solace event broker. Whether you're an AI enthusiast experimenting with new models, or an enterprise developer building production systems, Solace Agent Mesh gives you the tools to:
 
 - connect AI agents to real-world data sources and systems through a standardized A2A (Agent-to-Agent) protocol
 - add gateways to provide event-based integrations or interactive UI connections
@@ -58,7 +58,7 @@ Solace Agent Mesh tackles the hardest challenges in building collaborative AI sy
 ### Why Choose Solace Agent Mesh?
 
 - **Enterprise-Grade Performance:**  
-  Built on Solace PubSub+ Event Broker, the mesh delivers high-throughput, fault-tolerant messaging that scales with your needs.
+  Built on Solace Event Broker, the mesh delivers high-throughput, fault-tolerant messaging that scales with your needs.
 
 - **Plug-and-Play Extensibility:**  
   The event-driven architecture makes adding new capabilities remarkably simple. Deploy a new agent, and it instantly publishes its capabilities to the mesh. Other components discover it automatically—no manual configuration, no downtime, no integration headaches.
