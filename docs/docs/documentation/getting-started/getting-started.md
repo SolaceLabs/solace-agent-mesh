@@ -1,9 +1,7 @@
 ---
-title: Introduction
+title: Getting Started
 sidebar_position: 10
 ---
-
-## Solace Agent Mesh
 
 Modern AI development faces a fundamental challenge: while powerful AI models are readily available, the real complexity lies in connecting them to the data and systems where they can provide value. Data exists in isolated silos - spread across databases, SaaS platforms, APIs, and legacy systems - making it difficult to build AI applications that can work across these boundaries.
 

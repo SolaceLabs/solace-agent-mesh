@@ -4,10 +4,6 @@ sidebar_position: 10
 toc_max_heading_level: 4
 ---
 
-# Configurations
-
-## Shared Configurations
-
 The `shared_config.yaml` file is used to define configurations that can be shared across multiple agents or components in Solace Agent Mesh. This allows for centralized management of common settings like broker connections and language model configurations.
 
 ### Using Shared Configurations
@@ -146,7 +142,7 @@ The `shared_config.yaml` example defines several models for different purposes. 
 You can define any number of models in this section and reference them in your agent configurations. **By default, the system only uses the `planning` and the `general` models. No need to fill the other fields**
 
 :::info
-For more information on configuring different LLM models and SSL/TLS settings, please refer to the [LLM Models](./litellm_models.md) documentation.
+For more information on configuring different LLM models and SSL/TLS settings, please refer to the [Configuring Large Language Models](./large_language_models.md) documentation.
 :::
 
 #### Services
