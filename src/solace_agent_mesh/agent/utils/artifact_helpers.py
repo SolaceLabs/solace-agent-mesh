@@ -19,7 +19,7 @@ from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
 from ...common.a2a.types import ArtifactInfo
 from ...common.utils.mime_helpers import is_text_based_mime_type, is_text_based_file
-from ...common.constants import TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY
+from ...common.constants import TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY, TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH
 from ...agent.utils.context_helpers import get_original_session_id
 
 if TYPE_CHECKING:
@@ -841,7 +841,7 @@ async def load_artifact_content_or_metadata(
             )
             max_content_length = TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY
     elif max_content_length is None:
-        max_content_length = 1000
+        max_content_length = TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH
 
     log.debug(
         "%s Using max_content_length: %d characters (from %s).",
