@@ -126,39 +126,39 @@
 ## Phase 3: Event Integration
 
 ### Step 3.1: Store Model Name in LLM Invocation Callback
-- [ ] Extract model name from `host_component.model_config`
-- [ ] Handle dict vs string model config
-- [ ] Store in `callback_context.state["model_name"]`
-- [ ] **Validation**: Model name available in subsequent callbacks
+- [x] Extract model name from `host_component.model_config`
+- [x] Handle dict vs string model config
+- [x] Store in `callback_context.state["model_name"]`
+- [x] **Validation**: Model name available in subsequent callbacks
 
 **File**: `src/solace_agent_mesh/agent/adk/callbacks.py` (in `solace_llm_invocation_callback`)
 
 ---
 
 ### Step 3.2: Extract and Record Token Usage in Response Callback
-- [ ] Check for `llm_response.usage_metadata`
-- [ ] Extract `prompt_token_count` and `candidates_token_count`
-- [ ] Retrieve model name from callback state
-- [ ] Extract cached tokens from `prompt_tokens_details` if available
-- [ ] Get task context from `host_component.active_tasks`
-- [ ] Call `task_context.record_token_usage()` with extracted values
-- [ ] Add debug logging for token counts
-- [ ] **Validation**: Token usage recorded for every non-partial LLM response
-- [ ] **Validation**: Missing usage metadata doesn't cause errors
+- [x] Check for `llm_response.usage_metadata`
+- [x] Extract `prompt_token_count` and `candidates_token_count`
+- [x] Retrieve model name from callback state
+- [x] Extract cached tokens from `prompt_tokens_details` if available
+- [x] Get task context from `host_component.active_tasks`
+- [x] Call `task_context.record_token_usage()` with extracted values
+- [x] Add debug logging for token counts
+- [x] **Validation**: Token usage recorded for every non-partial LLM response
+- [x] **Validation**: Missing usage metadata doesn't cause errors
 
 **File**: `src/solace_agent_mesh/agent/adk/callbacks.py` (in `solace_llm_response_callback`)
 
 ---
 
 ### Step 3.3: Add Token Usage to LLM Response Status Updates
-- [ ] Build `usage_dict` with:
-  - [ ] `input_tokens`
-  - [ ] `output_tokens`
-  - [ ] `cached_input_tokens` (if > 0)
-  - [ ] `model`
-- [ ] Add `usage_dict` to `llm_response_data["usage"]`
-- [ ] Ensure this happens before publishing status update
-- [ ] **Validation**: Status updates contain usage data when available
+- [x] Build `usage_dict` with:
+  - [x] `input_tokens`
+  - [x] `output_tokens`
+  - [x] `cached_input_tokens` (if > 0)
+  - [x] `model`
+- [x] Add `usage_dict` to `llm_response_data["usage"]`
+- [x] Ensure this happens before publishing status update
+- [x] **Validation**: Status updates contain usage data when available
 
 **File**: `src/solace_agent_mesh/agent/adk/callbacks.py` (in `solace_llm_response_callback`)
 
@@ -329,12 +329,12 @@
 
 **Phase 1**: ☑ 6/6 steps complete  
 **Phase 2**: ☑ 3/3 steps complete  
-**Phase 3**: ☐ 0/3 steps complete  
+**Phase 3**: ☑ 3/3 steps complete  
 **Phase 4**: ☐ 0/4 steps complete  
 **Phase 5**: ☐ 0/4 steps complete  
 **Phase 6**: ☐ 0/4 steps complete  
 
-**Overall**: ☑ 9/24 steps complete (38%)
+**Overall**: ☑ 12/24 steps complete (50%)
 
 ---
 
