@@ -2027,6 +2027,21 @@ class SamAgentComponent(SamComponentBase):
                     self.log_identifier,
                     len(task_context.produced_artifacts),
                 )
+            
+            # Add token usage summary
+            if task_context:
+                token_summary = task_context.get_token_usage_summary()
+                if token_summary["total_tokens"] > 0:
+                    final_task_metadata["token_usage"] = token_summary
+                    log.info(
+                        "%s Task %s used %d total tokens (input: %d, output: %d, cached: %d)",
+                        self.log_identifier,
+                        logical_task_id,
+                        token_summary["total_tokens"],
+                        token_summary["total_input_tokens"],
+                        token_summary["total_output_tokens"],
+                        token_summary["total_cached_input_tokens"],
+                    )
 
             final_task = a2a.create_final_task(
                 task_id=logical_task_id,

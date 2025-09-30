@@ -167,51 +167,51 @@
 ## Phase 4: Persistence Layer
 
 ### Step 4.1: Add Token Usage to Final Task Metadata
-- [ ] Get task context from `self.active_tasks` after `produced_artifacts`
-- [ ] Call `task_context.get_token_usage_summary()`
-- [ ] Check if `total_tokens > 0`
-- [ ] Add summary to `final_task_metadata["token_usage"]`
-- [ ] Add info log with token counts
-- [ ] **Validation**: Final task responses include token usage when available
+- [x] Get task context from `self.active_tasks` after `produced_artifacts`
+- [x] Call `task_context.get_token_usage_summary()`
+- [x] Check if `total_tokens > 0`
+- [x] Add summary to `final_task_metadata["token_usage"]`
+- [x] Add info log with token counts
+- [x] **Validation**: Final task responses include token usage when available
 
 **File**: `src/solace_agent_mesh/agent/sac/component.py` (in `finalize_task_success`)
 
 ---
 
 ### Step 4.2: Extract Token Usage in TaskLoggerService
-- [ ] After extracting task from parsed event
-- [ ] Check if event is a final Task response
-- [ ] Extract `metadata.get("token_usage")` if present
-- [ ] Store in local variable for use in task update
-- [ ] **Validation**: Token usage extracted from final task events
+- [x] After extracting task from parsed event
+- [x] Check if event is a final Task response
+- [x] Extract `metadata.get("token_usage")` if present
+- [x] Store in local variable for use in task update
+- [x] **Validation**: Token usage extracted from final task events
 
 **File**: `src/solace_agent_mesh/gateway/http_sse/services/task_logger_service.py` (in `log_event`)
 
 ---
 
 ### Step 4.3: Update Task Record with Token Usage
-- [ ] When updating task with final status
-- [ ] If token usage was extracted:
-  - [ ] Set `task_to_update.total_input_tokens`
-  - [ ] Set `task_to_update.total_output_tokens`
-  - [ ] Set `task_to_update.total_cached_input_tokens`
-  - [ ] Set `task_to_update.token_usage_details` (full summary dict)
-- [ ] Call `repo.save_task()` as before
-- [ ] **Validation**: Database contains token usage for completed tasks
-- [ ] **Validation**: Tasks without token data still save successfully
+- [x] When updating task with final status
+- [x] If token usage was extracted:
+  - [x] Set `task_to_update.total_input_tokens`
+  - [x] Set `task_to_update.total_output_tokens`
+  - [x] Set `task_to_update.total_cached_input_tokens`
+  - [x] Set `task_to_update.token_usage_details` (full summary dict)
+- [x] Call `repo.save_task()` as before
+- [x] **Validation**: Database contains token usage for completed tasks
+- [x] **Validation**: Tasks without token data still save successfully
 
 **File**: `src/solace_agent_mesh/gateway/http_sse/services/task_logger_service.py` (in `log_event`)
 
 ---
 
 ### Step 4.4: Update TaskRepository to Handle Token Fields
-- [ ] When updating existing task, add:
-  - [ ] `model.total_input_tokens = task.total_input_tokens`
-  - [ ] `model.total_output_tokens = task.total_output_tokens`
-  - [ ] `model.total_cached_input_tokens = task.total_cached_input_tokens`
-  - [ ] `model.token_usage_details = task.token_usage_details`
-- [ ] When creating new task, include token fields in constructor
-- [ ] **Validation**: Token fields persist correctly to database
+- [x] When updating existing task, add:
+  - [x] `model.total_input_tokens = task.total_input_tokens`
+  - [x] `model.total_output_tokens = task.total_output_tokens`
+  - [x] `model.total_cached_input_tokens = task.total_cached_input_tokens`
+  - [x] `model.token_usage_details = task.token_usage_details`
+- [x] When creating new task, include token fields in constructor
+- [x] **Validation**: Token fields persist correctly to database
 
 **File**: `src/solace_agent_mesh/gateway/http_sse/repository/task_repository.py` (in `save_task`)
 
@@ -330,11 +330,11 @@
 **Phase 1**: ☑ 6/6 steps complete  
 **Phase 2**: ☑ 3/3 steps complete  
 **Phase 3**: ☑ 3/3 steps complete  
-**Phase 4**: ☐ 0/4 steps complete  
+**Phase 4**: ☑ 4/4 steps complete  
 **Phase 5**: ☐ 0/4 steps complete  
 **Phase 6**: ☐ 0/4 steps complete  
 
-**Overall**: ☑ 12/24 steps complete (50%)
+**Overall**: ☑ 16/24 steps complete (67%)
 
 ---
 

@@ -143,6 +143,22 @@ class TaskLoggerService:
                 if task_to_update:
                     task_to_update.end_time = now_epoch_ms()
                     task_to_update.status = final_status
+                    
+                    # Extract and store token usage if present
+                    if isinstance(parsed_event, A2ATask) and parsed_event.metadata:
+                        token_usage = parsed_event.metadata.get("token_usage")
+                        if token_usage and isinstance(token_usage, dict):
+                            task_to_update.total_input_tokens = token_usage.get("total_input_tokens")
+                            task_to_update.total_output_tokens = token_usage.get("total_output_tokens")
+                            task_to_update.total_cached_input_tokens = token_usage.get("total_cached_input_tokens")
+                            task_to_update.token_usage_details = token_usage
+                            log.info(
+                                f"{self.log_identifier} Stored token usage for task {task_id}: "
+                                f"input={token_usage.get('total_input_tokens')}, "
+                                f"output={token_usage.get('total_output_tokens')}, "
+                                f"cached={token_usage.get('total_cached_input_tokens')}"
+                            )
+                    
                     repo.save_task(task_to_update)
                     log.info(
                         f"{self.log_identifier} Finalized task record for ID: {task_id} with status: {final_status}"

@@ -24,6 +24,10 @@ class TaskRepository(ITaskRepository):
             # Update existing
             model.end_time = task.end_time
             model.status = task.status
+            model.total_input_tokens = task.total_input_tokens
+            model.total_output_tokens = task.total_output_tokens
+            model.total_cached_input_tokens = task.total_cached_input_tokens
+            model.token_usage_details = task.token_usage_details
         else:
             # Create new
             model = TaskModel(
@@ -33,6 +37,10 @@ class TaskRepository(ITaskRepository):
                 end_time=task.end_time,
                 status=task.status,
                 initial_request_text=task.initial_request_text,
+                total_input_tokens=task.total_input_tokens,
+                total_output_tokens=task.total_output_tokens,
+                total_cached_input_tokens=task.total_cached_input_tokens,
+                token_usage_details=task.token_usage_details,
             )
             self.db.add(model)
 
