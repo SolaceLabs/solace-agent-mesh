@@ -56,6 +56,7 @@ class TestMCPServer:
         # Register the generic tool under two different names for stdio and http
         self.mcp.tool(self.get_data, name="get_data_stdio")
         self.mcp.tool(self.get_data, name="get_data_http")
+        self.mcp.tool(self.stream_data, name="get_data_streamable_http")
         self.mcp.custom_route("/health", methods=["GET"])(self.health_check)
 
     async def health_check(self, request: Request) -> Response:
@@ -140,6 +141,82 @@ class TestMCPServer:
         # Always wrap the result in a ToolResult to ensure correct multi-part
         # content block serialization by the fastmcp framework.
         return ToolResult(content=result_objects)
+    
+    async def stream_data(self, response_to_return: Dict[str, Any], ctx: Context):
+        """
+        Streaming version of get_data that yields content items one at a time.
+        Each item is wrapped in its own ToolResult for streaming transmission.
+        """
+        logging.info(
+            "MCP Server: stream_data called with response_to_return: %r",
+            response_to_return,
+        )
+        logging.info(
+            "MCP Server: Context info - session_id: %s",
+            getattr(ctx, "session_id", "N/A"),
+        )
+
+        content_list = response_to_return.get("content", [])
+        if not isinstance(content_list, list):
+            yield ToolResult(
+                content=[f"Error: Expected 'content' to be a list, got {type(content_list)}"]
+            )
+            return
+
+        # Handle streaming content items one at a time
+        for item in content_list:
+            # Special handling for resource type
+            if item.get("type") == "resource":
+                resource_data = item.get("resource", {})
+                uri = resource_data.get("uri")
+                if uri:
+                    text_content = resource_data.get("text")
+                    blob_content_b64 = resource_data.get("blob")
+
+                    if blob_content_b64:
+                        resource_contents = BlobResourceContents(
+                            uri=AnyUrl(uri),
+                            blob=blob_content_b64,
+                            mimeType=resource_data.get(
+                                "mimeType", "application/octet-stream"
+                            ),
+                        )
+                    else:
+                        resource_contents = TextResourceContents(
+                            uri=AnyUrl(uri), text=text_content or ""
+                        )
+
+                    embedded_resource = EmbeddedResource(
+                        type="resource", resource=resource_contents
+                    )
+                    yield ToolResult(content=[embedded_resource])
+                    continue
+
+            # Handle other content types
+            item_type = item.get("type")
+            if item_type == "text":
+                yield ToolResult(content=[
+                    TextContent(type="text", text=item.get("text", ""))
+                ])
+            elif item_type == "image":
+                yield ToolResult(content=[
+                    ImageContent(
+                        type="image",
+                        data=item.get("data", ""),
+                        mimeType=item.get("mimeType", "image/png"),
+                    )
+                ])
+            elif item_type == "audio":
+                yield ToolResult(content=[
+                    AudioContent(
+                        type="audio",
+                        data=item.get("data", ""),
+                        mimeType=item.get("mimeType", "audio/mpeg"),
+                    )
+                ])
+            else:
+                # For unknown types, yield the raw dictionary
+                yield ToolResult(content=[item])
 
 
 def main():

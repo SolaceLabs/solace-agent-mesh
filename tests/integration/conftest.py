@@ -86,7 +86,7 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
         }
         print("\nConfigured TestMCPServer for stdio mode (ADK will start process).")
 
-        # Start HTTP server
+        # Start SSE HTTP server
         port = find_free_port()
         base_url = f"http://127.0.0.1:{port}"
         health_url = f"{base_url}/health"
@@ -102,7 +102,26 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
         process = subprocess.Popen(
             command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-        print(f"\nStarted TestMCPServer in http mode (PID: {process.pid})...")
+        print(f"\nStarted TestMCPServer in sse mode (PID: {process.pid})...")
+
+        # Start Streamable-http server
+        port = find_free_port()
+        base_url = f"http://127.0.0.1:{port}"
+        health_url = f"{base_url}/health"
+        http_url = f"{base_url}/mcp"
+
+        command = [
+            sys.executable,
+            SERVER_PATH,
+            "--transport",
+            "http",
+            "--port",
+            str(port),
+        ]
+        process = subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        print(f"\nStarted TestMCPServer in streamable-http mode (PID: {process.pid})...")
 
         # Readiness check by polling the /health endpoint
         max_wait_seconds = 10
@@ -128,7 +147,12 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
             "url": sse_url,
         }
 
-        connection_params = {"stdio": stdio_params, "http": http_params}
+        streamable_params = {
+            "type": "http",
+            "url": http_url,
+        }
+
+        connection_params = {"stdio": stdio_params, "http": http_params, "streamable": streamable_params}
 
         yield connection_params
 
