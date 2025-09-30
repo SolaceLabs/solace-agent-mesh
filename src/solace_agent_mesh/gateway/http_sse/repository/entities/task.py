@@ -14,6 +14,12 @@ class Task(BaseModel):
     end_time: int | None = None
     status: str | None = None
     initial_request_text: str | None = None
+    
+    # Token usage fields
+    total_input_tokens: int | None = None
+    total_output_tokens: int | None = None
+    total_cached_input_tokens: int | None = None
+    token_usage_details: dict | None = None
 
     class Config:
         from_attributes = True

@@ -39,38 +39,38 @@
 ---
 
 ### Step 1.4: Update Database Entity Model
-- [ ] Add `total_input_tokens: int | None = None`
-- [ ] Add `total_output_tokens: int | None = None`
-- [ ] Add `total_cached_input_tokens: int | None = None`
-- [ ] Add `token_usage_details: dict | None = None`
-- [ ] **Validation**: Entity instantiates with and without token fields
+- [x] Add `total_input_tokens: int | None = None`
+- [x] Add `total_output_tokens: int | None = None`
+- [x] Add `total_cached_input_tokens: int | None = None`
+- [x] Add `token_usage_details: dict | None = None`
+- [x] **Validation**: Entity instantiates with and without token fields
 
 **File**: `src/solace_agent_mesh/gateway/http_sse/repository/entities/task.py`
 
 ---
 
 ### Step 1.5: Update Database SQLAlchemy Model
-- [ ] Import `Integer` and `JSON` from sqlalchemy
-- [ ] Add `total_input_tokens = Column(Integer, nullable=True)`
-- [ ] Add `total_output_tokens = Column(Integer, nullable=True)`
-- [ ] Add `total_cached_input_tokens = Column(Integer, nullable=True)`
-- [ ] Add `token_usage_details = Column(JSON, nullable=True)`
-- [ ] **Validation**: Model maps correctly to entity
+- [x] Import `Integer` and `JSON` from sqlalchemy
+- [x] Add `total_input_tokens = Column(Integer, nullable=True)`
+- [x] Add `total_output_tokens = Column(Integer, nullable=True)`
+- [x] Add `total_cached_input_tokens = Column(Integer, nullable=True)`
+- [x] Add `token_usage_details = Column(JSON, nullable=True)`
+- [x] **Validation**: Model maps correctly to entity
 
 **File**: `src/solace_agent_mesh/gateway/http_sse/repository/models/task_model.py`
 
 ---
 
 ### Step 1.6: Create Database Migration
-- [ ] Create new migration file with appropriate revision ID
-- [ ] Add `upgrade()` function with `op.add_column()` for all four fields
-- [ ] Add `downgrade()` function with `op.drop_column()` calls
-- [ ] Set revision to depend on `079e06e9b448`
+- [x] Create new migration file with appropriate revision ID
+- [x] Add `upgrade()` function with `op.add_column()` for all four fields
+- [x] Add `downgrade()` function with `op.drop_column()` calls
+- [x] Set revision to depend on `079e06e9b448`
 - [ ] **Validation**: Migration runs with `alembic upgrade head`
 - [ ] **Validation**: Rollback works with `alembic downgrade -1`
 - [ ] **Validation**: Existing data remains intact
 
-**File**: `src/solace_agent_mesh/gateway/http_sse/alembic/versions/YYYYMMDD_<hash>_add_token_usage_to_tasks.py`
+**File**: `src/solace_agent_mesh/gateway/http_sse/alembic/versions/20250930_add_token_usage_to_tasks.py`
 
 ---
 
@@ -327,14 +327,14 @@
 
 ## Progress Summary
 
-**Phase 1**: ☐ 0/6 steps complete  
+**Phase 1**: ☑ 6/6 steps complete  
 **Phase 2**: ☐ 0/3 steps complete  
 **Phase 3**: ☐ 0/3 steps complete  
 **Phase 4**: ☐ 0/4 steps complete  
 **Phase 5**: ☐ 0/4 steps complete  
 **Phase 6**: ☐ 0/4 steps complete  
 
-**Overall**: ☐ 0/24 steps complete (0%)
+**Overall**: ☑ 6/24 steps complete (25%)
 
 ---
 
