@@ -568,7 +568,7 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
 
     elif connection_type == "sse":
         connection_params = SseServerParams(**connection_args)
-    elif connection_type == "streamable_http":
+    elif connection_type == "streamable-http":
         connection_params = StreamableHTTPServerParams(**connection_args)
     else:
         raise ValueError(f"Unsupported MCP connection type: {connection_type}")
