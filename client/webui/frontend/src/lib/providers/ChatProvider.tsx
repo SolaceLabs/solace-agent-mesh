@@ -635,14 +635,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Reset UI state with empty session ID
         const welcomeMessages: MessageFE[] = configWelcomeMessage
             ? [
-                  {
-                      parts: [{ kind: "text", text: configWelcomeMessage }],
-                      isUser: false,
-                      isComplete: true,
-                      role: "agent",
-                      metadata: {
-                          sessionId: "", // Empty - will be populated when session is created
-                          lastProcessedEventSequence: 0,
+                {
+                    parts: [{ kind: "text", text: configWelcomeMessage }],
+                    isUser: false,
+                    isComplete: true,
+                    role: "agent",
+                    metadata: {
+                        sessionId: "", // Empty - will be populated when session is created
+                        lastProcessedEventSequence: 0,
                       },
                   },
               ]
