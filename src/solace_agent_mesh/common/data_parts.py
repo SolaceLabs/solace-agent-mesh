@@ -4,7 +4,7 @@ These models correspond to the JSON schemas defined in a2a_spec/schemas/
 and are used for validating non-visible status update messages.
 """
 
-from typing import Any, Dict, Literal, Union
+from typing import Any, Dict, Literal, Optional, Union
 from pydantic import BaseModel, Field
 
 
