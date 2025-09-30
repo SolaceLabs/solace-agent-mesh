@@ -6,7 +6,6 @@ import { defineConfig, loadEnv } from "vite";
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), "");
 
-    
     const backendPort = env.VITE_BACKEND_PORT || process.env.FASTAPI_PORT || "8000";
     const backendTarget = `http://localhost:${backendPort}`;
 
@@ -18,7 +17,7 @@ export default defineConfig(({ mode }) => {
             },
         },
         build: {
-            outDir: "static", 
+            outDir: "static",
             emptyOutDir: true,
             rollupOptions: {
                 input: {

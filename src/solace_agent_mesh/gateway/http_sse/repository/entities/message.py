@@ -2,9 +2,7 @@
 Message domain entity.
 """
 
-from datetime import datetime
-
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from ...shared.enums import MessageType, SenderType
 from ...shared.types import MessageId, SessionId
@@ -12,14 +10,16 @@ from ...shared.types import MessageId, SessionId
 
 class Message(BaseModel):
     """Message domain entity with business logic."""
-    
+
+    model_config = ConfigDict(from_attributes=True)
+
     id: MessageId
     session_id: SessionId
     message: str
     sender_type: SenderType
     sender_name: str
     message_type: MessageType = MessageType.TEXT
-    created_at: datetime
+    created_time: int
 
     def validate_message_content(self) -> None:
         """Validate message content."""

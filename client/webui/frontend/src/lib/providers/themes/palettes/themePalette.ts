@@ -1,4 +1,3 @@
-
 export type ThemePalette = {
     brand: {
         wMain: string;

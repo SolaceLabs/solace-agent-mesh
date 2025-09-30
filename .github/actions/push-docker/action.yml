@@ -48,6 +48,7 @@ runs:
         context: "."
         file: "Dockerfile"
         push: true
+        platforms: linux/amd64,linux/arm64
         tags: ${{ steps.docker_tags.outputs.TAGS_LIST }}
         cache-from: type=gha
         cache-to: type=gha,mode=max

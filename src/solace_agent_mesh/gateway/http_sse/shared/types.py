@@ -2,8 +2,9 @@
 Custom types and type aliases used throughout the application.
 """
 
-from typing import Dict, Any, List, Optional, Union
 from datetime import datetime
+from typing import Any
+
 from pydantic import BaseModel
 
 # Basic type aliases
@@ -14,18 +15,29 @@ TaskId = str
 AgentId = str
 
 # Dictionary types
-JsonDict = Dict[str, Any]
-Headers = Dict[str, str]
-QueryParams = Dict[str, Union[str, List[str]]]
+JsonDict = dict[str, Any]
+Headers = dict[str, str]
+QueryParams = dict[str, str | list[str]]
+
 
 # Common data structures
 class Timestamp(BaseModel):
-    """Standardized timestamp representation."""
+    """Standardized timestamp representation using epoch milliseconds."""
+
+    created_time: int  # Epoch milliseconds
+    updated_time: int | None = None  # Epoch milliseconds
+
+
+class LegacyTimestamp(BaseModel):
+    """Legacy timestamp representation (deprecated - use Timestamp instead)."""
+
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
+
 
 class PaginationInfo(BaseModel):
     """Pagination information for list responses."""
+
     page: int
     page_size: int
     total_items: int
@@ -33,13 +45,17 @@ class PaginationInfo(BaseModel):
     has_next: bool
     has_previous: bool
 
+
 class SortInfo(BaseModel):
     """Sorting information for list requests."""
+
     field: str
     direction: str = "asc"  # asc or desc
 
+
 class FilterInfo(BaseModel):
     """Filtering information for list requests."""
+
     field: str
     operator: str  # eq, ne, gt, lt, gte, lte, contains, in
     value: Any

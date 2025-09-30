@@ -1,9 +1,27 @@
 import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode, useMemo } from "react";
+import { v4 } from "uuid";
 
 import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
 import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
-import type { ArtifactInfo, CancelTaskRequest, FileAttachment, FilePart, JSONRPCErrorResponse, Message, MessageFE, Notification, Part, SendStreamingMessageRequest, SendStreamingMessageSuccessResponse, Session, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart } from "@/lib/types";
+import type {
+    ArtifactInfo,
+    CancelTaskRequest,
+    FileAttachment,
+    FilePart,
+    JSONRPCErrorResponse,
+    Message,
+    MessageFE,
+    Notification,
+    Part,
+    SendStreamingMessageRequest,
+    SendStreamingMessageSuccessResponse,
+    Session,
+    Task,
+    TaskArtifactUpdateEvent,
+    TaskStatusUpdateEvent,
+    TextPart,
+} from "@/lib/types";
 
 interface ChatProviderProps {
     children: ReactNode;
@@ -12,9 +30,9 @@ interface ChatProviderProps {
 interface HistoryMessage {
     id: string;
     message: string;
-    sender_type: "user" | "llm";
-    session_id: string;
-    created_at: string;
+    senderType: "user" | "llm";
+    sessionId: string;
+    createdTime: string;
 }
 
 // File utils
@@ -29,7 +47,7 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
-    const { configWelcomeMessage, configServerUrl } = useConfigContext();
+    const { configWelcomeMessage, configServerUrl, persistenceEnabled } = useConfigContext();
     const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
 
     // State Variables from useChat
@@ -56,19 +74,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [isCancelling]);
 
     // Agents State
-    const {
-        agents,
-        error: agentsError,
-        isLoading: agentsLoading,
-        refetch: agentsRefetch,
-    } = useAgentCards();
+    const { agents, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
 
     // Chat Side Panel State
-    const {
-        artifacts,
-        isLoading: artifactsLoading,
-        refetch: artifactsRefetch,
-    } = useArtifacts(sessionId);
+    const { artifacts, isLoading: artifactsLoading, refetch: artifactsRefetch } = useArtifacts(sessionId);
 
     // Side Panel Control State
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
@@ -113,7 +122,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         });
     }, []);
 
-
     const getHistory = useCallback(
         async (sessionId: string) => {
             const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}/messages`);
@@ -127,11 +135,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const uploadArtifactFile = useCallback(
-        async (file: File): Promise<string | null> => {
+        async (file: File, overrideSessionId?: string): Promise<{ uri: string; sessionId: string } | null> => {
+            const currentSessionId = overrideSessionId || sessionId;
             const formData = new FormData();
-            formData.append("file", file);
+            formData.append("upload_file", file);
+            formData.append("filename", file.name);
+            if (currentSessionId) {
+                formData.append("sessionId", currentSessionId);
+            }
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(file.name)}`, {
+                const response = await authenticatedFetch(`${apiPrefix}/artifacts/upload`, {
                     method: "POST",
                     body: formData,
                     credentials: "include",
@@ -141,9 +154,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
                 const result = await response.json();
+                const artifactData = result.data || result;
                 addNotification(`Artifact "${file.name}" uploaded successfully.`);
                 await artifactsRefetch();
-                return result.uri || null;
+                return { uri: artifactData.uri, sessionId: artifactData.sessionId };
             } catch (error) {
                 addNotification(`Error uploading artifact "${file.name}": ${error instanceof Error ? error.message : "Unknown error"}`);
                 return null;
@@ -340,7 +354,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             let rpcResponse: SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
 
             try {
-                console.log("TEST-SSE ChatProvider Raw Message:", event.data);
                 rpcResponse = JSON.parse(event.data) as SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
             } catch (error: unknown) {
                 console.error("Failed to parse SSE message:", error);
@@ -362,7 +375,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         isError: true,
                         isComplete: true,
                         metadata: {
-                            messageId: `msg-${crypto.randomUUID()}`,
+                            messageId: `msg-${v4()}`,
                             lastProcessedEventSequence: currentEventSequence,
                         },
                     });
@@ -473,13 +486,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const otherContentParts = newContentParts.filter(p => p.kind !== "text");
 
                 // Check if we can append to the last message
-                if (
-                    lastMessage &&
-                    !lastMessage.isUser &&
-                    !lastMessage.isComplete &&
-                    lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId &&
-                    (textPartFromStream || newFileAttachments.length > 0)
-                ) {
+                if (lastMessage && !lastMessage.isUser && !lastMessage.isComplete && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && (textPartFromStream || newFileAttachments.length > 0)) {
                     const updatedMessage: MessageFE = {
                         ...lastMessage,
                         parts: [...lastMessage.parts],
@@ -521,7 +528,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             isUser: false,
                             isComplete: isFinalEvent || newFileAttachments.length > 0,
                             metadata: {
-                                messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
+                                messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
                                 sessionId: (result as TaskStatusUpdateEvent).contextId,
                                 lastProcessedEventSequence: currentEventSequence,
                             },
@@ -543,7 +550,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         isStatusBubble: true,
                         isComplete: false,
                         metadata: {
-                            messageId: `status-${crypto.randomUUID()}`,
+                            messageId: `status-${v4()}`,
                             lastProcessedEventSequence: currentEventSequence,
                         },
                     });
@@ -595,7 +602,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             try {
                 const cancelRequest = {
                     jsonrpc: "2.0",
-                    id: `req-${crypto.randomUUID()}`,
+                    id: `req-${v4()}`,
                     method: "tasks/cancel",
                     params: {
                         id: currentTaskId,
@@ -620,9 +627,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
         // Reset frontend state - session will be created lazily when first message is sent
         console.log(`${log_prefix} Resetting session state - new session will be created when first message is sent`);
-        
-        // Clear session ID - will be set by backend when first message is sent
+
+        // Clear session ID and name - will be set when first message is sent
         setSessionId("");
+        setSessionName(null);
 
         // Reset UI state with empty session ID
         const welcomeMessages: MessageFE[] = configWelcomeMessage
@@ -674,7 +682,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 try {
                     const cancelRequest = {
                         jsonrpc: "2.0",
-                        id: `req-${crypto.randomUUID()}`,
+                        id: `req-${v4()}`,
                         method: "tasks/cancel",
                         params: {
                             id: currentTaskId,
@@ -701,22 +709,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const history = await getHistory(newSessionId);
                 const formattedMessages: MessageFE[] = history.map((msg: HistoryMessage) => ({
                     parts: [{ kind: "text", text: msg.message }],
-                    isUser: msg.sender_type === "user",
+                    isUser: msg.senderType === "user",
                     isComplete: true,
-                    role: msg.sender_type === "user" ? "user" : "agent",
+                    role: msg.senderType === "user" ? "user" : "agent",
                     metadata: {
-                        sessionId: msg.session_id,
+                        sessionId: msg.sessionId,
                         messageId: msg.id,
                         lastProcessedEventSequence: 0,
                     },
                 }));
-    
+
                 const sessionResponse = await authenticatedFetch(`${apiPrefix}/sessions/${newSessionId}`);
                 if (sessionResponse.ok) {
                     const sessionData = await sessionResponse.json();
                     setSessionName(sessionData.name);
                 }
-    
+
                 setSessionId(newSessionId);
                 setMessages(formattedMessages);
                 setUserInput("");
@@ -727,7 +735,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 isFinalizing.current = false;
                 latestStatusText.current = null;
                 sseEventSequenceRef.current = 0;
-
             } catch (error) {
                 console.error(`${log_prefix} Failed to fetch session history:`, error);
                 addNotification("Error switching session. Please try again.", "error");
@@ -737,39 +744,46 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const updateSessionName = useCallback(
-        async (sessionId: string, newName: string) => {
+        async (sessionId: string, newName: string, showNotification: boolean = true) => {
+            if (!persistenceEnabled) return;
+
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ name: newName }),
                 });
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ detail: 'Failed to update session name' }));
+                    const errorData = await response.json().catch(() => ({ detail: "Failed to update session name" }));
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
-                addNotification('Session name updated successfully.');
+
+                // Only show notification if explicitly requested
+                if (showNotification) {
+                    addNotification("Session name updated successfully.");
+                }
+
                 if (typeof window !== "undefined") {
                     window.dispatchEvent(new CustomEvent("new-chat-session"));
                 }
             } catch (error) {
-                addNotification(`Error updating session name: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                addNotification(`Error updating session name: ${error instanceof Error ? error.message : "Unknown error"}`);
             }
         },
-        [apiPrefix, addNotification]
+        [apiPrefix, persistenceEnabled, addNotification]
     );
 
     const deleteSession = useCallback(
         async (sessionIdToDelete: string) => {
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionIdToDelete}`, {
-                    method: 'DELETE',
+                    method: "DELETE",
                 });
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ detail: 'Failed to delete session' }));
+                    const errorData = await response.json().catch(() => ({ detail: "Failed to delete session" }));
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
-                addNotification('Session deleted successfully.');
+                addNotification("Session deleted successfully.");
                 if (sessionIdToDelete === sessionId) {
                     handleNewSession();
                 }
@@ -778,12 +792,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     window.dispatchEvent(new CustomEvent("new-chat-session"));
                 }
             } catch (error) {
-                addNotification(`Error deleting session: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                addNotification(`Error deleting session: ${error instanceof Error ? error.message : "Unknown error"}`);
             }
         },
         [apiPrefix, addNotification, handleNewSession, sessionId]
     );
-
 
     const openSessionDeleteModal = useCallback((session: Session) => {
         setSessionToDelete(session);
@@ -816,7 +829,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         try {
             const cancelRequest: CancelTaskRequest = {
                 jsonrpc: "2.0",
-                id: `req-${crypto.randomUUID()}`,
+                id: `req-${v4()}`,
                 method: "tasks/cancel",
                 params: {
                     id: currentTaskId,
@@ -873,15 +886,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const handleSubmit = useCallback(
         async (event: FormEvent, files?: File[] | null, userInputOverride?: string | null) => {
-            console.log("handleSubmit: using sessionId", sessionId);
             event.preventDefault();
             const currentInput = userInputOverride?.trim() || userInput.trim();
             const currentFiles = files || [];
+
             if ((!currentInput && currentFiles.length === 0) || isResponding || isCancelling || !selectedAgentName) {
                 if (!selectedAgentName) addNotification("Please select an agent first.");
                 if (isCancelling) addNotification("Cannot send new message while a task is being cancelled.");
                 return;
             }
+
             closeCurrentEventSource();
             isFinalizing.current = false;
             setIsResponding(true);
@@ -889,56 +903,76 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             latestStatusText.current = null;
             sseEventSequenceRef.current = 0;
 
+            const isNewSession = !sessionId;
+            let effectiveSessionId = sessionId || undefined;
+
             const userMsg: MessageFE = {
                 role: "user",
                 parts: [{ kind: "text", text: currentInput }],
                 isUser: true,
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
                 metadata: {
-                    messageId: `msg-${crypto.randomUUID()}`,
-                    sessionId: sessionId,
+                    messageId: `msg-${v4()}`,
+                    sessionId: effectiveSessionId,
                     lastProcessedEventSequence: 0,
                 },
             };
+
             latestStatusText.current = "Thinking";
             setMessages(prev => [...prev, userMsg]);
             setUserInput("");
+
             try {
                 // 1. Process files using hybrid approach
-                const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
-                    if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
-                        // Small file: send inline as base64
-                        const base64Content = await fileToBase64(file);
-                        return {
-                            kind: "file",
-                            file: {
-                                bytes: base64Content,
-                                name: file.name,
-                                mimeType: file.type,
-                            },
-                        };
-                    } else {
-                        // Large file: upload and get URI
-                        const uri = await uploadArtifactFile(file);
-                        if (uri) {
-                            return {
-                                kind: "file",
-                                file: {
-                                    uri: uri,
-                                    name: file.name,
-                                    mimeType: file.type,
-                                },
-                            };
+                // For new sessions, process sequentially to ensure all files use the same session
+                // For existing sessions, process in parallel for better performance
+                const uploadedFileParts: FilePart[] = [];
+
+                if (isNewSession) {
+                    // Sequential processing for new sessions
+                    for (const file of currentFiles) {
+                        if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
+                            const base64Content = await fileToBase64(file);
+                            uploadedFileParts.push({ kind: "file", file: { bytes: base64Content, name: file.name, mimeType: file.type } });
                         } else {
-                            addNotification(`Failed to upload large file: ${file.name}`, "error");
-                            return null;
+                            const uploadResult = await uploadArtifactFile(file, effectiveSessionId);
+                            if (uploadResult) {
+                                // Capture session ID from first upload
+                                if (!effectiveSessionId && uploadResult.sessionId) {
+                                    effectiveSessionId = uploadResult.sessionId;
+                                    console.log(`Session created via artifact upload: ${effectiveSessionId}`);
+                                }
+                                uploadedFileParts.push({ kind: "file", file: { uri: uploadResult.uri, name: file.name, mimeType: file.type } });
+                            } else {
+                                addNotification(`Failed to upload large file: ${file.name}`, "error");
+                            }
                         }
                     }
-                });
+                } else {
+                    // Parallel processing for existing sessions
+                    const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
+                        if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
+                            const base64Content = await fileToBase64(file);
+                            return { kind: "file", file: { bytes: base64Content, name: file.name, mimeType: file.type } };
+                        } else {
+                            const uploadResult = await uploadArtifactFile(file, effectiveSessionId);
+                            if (uploadResult) {
+                                return { kind: "file", file: { uri: uploadResult.uri, name: file.name, mimeType: file.type } };
+                            } else {
+                                addNotification(`Failed to upload large file: ${file.name}`, "error");
+                                return null;
+                            }
+                        }
+                    });
+                    const results = await Promise.all(filePartsPromises);
+                    uploadedFileParts.push(...results.filter((p): p is FilePart => p !== null));
+                }
 
-                const uploadedFileParts = (await Promise.all(filePartsPromises)).filter(
-                    (p): p is FilePart => p !== null
-                );
+                // If we created a session via artifact upload, update the session state
+                if (isNewSession && effectiveSessionId && effectiveSessionId !== sessionId) {
+                    setSessionId(effectiveSessionId);
+                    console.log(`Session created via artifact upload: ${effectiveSessionId}`);
+                }
 
                 // 2. Construct message parts
                 const messageParts: Part[] = [];
@@ -952,30 +986,24 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // 3. Construct the A2A message
-                console.log(`ChatProvider handleSubmit: Using sessionId for contextId: ${sessionId}`);
                 const a2aMessage: Message = {
                     role: "user",
                     parts: messageParts,
-                    messageId: `msg-${crypto.randomUUID()}`,
+                    messageId: `msg-${v4()}`,
                     kind: "message",
-                    contextId: sessionId,
-                    metadata: {
-                        agent_name: selectedAgentName, // For gateway routing
-                    },
+                    contextId: effectiveSessionId,
+                    metadata: { agent_name: selectedAgentName },
                 };
 
                 // 4. Construct the SendStreamingMessageRequest
                 const sendMessageRequest: SendStreamingMessageRequest = {
                     jsonrpc: "2.0",
-                    id: `req-${crypto.randomUUID()}`,
+                    id: `req-${v4()}`,
                     method: "message/stream",
-                    params: {
-                        message: a2aMessage,
-                    },
+                    params: { message: a2aMessage },
                 };
 
                 // 5. Send the request
-                console.log("ChatProvider handleSubmit: Sending POST to /message:stream");
                 const response = await authenticatedFetch(`${apiPrefix}/message:stream`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -984,47 +1012,39 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ detail: "Unknown error" }));
-                    console.error("ChatProvider handleSubmit: Error from /message:stream", response.status, errorData);
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
                 const result = await response.json();
-
                 const task = result?.result as Task | undefined;
                 const taskId = task?.id;
                 const responseSessionId = (task as Task & { contextId?: string })?.contextId;
 
-                console.log(`ChatProvider handleSubmit: Extracted responseSessionId: ${responseSessionId}, current sessionId: ${sessionId}`);
-                console.log(`ChatProvider handleSubmit: Full result object:`, result);
-
                 if (!taskId) {
-                    console.error("ChatProvider handleSubmit: Backend did not return a valid taskId. Result:", result);
                     throw new Error("Backend did not return a valid taskId.");
                 }
 
-                // Update session ID if backend provided one (for new sessions)
-                console.log(`ChatProvider handleSubmit: Checking session update condition - responseSessionId: ${responseSessionId}, sessionId: ${sessionId}, different: ${responseSessionId !== sessionId}`);
-                if (responseSessionId && responseSessionId !== sessionId) {
-                    console.log(`ChatProvider handleSubmit: Updating sessionId from ${sessionId} to ${responseSessionId}`);
-                    const isNewSession = !sessionId || sessionId === "";
+                if (responseSessionId && responseSessionId !== effectiveSessionId) {
+                    console.warn(`Backend returned a different session ID (${responseSessionId}) than expected (${effectiveSessionId}). Updating to: ${responseSessionId}`);
                     setSessionId(responseSessionId);
-                    // Update the user message metadata with the new session ID
-                    setMessages(prev => prev.map(msg => 
-                        msg.metadata?.messageId === userMsg.metadata?.messageId 
-                            ? { ...msg, metadata: { ...msg.metadata, sessionId: responseSessionId } }
-                            : msg
-                    ));
-                    
-                    // Trigger session list refresh for new sessions
-                    if (isNewSession && typeof window !== "undefined") {
+                }
+
+                // If it was a new session, generate and persist its name.
+                if (isNewSession && responseSessionId) {
+                    const textParts = userMsg.parts.filter(p => p.kind === "text") as TextPart[];
+                    const combinedText = textParts.map(p => p.text).join(" ").trim();
+                    if (combinedText) {
+                        const newSessionName = combinedText.length > 100 ? `${combinedText.substring(0, 100)}...` : combinedText;
+                        setSessionName(newSessionName);
+                        updateSessionName(responseSessionId, newSessionName, false);
+                    }
+                    if (typeof window !== "undefined") {
                         window.dispatchEvent(new CustomEvent("new-chat-session"));
                     }
                 }
 
-                console.log(`ChatProvider handleSubmit: Received taskId ${taskId}. Setting currentTaskId and taskIdInSidePanel.`);
                 setCurrentTaskId(taskId);
                 setTaskIdInSidePanel(taskId);
             } catch (error) {
-                console.error("ChatProvider handleSubmit: Catch block error", error);
                 addNotification(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
                 setIsResponding(false);
                 setMessages(prev => prev.filter(msg => !msg.isStatusBubble));
@@ -1033,7 +1053,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [userInput, isResponding, isCancelling, sessionId, selectedAgentName, apiPrefix, addNotification, closeCurrentEventSource, uploadArtifactFile]
+        [sessionId, userInput, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName]
     );
 
     useEffect(() => {

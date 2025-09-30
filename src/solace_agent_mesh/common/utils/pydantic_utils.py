@@ -32,6 +32,10 @@ class SamConfigBase(BaseModel):
         """Provides dict-like ['key'] access."""
         return getattr(self, key)
 
+    def __setitem__(self, key: str, value: Any):
+        """Provides dict-like ['key'] = value assignment."""
+        setattr(self, key, value)
+
     def __contains__(self, key: str) -> bool:
         """
         Provides dict-like 'in' support that mimics the old behavior.

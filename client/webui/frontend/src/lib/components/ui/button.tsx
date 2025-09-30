@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
-import {  Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
 const commonTextStyles = "text-[var(--color-primary-wMain)] hover:text-[var(--color-primary-text-w60)] dark:text-[var(--color-primary-w20)] dark:hover:text-[var(--color-primary-text-w10)]";
 const commonButtonStyles = commonTextStyles + " hover:bg-[var(--color-primary-w10)] dark:hover:bg-[var(--color-primary-w60)]";
@@ -35,20 +35,14 @@ const buttonVariants = cva(
     }
 );
 
-function Button({
-    className,
-    variant,
-    size,
-    asChild = false,
-    tooltip = "",
-    testid = "",
-    ...props
-}: React.ComponentProps<"button"> &
+export type ButtonProps = React.ComponentProps<"button"> &
     VariantProps<typeof buttonVariants> & {
         asChild?: boolean;
         tooltip?: string;
         testid?: string;
-    }) {
+    };
+
+function Button({ className, variant, size, asChild = false, tooltip = "", testid = "", ...props }: ButtonProps) {
     const Comp = asChild ? Slot : "button";
     const buttonProps = tooltip ? { ...props, "aria-label": tooltip } : props;
     const ButtonComponent = <Comp data-slot="button" data-testid={testid || tooltip || props.title} className={cn(buttonVariants({ variant, size, className }))} {...buttonProps} />;
@@ -56,12 +50,8 @@ function Button({
     if (tooltip) {
         return (
             <Tooltip>
-                <TooltipTrigger asChild>
-                    {ButtonComponent}
-                </TooltipTrigger>
-                <TooltipContent>
-                    {tooltip}
-                </TooltipContent>
+                <TooltipTrigger asChild>{ButtonComponent}</TooltipTrigger>
+                <TooltipContent>{tooltip}</TooltipContent>
             </Tooltip>
         );
     }
@@ -69,4 +59,5 @@ function Button({
     return ButtonComponent;
 }
 
-export { Button };
+// eslint-disable-next-line react-refresh/only-export-components
+export { Button, buttonVariants };

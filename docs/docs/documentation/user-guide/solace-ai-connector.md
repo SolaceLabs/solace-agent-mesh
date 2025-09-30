@@ -5,7 +5,7 @@ sidebar_position: 10
 
 # Solace AI Event Connector
 
-The Solace AI Event Connector is an important part of Solace Agent Mesh. It is a powerful tool designed to seamlessly integrate AI capabilities into your event-driven architecture. It enables you to create efficient pipelines that can process events from PubSub+ event brokers, using AI and other types of components, and then publish the results back to PubSub+ event brokers.
+The Solace AI Event Connector is an important part of Solace Agent Mesh. It is a powerful tool designed to seamlessly integrate AI capabilities into your event-driven architecture. It enables you to create efficient pipelines that can process events from the Solace event brokers, using AI and other types of components, and then publish the results back to the Solace event brokers.
 
 :::info[GitHub]
 For more information, see [Solace AI Event Connector Github](https://github.com/SolaceLabs/solace-ai-connector).

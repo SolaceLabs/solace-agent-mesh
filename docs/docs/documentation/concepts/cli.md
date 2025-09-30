@@ -263,7 +263,7 @@ Builds the Solace Agent Mesh plugin in the specified directory (defaults to curr
 
 #### `add` - Add an Existing Plugin
 
-Creates a new component instance from a specified plugin source.
+Installs the plugins and creates a new component instance from a specified plugin source.
 
 ```sh
 sam plugin add [OPTIONS] COMPONENT_NAME
@@ -272,6 +272,26 @@ sam plugin add [OPTIONS] COMPONENT_NAME
 ##### Options:
 
 - `--plugin TEXT` – Plugin source: installed module name, local path, or Git URL. (Required)
+- `--install-command TEXT` – Command to use to install a python package. Must follow the format `command {package} args`, by default `pip3 install {package}`. Can also be set through the environment variable SAM_PLUGIN_INSTALL_COMMAND.
+- `-h, --help` – Displays the help message and exits.
+
+
+#### `installs` - Installs a Plugin
+
+Installs a plugin from a specified plugin source.
+
+```sh
+sam plugin install [OPTIONS] PLUGIN_SOURCE
+```
+
+PLUGIN_SOURCE can be:
+  - A local path to a directory (e.g., '/path/to/plugin')
+  - A local path to a wheel file (e.g., '/path/to/plugin.whl')
+  - A Git URL (e.g., 'https://github.com/user/repo.git')
+  - The name of the plugin from https://github.com/SolaceLabs/solace-agent-mesh-core-plugins
+
+##### Options:
+
 - `--install-command TEXT` – Command to use to install a python package. Must follow the format `command {package} args`, by default `pip3 install {package}`. Can also be set through the environment variable SAM_PLUGIN_INSTALL_COMMAND.
 - `-h, --help` – Displays the help message and exits.
 

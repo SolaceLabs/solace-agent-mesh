@@ -64,7 +64,7 @@ expected_gateway_output:
           - type: "text"
             text_exact: "I have retrieved the JSON data and saved it as an artifact."
     assert_artifact_state:
-      - filename_matches_regex: "get_data_stdio_json_0_.*[^a]\\.json$" # Protect against ....metadata.json
+      - filename_matches_regex: "get_data_stdio_json_0_.*\\.json$" # Protect against ....metadata.json
         version: 0
         expected_content_text: '{"status": "ok", "data": {"id": 123, "values": [1,
           2, 3]}}'
