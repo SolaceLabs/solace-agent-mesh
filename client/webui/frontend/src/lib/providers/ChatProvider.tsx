@@ -354,7 +354,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             let rpcResponse: SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
 
             try {
-                console.log("TEST-SSE ChatProvider Raw Message:", event.data);
                 rpcResponse = JSON.parse(event.data) as SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
             } catch (error: unknown) {
                 console.error("Failed to parse SSE message:", error);
@@ -904,6 +903,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             latestStatusText.current = null;
             sseEventSequenceRef.current = 0;
 
+            const isNewSession = !sessionId;
             const effectiveSessionId = sessionId || null;
 
             const userMsg: MessageFE = {
@@ -923,14 +923,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setUserInput("");
 
             try {
-
                 // 1. Process files using hybrid approach
+                // For new sessions, inline all files to avoid creating separate sessions
                 const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
-                    if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
+                    if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES || isNewSession) {
                         const base64Content = await fileToBase64(file);
                         return { kind: "file", file: { bytes: base64Content, name: file.name, mimeType: file.type } };
                     } else {
-                        const uri = await uploadArtifactFile(file, effectiveSessionId); // Pass the correct session ID
+                        const uri = await uploadArtifactFile(file, effectiveSessionId);
                         if (uri) {
                             return { kind: "file", file: { uri: uri, name: file.name, mimeType: file.type } };
                         } else {
@@ -992,18 +992,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 if (responseSessionId && responseSessionId !== effectiveSessionId) {
-                    console.warn(`Backend returned a different session ID (${responseSessionId}) than expected (${effectiveSessionId}). This should not happen.`);
+                    console.warn(`Backend returned a different session ID (${responseSessionId}) than expected (${effectiveSessionId}). Updating to: ${responseSessionId}`);
                     setSessionId(responseSessionId);
                 }
 
                 // If it was a new session, generate and persist its name.
-                if (isNewSession) {
+                if (isNewSession && responseSessionId) {
                     const textParts = userMsg.parts.filter(p => p.kind === "text") as TextPart[];
                     const combinedText = textParts.map(p => p.text).join(" ").trim();
                     if (combinedText) {
                         const newSessionName = combinedText.length > 100 ? `${combinedText.substring(0, 100)}...` : combinedText;
                         setSessionName(newSessionName);
-                        updateSessionName(effectiveSessionId, newSessionName, false);
+                        updateSessionName(responseSessionId, newSessionName, false);
                     }
                     if (typeof window !== "undefined") {
                         window.dispatchEvent(new CustomEvent("new-chat-session"));

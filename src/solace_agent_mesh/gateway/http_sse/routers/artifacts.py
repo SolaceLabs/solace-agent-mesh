@@ -104,8 +104,7 @@ async def upload_artifact_with_session(
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    config_resolver: ConfigResolver = Depends(get_config_resolver),
-    user_config: dict = Depends(get_user_config),
+    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:create"])),
     session_manager: SessionManager = Depends(get_session_manager),
     session_service: SessionService | None = Depends(get_session_business_service_optional),
     db: Session | None = Depends(get_db_optional),
@@ -163,16 +162,6 @@ async def upload_artifact_with_session(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File upload is required.",
-        )
-
-    # Check feature permissions
-    if not config_resolver.is_feature_enabled(
-        user_config, {"required_scopes": ["tool:artifact:create"]}, {}
-    ):
-        log.warning("%sArtifact creation not enabled for user.", log_prefix)
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Artifact creation is not enabled for this user.",
         )
 
     # Validate artifact service availability
