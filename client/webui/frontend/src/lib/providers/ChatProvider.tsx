@@ -904,7 +904,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             sseEventSequenceRef.current = 0;
 
             const isNewSession = !sessionId;
-            const effectiveSessionId = sessionId || null;
+            const effectiveSessionId = sessionId || undefined;
 
             const userMsg: MessageFE = {
                 role: "user",
