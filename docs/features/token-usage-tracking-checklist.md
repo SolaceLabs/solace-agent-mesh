@@ -77,47 +77,47 @@
 ## Phase 2: Runtime Token Tracking
 
 ### Step 2.1: Add Token Tracking Fields to TaskExecutionContext
-- [ ] Add `self.total_input_tokens: int = 0` in `__init__`
-- [ ] Add `self.total_output_tokens: int = 0` in `__init__`
-- [ ] Add `self.total_cached_input_tokens: int = 0` in `__init__`
-- [ ] Add `self.token_usage_by_model: Dict[str, Dict[str, int]] = {}` in `__init__`
-- [ ] Add `self.token_usage_by_source: Dict[str, Dict[str, int]] = {}` in `__init__`
-- [ ] **Validation**: Context initializes with zero token counts
+- [x] Add `self.total_input_tokens: int = 0` in `__init__`
+- [x] Add `self.total_output_tokens: int = 0` in `__init__`
+- [x] Add `self.total_cached_input_tokens: int = 0` in `__init__`
+- [x] Add `self.token_usage_by_model: Dict[str, Dict[str, int]] = {}` in `__init__`
+- [x] Add `self.token_usage_by_source: Dict[str, Dict[str, int]] = {}` in `__init__`
+- [x] **Validation**: Context initializes with zero token counts
 
 **File**: `src/solace_agent_mesh/agent/sac/task_execution_context.py`
 
 ---
 
 ### Step 2.2: Implement record_token_usage Method
-- [ ] Add `record_token_usage()` method with parameters:
-  - [ ] `input_tokens: int`
-  - [ ] `output_tokens: int`
-  - [ ] `model: str`
-  - [ ] `source: str = "agent"`
-  - [ ] `tool_name: Optional[str] = None`
-  - [ ] `cached_input_tokens: int = 0`
-- [ ] Use `self.lock` for thread safety
-- [ ] Update all tracking dictionaries atomically
-- [ ] Handle model and source key creation
-- [ ] **Validation**: Concurrent calls don't corrupt state
-- [ ] **Validation**: Totals sum correctly
-- [ ] **Validation**: Breakdowns are accurate
+- [x] Add `record_token_usage()` method with parameters:
+  - [x] `input_tokens: int`
+  - [x] `output_tokens: int`
+  - [x] `model: str`
+  - [x] `source: str = "agent"`
+  - [x] `tool_name: Optional[str] = None`
+  - [x] `cached_input_tokens: int = 0`
+- [x] Use `self.lock` for thread safety
+- [x] Update all tracking dictionaries atomically
+- [x] Handle model and source key creation
+- [x] **Validation**: Concurrent calls don't corrupt state
+- [x] **Validation**: Totals sum correctly
+- [x] **Validation**: Breakdowns are accurate
 
 **File**: `src/solace_agent_mesh/agent/sac/task_execution_context.py`
 
 ---
 
 ### Step 2.3: Implement get_token_usage_summary Method
-- [ ] Add `get_token_usage_summary()` method returning `Dict[str, Any]`
-- [ ] Use `self.lock` for thread-safe read
-- [ ] Return dictionary with:
-  - [ ] `total_input_tokens`
-  - [ ] `total_output_tokens`
-  - [ ] `total_cached_input_tokens`
-  - [ ] `total_tokens` (computed sum)
-  - [ ] `by_model` (deep copy)
-  - [ ] `by_source` (deep copy)
-- [ ] **Validation**: Summary reflects all recorded usage accurately
+- [x] Add `get_token_usage_summary()` method returning `Dict[str, Any]`
+- [x] Use `self.lock` for thread-safe read
+- [x] Return dictionary with:
+  - [x] `total_input_tokens`
+  - [x] `total_output_tokens`
+  - [x] `total_cached_input_tokens`
+  - [x] `total_tokens` (computed sum)
+  - [x] `by_model` (deep copy)
+  - [x] `by_source` (deep copy)
+- [x] **Validation**: Summary reflects all recorded usage accurately
 
 **File**: `src/solace_agent_mesh/agent/sac/task_execution_context.py`
 
@@ -328,13 +328,13 @@
 ## Progress Summary
 
 **Phase 1**: ☑ 6/6 steps complete  
-**Phase 2**: ☐ 0/3 steps complete  
+**Phase 2**: ☑ 3/3 steps complete  
 **Phase 3**: ☐ 0/3 steps complete  
 **Phase 4**: ☐ 0/4 steps complete  
 **Phase 5**: ☐ 0/4 steps complete  
 **Phase 6**: ☐ 0/4 steps complete  
 
-**Overall**: ☑ 6/24 steps complete (25%)
+**Overall**: ☑ 9/24 steps complete (38%)
 
 ---
 
