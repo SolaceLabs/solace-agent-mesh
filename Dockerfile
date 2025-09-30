@@ -1,62 +1,67 @@
-FROM python:3.11-slim AS builder
-
-ENV PYTHONUNBUFFERED=1
-WORKDIR /app
-
-# Install all dependencies including Node.js and Playwright browser dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    build-essential \
-    git \
-    curl && \
-    curl -sL https://deb.nodesource.com/setup_24.x | bash - && \
-    apt-get install -y --no-install-recommends nodejs && \
-    apt-get purge -y --auto-remove && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-COPY . /app
-RUN python3.11 -m pip wheel --wheel-dir=/wheels .
-RUN python3.11 -m pip install --no-cache-dir hatch
-RUN python3.11 -m hatch build -t wheel
-
-FROM python:3.11-slim
+FROM python:3.11-slim AS base
 
 ENV PYTHONUNBUFFERED=1
 ENV PIP_NO_CACHE_DIR=1
 
+# Install system dependencies in a single layer
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    ffmpeg \
+    build-essential \
     git \
-    curl && \
+    curl \
+    ffmpeg && \
     curl -sL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
-    python3.11 -m pip install playwright && \
-    playwright install-deps chromium && \
     apt-get purge -y --auto-remove && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Create a non-root user and group
+# Builder stage for creating wheels
+FROM base AS builder
+
+WORKDIR /app
+
+# Install hatch first (this layer will be cached unless hatch version changes)
+RUN python3.11 -m pip install --no-cache-dir hatch
+
+# Copy source code
+COPY . .
+
+# Create wheels for dependencies (this will be cached unless pyproject.toml changes)
+RUN python3.11 -m pip wheel --wheel-dir=/wheels --find-links=/wheels --no-build-isolation .
+
+# Build the project wheel
+RUN python3.11 -m hatch build -t wheel
+
+# Runtime stage
+FROM base AS runtime
+
+# Install Playwright early (large download, rarely changes)
+RUN python3.11 -m pip install playwright && \
+    playwright install-deps chromium
+
+# Create non-root user
 RUN groupadd -r solaceai && useradd --create-home -r -g solaceai solaceai
+
 WORKDIR /app
 RUN chown -R solaceai:solaceai /app /tmp
 
-# Switch to the non-root user
+# Switch to non-root user and install Playwright browser
 USER solaceai
 RUN playwright install chromium
 
-# Install the Solace Agent Mesh package
+# Install the Solace Agent Mesh package (this layer changes when source code changes)
 USER root
 COPY --from=builder /app/dist/solace_agent_mesh-*.whl /tmp/
 COPY --from=builder /wheels /tmp/wheels
+
 RUN python3.11 -m pip install --find-links=/tmp/wheels \
     /tmp/solace_agent_mesh-*.whl && \
     rm -rf /tmp/wheels /tmp/solace_agent_mesh-*.whl
 
 # Copy sample SAM applications
 COPY preset /preset
+
 USER solaceai
 
 # Required environment variables
