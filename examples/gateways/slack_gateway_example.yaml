@@ -8,7 +8,7 @@
 #
 # Required Environment Variables:
 # - NAMESPACE: The A2A topic namespace (e.g., "myorg/dev"). 
-# - SOLACE_BROKER_URL: URL of the Solace broker (e.g., "ws://localhost:8080").
+# - SOLACE_BROKER_URL: URL of the Solace broker (e.g., "ws://localhost:8008").
 # - SOLACE_BROKER_USERNAME: Username for the Solace broker.
 # - SOLACE_BROKER_PASSWORD: Password for the Solace broker.
 # - SOLACE_BROKER_VPN: VPN name for the Solace broker.

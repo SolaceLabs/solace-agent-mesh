@@ -273,6 +273,54 @@ async def get_user_config(
     )
 
 
+class ValidatedUserConfig:
+    """
+    FastAPI dependency class for validating user scopes and returning user config.
+
+    This class creates a callable dependency that validates a user has the required
+    scopes before allowing access to protected endpoints.
+
+    Args:
+        required_scopes: List of scope strings required for authorization
+
+    Raises:
+        HTTPException: 403 if user lacks required scopes
+
+    Example:
+        @router.get("/artifacts")
+        async def list_artifacts(
+            user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
+        ):
+    """
+
+    def __init__(self, required_scopes: list[str]):
+        self.required_scopes = required_scopes
+
+    async def __call__(
+        self,
+        request: Request,
+        config_resolver: ConfigResolver = Depends(get_config_resolver),
+        user_config: dict[str, Any] = Depends(get_user_config),
+    ) -> dict[str, Any]:
+        user_id = user_config.get("user_profile", {}).get("id")
+
+        log.debug(f"[Dependencies] ValidatedUserConfig called for user_id: {user_id} with required scopes: {self.required_scopes}")
+
+        # Validate scopes
+        if not config_resolver.is_feature_enabled(
+                user_config, {"tool_metadata": {"required_scopes": self.required_scopes}}, {}
+        ):
+            log.warning(
+                f"[Dependencies] Authorization denied for user '{user_id}'. Required scopes: {self.required_scopes}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Not authorized. Required scopes: {self.required_scopes}"
+            )
+
+        return user_config
+
+
 def get_shared_artifact_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> BaseArtifactService | None:

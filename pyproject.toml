@@ -124,7 +124,7 @@ sam = "solace_agent_mesh.cli.main:cli"
 [tool.ruff]
 line-length = 88
 select = ["E", "W", "F", "I", "UP", "B", "C4", "SIM"]
-ignore = ["E501"]
+ignore = ["E501", "B008"]
 
 [tool.ruff.format]
 quote-style = "double"
