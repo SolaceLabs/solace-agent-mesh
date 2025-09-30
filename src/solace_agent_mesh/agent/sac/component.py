@@ -10,6 +10,7 @@ import concurrent.futures
 import uuid
 import fnmatch
 import base64
+import time
 from datetime import datetime, timezone
 import json
 from solace_ai_connector.common.message import (
@@ -111,6 +112,7 @@ class SamAgentComponent(SamComponentBase):
 
     CORRELATION_DATA_PREFIX = CORRELATION_DATA_PREFIX
     HOST_COMPONENT_VERSION = "1.0.0-alpha"
+    HEALTH_CHECK_TIMER_ID = "agent_health_check"
 
     def __init__(self, **kwargs):
         """
@@ -422,6 +424,32 @@ class SamAgentComponent(SamComponentBase):
                     "%s Agent card publishing interval not configured or invalid, card will not be published periodically.",
                     self.log_identifier,
                 )
+                
+            # Set up health check timer if enabled
+            if self.agent_discovery_config.get("health_check_enabled", True):
+                health_check_interval_seconds = self.agent_discovery_config.get("health_check_interval_seconds", 60)
+                if health_check_interval_seconds > 0:
+                    log.info(
+                        "%s Scheduling agent health check every %d seconds.",
+                        self.log_identifier,
+                        health_check_interval_seconds,
+                    )
+                    self.add_timer(
+                        delay_ms=health_check_interval_seconds * 1000,
+                        timer_id=self.HEALTH_CHECK_TIMER_ID,
+                        interval_ms=health_check_interval_seconds * 1000,
+                    )
+                else:
+                    log.warning(
+                        "%s Agent health check interval not configured or invalid, health checks will not run periodically.",
+                        self.log_identifier,
+                    )
+            else:
+                log.info(
+                    "%s Agent health checks are disabled in configuration.",
+                    self.log_identifier,
+                )
+                
             log.info(
                 "%s Initialization complete for agent: %s",
                 self.log_identifier,
@@ -496,10 +524,14 @@ class SamAgentComponent(SamComponentBase):
                     )
 
     def handle_timer_event(self, timer_data: Dict[str, Any]):
-        """Handles timer events, specifically for agent card publishing."""
+        """Handles timer events for agent card publishing and health checks."""
         log.debug("%s Received timer event: %s", self.log_identifier, timer_data)
-        if timer_data.get("timer_id") == self._card_publish_timer_id:
+        timer_id = timer_data.get("timer_id")
+        
+        if timer_id == self._card_publish_timer_id:
             publish_agent_card(self)
+        elif timer_id == self.HEALTH_CHECK_TIMER_ID:
+            self._check_agent_health()
 
     async def handle_cache_expiry_event(self, cache_data: Dict[str, Any]):
         """
@@ -2948,6 +2980,7 @@ class SamAgentComponent(SamComponentBase):
         """Clean up resources on component shutdown."""
         log.info("%s Cleaning up A2A ADK Host Component.", self.log_identifier)
         self.cancel_timer(self._card_publish_timer_id)
+        self.cancel_timer(self.HEALTH_CHECK_TIMER_ID)
 
         cleanup_func_details = self.get_config("agent_cleanup_function")
 
@@ -3118,6 +3151,169 @@ class SamAgentComponent(SamComponentBase):
         For now, using the agent name, but could be made more robust (e.g., hostname + agent name).
         """
         return self.agent_name
+        
+    def _check_agent_health(self):
+        """
+        Checks the health of peer agents and de-registers unresponsive ones.
+        This is called periodically by the health check timer.
+        """
+        if not self.agent_discovery_config.get("health_check_enabled", True):
+            log.debug("%s Agent health checks are disabled in configuration.", self.log_identifier)
+            return
+            
+        log.debug("%s Performing agent health check...", self.log_identifier)
+        
+        current_time = time.time()
+        health_check_interval = self.agent_discovery_config.get("health_check_interval_seconds", 60)
+        max_retries = self.agent_discovery_config.get("health_check_max_retries", 30)
+        
+        log.debug(
+            "%s Health check configuration: interval=%d seconds, max_retries=%d",
+            self.log_identifier,
+            health_check_interval,
+            max_retries
+        )
+        
+        # Create a list of agents to de-register to avoid modifying the dictionary during iteration
+        agents_to_deregister = []
+        total_agents = len(self.peer_agents)
+        unresponsive_agents = 0
+        
+        log.debug("%s Checking health of %d peer agents", self.log_identifier, total_agents)
+        
+        for agent_name, agent_card in list(self.peer_agents.items()):
+            # Skip our own agent
+            if agent_name == self.agent_name:
+                continue
+                
+            # Check if the agent has a last_seen timestamp
+            last_seen = getattr(agent_card, "last_seen", None)
+            if last_seen is None:
+                # If no last_seen timestamp, set it to the current time
+                agent_card.last_seen = current_time
+                log.debug(
+                    "%s Agent '%s' has no last_seen timestamp. Initializing to current time.",
+                    self.log_identifier,
+                    agent_name
+                )
+                continue
+                
+            # Check if the agent has been unresponsive for too long
+            time_since_last_seen = current_time - last_seen
+            if time_since_last_seen > health_check_interval:
+                unresponsive_agents += 1
+                # Get the current retry count
+                retry_count = getattr(agent_card, "retry_count", 0)
+                
+                # Increment the retry count
+                retry_count += 1
+                agent_card.retry_count = retry_count
+                
+                log.info(
+                    "%s Agent '%s' has been unresponsive for %d seconds. Retry count: %d/%d",
+                    self.log_identifier,
+                    agent_name,
+                    int(time_since_last_seen),
+                    retry_count,
+                    max_retries
+                )
+                
+                # Check if the agent has exceeded the retry limit
+                if retry_count >= max_retries:
+                    log.warning(
+                        "%s Agent '%s' has exceeded the retry limit (%d). De-registering. Time since last seen: %d seconds",
+                        self.log_identifier,
+                        agent_name,
+                        max_retries,
+                        int(time_since_last_seen)
+                    )
+                    agents_to_deregister.append(agent_name)
+            else:
+                # Reset retry count if the agent is responsive
+                if hasattr(agent_card, "retry_count") and agent_card.retry_count > 0:
+                    log.debug(
+                        "%s Agent '%s' is responsive again. Resetting retry count from %d to 0.",
+                        self.log_identifier,
+                        agent_name,
+                        agent_card.retry_count
+                    )
+                    agent_card.retry_count = 0
+        
+        # De-register unresponsive agents
+        for agent_name in agents_to_deregister:
+            self._deregister_agent(agent_name)
+            
+        log.info(
+            "%s Agent health check completed. Total agents: %d, Unresponsive: %d, De-registered: %d",
+            self.log_identifier,
+            total_agents,
+            unresponsive_agents,
+            len(agents_to_deregister)
+        )
+        
+    def _deregister_agent(self, agent_name: str):
+        """
+        De-registers an agent from the peer agents list and publishes a de-registration event.
+        """
+        if agent_name in self.peer_agents:
+            # Get agent information before removing it
+            agent_card = self.peer_agents[agent_name]
+            last_seen = getattr(agent_card, "last_seen", None)
+            retry_count = getattr(agent_card, "retry_count", 0)
+            current_time = time.time()
+            time_since_last_seen = int(current_time - last_seen) if last_seen else "unknown"
+            
+            # Remove the agent from the peer agents list
+            del self.peer_agents[agent_name]
+            
+            log.warning(
+                "%s AGENT DE-REGISTRATION: Agent '%s' has been de-registered due to unresponsiveness. "
+                "Last seen: %s seconds ago, Final retry count: %d",
+                self.log_identifier,
+                agent_name,
+                time_since_last_seen,
+                retry_count
+            )
+            
+            # Publish a de-registration event
+            # This would typically be a message to inform other components that the agent is no longer available
+            try:
+                # Create a de-registration event topic
+                namespace = self.get_config("namespace")
+                deregistration_topic = f"{namespace}/a2a/events/agent/deregistered"
+                
+                # Create the payload
+                deregistration_payload = {
+                    "event_type": "agent.deregistered",
+                    "agent_name": agent_name,
+                    "reason": "health_check_failure",
+                    "metadata": {
+                        "last_seen_seconds_ago": time_since_last_seen,
+                        "retry_count": retry_count,
+                        "timestamp": current_time,
+                        "deregistered_by": self.agent_name
+                    }
+                }
+                
+                # Publish the event
+                self.publish_a2a_message(
+                    payload=deregistration_payload,
+                    topic=deregistration_topic
+                )
+                
+                log.info(
+                    "%s Published de-registration event for agent '%s' to topic '%s'",
+                    self.log_identifier,
+                    agent_name,
+                    deregistration_topic
+                )
+            except Exception as e:
+                log.error(
+                    "%s Failed to publish de-registration event for agent '%s': %s",
+                    self.log_identifier,
+                    agent_name,
+                    e
+                )
 
     async def _resolve_early_embeds_and_handle_signals(
         self, raw_text: str, a2a_context: Dict

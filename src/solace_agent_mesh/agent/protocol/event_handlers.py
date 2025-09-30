@@ -4,6 +4,7 @@ Contains event handling logic for the A2A_ADK_HostComponent.
 
 import json
 import asyncio
+import time
 from typing import TYPE_CHECKING, Dict, Any
 import fnmatch
 from solace_ai_connector.common.log import log
@@ -806,8 +807,19 @@ def handle_agent_card_message(component, message: SolaceMessage):
                     break
 
         if is_allowed:
-            # The received card is stored as-is. We don't need to modify it.
+            # Store the agent card with health tracking
+            # Set the current time as the last_seen timestamp
+            agent_card.last_seen = time.time()
+            # Initialize or reset the retry count
+            agent_card.retry_count = 0
+            # Store the agent card in the peer_agents dictionary
             component.peer_agents[agent_name] = agent_card
+            
+            log.debug(
+                "%s Updated agent card for '%s' with health tracking information.",
+                component.log_identifier,
+                agent_name,
+            )
 
         message.call_acknowledgements()
 
