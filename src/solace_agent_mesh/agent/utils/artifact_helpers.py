@@ -819,9 +819,12 @@ async def load_artifact_content_or_metadata(
     )
 
     if max_content_length is None and component:
-        max_content_length = component.get_config(
-            "text_artifact_content_max_length", 100000
-        )
+        max_content_length = component.get_config("text_artifact_content_max_length")
+        if max_content_length is None:
+            raise ValueError(
+                f"{log_identifier_req} Component config 'text_artifact_content_max_length' is not set."
+            )
+
         if max_content_length < 100:
             log.warning(
                 "%s text_artifact_content_max_length too small (%d), using minimum: 100",
@@ -988,9 +991,15 @@ async def load_artifact_content_or_metadata(
                         message_to_llm = ""
                         if len(content_str) > max_content_length:
                             truncated_content = content_str[:max_content_length] + "..."
-                            message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters. 
+
+                            if max_content_length < TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY:
+                                message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters. 
                                                 The artifact is larger ({len(content_str)} characters).
-                                                Please request again with larger max size up to {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} for the full artifact"""
+                                                Please request again with larger max size up to {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} for the full artifact."""
+                            else:
+                                message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters. 
+                                                The artifact content met the maximum allowed size of {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} characters.
+                                                Please continue with this truncated content as the full artifact cannot be provided."""
                             log.info(
                                 "%s Loaded and decoded text artifact '%s' v%d. Returning truncated content (%d chars, limit: %d).",
                                 log_identifier,
