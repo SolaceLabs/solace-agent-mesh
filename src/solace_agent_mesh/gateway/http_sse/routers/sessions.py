@@ -1,94 +1,51 @@
-from fastapi import APIRouter, Body, Depends, HTTPException, status
-from fastapi import Request as FastAPIRequest
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from solace_ai_connector.common.log import log
+from sqlalchemy.orm import Session
 
-from a2a.types import JSONRPCSuccessResponse
-from ..dependencies import get_session_business_service, get_session_manager
+from ..dependencies import get_session_business_service, get_db
 from ..services.session_service import SessionService
-from ..session_manager import SessionManager
 from ..shared.auth_utils import get_current_user
+from ..shared.pagination import DataResponse, PaginatedResponse, PaginationParams
+from ..shared.response_utils import create_data_response
 from .dto.requests.session_requests import (
     GetSessionHistoryRequest,
     GetSessionRequest,
-    GetSessionsRequest,
     UpdateSessionRequest,
 )
-from .dto.responses.session_responses import (
-    MessageResponse,
-    SessionListResponse,
-    SessionResponse,
-)
-from ....common.a2a import create_generic_success_response
+from .dto.responses.session_responses import MessageResponse, SessionResponse
 
 router = APIRouter()
 
 
-@router.post("/sessions/new", response_model=JSONRPCSuccessResponse)
-async def create_new_session(
-    request: FastAPIRequest,
-    user: dict = Depends(get_current_user),
-    session_manager: SessionManager = Depends(get_session_manager),
-    session_service: SessionService = Depends(get_session_business_service),
-):
-    """Creates a new session on-demand and returns its ID."""
-    user_id = user.get("id")
-    log.info("User %s requesting new session", user_id)
-    try:
-        new_session_id = session_manager.create_new_session_id(request)
-        log.info("Created new session ID: %s for user %s", new_session_id, user_id)
 
-        # Attempt to create the session record in the DB.
-        # The service will handle the check for whether persistence is enabled.
-        session_service.create_session(
-            user_id=user_id,
-            agent_id=None,  # Agent is not known at this point
-            name=None,
-            session_id=new_session_id,
-        )
-
-        return create_generic_success_response(
-            result={"id": new_session_id}, request_id=None
-        )
-    except Exception as e:
-        log.error("Error creating new session for user %s: %s", user_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create a new session",
-        )
-
-
-@router.get("/sessions", response_model=SessionListResponse)
+@router.get("/sessions", response_model=PaginatedResponse[SessionResponse])
 async def get_all_sessions(
+    page_number: int = Query(default=1, ge=1, alias="pageNumber"),
+    page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
+    db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_business_service),
 ):
     user_id = user.get("id")
-    log.info("Fetching sessions for user_id: %s", user_id)
+    log.info(f"User '{user_id}' is listing sessions with pagination (page={page_number}, size={page_size})")
 
     try:
-        request_dto = GetSessionsRequest(user_id=user_id)
-
-        session_domains = session_service.get_user_sessions(
-            user_id=request_dto.user_id, pagination=request_dto.pagination
-        )
+        pagination = PaginationParams(page_number=page_number, page_size=page_size)
+        paginated_response = session_service.get_user_sessions(db, user_id, pagination)
 
         session_responses = []
-        for domain in session_domains:
+        for session_domain in paginated_response.data:
             session_response = SessionResponse(
-                id=domain.id,
-                user_id=domain.user_id,
-                name=domain.name,
-                agent_id=domain.agent_id,
-                created_time=domain.created_time,
-                updated_time=domain.updated_time,
+                id=session_domain.id,
+                user_id=session_domain.user_id,
+                name=session_domain.name,
+                agent_id=session_domain.agent_id,
+                created_time=session_domain.created_time,
+                updated_time=session_domain.updated_time,
             )
             session_responses.append(session_response)
 
-        return SessionListResponse(
-            sessions=session_responses,
-            total_count=len(session_responses),
-            pagination=request_dto.pagination,
-        )
+        return PaginatedResponse(data=session_responses, meta=paginated_response.meta)
 
     except Exception as e:
         log.error("Error fetching sessions for user %s: %s", user_id, e)
@@ -98,9 +55,10 @@ async def get_all_sessions(
         )
 
 
-@router.get("/sessions/{session_id}", response_model=SessionResponse)
+@router.get("/sessions/{session_id}", response_model=DataResponse[SessionResponse])
 async def get_session(
     session_id: str,
+    db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_business_service),
 ):
@@ -120,7 +78,7 @@ async def get_session(
         request_dto = GetSessionRequest(session_id=session_id, user_id=user_id)
 
         session_domain = session_service.get_session_details(
-            session_id=request_dto.session_id, user_id=request_dto.user_id
+            db=db, session_id=request_dto.session_id, user_id=request_dto.user_id
         )
 
         if not session_domain:
@@ -130,7 +88,7 @@ async def get_session(
 
         log.info("User %s authorized. Fetching session_id: %s", user_id, session_id)
 
-        return SessionResponse(
+        session_response = SessionResponse(
             id=session_domain.id,
             user_id=session_domain.user_id,
             name=session_domain.name,
@@ -138,6 +96,8 @@ async def get_session(
             created_time=session_domain.created_time,
             updated_time=session_domain.updated_time,
         )
+
+        return create_data_response(session_response)
 
     except HTTPException:
         raise
@@ -157,6 +117,7 @@ async def get_session(
 @router.get("/sessions/{session_id}/messages")
 async def get_session_history(
     session_id: str,
+    db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_business_service),
 ):
@@ -178,6 +139,7 @@ async def get_session_history(
         request_dto = GetSessionHistoryRequest(session_id=session_id, user_id=user_id)
 
         history_domain = session_service.get_session_history(
+            db=db,
             session_id=request_dto.session_id,
             user_id=request_dto.user_id,
             pagination=request_dto.pagination,
@@ -228,6 +190,7 @@ async def get_session_history(
 async def update_session_name(
     session_id: str,
     name: str = Body(..., embed=True),
+    db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_business_service),
 ):
@@ -249,6 +212,7 @@ async def update_session_name(
         )
 
         updated_domain = session_service.update_session_name(
+            db=db,
             session_id=request_dto.session_id,
             user_id=request_dto.user_id,
             name=request_dto.name,
@@ -293,6 +257,7 @@ async def update_session_name(
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_session(
     session_id: str,
+    db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_business_service),
 ):
@@ -301,7 +266,7 @@ async def delete_session(
 
     try:
         deleted = session_service.delete_session_with_notifications(
-            session_id=session_id, user_id=user_id
+            db=db, session_id=session_id, user_id=user_id
         )
 
         if not deleted:

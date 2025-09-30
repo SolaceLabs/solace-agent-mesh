@@ -137,13 +137,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const uploadArtifactFile = useCallback(
         async (file: File, overrideSessionId?: string): Promise<string | null> => {
             const currentSessionId = overrideSessionId || sessionId;
-            if (!currentSessionId) {
-                throw new Error("Session ID is missing for file upload.");
-            }
             const formData = new FormData();
             formData.append("upload_file", file);
+            formData.append("filename", file.name);
+            if (currentSessionId) {
+                formData.append("sessionId", currentSessionId);
+            }
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${currentSessionId}/${encodeURIComponent(file.name)}`, {
+                const response = await authenticatedFetch(`${apiPrefix}/artifacts/upload`, {
                     method: "POST",
                     body: formData,
                     credentials: "include",
@@ -153,9 +154,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
                 const result = await response.json();
+                const artifactData = result.data || result;
                 addNotification(`Artifact "${file.name}" uploaded successfully.`);
                 await artifactsRefetch();
-                return result.uri || null;
+                return artifactData.uri || null;
             } catch (error) {
                 addNotification(`Error uploading artifact "${file.name}": ${error instanceof Error ? error.message : "Unknown error"}`);
                 return null;
@@ -902,8 +904,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             latestStatusText.current = null;
             sseEventSequenceRef.current = 0;
 
-            let effectiveSessionId = sessionId;
-            const isNewSession = !effectiveSessionId;
+            const effectiveSessionId = sessionId || null;
 
             const userMsg: MessageFE = {
                 role: "user",
@@ -922,20 +923,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setUserInput("");
 
             try {
-                // If it's a new session, create one on the backend first to get an ID for uploads.
-                if (isNewSession) {
-                    const sessionResponse = await authenticatedFetch(`${apiPrefix}/sessions/new`, { method: "POST" });
-                    if (!sessionResponse.ok) {
-                        throw new Error("Failed to create a new session on the backend.");
-                    }
-                    const newSessionData = await sessionResponse.json();
-                    effectiveSessionId = newSessionData.result.id;
-                    setSessionId(effectiveSessionId);
-                    console.log("Created new session on-demand:", effectiveSessionId);
-
-                    // Update the user message in state with the correct session ID
-                    setMessages(prev => prev.map(msg => (msg.metadata?.messageId === userMsg.metadata?.messageId ? { ...msg, metadata: { ...msg.metadata, sessionId: effectiveSessionId } } : msg)));
-                }
 
                 // 1. Process files using hybrid approach
                 const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
@@ -972,7 +959,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     parts: messageParts,
                     messageId: `msg-${v4()}`,
                     kind: "message",
-                    contextId: effectiveSessionId, // Use the definite session ID
+                    contextId: effectiveSessionId,
                     metadata: { agent_name: selectedAgentName },
                 };
 
@@ -1006,7 +993,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 if (responseSessionId && responseSessionId !== effectiveSessionId) {
                     console.warn(`Backend returned a different session ID (${responseSessionId}) than expected (${effectiveSessionId}). This should not happen.`);
-                    setSessionId(responseSessionId); // Trust the backend's final say
+                    setSessionId(responseSessionId);
                 }
 
                 // If it was a new session, generate and persist its name.

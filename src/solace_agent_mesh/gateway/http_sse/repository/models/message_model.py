@@ -1,7 +1,8 @@
 """
-Message SQLAlchemy model.
+Message SQLAlchemy model and Pydantic models for strongly-typed operations.
 """
 
+from pydantic import BaseModel
 from sqlalchemy import BigInteger, Column, ForeignKey, String, Text
 from sqlalchemy.orm import relationship
 
@@ -25,3 +26,20 @@ class MessageModel(Base):
 
     # Relationship to session
     session = relationship("SessionModel", back_populates="messages")
+
+
+class CreateMessageModel(BaseModel):
+    """Pydantic model for creating a message."""
+    id: str
+    session_id: str
+    message: str
+    sender_type: str
+    sender_name: str
+    created_time: int
+
+
+class UpdateMessageModel(BaseModel):
+    """Pydantic model for updating a message."""
+    message: str
+    sender_type: str
+    sender_name: str

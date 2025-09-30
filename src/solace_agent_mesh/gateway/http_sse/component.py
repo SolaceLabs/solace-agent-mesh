@@ -1690,23 +1690,29 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                 message_text += part.text
 
                     if message_text and session_id and user_id:
-                        from .dependencies import (
-                            create_session_service_with_transaction,
-                        )
+                        from .dependencies import SessionLocal, get_session_business_service
                         from ...gateway.http_sse.shared.enums import SenderType
 
-                        with create_session_service_with_transaction() as (
-                            session_service,
-                            db,
-                        ):
-                            session_service.add_message_to_session(
-                                session_id=session_id,
-                                user_id=user_id,
-                                message=message_text,
-                                sender_type=SenderType.AGENT,
-                                sender_name=agent_name,
-                                agent_id=agent_name,
-                            )
+                        # For background processing, create simple session wrapper
+                        if SessionLocal:
+                            db = SessionLocal()
+                            try:
+                                session_service = get_session_business_service()
+                                session_service.add_message_to_session(
+                                    db=db,
+                                    session_id=session_id,
+                                    user_id=user_id,
+                                    message=message_text,
+                                    sender_type=SenderType.AGENT,
+                                    sender_name=agent_name,
+                                    agent_id=agent_name,
+                                )
+                                db.commit()
+                            except Exception:
+                                db.rollback()
+                                raise
+                            finally:
+                                db.close()
                         log.info(
                             "%s Final agent response stored in session %s",
                             log_id_prefix,
