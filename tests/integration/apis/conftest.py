@@ -166,12 +166,23 @@ def mock_component(test_database_engine):
     )
     component.get_task_logger_service.return_value = real_task_logger_service
 
-    # Create a real CoreA2AService instance for task cancellation tests
-    real_core_a2a_service = CoreA2AService(
-        namespace="test_namespace",
-        gateway_id="TestWebUIGateway_01",
-    )
-    component.get_core_a2a_service.return_value = real_core_a2a_service
+    # Create a mock CoreA2AService instance for task cancellation tests
+    mock_core_a2a_service = Mock(spec=CoreA2AService)
+    
+    # Mock the cancel_task method to return valid A2A message components
+    def mock_cancel_task(agent_name, task_id, client_id, user_id):
+        target_topic = f"test_namespace/a2a/v1/agent/cancel/{agent_name}"
+        payload = {
+            "jsonrpc": "2.0",
+            "id": f"cancel-{task_id}",
+            "method": "tasks/cancel",
+            "params": {"id": task_id}
+        }
+        user_properties = {"userId": user_id}
+        return target_topic, payload, user_properties
+    
+    mock_core_a2a_service.cancel_task = mock_cancel_task
+    component.get_core_a2a_service.return_value = mock_core_a2a_service
 
     print("[API Tests] Mock component created")
     yield component
