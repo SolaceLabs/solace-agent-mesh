@@ -3236,13 +3236,22 @@ class SamAgentComponent(SamComponentBase):
         """
         De-registers an agent from the registry and publishes a de-registration event.
         """
-        # Use the registry's remove_agent method which returns True if the agent was removed
-        if self.agent_registry.remove_agent(agent_name):
-            # Also remove from peer_agents dictionary for backward compatibility
-            if agent_name in self.peer_agents:
-                del self.peer_agents[agent_name]
-            
-            # Publish a de-registration event
+        # Remove from registry
+        registry_removed = self.agent_registry.remove_agent(agent_name)
+        
+        # Always remove from peer_agents regardless of registry result
+        peer_removed = False
+        if agent_name in self.peer_agents:
+            del self.peer_agents[agent_name]
+            peer_removed = True
+            log.info(
+                "%s Removed agent '%s' from peer_agents dictionary",
+                self.log_identifier,
+                agent_name
+            )
+        
+        # Publish de-registration event if agent was in either data structure
+        if registry_removed or peer_removed:
             try:
                 # Create a de-registration event topic
                 namespace = self.get_config("namespace")
