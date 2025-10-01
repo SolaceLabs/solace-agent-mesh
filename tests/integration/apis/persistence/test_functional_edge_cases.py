@@ -16,10 +16,25 @@ def test_concurrent_session_modifications_same_user(api_client: TestClient):
     """Test concurrent modifications to the same session by the same user"""
 
     # Create a session
-    task_data = {"agent_name": "TestAgent", "message": "Concurrent modification test"}
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    import uuid
+
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Concurrent modification test"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response.status_code == 200
-    session_id = response.json()["result"]["sessionId"]
+    session_id = response.json()["result"]["contextId"]
 
     results = []
 
@@ -100,7 +115,7 @@ def test_concurrent_message_additions_same_session(api_client: TestClient):
     assert history_response.status_code == 200
     history = history_response.json()
 
-    user_messages = [msg for msg in history if msg["sender_type"] == "user"]
+    user_messages = [msg for msg in history if msg["senderType"] == "user"]
     assert len(user_messages) >= 11  # Initial + 10 concurrent messages
 
     # Verify all concurrent messages are present
@@ -123,15 +138,30 @@ def test_large_file_upload_handling(api_client: TestClient):
 
     files = [("files", ("large_file.txt", large_file, "text/plain"))]
 
-    task_data = {"agent_name": "TestAgent", "message": "Process this large file"}
+    import uuid
 
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data, files=files)
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Process this large file"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+
+    response = api_client.post("/api/v1/message:stream", json=task_payload, files=files)
 
     # Should either succeed or gracefully handle the large file
     assert response.status_code in [200, 413, 422]  # 413 = Request Entity Too Large
 
     if response.status_code == 200:
-        session_id = response.json()["result"]["sessionId"]
+        session_id = response.json()["result"]["contextId"]
 
         # Verify session was created successfully
         session_response = api_client.get(f"/api/v1/sessions/{session_id}")
@@ -156,10 +186,25 @@ def test_invalid_file_type_upload(api_client: TestClient):
         file_obj = io.BytesIO(content)
         files = [("files", (filename, file_obj, mimetype))]
 
-        task_data = {"agent_name": "TestAgent", "message": f"Process {filename}"}
+        import uuid
+
+        task_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": f"Process {filename}"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
 
         response = api_client.post(
-            "/api/v1/tasks/subscribe", data=task_data, files=files
+            "/api/v1/message:stream", json=task_payload, files=files
         )
 
         # Should either accept all file types or reject with appropriate error
@@ -171,7 +216,7 @@ def test_invalid_file_type_upload(api_client: TestClient):
         ]  # 415 = Unsupported Media Type
 
         if response.status_code == 200:
-            session_id = response.json()["result"]["sessionId"]
+            session_id = response.json()["result"]["contextId"]
 
             # Verify session was created
             session_response = api_client.get(f"/api/v1/sessions/{session_id}")
@@ -182,10 +227,25 @@ def test_session_name_edge_cases(api_client: TestClient):
     """Test session name validation and edge cases"""
 
     # Create a session
-    task_data = {"agent_name": "TestAgent", "message": "Session name test"}
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    import uuid
+
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Session name test"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response.status_code == 200
-    session_id = response.json()["result"]["sessionId"]
+    session_id = response.json()["result"]["contextId"]
 
     # Test various session name edge cases
     name_test_cases = [
@@ -219,28 +279,52 @@ def test_task_cancellation_after_session_deletion(api_client: TestClient):
     """Test task cancellation behavior after session is deleted"""
 
     # Create a session with a task
-    task_data = {
-        "agent_name": "TestAgent",
-        "message": "Task to be cancelled after session deletion",
+    import uuid
+
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [
+                    {
+                        "kind": "text",
+                        "text": "Task to be cancelled after session deletion",
+                    }
+                ],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
     }
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response.status_code == 200
-    task_id = response.json()["result"]["taskId"]
-    session_id = response.json()["result"]["sessionId"]
+    task_id = response.json()["result"]["id"]
+    session_id = response.json()["result"]["contextId"]
 
     # Delete the session
     delete_response = api_client.delete(f"/api/v1/sessions/{session_id}")
     assert delete_response.status_code == 204
 
     # Try to cancel the task after session deletion
-    cancel_data = {"task_id": task_id}
-    cancel_response = api_client.post("/api/v1/tasks/cancel", data=cancel_data)
+    cancel_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "tasks/cancel",
+        "params": {"id": task_id},
+    }
+    cancel_response = api_client.post(
+        f"/api/v1/tasks/{task_id}:cancel", json=cancel_payload
+    )
 
     # Should handle gracefully - either succeed or return appropriate error
-    assert cancel_response.status_code in [200, 400, 404, 500]
+    assert cancel_response.status_code in [202, 400, 404, 500]
 
-    if cancel_response.status_code == 200:
-        result = cancel_response.json()["result"]
+    if cancel_response.status_code == 202:
+        result = cancel_response.json()
         assert "message" in result
         print("✓ Task cancellation after session deletion handled successfully")
     else:
@@ -251,13 +335,27 @@ def test_message_ordering_consistency_under_load(api_client: TestClient):
     """Test that message ordering remains consistent under concurrent load"""
 
     # Create a session
-    task_data = {
-        "agent_name": "TestAgent",
-        "message": "Message ordering test - message 0",
+    import uuid
+
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [
+                    {"kind": "text", "text": "Message ordering test - message 0"}
+                ],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
     }
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response.status_code == 200
-    session_id = response.json()["result"]["sessionId"]
+    session_id = response.json()["result"]["contextId"]
 
     # Add messages in sequence with small delays to test ordering
     expected_messages = []
@@ -265,13 +363,23 @@ def test_message_ordering_consistency_under_load(api_client: TestClient):
         message_text = f"Message ordering test - message {i}"
         expected_messages.append(message_text)
 
-        message_data = {
-            "agent_name": "TestAgent",
-            "message": message_text,
-            "session_id": session_id,
+        message_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": message_text}],
+                    "metadata": {"agent_name": "TestAgent"},
+                    "contextId": session_id,
+                }
+            },
         }
 
-        response = api_client.post("/api/v1/tasks/subscribe", data=message_data)
+        response = api_client.post("/api/v1/message:stream", json=message_payload)
         assert response.status_code == 200
 
         # Small delay to ensure ordering
@@ -309,10 +417,25 @@ def test_error_recovery_after_database_constraints(api_client: TestClient):
         # Try to create message with non-existent session (should fail gracefully)
         {
             "operation": "add_message_invalid_session",
-            "data": {
-                "agent_name": "TestAgent",
-                "message": "Message to non-existent session",
-                "session_id": "nonexistent_session_id_1",
+            "payload": {
+                "jsonrpc": "2.0",
+                "id": str(uuid.uuid4()),
+                "method": "message/stream",
+                "params": {
+                    "message": {
+                        "role": "user",
+                        "messageId": str(uuid.uuid4()),
+                        "kind": "message",
+                        "parts": [
+                            {
+                                "kind": "text",
+                                "text": "Message to non-existent session",
+                            }
+                        ],
+                        "metadata": {"agent_name": "TestAgent"},
+                        "contextId": "nonexistent_session_id_1",
+                    }
+                },
             },
         },
         # Try to update non-existent session (should return 404)
@@ -325,7 +448,9 @@ def test_error_recovery_after_database_constraints(api_client: TestClient):
 
     for test_op in test_operations:
         if test_op["operation"] == "add_message_invalid_session":
-            response = api_client.post("/api/v1/tasks/subscribe", data=test_op["data"])
+            response = api_client.post(
+                "/api/v1/message:stream", json=test_op["payload"]
+            )
             # Should either create new session or return error
             assert response.status_code in [200, 400, 404, 422]
 
@@ -336,15 +461,27 @@ def test_error_recovery_after_database_constraints(api_client: TestClient):
             assert response.status_code == 404
 
     # Verify original session still works after constraint errors
-    followup_data = {
-        "agent_name": "TestAgent",
-        "message": "Recovery test - session should still work",
-        "session_id": session_id,
+    followup_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [
+                    {"kind": "text", "text": "Recovery test - session should still work"}
+                ],
+                "metadata": {"agent_name": "TestAgent"},
+                "contextId": session_id,
+            }
+        },
     }
 
-    recovery_response = api_client.post("/api/v1/tasks/subscribe", data=followup_data)
+    recovery_response = api_client.post("/api/v1/message:stream", json=followup_payload)
     assert recovery_response.status_code == 200
-    assert recovery_response.json()["result"]["sessionId"] == session_id
+    assert recovery_response.json()["result"]["contextId"] == session_id
 
     print("✓ Error recovery after database constraint issues successful")
 
@@ -362,15 +499,30 @@ def test_empty_and_whitespace_message_handling(api_client: TestClient):
     ]
 
     for test_message in message_test_cases:
-        task_data = {"agent_name": "TestAgent", "message": test_message}
+        import uuid
 
-        response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+        task_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": test_message}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+
+        response = api_client.post("/api/v1/message:stream", json=task_payload)
 
         # Should either accept and create session or return validation error
         assert response.status_code in [200, 422]
 
         if response.status_code == 200:
-            session_id = response.json()["result"]["sessionId"]
+            session_id = response.json()["result"]["contextId"]
 
             # Verify session exists
             session_response = api_client.get(f"/api/v1/sessions/{session_id}")
@@ -382,7 +534,7 @@ def test_empty_and_whitespace_message_handling(api_client: TestClient):
             history = history_response.json()
 
             if history:
-                user_messages = [msg for msg in history if msg["sender_type"] == "user"]
+                user_messages = [msg for msg in history if msg["senderType"] == "user"]
                 if user_messages:
                     assert user_messages[0]["message"] == test_message
 
