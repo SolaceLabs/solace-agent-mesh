@@ -109,7 +109,7 @@ def test_error_response_headers_consistency(api_client: TestClient):
         if method == "GET":
             response = api_client.get(endpoint)
         elif method == "POST":
-            response = api_client.post(endpoint, data=data or {})
+            response = api_client.post(endpoint, json=data or {})
         elif method == "PATCH":
             response = api_client.patch(endpoint, json=data or {})
         elif method == "DELETE":
