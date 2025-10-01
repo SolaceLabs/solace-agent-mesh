@@ -139,10 +139,12 @@ async def _submit_task(
                                 message_text = part.text
                                 break
 
+                    # Store the actual message text, even if empty
+                    # The session service will validate and handle empty messages
                     session_service.add_message_to_session(
                         session_id=session_id,
                         user_id=user_id,
-                        message=message_text or "Task submitted",
+                        message=message_text if message_text else "",
                         sender_type=SenderType.USER,
                         sender_name=user_id or "user",
                         agent_id=agent_name,
