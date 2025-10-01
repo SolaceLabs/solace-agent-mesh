@@ -82,8 +82,16 @@ jobs:
         run: |
           if [[ "${{ github.event_name == 'push' }}" == "true" ]]; then
             echo "docker_push=true" >> $GITHUB_OUTPUT
-            echo "update_manifest=true" >> $GITHUB_OUTPUT
             echo "Will push images for branch push"
+            
+            # Only update manifest for default branch pushes
+            if [[ "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
+              echo "update_manifest=true" >> $GITHUB_OUTPUT
+              echo "Will update release manifest for default branch push"
+            else
+              echo "update_manifest=false" >> $GITHUB_OUTPUT
+              echo "Will not update release manifest for non-default branch push"
+            fi
           else
             echo "docker_push=false" >> $GITHUB_OUTPUT
             echo "update_manifest=false" >> $GITHUB_OUTPUT
