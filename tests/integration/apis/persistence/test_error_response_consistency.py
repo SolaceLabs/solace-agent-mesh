@@ -214,7 +214,7 @@ def test_error_response_structure_validation(api_client: TestClient):
         },
         # 422 validation errors
         {
-            "request": ("POST", "/api/v1/tasks/send", {}),
+            "request": ("POST", "/api/v1/message:send", {}),
             "expected_status": 422,
             "expected_fields": ["detail"],
         },
@@ -228,7 +228,7 @@ def test_error_response_structure_validation(api_client: TestClient):
         if method == "GET":
             response = api_client.get(endpoint)
         elif method == "POST":
-            response = api_client.post(endpoint, data=data[0] if data else {})
+            response = api_client.post(endpoint, json=data[0] if data else {})
 
         assert response.status_code == expected_status
 
