@@ -636,10 +636,7 @@ function createErrorEdge(sourceNodeId: string, targetNodeId: string, step: Visua
 }
 
 // Main transformation function
-export const transformProcessedStepsToTimelineFlow = (
-    processedSteps: VisualizerStep[],
-    agentNameMap: Record<string, string> = {}
-): FlowData => {
+export const transformProcessedStepsToTimelineFlow = (processedSteps: VisualizerStep[], agentNameMap: Record<string, string> = {}): FlowData => {
     const newNodes: Node[] = [];
     const newEdges: Edge[] = [];
 

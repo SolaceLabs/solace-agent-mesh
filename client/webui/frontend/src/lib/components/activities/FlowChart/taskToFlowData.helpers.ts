@@ -3,10 +3,7 @@ import type { VisualizerStep } from "@/lib/types";
 import { EdgeAnimationService } from "./edgeAnimationService";
 
 // Helper function to resolve agent name to display name
-export function resolveAgentDisplayName(
-    agentName: string,
-    agentNameMap?: Record<string, string>
-): string {
+export function resolveAgentDisplayName(agentName: string, agentNameMap?: Record<string, string>): string {
     return agentNameMap?.[agentName] || agentName;
 }
 

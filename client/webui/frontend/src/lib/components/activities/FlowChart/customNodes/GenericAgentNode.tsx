@@ -23,7 +23,9 @@ const GenericAgentNode: React.FC<NodeProps<Node<GenericNodeData>>> = ({ data }) 
             <Handle type="source" position={Position.Bottom} id="peer-bottom-output" className="!bg-blue-700" isConnectable={true} />
             <Handle type="target" position={Position.Left} id="peer-left-input" className="!bg-blue-700" isConnectable={true} />
             <div className="flex items-center justify-center">
-                <div className="text-md font-semibold truncate" style={{ maxWidth: "200px" }}>{data.label}</div>
+                <div className="text-md truncate font-semibold" style={{ maxWidth: "200px" }}>
+                    {data.label}
+                </div>
             </div>
         </div>
     );
