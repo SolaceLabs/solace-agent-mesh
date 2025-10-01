@@ -58,16 +58,13 @@ def test_422_validation_error_response_consistency(api_client: TestClient):
 
     # List of requests that should trigger validation errors
     validation_error_requests = [
-        ("POST", "/api/v1/tasks/send", {}),  # Missing required fields
-        ("POST", "/api/v1/tasks/send", {"agent_name": "TestAgent"}),  # Missing message
-        ("POST", "/api/v1/tasks/send", {"message": "Test"}),  # Missing agent_name
-        ("POST", "/api/v1/tasks/subscribe", {}),  # Missing required fields
-        ("POST", "/api/v1/tasks/cancel", {}),  # Missing task_id
+        ("POST", "/api/v1/message:send", {}),  # Missing required fields
+        ("POST", "/api/v1/message:stream", {}),  # Missing required fields
     ]
 
     for method, endpoint, data in validation_error_requests:
         if method == "POST":
-            response = api_client.post(endpoint, data=data)
+            response = api_client.post(endpoint, json=data)
 
         # Should return 422 for validation errors
         assert response.status_code == 422
@@ -140,10 +137,24 @@ def test_error_message_security_no_leakage(api_client: TestClient):
     """Test that error messages don't leak sensitive information"""
 
     # Create a session first to test access control
-    task_data = {"agent_name": "TestAgent", "message": "Security test session"}
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    import uuid
+    task_data = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Security test session"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    response = api_client.post("/api/v1/message:stream", json=task_data)
     assert response.status_code == 200
-    valid_session_id = response.json()["result"]["sessionId"]
+    valid_session_id = response.json()["result"]["contextId"]
 
     # Test accessing non-existent resources (should not reveal existence)
     security_test_cases = [
