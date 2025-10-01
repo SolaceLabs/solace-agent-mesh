@@ -196,7 +196,7 @@ def test_get_session_history(api_client: TestClient):
     # Verify the message content
     user_message = history[0]
     assert user_message["message"] == "Test message for history"
-    assert user_message["sender_type"] == "user"
+    assert user_message["senderType"] == "user"
 
     print(f"✓ Retrieved session history for {session_id}")
 
