@@ -120,22 +120,17 @@ async def _submit_task(
 
         # Store message in persistence layer if available
         user_id = user_identity.get("id")
-        from ....gateway.http_sse.dependencies import SessionLocal, get_db
+        from ....gateway.http_sse.dependencies import SessionLocal
 
         if is_streaming and SessionLocal is not None:
             try:
+                from ....gateway.http_sse.dependencies import (
+                    create_full_session_service_with_transaction,
+                )
                 from ....gateway.http_sse.shared.enums import SenderType
-                from ....gateway.http_sse.repository import SessionRepository, MessageRepository
-                from ....gateway.http_sse.services.session_service import SessionService
 
-                # Use the full SessionService with business logic
-                # Get a database session
-                db = next(get_db())
-                try:
-                    session_repository = SessionRepository(db)
-                    message_repository = MessageRepository(db)
-                    session_service = SessionService(session_repository, message_repository, component)
-                    
+                # Use the full SessionService with business logic via context manager
+                with create_full_session_service_with_transaction() as (session_service, db):
                     message_text = ""
                     if payload.params and payload.params.message:
                         parts = a2a.get_parts_from_message(payload.params.message)
@@ -152,8 +147,6 @@ async def _submit_task(
                         sender_name=user_id or "user",
                         agent_id=agent_name,
                     )
-                finally:
-                    db.close()
 
             except Exception as e:
                 log.error(

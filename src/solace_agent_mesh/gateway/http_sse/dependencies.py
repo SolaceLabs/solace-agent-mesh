@@ -498,6 +498,32 @@ def create_session_service_with_transaction():
         db.close()
 
 
+@contextmanager
+def create_full_session_service_with_transaction():
+    """Create full SessionService with business logic and its own transaction for non-HTTP contexts."""
+    if SessionLocal is None:
+        raise RuntimeError("Database not configured")
+
+    db = SessionLocal()
+    try:
+        session_repository = SessionRepository(db)
+        message_repository = MessageRepository(db)
+        
+        # Get the component instance to pass to SessionService
+        component = sac_component_instance
+        
+        # Return the FULL SessionService with business logic
+        session_service = SessionService(session_repository, message_repository, component)
+        
+        yield session_service, db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def get_session_validator(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> Callable[[str, str], bool]:
