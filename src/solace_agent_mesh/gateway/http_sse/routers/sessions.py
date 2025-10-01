@@ -296,6 +296,15 @@ async def delete_session(
     log.info("User %s attempting to delete session %s", user_id, session_id)
 
     try:
+        if (
+            not session_id
+            or session_id.strip() == ""
+            or session_id in ["null", "undefined"]
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+            )
+
         deleted = session_service.delete_session_with_notifications(
             session_id=session_id, user_id=user_id
         )
@@ -307,6 +316,8 @@ async def delete_session(
 
         log.info("Session %s deleted successfully", session_id)
 
+    except HTTPException:
+        raise
     except ValueError as e:
         log.warning("Validation error deleting session %s: %s", session_id, e)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
