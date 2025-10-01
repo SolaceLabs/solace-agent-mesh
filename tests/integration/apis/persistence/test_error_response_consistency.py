@@ -98,8 +98,8 @@ def test_error_response_headers_consistency(api_client: TestClient):
         ("PATCH", "/api/v1/sessions/nonexistent", 404, {"name": "Test"}),
         ("DELETE", "/api/v1/sessions/nonexistent", 404),
         # 422 validation errors
-        ("POST", "/api/v1/tasks/send", 422, {}),
-        ("POST", "/api/v1/tasks/cancel", 422, {}),
+        ("POST", "/api/v1/message:send", 422, {}),
+        ("POST", "/api/v1/message:stream", 422, {}),
     ]
 
     for scenario in error_scenarios:
@@ -285,7 +285,7 @@ def test_content_type_consistency_in_errors(api_client: TestClient):
     # Test different types of errors
     error_endpoints = [
         ("GET", "/api/v1/sessions/nonexistent", 404),
-        ("POST", "/api/v1/tasks/send", 422, {}),
+        ("POST", "/api/v1/message:send", 422, {}),
         ("PATCH", "/api/v1/sessions/nonexistent", 404, {"name": "Test"}),
         ("DELETE", "/api/v1/sessions/nonexistent", 404),
     ]
