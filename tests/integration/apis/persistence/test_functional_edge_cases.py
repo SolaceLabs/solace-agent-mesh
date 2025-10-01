@@ -72,26 +72,48 @@ def test_concurrent_message_additions_same_session(api_client: TestClient):
     """Test adding messages concurrently to the same session"""
 
     # Create a session
-    task_data = {
-        "agent_name": "TestAgent",
-        "message": "Initial message for concurrent test",
+    import uuid
+
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Initial message for concurrent test"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
     }
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response.status_code == 200
-    session_id = response.json()["result"]["sessionId"]
+    session_id = response.json()["result"]["contextId"]
 
     results = []
 
     def add_message(message_id):
         """Helper function to add a message"""
-        message_data = {
-            "agent_name": "TestAgent",
-            "message": f"Concurrent message {message_id}",
-            "session_id": session_id,
+        followup_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": f"Concurrent message {message_id}"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                    "contextId": session_id,
+                }
+            },
         }
-        response = api_client.post("/api/v1/tasks/subscribe", data=message_data)
+        response = api_client.post("/api/v1/message:stream", json=followup_payload)
         results.append(
-            (message_id, response.status_code, response.json()["result"]["sessionId"])
+            (message_id, response.status_code, response.json()["result"]["contextId"])
         )
 
     # Start multiple concurrent message additions
@@ -133,12 +155,11 @@ def test_large_file_upload_handling(api_client: TestClient):
     """Test handling of large file uploads"""
 
     # Create a large file (1MB)
-    large_content = b"x" * (1024 * 1024)  # 1MB of data
-    large_file = io.BytesIO(large_content)
-
-    files = [("files", ("large_file.txt", large_file, "text/plain"))]
-
+    import base64
     import uuid
+
+    large_content = b"x" * (1024 * 1024)  # 1MB of data
+    base64_content = base64.b64encode(large_content).decode("utf-8")
 
     task_payload = {
         "jsonrpc": "2.0",
@@ -149,15 +170,26 @@ def test_large_file_upload_handling(api_client: TestClient):
                 "role": "user",
                 "messageId": str(uuid.uuid4()),
                 "kind": "message",
-                "parts": [{"kind": "text", "text": "Process this large file"}],
+                "parts": [
+                    {"kind": "text", "text": "Process this large file"},
+                    {
+                        "kind": "file",
+                        "file": {
+                            "bytes": base64_content,
+                            "name": "large_file.txt",
+                            "mimeType": "text/plain",
+                        },
+                    },
+                ],
                 "metadata": {"agent_name": "TestAgent"},
             }
         },
     }
 
-    response = api_client.post("/api/v1/message:stream", json=task_payload, files=files)
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
 
     # Should either succeed or gracefully handle the large file
+    # Note: With inline base64, the payload itself becomes very large
     assert response.status_code in [200, 413, 422]  # 413 = Request Entity Too Large
 
     if response.status_code == 200:
@@ -175,6 +207,9 @@ def test_large_file_upload_handling(api_client: TestClient):
 def test_invalid_file_type_upload(api_client: TestClient):
     """Test handling of invalid file types"""
 
+    import base64
+    import uuid
+
     # Create files with various extensions/types
     test_files = [
         (b"#!/bin/bash\necho 'test'", "script.sh", "application/x-shellscript"),
@@ -183,10 +218,7 @@ def test_invalid_file_type_upload(api_client: TestClient):
     ]
 
     for content, filename, mimetype in test_files:
-        file_obj = io.BytesIO(content)
-        files = [("files", (filename, file_obj, mimetype))]
-
-        import uuid
+        base64_content = base64.b64encode(content).decode("utf-8")
 
         task_payload = {
             "jsonrpc": "2.0",
@@ -197,15 +229,23 @@ def test_invalid_file_type_upload(api_client: TestClient):
                     "role": "user",
                     "messageId": str(uuid.uuid4()),
                     "kind": "message",
-                    "parts": [{"kind": "text", "text": f"Process {filename}"}],
+                    "parts": [
+                        {"kind": "text", "text": f"Process {filename}"},
+                        {
+                            "kind": "file",
+                            "file": {
+                                "bytes": base64_content,
+                                "name": filename,
+                                "mimeType": mimetype,
+                            },
+                        },
+                    ],
                     "metadata": {"agent_name": "TestAgent"},
                 }
             },
         }
 
-        response = api_client.post(
-            "/api/v1/message:stream", json=task_payload, files=files
-        )
+        response = api_client.post("/api/v1/message:stream", json=task_payload)
 
         # Should either accept all file types or reject with appropriate error
         assert response.status_code in [
