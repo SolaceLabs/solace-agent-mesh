@@ -44,6 +44,9 @@ app = FastAPI(
     description="Backend API and SSE server for the A2A Web UI, hosted by Solace AI Connector.",
 )
 
+# Global flag to track if dependencies have been initialized
+_dependencies_initialized = False
+
 
 def _extract_access_token(request: FastAPIRequest) -> str:
     auth_header = request.headers.get("Authorization")
@@ -479,7 +482,15 @@ def setup_dependencies(component: "WebUIBackendComponent", database_url: str = N
     backward compatibility with existing API contracts.
 
     If database_url is None, runs in compatibility mode with in-memory sessions.
+    
+    This function is idempotent and safe to call multiple times.
     """
+    global _dependencies_initialized
+    
+    if _dependencies_initialized:
+        log.debug("[setup_dependencies] Dependencies already initialized, skipping")
+        return
+    
     dependencies.set_component_instance(component)
 
     if database_url:
@@ -499,6 +510,9 @@ def setup_dependencies(component: "WebUIBackendComponent", database_url: str = N
     _setup_middleware(component)
     _setup_routers()
     _setup_static_files()
+    
+    _dependencies_initialized = True
+    log.info("[setup_dependencies] Dependencies initialization complete")
 
 
 def _setup_middleware(component: "WebUIBackendComponent") -> None:
