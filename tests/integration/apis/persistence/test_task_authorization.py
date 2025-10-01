@@ -9,14 +9,41 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import sessionmaker
 
-from tests.integration.apis.persistence.test_task_history_api import (
-    _create_task_and_get_ids,
-)
+from solace_agent_mesh.gateway.http_sse.repository.models import TaskModel
+from solace_agent_mesh.gateway.http_sse.shared import now_epoch_ms
+
+
+def _create_task_directly_in_db(db_engine, task_id: str, user_id: str, message: str):
+    """
+    Creates a task record directly in the database, bypassing the API.
+    This avoids race conditions with the automatic TaskLoggerService.
+    
+    Args:
+        db_engine: SQLAlchemy engine for the test database
+        task_id: The task ID to create
+        user_id: The user ID who owns this task
+        message: The initial request text for the task
+    """
+    Session = sessionmaker(bind=db_engine)
+    db_session = Session()
+    try:
+        new_task = TaskModel(
+            id=task_id,
+            user_id=user_id,
+            start_time=now_epoch_ms(),
+            initial_request_text=message,
+            status="completed",  # Set as completed for query tests
+        )
+        db_session.add(new_task)
+        db_session.commit()
+    finally:
+        db_session.close()
 
 
 @pytest.fixture
-def multi_user_task_auth_setup(test_app):
+def multi_user_task_auth_setup(test_app, test_db_engine):
     """
     Creates multiple test clients with different user authentications and configs
     for testing task authorization.
@@ -78,47 +105,19 @@ def multi_user_task_auth_setup(test_app):
     )
 
 
-def _log_task_creation(task_id: str, user_id: str, message: str):
-    """Helper to manually log a task creation event with a specific user ID."""
-    from solace_agent_mesh.gateway.http_sse import dependencies
-
-    task_logger_service = dependencies.sac_component_instance.get_task_logger_service()
-    request_payload = {
-        "jsonrpc": "2.0",
-        "id": task_id,
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": message}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    mock_event_data = {
-        "topic": f"test_namespace/a2a/v1/agent/request/TestAgent",
-        "payload": request_payload,
-        "user_properties": {"userId": user_id},
-    }
-    task_logger_service.log_event(mock_event_data)
-
-
-def test_task_list_is_isolated_by_user(multi_user_task_auth_setup):
+def test_task_list_is_isolated_by_user(multi_user_task_auth_setup, test_db_engine):
     """
     Tests that users can only see their own tasks in the list view.
     Corresponds to Test Plan 4.1.
     """
     user_a_client, user_b_client, _ = multi_user_task_auth_setup
 
-    # User A creates a task
-    task_a_id, _ = _create_task_and_get_ids(user_a_client, "Task for user A")
-    _log_task_creation(task_a_id, "user_a", "Task for user A")
-
-    # User B creates a task
-    task_b_id, _ = _create_task_and_get_ids(user_b_client, "Task for user B")
-    _log_task_creation(task_b_id, "user_b", "Task for user B")
+    # Create tasks directly in the database with specific user IDs
+    task_a_id = f"task-user-a-{uuid.uuid4().hex[:8]}"
+    task_b_id = f"task-user-b-{uuid.uuid4().hex[:8]}"
+    
+    _create_task_directly_in_db(test_db_engine, task_a_id, "user_a", "Task for user A")
+    _create_task_directly_in_db(test_db_engine, task_b_id, "user_b", "Task for user B")
 
     # User A lists tasks, should only see their own
     response_a = user_a_client.get("/api/v1/tasks")
@@ -137,16 +136,16 @@ def test_task_list_is_isolated_by_user(multi_user_task_auth_setup):
     assert tasks_b[0]["user_id"] == "user_b"
 
 
-def test_task_detail_is_isolated_by_user(multi_user_task_auth_setup):
+def test_task_detail_is_isolated_by_user(multi_user_task_auth_setup, test_db_engine):
     """
     Tests that a user cannot retrieve the details of another user's task.
     Corresponds to Test Plan 4.2.
     """
     user_a_client, user_b_client, _ = multi_user_task_auth_setup
 
-    # User A creates a task
-    task_a_id, _ = _create_task_and_get_ids(user_a_client, "Private task for user A")
-    _log_task_creation(task_a_id, "user_a", "Private task for user A")
+    # Create a task directly in the database for user A
+    task_a_id = f"task-private-a-{uuid.uuid4().hex[:8]}"
+    _create_task_directly_in_db(test_db_engine, task_a_id, "user_a", "Private task for user A")
 
     # User A can get their own task details
     response_a = user_a_client.get(f"/api/v1/tasks/{task_a_id}")
@@ -159,18 +158,19 @@ def test_task_detail_is_isolated_by_user(multi_user_task_auth_setup):
     assert "You do not have permission to view this task" in response_b.json()["detail"]
 
 
-def test_admin_can_query_all_tasks(multi_user_task_auth_setup):
+def test_admin_can_query_all_tasks(multi_user_task_auth_setup, test_db_engine):
     """
     Tests that a user with 'tasks:read:all' scope can view all tasks.
     Corresponds to Test Plan 4.3.
     """
     user_a_client, user_b_client, admin_client = multi_user_task_auth_setup
 
-    # Create tasks for user A and B
-    task_a_id, _ = _create_task_and_get_ids(user_a_client, "User A task for admin view")
-    _log_task_creation(task_a_id, "user_a", "User A task for admin view")
-    task_b_id, _ = _create_task_and_get_ids(user_b_client, "User B task for admin view")
-    _log_task_creation(task_b_id, "user_b", "User B task for admin view")
+    # Create tasks directly in the database for user A and B
+    task_a_id = f"task-admin-a-{uuid.uuid4().hex[:8]}"
+    task_b_id = f"task-admin-b-{uuid.uuid4().hex[:8]}"
+    
+    _create_task_directly_in_db(test_db_engine, task_a_id, "user_a", "User A task for admin view")
+    _create_task_directly_in_db(test_db_engine, task_b_id, "user_b", "User B task for admin view")
 
     # Admin queries for all tasks (by not specifying a user_id)
     response_all = admin_client.get("/api/v1/tasks")
