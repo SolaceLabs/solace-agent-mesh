@@ -37,6 +37,7 @@ from solace_agent_mesh.gateway.http_sse.services.task_logger_service import (
     TaskLoggerService,
 )
 from solace_agent_mesh.core_a2a.service import CoreA2AService
+from solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager
 from sqlalchemy.orm import sessionmaker
 
 
@@ -183,6 +184,10 @@ def mock_component(test_database_engine):
     
     mock_core_a2a_service.cancel_task = mock_cancel_task
     component.get_core_a2a_service.return_value = mock_core_a2a_service
+
+    # Create a mock SSEManager instance for task service tests
+    mock_sse_manager = Mock(spec=SSEManager)
+    component.get_sse_manager.return_value = mock_sse_manager
 
     print("[API Tests] Mock component created")
     yield component
