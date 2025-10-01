@@ -122,6 +122,7 @@ export interface MessageFE {
         url: string;
         text: string;
         targetAgent?: string;
+        gatewayTaskId?: string;
     };
     metadata?: {
         // Optional metadata, e.g., for feedback or correlation

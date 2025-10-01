@@ -8,6 +8,7 @@ import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
 import type { FileAttachment, MessageFE, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
+import { authenticatedFetch } from "@/lib/utils/api";
 
 import { FileAttachmentMessage, FileMessage } from "./file/FileMessage";
 import { ContentRenderer } from "./preview/ContentRenderer";
@@ -49,11 +50,43 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
             }
         };
 
-        const handleRejectClick = () => {
+        const handleRejectClick = async () => {
             if (isActionTaken) return; // Prevent multiple clicks
             
+            const gatewayTaskId = message.authenticationLink?.gatewayTaskId;
+            if (!gatewayTaskId) {
+                console.error("No gateway_task_id available for rejection");
+                setIsActionTaken(true);
+                return;
+            }
+            
             setIsActionTaken(true);
-            console.log("Authentication rejected");
+            
+            try {
+                const response = await authenticatedFetch(`/api/v1/tasks/${gatewayTaskId}:cancel`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        jsonrpc: "2.0",
+                        method: "tasks/cancel",
+                        params: {
+                            id: gatewayTaskId,
+                        },
+                        id: Date.now(),
+                    }),
+                    credentials: "include",
+                });
+                
+                if (response.ok) {
+                    console.log("Authentication rejected successfully");
+                } else {
+                    console.error("Failed to reject authentication:", response.status, response.statusText);
+                }
+            } catch (error) {
+                console.error("Error rejecting authentication:", error);
+            }
         };
 
         const targetAgent = message.authenticationLink.targetAgent || "Agent";

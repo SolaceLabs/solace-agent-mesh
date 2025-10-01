@@ -447,6 +447,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 case "authentication_required": {
                                     const auth_uri = data?.auth_uri;
                                     const target_agent = typeof data?.target_agent === "string" ? data.target_agent : "Agent";
+                                    const gateway_task_id = typeof data?.gateway_task_id === "string" ? data.gateway_task_id : undefined;
                                     if (typeof auth_uri === "string" && auth_uri.startsWith("http")) {
                                         const authMessage: MessageFE = {
                                             role: "agent",
@@ -454,7 +455,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                             authenticationLink: {
                                                 url: auth_uri,
                                                 text: "Click to Authenticate",
-                                                targetAgent: target_agent
+                                                targetAgent: target_agent,
+                                                gatewayTaskId: gateway_task_id
                                             },
                                             isUser: false,
                                             isComplete: true,
