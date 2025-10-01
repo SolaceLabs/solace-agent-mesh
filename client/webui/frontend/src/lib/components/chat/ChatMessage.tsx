@@ -19,7 +19,7 @@ const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
 
 const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
-    const [isAuthClicked, setIsAuthClicked] = useState(false);
+    const [isActionTaken, setIsActionTaken] = useState(false);
     
     if (message.isStatusBubble) {
         return null;
@@ -36,9 +36,9 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
     // Handle authentication link FIRST (before checking for empty text)
     if (message.authenticationLink) {
         const handleAuthClick = () => {
-            if (isAuthClicked) return; // Prevent multiple clicks
+            if (isActionTaken) return; // Prevent multiple clicks
             
-            setIsAuthClicked(true);
+            setIsActionTaken(true);
             const popup = window.open(
                 message.authenticationLink!.url,
                 "_blank",
@@ -50,6 +50,9 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
         };
 
         const handleRejectClick = () => {
+            if (isActionTaken) return; // Prevent multiple clicks
+            
+            setIsActionTaken(true);
             console.log("Authentication rejected");
         };
 
@@ -68,20 +71,25 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
                 <div className="flex space-x-3">
                     <button
                         onClick={handleRejectClick}
-                        className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                        disabled={isActionTaken}
+                        className={`flex-1 px-4 py-2 text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                            isActionTaken
+                                ? "text-gray-400 bg-gray-100 dark:bg-gray-700 dark:text-gray-500 border border-gray-200 dark:border-gray-600 cursor-not-allowed"
+                                : "text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-gray-500"
+                        }`}
                     >
-                        Reject
+                        {isActionTaken ? "Rejected" : "Reject"}
                     </button>
                     <button
                         onClick={handleAuthClick}
-                        disabled={isAuthClicked}
+                        disabled={isActionTaken}
                         className={`flex-1 px-4 py-2 text-sm font-medium text-white rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                            isAuthClicked
+                            isActionTaken
                                 ? "bg-gray-400 cursor-not-allowed"
                                 : "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500"
                         }`}
                     >
-                        {isAuthClicked ? "Authentication Window Opened" : message.authenticationLink.text}
+                        {isActionTaken ? "Authentication Window Opened" : message.authenticationLink.text}
                     </button>
                 </div>
             </div>
