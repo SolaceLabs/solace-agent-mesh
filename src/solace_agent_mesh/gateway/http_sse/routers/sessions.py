@@ -244,14 +244,10 @@ async def update_session_name(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
             )
 
-        request_dto = UpdateSessionRequest(
-            session_id=session_id, user_id=user_id, name=name
-        )
-
         updated_domain = session_service.update_session_name(
-            session_id=request_dto.session_id,
-            user_id=request_dto.user_id,
-            name=request_dto.name,
+            session_id=session_id,
+            user_id=user_id,
+            name=name,
         )
 
         if not updated_domain:
