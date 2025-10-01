@@ -407,6 +407,7 @@ async def cancel_agent_task(
     """
     Sends a cancellation request for a specific task to the specified agent.
     Returns 202 Accepted, as cancellation is asynchronous.
+    Returns 404 if the task context is not found.
     """
     log_prefix = f"[POST /api/v1/tasks/{taskId}:cancel] "
     log.info("%sReceived cancellation request.", log_prefix)
@@ -419,6 +420,11 @@ async def cancel_agent_task(
 
     context = component.task_context_manager.get_context(taskId)
     if not context:
+        log.warning(
+            "%sNo active task context found for task ID: %s",
+            log_prefix,
+            taskId,
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No active task context found for task ID: {taskId}",
