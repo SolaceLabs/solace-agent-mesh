@@ -444,8 +444,8 @@ def test_error_recovery_workflow(api_client: TestClient):
     response = api_client.get("/api/v1/sessions/nonexistent_session")
     assert response.status_code == 404
 
-    # Try to send task with invalid data
-    response = api_client.post("/api/v1/tasks/send", data={})
+    # Try to send task with invalid data (empty JSON-RPC payload)
+    response = api_client.post("/api/v1/message:send", json={})
     assert response.status_code == 422
 
     # Try to cancel non-existent task
