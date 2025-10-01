@@ -89,7 +89,7 @@ sam plugin create my-plugin --author-name "John Doe" --author-email "john@exampl
 - `__PLUGIN_AUTHOR_EMAIL__` - Author's email
 - `__PLUGIN_DESCRIPTION__` - Plugin description
 - `__PLUGIN_VERSION__` - Plugin version
-- `__SAM_VERSION__` - CLI version
+
 
 #### `add_plugin_component_cmd`
 ```python

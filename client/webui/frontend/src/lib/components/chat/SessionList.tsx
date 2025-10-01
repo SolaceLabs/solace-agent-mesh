@@ -46,33 +46,36 @@ export const SessionList: React.FC = () => {
         triggerOnce: false,
     });
 
-    const fetchSessions = useCallback(async (pageNumber: number = 1, append: boolean = false) => {
-        setIsLoading(true);
-        const pageSize = 20;
-        const url = `${configServerUrl}/api/v1/sessions?pageNumber=${pageNumber}&pageSize=${pageSize}`;
-        try {
-            const response = await authenticatedFetch(url);
-            if (response.ok) {
-                const result: PaginatedSessionsResponse = await response.json();
+    const fetchSessions = useCallback(
+        async (pageNumber: number = 1, append: boolean = false) => {
+            setIsLoading(true);
+            const pageSize = 20;
+            const url = `${configServerUrl}/api/v1/sessions?pageNumber=${pageNumber}&pageSize=${pageSize}`;
+            try {
+                const response = await authenticatedFetch(url);
+                if (response.ok) {
+                    const result: PaginatedSessionsResponse = await response.json();
 
-                if (append) {
-                    setSessions(prev => [...prev, ...result.data]);
+                    if (append) {
+                        setSessions(prev => [...prev, ...result.data]);
+                    } else {
+                        setSessions(result.data);
+                    }
+
+                    // Use metadata to determine if there are more pages
+                    setHasMore(result.meta.pagination.nextPage !== null);
+                    setCurrentPage(pageNumber);
                 } else {
-                    setSessions(result.data);
+                    console.error(`Failed to fetch sessions: ${response.status} ${response.statusText}`);
                 }
-
-                // Use metadata to determine if there are more pages
-                setHasMore(result.meta.pagination.nextPage !== null);
-                setCurrentPage(pageNumber);
-            } else {
-                console.error(`Failed to fetch sessions: ${response.status} ${response.statusText}`);
+            } catch (error) {
+                console.error("An error occurred while fetching sessions:", error);
+            } finally {
+                setIsLoading(false);
             }
-        } catch (error) {
-            console.error("An error occurred while fetching sessions:", error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [configServerUrl]);
+        },
+        [configServerUrl]
+    );
 
     useEffect(() => {
         fetchSessions(1, false);

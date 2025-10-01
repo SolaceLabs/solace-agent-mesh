@@ -18,7 +18,6 @@ description = "__PLUGIN_DESCRIPTION__"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "solace_agent_mesh~=__SAM_VERSION__",
     # Add plugin-specific dependencies here
 ]
 
