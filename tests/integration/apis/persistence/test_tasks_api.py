@@ -43,22 +43,36 @@ def test_send_non_streaming_task(api_client: TestClient):
 
 
 def test_send_streaming_task(api_client: TestClient):
-    """Test POST /tasks/subscribe for streaming task submission"""
+    """Test POST /message:stream for streaming task submission"""
 
-    task_data = {"agent_name": "TestAgent", "message": "Start streaming conversation"}
+    # Use the new A2A-compliant JSON-RPC format
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": "test-req-002",
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": "test-msg-002",
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Start streaming conversation"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
 
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
 
     assert response.status_code == 200
     response_data = response.json()
 
     # Verify JSONRPC response format
     assert "result" in response_data
-    assert "taskId" in response_data["result"]
-    assert "sessionId" in response_data["result"]
+    assert "id" in response_data["result"]
+    assert "contextId" in response_data["result"]
 
-    task_id = response_data["result"]["taskId"]
-    session_id = response_data["result"]["sessionId"]
+    task_id = response_data["result"]["id"]
+    session_id = response_data["result"]["contextId"]
 
     assert task_id == "test-task-id"
     assert session_id is not None
