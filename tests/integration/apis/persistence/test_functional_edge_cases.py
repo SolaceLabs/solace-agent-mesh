@@ -440,10 +440,25 @@ def test_error_recovery_after_database_constraints(api_client: TestClient):
     """Test error recovery scenarios involving database constraints"""
 
     # Create a session
-    task_data = {"agent_name": "TestAgent", "message": "Database constraint test"}
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    import uuid
+    
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Database constraint test"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response.status_code == 200
-    session_id = response.json()["result"]["sessionId"]
+    session_id = response.json()["result"]["contextId"]
 
     # Try various operations that might trigger constraint issues
     test_operations = [
