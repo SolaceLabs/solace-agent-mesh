@@ -220,7 +220,7 @@ class TestResourceLimits:
         user_sessions = simple_database_inspector.get_gateway_sessions(user_id)
         assert len(user_sessions) == session_count
 
-        # Test session retrieval performance
+        # Test session retrieval
         session_list = simple_gateway_adapter.list_sessions(user_id)
         assert len(session_list) == session_count
 

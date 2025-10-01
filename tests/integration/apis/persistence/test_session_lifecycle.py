@@ -15,7 +15,7 @@ def test_get_all_sessions_empty(api_client: TestClient):
     assert response.status_code == 200
     response_data = response.json()
     assert response_data["sessions"] == []
-    assert response_data["total_count"] == 0
+    assert response_data["totalCount"] == 0
 
     print("✓ GET /sessions returns empty list when no sessions exist")
 
@@ -68,7 +68,7 @@ def test_multiple_sessions_via_tasks(api_client: TestClient):
     sessions_data = sessions_response.json()
     sessions = sessions_data["sessions"]
     assert len(sessions) == 2
-    assert sessions_data["total_count"] == 2
+    assert sessions_data["totalCount"] == 2
 
     # Verify session IDs and agents
     session_ids = {s["id"] for s in sessions}
@@ -252,6 +252,6 @@ def test_end_to_end_session_workflow(api_client: TestClient):
     assert sessions_response.status_code == 200
     sessions_data = sessions_response.json()
     assert len(sessions_data["sessions"]) == 0
-    assert sessions_data["total_count"] == 0
+    assert sessions_data["totalCount"] == 0
 
     print("✓ Complete end-to-end session workflow successful")
