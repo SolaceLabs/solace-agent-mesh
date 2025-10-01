@@ -73,9 +73,9 @@ def multi_user_task_auth_setup(test_app):
 
     # Cleanup: restore original dependencies
     test_app.dependency_overrides[dependencies.get_user_id] = original_get_user_id
-    test_app.dependency_overrides[
-        dependencies.get_user_config
-    ] = original_get_user_config
+    test_app.dependency_overrides[dependencies.get_user_config] = (
+        original_get_user_config
+    )
 
 
 def _log_task_creation(task_id: str, user_id: str, message: str):
