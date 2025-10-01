@@ -390,7 +390,7 @@ def test_message_ordering_consistency_under_load(api_client: TestClient):
     assert history_response.status_code == 200
     history = history_response.json()
 
-    user_messages = [msg for msg in history if msg["sender_type"] == "user"]
+    user_messages = [msg for msg in history if msg["senderType"] == "user"]
     assert len(user_messages) >= 21  # Initial + 20 sequential messages
 
     # Verify the first and last few messages are in correct order
