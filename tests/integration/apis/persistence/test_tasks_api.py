@@ -81,24 +81,124 @@ def test_send_streaming_task(api_client: TestClient):
     print(f"✓ Streaming task submitted with session {session_id}")
 
 
-@pytest.mark.skip(reason="File upload endpoint not yet implemented for A2A JSON-RPC format. Files need to be base64-encoded in JSON or handled via separate endpoint.")
-def test_send_task_with_files(api_client: TestClient):
-    """Test POST /message:stream with file uploads"""
+def test_send_task_with_small_file_inline(api_client: TestClient):
+    """Test POST /message:stream with small file inline as base64 (< 1MB)"""
+    import base64
 
-    # Create test files
-    test_file_1 = io.BytesIO(b"Test file content 1")
-    test_file_2 = io.BytesIO(b"Test file content 2")
+    # Create a small test file (matches frontend behavior for files < 1MB)
+    small_content = b"This is a small test file content that will be sent inline."
+    base64_content = base64.b64encode(small_content).decode('utf-8')
 
-    files = [
-        ("files", ("test1.txt", test_file_1, "text/plain")),
-        ("files", ("test2.txt", test_file_2, "text/plain")),
-    ]
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": "test-req-small-file",
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": "test-msg-small-file",
+                "kind": "message",
+                "parts": [
+                    {"kind": "text", "text": "Please process this small file"},
+                    {
+                        "kind": "file",
+                        "file": {
+                            "bytes": base64_content,
+                            "name": "small_test.txt",
+                            "mimeType": "text/plain"
+                        }
+                    }
+                ],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
 
-    # TODO: Implement file upload handling for A2A JSON-RPC endpoints
-    # Files would need to be base64-encoded in the JSON payload or handled through a separate endpoint
-    # The old /api/v1/tasks/subscribe endpoint with multipart form data no longer exists
-    
-    print("✓ Test skipped - file upload endpoint needs to be implemented for new A2A format")
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
+
+    assert response.status_code == 200
+    response_data = response.json()
+
+    assert "result" in response_data
+    assert "id" in response_data["result"]
+    assert "contextId" in response_data["result"]
+
+    print("✓ Small file sent inline successfully")
+
+
+def test_send_task_with_large_file_via_artifacts(api_client: TestClient):
+    """Test POST /message:stream with large file uploaded via artifacts endpoint first (≥ 1MB)"""
+
+    # Step 1: Create a session first (frontend creates session on-demand)
+    initial_task_payload = {
+        "jsonrpc": "2.0",
+        "id": "test-req-create-session",
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": "test-msg-create-session",
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Creating session for file upload"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+
+    session_response = api_client.post("/api/v1/message:stream", json=initial_task_payload)
+    assert session_response.status_code == 200
+    session_id = session_response.json()["result"]["contextId"]
+
+    # Step 2: Upload large file to artifacts endpoint (matches frontend for files ≥ 1MB)
+    large_content = b"x" * (2 * 1024 * 1024)  # 2MB file
+    files = {"upload_file": ("large_test.bin", io.BytesIO(large_content), "application/octet-stream")}
+
+    upload_response = api_client.post(
+        f"/api/v1/artifacts/{session_id}/large_test.bin",
+        files=files
+    )
+    assert upload_response.status_code == 201
+    upload_result = upload_response.json()
+    artifact_uri = upload_result["uri"]
+    assert artifact_uri is not None
+
+    # Step 3: Submit task with artifact URI reference
+    task_with_artifact_payload = {
+        "jsonrpc": "2.0",
+        "id": "test-req-large-file",
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": "test-msg-large-file",
+                "kind": "message",
+                "parts": [
+                    {"kind": "text", "text": "Please process this large file"},
+                    {
+                        "kind": "file",
+                        "file": {
+                            "uri": artifact_uri,
+                            "name": "large_test.bin",
+                            "mimeType": "application/octet-stream"
+                        }
+                    }
+                ],
+                "metadata": {"agent_name": "TestAgent"},
+                "contextId": session_id
+            }
+        },
+    }
+
+    response = api_client.post("/api/v1/message:stream", json=task_with_artifact_payload)
+
+    assert response.status_code == 200
+    response_data = response.json()
+
+    assert "result" in response_data
+    assert "id" in response_data["result"]
+    assert response_data["result"]["contextId"] == session_id
+
+    print(f"✓ Large file uploaded via artifacts and referenced in task successfully")
 
 
 def test_send_task_to_existing_session(api_client: TestClient):
