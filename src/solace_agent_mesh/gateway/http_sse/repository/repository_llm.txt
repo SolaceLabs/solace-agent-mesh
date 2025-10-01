@@ -58,7 +58,7 @@ The repository directory implements the data access layer for the HTTP SSE gatew
   - `save_event(event: TaskEvent) -> TaskEvent` - Save a task event
   - `find_by_id(task_id: str) -> Task | None` - Find a task by its ID
   - `find_by_id_with_events(task_id: str) -> tuple[Task, list[TaskEvent]] | None` - Find a task with all its events
-  - `search(user_id: UserId, start_date: int | None = None, end_date: int | None = None, search_query: str | None = None, pagination: PaginationInfo | None = None) -> list[Task]` - Search for tasks with filters
+  - `search(user_id: UserId, start_date: int | None = None, end_date: int | None = None, search_query: str | None = None, pagination: PaginationParams | None = None) -> list[Task]` - Search for tasks with filters
 
 - `IFeedbackRepository(ABC)` - Abstract interface for feedback data operations
   - `save(feedback: Feedback) -> Feedback` - Save feedback
@@ -111,7 +111,7 @@ The repository directory implements the data access layer for the HTTP SSE gatew
   - `save_event(event: TaskEvent) -> TaskEvent` - Save a task event
   - `find_by_id(task_id: str) -> Task | None` - Find a task by its ID
   - `find_by_id_with_events(task_id: str) -> tuple[Task, list[TaskEvent]] | None` - Find a task with all its events
-  - `search(user_id: UserId, start_date: int | None = None, end_date: int | None = None, search_query: str | None = None, pagination: PaginationInfo | None = None) -> list[Task]` - Search for tasks with filters
+  - `search(user_id: UserId, start_date: int | None = None, end_date: int | None = None, search_query: str | None = None, pagination: PaginationParams | None = None) -> list[Task]` - Search for tasks with filters
   - `_task_model_to_entity(model: TaskModel) -> Task` - Convert SQLAlchemy task model to domain entity
   - `_event_model_to_entity(model: TaskEventModel) -> TaskEvent` - Convert SQLAlchemy event model to domain entity
 
@@ -350,4 +350,4 @@ class ChatService:
 # Usage with dependency injection
 chat_service = ChatService(session_repo, message_repo, task_
 
-# content_hash: 418ee9be8ea5c4c7d698aa271c0bf892a046234009288f4bd43ca71a8a1b75a7
+# content_hash: dc446df0b17032af46e4d755343db0c2405a92335796bcef6469c6bfb18fd78e

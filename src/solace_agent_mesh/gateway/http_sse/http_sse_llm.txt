@@ -257,4 +257,6 @@ async def my_custom_endpoint(
         user_properties={"clientId": user_id}
     )
 
-# content_hash: dba213abef11ed3db4dc2fed21bd1e02457fa3726423d417d21efed8eacbff91
+    return
+
+# content_hash: 36fae7ae6baa594185caf1a73710ca34cd626e1b3ea33f6a662bd08991e7196c

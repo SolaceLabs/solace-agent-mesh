@@ -5284,7 +5284,7 @@ async def get_session_info(request: Request):
 import asyncio
 from solace_agent_mesh.gateway.slack
 
-# content_hash: 81ec97e884b4226686ee2d712e696e0b3ef6bbd2e89357423fdc963403139f01
+# content_hash: 557a66a1a22e51d219e219bb67dd3f7270ecb0cf4dee29ebf41ce03401f95c60
 
 ================================================================================
 
@@ -6069,7 +6069,9 @@ async def my_custom_endpoint(
         user_properties={"clientId": user_id}
     )
 
-# content_hash: dba213abef11ed3db4dc2fed21bd1e02457fa3726423d417d21efed8eacbff91
+    return
+
+# content_hash: 36fae7ae6baa594185caf1a73710ca34cd626e1b3ea33f6a662bd08991e7196c
 
 ================================================================================
 
@@ -6630,7 +6632,7 @@ The repository directory implements the data access layer for the HTTP SSE gatew
   - `save_event(event: TaskEvent) -> TaskEvent` - Save a task event
   - `find_by_id(task_id: str) -> Task | None` - Find a task by its ID
   - `find_by_id_with_events(task_id: str) -> tuple[Task, list[TaskEvent]] | None` - Find a task with all its events
-  - `search(user_id: UserId, start_date: int | None = None, end_date: int | None = None, search_query: str | None = None, pagination: PaginationInfo | None = None) -> list[Task]` - Search for tasks with filters
+  - `search(user_id: UserId, start_date: int | None = None, end_date: int | None = None, search_query: str | None = None, pagination: PaginationParams | None = None) -> list[Task]` - Search for tasks with filters
 
 - `IFeedbackRepository(ABC)` - Abstract interface for feedback data operations
   - `save(feedback: Feedback) -> Feedback` - Save feedback
@@ -6683,7 +6685,7 @@ The repository directory implements the data access layer for the HTTP SSE gatew
   - `save_event(event: TaskEvent) -> TaskEvent` - Save a task event
   - `find_by_id(task_id: str) -> Task | None` - Find a task by its ID
   - `find_by_id_with_events(task_id: str) -> tuple[Task, list[TaskEvent]] | None` - Find a task with all its events
-  - `search(user_id: UserId, start_date: int | None = None, end_date: int | None = None, search_query: str | None = None, pagination: PaginationInfo | None = None) -> list[Task]` - Search for tasks with filters
+  - `search(user_id: UserId, start_date: int | None = None, end_date: int | None = None, search_query: str | None = None, pagination: PaginationParams | None = None) -> list[Task]` - Search for tasks with filters
   - `_task_model_to_entity(model: TaskModel) -> Task` - Convert SQLAlchemy task model to domain entity
   - `_event_model_to_entity(model: TaskEventModel) -> TaskEvent` - Convert SQLAlchemy event model to domain entity
 
@@ -6922,7 +6924,7 @@ class ChatService:
 # Usage with dependency injection
 chat_service = ChatService(session_repo, message_repo, task_
 
-# content_hash: 418ee9be8ea5c4c7d698aa271c0bf892a046234009288f4bd43ca71a8a1b75a7
+# content_hash: dc446df0b17032af46e4d755343db0c2405a92335796bcef6469c6bfb18fd78e
 
 ================================================================================
 
@@ -7728,7 +7730,7 @@ async def list_artifact_versions(session_id: str, filename: str):
 # Download specific artifact version
 async def download_
 
-# content_hash: 9d7abd6933b70947b59623f9ebeb81341a5daf2349dfdd041daa5d21ad06ba45
+# content_hash: 64b32e6d1d18dfcdecbe01d26324885e24f6abc4d8092a52493b339c8cb13872
 
 ================================================================================
 
@@ -7997,7 +7999,7 @@ async def cancel_task_example():
 asyncio.run(cancel_task_example())
 ```
 
-# content_hash: d5e3d77375414ebfa8e9b2cb06ccad09255d71862218179fcb551b7f597134dc
+# content_hash: 5d54e645e210c6ee2688b40e5feae5b491bdfebfbc538778c8634a1664b1b65d
 
 ================================================================================
 
@@ -8114,6 +8116,9 @@ timestamp = iso8601_to_epoch_ms("2024-01-01T00:00:00Z")
 - `LegacyTimestamp(BaseModel)` - Legacy datetime-based timestamps (deprecated)
   - `created_at: datetime` - Creation datetime
   - `updated_at: datetime | None` - Update datetime
+- `PaginationParams(BaseModel)` - Pagination parameters for list requests
+  - `page: int` - Current page number
+  - `page_size: int` - Items per page
 - `PaginationInfo(BaseModel)` - Pagination information for list responses
   - `page: int` - Current page number
   - `page_size: int` - Items per page
@@ -8156,7 +8161,7 @@ pagination = PaginationInfo(
 sort = SortInfo(field="created_time", direction="desc")
 ```
 
-# content_hash: e3c0756d7fb614fa9afa3e8c5d73989abaf69313cdb6650d3a957980eb4d3849
+# content_hash: 0e01d8b44ce0551cbe4260bd0f70e83c8fb4eeb696c696109fc2a97642e59df6
 
 ================================================================================
 

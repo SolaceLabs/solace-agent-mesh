@@ -107,6 +107,9 @@ timestamp = iso8601_to_epoch_ms("2024-01-01T00:00:00Z")
 - `LegacyTimestamp(BaseModel)` - Legacy datetime-based timestamps (deprecated)
   - `created_at: datetime` - Creation datetime
   - `updated_at: datetime | None` - Update datetime
+- `PaginationParams(BaseModel)` - Pagination parameters for list requests
+  - `page: int` - Current page number
+  - `page_size: int` - Items per page
 - `PaginationInfo(BaseModel)` - Pagination information for list responses
   - `page: int` - Current page number
   - `page_size: int` - Items per page
@@ -149,4 +152,4 @@ pagination = PaginationInfo(
 sort = SortInfo(field="created_time", direction="desc")
 ```
 
-# content_hash: e3c0756d7fb614fa9afa3e8c5d73989abaf69313cdb6650d3a957980eb4d3849
+# content_hash: 0e01d8b44ce0551cbe4260bd0f70e83c8fb4eeb696c696109fc2a97642e59df6
