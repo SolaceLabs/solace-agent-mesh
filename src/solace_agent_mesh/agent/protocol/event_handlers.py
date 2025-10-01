@@ -150,6 +150,9 @@ async def process_event(component, event: Event):
             )
             if timer_data.get("timer_id") == component._card_publish_timer_id:
                 publish_agent_card(component)
+            else:
+                # Handle other timer events including health check timer
+                component.handle_timer_event(timer_data)
         elif event.event_type == EventType.CACHE_EXPIRY:
             # Delegate cache expiry handling to the component itself.
             await component.handle_cache_expiry_event(event.data)
@@ -807,19 +810,24 @@ def handle_agent_card_message(component, message: SolaceMessage):
                     break
 
         if is_allowed:
-            # Store the agent card with health tracking
-            # Set the current time as the last_seen timestamp
-            agent_card.last_seen = time.time()
-            # Initialize or reset the retry count
-            agent_card.retry_count = 0
-            # Store the agent card in the peer_agents dictionary
+            # Store the agent card in the registry for health tracking
+            is_new = component.agent_registry.add_or_update_agent(agent_card)
+            
+            # Also store in peer_agents for backward compatibility
             component.peer_agents[agent_name] = agent_card
             
-            log.debug(
-                "%s Updated agent card for '%s' with health tracking information.",
-                component.log_identifier,
-                agent_name,
-            )
+            if is_new:
+                log.info(
+                    "%s Registered new agent '%s' in registry.",
+                    component.log_identifier,
+                    agent_name,
+                )
+            else:
+                log.debug(
+                    "%s Updated existing agent '%s' in registry.",
+                    component.log_identifier,
+                    agent_name,
+                )
 
         message.call_acknowledgements()
 

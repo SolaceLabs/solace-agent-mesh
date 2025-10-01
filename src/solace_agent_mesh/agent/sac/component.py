@@ -129,6 +129,10 @@ class SamAgentComponent(SamComponentBase):
         super().__init__(info, **kwargs)
         self.agent_name = self.get_config("agent_name")
         log.info("%s Initializing A2A ADK Host Component...", self.log_identifier)
+        
+        # Initialize the agent registry for health tracking
+        from ...common.agent_registry import AgentRegistry
+        self.agent_registry = AgentRegistry()
         try:
             self.namespace = self.get_config("namespace")
             if not self.namespace:
@@ -237,7 +241,7 @@ class SamAgentComponent(SamComponentBase):
         self.adk_agent: LlmAgent = None
         self.runner: Runner = None
         self.agent_card_tool_manifest: List[Dict[str, Any]] = []
-        self.peer_agents: Dict[str, Any] = {}
+        self.peer_agents: Dict[str, Any] = {}  # Keep for backward compatibility
         self._card_publish_timer_id: str = f"publish_card_{self.agent_name}"
         self._async_init_future = None
         self.peer_response_queues: Dict[str, asyncio.Queue] = {}
@@ -427,7 +431,7 @@ class SamAgentComponent(SamComponentBase):
                 
             # Set up health check timer if enabled
             if self.agent_discovery_config.get("health_check_enabled", True):
-                health_check_interval_seconds = self.agent_discovery_config.get("health_check_interval_seconds", 60)
+                health_check_interval_seconds = self.agent_discovery_config.get("health_check_interval_seconds", 10)
                 if health_check_interval_seconds > 0:
                     log.info(
                         "%s Scheduling agent health check every %d seconds.",
@@ -3163,9 +3167,8 @@ class SamAgentComponent(SamComponentBase):
             
         log.debug("%s Performing agent health check...", self.log_identifier)
         
-        current_time = time.time()
-        health_check_interval = self.agent_discovery_config.get("health_check_interval_seconds", 60)
-        max_retries = self.agent_discovery_config.get("health_check_max_retries", 30)
+        health_check_interval = self.agent_discovery_config.get("health_check_interval_seconds", 10)
+        max_retries = self.agent_discovery_config.get("health_check_max_retries", 1)
         
         log.debug(
             "%s Health check configuration: interval=%d seconds, max_retries=%d",
@@ -3174,49 +3177,37 @@ class SamAgentComponent(SamComponentBase):
             max_retries
         )
         
-        # Create a list of agents to de-register to avoid modifying the dictionary during iteration
-        agents_to_deregister = []
-        total_agents = len(self.peer_agents)
+        # Get all agent names from the registry
+        agent_names = self.agent_registry.get_agent_names()
+        total_agents = len(agent_names)
         unresponsive_agents = 0
+        agents_to_deregister = []
         
         log.debug("%s Checking health of %d peer agents", self.log_identifier, total_agents)
         
-        for agent_name, agent_card in list(self.peer_agents.items()):
+        for agent_name in agent_names:
             # Skip our own agent
             if agent_name == self.agent_name:
                 continue
                 
-            # Check if the agent has a last_seen timestamp
-            last_seen = getattr(agent_card, "last_seen", None)
+            # Get the last seen timestamp for this agent
+            last_seen = self.agent_registry.get_last_seen(agent_name)
             if last_seen is None:
-                # If no last_seen timestamp, set it to the current time
-                agent_card.last_seen = current_time
                 log.debug(
-                    "%s Agent '%s' has no last_seen timestamp. Initializing to current time.",
+                    "%s Agent '%s' has no last_seen timestamp. Skipping health check.",
                     self.log_identifier,
                     agent_name
                 )
                 continue
                 
             # Check if the agent has been unresponsive for too long
+            current_time = time.time()
             time_since_last_seen = current_time - last_seen
             if time_since_last_seen > health_check_interval:
                 unresponsive_agents += 1
-                # Get the current retry count
-                retry_count = getattr(agent_card, "retry_count", 0)
                 
-                # Increment the retry count
-                retry_count += 1
-                agent_card.retry_count = retry_count
-                
-                log.info(
-                    "%s Agent '%s' has been unresponsive for %d seconds. Retry count: %d/%d",
-                    self.log_identifier,
-                    agent_name,
-                    int(time_since_last_seen),
-                    retry_count,
-                    max_retries
-                )
+                # Increment the retry count using the registry method
+                retry_count = self.agent_registry.increment_retry_count(agent_name)
                 
                 # Check if the agent has exceeded the retry limit
                 if retry_count >= max_retries:
@@ -3228,17 +3219,7 @@ class SamAgentComponent(SamComponentBase):
                         int(time_since_last_seen)
                     )
                     agents_to_deregister.append(agent_name)
-            else:
-                # Reset retry count if the agent is responsive
-                if hasattr(agent_card, "retry_count") and agent_card.retry_count > 0:
-                    log.debug(
-                        "%s Agent '%s' is responsive again. Resetting retry count from %d to 0.",
-                        self.log_identifier,
-                        agent_name,
-                        agent_card.retry_count
-                    )
-                    agent_card.retry_count = 0
-        
+            
         # De-register unresponsive agents
         for agent_name in agents_to_deregister:
             self._deregister_agent(agent_name)
@@ -3253,34 +3234,21 @@ class SamAgentComponent(SamComponentBase):
         
     def _deregister_agent(self, agent_name: str):
         """
-        De-registers an agent from the peer agents list and publishes a de-registration event.
+        De-registers an agent from the registry and publishes a de-registration event.
         """
-        if agent_name in self.peer_agents:
-            # Get agent information before removing it
-            agent_card = self.peer_agents[agent_name]
-            last_seen = getattr(agent_card, "last_seen", None)
-            retry_count = getattr(agent_card, "retry_count", 0)
-            current_time = time.time()
-            time_since_last_seen = int(current_time - last_seen) if last_seen else "unknown"
-            
-            # Remove the agent from the peer agents list
-            del self.peer_agents[agent_name]
-            
-            log.warning(
-                "%s AGENT DE-REGISTRATION: Agent '%s' has been de-registered due to unresponsiveness. "
-                "Last seen: %s seconds ago, Final retry count: %d",
-                self.log_identifier,
-                agent_name,
-                time_since_last_seen,
-                retry_count
-            )
+        # Use the registry's remove_agent method which returns True if the agent was removed
+        if self.agent_registry.remove_agent(agent_name):
+            # Also remove from peer_agents dictionary for backward compatibility
+            if agent_name in self.peer_agents:
+                del self.peer_agents[agent_name]
             
             # Publish a de-registration event
-            # This would typically be a message to inform other components that the agent is no longer available
             try:
                 # Create a de-registration event topic
                 namespace = self.get_config("namespace")
                 deregistration_topic = f"{namespace}/a2a/events/agent/deregistered"
+                
+                current_time = time.time()
                 
                 # Create the payload
                 deregistration_payload = {
@@ -3288,8 +3256,6 @@ class SamAgentComponent(SamComponentBase):
                     "agent_name": agent_name,
                     "reason": "health_check_failure",
                     "metadata": {
-                        "last_seen_seconds_ago": time_since_last_seen,
-                        "retry_count": retry_count,
                         "timestamp": current_time,
                         "deregistered_by": self.agent_name
                     }
