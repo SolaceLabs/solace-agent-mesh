@@ -118,7 +118,7 @@ def test_multiple_sessions_via_tasks(api_client: TestClient):
     assert session_id_1 in session_ids
     assert session_id_2 in session_ids
 
-    session_agents = {s["id"]: s["agent_id"] for s in sessions}
+    session_agents = {s["id"]: s["agentId"] for s in sessions}
     assert session_agents[session_id_1] == "TestAgent"
     assert session_agents[session_id_2] == "TestPeerAgentA"
 
@@ -155,8 +155,8 @@ def test_get_specific_session(api_client: TestClient):
 
     session_data = session_response.json()
     assert session_data["id"] == session_id
-    assert session_data["agent_id"] == "TestAgent"
-    assert "user_id" in session_data
+    assert session_data["agentId"] == "TestAgent"
+    assert "userId" in session_data
 
     print(f"✓ Retrieved specific session {session_id} via API")
 
