@@ -101,7 +101,7 @@ def test_complete_user_conversation_workflow(api_client: TestClient):
 
     target_session = next(s for s in sessions_data["sessions"] if s["id"] == session_id)
     assert target_session["name"] == "Data Analysis Help Session"
-    assert target_session["agent_id"] == "TestAgent"
+    assert target_session["agentId"] == "TestAgent"
 
     print(f"✓ Complete conversation workflow successful for session {session_id}")
 
@@ -190,7 +190,7 @@ def test_multi_agent_consultation_workflow(api_client: TestClient):
     ):
         # Verify session metadata
         session = next(s for s in sessions_data["sessions"] if s["id"] == session_id)
-        assert session["agent_id"] == agent_name
+        assert session["agentId"] == agent_name
 
         # Verify conversation history
         history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
@@ -384,7 +384,7 @@ def test_session_management_workflow(api_client: TestClient):
             s for s in sessions_data["sessions"] if s["id"] == created_session["id"]
         )
         assert found_session["name"] == created_session["name"]
-        assert found_session["agent_id"] == created_session["agent"]
+        assert found_session["agentId"] == created_session["agent"]
 
     # 4. Delete some sessions (simulate cleanup)
     print("4. Cleaning up old sessions...")
@@ -461,7 +461,7 @@ def test_error_recovery_workflow(api_client: TestClient):
         404,
         422,
         500,
-    ]  # Various error responses are acceptable
+    ]  # Various error responses are acceptable (404 for missing task context)
 
     # 3. Verify original session still works after errors
     print("3. Verifying original session still works...")
