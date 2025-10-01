@@ -338,6 +338,9 @@ async def get_task_as_stim_file(
             headers={"Content-Disposition": f'attachment; filename="{task_id}.stim"'},
         )
 
+    except HTTPException:
+        # Re-raise HTTPExceptions (404, 403, etc.) without modification
+        raise
     except Exception as e:
         log.exception("%sError retrieving task: %s", log_prefix, e)
         raise HTTPException(
