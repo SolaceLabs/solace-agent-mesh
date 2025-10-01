@@ -21,22 +21,37 @@ def test_get_all_sessions_empty(api_client: TestClient):
 
 
 def test_send_task_creates_session_with_message(api_client: TestClient):
-    """Test that POST /tasks/subscribe creates session and persists message"""
+    """Test that POST /message:stream creates session and persists message"""
 
     # Send a streaming task which creates a session
-    task_data = {"agent_name": "TestAgent", "message": "Hello, I need help with a task"}
+    import uuid
+    
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Hello, I need help with a task"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
 
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
 
     # Verify task was submitted successfully
     assert response.status_code == 200
     response_data = response.json()
     assert "result" in response_data
-    assert "taskId" in response_data["result"]
-    assert "sessionId" in response_data["result"]
+    assert "id" in response_data["result"]
+    assert "contextId" in response_data["result"]
 
-    session_id = response_data["result"]["sessionId"]
-    task_id = response_data["result"]["taskId"]
+    session_id = response_data["result"]["contextId"]
+    task_id = response_data["result"]["id"]
 
     assert session_id is not None
     assert task_id == "test-task-id"  # From our mock
@@ -47,17 +62,45 @@ def test_send_task_creates_session_with_message(api_client: TestClient):
 def test_multiple_sessions_via_tasks(api_client: TestClient):
     """Test that a user can create multiple sessions with different agents"""
 
+    import uuid
+
     # Create first session with TestAgent
-    task_data_1 = {"agent_name": "TestAgent", "message": "Message to TestAgent"}
-    response_1 = api_client.post("/api/v1/tasks/subscribe", data=task_data_1)
+    task_payload_1 = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Message to TestAgent"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    response_1 = api_client.post("/api/v1/message:stream", json=task_payload_1)
     assert response_1.status_code == 200
-    session_id_1 = response_1.json()["result"]["sessionId"]
+    session_id_1 = response_1.json()["result"]["contextId"]
 
     # Create second session with TestPeerAgentA
-    task_data_2 = {"agent_name": "TestPeerAgentA", "message": "Message to PeerAgentA"}
-    response_2 = api_client.post("/api/v1/tasks/subscribe", data=task_data_2)
+    task_payload_2 = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Message to PeerAgentA"}],
+                "metadata": {"agent_name": "TestPeerAgentA"},
+            }
+        },
+    }
+    response_2 = api_client.post("/api/v1/message:stream", json=task_payload_2)
     assert response_2.status_code == 200
-    session_id_2 = response_2.json()["result"]["sessionId"]
+    session_id_2 = response_2.json()["result"]["contextId"]
 
     # Verify sessions are different
     assert session_id_1 != session_id_2
@@ -85,11 +128,26 @@ def test_multiple_sessions_via_tasks(api_client: TestClient):
 def test_get_specific_session(api_client: TestClient):
     """Test GET /sessions/{session_id} retrieves specific session"""
 
+    import uuid
+
     # First create a session
-    task_data = {"agent_name": "TestAgent", "message": "Help with project X"}
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Help with project X"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response.status_code == 200
-    session_id = response.json()["result"]["sessionId"]
+    session_id = response.json()["result"]["contextId"]
 
     # Get the specific session
     session_response = api_client.get(f"/api/v1/sessions/{session_id}")
@@ -106,11 +164,26 @@ def test_get_specific_session(api_client: TestClient):
 def test_get_session_history(api_client: TestClient):
     """Test GET /sessions/{session_id}/messages retrieves message history"""
 
+    import uuid
+
     # Create session with message
-    task_data = {"agent_name": "TestAgent", "message": "Test message for history"}
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Test message for history"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response.status_code == 200
-    session_id = response.json()["result"]["sessionId"]
+    session_id = response.json()["result"]["contextId"]
 
     # Get session history
     history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
@@ -131,11 +204,26 @@ def test_get_session_history(api_client: TestClient):
 def test_update_session_name(api_client: TestClient):
     """Test PATCH /sessions/{session_id} updates session name"""
 
+    import uuid
+
     # Create a session
-    task_data = {"agent_name": "TestAgent", "message": "Original message"}
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Original message"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response.status_code == 200
-    session_id = response.json()["result"]["sessionId"]
+    session_id = response.json()["result"]["contextId"]
 
     # Update session name
     update_data = {"name": "Updated Session Name"}
@@ -154,11 +242,26 @@ def test_update_session_name(api_client: TestClient):
 def test_delete_session(api_client: TestClient):
     """Test DELETE /sessions/{session_id} removes session"""
 
+    import uuid
+
     # Create a session
-    task_data = {"agent_name": "TestAgent", "message": "Session to be deleted"}
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Session to be deleted"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response.status_code == 200
-    session_id = response.json()["result"]["sessionId"]
+    session_id = response.json()["result"]["contextId"]
 
     # Verify session exists
     session_response = api_client.get(f"/api/v1/sessions/{session_id}")
@@ -203,11 +306,26 @@ def test_session_error_handling(api_client: TestClient):
 def test_end_to_end_session_workflow(api_client: TestClient):
     """Test complete session workflow: create -> send messages -> update -> delete"""
 
+    import uuid
+
     # 1. Create session via task submission
-    task_data = {"agent_name": "TestAgent", "message": "Start new conversation"}
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Start new conversation"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response.status_code == 200
-    session_id = response.json()["result"]["sessionId"]
+    session_id = response.json()["result"]["contextId"]
 
     # 2. Verify session appears in sessions list
     sessions_response = api_client.get("/api/v1/sessions")
@@ -219,14 +337,24 @@ def test_end_to_end_session_workflow(api_client: TestClient):
     assert sessions[0]["id"] == session_id
 
     # 3. Send additional message to same session
-    task_data_2 = {
-        "agent_name": "TestAgent",
-        "message": "Follow up message",
-        "session_id": session_id,
+    task_payload_2 = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Follow up message"}],
+                "metadata": {"agent_name": "TestAgent"},
+                "contextId": session_id,
+            }
+        },
     }
-    response_2 = api_client.post("/api/v1/tasks/subscribe", data=task_data_2)
+    response_2 = api_client.post("/api/v1/message:stream", json=task_payload_2)
     assert response_2.status_code == 200
-    assert response_2.json()["result"]["sessionId"] == session_id
+    assert response_2.json()["result"]["contextId"] == session_id
 
     # 4. Check session history
     history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
