@@ -47,8 +47,17 @@
         "build-types": "tsc --emitDeclarationOnly --outDir dist --project tsconfig.lib.json",
         "build-package": "npm run build-lib && npm run build-types",
         "lint": "eslint .",
-        "precommit": "eslint . && tsc -b && prettier --write . --log-level silent",
+        "precommit": "tsc -b && lint-staged",
         "preview": "vite preview"
+    },
+    "lint-staged": {
+        "*.{js,jsx,ts,tsx}": [
+            "eslint --fix",
+            "prettier --write"
+        ],
+        "*.{json,md,yml,yaml}": [
+            "prettier --write"
+        ]
     },
     "dependencies": {
         "@radix-ui/react-accordion": "^1.2.11",
