@@ -20,7 +20,7 @@ const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
 
 const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
-    const [isActionTaken, setIsActionTaken] = useState(false);
+    const chatContext = useChatContext();
     
     if (message.isStatusBubble) {
         return null;
@@ -36,10 +36,20 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
 
     // Handle authentication link FIRST (before checking for empty text)
     if (message.authenticationLink) {
+        const isActionTaken = message.authenticationLink.actionTaken || false;
+        
         const handleAuthClick = () => {
             if (isActionTaken) return; // Prevent multiple clicks
             
-            setIsActionTaken(true);
+            // Update the message to mark action as taken
+            chatContext.setMessages((prevMessages: MessageFE[]) =>
+                prevMessages.map(msg =>
+                    msg.metadata?.messageId === message.metadata?.messageId && msg.authenticationLink
+                        ? { ...msg, authenticationLink: { ...msg.authenticationLink, actionTaken: true } }
+                        : msg
+                )
+            );
+            
             const popup = window.open(
                 message.authenticationLink!.url,
                 "_blank",
@@ -56,11 +66,25 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
             const gatewayTaskId = message.authenticationLink?.gatewayTaskId;
             if (!gatewayTaskId) {
                 console.error("No gateway_task_id available for rejection");
-                setIsActionTaken(true);
+                // Still mark action as taken to disable buttons
+                chatContext.setMessages((prevMessages: MessageFE[]) =>
+                    prevMessages.map(msg =>
+                        msg.metadata?.messageId === message.metadata?.messageId && msg.authenticationLink
+                            ? { ...msg, authenticationLink: { ...msg.authenticationLink, actionTaken: true } }
+                            : msg
+                    )
+                );
                 return;
             }
             
-            setIsActionTaken(true);
+            // Mark action as taken immediately to disable buttons
+            chatContext.setMessages((prevMessages: MessageFE[]) =>
+                prevMessages.map(msg =>
+                    msg.metadata?.messageId === message.metadata?.messageId && msg.authenticationLink
+                        ? { ...msg, authenticationLink: { ...msg.authenticationLink, actionTaken: true } }
+                        : msg
+                )
+            );
             
             try {
                 const response = await authenticatedFetch(`/api/v1/tasks/${gatewayTaskId}:cancel`, {
@@ -81,6 +105,8 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
                 
                 if (response.ok) {
                     console.log("Authentication rejected successfully");
+                    // The SSE handler will receive the final event and update isResponding to false
+                    // No need to manually call handleCancel as that would send another cancel request
                 } else {
                     console.error("Failed to reject authentication:", response.status, response.statusText);
                 }
