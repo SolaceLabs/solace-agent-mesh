@@ -273,6 +273,54 @@ async def get_user_config(
     )
 
 
+class ValidatedUserConfig:
+    """
+    FastAPI dependency class for validating user scopes and returning user config.
+
+    This class creates a callable dependency that validates a user has the required
+    scopes before allowing access to protected endpoints.
+
+    Args:
+        required_scopes: List of scope strings required for authorization
+
+    Raises:
+        HTTPException: 403 if user lacks required scopes
+
+    Example:
+        @router.get("/artifacts")
+        async def list_artifacts(
+            user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
+        ):
+    """
+
+    def __init__(self, required_scopes: list[str]):
+        self.required_scopes = required_scopes
+
+    async def __call__(
+        self,
+        request: Request,
+        config_resolver: ConfigResolver = Depends(get_config_resolver),
+        user_config: dict[str, Any] = Depends(get_user_config),
+    ) -> dict[str, Any]:
+        user_id = user_config.get("user_profile", {}).get("id")
+
+        log.debug(f"[Dependencies] ValidatedUserConfig called for user_id: {user_id} with required scopes: {self.required_scopes}")
+
+        # Validate scopes
+        if not config_resolver.is_feature_enabled(
+                user_config, {"tool_metadata": {"required_scopes": self.required_scopes}}, {}
+        ):
+            log.warning(
+                f"[Dependencies] Authorization denied for user '{user_id}'. Required scopes: {self.required_scopes}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Not authorized. Required scopes: {self.required_scopes}"
+            )
+
+        return user_config
+
+
 def get_shared_artifact_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> BaseArtifactService | None:
@@ -366,98 +414,15 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def get_session_business_service(
-    db: Session = Depends(get_db),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> SessionService:
     log.debug("[Dependencies] get_session_business_service called")
 
-    session_repository = SessionRepository(db)
-    message_repository = MessageRepository(db)
-    return SessionService(session_repository, message_repository, component)
+    # Note: Session and message repositories will be created per request
+    # when the SessionService methods receive the db parameter
+    return SessionService(component=component)
 
 
-@contextmanager
-def create_session_service_with_transaction():
-    """Create session data access service with its own transaction for non-HTTP contexts."""
-    if SessionLocal is None:
-        raise RuntimeError("Database not configured")
-
-    db = SessionLocal()
-    try:
-        session_repository = SessionRepository(db)
-        message_repository = MessageRepository(db)
-
-        # Create a simple data access object for transaction contexts
-        # This provides the basic repository operations without business logic
-        class SessionDataAccess:
-            def __init__(self, session_repo, message_repo):
-                self.session_repository = session_repo
-                self.message_repository = message_repo
-
-            def add_message_to_session(
-                self,
-                session_id,
-                user_id,
-                message,
-                sender_type,
-                sender_name,
-                agent_id=None,
-            ):
-                # Simple data access - just save the message
-                from uuid import uuid4
-
-                from .shared.enums import MessageType
-                from .shared import now_epoch_ms
-
-                message_entity = Message(
-                    id=str(uuid4()),
-                    session_id=session_id,
-                    message=message,
-                    sender_type=sender_type,
-                    sender_name=sender_name,
-                    message_type=MessageType.TEXT,
-                    created_time=now_epoch_ms(),
-                )
-                return self.message_repository.save(message_entity)
-
-            def get_session(self, session_id, user_id):
-                # Use the session repository to find the session
-                return self.session_repository.find_user_session(session_id, user_id)
-
-            def create_session(
-                self, user_id, name=None, agent_id=None, session_id=None
-            ):
-                # Create a new session using the session repository
-                from uuid import uuid4
-
-                from .repository.entities import Session
-                from .shared import now_epoch_ms
-
-                if not session_id:
-                    session_id = str(uuid4())
-
-                # Leave name as None/empty - frontend will generate display name if needed
-
-                now_ms = now_epoch_ms()
-                session = Session(
-                    id=session_id,
-                    user_id=user_id,
-                    name=name,
-                    agent_id=agent_id,
-                    created_time=now_ms,
-                    updated_time=now_ms,
-                )
-
-                return self.session_repository.save(session)
-
-        session_service = SessionDataAccess(session_repository, message_repository)
-        yield session_service, db
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
 
 
 def get_session_validator(
@@ -470,9 +435,13 @@ def get_session_validator(
 
         def validate_with_database(session_id: str, user_id: str) -> bool:
             try:
-                with create_session_service_with_transaction() as (session_service, db):
-                    session_domain = session_service.get_session(session_id, user_id)
+                db = SessionLocal()
+                try:
+                    session_repository = SessionRepository(db)
+                    session_domain = session_repository.find_user_session(session_id, user_id)
                     return session_domain is not None
+                finally:
+                    db.close()
             except:
                 return False
 
@@ -486,3 +455,30 @@ def get_session_validator(
             return bool(user_id)
 
         return validate_without_database
+
+
+def get_db_optional() -> Generator[Session | None, None, None]:
+    """Optional database dependency that returns None if database is not configured."""
+    if SessionLocal is None:
+        log.debug("[Dependencies] Database not configured, returning None")
+        yield None
+    else:
+        db = SessionLocal()
+        try:
+            yield db
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+
+def get_session_business_service_optional(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> SessionService | None:
+    """Optional session service dependency that returns None if database is not configured."""
+    if SessionLocal is None:
+        log.debug("[Dependencies] Database not configured, returning None for session service")
+        return None
+    return SessionService(component=component)

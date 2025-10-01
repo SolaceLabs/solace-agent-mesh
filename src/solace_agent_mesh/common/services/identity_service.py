@@ -33,7 +33,7 @@ class BaseIdentityService(ABC):
 
     @abstractmethod
     async def get_user_profile(
-        self, auth_claims: Dict[str, Any], **kwargs: Any
+        self, auth_claims: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
         """
         Fetches additional profile details for an already authenticated user.
