@@ -49,24 +49,41 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
             }
         };
 
+        const handleRejectClick = () => {
+            console.log("Authentication rejected");
+        };
+
         const targetAgent = message.authenticationLink.targetAgent || "Agent";
         
         return (
-            <div className="flex flex-col items-center justify-center p-4 space-y-3">
-                <div className="text-center text-sm text-gray-600 dark:text-gray-300">
-                    The "{targetAgent}" requires authentication. Please click to proceed.
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                    Action Needed
+                </h3>
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-md p-3 mb-4">
+                    <div className="text-sm text-gray-600 dark:text-gray-300">
+                        The "{targetAgent}" requires authentication. Please click to proceed.
+                    </div>
                 </div>
-                <button
-                    onClick={handleAuthClick}
-                    disabled={isAuthClicked}
-                    className={`rounded-md px-4 py-1 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                        isAuthClicked
-                            ? "bg-gray-400 cursor-not-allowed"
-                            : "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500"
-                    }`}
-                >
-                    {isAuthClicked ? "Authentication Window Opened" : message.authenticationLink.text}
-                </button>
+                <div className="flex space-x-3">
+                    <button
+                        onClick={handleRejectClick}
+                        className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                    >
+                        Reject
+                    </button>
+                    <button
+                        onClick={handleAuthClick}
+                        disabled={isAuthClicked}
+                        className={`flex-1 px-4 py-2 text-sm font-medium text-white rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                            isAuthClicked
+                                ? "bg-gray-400 cursor-not-allowed"
+                                : "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500"
+                        }`}
+                    >
+                        {isAuthClicked ? "Authentication Window Opened" : message.authenticationLink.text}
+                    </button>
+                </div>
             </div>
         );
     }
