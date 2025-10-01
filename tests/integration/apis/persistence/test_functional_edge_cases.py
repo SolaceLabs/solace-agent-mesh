@@ -5,7 +5,7 @@ Tests missing functional scenarios including concurrent operations,
 file upload edge cases, and error recovery scenarios.
 """
 
-import io
+import uuid
 import threading
 import time
 
@@ -16,7 +16,6 @@ def test_concurrent_session_modifications_same_user(api_client: TestClient):
     """Test concurrent modifications to the same session by the same user"""
 
     # Create a session
-    import uuid
 
     task_payload = {
         "jsonrpc": "2.0",
@@ -72,8 +71,6 @@ def test_concurrent_message_additions_same_session(api_client: TestClient):
     """Test adding messages concurrently to the same session"""
 
     # Create a session
-    import uuid
-
     task_payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),
@@ -83,7 +80,9 @@ def test_concurrent_message_additions_same_session(api_client: TestClient):
                 "role": "user",
                 "messageId": str(uuid.uuid4()),
                 "kind": "message",
-                "parts": [{"kind": "text", "text": "Initial message for concurrent test"}],
+                "parts": [
+                    {"kind": "text", "text": "Initial message for concurrent test"}
+                ],
                 "metadata": {"agent_name": "TestAgent"},
             }
         },
@@ -105,7 +104,9 @@ def test_concurrent_message_additions_same_session(api_client: TestClient):
                     "role": "user",
                     "messageId": str(uuid.uuid4()),
                     "kind": "message",
-                    "parts": [{"kind": "text", "text": f"Concurrent message {message_id}"}],
+                    "parts": [
+                        {"kind": "text", "text": f"Concurrent message {message_id}"}
+                    ],
                     "metadata": {"agent_name": "TestAgent"},
                     "contextId": session_id,
                 }
@@ -156,7 +157,6 @@ def test_large_file_upload_handling(api_client: TestClient):
 
     # Create a large file (1MB)
     import base64
-    import uuid
 
     large_content = b"x" * (1024 * 1024)  # 1MB of data
     base64_content = base64.b64encode(large_content).decode("utf-8")
@@ -208,7 +208,6 @@ def test_invalid_file_type_upload(api_client: TestClient):
     """Test handling of invalid file types"""
 
     import base64
-    import uuid
 
     # Create files with various extensions/types
     test_files = [
@@ -267,8 +266,6 @@ def test_session_name_edge_cases(api_client: TestClient):
     """Test session name validation and edge cases"""
 
     # Create a session
-    import uuid
-
     task_payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),
@@ -319,8 +316,6 @@ def test_task_cancellation_after_session_deletion(api_client: TestClient):
     """Test task cancellation behavior after session is deleted"""
 
     # Create a session with a task
-    import uuid
-
     task_payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),
@@ -375,8 +370,6 @@ def test_message_ordering_consistency_under_load(api_client: TestClient):
     """Test that message ordering remains consistent under concurrent load"""
 
     # Create a session
-    import uuid
-
     task_payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),
@@ -511,7 +504,10 @@ def test_error_recovery_after_database_constraints(api_client: TestClient):
                 "messageId": str(uuid.uuid4()),
                 "kind": "message",
                 "parts": [
-                    {"kind": "text", "text": "Recovery test - session should still work"}
+                    {
+                        "kind": "text",
+                        "text": "Recovery test - session should still work",
+                    }
                 ],
                 "metadata": {"agent_name": "TestAgent"},
                 "contextId": session_id,
@@ -539,8 +535,6 @@ def test_empty_and_whitespace_message_handling(api_client: TestClient):
     ]
 
     for test_message in message_test_cases:
-        import uuid
-
         task_payload = {
             "jsonrpc": "2.0",
             "id": str(uuid.uuid4()),
