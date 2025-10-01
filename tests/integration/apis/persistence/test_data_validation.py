@@ -280,11 +280,12 @@ class TestDataIntegrity:
         assert len(messages) == 2
 
         # Verify message consistency
-        user_msg, agent_msg = messages
-        assert user_msg["senderType"] == "user"
-        assert agent_msg["senderType"] == "assistant"
-        assert user_msg["message"] == "Transaction test message"
-        assert "Transaction test message" in agent_msg["message"]
+        user_msg = messages[0]
+        agent_msg = messages[1]
+        assert user_msg.role == "user"
+        assert agent_msg.role == "assistant"
+        assert user_msg.content == "Transaction test message"
+        assert "Transaction test message" in agent_msg.content
 
         print("✓ Transaction consistency maintained")
 
