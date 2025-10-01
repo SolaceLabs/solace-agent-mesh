@@ -53,7 +53,7 @@ jobs:
       update_manifest: ${{ steps.set_build_params.outputs.update_manifest }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Get Commit Hash
         id: get_commit_hash
@@ -101,7 +101,7 @@ jobs:
 
       - name: Configure AWS credentials
         if: fromJSON(steps.set_build_params.outputs.docker_push)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
@@ -110,7 +110,7 @@ jobs:
       - name: Login to Amazon ECR
         if: fromJSON(steps.set_build_params.outputs.docker_push)
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
       - name: Tag Images
         id: tag_images
@@ -160,14 +160,14 @@ jobs:
     runs-on: ${{ matrix.platform.runner }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3.10.0
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
       - name: Configure AWS credentials
         if: fromJSON(needs.prepare-metadata.outputs.docker_push)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
@@ -175,10 +175,10 @@ jobs:
 
       - name: Login to Amazon ECR
         if: fromJSON(needs.prepare-metadata.outputs.docker_push)
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
       - name: Build and Push Platform-Specific Image
-        uses: docker/build-push-action@v6.16.0
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
         with:
           context: .
           file: Dockerfile
@@ -194,11 +194,12 @@ jobs:
   merge-manifest:
     name: Create Multi-Platform Manifest
     needs: [prepare-metadata, build-platform]
+    if: fromJSON(needs.prepare-metadata.outputs.docker_push)
     runs-on: ubuntu-latest
     steps:
       - name: Configure AWS credentials
         if: fromJSON(needs.prepare-metadata.outputs.docker_push)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
@@ -206,10 +207,10 @@ jobs:
 
       - name: Login to Amazon ECR
         if: fromJSON(needs.prepare-metadata.outputs.docker_push)
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3.10.0
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
       - name: Create and Push Multi-Platform Manifest
         if: fromJSON(needs.prepare-metadata.outputs.docker_push)
