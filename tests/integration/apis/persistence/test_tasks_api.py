@@ -11,22 +11,33 @@ from fastapi.testclient import TestClient
 
 
 def test_send_non_streaming_task(api_client: TestClient):
-    """Test POST /tasks/send for non-streaming task submission"""
+    """Test POST /message:send for non-streaming task submission"""
 
-    task_data = {
-        "agent_name": "TestAgent",
-        "message": "Hello, please process this task",
+    # Use the new A2A-compliant JSON-RPC format
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": "test-req-001",
+        "method": "message/send",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": "test-msg-001",
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Hello, please process this task"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
     }
 
-    response = api_client.post("/api/v1/tasks/send", data=task_data)
+    response = api_client.post("/api/v1/message:send", json=task_payload)
 
     assert response.status_code == 200
     response_data = response.json()
 
     # Verify JSONRPC response format
     assert "result" in response_data
-    assert "taskId" in response_data["result"]
-    assert response_data["result"]["taskId"] == "test-task-id"
+    assert "id" in response_data["result"]
+    assert response_data["result"]["id"] == "test-task-id"
 
     print("✓ Non-streaming task submitted successfully")
 
