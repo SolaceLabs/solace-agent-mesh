@@ -36,6 +36,7 @@ from solace_agent_mesh.gateway.http_sse import dependencies
 from solace_agent_mesh.gateway.http_sse.services.task_logger_service import (
     TaskLoggerService,
 )
+from solace_agent_mesh.core_a2a.service import CoreA2AService
 from sqlalchemy.orm import sessionmaker
 
 
@@ -164,6 +165,13 @@ def mock_component(test_database_engine):
         session_factory=Session, config=task_logger_config
     )
     component.get_task_logger_service.return_value = real_task_logger_service
+
+    # Create a real CoreA2AService instance for task cancellation tests
+    real_core_a2a_service = CoreA2AService(
+        namespace="test_namespace",
+        gateway_id="TestWebUIGateway_01",
+    )
+    component.get_core_a2a_service.return_value = real_core_a2a_service
 
     print("[API Tests] Mock component created")
     yield component
