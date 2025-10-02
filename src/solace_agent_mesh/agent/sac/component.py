@@ -556,7 +556,7 @@ class SamAgentComponent(SamComponentBase):
                 sub_task_id,
             )
 
-    async def _get_correlation_data_for_sub_task_using_logical_task_id(
+    async def get_correlation_data_for_sub_task_using_logical_task_id(
         self, logical_task_id: str
     ):
         """
@@ -571,22 +571,24 @@ class SamAgentComponent(SamComponentBase):
                 self.log_identifier,
                 logical_task_id,
             )
-            return None, None
+            return []
 
         with active_task_context.lock:
             active_peer_sub_tasks = (
                 getattr(active_task_context, "active_peer_sub_tasks", None) or {}
             )
 
-            # Only return the 1st one we find
+            results = []
             for sub_task_id, correlation_data in active_peer_sub_tasks.items():
                 if sub_task_id is not None and correlation_data is not None:
-                    return sub_task_id, correlation_data
+                    results.append(correlation_data)
+
+            # If we found active peer sub-tasks, return them
+            if results:
+                return results
 
             # There are no active peer sub-tasks, but the main task is still active
-            return logical_task_id, active_task_context
-
-        return None, None
+            return [active_task_context]
 
     async def _get_correlation_data_for_sub_task(
         self, sub_task_id: str
