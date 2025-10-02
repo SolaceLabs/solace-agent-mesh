@@ -214,15 +214,17 @@ def test_send_task_with_large_file_via_artifacts(api_client: TestClient):
 def test_send_task_to_existing_session(api_client: TestClient):
     """Test sending task to existing session"""
 
+    import uuid
+
     # First create a session
     initial_task_payload = {
         "jsonrpc": "2.0",
-        "id": "test-req-initial",
+        "id": str(uuid.uuid4()),
         "method": "message/stream",
         "params": {
             "message": {
                 "role": "user",
-                "messageId": "test-msg-initial",
+                "messageId": str(uuid.uuid4()),
                 "kind": "message",
                 "parts": [{"kind": "text", "text": "Initial message"}],
                 "metadata": {"agent_name": "TestAgent"},

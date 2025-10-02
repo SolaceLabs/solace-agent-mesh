@@ -23,9 +23,9 @@ def test_get_all_sessions_empty(api_client: TestClient):
 def test_send_task_creates_session_with_message(api_client: TestClient):
     """Test that POST /message:stream creates session and persists message"""
 
-    # Send a streaming task which creates a session
     import uuid
 
+    # Send a streaming task which creates a session
     task_payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),
