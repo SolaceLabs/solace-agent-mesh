@@ -24,9 +24,9 @@ class TestSessionsAPIContract:
         data = response.json()
         assert isinstance(data, dict)
         assert "sessions" in data
-        assert "total_count" in data
+        assert "totalCount" in data
         assert isinstance(data["sessions"], list)
-        assert isinstance(data["total_count"], int)
+        assert isinstance(data["totalCount"], int)
 
         # If sessions exist, validate schema
         if data["sessions"]:
@@ -251,7 +251,10 @@ class TestTasksAPIContract:
 
         # Validate response structure
         assert "message" in data
-        assert "sent" in data["message"].lower() or "cancellation" in data["message"].lower()
+        assert (
+            "sent" in data["message"].lower()
+            or "cancellation" in data["message"].lower()
+        )
 
         print("✓ POST /tasks/{taskId}:cancel response schema valid")
 
