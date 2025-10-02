@@ -171,7 +171,7 @@ def main():
     args = parser.parse_args()
 
     server_instance = TestMCPServer()
-    
+
     if args.transport == "stdio":
         server_instance.mcp.run(transport="stdio")
     elif args.transport == "http+sse":
@@ -179,10 +179,10 @@ def main():
         uvicorn.run(server_instance.app, host="127.0.0.1", port=args.port)
     else:
         server_instance.mcp.run(
-            transport=args.transport, 
+            transport=args.transport,
             port=args.port
         )
-        
+
 
 
 if __name__ == "__main__":
