@@ -242,7 +242,6 @@ def create_plugin_cmd(
         "__PLUGIN_DESCRIPTION__": options["description"],
         "__PLUGIN_VERSION__": options["version"],
         "__PLUGIN_META_DATA_TYPE__": options["type"].lower(),
-        "__SAM_VERSION__": cli_version,
         "__COMPONENT_KEBAB_CASE_NAME__": "__COMPONENT_KEBAB_CASE_NAME__",
         "__COMPONENT_PASCAL_CASE_NAME__": "__COMPONENT_PASCAL_CASE_NAME__",
         "__COMPONENT_UPPER_SNAKE_CASE_NAME__": "__COMPONENT_UPPER_SNAKE_CASE_NAME__",

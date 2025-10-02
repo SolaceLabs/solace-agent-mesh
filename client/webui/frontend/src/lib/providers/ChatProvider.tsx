@@ -138,15 +138,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const uploadArtifactFile = useCallback(
-        async (file: File, overrideSessionId?: string): Promise<string | null> => {
+        async (file: File, overrideSessionId?: string): Promise<{ uri: string; sessionId: string } | null> => {
             const currentSessionId = overrideSessionId || sessionId;
-            if (!currentSessionId) {
-                throw new Error("Session ID is missing for file upload.");
-            }
             const formData = new FormData();
             formData.append("upload_file", file);
+            formData.append("filename", file.name);
+            if (currentSessionId) {
+                formData.append("sessionId", currentSessionId);
+            }
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${currentSessionId}/${encodeURIComponent(file.name)}`, {
+                const response = await authenticatedFetch(`${apiPrefix}/artifacts/upload`, {
                     method: "POST",
                     body: formData,
                     credentials: "include",
@@ -156,9 +157,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
                 const result = await response.json();
+                const artifactData = result.data || result;
                 addNotification(`Artifact "${file.name}" uploaded successfully.`);
                 await artifactsRefetch();
-                return result.uri || null;
+                return { uri: artifactData.uri, sessionId: artifactData.sessionId };
             } catch (error) {
                 addNotification(`Error uploading artifact "${file.name}": ${error instanceof Error ? error.message : "Unknown error"}`);
                 return null;
@@ -355,7 +357,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             let rpcResponse: SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
 
             try {
-                console.log("TEST-SSE ChatProvider Raw Message:", event.data);
                 rpcResponse = JSON.parse(event.data) as SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
             } catch (error: unknown) {
                 console.error("Failed to parse SSE message:", error);
@@ -637,17 +638,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Reset UI state with empty session ID
         const welcomeMessages: MessageFE[] = configWelcomeMessage
             ? [
-                {
-                    parts: [{ kind: "text", text: configWelcomeMessage }],
-                    isUser: false,
-                    isComplete: true,
-                    role: "agent",
-                    metadata: {
-                        sessionId: "", // Empty - will be populated when session is created
-                        lastProcessedEventSequence: 0,
-                    },
-                },
-            ]
+                  {
+                      parts: [{ kind: "text", text: configWelcomeMessage }],
+                      isUser: false,
+                      isComplete: true,
+                      role: "agent",
+                      metadata: {
+                          sessionId: "", // Empty - will be populated when session is created
+                          lastProcessedEventSequence: 0,
+                      },
+                  },
+              ]
             : [];
 
         setMessages(welcomeMessages);
@@ -932,8 +933,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             latestStatusText.current = null;
             sseEventSequenceRef.current = 0;
 
-            let effectiveSessionId = sessionId;
-            const isNewSession = !effectiveSessionId;
+            const isNewSession = !sessionId;
+            let effectiveSessionId = sessionId || undefined;
 
             const userMsg: MessageFE = {
                 role: "user",
@@ -952,38 +953,56 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setUserInput("");
 
             try {
-                // If it's a new session, create one on the backend first to get an ID for uploads.
-                if (isNewSession) {
-                    const sessionResponse = await authenticatedFetch(`${apiPrefix}/sessions/new`, { method: "POST" });
-                    if (!sessionResponse.ok) {
-                        throw new Error("Failed to create a new session on the backend.");
-                    }
-                    const newSessionData = await sessionResponse.json();
-                    effectiveSessionId = newSessionData.result.id;
-                    setSessionId(effectiveSessionId);
-                    console.log("Created new session on-demand:", effectiveSessionId);
-
-                    // Update the user message in state with the correct session ID
-                    setMessages(prev => prev.map(msg => (msg.metadata?.messageId === userMsg.metadata?.messageId ? { ...msg, metadata: { ...msg.metadata, sessionId: effectiveSessionId } } : msg)));
-                }
-
                 // 1. Process files using hybrid approach
-                const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
-                    if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
-                        const base64Content = await fileToBase64(file);
-                        return { kind: "file", file: { bytes: base64Content, name: file.name, mimeType: file.type } };
-                    } else {
-                        const uri = await uploadArtifactFile(file, effectiveSessionId); // Pass the correct session ID
-                        if (uri) {
-                            return { kind: "file", file: { uri: uri, name: file.name, mimeType: file.type } };
+                // For new sessions, process sequentially to ensure all files use the same session
+                // For existing sessions, process in parallel for better performance
+                const uploadedFileParts: FilePart[] = [];
+
+                if (isNewSession) {
+                    // Sequential processing for new sessions
+                    for (const file of currentFiles) {
+                        if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
+                            const base64Content = await fileToBase64(file);
+                            uploadedFileParts.push({ kind: "file", file: { bytes: base64Content, name: file.name, mimeType: file.type } });
                         } else {
-                            addNotification(`Failed to upload large file: ${file.name}`, "error");
-                            return null;
+                            const uploadResult = await uploadArtifactFile(file, effectiveSessionId);
+                            if (uploadResult) {
+                                // Capture session ID from first upload
+                                if (!effectiveSessionId && uploadResult.sessionId) {
+                                    effectiveSessionId = uploadResult.sessionId;
+                                    console.log(`Session created via artifact upload: ${effectiveSessionId}`);
+                                }
+                                uploadedFileParts.push({ kind: "file", file: { uri: uploadResult.uri, name: file.name, mimeType: file.type } });
+                            } else {
+                                addNotification(`Failed to upload large file: ${file.name}`, "error");
+                            }
                         }
                     }
-                });
+                } else {
+                    // Parallel processing for existing sessions
+                    const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
+                        if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
+                            const base64Content = await fileToBase64(file);
+                            return { kind: "file", file: { bytes: base64Content, name: file.name, mimeType: file.type } };
+                        } else {
+                            const uploadResult = await uploadArtifactFile(file, effectiveSessionId);
+                            if (uploadResult) {
+                                return { kind: "file", file: { uri: uploadResult.uri, name: file.name, mimeType: file.type } };
+                            } else {
+                                addNotification(`Failed to upload large file: ${file.name}`, "error");
+                                return null;
+                            }
+                        }
+                    });
+                    const results = await Promise.all(filePartsPromises);
+                    uploadedFileParts.push(...results.filter((p): p is FilePart => p !== null));
+                }
 
-                const uploadedFileParts = (await Promise.all(filePartsPromises)).filter((p): p is FilePart => p !== null);
+                // If we created a session via artifact upload, update the session state
+                if (isNewSession && effectiveSessionId && effectiveSessionId !== sessionId) {
+                    setSessionId(effectiveSessionId);
+                    console.log(`Session created via artifact upload: ${effectiveSessionId}`);
+                }
 
                 // 2. Construct message parts
                 const messageParts: Part[] = [];
@@ -1002,7 +1021,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     parts: messageParts,
                     messageId: `msg-${v4()}`,
                     kind: "message",
-                    contextId: effectiveSessionId, // Use the definite session ID
+                    contextId: effectiveSessionId,
                     metadata: { agent_name: selectedAgentName },
                 };
 
@@ -1035,18 +1054,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 if (responseSessionId && responseSessionId !== effectiveSessionId) {
-                    console.warn(`Backend returned a different session ID (${responseSessionId}) than expected (${effectiveSessionId}). This should not happen.`);
-                    setSessionId(responseSessionId); // Trust the backend's final say
+                    console.warn(`Backend returned a different session ID (${responseSessionId}) than expected (${effectiveSessionId}). Updating to: ${responseSessionId}`);
+                    setSessionId(responseSessionId);
                 }
 
                 // If it was a new session, generate and persist its name.
-                if (isNewSession) {
+                if (isNewSession && responseSessionId) {
                     const textParts = userMsg.parts.filter(p => p.kind === "text") as TextPart[];
-                    const combinedText = textParts.map(p => p.text).join(" ").trim();
+                    const combinedText = textParts
+                        .map(p => p.text)
+                        .join(" ")
+                        .trim();
                     if (combinedText) {
                         const newSessionName = combinedText.length > 100 ? `${combinedText.substring(0, 100)}...` : combinedText;
                         setSessionName(newSessionName);
-                        updateSessionName(effectiveSessionId, newSessionName, false);
+                        updateSessionName(responseSessionId, newSessionName, false);
                     }
                     if (typeof window !== "undefined") {
                         window.dispatchEvent(new CustomEvent("new-chat-session"));

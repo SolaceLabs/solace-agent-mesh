@@ -1048,6 +1048,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         request = external_event_data
         try:
+            user_info = {}
             if hasattr(request.state, "user") and request.state.user:
                 user_info = request.state.user
                 username = user_info.get("username")
@@ -1057,7 +1058,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         log_id_prefix,
                         username,
                     )
-                    return {"id": username, "name": username, "email": username}
+                    return {"id": username, "name": username, "email": username, "user_info": user_info}
 
             log.debug(
                 "%s No authenticated user in request.state, falling back to SessionManager.",
@@ -1067,7 +1068,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             log.debug(
                 "%s Extracted user_id '%s' via SessionManager.", log_id_prefix, user_id
             )
-            return {"id": user_id, "name": user_id}
+            return {"id": user_id, "name": user_id, "user_info": user_info}
 
         except Exception as e:
             log.error("%s Failed to extract user_id from request: %s", log_id_prefix, e)
@@ -1927,23 +1928,29 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                 message_text += part.text
 
                     if message_text and session_id and user_id:
-                        from .dependencies import (
-                            create_session_service_with_transaction,
-                        )
+                        from .dependencies import SessionLocal, get_session_business_service
                         from ...gateway.http_sse.shared.enums import SenderType
 
-                        with create_session_service_with_transaction() as (
-                            session_service,
-                            db,
-                        ):
-                            session_service.add_message_to_session(
-                                session_id=session_id,
-                                user_id=user_id,
-                                message=message_text,
-                                sender_type=SenderType.AGENT,
-                                sender_name=agent_name,
-                                agent_id=agent_name,
-                            )
+                        # For background processing, create simple session wrapper
+                        if SessionLocal:
+                            db = SessionLocal()
+                            try:
+                                session_service = get_session_business_service()
+                                session_service.add_message_to_session(
+                                    db=db,
+                                    session_id=session_id,
+                                    user_id=user_id,
+                                    message=message_text,
+                                    sender_type=SenderType.AGENT,
+                                    sender_name=agent_name,
+                                    agent_id=agent_name,
+                                )
+                                db.commit()
+                            except Exception:
+                                db.rollback()
+                                raise
+                            finally:
+                                db.close()
                         log.info(
                             "%s Final agent response stored in session %s",
                             log_id_prefix,

@@ -36,7 +36,7 @@ This creates a streamlined workflow where bug reports are automatically enhanced
 
 First, you need to [install Solace Agent Mesh and the Solace Agent Mesh CLI](../getting-started/installation.md), and then [create a new Solace Agent Mesh project](../getting-started/quick-start.md).
 
-For this tutorial, you need to create or use an existing [Solace Event Broker](https://solace.com/products/event-broker/) or [event mesh](https://solace.com/solutions/initiative/event-mesh/) created using PubSub+ event brokers.
+For this tutorial, you need to create or use an existing [Solace Event Broker](https://solace.com/products/event-broker/) or [event mesh](https://solace.com/solutions/initiative/event-mesh/) created using Solace event brokers.
 
 ## Adding the Event Mesh Gateway Plugin
 
@@ -62,7 +62,7 @@ First, set up the required environment variables for the data plane connection:
 
 ```sh
 # Data plane Solace broker connection (can be same or different from control plane)
-export JIRA_EVENT_MESH_SOLACE_BROKER_URL="ws://localhost:8080"
+export JIRA_EVENT_MESH_SOLACE_BROKER_URL="ws://localhost:8008"
 export JIRA_EVENT_MESH_SOLACE_BROKER_VPN="default"
 export JIRA_EVENT_MESH_SOLACE_BROKER_USERNAME="default"
 export JIRA_EVENT_MESH_SOLACE_BROKER_PASSWORD="default"
@@ -192,9 +192,9 @@ The gateway:
 
 Now that the system is running, let's test the Event Mesh Gateway.
 
-### Using Solace PubSub+ Broker Manager
+### Using The Solace Broker Manager
 
-1. Open the **Try Me!** tab of the [Solace PubSub+ Broker Manager](https://docs.solace.com/Admin/Broker-Manager/PubSub-Manager-Overview.htm)
+1. Open the **Try Me!** tab of the [Solace Broker Manager](https://docs.solace.com/Admin/Broker-Manager/PubSub-Manager-Overview.htm)
 
 2. Connect both the **Publisher** and **Subscriber** panels by clicking their respective **Connect** buttons
 

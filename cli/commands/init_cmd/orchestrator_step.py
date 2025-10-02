@@ -36,6 +36,7 @@ ORCHESTRATOR_DEFAULTS = {
         "allow_list": ["*"],
         "request_timeout_seconds": DEFAULT_COMMUNICATION_TIMEOUT,
     },
+    "use_orchestrator_db": True,
 }
 
 
@@ -87,10 +88,20 @@ def create_orchestrator_config(
         options,
         "session_service_type",
         "Enter session service type",
-        "memory",
+        "sql",
         skip_interactive,
         choices=["sql", "memory", "vertex_rag"],
     )
+
+    if session_type == "sql":
+        options["use_orchestrator_db"] = ask_if_not_provided(
+            options,
+            "use_orchestrator_db",
+            "Use default orchestrator database? (true/false)",
+            ORCHESTRATOR_DEFAULTS["use_orchestrator_db"],
+            skip_interactive,
+            is_bool=True,
+        )
 
     session_behavior = ask_if_not_provided(
         options,

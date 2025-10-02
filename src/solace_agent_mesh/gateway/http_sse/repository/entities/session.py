@@ -2,7 +2,7 @@
 Session domain entity.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from ...shared import now_epoch_ms
 from ...shared.types import AgentId, SessionId, UserId
@@ -10,6 +10,8 @@ from ...shared.types import AgentId, SessionId, UserId
 
 class Session(BaseModel):
     """Session domain entity with business logic."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: SessionId
     user_id: UserId

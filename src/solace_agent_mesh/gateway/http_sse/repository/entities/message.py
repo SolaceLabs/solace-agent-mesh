@@ -2,7 +2,7 @@
 Message domain entity.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from ...shared.enums import MessageType, SenderType
 from ...shared.types import MessageId, SessionId
@@ -10,6 +10,8 @@ from ...shared.types import MessageId, SessionId
 
 class Message(BaseModel):
     """Message domain entity with business logic."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: MessageId
     session_id: SessionId

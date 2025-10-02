@@ -2,6 +2,7 @@ import uuid
 from typing import TYPE_CHECKING, Optional
 
 from solace_ai_connector.common.log import log
+from sqlalchemy.orm import Session as DbSession
 
 from ..repository import (
     IMessageRepository,
@@ -13,6 +14,7 @@ from ..repository import (
 from ..shared.enums import MessageType, SenderType
 from ..shared.types import PaginationInfo, SessionId, UserId
 from ..shared import now_epoch_ms
+from ..shared.pagination import PaginationParams, PaginatedResponse, get_pagination_or_default
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
@@ -21,38 +23,65 @@ if TYPE_CHECKING:
 class SessionService:
     def __init__(
         self,
-        session_repository: ISessionRepository,
-        message_repository: IMessageRepository,
         component: "WebUIBackendComponent" = None,
     ):
-        self.session_repository = session_repository
-        self.message_repository = message_repository
         self.component = component
+
+    def _get_repositories(self, db: DbSession):
+        """Create repositories for the given database session."""
+        from ..repository import SessionRepository, MessageRepository
+        session_repository = SessionRepository(db)
+        message_repository = MessageRepository(db)
+        return session_repository, message_repository
 
     def is_persistence_enabled(self) -> bool:
         """Checks if the service is configured with a persistent backend."""
-        # The presence of a database_url on the component is the source of truth
-        # for whether SQL persistence is enabled.
         return self.component and self.component.database_url is not None
 
     def get_user_sessions(
-        self, user_id: UserId, pagination: PaginationInfo | None = None
-    ) -> list[Session]:
+        self,
+        db: DbSession,
+        user_id: UserId,
+        pagination: PaginationParams | None = None
+    ) -> PaginatedResponse[Session]:
+        """
+        Get paginated sessions for a user with full metadata.
+
+        Uses default pagination if none provided (page 1, size 20).
+        Returns paginated response with pageNumber, pageSize, nextPage, totalPages, totalCount.
+        """
         if not user_id or user_id.strip() == "":
             raise ValueError("User ID cannot be empty")
 
-        return self.session_repository.find_by_user(user_id, pagination)
+        pagination = get_pagination_or_default(pagination)
+        session_repository, _ = self._get_repositories(db)
+
+        pagination_info = PaginationInfo(
+            page=pagination.page_number,
+            page_size=pagination.page_size,
+            total_items=0,
+            total_pages=0,
+            has_next=False,
+            has_previous=False,
+        )
+
+        sessions = session_repository.find_by_user(user_id, pagination_info)
+        total_count = session_repository.count_by_user(user_id)
+
+        return PaginatedResponse.create(sessions, total_count, pagination)
 
     def get_session_details(
-        self, session_id: SessionId, user_id: UserId
+        self, db: DbSession, session_id: SessionId, user_id: UserId
     ) -> Session | None:
         if not self._is_valid_session_id(session_id):
             return None
 
-        return self.session_repository.find_user_session(session_id, user_id)
+        session_repository, _ = self._get_repositories(db)
+        return session_repository.find_user_session(session_id, user_id)
 
     def get_session_history(
         self,
+        db: DbSession,
         session_id: SessionId,
         user_id: UserId,
         pagination: PaginationInfo | None = None,
@@ -60,7 +89,8 @@ class SessionService:
         if not self._is_valid_session_id(session_id):
             return None
 
-        result = self.session_repository.find_user_session_with_messages(
+        session_repository, _ = self._get_repositories(db)
+        result = session_repository.find_user_session_with_messages(
             session_id, user_id, pagination
         )
         if not result:
@@ -75,6 +105,7 @@ class SessionService:
 
     def create_session(
         self,
+        db: DbSession,
         user_id: UserId,
         name: str | None = None,
         agent_id: str | None = None,
@@ -90,8 +121,6 @@ class SessionService:
         if not session_id:
             session_id = str(uuid.uuid4())
 
-        # Leave name as None/empty - frontend will generate display name if needed
-
         now_ms = now_epoch_ms()
         session = Session(
             id=session_id,
@@ -102,10 +131,8 @@ class SessionService:
             updated_time=now_ms,
         )
 
-        if not session:
-            raise ValueError(f"Failed to create session for {session_id}")
-
-        created_session = self.session_repository.save(session)
+        session_repository, _ = self._get_repositories(db)
+        created_session = session_repository.save(session)
         log.info("Created new session %s for user %s", created_session.id, user_id)
 
         if not created_session:
@@ -114,7 +141,7 @@ class SessionService:
         return created_session
 
     def update_session_name(
-        self, session_id: SessionId, user_id: UserId, name: str
+        self, db: DbSession, session_id: SessionId, user_id: UserId, name: str
     ) -> Session | None:
         if not self._is_valid_session_id(session_id):
             raise ValueError("Invalid session ID")
@@ -125,23 +152,25 @@ class SessionService:
         if len(name.strip()) > 255:
             raise ValueError("Session name cannot exceed 255 characters")
 
-        session = self.session_repository.find_user_session(session_id, user_id)
+        session_repository, _ = self._get_repositories(db)
+        session = session_repository.find_user_session(session_id, user_id)
         if not session:
             return None
 
         session.update_name(name)
-        updated_session = self.session_repository.save(session)
+        updated_session = session_repository.save(session)
 
         log.info("Updated session %s name to '%s'", session_id, name)
         return updated_session
 
     def delete_session_with_notifications(
-        self, session_id: SessionId, user_id: UserId
+        self, db: DbSession, session_id: SessionId, user_id: UserId
     ) -> bool:
         if not self._is_valid_session_id(session_id):
             raise ValueError("Invalid session ID")
 
-        session = self.session_repository.find_user_session(session_id, user_id)
+        session_repository, _ = self._get_repositories(db)
+        session = session_repository.find_user_session(session_id, user_id)
         if not session:
             log.warning(
                 "Attempted to delete non-existent session %s by user %s",
@@ -158,7 +187,7 @@ class SessionService:
             )
             return False
 
-        deleted = self.session_repository.delete(session_id, user_id)
+        deleted = session_repository.delete(session_id, user_id)
         if not deleted:
             return False
 
@@ -171,6 +200,7 @@ class SessionService:
 
     def add_message_to_session(
         self,
+        db: DbSession,
         session_id: SessionId,
         user_id: UserId,
         message: str,
@@ -185,9 +215,11 @@ class SessionService:
         if not message or message.strip() == "":
             raise ValueError("Message cannot be empty")
 
-        session = self.session_repository.find_user_session(session_id, user_id)
+        session_repository, message_repository = self._get_repositories(db)
+        session = session_repository.find_user_session(session_id, user_id)
         if not session:
             session = self.create_session(
+                db=db,
                 user_id=user_id,
                 agent_id=agent_id,
                 session_id=session_id,
@@ -203,10 +235,10 @@ class SessionService:
             created_time=now_epoch_ms(),
         )
 
-        saved_message = self.message_repository.save(message_entity)
+        saved_message = message_repository.save(message_entity)
 
         session.mark_activity()
-        self.session_repository.save(session)
+        session_repository.save(session)
 
         log.info("Added message to session %s from %s", session_id, sender_name)
         return saved_message

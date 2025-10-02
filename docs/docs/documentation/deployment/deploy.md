@@ -118,11 +118,11 @@ If using multiple containers, ensure all instances access the same storage with 
 ### Security Best Practices
 
 - **Environment Variables**: Store secrets in a secure vault (for example, AWS Secrets Manager, HashiCorp Vault) rather than in `.env` files.
-- **TLS Encryption**: Ensure that communication between components and with the PubSub+ event broker is encrypted using TLS.
+- **TLS Encryption**: Ensure that communication between components and with the Solace event broker is encrypted using TLS.
 - **Container Security**: Regularly update container images and use security scanning tools (for example, Trivy, Clair).
 
 ### Solace Event Broker Configuration
 
-For production environments, it's recommended to use a cloud-managed PubSub+ event broker (or event broker service). For more information, see  [Solace PubSub+ Cloud](https://solace.com/products/event-broker/).
+For production environments, it's recommended to use a cloud-managed Solace event broker (or event broker service). For more information, see  [Solace Cloud](https://solace.com/products/event-broker/).
 
 

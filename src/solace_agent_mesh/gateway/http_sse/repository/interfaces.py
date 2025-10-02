@@ -19,6 +19,11 @@ class ISessionRepository(ABC):
         pass
 
     @abstractmethod
+    def count_by_user(self, user_id: UserId) -> int:
+        """Count total sessions for a specific user."""
+        pass
+
+    @abstractmethod
     def find_user_session(
         self, session_id: SessionId, user_id: UserId
     ) -> Session | None:

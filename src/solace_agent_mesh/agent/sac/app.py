@@ -23,7 +23,7 @@ from ...common.a2a import (
     get_agent_status_subscription_topic,
     get_sam_events_subscription_topic,
 )
-from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
+from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT, TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY, TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH
 from ...agent.sac.component import SamAgentComponent
 from ...agent.utils.artifact_helpers import DEFAULT_SCHEMA_MAX_KEYS
 from ...common.utils.pydantic_utils import SamConfigBase
@@ -353,9 +353,9 @@ class SamAgentAppConfig(SamConfigBase):
         description="Configuration for the agent's custom cleanup function.",
     )
     text_artifact_content_max_length: int = Field(
-        default=1000,
+        default=TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH,
         ge=100,
-        le=100000,
+        le=TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY,
         description="Maximum character length for text-based artifact content.",
     )
     max_llm_calls_per_task: int = Field(
