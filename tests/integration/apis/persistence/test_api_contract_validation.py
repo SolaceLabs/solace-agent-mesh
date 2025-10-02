@@ -5,6 +5,7 @@ Tests HTTP status codes, request/response schemas, authentication, and API behav
 """
 
 import json
+import uuid
 
 import pytest
 from fastapi.testclient import TestClient
@@ -40,8 +41,6 @@ class TestSessionsAPIContract:
 
     def test_get_session_by_id_response_schema(self, api_client: TestClient):
         """Test GET /sessions/{id} returns proper JSON object"""
-
-        import uuid
 
         # First create a session
         task_payload = {
@@ -82,8 +81,6 @@ class TestSessionsAPIContract:
 
     def test_get_session_history_response_schema(self, api_client: TestClient):
         """Test GET /sessions/{id}/messages returns proper message array"""
-
-        import uuid
 
         # Create session with message
         task_payload = {
@@ -126,8 +123,6 @@ class TestSessionsAPIContract:
     def test_patch_session_request_response_schema(self, api_client: TestClient):
         """Test PATCH /sessions/{id} request and response schemas"""
 
-        import uuid
-
         # Create session
         task_payload = {
             "jsonrpc": "2.0",
@@ -165,8 +160,6 @@ class TestSessionsAPIContract:
     def test_delete_session_response(self, api_client: TestClient):
         """Test DELETE /sessions/{id} returns proper status code"""
 
-        import uuid
-
         # Create session
         task_payload = {
             "jsonrpc": "2.0",
@@ -199,8 +192,6 @@ class TestTasksAPIContract:
 
     def test_post_tasks_send_response_schema(self, api_client: TestClient):
         """Test POST /message:send returns proper JSONRPC response"""
-
-        import uuid
 
         task_data = {
             "jsonrpc": "2.0",
@@ -235,8 +226,6 @@ class TestTasksAPIContract:
 
     def test_post_tasks_subscribe_response_schema(self, api_client: TestClient):
         """Test POST /message:stream returns proper JSONRPC response"""
-
-        import uuid
 
         task_data = {
             "jsonrpc": "2.0",
@@ -273,8 +262,6 @@ class TestTasksAPIContract:
 
     def test_post_tasks_cancel_response_schema(self, api_client: TestClient):
         """Test POST /tasks/{taskId}:cancel returns proper response"""
-
-        import uuid
 
         # First create a task to cancel
         task_data = {
@@ -437,8 +424,6 @@ class TestRequestValidation:
     def test_malformed_json_handling(self, api_client: TestClient):
         """Test handling of malformed JSON in requests"""
 
-        import uuid
-
         # Create a session first
         task_data = {
             "jsonrpc": "2.0",
@@ -485,8 +470,6 @@ class TestRequestValidation:
 
     def test_empty_and_null_values(self, api_client: TestClient):
         """Test handling of empty and null values"""
-
-        import uuid
 
         # Test empty strings
         task_data = {
