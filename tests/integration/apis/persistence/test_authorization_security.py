@@ -134,9 +134,9 @@ def test_cross_user_session_access_returns_404(multi_user_test_setup):
     if user_a_me.status_code == 200 and user_b_me.status_code == 200:
         user_a_data = user_a_me.json()
         user_b_data = user_b_me.json()
-        # Handle both direct id field and nested profile.id field
-        user_a_id = user_a_data.get("id") or user_a_data.get("profile", {}).get("id")
-        user_b_id = user_b_data.get("id") or user_b_data.get("profile", {}).get("id")
+        # The /api/v1/users/me endpoint returns 'username' not 'id'
+        user_a_id = user_a_data.get("username")
+        user_b_id = user_b_data.get("username")
         print(f"User A ID: {user_a_id}, User B ID: {user_b_id}")
         assert user_a_id != user_b_id, "Users should have different IDs"
         print("✓ Users have different identities")
