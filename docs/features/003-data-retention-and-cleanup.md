@@ -160,7 +160,7 @@ The primary goal is to implement a configurable, automated data retention system
 
 ### Phase 6: Dependency Injection (Files to Modify)
 
-- [ ] **Step 6.1**: Add dependency function to `src/solace_agent_mesh/gateway/http_sse/dependencies.py`
+- [x] **Step 6.1**: Add dependency function to `src/solace_agent_mesh/gateway/http_sse/dependencies.py`
   - Create `get_data_retention_service()` function
   - Return service instance from component
   - Handle case where database is not configured (return None)

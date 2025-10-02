@@ -247,6 +247,34 @@ def get_feedback_service(
     )
 
 
+def get_data_retention_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> "DataRetentionService | None":
+    """
+    FastAPI dependency to get the DataRetentionService instance.
+    
+    Returns:
+        DataRetentionService instance if database is configured and service is initialized,
+        None otherwise.
+    
+    Note:
+        This dependency is primarily for future API endpoints that might expose
+        data retention statistics or manual cleanup triggers. The service itself
+        runs automatically via timer in the component.
+    """
+    log.debug("[Dependencies] get_data_retention_service called")
+    
+    if not component.database_url:
+        log.debug("[Dependencies] Database not configured, returning None for data retention service")
+        return None
+    
+    if not hasattr(component, 'data_retention_service') or component.data_retention_service is None:
+        log.warning("[Dependencies] DataRetentionService not initialized on component")
+        return None
+    
+    return component.data_retention_service
+
+
 def get_task_logger_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> TaskLoggerService:
