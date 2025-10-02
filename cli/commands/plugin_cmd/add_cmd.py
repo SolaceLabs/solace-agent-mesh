@@ -79,9 +79,9 @@ def add_plugin_component_cmd(
         return error_exit(
             f"Error: config.yaml not found in plugin '{module_name}' at expected path {plugin_config_path}"
         )
-
     try:
         plugin_config_content = plugin_config_path.read_text(encoding="utf-8")
+        click.echo(f"Found plugin config.yaml content:\n{plugin_config_content}")
     except Exception as e:
         return error_exit(
             f"Error reading plugin config.yaml from {plugin_config_path}: {e}"
@@ -124,6 +124,7 @@ def add_plugin_component_cmd(
     try:
         with open(target_path, "w", encoding="utf-8") as f:
             f.write(processed_config_content)
+        click.echo(f"Processed: {processed_config_content}")
         click.echo(f"  Created component configuration: {target_path}")
         click.echo(
             click.style(
