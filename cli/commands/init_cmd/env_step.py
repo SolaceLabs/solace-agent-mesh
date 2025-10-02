@@ -18,8 +18,8 @@ ENV_DEFAULTS = {
     "FASTAPI_PORT": "8000",
     "FASTAPI_HTTPS_PORT": "8443",
     "ENABLE_EMBED_RESOLUTION": "true",
-    "WEB_UI_GATEWAY_DATABASE_URL": "sqlite:///data/webui_gateway.db",
-    "ORCHESTRATOR_DATABASE_URL": "sqlite:///data/orchestrator.db",
+    "WEB_UI_GATEWAY_DATABASE_URL": "sqlite:///webui_gateway.db",
+    "ORCHESTRATOR_DATABASE_URL": "sqlite:///orchestrator.db",
     "SSL_KEYFILE": "",
     "SSL_CERTFILE": "",
     "SSL_KEYFILE_PASSWORD": "",
@@ -208,15 +208,6 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
             hide_input=is_secret,
         )
         env_vars_to_write[env_name] = options.get(opt_key)
-
-    if options.get("web_ui_gateway_database_url"):
-        env_vars_to_write["WEB_UI_GATEWAY_DATABASE_URL"] = options[
-            "web_ui_gateway_database_url"
-        ]
-    if options.get("orchestrator_database_url"):
-        env_vars_to_write["ORCHESTRATOR_DATABASE_URL"] = options[
-            "orchestrator_database_url"
-        ]
 
     if (
         env_vars_to_write.get("NAMESPACE")
