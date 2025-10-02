@@ -41,10 +41,25 @@ class TestSessionsAPIContract:
     def test_get_session_by_id_response_schema(self, api_client: TestClient):
         """Test GET /sessions/{id} returns proper JSON object"""
 
+        import uuid
+
         # First create a session
-        task_data = {"agent_name": "TestAgent", "message": "Schema validation test"}
-        response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
-        session_id = response.json()["result"]["sessionId"]
+        task_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Schema validation test"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        response = api_client.post("/api/v1/message:stream", json=task_payload)
+        session_id = response.json()["result"]["contextId"]
 
         # Test the GET endpoint
         response = api_client.get(f"/api/v1/sessions/{session_id}")
@@ -68,10 +83,25 @@ class TestSessionsAPIContract:
     def test_get_session_history_response_schema(self, api_client: TestClient):
         """Test GET /sessions/{id}/messages returns proper message array"""
 
+        import uuid
+
         # Create session with message
-        task_data = {"agent_name": "TestAgent", "message": "History schema test"}
-        response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
-        session_id = response.json()["result"]["sessionId"]
+        task_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "History schema test"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        response = api_client.post("/api/v1/message:stream", json=task_payload)
+        session_id = response.json()["result"]["contextId"]
 
         # Test history endpoint
         response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
@@ -96,10 +126,25 @@ class TestSessionsAPIContract:
     def test_patch_session_request_response_schema(self, api_client: TestClient):
         """Test PATCH /sessions/{id} request and response schemas"""
 
+        import uuid
+
         # Create session
-        task_data = {"agent_name": "TestAgent", "message": "Patch schema test"}
-        response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
-        session_id = response.json()["result"]["sessionId"]
+        task_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Patch schema test"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        response = api_client.post("/api/v1/message:stream", json=task_payload)
+        session_id = response.json()["result"]["contextId"]
 
         # Test PATCH request
         update_data = {"name": "Updated Session Name"}
@@ -120,10 +165,25 @@ class TestSessionsAPIContract:
     def test_delete_session_response(self, api_client: TestClient):
         """Test DELETE /sessions/{id} returns proper status code"""
 
+        import uuid
+
         # Create session
-        task_data = {"agent_name": "TestAgent", "message": "Delete test"}
-        response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
-        session_id = response.json()["result"]["sessionId"]
+        task_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Delete test"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        response = api_client.post("/api/v1/message:stream", json=task_payload)
+        session_id = response.json()["result"]["contextId"]
 
         # Test DELETE
         response = api_client.delete(f"/api/v1/sessions/{session_id}")
