@@ -1,7 +1,7 @@
 # DEVELOPER GUIDE: alembic
 
 ## Quick Summary
-This directory contains Alembic database migration configuration and version files for the HTTP SSE gateway. It provides database schema management capabilities, including initial table creation, performance optimization through indexing, timestamp format standardization, and task management features. The directory consists of the main Alembic environment configuration (`env.py`) and a versions subdirectory containing sequential migration files that handle schema evolution over time.
+This directory contains Alembic database migration configuration and version files for the HTTP SSE gateway. It provides database schema management capabilities, including initial table creation, performance optimization through indexing, timestamp format standardization, and task management features with token usage tracking. The directory consists of the main Alembic environment configuration (`env.py`) and a versions subdirectory containing sequential migration files that handle schema evolution over time.
 
 ## Files and Subdirectories Overview
 - **Direct files:**
@@ -29,7 +29,7 @@ This directory contains Alembic database migration configuration and version fil
 ### Subdirectory APIs
 
 #### versions/
-**Purpose:** Contains sequential Alembic migration files that define database schema changes including core tables, indexes, timestamp modernization, and task management
+**Purpose:** Contains sequential Alembic migration files that define database schema changes including core tables, indexes, timestamp modernization, task management, and token usage tracking
 **Key Exports:** Migration functions for complete schema evolution (upgrade/downgrade operations)
 **Import Examples:**
 ```python
@@ -44,6 +44,7 @@ This directory contains Alembic database migration configuration and version fil
 - `b1c2d3e4f5g6` - Performance indexes for query optimization
 - `f6e7d8c9b0a1` - Timestamp conversion to epoch milliseconds
 - `079e06e9b448` - Task management tables (tasks, task_events, feedback)
+- `20250930_token_usage` - Token usage tracking columns for AI model consumption monitoring
 
 ## Complete Usage Guide
 
@@ -105,6 +106,10 @@ alembic upgrade f6e7d8c9b0a1
 # Step 4: Add task management features
 alembic upgrade 079e06e9b448
 # Creates: tasks, task_events, feedback tables with proper relationships
+
+# Step 5: Add token usage tracking
+alembic upgrade 20250930_token_usage
+# Adds: token usage columns for AI model consumption monitoring
 ```
 
 ### 4. Working with Different Database Engines
@@ -139,6 +144,7 @@ from solace_agent_mesh.gateway.http_sse.repository.models.feedback_model import 
 # - Proper indexes for performance
 # - Standardized column names
 # - Complete task management functionality
+# - Token usage tracking for AI model consumption
 ```
 
 ### 6. Offline Migration Generation
@@ -153,8 +159,8 @@ alembic upgrade d5b3f8f2e9a0 --sql
 # Generate SQL for all pending migrations
 alembic upgrade head --sql
 
-# Generate SQL for task management migration
-alembic upgrade 079e06e9b448 --sql
+# Generate SQL for token usage migration
+alembic upgrade 20250930_token_usage --sql
 ```
 
 ### 7. Common Development Patterns
@@ -209,6 +215,10 @@ alembic upgrade head --sql > migration.sql
 --   end_time (BigInteger, epoch ms)
 --   status (String)
 --   initial_request_text (Text)
+--   total_input_tokens (Integer)
+--   total_output_tokens (Integer)
+--   total_cached_input_tokens (Integer)
+--   token_usage_details (Text, JSON)
 
 -- task_events table:
 --   id (String, Primary Key)
@@ -258,6 +268,28 @@ alembic upgrade head --sql > migration.sql
 # - More efficient for large datasets
 ```
 
-This Alembic configuration provides a comprehensive database migration system that handles schema evolution, performance optimization, cross-database compatibility, and complete task management functionality for the HTTP SSE gateway component.
+### 10. Token Usage Tracking
 
-# content_hash: 387da185d35e121cc99486d0f1e8b13d4b15c39d92cf5af094c4866c5f554dac
+```python
+# The 20250930_token_usage migration adds AI model consumption tracking:
+
+# Token usage columns added to tasks table:
+# - total_input_tokens: Total input tokens consumed
+# - total_output_tokens: Total output tokens generated
+# - total_cached_input_tokens: Cached input tokens used
+# - token_usage_details: JSON field for detailed token usage breakdown
+
+# Usage example after migration:
+from solace_agent_mesh.gateway.http_sse.repository.models.task_model import TaskModel
+
+# Query tasks with token usage
+task = session.query(TaskModel).filter_by(id="task_id").first()
+print(f"Input tokens: {task.total_input_tokens}")
+print(f"Output tokens: {task.total_output_tokens}")
+print(f"Cached tokens: {task.total_cached_input_tokens}")
+print(f"Details: {task.token_usage_details}")
+```
+
+This Alembic configuration provides a comprehensive database migration system that handles schema evolution, performance optimization, cross-database compatibility, complete task management functionality, and AI model token usage tracking for the HTTP SSE gateway component.
+
+# content_hash: 2904df085decd08d4411ff2583b376a04fc56ba1eae82ba45f4a91e1a930b710

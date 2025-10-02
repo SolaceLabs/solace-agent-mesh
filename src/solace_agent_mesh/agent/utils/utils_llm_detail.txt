@@ -1,3 +1,13 @@
+# LLM Summary Detail File
+
+This file is a concatenation of all individual *llm.txt files found in the 'utils' directory tree. Each section below corresponds to a specific directory's summary file.
+
+================================================================================
+
+## Section 1: solace_agent_mesh/agent/utils/utils_llm.txt
+
+**Source file:** `solace_agent_mesh/agent/utils/utils_llm.txt`
+
 ## Quick Summary
 The `utils` directory provides a collection of helper modules designed to support the core functionality of the agent. These utilities encapsulate common, reusable logic for tasks such as artifact management (saving, loading, schema inference), configuration parsing, and safe interaction with the ADK's invocation context.
 
@@ -135,4 +145,5 @@ def my_tool(callback_context):
     # "session123:tool456" -> "session123"
 ```
 
-# content_hash: a47bd4722e780a6a8146c6913cb0cbb053515a6f17dac92171ba79aef00d61b0
+================================================================================
+

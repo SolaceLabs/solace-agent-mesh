@@ -1,3 +1,13 @@
+# LLM Summary Detail File
+
+This file is a concatenation of all individual *llm.txt files found in the 'sac' directory tree. Each section below corresponds to a specific directory's summary file.
+
+================================================================================
+
+## Section 1: solace_agent_mesh/agent/sac/sac_llm.txt
+
+**Source file:** `solace_agent_mesh/agent/sac/sac_llm.txt`
+
 # DEVELOPER GUIDE for the directory: sac
 
 ## Quick Summary
@@ -186,4 +196,5 @@ usage = task_context.get_token_usage_summary()
 print(f"Total tokens used: {usage['total_tokens']}")
 ```
 
-# content_hash: 27b0000d250131d578d28ab8c4d06c2e2084d888b47102e9b3b133adbc61a169
+================================================================================
+

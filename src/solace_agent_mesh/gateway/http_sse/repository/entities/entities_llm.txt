@@ -9,7 +9,7 @@ The entities directory contains domain entities for the repository layer, provid
 - `message.py` - Message entity with content validation and sender type checking
 - `session.py` - Session entity with name management and access control
 - `session_history.py` - Composite entity combining sessions with their message history
-- `task.py` - Task entity for tracking user tasks and their status
+- `task.py` - Task entity for tracking user tasks and their status with token usage
 - `task_event.py` - Task event entity for tracking events related to tasks
 
 ## Developer API Reference
@@ -177,17 +177,21 @@ print(f"Total messages: {history.total_message_count}")
 ```
 
 ### task.py
-**Purpose:** Defines the Task domain entity for tracking user tasks
+**Purpose:** Defines the Task domain entity for tracking user tasks with token usage metrics
 **Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Task`
 
 **Classes:**
-- `Task(id: str, user_id: str, start_time: int, end_time: int | None = None, status: str | None = None, initial_request_text: str | None = None)` - Task domain entity
+- `Task(id: str, user_id: str, start_time: int, end_time: int | None = None, status: str | None = None, initial_request_text: str | None = None, total_input_tokens: int | None = None, total_output_tokens: int | None = None, total_cached_input_tokens: int | None = None, token_usage_details: dict | None = None)` - Task domain entity with token usage tracking
   - `id: str` - Unique task identifier
   - `user_id: str` - User who owns the task
   - `start_time: int` - Task start timestamp
   - `end_time: int | None` - Optional task end timestamp
   - `status: str | None` - Optional task status
   - `initial_request_text: str | None` - Optional initial request text
+  - `total_input_tokens: int | None` - Total input tokens used
+  - `total_output_tokens: int | None` - Total output tokens generated
+  - `total_cached_input_tokens: int | None` - Total cached input tokens used
+  - `token_usage_details: dict | None` - Detailed token usage information
 
 **Usage Examples:**
 ```python
@@ -202,13 +206,17 @@ task = Task(
     initial_request_text="Help me with my order"
 )
 
-# Task with end time
-completed_task = Task(
+# Task with token usage tracking
+task_with_tokens = Task(
     id="task_124",
     user_id="user_456",
     start_time=1640995200000,
     end_time=1640995800000,
-    status="completed"
+    status="completed",
+    total_input_tokens=150,
+    total_output_tokens=300,
+    total_cached_input_tokens=50,
+    token_usage_details={"model": "gpt-4", "cost": 0.05}
 )
 ```
 
@@ -252,4 +260,4 @@ system_event = TaskEvent(
 )
 ```
 
-# content_hash: 7c248458b009f505d7f094fedaf55453845411d02dbd3d309cd14792e3356c6c
+# content_hash: 14f978bcbf2c820db1c7f3185ffa1529a656b3b5fa0f64cff81927eb2f7d12e9

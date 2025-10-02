@@ -1,3 +1,13 @@
+# LLM Summary Detail File
+
+This file is a concatenation of all individual *llm.txt files found in the 'base' directory tree. Each section below corresponds to a specific directory's summary file.
+
+================================================================================
+
+## Section 1: solace_agent_mesh/gateway/base/base_llm.txt
+
+**Source file:** `solace_agent_mesh/gateway/base/base_llm.txt`
+
 # DEVELOPER GUIDE: base
 
 ## Quick Summary
@@ -221,4 +231,5 @@ if retrieved_context:
 context_manager.remove_context(task_id)
 ```
 
-# content_hash: 849930d2f66a87b20823732d8339e50a0a55a0d52958b2467e072de8b3eebea9
+================================================================================
+

@@ -73,12 +73,12 @@ apps:
       frontend_bot_name: ${FRONTEND_BOT_NAME}
       frontend_collect_feedback: true
 
-      task_logging:                                                                                                                                               
-        enabled: true # <-- THIS IS THE KEY. It activates the TaskLoggerService.                                                                                  
-        log_status_updates: true                                                                                                                                  
-        log_artifact_events: true                                                                                                                                 
-        log_file_parts: true                                                                                                                                      
-        max_file_part_size_bytes: 102400                                                                                                                          
+      task_logging:
+        enabled: true
+        log_status_updates: true
+        log_artifact_events: true
+        log_file_parts: true
+        max_file_part_size_bytes: 10240
 
       feedback_publishing:
         enabled: true

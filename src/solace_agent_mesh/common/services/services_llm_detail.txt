@@ -1,3 +1,98 @@
+# LLM Summary Detail File
+
+This file is a concatenation of all individual *llm.txt files found in the 'services' directory tree. Each section below corresponds to a specific directory's summary file.
+
+================================================================================
+
+## Section 1: solace_agent_mesh/common/services/providers/providers_llm.txt
+
+**Source file:** `solace_agent_mesh/common/services/providers/providers_llm.txt`
+
+## Quick Summary
+This directory contains concrete implementations (providers) for the abstract services defined in the parent `services` package. These providers offer specific ways to fulfill service contracts, such as sourcing user identity information from a local file.
+
+## Files Overview
+- `__init__.py` - Package initialization file marking the directory as a Python package
+- `local_file_identity_service.py` - File-based identity service implementation that reads user data from local JSON files
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Initializes the providers package
+**Import:** `from solace_agent_mesh.common.services import providers`
+
+This file contains no public classes or functions - it serves only as package documentation.
+
+### local_file_identity_service.py
+**Purpose:** Provides a file-based identity service that reads user profiles from a local JSON file, ideal for development, testing, or small-scale deployments
+**Import:** `from solace_agent_mesh.common.services.providers.local_file_identity_service import LocalFileIdentityService`
+
+**Classes:**
+- `LocalFileIdentityService(config: Dict[str, Any])` - Identity service that sources user data from a local JSON file
+  - `async get_user_profile(auth_claims: Dict[str, Any]) -> Optional[Dict[str, Any]]` - Looks up a user profile using the lookup key from auth claims
+  - `async search_users(query: str, limit: int = 10) -> List[Dict[str, Any]]` - Performs case-insensitive search on user names and emails
+  - `file_path: str` - Path to the JSON file containing user data
+  - `lookup_key: str` - Key used to identify users (defaults to "id")
+  - `all_users: List[Dict[str, Any]]` - Complete list of user profiles loaded from file
+  - `user_index: Dict[str, Dict[str, Any]]` - In-memory index mapping lookup keys to user profiles
+
+**Usage Examples:**
+```python
+import asyncio
+import json
+from solace_agent_mesh.common.services.providers.local_file_identity_service import LocalFileIdentityService
+
+# Create sample users.json file
+users_data = [
+    {
+        "id": "jdoe",
+        "email": "jane.doe@example.com", 
+        "name": "Jane Doe",
+        "title": "Senior Engineer",
+        "manager_id": "ssmith"
+    },
+    {
+        "id": "ssmith",
+        "email": "sam.smith@example.com",
+        "name": "Sam Smith", 
+        "title": "Engineering Manager"
+    }
+]
+
+with open("users.json", "w") as f:
+    json.dump(users_data, f)
+
+async def main():
+    # Initialize the service
+    config = {
+        "file_path": "users.json",
+        "lookup_key": "id"  # Optional, defaults to "id"
+    }
+    
+    identity_service = LocalFileIdentityService(config)
+    
+    # Get user profile by ID
+    auth_claims = {"id": "jdoe"}
+    profile = await identity_service.get_user_profile(auth_claims)
+    print(f"User profile: {profile}")
+    
+    # Search for users
+    results = await identity_service.search_users("jane", limit=5)
+    print(f"Search results: {results}")
+    
+    # Handle missing user
+    missing = await identity_service.get_user_profile({"id": "nonexistent"})
+    print(f"Missing user: {missing}")  # Returns None
+
+asyncio.run(main())
+```
+
+================================================================================
+
+## Section 2: solace_agent_mesh/common/services/services_llm.txt
+
+**Source file:** `solace_agent_mesh/common/services/services_llm.txt`
+
 # DEVELOPER GUIDE: services
 
 ## Quick Summary
@@ -360,4 +455,5 @@ asyncio.run(setup_file_based_identity())
 
 This comprehensive guide shows how the services framework provides a clean, extensible way to integrate various data sources while maintaining consistent interfaces and supporting both built-in providers and external plugins through the factory pattern and plugin system.
 
-# content_hash: 879562926a7d3b7c6782ae395159d6c1f8a55663ce052a93eea8966e69b04444
+================================================================================
+

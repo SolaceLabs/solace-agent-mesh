@@ -1,373 +1,10 @@
 # LLM Summary Detail File
 
-This file is a concatenation of all individual *llm.txt files found in the 'src' directory tree. Each section below corresponds to a specific directory's summary file.
+This file is a concatenation of all individual *llm.txt files found in the 'solace_agent_mesh' directory tree. Each section below corresponds to a specific directory's summary file.
 
 ================================================================================
 
-## Section 1: llm.txt
-
-**Source file:** `llm.txt`
-
-# DEVELOPER GUIDE for the directory: src
-
-## Quick Summary
-The `src` directory serves as the main source code root for the Solace AI Connector, containing four primary subsystems that work together to enable comprehensive AI agent communication and hosting. The `agent` directory provides a complete framework for hosting Google ADK agents with A2A protocol support, the `common` directory offers foundational A2A protocol infrastructure and utilities, the `core_a2a` directory provides a reusable service layer for core A2A operations, and the `gateway` directory implements various gateway patterns for external platform integration. These components work together to create a distributed AI agent ecosystem with real-time communication, task delegation, and multi-platform integration capabilities.
-
-## Files and Subdirectories Overview
-- **Direct files:**
-  - `__init__.py`: Empty package initialization file.
-- **Subdirectories:**
-  - `agent/`: Complete ADK agent hosting framework with A2A protocol integration and comprehensive tool library.
-  - `common/`: Foundational A2A protocol infrastructure, type systems, and client/server implementations.
-  - `core_a2a/`: Reusable service layer for core A2A interactions and agent registry operations.
-  - `gateway/`: Gateway framework with HTTP/SSE, Slack, and Webhook implementations for external platform integration.
-
-## Developer API Reference
-
-### Direct Files
-
-#### __init__.py
-**Purpose:** Standard Python package initializer. It allows the `src` directory and its subdirectories to be treated as a package.
-**Import:** `from src import agent, common, gateway`
-
-**Classes/Functions/Constants:**
-This file is empty and has no public interfaces.
-
-### Subdirectory APIs
-
-#### agent/
-**Purpose:** Provides a complete framework for hosting Google ADK agents with A2A protocol support and a comprehensive, extensible tool library.
-**Key Exports:** `SamAgentApp`, `SamAgentComponent`, `AppLlmAgent`, and a wide array of built-in tools for data analysis, web requests, multimedia processing, and inter-agent communication.
-**Import Examples:**
-```python
-from src.agent.sac.app import SamAgentApp
-from src.agent.sac.component import SamAgentComponent
-from src.agent.adk.app_llm_agent import AppLlmAgent
-from src.agent.tools.builtin_data_analysis_tools import query_data_with_sql
-from src.agent.tools.peer_agent_tool import PeerAgentTool
-from src.agent.tools.web_tools import web_request
-from src.agent.tools.image_tools import create_image_from_description
-```
-
-#### common/
-**Purpose:** Provides the foundational infrastructure for Agent-to-Agent (A2A) communication, including the core protocol, data types, message translation, and client/server implementations.
-**Key Exports:** A2A protocol functions, Pydantic type definitions (`Message`, `Task`, `AgentCard`), `A2AClient` for interacting with agents, `A2AServer` for building agents, and various utilities.
-**Import Examples:**
-```python
-from src.common.a2a_protocol import get_agent_request_topic
-from src.common.types import Message, Task, AgentCard, TextPart
-from src.common.client import A2AClient, A2ACardResolver
-from src.common.server import A2AServer, InMemoryTaskManager
-from src.common.agent_registry import AgentRegistry
-from src.common.utils.embeds import resolve_embeds_in_string
-```
-
-#### core_a2a/
-**Purpose:** Provides a reusable, decoupled service layer for core A2A interactions, handling task submission, cancellation, and agent discovery.
-**Key Exports:** `CoreA2AService` for managing A2A protocol logic without being tied to a specific gateway or messaging implementation.
-**Import Examples:**
-```python
-from src.core_a2a.service import CoreA2AService
-```
-
-#### gateway/
-**Purpose:** Provides a framework and multiple implementations for building gateways that bridge external platforms (like web UIs, Slack, or webhooks) with the A2A messaging system.
-**Key Exports:** `BaseGatewayApp` and `BaseGatewayComponent` for creating custom gateways, and concrete implementations like `WebUIBackendApp`, `SlackGatewayApp`, and `WebhookGatewayApp`.
-**Import Examples:**
-```python
-from src.gateway.base.app import BaseGatewayApp
-from src.gateway.http_sse.app import WebUIBackendApp
-from src.gateway.slack.app import SlackGatewayApp
-from src.gateway.webhook.app import WebhookGatewayApp
-from src.gateway.base.authorization_service import ConfigurableRbacAuthorizationService
-```
-
-## Complete Usage Guide
-This guide demonstrates how the different subdirectories within `src` work together to build a complete, distributed AI agent system.
-
-### 1. How to import and use functionality from subdirectories
-The following examples show how to import and instantiate components from each major subdirectory.
-
-```python
-# 1. Import from the 'agent' directory to create an AI agent
-from src.agent.sac.app import SamAgentApp
-
-# 2. Import from the 'common' and 'core_a2a' directories for protocol infrastructure
-from src.common.agent_registry import AgentRegistry
-from src.common.types import AgentCard, AgentCapabilities, AgentSkill
-from src.core_a2a.service import CoreA2AService
-
-# 3. Import from the 'gateway' directory to create interfaces
-from src.gateway.http_sse.app import WebUIBackendApp
-from src.gateway.slack.app import SlackGatewayApp
-from src.gateway.webhook.app import WebhookGatewayApp
-
-# 4. Import tools from the 'agent/tools' subdirectory
-from src.agent.tools.peer_agent_tool import PeerAgentTool
-from src.agent.tools.builtin_data_analysis_tools import query_data_with_sql
-```
-
-### 2. How different parts work together
-This section shows a step-by-step process for building a system, illustrating the synergy between the components.
-
-#### Step 1: Create an ADK-powered agent (`agent/`)
-First, define and configure an agent. This agent will automatically be equipped with a rich set of tools and A2A communication capabilities.
-
-```python
-# File: my_system.py
-from src.agent.sac.app import SamAgentApp
-
-# Configure the agent with all capabilities
-agent_config = {
-    "name": "data-analyst-agent",
-    "app_config": {
-        "namespace": "myorg/ai-agents",
-        "agent_name": "data_analyst",
-        "model": "gemini-1.5-pro",
-        "instruction": "You are a data analysis expert with access to SQL, charting, web tools, and peer collaboration.",
-        "agent_card": {
-            "description": "AI agent for comprehensive data analysis and reporting",
-            "capabilities": ["data_analysis", "web_research", "chart_generation", "peer_collaboration"]
-        },
-        "agent_card_publishing": {"interval_seconds": 30},
-        "agent_discovery": {"enabled": True},
-        "inter_agent_communication": {"allow_list": ["*"]}
-    }
-}
-
-# Create the agent app (in a real scenario, this is run by the SAC framework)
-agent_app = SamAgentApp(agent_config)
-```
-
-#### Step 2: Set Up A2A Protocol Infrastructure (`common/` and `core_a2a/`)
-Next, set up the core services that manage agent discovery and task routing. This is often handled by the gateway components but can be used directly.
-
-```python
-# File: my_system.py (continued)
-from src.common.agent_registry import AgentRegistry
-from src.common.types import AgentCard, AgentCapabilities, AgentSkill
-from src.core_a2a.service import CoreA2AService
-
-# Initialize a shared agent registry
-agent_registry = AgentRegistry()
-
-# Create the core A2A service, which uses the registry
-namespace = "myorg/ai-agents"
-a2a_service = CoreA2AService(agent_registry, namespace)
-
-# Manually register an agent's capabilities (this is usually done automatically by the agent itself)
-data_analyst_card = AgentCard(
-    name="data_analyst",
-    display_name="Data Analyst",
-    description="AI agent for data analysis",
-    url=f"a2a://{namespace}/data_analyst",
-    version="1.0.0",
-    capabilities=AgentCapabilities(streaming=True, pushNotifications=True),
-    skills=[AgentSkill(id="sql_analysis", name="SQL Data Analysis")]
-)
-a2a_service.process_discovery_message(data_analyst_card)
-```
-
-#### Step 3: Create Gateway Integrations (`gateway/`)
-Create one or more gateways to expose the agent(s) to external platforms.
-
-```python
-# File: my_system.py (continued)
-from src.gateway.http_sse.app import WebUIBackendApp
-from src.gateway.slack.app import SlackGatewayApp
-
-# Web UI Gateway for browser-based interactions
-webui_config = {
-    "name": "web-gateway",
-    "app_config": {
-        "namespace": "myorg/ai-agents",
-        "gateway_id": "web-ui-gateway",
-        "session_secret_key": "a-very-secret-key",
-        "fastapi_host": "0.0.0.0",
-        "fastapi_port": 8080,
-        "artifact_service": {"type": "local_file", "base_path": "./artifacts"}
-    }
-}
-webui_app = WebUIBackendApp(webui_config)
-
-# Slack Gateway for team collaboration
-slack_config = {
-    "name": "slack-gateway",
-    "app_config": {
-        "namespace": "myorg/ai-agents",
-        "gateway_id": "slack-gateway",
-        "slack_bot_token": "${SLACK_BOT_TOKEN}",
-        "slack_app_token": "${SLACK_APP_TOKEN}",
-        "default_agent_name": "data_analyst"
-    }
-}
-slack_app = SlackGatewayApp(slack_config)
-```
-
-### 3. Common usage patterns
-
-#### Pattern 1: Inter-Agent Communication
-An agent can use the `PeerAgentTool` (from `agent/tools/`) to delegate tasks to other agents, leveraging the `common/` protocol infrastructure.
-
-```python
-# This code would run within an agent's tool execution context.
-from src.agent.tools.peer_agent_tool import PeerAgentTool
-
-async def analyze_and_delegate_report(component, tool_context):
-    # Assume 'component' is the SamAgentComponent instance hosting the current agent.
-    
-    # Step 1: Perform local analysis (using another tool)
-    # ... analysis_result = await query_data_with_sql(...) ...
-
-    # Step 2: Delegate report generation to a specialist agent
-    peer_tool = PeerAgentTool(
-        target_agent_name="report_generator",
-        host_component=component
-    )
-    
-    report_result = await peer_tool.run_async(
-        args={
-            "task_description": "Generate a professional PDF report from this analysis",
-            "analysis_data": "artifact://analysis_result.json",
-            "report_format": "PDF"
-        },
-        tool_context=tool_context
-    )
-    
-    return report_result
-```
-
-#### Pattern 2: Building Custom Tools
-Developers can extend the agent's capabilities by creating custom tools that integrate with the existing framework.
-
-```python
-from src.agent.tools.registry import tool_registry
-from src.agent.tools.tool_definition import BuiltinTool
-from google.adk.tools import ToolContext
-
-async def custom_database_query(
-    query: str,
-    database_name: str = "default",
-    tool_context: ToolContext = None,
-    tool_config: dict = None
-) -> dict:
-    """Execute a custom database query with enhanced features."""
-    
-    # Access the host component for shared resources
-    host_component = tool_context._invocation_context.agent.host_component
-    
-    # Get database connection from agent state
-    db_connection = host_component.get_agent_specific_state('db_connection')
-    
-    # Execute query and save results as artifact
-    try:
-        result = await execute_query(db_connection, query, database_name)
-        
-        # Save results using the artifact helpers
-        from src.agent.utils.artifact_helpers import save_artifact_with_metadata
-        import json
-        from datetime import datetime, timezone
-        
-        artifact_result = await save_artifact_with_metadata(
-            artifact_service=host_component.get_shared_artifact_service(),
-            app_name=host_component.get_config()["app_name"],
-            user_id=tool_context.user_id,
-            session_id=tool_context.session_id,
-            filename=f"query_result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-            content_bytes=json.dumps(result).encode(),
-            mime_type="application/json",
-            metadata_dict={
-                "query": query,
-                "database": database_name,
-                "tool": "custom_database_query"
-            },
-            timestamp=datetime.now(timezone.utc)
-        )
-        
-        return {
-            "status": "success",
-            "rows_returned": len(result),
-            "artifact_filename": artifact_result["filename"]
-        }
-        
-    except Exception as e:
-        return {"status": "error", "error_message": str(e)}
-
-# Register the custom tool
-custom_tool = BuiltinTool(
-    name="custom_database_query",
-    description="Execute custom database queries with enhanced features",
-    function=custom_database_query,
-    category="data_analysis"
-)
-tool_registry.register(custom_tool)
-```
-
-#### Pattern 3: Client-Side Integration
-External applications can interact with the agent system using the client library from the `common/` directory.
-
-```python
-import asyncio
-from src.common.client import A2AClient, A2ACardResolver
-
-async def client_integration_example():
-    # Discover available agents
-    resolver = A2ACardResolver("https://agents.myorg.com")
-    agent_card = resolver.get_agent_card()
-    
-    # Create client for agent interaction
-    client = A2AClient(agent_card=agent_card)
-    
-    # Submit a task with streaming response
-    task_payload = {
-        "action": "analyze_data",
-        "data_file": "sales_report.csv",
-        "analysis_type": "quarterly_trends"
-    }
-    
-    print("Submitting task and streaming response...")
-    async for response in client.send_task_streaming(task_payload):
-        if hasattr(response.result, 'text_delta'):
-            print(response.result.text_delta, end='', flush=True)
-        elif hasattr(response.result, 'artifact'):
-            print(f"\nArtifact created: {response.result.artifact.name}")
-
-# Run the client example
-# asyncio.run(client_integration_example())
-```
-
-#### Pattern 4: Multimedia Processing Workflow
-The system supports rich multimedia processing through specialized tools.
-
-```python
-from src.agent.tools.audio_tools import text_to_speech, multi_speaker_text_to_speech
-from src.agent.tools.image_tools import create_image_from_description
-
-async def multimedia_workflow(tool_context):
-    # Generate speech from text
-    tts_result = await text_to_speech(
-        text="Welcome to our AI-powered presentation system!",
-        output_filename="intro.mp3",
-        gender="female",
-        tone="professional",
-        language="en-US",
-        tool_context=tool_context
-    )
-    
-    # Create a multi-speaker dialogue
-    conversation_result = await multi_speaker_text_to_speech(
-        conversation_text="""
-        Presenter: Today we'll discuss our quarterly results.
-        Analyst: The data shows significant growth in Q4.
-        Presenter: Let's dive into the details.
-        """,
-        speaker_configs=[
-            {"name": "Presenter", "gender": "female", "tone": "professional"},
-            {"name": "
-
-================================================================================
-
-## Section 2: solace_agent_mesh/agent/adk/adk_llm.txt
+## Section 1: solace_agent_mesh/agent/adk/adk_llm.txt
 
 **Source file:** `solace_agent_mesh/agent/adk/adk_llm.txt`
 
@@ -604,7 +241,7 @@ artifact_service = S3ArtifactService(bucket_name="my-artifacts-bucket")
 
 ================================================================================
 
-## Section 3: solace_agent_mesh/agent/adk/artifacts/artifacts_llm.txt
+## Section 2: solace_agent_mesh/agent/adk/artifacts/artifacts_llm.txt
 
 **Source file:** `solace_agent_mesh/agent/adk/artifacts/artifacts_llm.txt`
 
@@ -780,7 +417,7 @@ await artifact_service.delete_artifact(
 
 ================================================================================
 
-## Section 4: solace_agent_mesh/agent/adk/models/models_llm.txt
+## Section 3: solace_agent_mesh/agent/adk/models/models_llm.txt
 
 **Source file:** `solace_agent_mesh/agent/adk/models/models_llm.txt`
 
@@ -927,7 +564,7 @@ if __name__ == "__main__":
 
 ================================================================================
 
-## Section 5: solace_agent_mesh/agent/agent_llm.txt
+## Section 4: solace_agent_mesh/agent/agent_llm.txt
 
 **Source file:** `solace_agent_mesh/agent/agent_llm.txt`
 
@@ -1310,7 +947,7 @@ async def my_business_tool(
 
 ================================================================================
 
-## Section 6: solace_agent_mesh/agent/protocol/protocol_llm.txt
+## Section 5: solace_agent_mesh/agent/protocol/protocol_llm.txt
 
 **Source file:** `solace_agent_mesh/agent/protocol/protocol_llm.txt`
 
@@ -1396,7 +1033,7 @@ await cleanup_agent_session(component, "session_123", "user_456")
 
 ================================================================================
 
-## Section 7: solace_agent_mesh/agent/sac/sac_llm.txt
+## Section 6: solace_agent_mesh/agent/sac/sac_llm.txt
 
 **Source file:** `solace_agent_mesh/agent/sac/sac_llm.txt`
 
@@ -1590,7 +1227,7 @@ print(f"Total tokens used: {usage['total_tokens']}")
 
 ================================================================================
 
-## Section 8: solace_agent_mesh/agent/testing/testing_llm.txt
+## Section 7: solace_agent_mesh/agent/testing/testing_llm.txt
 
 **Source file:** `solace_agent_mesh/agent/testing/testing_llm.txt`
 
@@ -1652,7 +1289,7 @@ pretty_print_event_history([])
 
 ================================================================================
 
-## Section 9: solace_agent_mesh/agent/tools/tools_llm.txt
+## Section 8: solace_agent_mesh/agent/tools/tools_llm.txt
 
 **Source file:** `solace_agent_mesh/agent/tools/tools_llm.txt`
 
@@ -1920,7 +1557,7 @@ peer_tool = PeerAgentTool("data_analyst_agent", host_component)
 
 ================================================================================
 
-## Section 10: solace_agent_mesh/agent/utils/utils_llm.txt
+## Section 9: solace_agent_mesh/agent/utils/utils_llm.txt
 
 **Source file:** `solace_agent_mesh/agent/utils/utils_llm.txt`
 
@@ -2063,7 +1700,7 @@ def my_tool(callback_context):
 
 ================================================================================
 
-## Section 11: solace_agent_mesh/common/a2a/a2a_llm.txt
+## Section 10: solace_agent_mesh/common/a2a/a2a_llm.txt
 
 **Source file:** `solace_agent_mesh/common/a2a/a2a_llm.txt`
 
@@ -2250,7 +1887,7 @@ request = create_sen
 
 ================================================================================
 
-## Section 12: solace_agent_mesh/common/a2a_spec/a2a_spec_llm.txt
+## Section 11: solace_agent_mesh/common/a2a_spec/a2a_spec_llm.txt
 
 **Source file:** `solace_agent_mesh/common/a2a_spec/a2a_spec_llm.txt`
 
@@ -2662,7 +2299,7 @@ This comprehensive guide shows how to use both the main A2A specification and th
 
 ================================================================================
 
-## Section 13: solace_agent_mesh/common/a2a_spec/schemas/schemas_llm.txt
+## Section 12: solace_agent_mesh/common/a2a_spec/schemas/schemas_llm.txt
 
 **Source file:** `solace_agent_mesh/common/a2a_spec/schemas/schemas_llm.txt`
 
@@ -2980,7 +2617,7 @@ schemas = {
 
 ================================================================================
 
-## Section 14: solace_agent_mesh/common/common_llm.txt
+## Section 13: solace_agent_mesh/common/common_llm.txt
 
 **Source file:** `solace_agent_mesh/common/common_llm.txt`
 
@@ -3236,7 +2873,7 @@ from solace_
 
 ================================================================================
 
-## Section 15: solace_agent_mesh/common/middleware/middleware_llm.txt
+## Section 14: solace_agent_mesh/common/middleware/middleware_llm.txt
 
 **Source file:** `solace_agent_mesh/common/middleware/middleware_llm.txt`
 
@@ -3415,7 +3052,7 @@ print(f"Registry Status after reset: {MiddlewareRegistry.get_registry_status()}"
 
 ================================================================================
 
-## Section 16: solace_agent_mesh/common/sac/sac_llm.txt
+## Section 15: solace_agent_mesh/common/sac/sac_llm.txt
 
 **Source file:** `solace_agent_mesh/common/sac/sac_llm.txt`
 
@@ -3491,7 +3128,7 @@ agent.cleanup()
 
 ================================================================================
 
-## Section 17: solace_agent_mesh/common/sam_events/sam_events_llm.txt
+## Section 16: solace_agent_mesh/common/sam_events/sam_events_llm.txt
 
 **Source file:** `solace_agent_mesh/common/sam_events/sam_events_llm.txt`
 
@@ -3600,7 +3237,7 @@ print(topic)  # Returns the proper SAM events topic
 
 ================================================================================
 
-## Section 18: solace_agent_mesh/common/services/providers/providers_llm.txt
+## Section 17: solace_agent_mesh/common/services/providers/providers_llm.txt
 
 **Source file:** `solace_agent_mesh/common/services/providers/providers_llm.txt`
 
@@ -3685,7 +3322,7 @@ asyncio.run(main())
 
 ================================================================================
 
-## Section 19: solace_agent_mesh/common/services/services_llm.txt
+## Section 18: solace_agent_mesh/common/services/services_llm.txt
 
 **Source file:** `solace_agent_mesh/common/services/services_llm.txt`
 
@@ -4053,7 +3690,7 @@ This comprehensive guide shows how the services framework provides a clean, exte
 
 ================================================================================
 
-## Section 20: solace_agent_mesh/common/utils/embeds/embeds_llm.txt
+## Section 19: solace_agent_mesh/common/utils/embeds/embeds_llm.txt
 
 **Source file:** `solace_agent_mesh/common/utils/embeds/embeds_llm.txt`
 
@@ -4278,7 +3915,7 @@ result, error, size = await evaluate_embed(
 
 ================================================================================
 
-## Section 21: solace_agent_mesh/common/utils/utils_llm.txt
+## Section 20: solace_agent_mesh/common/utils/utils_llm.txt
 
 **Source file:** `solace_agent_mesh/common/utils/utils_llm.txt`
 
@@ -4619,7 +4256,7 @@ async def webhook_handler(request: Request):
 
 ================================================================================
 
-## Section 22: solace_agent_mesh/core_a2a/core_a2a_llm.txt
+## Section 21: solace_agent_mesh/core_a2a/core_a2a_llm.txt
 
 **Source file:** `solace_agent_mesh/core_a2a/core_a2a_llm.txt`
 
@@ -4714,7 +4351,7 @@ service.process_discovery_message(agent_card)
 
 ================================================================================
 
-## Section 23: solace_agent_mesh/gateway/base/base_llm.txt
+## Section 22: solace_agent_mesh/gateway/base/base_llm.txt
 
 **Source file:** `solace_agent_mesh/gateway/base/base_llm.txt`
 
@@ -4943,7 +4580,7 @@ context_manager.remove_context(task_id)
 
 ================================================================================
 
-## Section 24: solace_agent_mesh/gateway/gateway_llm.txt
+## Section 23: solace_agent_mesh/gateway/gateway_llm.txt
 
 **Source file:** `solace_agent_mesh/gateway/gateway_llm.txt`
 
@@ -5321,7 +4958,7 @@ from solace_agent_mesh.gateway.slack.app import Sl
 
 ================================================================================
 
-## Section 25: solace_agent_mesh/gateway/http_sse/alembic/alembic_llm.txt
+## Section 24: solace_agent_mesh/gateway/http_sse/alembic/alembic_llm.txt
 
 **Source file:** `solace_agent_mesh/gateway/http_sse/alembic/alembic_llm.txt`
 
@@ -5621,7 +5258,7 @@ This Alembic configuration provides a comprehensive database migration system th
 
 ================================================================================
 
-## Section 26: solace_agent_mesh/gateway/http_sse/alembic/versions/versions_llm.txt
+## Section 25: solace_agent_mesh/gateway/http_sse/alembic/versions/versions_llm.txt
 
 **Source file:** `solace_agent_mesh/gateway/http_sse/alembic/versions/versions_llm.txt`
 
@@ -5781,7 +5418,7 @@ alembic revision --autogenerate -m "description"
 
 ================================================================================
 
-## Section 27: solace_agent_mesh/gateway/http_sse/components/components_llm.txt
+## Section 26: solace_agent_mesh/gateway/http_sse/components/components_llm.txt
 
 **Source file:** `solace_agent_mesh/gateway/http_sse/components/components_llm.txt`
 
@@ -5891,7 +5528,7 @@ if not visualization_queue.empty():
 
 ================================================================================
 
-## Section 28: solace_agent_mesh/gateway/http_sse/http_sse_llm.txt
+## Section 27: solace_agent_mesh/gateway/http_sse/http_sse_llm.txt
 
 **Source file:** `solace_agent_mesh/gateway/http_sse/http_sse_llm.txt`
 
@@ -6195,7 +5832,7 @@ async def add_message_to_session(
 
 ================================================================================
 
-## Section 29: solace_agent_mesh/gateway/http_sse/repository/entities/entities_llm.txt
+## Section 28: solace_agent_mesh/gateway/http_sse/repository/entities/entities_llm.txt
 
 **Source file:** `solace_agent_mesh/gateway/http_sse/repository/entities/entities_llm.txt`
 
@@ -6463,7 +6100,7 @@ system_event = TaskEvent(
 
 ================================================================================
 
-## Section 30: solace_agent_mesh/gateway/http_sse/repository/models/models_llm.txt
+## Section 29: solace_agent_mesh/gateway/http_sse/repository/models/models_llm.txt
 
 **Source file:** `solace_agent_mesh/gateway/http_sse/repository/models/models_llm.txt`
 
@@ -6734,7 +6371,7 @@ events = task.events  # Returns list of TaskEventModel instances
 
 ================================================================================
 
-## Section 31: solace_agent_mesh/gateway/http_sse/repository/repository_llm.txt
+## Section 30: solace_agent_mesh/gateway/http_sse/repository/repository_llm.txt
 
 **Source file:** `solace_agent_mesh/gateway/http_sse/repository/repository_llm.txt`
 
@@ -7079,7 +6716,7 @@ class ChatService:
 
 ================================================================================
 
-## Section 32: solace_agent_mesh/gateway/http_sse/routers/dto/dto_llm.txt
+## Section 31: solace_agent_mesh/gateway/http_sse/routers/dto/dto_llm.txt
 
 **Source file:** `solace_agent_mesh/gateway/http_sse/routers/dto/dto_llm.txt`
 
@@ -7430,7 +7067,7 @@ This comprehensive guide shows how the `dto` directory provides a complete type-
 
 ================================================================================
 
-## Section 33: solace_agent_mesh/gateway/http_sse/routers/dto/requests/requests_llm.txt
+## Section 32: solace_agent_mesh/gateway/http_sse/routers/dto/requests/requests_llm.txt
 
 **Source file:** `solace_agent_mesh/gateway/http_sse/routers/dto/requests/requests_llm.txt`
 
@@ -7518,7 +7155,7 @@ print(f"New name: {update_req.name}")
 
 ================================================================================
 
-## Section 34: solace_agent_mesh/gateway/http_sse/routers/dto/responses/responses_llm.txt
+## Section 33: solace_agent_mesh/gateway/http_sse/routers/dto/responses/responses_llm.txt
 
 **Source file:** `solace_agent_mesh/gateway/http_sse/routers/dto/responses/responses_llm.txt`
 
@@ -7630,7 +7267,7 @@ json_output = message.model_dump_json()
 
 ================================================================================
 
-## Section 35: solace_agent_mesh/gateway/http_sse/routers/routers_llm.txt
+## Section 34: solace_agent_mesh/gateway/http_sse/routers/routers_llm.txt
 
 **Source file:** `solace_agent_mesh/gateway/http_sse/routers/routers_llm.txt`
 
@@ -7949,7 +7586,7 @@ async def upload_artifact_with_metadata(session_id: str, filename: str, file_pat
 
 ================================================================================
 
-## Section 36: solace_agent_mesh/gateway/http_sse/services/services_llm.txt
+## Section 35: solace_agent_mesh/gateway/http_sse/services/services_llm.txt
 
 **Source file:** `solace_agent_mesh/gateway/http_sse/services/services_llm.txt`
 
@@ -8251,7 +7888,7 @@ asyncio.run(cancel_task_example())
 
 ================================================================================
 
-## Section 37: solace_agent_mesh/gateway/http_sse/shared/shared_llm.txt
+## Section 36: solace_agent_mesh/gateway/http_sse/shared/shared_llm.txt
 
 **Source file:** `solace_agent_mesh/gateway/http_sse/shared/shared_llm.txt`
 
@@ -8541,7 +8178,7 @@ snake_name = to_snake_case("User Name")  # "user_name"
 
 ================================================================================
 
-## Section 38: solace_agent_mesh/gateway/http_sse/utils/utils_llm.txt
+## Section 37: solace_agent_mesh/gateway/http_sse/utils/utils_llm.txt
 
 **Source file:** `solace_agent_mesh/gateway/http_sse/utils/utils_llm.txt`
 
@@ -8593,7 +8230,7 @@ stim_data = create_stim_from_task_data(task, events)
 
 ================================================================================
 
-## Section 39: solace_agent_mesh/solace_agent_mesh_llm.txt
+## Section 38: solace_agent_mesh/solace_agent_mesh_llm.txt
 
 **Source file:** `solace_agent_mesh/solace_agent_mesh_llm.txt`
 

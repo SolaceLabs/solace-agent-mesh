@@ -1,3 +1,13 @@
+# LLM Summary Detail File
+
+This file is a concatenation of all individual *llm.txt files found in the 'adk' directory tree. Each section below corresponds to a specific directory's summary file.
+
+================================================================================
+
+## Section 1: solace_agent_mesh/agent/adk/adk_llm.txt
+
+**Source file:** `solace_agent_mesh/agent/adk/adk_llm.txt`
+
 # DEVELOPER GUIDE for adk directory
 
 ## Quick Summary
@@ -229,4 +239,328 @@ artifact_service = S3ArtifactService(bucket_name="my-artifacts-bucket")
 
 # Save an artifact
 
-# content_hash: def8e8563d73ee6354aa959a4073a5474c225a2159f7c8fd37cf396040adeb5d
+================================================================================
+
+## Section 2: solace_agent_mesh/agent/adk/artifacts/artifacts_llm.txt
+
+**Source file:** `solace_agent_mesh/agent/adk/artifacts/artifacts_llm.txt`
+
+# DEVELOPER GUIDE: artifacts
+
+## Quick Summary
+The artifacts directory provides ADK ArtifactService implementations for the Solace Agent Mesh. It includes filesystem and S3-compatible storage backends for managing artifacts with versioning, user namespacing, and session-based organization.
+
+## Files Overview
+- `__init__.py` - Package initialization for artifact service implementations
+- `filesystem_artifact_service.py` - Local filesystem-based artifact storage implementation
+- `s3_artifact_service.py` - Amazon S3 compatible storage implementation for artifacts
+
+## Developer API Reference
+
+### filesystem_artifact_service.py
+**Purpose:** Provides local filesystem storage for artifacts with structured directory organization and metadata management.
+
+**Import:** `from solace_agent_mesh.agent.adk.artifacts.filesystem_artifact_service import FilesystemArtifactService`
+
+**Classes:**
+- `FilesystemArtifactService(base_path: str)` - Filesystem-based artifact service implementation
+  - `save_artifact(*, app_name: str, user_id: str, session_id: str, filename: str, artifact: adk_types.Part) -> int` - Saves an artifact and returns version number
+  - `load_artifact(*, app_name: str, user_id: str, session_id: str, filename: str, version: int | None = None) -> adk_types.Part | None` - Loads an artifact by version (latest if None)
+  - `list_artifact_keys(*, app_name: str, user_id: str, session_id: str) -> list[str]` - Lists all artifact filenames for a scope
+  - `delete_artifact(*, app_name: str, user_id: str, session_id: str, filename: str) -> None` - Deletes all versions of an artifact
+  - `list_versions(*, app_name: str, user_id: str, session_id: str, filename: str) -> list[int]` - Lists all version numbers for an artifact
+  - `base_path: str` - Root directory for artifact storage
+
+**Constants/Variables:**
+- `METADATA_FILE_SUFFIX: str` - File suffix for metadata files (".meta")
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.adk.artifacts.filesystem_artifact_service import FilesystemArtifactService
+from google.genai import types as adk_types
+
+# Initialize the service
+artifact_service = FilesystemArtifactService(base_path="/path/to/artifacts")
+
+# Save an artifact
+artifact_data = b"Hello, World!"
+artifact_part = adk_types.Part.from_bytes(data=artifact_data, mime_type="text/plain")
+version = await artifact_service.save_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456",
+    filename="greeting.txt",
+    artifact=artifact_part
+)
+
+# Load the latest version
+loaded_artifact = await artifact_service.load_artifact(
+    app_name="my_app",
+    user_id="user123", 
+    session_id="session456",
+    filename="greeting.txt"
+)
+
+# Load a specific version
+specific_version = await artifact_service.load_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456", 
+    filename="greeting.txt",
+    version=1
+)
+
+# List all artifacts
+artifact_keys = await artifact_service.list_artifact_keys(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456"
+)
+
+# List versions of an artifact
+versions = await artifact_service.list_versions(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456",
+    filename="greeting.txt"
+)
+
+# Delete an artifact
+await artifact_service.delete_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456",
+    filename="greeting.txt"
+)
+```
+
+### s3_artifact_service.py
+**Purpose:** Provides S3-compatible storage for artifacts with structured key organization and AWS integration.
+
+**Import:** `from solace_agent_mesh.agent.adk.artifacts.s3_artifact_service import S3ArtifactService`
+
+**Classes:**
+- `S3ArtifactService(bucket_name: str, s3_client: BaseClient | None = None, **kwargs)` - S3-based artifact service implementation
+  - `save_artifact(*, app_name: str, user_id: str, session_id: str, filename: str, artifact: adk_types.Part) -> int` - Saves an artifact to S3 and returns version number
+  - `load_artifact(*, app_name: str, user_id: str, session_id: str, filename: str, version: int | None = None) -> adk_types.Part | None` - Loads an artifact from S3 by version (latest if None)
+  - `list_artifact_keys(*, app_name: str, user_id: str, session_id: str) -> list[str]` - Lists all artifact filenames for a scope
+  - `delete_artifact(*, app_name: str, user_id: str, session_id: str, filename: str) -> None` - Deletes all versions of an artifact from S3
+  - `list_versions(*, app_name: str, user_id: str, session_id: str, filename: str) -> list[int]` - Lists all version numbers for an artifact
+  - `bucket_name: str` - S3 bucket name for storage
+  - `s3: BaseClient` - Boto3 S3 client instance
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.adk.artifacts.s3_artifact_service import S3ArtifactService
+from google.genai import types as adk_types
+import boto3
+
+# Initialize with default credentials
+artifact_service = S3ArtifactService(bucket_name="my-artifacts-bucket")
+
+# Initialize with custom S3 client
+s3_client = boto3.client(
+    's3',
+    endpoint_url='https://minio.example.com',
+    aws_access_key_id='access_key',
+    aws_secret_access_key='secret_key'
+)
+artifact_service = S3ArtifactService(
+    bucket_name="my-artifacts-bucket",
+    s3_client=s3_client
+)
+
+# Save an artifact
+artifact_data = b"Hello, S3!"
+artifact_part = adk_types.Part.from_bytes(data=artifact_data, mime_type="text/plain")
+version = await artifact_service.save_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456", 
+    filename="greeting.txt",
+    artifact=artifact_part
+)
+
+# Load the latest version
+loaded_artifact = await artifact_service.load_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456",
+    filename="greeting.txt"
+)
+
+# Save user-scoped artifact (persists across sessions)
+user_artifact = adk_types.Part.from_bytes(data=b"User data", mime_type="text/plain")
+await artifact_service.save_artifact(
+    app_name="my_app", 
+    user_id="user123",
+    session_id="session456",
+    filename="user:profile.json",  # user: prefix for user-scoped storage
+    artifact=user_artifact
+)
+
+# List all artifacts (includes both session and user-scoped)
+artifact_keys = await artifact_service.list_artifact_keys(
+    app_name="my_app",
+    user_id="user123", 
+    session_id="session456"
+)
+
+# Delete an artifact
+await artifact_service.delete_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456",
+    filename="greeting.txt"
+)
+```
+
+================================================================================
+
+## Section 3: solace_agent_mesh/agent/adk/models/models_llm.txt
+
+**Source file:** `solace_agent_mesh/agent/adk/models/models_llm.txt`
+
+# DEVELOPER GUIDE for models directory
+
+## Quick Summary
+This directory contains concrete implementations of the `BaseLlm` interface, providing wrappers for various Large Language Model APIs. These classes translate the ADK's standard `LlmRequest` into provider-specific formats and parse responses back into standard `LlmResponse` objects.
+
+## Files Overview
+- `lite_llm.py` - LLM client using the `litellm` library to support hundreds of models from different providers
+
+## Developer API Reference
+
+### lite_llm.py
+**Purpose:** Provides the `LiteLlm` class, a `BaseLlm` implementation that interfaces with hundreds of LLM models through the `litellm` library. Supports models from OpenAI, Anthropic, Vertex AI, and many other providers by simply changing the model string.
+
+**Import:** `from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm`
+
+**Classes:**
+- `LiteLlm(model: str, **kwargs)` - Wrapper around `litellm` supporting any model it recognizes
+  - `generate_content_async(llm_request: LlmRequest, stream: bool = False) -> AsyncGenerator[LlmResponse, None]` - Generates content asynchronously with optional streaming
+  - `supported_models() -> list[str]` - Returns list of supported models (empty for LiteLlm due to dynamic model support)
+  - `model: str` - The name of the LiteLlm model
+  - `llm_client: LiteLLMClient` - The LLM client instance used for API calls
+
+- `LiteLLMClient()` - Internal client providing completion methods for better testability
+  - `acompletion(model, messages, tools, **kwargs) -> Union[ModelResponse, CustomStreamWrapper]` - Asynchronous completion call
+  - `completion(model, messages, tools, stream=False, **kwargs) -> Union[ModelResponse, CustomStreamWrapper]` - Synchronous completion call
+
+- `FunctionChunk(BaseModel)` - Represents a function call chunk in streaming responses
+  - `id: Optional[str]` - Function call ID
+  - `name: Optional[str]` - Function name
+  - `args: Optional[str]` - Function arguments as JSON string
+  - `index: Optional[int]` - Index of the function call
+
+- `TextChunk(BaseModel)` - Represents a text chunk in streaming responses
+  - `text: str` - The text content
+
+- `UsageMetadataChunk(BaseModel)` - Represents token usage information
+  - `prompt_tokens: int` - Number of tokens in the prompt
+  - `completion_tokens: int` - Number of tokens in the completion
+  - `total_tokens: int` - Total number of tokens used
+
+**Functions:**
+- `_content_to_message_param(content: types.Content) -> Union[Message, list[Message]]` - Converts ADK Content to litellm Message format
+- `_get_content(parts: Iterable[types.Part]) -> Union[OpenAIMessageContent, str]` - Converts parts to litellm content format
+- `_function_declaration_to_tool_param(function_declaration: types.FunctionDeclaration) -> dict` - Converts function declarations to OpenAPI spec format
+- `_model_response_to_generate_content_response(response: ModelResponse) -> LlmResponse` - Converts litellm response to LlmResponse
+
+**Usage Examples:**
+```python
+import asyncio
+import os
+from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
+from solace_agent_mesh.agent.adk.models.llm_request import LlmRequest, LlmConfig
+from google.genai.types import Content, Part
+
+# Set environment variables for your chosen provider
+# For OpenAI:
+# os.environ["OPENAI_API_KEY"] = "your-api-key"
+# For Vertex AI:
+# os.environ["VERTEXAI_PROJECT"] = "your-project-id"
+# os.environ["VERTEXAI_LOCATION"] = "your-location"
+
+async def main():
+    # Initialize LiteLlm with a specific model
+    llm = LiteLlm(
+        model="gpt-4-turbo",
+        temperature=0.7,
+        max_completion_tokens=150
+    )
+    
+    # Create a request
+    request = LlmRequest(
+        contents=[
+            Content(
+                role="user",
+                parts=[Part.from_text("Explain quantum computing in simple terms")]
+            )
+        ],
+        config=LlmConfig(
+            temperature=0.5,
+            max_output_tokens=200
+        )
+    )
+    
+    # Non-streaming generation
+    print("=== Non-streaming ===")
+    async for response in llm.generate_content_async(request, stream=False):
+        print(f"Response: {response.text}")
+        if response.usage_metadata:
+            print(f"Tokens used: {response.usage_metadata.total_token_count}")
+    
+    # Streaming generation
+    print("\n=== Streaming ===")
+    async for response in llm.generate_content_async(request, stream=True):
+        if response.text:
+            print(response.text, end="", flush=True)
+        if response.usage_metadata:
+            print(f"\nTotal tokens: {response.usage_metadata.total_token_count}")
+
+# Example with function calling
+async def function_calling_example():
+    from google.genai.types import FunctionDeclaration, Schema, Type, Tool
+    
+    # Define a function for the LLM to call
+    get_weather_func = FunctionDeclaration(
+        name="get_weather",
+        description="Get current weather for a location",
+        parameters=Schema(
+            type=Type.OBJECT,
+            properties={
+                "location": Schema(type=Type.STRING, description="City name"),
+                "unit": Schema(type=Type.STRING, description="Temperature unit")
+            },
+            required=["location"]
+        )
+    )
+    
+    llm = LiteLlm(model="gpt-4-turbo")
+    
+    request = LlmRequest(
+        contents=[
+            Content(
+                role="user", 
+                parts=[Part.from_text("What's the weather like in Tokyo?")]
+            )
+        ],
+        config=LlmConfig(
+            tools=[Tool(function_declarations=[get_weather_func])]
+        )
+    )
+    
+    async for response in llm.generate_content_async(request):
+        if response.function_calls:
+            for func_call in response.function_calls:
+                print(f"Function called: {func_call.name}")
+                print(f"Arguments: {func_call.args}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+    # asyncio.run(function_calling_example())
+```
+
+================================================================================
+

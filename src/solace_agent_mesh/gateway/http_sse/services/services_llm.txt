@@ -1,11 +1,12 @@
 # DEVELOPER GUIDE: services
 
 ## Quick Summary
-The `services` directory contains the business logic layer for the HTTP SSE Gateway. It provides high-level services for agent management (discovering and retrieving A2A agents), user feedback processing with database persistence and event publishing, user search via identity services, session management with database persistence, task logging to database, and A2A task operations like cancellation.
+The `services` directory contains the business logic layer for the HTTP SSE Gateway. It provides high-level services for agent management (discovering and retrieving A2A agents), user feedback processing with database persistence and event publishing, user search via identity services, session management with database persistence, task logging to database, data retention/cleanup, and A2A task operations like cancellation.
 
 ## Files Overview
 - `__init__.py` - Package initialization file marking the directory as a Python package
 - `agent_card_service.py` - Service for retrieving information about discovered A2A agents from the registry
+- `data_retention_service.py` - Service for automatic cleanup of old tasks and feedback based on retention policies
 - `feedback_service.py` - Service for processing and storing user feedback on chat messages with database and event publishing
 - `people_service.py` - Service for searching users via configured identity services
 - `session_service.py` - Service for managing chat sessions and messages with database persistence
@@ -46,6 +47,44 @@ if agent:
     print(f"Found agent: {agent.name}")
 else:
     print("Agent not found")
+```
+
+### data_retention_service.py
+**Purpose:** Service for automatically cleaning up old tasks, task events, and feedback based on configurable retention policies
+**Import:** `from solace_agent_mesh.gateway.http_sse.services.data_retention_service import DataRetentionService`
+
+**Classes:**
+- `DataRetentionService(session_factory: Callable[[], DBSession] | None, config: Dict[str, Any])` - Service for automatic data cleanup based on retention policies
+  - `cleanup_old_data() -> None` - Main orchestration method for cleaning up old data, calls cleanup methods for tasks and feedback
+
+**Constants/Variables:**
+- `MIN_RETENTION_DAYS: int` - Minimum retention period (7 days)
+- `MIN_CLEANUP_INTERVAL_HOURS: int` - Minimum cleanup interval (1 hour)
+- `MIN_BATCH_SIZE: int` - Minimum batch size for deletion (1)
+- `MAX_BATCH_SIZE: int` - Maximum batch size for deletion (10000)
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.services.data_retention_service import DataRetentionService
+from sqlalchemy.orm import sessionmaker
+
+# Initialize with database session factory and config
+session_factory = sessionmaker(bind=your_engine)
+config = {
+    "enabled": True,
+    "task_retention_days": 90,
+    "feedback_retention_days": 90,
+    "cleanup_interval_hours": 24,
+    "batch_size": 1000
+}
+
+retention_service = DataRetentionService(
+    session_factory=session_factory,
+    config=config
+)
+
+# Run cleanup (typically called by scheduler)
+retention_service.cleanup_old_data()
 ```
 
 ### feedback_service.py
@@ -117,54 +156,50 @@ asyncio.run(search_users())
 **Import:** `from solace_agent_mesh.gateway.http_sse.services.session_service import SessionService`
 
 **Classes:**
-- `SessionService(session_repository: ISessionRepository, message_repository: IMessageRepository, component: WebUIBackendComponent = None)` - Service for managing chat sessions and messages
+- `SessionService(component: WebUIBackendComponent = None)` - Service for managing chat sessions and messages
   - `is_persistence_enabled() -> bool` - Checks if the service is configured with a persistent backend
-  - `get_user_sessions(user_id: UserId, pagination: PaginationInfo = None) -> List[Session]` - Retrieves sessions for a user with optional pagination
-  - `get_session_details(session_id: SessionId, user_id: UserId) -> Optional[Session]` - Gets session details for a specific session
-  - `get_session_history(session_id: SessionId, user_id: UserId, pagination: PaginationInfo = None) -> Optional[SessionHistory]` - Gets session with messages
-  - `create_session(user_id: UserId, name: str = None, agent_id: str = None, session_id: str = None) -> Optional[Session]` - Creates a new session
-  - `update_session_name(session_id: SessionId, user_id: UserId, name: str) -> Optional[Session]` - Updates session name
-  - `delete_session_with_notifications(session_id: SessionId, user_id: UserId) -> bool` - Deletes session and notifies agents
-  - `add_message_to_session(session_id: SessionId, user_id: UserId, message: str, sender_type: SenderType, sender_name: str, agent_id: str = None, message_type: MessageType = MessageType.TEXT) -> Message` - Adds a message to a session
+  - `get_user_sessions(db: DbSession, user_id: UserId, pagination: PaginationParams | None = None) -> PaginatedResponse[Session]` - Retrieves paginated sessions for a user
+  - `get_session_details(db: DbSession, session_id: SessionId, user_id: UserId) -> Session | None` - Gets session details for a specific session
+  - `get_session_history(db: DbSession, session_id: SessionId, user_id: UserId, pagination: PaginationInfo | None = None) -> SessionHistory | None` - Gets session with messages
+  - `create_session(db: DbSession, user_id: UserId, name: str | None = None, agent_id: str | None = None, session_id: str | None = None) -> Optional[Session]` - Creates a new session
+  - `update_session_name(db: DbSession, session_id: SessionId, user_id: UserId, name: str) -> Session | None` - Updates session name
+  - `delete_session_with_notifications(db: DbSession, session_id: SessionId, user_id: UserId) -> bool` - Deletes session and notifies agents
+  - `add_message_to_session(db: DbSession, session_id: SessionId, user_id: UserId, message: str, sender_type: SenderType, sender_name: str, agent_id: str | None = None, message_type: MessageType = MessageType.TEXT) -> Message` - Adds a message to a session
 
 **Usage Examples:**
 ```python
 from solace_agent_mesh.gateway.http_sse.services.session_service import SessionService
-from solace_agent_mesh.gateway.http_sse.repository import ISessionRepository, IMessageRepository
 from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType, MessageType
+from sqlalchemy.orm import Session as DbSession
 
-# Initialize with repositories
-session_repo = YourSessionRepository()  # Your implementation
-message_repo = YourMessageRepository()  # Your implementation
+# Initialize with component
 component = YourWebUIBackendComponent()  # Your component
+session_service = SessionService(component=component)
 
-session_service = SessionService(
-    session_repository=session_repo,
-    message_repository=message_repo,
-    component=component
-)
+# Use with database session
+with your_session_factory() as db:
+    # Create a new session
+    session = session_service.create_session(
+        db=db,
+        user_id="user123",
+        name="My Chat Session",
+        agent_id="assistant-agent"
+    )
 
-# Create a new session
-session = session_service.create_session(
-    user_id="user123",
-    name="My Chat Session",
-    agent_id="assistant-agent"
-)
+    # Add a message to the session
+    message = session_service.add_message_to_session(
+        db=db,
+        session_id=session.id,
+        user_id="user123",
+        message="Hello, how can you help me?",
+        sender_type=SenderType.USER,
+        sender_name="John Doe"
+    )
 
-# Add a message to the session
-message = session_service.add_message_to_session(
-    session_id=session.id,
-    user_id="user123",
-    message="Hello, how can you help me?",
-    sender_type=SenderType.USER,
-    sender_name="John Doe"
-)
-
-# Get user's sessions
-user_sessions = session_service.get_user_sessions("user123")
-
-# Get session history
-history = session_service.get_session_history(session.id, "user123")
+    # Get user's sessions with pagination
+    paginated_sessions = session_service.get_user_sessions(db, "user123")
+    
+    db.commit()
 ```
 
 ### task_logger_service.py
@@ -259,4 +294,4 @@ async def cancel_task_example():
 asyncio.run(cancel_task_example())
 ```
 
-# content_hash: 5d54e645e210c6ee2688b40e5feae5b491bdfebfbc538778c8634a1664b1b65d
+# content_hash: 12385f5117d2f5c30f0e44a0913ea91d62722aa82eb55268ae6bd317311ec5eb

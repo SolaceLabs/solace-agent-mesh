@@ -43,6 +43,7 @@ The repository directory implements the data access layer for the HTTP SSE gatew
 **Classes:**
 - `ISessionRepository(ABC)` - Abstract interface for session data operations
   - `find_by_user(user_id: UserId, pagination: PaginationInfo | None = None) -> list[Session]` - Find all sessions for a user
+  - `count_by_user(user_id: UserId) -> int` - Count total sessions for a user
   - `find_user_session(session_id: SessionId, user_id: UserId) -> Session | None` - Find specific user session
   - `save(session: Session) -> Session` - Save or update a session
   - `delete(session_id: SessionId, user_id: UserId) -> bool` - Delete user session
@@ -59,9 +60,11 @@ The repository directory implements the data access layer for the HTTP SSE gatew
   - `find_by_id(task_id: str) -> Task | None` - Find a task by its ID
   - `find_by_id_with_events(task_id: str) -> tuple[Task, list[TaskEvent]] | None` - Find a task with all its events
   - `search(user_id: UserId, start_date: int | None = None, end_date: int | None = None, search_query: str | None = None, pagination: PaginationParams | None = None) -> list[Task]` - Search for tasks with filters
+  - `delete_tasks_older_than(cutoff_time_ms: int, batch_size: int) -> int` - Delete tasks older than cutoff time
 
 - `IFeedbackRepository(ABC)` - Abstract interface for feedback data operations
   - `save(feedback: Feedback) -> Feedback` - Save feedback
+  - `delete_feedback_older_than(cutoff_time_ms: int, batch_size: int) -> int` - Delete feedback older than cutoff time
 
 #### message_repository.py
 **Purpose:** SQLAlchemy implementation of message repository interface
@@ -73,7 +76,7 @@ The repository directory implements the data access layer for the HTTP SSE gatew
   - `find_by_session(session_id: SessionId, pagination: PaginationInfo | None = None) -> list[Message]` - Find messages in session with pagination
   - `save(message: Message) -> Message` - Save or update message in database
   - `delete_by_session(session_id: SessionId) -> bool` - Delete all messages in session
-  - `_model_to_entity(model: MessageModel) -> Message` - Convert SQLAlchemy model to domain entity
+  - `_convert_model_to_entity(model: MessageModel) -> Message` - Convert SQLAlchemy model to domain entity
 
 #### session_repository.py
 **Purpose:** SQLAlchemy implementation of session repository interface
@@ -83,11 +86,11 @@ The repository directory implements the data access layer for the HTTP SSE gatew
 - `SessionRepository(ISessionRepository)` - SQLAlchemy session repository implementation
   - `__init__(db: DBSession)` - Initialize with database session
   - `find_by_user(user_id: UserId, pagination: PaginationInfo | None = None) -> list[Session]` - Find user sessions with pagination
+  - `count_by_user(user_id: UserId) -> int` - Count total sessions for a user
   - `find_user_session(session_id: SessionId, user_id: UserId) -> Session | None` - Find specific user session
   - `save(session: Session) -> Session` - Save or update session in database
   - `delete(session_id: SessionId, user_id: UserId) -> bool` - Delete user session
   - `find_user_session_with_messages(session_id: SessionId, user_id: UserId, pagination: PaginationInfo | None = None) -> tuple[Session, list[Message]] | None` - Find session with messages
-  - `_model_to_entity(model: SessionModel) -> Session` - Convert session model to entity
   - `_message_model_to_entity(model: MessageModel) -> Message` - Convert message model to entity
 
 #### feedback_repository.py
@@ -98,6 +101,7 @@ The repository directory implements the data access layer for the HTTP SSE gatew
 - `FeedbackRepository(IFeedbackRepository)` - SQLAlchemy feedback repository implementation
   - `__init__(db: DBSession)` - Initialize with database session
   - `save(feedback: Feedback) -> Feedback` - Save feedback to database
+  - `delete_feedback_older_than(cutoff_time_ms: int, batch_size: int) -> int` - Delete feedback older than cutoff time using batch deletion
   - `_model_to_entity(model: FeedbackModel) -> Feedback` - Convert SQLAlchemy model to domain entity
 
 #### task_repository.py
@@ -112,6 +116,7 @@ The repository directory implements the data access layer for the HTTP SSE gatew
   - `find_by_id(task_id: str) -> Task | None` - Find a task by its ID
   - `find_by_id_with_events(task_id: str) -> tuple[Task, list[TaskEvent]] | None` - Find a task with all its events
   - `search(user_id: UserId, start_date: int | None = None, end_date: int | None = None, search_query: str | None = None, pagination: PaginationParams | None = None) -> list[Task]` - Search for tasks with filters
+  - `delete_tasks_older_than(cutoff_time_ms: int, batch_size: int) -> int` - Delete tasks older than cutoff time using batch deletion
   - `_task_model_to_entity(model: TaskModel) -> Task` - Convert SQLAlchemy task model to domain entity
   - `_event_model_to_entity(model: TaskEventModel) -> TaskEvent` - Convert SQLAlchemy event model to domain entity
 
@@ -179,6 +184,9 @@ saved_session = session_repo.save(session)
 # Find user sessions with pagination
 pagination = PaginationInfo(page=1, page_size=10)
 user_sessions = session_repo.find_by_user("user_456", pagination)
+
+# Count total sessions for user
+total_sessions = session_repo.count_by_user("user_456")
 
 # Find specific session
 found_session = session_repo.find_user_session("session_123", "user_456")
@@ -256,10 +264,12 @@ if result:
     print(f"Task {task.id} has {len(events)} events")
 
 # Search tasks
+from solace_agent_mesh.gateway.http_sse.shared.types import PaginationParams
+pagination_params = PaginationParams(page=1, page_size=10)
 tasks = task_repo.search(
     user_id="user_456",
     search_query="order",
-    pagination=pagination
+    pagination=pagination_params
 )
 ```
 
@@ -325,29 +335,6 @@ class ChatService:
         self.session_repo = session_repo
         self.message_repo = message_repo
         self.task_repo = task_repo
-        self.feedback_repo = feedback_repo
-    
-    def create_chat_session(self, user_id: str, name: str) -> Session:
-        session = Session(
-            id=f"session_{int(time.time())}",
-            user_id=user_id,
-            name=name,
-            created_time=int(time.time() * 1000)
-        )
-        return self.session_repo.save(session)
-    
-    def add_message(self, session_id: str, content: str, sender_type: SenderType) -> Message:
-        message = Message(
-            id=f"msg_{int(time.time())}",
-            session_id=session_id,
-            message=content,
-            sender_type=sender_type,
-            sender_name="User" if sender_type == SenderType.USER else "Agent",
-            created_time=int(time.time() * 1000)
-        )
-        return self.message_repo.save(message)
+        self.feedback_
 
-# Usage with dependency injection
-chat_service = ChatService(session_repo, message_repo, task_
-
-# content_hash: dc446df0b17032af46e4d755343db0c2405a92335796bcef6469c6bfb18fd78e
+# content_hash: e4e822acd625d1acce1f4ea0721844e7428a9b110c9e73b6657b8d3adc8ed038

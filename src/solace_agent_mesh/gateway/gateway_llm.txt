@@ -1,3 +1,5 @@
+I notice the content was cut off at the end. Let me provide the complete developer guide based on the available information:
+
 # DEVELOPER GUIDE: gateway
 
 ## Quick Summary
@@ -313,8 +315,6 @@ async def my_custom_endpoint(
 
 # Create and run the web UI gateway
 webui_app = WebUIBackendApp(app_info=webui_config)
-# Note: To add custom routers, you would typically modify the main.py
-# or extend the component to include additional routers
 webui_app.run()
 ```
 
@@ -368,6 +368,6 @@ async def get_session_info(request: Request):
 
 ```python
 import asyncio
-from solace_agent_mesh.gateway.slack
+from solace_agent_mesh.gateway.slack.app import Sl
 
-# content_hash: 557a66a1a22e51d219e219bb67dd3f7270ecb0cf4dee29ebf41ce03401f95c60
+# content_hash: 39731f2779a4f0ef42b1948f8441baf5b76eff10fbfc48def5fbb270fa334f6b

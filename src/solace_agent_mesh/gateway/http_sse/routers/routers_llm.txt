@@ -37,9 +37,13 @@ The `routers` directory contains FastAPI router modules that define the REST API
 
 #### artifacts.py
 **Purpose:** Manages session-specific artifacts via REST endpoints with versioning and metadata support
-**Import:** `from solace_agent_mesh.gateway.http_sse.routers.artifacts import router`
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.artifacts import router, ArtifactUploadResponse`
+
+**Classes:**
+- `ArtifactUploadResponse(BaseModel)` - Response model for artifact uploads with camelCase fields
 
 **Functions:**
+- `upload_artifact_with_session(upload_file: UploadFile, sessionId: str, filename: str, metadata_json: str) -> ArtifactUploadResponse` - Uploads artifact with session management
 - `list_artifact_versions(session_id: str, filename: str) -> List[int]` - Lists available versions for an artifact
 - `list_artifacts(session_id: str) -> List[ArtifactInfo]` - Lists all artifacts in a session with metadata
 - `get_latest_artifact(session_id: str, filename: str) -> StreamingResponse` - Downloads latest artifact version with embed resolution
@@ -91,9 +95,8 @@ The `routers` directory contains FastAPI router modules that define the REST API
 **Import:** `from solace_agent_mesh.gateway.http_sse.routers.sessions import router`
 
 **Functions:**
-- `create_new_session(request: FastAPIRequest) -> JSONRPCSuccessResponse` - Creates new session with optional persistence
-- `get_all_sessions(user: dict) -> SessionListResponse` - Lists user's sessions with pagination
-- `get_session(session_id: str, user: dict) -> SessionResponse` - Gets session details with authorization
+- `get_all_sessions(page_number: int, page_size: int, user: dict) -> PaginatedResponse[SessionResponse]` - Lists user's sessions with pagination
+- `get_session(session_id: str, user: dict) -> DataResponse[SessionResponse]` - Gets session details with authorization
 - `get_session_history(session_id: str, user: dict) -> List[MessageResponse]` - Gets session message history
 - `update_session_name(session_id: str, name: str, user: dict) -> SessionResponse` - Updates session name with validation
 - `delete_session(session_id: str, user: dict) -> None` - Deletes session with cascade notifications
@@ -290,7 +293,7 @@ import httpx
 import json
 from pathlib import Path
 
-# Upload an artifact with metadata
+# Upload an artifact with metadata using session-based endpoint
 async def upload_artifact_with_metadata(session_id: str, filename: str, file_path: Path, metadata: dict = None):
     files = {"upload_file": (filename, file_path.open("rb"))}
     data = {}
@@ -306,15 +309,6 @@ async def upload_artifact_with_metadata(session_id: str, filename: str, file_pat
         )
         return response.json()
 
-# List artifact versions
-async def list_artifact_versions(session_id: str, filename: str):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"http://localhost:8000/api/v1/artifacts/{session_id}/{filename}/versions"
-        )
-        return response.json()
+# Upload artifact with automatic session creation
 
-# Download specific artifact version
-async def download_
-
-# content_hash: 64b32e6d1d18dfcdecbe01d26324885e24f6abc4d8092a52493b339c8cb13872
+# content_hash: a98ae1eb7e5483f6e9438569a4c3dd2df4d9992a968e84230d41cf18d2d34624
