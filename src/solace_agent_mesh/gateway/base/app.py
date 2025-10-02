@@ -105,28 +105,6 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "default": None,
             "description": "Configuration for the pluggable Identity Service provider.",
         },
-        {
-            "name": "session_service",
-            "required": False,
-            "type": "dict",
-            "default": {"type": "memory"},
-            "description": "Configuration for the Session Service.",
-            "dict_schema": {
-                "type": {
-                    "type": "string",
-                    "required": True,
-                    "default": "memory",
-                    "allowed": ["memory", "sql"],
-                    "description": "The type of session service to use ('memory' or 'sql').",
-                },
-                "database_url": {
-                    "type": "string",
-                    "required": False,
-                    "default": None,
-                    "description": "Database URL for SQL session service. Required if type is 'sql'.",
-                },
-            },
-        },
     ]
 }
 

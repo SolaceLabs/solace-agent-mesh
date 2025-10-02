@@ -173,6 +173,28 @@ class WebUIBackendApp(BaseGatewayApp):
             "description": "The passphrase for the SSL private key.",
         },
         {
+            "name": "session_service",
+            "required": False,
+            "type": "dict",
+            "default": {"type": "memory"},
+            "description": "Configuration for the Session Service.",
+            "dict_schema": {
+                "type": {
+                    "type": "string",
+                    "required": True,
+                    "default": "memory",
+                    "allowed": ["memory", "sql"],
+                    "description": "The type of session service to use ('memory' or 'sql').",
+                },
+                "database_url": {
+                    "type": "string",
+                    "required": False,
+                    "default": None,
+                    "description": "Database URL for SQL session service. Required if type is 'sql'.",
+                },
+            },
+        },
+        {
             "name": "task_logging",
             "required": False,
             "type": "dict",
@@ -293,7 +315,6 @@ class WebUIBackendApp(BaseGatewayApp):
             app_info.get("name", "WebUIBackendApp"),
         )
         super().__init__(app_info, **kwargs)
-
 
         log.debug("%s WebUIBackendApp initialization complete.", self.name)
 
