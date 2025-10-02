@@ -51,12 +51,19 @@ const MessageActions: React.FC<{
         setIsPrompting(true);
     };
 
+    const handleCancel = () => {
+        setIsPrompting(false);
+        setFeedbackType(null);
+        setFeedbackText("");
+    };
+
     const handleSubmit = async () => {
         if (!feedbackType || !taskId) return;
 
         try {
             await handleFeedbackSubmit(taskId, feedbackType, feedbackText);
-            setIsPrompting(false); // Hide input on successful submission
+            setIsPrompting(false);
+            setFeedbackText("");
         } catch (error) {
             // Error is logged in the provider, UI doesn't need to do anything special
         }
@@ -92,9 +99,14 @@ const MessageActions: React.FC<{
                         onChange={(e) => setFeedbackText(e.target.value)}
                         className="text-sm"
                     />
-                    <Button size="sm" onClick={handleSubmit}>
-                        Submit Feedback
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={handleCancel}>
+                            Cancel
+                        </Button>
+                        <Button size="sm" onClick={handleSubmit}>
+                            Submit Feedback
+                        </Button>
+                    </div>
                 </div>
             )}
             {hasSubmitted && <div className="text-xs text-gray-500">Thank you for your feedback!</div>}
