@@ -396,7 +396,14 @@ def test_task_error_handling(api_client: TestClient):
     assert response.status_code in [200, 400, 422]  # May accept empty parts
 
     # Test empty body for cancellation
-    response = api_client.post("/api/v1/tasks/test-task-id:cancel", json={})
+    import uuid
+    cancel_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "tasks/cancel",
+        "params": {},  # Empty params
+    }
+    response = api_client.post("/api/v1/tasks/test-task-id:cancel", json=cancel_payload)
     assert response.status_code in [400, 422]  # Validation error
 
     print("✓ Task error handling works correctly")
