@@ -162,23 +162,43 @@ def test_cross_user_data_isolation_comprehensive(api_client: TestClient, test_ap
         agents = ["TestAgent", "TestPeerAgentA", "TestPeerAgentB"]
 
         for i, agent in enumerate(agents):
-            task_data = {
-                "agent_name": agent,
-                "message": f"User 1's session {i + 1} with {agent}",
+            task_payload = {
+                "jsonrpc": "2.0",
+                "id": str(uuid.uuid4()),
+                "method": "message/stream",
+                "params": {
+                    "message": {
+                        "role": "user",
+                        "messageId": str(uuid.uuid4()),
+                        "kind": "message",
+                        "parts": [{"kind": "text", "text": f"User 1's session {i + 1} with {agent}"}],
+                        "metadata": {"agent_name": agent},
+                    }
+                },
             }
-            response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+            response = api_client.post("/api/v1/message:stream", json=task_payload)
             assert response.status_code == 200
-            session_id = response.json()["result"]["sessionId"]
+            session_id = response.json()["result"]["contextId"]
             user1_sessions.append((session_id, agent))
 
             # Add follow-up message
-            followup_data = {
-                "agent_name": agent,
-                "message": f"User 1's follow-up in session {i + 1}",
-                "session_id": session_id,
+            followup_payload = {
+                "jsonrpc": "2.0",
+                "id": str(uuid.uuid4()),
+                "method": "message/stream",
+                "params": {
+                    "message": {
+                        "role": "user",
+                        "messageId": str(uuid.uuid4()),
+                        "kind": "message",
+                        "parts": [{"kind": "text", "text": f"User 1's follow-up in session {i + 1}"}],
+                        "metadata": {"agent_name": agent},
+                        "contextId": session_id,
+                    }
+                },
             }
             followup_response = api_client.post(
-                "/api/v1/tasks/subscribe", data=followup_data
+                "/api/v1/message:stream", json=followup_payload
             )
             assert followup_response.status_code == 200
 
@@ -186,19 +206,29 @@ def test_cross_user_data_isolation_comprehensive(api_client: TestClient, test_ap
         user2_sessions = []
 
         for i, agent in enumerate(agents):
-            task_data = {
-                "agent_name": agent,
-                "message": f"User 2's session {i + 1} with {agent}",
+            task_payload = {
+                "jsonrpc": "2.0",
+                "id": str(uuid.uuid4()),
+                "method": "message/stream",
+                "params": {
+                    "message": {
+                        "role": "user",
+                        "messageId": str(uuid.uuid4()),
+                        "kind": "message",
+                        "parts": [{"kind": "text", "text": f"User 2's session {i + 1} with {agent}"}],
+                        "metadata": {"agent_name": agent},
+                    }
+                },
             }
-            response = second_client.post("/api/v1/tasks/subscribe", data=task_data)
+            response = second_client.post("/api/v1/message:stream", json=task_payload)
             assert response.status_code == 200
-            session_id = response.json()["result"]["sessionId"]
+            session_id = response.json()["result"]["contextId"]
             user2_sessions.append((session_id, agent))
 
         # Verify User 1 can only see their own sessions
         user1_list = api_client.get("/api/v1/sessions")
         assert user1_list.status_code == 200
-        user1_session_ids = {s["id"] for s in user1_list.json()}
+        user1_session_ids = {s["id"] for s in user1_list.json()["data"]}
 
         # User 1 should see all their sessions
         for session_id, agent in user1_sessions:
@@ -211,7 +241,7 @@ def test_cross_user_data_isolation_comprehensive(api_client: TestClient, test_ap
         # Verify User 2 can only see their own sessions
         user2_list = second_client.get("/api/v1/sessions")
         assert user2_list.status_code == 200
-        user2_session_ids = {s["id"] for s in user2_list.json()}
+        user2_session_ids = {s["id"] for s in user2_list.json()["data"]}
 
         # User 2 should see all their sessions
         for session_id, agent in user2_sessions:
