@@ -33,6 +33,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_feedback_task_id'), 'feedback', ['task_id'], unique=False)
     op.create_index(op.f('ix_feedback_user_id'), 'feedback', ['user_id'], unique=False)
+    op.create_index('ix_feedback_created_time', 'feedback', ['created_time'], unique=False)
     op.create_table('tasks',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('user_id', sa.String(), nullable=False),
@@ -44,6 +45,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_tasks_initial_request_text'), 'tasks', ['initial_request_text'], unique=False)
     op.create_index(op.f('ix_tasks_user_id'), 'tasks', ['user_id'], unique=False)
+    op.create_index('ix_tasks_start_time', 'tasks', ['start_time'], unique=False)
     op.create_table('task_events',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('task_id', sa.String(), nullable=True),
@@ -80,9 +82,11 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_task_events_user_id'), table_name='task_events')
     op.drop_index(op.f('ix_task_events_task_id'), table_name='task_events')
     op.drop_table('task_events')
+    op.drop_index('ix_tasks_start_time', table_name='tasks')
     op.drop_index(op.f('ix_tasks_user_id'), table_name='tasks')
     op.drop_index(op.f('ix_tasks_initial_request_text'), table_name='tasks')
     op.drop_table('tasks')
+    op.drop_index('ix_feedback_created_time', table_name='feedback')
     op.drop_index(op.f('ix_feedback_user_id'), table_name='feedback')
     op.drop_index(op.f('ix_feedback_task_id'), table_name='feedback')
     op.drop_table('feedback')
