@@ -67,7 +67,7 @@ class TestSessionsAPIContract:
         assert response.status_code == 200
         assert response.headers.get("content-type") == "application/json"
 
-        session = response.json()
+        session = response.json()["data"]
         assert isinstance(session, dict)
 
         # Validate required fields

@@ -399,6 +399,7 @@ def test_task_error_handling(api_client: TestClient):
 
     # Test empty body for cancellation
     import uuid
+
     cancel_payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),
@@ -555,8 +556,8 @@ def test_task_and_session_integration(api_client: TestClient):
     assert sessions_response.status_code == 200
     sessions_data = sessions_response.json()
 
-    assert len(sessions_data["sessions"]) >= 1
-    session_ids = [s["id"] for s in sessions_data["sessions"]]
+    assert len(sessions_data["data"]) >= 1
+    session_ids = [s["id"] for s in sessions_data["data"]]
     assert session_id in session_ids
 
     # Verify session details
