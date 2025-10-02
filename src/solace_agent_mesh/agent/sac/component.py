@@ -275,8 +275,25 @@ class SamAgentComponent(SamComponentBase):
                     f"Failed to initialize synchronous ADK services: {service_err}"
                 ) from service_err
 
-            from .app import AgentInitCleanupConfig # delayed import to avoid circular dependency
-            if init_func_details and isinstance(init_func_details, AgentInitCleanupConfig):
+            # initialize enterprise features if available
+            try:
+                from solace_agent_mesh_enterprise.init_enterprise_component import (
+                    init_enterprise_component_features,
+                )
+
+                init_enterprise_component_features(self)
+            except ImportError:
+                # Community edition
+                # Contact Solace support for enterprise features
+                pass
+
+            from .app import (
+                AgentInitCleanupConfig,
+            )  # delayed import to avoid circular dependency
+
+            if init_func_details and isinstance(
+                init_func_details, AgentInitCleanupConfig
+            ):
                 module_name = init_func_details.get("module")
                 func_name = init_func_details.get("name")
                 base_path = init_func_details.get("base_path")
@@ -1112,7 +1129,11 @@ class SamAgentComponent(SamComponentBase):
         """
         if hasattr(tool, "origin") and tool.origin is not None:
             return tool.origin
-        elif hasattr(tool, "func") and hasattr(tool.func, "origin") and tool.func.origin is not None:
+        elif (
+            hasattr(tool, "func")
+            and hasattr(tool.func, "origin")
+            and tool.func.origin is not None
+        ):
             return tool.func.origin
         else:
             return getattr(tool, "origin", "unknown")
@@ -2951,8 +2972,11 @@ class SamAgentComponent(SamComponentBase):
 
         cleanup_func_details = self.get_config("agent_cleanup_function")
 
-        from .app import AgentInitCleanupConfig # Avoid circular import
-        if cleanup_func_details and isinstance(cleanup_func_details, AgentInitCleanupConfig):
+        from .app import AgentInitCleanupConfig  # Avoid circular import
+
+        if cleanup_func_details and isinstance(
+            cleanup_func_details, AgentInitCleanupConfig
+        ):
             module_name = cleanup_func_details.get("module")
             func_name = cleanup_func_details.get("name")
             base_path = cleanup_func_details.get("base_path")
