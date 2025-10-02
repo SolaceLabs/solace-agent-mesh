@@ -62,8 +62,20 @@ def init_database(database_url: str):
     global SessionLocal
     if SessionLocal is None:
         engine = create_engine(database_url)
+        
+        # Enable foreign keys for SQLite only (database-agnostic)
+        from sqlalchemy import event
+        
+        @event.listens_for(engine, "connect")
+        def set_sqlite_pragma(dbapi_conn, connection_record):
+            # Only apply to SQLite connections
+            if database_url.startswith('sqlite'):
+                cursor = dbapi_conn.cursor()
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.close()
+        
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-        log.info("[Dependencies] Database initialized.")
+        log.info("[Dependencies] Database initialized with foreign key support.")
     else:
         log.warning("[Dependencies] Database already initialized.")
 

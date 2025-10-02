@@ -57,6 +57,16 @@ def test_database_engine(test_database_url):
         pool_pre_ping=True,
         pool_recycle=300,
     )
+    
+    # Enable foreign keys for SQLite (database-agnostic)
+    from sqlalchemy import event
+    
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, connection_record):
+        if test_database_url.startswith('sqlite'):
+            cursor = dbapi_conn.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
 
     # Tables will be created by Alembic migrations in setup_dependencies()
     print(f"[API Tests] Test database engine created at {test_database_url}")
