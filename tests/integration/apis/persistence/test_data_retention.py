@@ -118,7 +118,7 @@ def _count_feedback_in_db(db_engine) -> int:
         db_session.close()
 
 
-def test_data_retention_deletes_old_tasks(api_client, test_db_engine):
+def test_data_retention_deletes_old_tasks(api_client, test_database_engine):
     """
     Tests that tasks older than the retention period are deleted.
     Corresponds to Test Plan 5.1.
@@ -130,7 +130,7 @@ def test_data_retention_deletes_old_tasks(api_client, test_db_engine):
     old_time_ms = now_ms - (100 * 24 * 60 * 60 * 1000)
     old_task_id = "old-task-retention-test"
     _create_task_directly_in_db(
-        test_db_engine,
+        test_database_engine,
         old_task_id,
         "sam_dev_user",
         "Old task message",
@@ -141,7 +141,7 @@ def test_data_retention_deletes_old_tasks(api_client, test_db_engine):
     new_time_ms = now_ms - (10 * 24 * 60 * 60 * 1000)
     new_task_id = "new-task-retention-test"
     _create_task_directly_in_db(
-        test_db_engine,
+        test_database_engine,
         new_task_id,
         "sam_dev_user",
         "New task message",
@@ -149,7 +149,7 @@ def test_data_retention_deletes_old_tasks(api_client, test_db_engine):
     )
     
     # Verify both tasks exist
-    assert _count_tasks_in_db(test_db_engine) == 2
+    assert _count_tasks_in_db(test_database_engine) == 2
     
     # Act: Get the data retention service and run cleanup with 90-day retention
     from solace_agent_mesh.gateway.http_sse import dependencies
@@ -166,7 +166,7 @@ def test_data_retention_deletes_old_tasks(api_client, test_db_engine):
         retention_service.cleanup_old_data()
         
         # Assert: Old task deleted, new task remains
-        Session = sessionmaker(bind=test_db_engine)
+        Session = sessionmaker(bind=test_database_engine)
         db = Session()
         try:
             old_task = db.query(TaskModel).filter_by(id=old_task_id).first()
@@ -174,7 +174,7 @@ def test_data_retention_deletes_old_tasks(api_client, test_db_engine):
             
             assert old_task is None, "Old task should be deleted"
             assert new_task is not None, "New task should remain"
-            assert _count_tasks_in_db(test_db_engine) == 1
+            assert _count_tasks_in_db(test_database_engine) == 1
         finally:
             db.close()
     finally:
@@ -183,7 +183,7 @@ def test_data_retention_deletes_old_tasks(api_client, test_db_engine):
             retention_service.config["task_retention_days"] = original_retention
 
 
-def test_data_retention_cascades_to_task_events(api_client, test_db_engine):
+def test_data_retention_cascades_to_task_events(api_client, test_database_engine):
     """
     Tests that deleting tasks also deletes their events (cascade).
     Corresponds to Test Plan 5.2.
@@ -194,7 +194,7 @@ def test_data_retention_cascades_to_task_events(api_client, test_db_engine):
     old_task_id = "old-task-with-events"
     
     _create_task_directly_in_db(
-        test_db_engine,
+        test_database_engine,
         old_task_id,
         "sam_dev_user",
         "Old task with events",
@@ -202,7 +202,7 @@ def test_data_retention_cascades_to_task_events(api_client, test_db_engine):
     )
     
     # Create task events for the old task
-    Session = sessionmaker(bind=test_db_engine)
+    Session = sessionmaker(bind=test_database_engine)
     db = Session()
     try:
         for i in range(3):
@@ -229,7 +229,7 @@ def test_data_retention_cascades_to_task_events(api_client, test_db_engine):
     new_task_id = "new-task-with-events"
     
     _create_task_directly_in_db(
-        test_db_engine,
+        test_database_engine,
         new_task_id,
         "sam_dev_user",
         "New task with events",
@@ -288,7 +288,7 @@ def test_data_retention_cascades_to_task_events(api_client, test_db_engine):
             retention_service.config["task_retention_days"] = original_retention
 
 
-def test_data_retention_deletes_multiple_old_tasks(api_client, test_db_engine):
+def test_data_retention_deletes_multiple_old_tasks(api_client, test_database_engine):
     """
     Tests that multiple old tasks are deleted.
     Corresponds to Test Plan 5.3.
@@ -302,7 +302,7 @@ def test_data_retention_deletes_multiple_old_tasks(api_client, test_db_engine):
     for i in range(5):
         task_id = f"old-task-{i}"
         _create_task_directly_in_db(
-            test_db_engine,
+            test_database_engine,
             task_id,
             "sam_dev_user",
             f"Old task {i}",
@@ -314,7 +314,7 @@ def test_data_retention_deletes_multiple_old_tasks(api_client, test_db_engine):
     for i in range(3):
         task_id = f"new-task-{i}"
         _create_task_directly_in_db(
-            test_db_engine,
+            test_database_engine,
             task_id,
             "sam_dev_user",
             f"New task {i}",
@@ -323,7 +323,7 @@ def test_data_retention_deletes_multiple_old_tasks(api_client, test_db_engine):
         new_task_ids.append(task_id)
     
     # Verify all tasks exist
-    assert _count_tasks_in_db(test_db_engine) == 8
+    assert _count_tasks_in_db(test_database_engine) == 8
     
     # Act: Run cleanup with 90-day retention
     from solace_agent_mesh.gateway.http_sse import dependencies
@@ -339,9 +339,9 @@ def test_data_retention_deletes_multiple_old_tasks(api_client, test_db_engine):
         retention_service.cleanup_old_data()
         
         # Assert: Only new tasks remain
-        assert _count_tasks_in_db(test_db_engine) == 3
+        assert _count_tasks_in_db(test_database_engine) == 3
         
-        Session = sessionmaker(bind=test_db_engine)
+        Session = sessionmaker(bind=test_database_engine)
         db = Session()
         try:
             # Verify all old tasks are gone
@@ -360,7 +360,7 @@ def test_data_retention_deletes_multiple_old_tasks(api_client, test_db_engine):
             retention_service.config["task_retention_days"] = original_retention
 
 
-def test_data_retention_respects_batch_size(api_client, test_db_engine):
+def test_data_retention_respects_batch_size(api_client, test_database_engine):
     """
     Tests that cleanup respects the batch size configuration.
     Corresponds to Test Plan 5.4.
@@ -372,7 +372,7 @@ def test_data_retention_respects_batch_size(api_client, test_db_engine):
     for i in range(25):
         task_id = f"batch-task-{i}"
         _create_task_directly_in_db(
-            test_db_engine,
+            test_database_engine,
             task_id,
             "sam_dev_user",
             f"Batch task {i}",
@@ -380,7 +380,7 @@ def test_data_retention_respects_batch_size(api_client, test_db_engine):
         )
     
     # Verify all tasks exist
-    assert _count_tasks_in_db(test_db_engine) == 25
+    assert _count_tasks_in_db(test_database_engine) == 25
     
     # Act: Run cleanup with small batch size
     from solace_agent_mesh.gateway.http_sse import dependencies
@@ -399,7 +399,7 @@ def test_data_retention_respects_batch_size(api_client, test_db_engine):
         retention_service.cleanup_old_data()
         
         # Assert: All tasks deleted despite batch size
-        assert _count_tasks_in_db(test_db_engine) == 0
+        assert _count_tasks_in_db(test_database_engine) == 0
     finally:
         if original_retention is not None:
             retention_service.config["task_retention_days"] = original_retention
