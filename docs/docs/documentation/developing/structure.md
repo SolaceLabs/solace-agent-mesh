@@ -1,14 +1,11 @@
 ---
-title: Structure
+title: Project Structure
 sidebar_position: 20
 ---
 
-# Structure
+# Project Structure
 
 Solace Agent Mesh is built on the A2A (Agent-to-Agent) protocol architecture, powered by [Solace AI Event Connector](../components/solace-ai-connector.md) and uses the Solace broker as the communication backbone. The framework is controlled by YAML configuration files that define agents, gateways, and plugins, enabling distributed AI agent communication through event-driven messaging.
-
-
-## Project Structure
 
 A fresh Solace Agent Mesh project follows this structure:
 
@@ -25,22 +22,17 @@ my-sam-project/
 │   └── __init__.py
 ```
 
-## Configuration Organization
-
-### Directory Structure
-
 The `configs/` directory uses a logical organization:
 
-- **`agents/`** - Contains agent configuration files
-- **`gateways/`** - Contains gateway configuration files
-- **`plugins/`** - Contains plugin configuration files (created when plugins are added)
+- `agents/`—Contains agent configuration files
+- `gateways/`—Contains gateway configuration files
+- `plugins/`—Contains plugin configuration files (created when plugins are added)
 
 Further subdirectories can be created within `agents/`, `gateways/`, and `plugins/` to organize configurations by functionality or purpose. 
 
 
 :::info[File Discovery]
-The CLI automatically crawls through the configs directory to find configuration files. Files that start with `_` (underscore) or `shared_config` are ignored and not processed by the CLI.
-For example:
+The CLI automatically crawls through the `configs` directory to find configuration files. Files that start with `_` (underscore) or `shared_config` are ignored and not processed by the CLI. For example:
 - `_example_agent.yaml` is ignored
 - `shared_config_for_db_agents.yaml` is ignored (Can still be included in other config files using `!include` directive)
 :::
@@ -59,7 +51,7 @@ Further values can be added to the shared configuration file as needed, and they
 
 ## YAML Configuration Files
 
-Each configuration file defines one [recommended] or more applications that can be run independently. The framework supports:
+Each configuration file defines one (recommended) or more applications that can be run independently. The framework supports:
 
 - **Agent Applications**: A2A-enabled agents that use Google ADK runtime and Solace Agent Mesh framework
 - **Gateway Applications**: Protocol translators that bridge external interfaces to adopted A2A protocol
