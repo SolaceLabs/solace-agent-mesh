@@ -35,7 +35,7 @@ class TestConfigurationValidation:
         """Test that task_retention_days below minimum is corrected to minimum."""
         # Arrange
         config = {
-            "task_retention_days": 3,  # Below minimum of 7
+            "task_retention_days": 0,  # Below minimum of 1
             "enabled": True,
         }
         
@@ -52,7 +52,7 @@ class TestConfigurationValidation:
         """Test that feedback_retention_days below minimum is corrected to minimum."""
         # Arrange
         config = {
-            "feedback_retention_days": 5,  # Below minimum of 7
+            "feedback_retention_days": 0,  # Below minimum of 1
             "enabled": True,
         }
         
