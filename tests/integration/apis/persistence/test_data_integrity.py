@@ -246,24 +246,46 @@ def test_cross_user_data_isolation_comprehensive(api_client: TestClient, test_ap
 def test_orphaned_data_prevention(api_client: TestClient):
     """Test that messages cannot exist without valid sessions"""
 
+    import uuid
+
     # Create a session with messages
-    task_data = {
-        "agent_name": "TestAgent",
-        "message": "Message that should not become orphaned",
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Message that should not become orphaned"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
     }
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response.status_code == 200
-    session_id = response.json()["result"]["sessionId"]
+    session_id = response.json()["result"]["contextId"]
 
     # Add more messages
     for i in range(3):
-        followup_data = {
-            "agent_name": "TestAgent",
-            "message": f"Additional message {i + 1}",
-            "session_id": session_id,
+        followup_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": f"Additional message {i + 1}"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                    "contextId": session_id,
+                }
+            },
         }
         followup_response = api_client.post(
-            "/api/v1/tasks/subscribe", data=followup_data
+            "/api/v1/message:stream", json=followup_payload
         )
         assert followup_response.status_code == 200
 
@@ -286,19 +308,29 @@ def test_orphaned_data_prevention(api_client: TestClient):
     assert history_response.status_code == 404
 
     # Try to add message to deleted session (should fail)
-    orphan_attempt_data = {
-        "agent_name": "TestAgent",
-        "message": "Attempt to create orphaned message",
-        "session_id": session_id,
+    orphan_attempt_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Attempt to create orphaned message"}],
+                "metadata": {"agent_name": "TestAgent"},
+                "contextId": session_id,
+            }
+        },
     }
     orphan_response = api_client.post(
-        "/api/v1/tasks/subscribe", data=orphan_attempt_data
+        "/api/v1/message:stream", json=orphan_attempt_payload
     )
     # This should either create a new session or fail gracefully
     # The important thing is it doesn't create orphaned messages
     if orphan_response.status_code == 200:
         # If it succeeds, it should have created a new session
-        new_session_id = orphan_response.json()["result"]["sessionId"]
+        new_session_id = orphan_response.json()["result"]["contextId"]
         assert new_session_id != session_id  # Should be a different session
 
     print(f"✓ Orphaned message prevention verified for session {session_id}")
