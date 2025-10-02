@@ -12,10 +12,10 @@ from fastapi.testclient import TestClient
 def test_complete_user_conversation_workflow(api_client: TestClient):
     """Test a complete user conversation workflow from start to finish"""
 
-    # 1. Start a new conversation
-    print("1. Starting new conversation...")
     import uuid
 
+    # 1. Start a new conversation
+    print("1. Starting new conversation...")
     task_payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),

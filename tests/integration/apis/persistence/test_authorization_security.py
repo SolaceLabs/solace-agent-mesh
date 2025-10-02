@@ -92,11 +92,25 @@ def test_cross_user_session_access_returns_404(multi_user_test_setup):
     )
 
     # User A creates a session
-    task_data = {"agent_name": "TestAgent", "message": "User A's private session"}
-    response_a = first_user_client.post("/api/v1/tasks/subscribe", data=task_data)
+    import uuid
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "User A's private session"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    response_a = first_user_client.post("/api/v1/message:stream", json=task_payload)
     print(f"Session creation: {response_a.status_code} - {response_a.text}")
     assert response_a.status_code == 200
-    session_id = response_a.json()["result"]["sessionId"]
+    session_id = response_a.json()["result"]["contextId"]
 
     # Debug: Check what sessions User A can see
     sessions_a = first_user_client.get("/api/v1/sessions")
@@ -133,10 +147,24 @@ def test_cross_user_session_history_returns_404(multi_user_test_setup):
     first_user_client, second_user_client = multi_user_test_setup
 
     # User A creates a session with messages
-    task_data = {"agent_name": "TestAgent", "message": "User A's private conversation"}
-    response_a = first_user_client.post("/api/v1/tasks/subscribe", data=task_data)
+    import uuid
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "User A's private conversation"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    response_a = first_user_client.post("/api/v1/message:stream", json=task_payload)
     assert response_a.status_code == 200
-    session_id = response_a.json()["result"]["sessionId"]
+    session_id = response_a.json()["result"]["contextId"]
 
     # Verify User A can access their own session history
     history_response = first_user_client.get(f"/api/v1/sessions/{session_id}/messages")
@@ -167,13 +195,24 @@ def test_cross_user_session_update_returns_404(multi_user_test_setup):
     first_user_client, second_user_client = multi_user_test_setup
 
     # User A creates a session
-    task_data = {
-        "agent_name": "TestAgent",
-        "message": "User A's session to be protected",
+    import uuid
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "User A's session to be protected"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
     }
-    response_a = first_user_client.post("/api/v1/tasks/subscribe", data=task_data)
+    response_a = first_user_client.post("/api/v1/message:stream", json=task_payload)
     assert response_a.status_code == 200
-    session_id = response_a.json()["result"]["sessionId"]
+    session_id = response_a.json()["result"]["contextId"]
 
     # Verify User A can update their own session
     update_data = {"name": "User A's Updated Session"}
@@ -213,13 +252,24 @@ def test_cross_user_session_deletion_returns_404(multi_user_test_setup):
     first_user_client, second_user_client = multi_user_test_setup
 
     # User A creates a session
-    task_data = {
-        "agent_name": "TestAgent",
-        "message": "User A's session to be protected from deletion",
+    import uuid
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "User A's session to be protected from deletion"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
     }
-    response_a = first_user_client.post("/api/v1/tasks/subscribe", data=task_data)
+    response_a = first_user_client.post("/api/v1/message:stream", json=task_payload)
     assert response_a.status_code == 200
-    session_id = response_a.json()["result"]["sessionId"]
+    session_id = response_a.json()["result"]["contextId"]
 
     # Verify session exists for User A
     session_response = first_user_client.get(f"/api/v1/sessions/{session_id}")
@@ -249,21 +299,49 @@ def test_session_isolation_in_listing(multi_user_test_setup):
 
     first_user_client, second_user_client = multi_user_test_setup
 
+    import uuid
+    
     # User A creates multiple sessions
     user_a_sessions = []
     for i in range(3):
-        task_data = {"agent_name": "TestAgent", "message": f"User A's session {i + 1}"}
-        response = first_user_client.post("/api/v1/tasks/subscribe", data=task_data)
+        task_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": f"User A's session {i + 1}"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        response = first_user_client.post("/api/v1/message:stream", json=task_payload)
         assert response.status_code == 200
-        user_a_sessions.append(response.json()["result"]["sessionId"])
+        user_a_sessions.append(response.json()["result"]["contextId"])
 
     # User B creates multiple sessions
     user_b_sessions = []
     for i in range(2):
-        task_data = {"agent_name": "TestAgent", "message": f"User B's session {i + 1}"}
-        response = second_user_client.post("/api/v1/tasks/subscribe", data=task_data)
+        task_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": f"User B's session {i + 1}"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        response = second_user_client.post("/api/v1/message:stream", json=task_payload)
         assert response.status_code == 200
-        user_b_sessions.append(response.json()["result"]["sessionId"])
+        user_b_sessions.append(response.json()["result"]["contextId"])
 
     # User A should only see their own sessions
     user_a_list = first_user_client.get("/api/v1/sessions")
@@ -302,13 +380,24 @@ def test_consistent_404_for_nonexistent_and_unauthorized_sessions(
     first_user_client, second_user_client = multi_user_test_setup
 
     # User A creates a session
-    task_data = {
-        "agent_name": "TestAgent",
-        "message": "Real session for consistency test",
+    import uuid
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Real session for consistency test"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
     }
-    response_a = first_user_client.post("/api/v1/tasks/subscribe", data=task_data)
+    response_a = first_user_client.post("/api/v1/message:stream", json=task_payload)
     assert response_a.status_code == 200
-    real_session_id = response_a.json()["result"]["sessionId"]
+    real_session_id = response_a.json()["result"]["contextId"]
 
     fake_session_id = "completely_fake_session_id"
 
@@ -394,10 +483,24 @@ def test_session_ownership_after_multiple_operations(multi_user_test_setup):
     first_user_client, second_user_client = multi_user_test_setup
 
     # User A creates a session and performs multiple operations
-    task_data = {"agent_name": "TestAgent", "message": "Multi-operation test session"}
-    response_a = first_user_client.post("/api/v1/tasks/subscribe", data=task_data)
+    import uuid
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Multi-operation test session"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    response_a = first_user_client.post("/api/v1/message:stream", json=task_payload)
     assert response_a.status_code == 200
-    session_id = response_a.json()["result"]["sessionId"]
+    session_id = response_a.json()["result"]["contextId"]
 
     # User A performs legitimate operations
     # 1. Get session
@@ -415,16 +518,26 @@ def test_session_ownership_after_multiple_operations(multi_user_test_setup):
     assert history_response.status_code == 200
 
     # 4. Add another message to the session
-    followup_task = {
-        "agent_name": "TestAgent",
-        "message": "Follow-up message",
-        "session_id": session_id,
+    followup_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Follow-up message"}],
+                "metadata": {"agent_name": "TestAgent"},
+                "contextId": session_id,
+            }
+        },
     }
     followup_response = first_user_client.post(
-        "/api/v1/tasks/subscribe", data=followup_task
+        "/api/v1/message:stream", json=followup_payload
     )
     assert followup_response.status_code == 200
-    assert followup_response.json()["result"]["sessionId"] == session_id
+    assert followup_response.json()["result"]["contextId"] == session_id
 
     # After all operations, User B should still get 404 for everything
     assert second_user_client.get(f"/api/v1/sessions/{session_id}").status_code == 404
