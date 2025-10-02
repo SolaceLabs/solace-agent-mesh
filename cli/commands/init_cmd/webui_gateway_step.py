@@ -172,7 +172,7 @@ def create_webui_gateway_config(
         if session_type == "sql":
             session_service_lines = [
                 f'type: "{session_type}"',
-                'database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///data/webui_gateway.db}"',
+                'database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui_gateway.db}"',
                 f'default_behavior: "{session_behavior}"',
             ]
             session_service_block = "\n" + "\n".join(

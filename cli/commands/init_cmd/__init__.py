@@ -165,6 +165,7 @@ def run_init_flow(skip_interactive: bool, use_web_based_init_flag: bool, **cli_o
                 project_root, opts, skip, defs
             ),
         ),
+        # Removed for now, as SQL is default and auto-handled
         #(
         #    "Database Setup",
         #    lambda opts, defs, skip: database_setup_step(project_root, opts, skip),
