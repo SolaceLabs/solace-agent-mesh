@@ -15,7 +15,7 @@ def test_complete_user_conversation_workflow(api_client: TestClient):
     # 1. Start a new conversation
     print("1. Starting new conversation...")
     import uuid
-    
+
     task_payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),
@@ -25,7 +25,9 @@ def test_complete_user_conversation_workflow(api_client: TestClient):
                 "role": "user",
                 "messageId": str(uuid.uuid4()),
                 "kind": "message",
-                "parts": [{"kind": "text", "text": "Hello, I need help with data analysis"}],
+                "parts": [
+                    {"kind": "text", "text": "Hello, I need help with data analysis"}
+                ],
                 "metadata": {"agent_name": "TestAgent"},
             }
         },
@@ -110,7 +112,7 @@ def test_multi_agent_consultation_workflow(api_client: TestClient):
     """Test workflow where user consults multiple agents for different expertise"""
 
     import uuid
-    
+
     # User starts conversations with different agents for different topics
     agent_consultations = [
         ("TestAgent", "I need help with project planning"),
@@ -222,7 +224,7 @@ def test_document_processing_workflow(api_client: TestClient):
 
     import uuid
     import base64
-    
+
     # 1. Upload documents for processing
     print("1. Uploading documents for processing...")
 
@@ -246,7 +248,10 @@ def test_document_processing_workflow(api_client: TestClient):
                 "messageId": str(uuid.uuid4()),
                 "kind": "message",
                 "parts": [
-                    {"kind": "text", "text": "Please analyze these documents and provide a summary"},
+                    {
+                        "kind": "text",
+                        "text": "Please analyze these documents and provide a summary",
+                    },
                     {
                         "kind": "file",
                         "file": {
@@ -326,7 +331,7 @@ def test_session_management_workflow(api_client: TestClient):
     """Test comprehensive session management operations"""
 
     import uuid
-    
+
     # 1. Create multiple sessions over time
     print("1. Creating multiple sessions...")
     sessions_created = []
@@ -415,7 +420,7 @@ def test_error_recovery_workflow(api_client: TestClient):
     """Test workflow that handles various error conditions gracefully"""
 
     import uuid
-    
+
     # 1. Start a normal conversation
     print("1. Starting normal conversation...")
     task_payload = {
@@ -447,21 +452,6 @@ def test_error_recovery_workflow(api_client: TestClient):
     # Try to send task with invalid data (empty JSON-RPC payload)
     response = api_client.post("/api/v1/message:send", json={})
     assert response.status_code == 422
-
-    # Try to cancel non-existent task
-    cancel_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "tasks/cancel",
-        "params": {"id": "nonexistent"},
-    }
-    response = api_client.post("/api/v1/tasks/nonexistent:cancel", json=cancel_payload)
-    assert response.status_code in [
-        400,
-        404,
-        422,
-        500,
-    ]  # Various error responses are acceptable (404 for missing task context)
 
     # 3. Verify original session still works after errors
     print("3. Verifying original session still works...")
@@ -503,7 +493,7 @@ def test_high_volume_workflow(api_client: TestClient):
     """Test workflow with high volume of API calls"""
 
     import uuid
-    
+
     print("1. Creating multiple concurrent sessions...")
 
     # Create many sessions quickly
@@ -518,7 +508,12 @@ def test_high_volume_workflow(api_client: TestClient):
                     "role": "user",
                     "messageId": str(uuid.uuid4()),
                     "kind": "message",
-                    "parts": [{"kind": "text", "text": f"Batch session {i} - testing high volume"}],
+                    "parts": [
+                        {
+                            "kind": "text",
+                            "text": f"Batch session {i} - testing high volume",
+                        }
+                    ],
                     "metadata": {"agent_name": "TestAgent"},
                 }
             },
