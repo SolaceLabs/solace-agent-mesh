@@ -138,11 +138,26 @@ class TestTasksAPIContract:
     """Test contract compliance for /tasks endpoints"""
 
     def test_post_tasks_send_response_schema(self, api_client: TestClient):
-        """Test POST /tasks/send returns proper JSONRPC response"""
+        """Test POST /message:send returns proper JSONRPC response"""
 
-        task_data = {"agent_name": "TestAgent", "message": "Send schema test"}
+        import uuid
 
-        response = api_client.post("/api/v1/tasks/send", data=task_data)
+        task_data = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/send",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Send schema test"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+
+        response = api_client.post("/api/v1/message:send", json=task_data)
 
         assert response.status_code == 200
         assert response.headers.get("content-type") == "application/json"
@@ -153,10 +168,10 @@ class TestTasksAPIContract:
         # Validate JSONRPC response structure
         assert "result" in data
         result = data["result"]
-        assert "taskId" in result
-        assert result["taskId"] is not None
+        assert "id" in result
+        assert result["id"] is not None
 
-        print("✓ POST /tasks/send response schema valid")
+        print("✓ POST /message:send response schema valid")
 
     def test_post_tasks_subscribe_response_schema(self, api_client: TestClient):
         """Test POST /tasks/subscribe returns proper JSONRPC response"""
@@ -326,10 +341,25 @@ class TestRequestValidation:
     def test_malformed_json_handling(self, api_client: TestClient):
         """Test handling of malformed JSON in requests"""
 
+        import uuid
+
         # Create a session first
-        task_data = {"agent_name": "TestAgent", "message": "JSON validation test"}
-        response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
-        session_id = response.json()["result"]["sessionId"]
+        task_data = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "JSON validation test"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        response = api_client.post("/api/v1/message:stream", json=task_data)
+        session_id = response.json()["result"]["contextId"]
 
         # Send malformed JSON to PATCH endpoint
         headers = {"Content-Type": "application/json"}
@@ -360,17 +390,45 @@ class TestRequestValidation:
     def test_empty_and_null_values(self, api_client: TestClient):
         """Test handling of empty and null values"""
 
+        import uuid
+
         # Test empty strings
-        task_data = {"agent_name": "", "message": ""}
-        response = api_client.post("/api/v1/tasks/send", data=task_data)
+        task_data = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/send",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": ""}],
+                    "metadata": {"agent_name": ""},
+                }
+            },
+        }
+        response = api_client.post("/api/v1/message:send", json=task_data)
         # Should either work or return validation error
         assert response.status_code in [200, 422]
 
         # Test with valid session for update
-        valid_task_data = {"agent_name": "TestAgent", "message": "Valid message"}
-        response = api_client.post("/api/v1/tasks/subscribe", data=valid_task_data)
+        valid_task_data = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Valid message"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        response = api_client.post("/api/v1/message:stream", json=valid_task_data)
         assert response.status_code == 200
-        session_id = response.json()["result"]["sessionId"]
+        session_id = response.json()["result"]["contextId"]
 
         # Test empty name update
         update_data = {"name": ""}
