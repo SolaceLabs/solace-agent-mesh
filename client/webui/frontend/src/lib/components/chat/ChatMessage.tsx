@@ -100,10 +100,10 @@ const MessageActions: React.FC<{
                         className="text-sm"
                     />
                     <div className="flex gap-2">
-                        <Button size="sm" variant="outline" onClick={handleCancel}>
+                        <Button variant="outline" onClick={handleCancel}>
                             Cancel
                         </Button>
-                        <Button size="sm" onClick={handleSubmit}>
+                        <Button variant="default" onClick={handleSubmit}>
                             Submit Feedback
                         </Button>
                     </div>
@@ -227,7 +227,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
     }
 
     const variant = message.isUser ? "sent" : "received";
-    const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && isLastWithTaskId;
+    const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
     const showFeedbackActions = !message.isUser && message.isComplete && !!message.taskId;
 
     const handleViewWorkflowClick = () => {
