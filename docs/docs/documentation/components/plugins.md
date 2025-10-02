@@ -32,7 +32,7 @@ For more information about how to use the official core plugins, see [Use Plugin
 
 ## Create a Plugin
 
-To get started, [install the Solace Agent Mesh CLI](../getting-started/installation.md) and run the following command:
+To get started, [install the Solace Agent Mesh CLI](../installing-and-configuring/installation.md) and run the following command:
 
 ```bash
 solace-agent-mesh plugin create <plugin-name>

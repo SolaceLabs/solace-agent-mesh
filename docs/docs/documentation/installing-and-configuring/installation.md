@@ -1,6 +1,6 @@
 ---
 title: Installation
-sidebar_position: 20
+sidebar_position: 40
 ---
 
 # Prerequisites
@@ -119,7 +119,7 @@ This command pulls the latest image (if not already present) and executes `solac
 
 If the OS architecture on your host is not `linux/amd64`, you would need to add `--platform linux/amd64` when running container.
 
-For more complex operations like building a project, you'll need to mount your project directory into the container. See the [Quick Start guide](./quick-start.md) for an example.
+For more complex operations like building a project, you'll need to mount your project directory into the container. See the [Quick Start guide](../getting-started/try-sam.md) for an example.
 :::
 
 :::warning Browser Requirement

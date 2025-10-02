@@ -20,7 +20,7 @@ Our weather agent will demonstrate:
 ## Prerequisites
 
 Before starting this tutorial, make sure you have:
-- Read the [Create Agent](../user-guide/create-agents.md) tutorial
+- Read the [Create Agent](../create-agents.md) tutorial
 - An OpenWeatherMap API key (free at [openweathermap.org](https://openweathermap.org/api))
 - Basic understanding of Python async/await
 - Familiarity with HTTP APIs
@@ -51,9 +51,9 @@ sam add agent --gui
 :::tip
 You can create an agent either by using the `sam add agent` command or by creating a new plugin of type agent, `sam plugin create my-hello-agent --type agent`. 
 
-For information and recommendations about these options, see [`Agent or Plugin: Which To use?`](../concepts/plugins.md#agent-or-plugin-which-to-use).
+For information and recommendations about these options, see [`Agent or Plugin: Which To use?`](../../components/plugins.md#agent-or-plugin-which-to-use).
 
-For an example of plugin agents, see the [Create Agents](../user-guide/create-agents.md#step-1-initialize-your-agent) guide.
+For an example of plugin agents, see the [Create Agents](../create-agents.md#step-1-initialize-your-agent) guide.
 :::
 
 Follow the steps on the GUI to create a new agent named "Weather Agent". We can update the tools/skills section directly in the configuration file later.
@@ -196,7 +196,7 @@ And update the weather agent config file's tool section under `configs/agent/wea
 
 ```
 
-For better discoverability, update the [agent card](../concepts/agents.md#agent-card) section in the same YAML file as follows:
+For better discoverability, update the [agent card](../../components/agents.md#agent-card) section in the same YAML file as follows:
 ```yaml
       # Agent card
       agent_card:
@@ -239,7 +239,7 @@ sam-project/
 :::tip
 IN Solace Agent Mesh, you can create an agent either by using the `sam add agent` command or by creating a new plugin of type agent, `sam plugin create your-agent --type agent`. 
 
-This tutorial uses the `sam add agent` command to create a new agent named "Weather Agent", for an example of creating a custom agent plugin, see the [Create Agents](../user-guide/create-agents.md) tutorial.
+This tutorial uses the `sam add agent` command to create a new agent named "Weather Agent", for an example of creating a custom agent plugin, see the [Create Agents](../create-agents.md) tutorial.
 
 :::
 
@@ -902,7 +902,7 @@ apps:
         request_timeout_seconds: 30
 ```
 
-For more details on agent cards, see the [Agent Card Concepts](../concepts/agents.md#agent-card) documentation.
+For more details on agent cards, see the [Agent Card Concepts](../../components/agents.md#agent-card) documentation.
 
 ## Step 6: Environment Setup
 

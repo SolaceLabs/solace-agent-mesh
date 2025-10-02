@@ -1,9 +1,7 @@
 ---
 title: Agents
-sidebar_position: 20
+sidebar_position: 6
 ---
-
-# Agents
 
 Agents are specialized processing units within the Solace Agent Mesh framework that are built around the Google Agent Development Kit (ADK) and provide the core intelligence layer. They:
 
@@ -77,7 +75,7 @@ There are three primary ways to add tools to an agent:
 Solace Agent Mesh includes a rich library of pre-packaged tools for common tasks like data analysis, file management, and web requests. These are the easiest to use and can be enabled with just a few lines of configuration.
 
 -   **Use Case**: For standard, out-of-the-box functionality.
--   **Learn More**: See the [Built-in Tools Reference](../user-guide/builtin-tools/builtin-tools.md) for a complete list and configuration details.
+-   **Learn More**: See the [Built-in Tools Reference](./builtin-tools/builtin-tools.md) for a complete list and configuration details.
 
 ### 2. Custom Python Tools
 
@@ -91,7 +89,7 @@ For unique business logic or specialized tasks, you can create your own tools us
 For integrating with external, standalone tool servers that conform to the Model Context Protocol, you can configure an MCP tool. This allows agents to communicate with tools running in separate processes or on different machines.
 
 -   **Use Case**: For integrating with existing MCP-compliant tool servers or language-agnostic tool development.
--   **Learn More**: See the [MCP Integration Tutorial](../tutorials/mcp-integration.md).
+-   **Learn More**: See the [MCP Integration Tutorial](../user-guide/tutorials/mcp-integration.md).
 
 ## Agent Card
 

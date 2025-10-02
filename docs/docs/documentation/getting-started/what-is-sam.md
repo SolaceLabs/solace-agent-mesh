@@ -1,11 +1,13 @@
 ---
 title: What is Solace Agent Mesh?
-sidebar_position: 11
+sidebar_position: 14
 ---
 
 Modern AI development faces a fundamental challenge: powerful AI models are readily available, but it's complicated to connect them to the data and systems where they can provide value. Because the data that drives these AI models often exists in isolated silos (databases, SaaS platforms, APIs, and legacy systems), it can be difficult to build AI applications that work across these boundaries.
 
 Solace Agent Mesh (SAM) is an open-source framework that tackles this challenge head-on by focusing on being an excellent integration layer. Built on Solace's proven event-driven architecture and integrated with Google Agent Development Kit (ADK), SAM brings together specialized agents—whether they're using local databases, accessing cloud APIs, or interfacing with enterprise systems—and helps them collaborate using standardized A2A communication to solve complex problems.
+
+![Solace Agent Mesh Overview](../../../static/img/Solace_AI_Framework_With_Broker.png)
 
 Solace Agent Mesh is built on:
 
@@ -34,9 +36,6 @@ Solace Agent Mesh is built on:
   Solace Agent Mesh grows with your needs. Organizations typically start with basic agents and continuously expand capabilities by adding specialized integrations, multiple interface options, and diverse AI model integrations. Plug-and-play extensibility means new agents automatically publish capabilities with no manual configuration or downtime.
 
 
-![Solace Agent Mesh Overview](../../../static/img/Solace_AI_Framework_With_Broker.png)
-
-
 ## Real-World Applications
 
 SAM is already solving real problems across industries:
@@ -62,6 +61,6 @@ Solace Agent Mesh is an agentic framework that provides several key technical ad
 
 Whether you're building a proof-of-concept or planning a production deployment, Solace Agent Mesh provides the foundation you need. For more information, see:
 
-- [Installation](./installation.md): For installing and setting up Solace Agent Mesh.
-- [Quick Start](./quick-start.md): For creating a project, building, and running Solace Agent Mesh.
-- [Component Overview](./component-overview.md): Understanding the parts of Solace Agent Mesh.
+- [Installation](../installing-and-configuring/installation.md): For installing and setting up Solace Agent Mesh.
+- [Quick Start](./try-sam.md): For creating a project, building, and running Solace Agent Mesh.
+- [Component Overview](../components/components.md): Understanding the parts of Solace Agent Mesh.

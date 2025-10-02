@@ -1,14 +1,17 @@
-# A2A Technical Migration Map
+---
+title: A2A Technical Migration Map
+sidebar_position: 20
+---
 
 This document provides a comprehensive, technical mapping for migrating Solace Agent Mesh components from the legacy A2A implementation to the new `a2a-sdk`-based protocol. It is designed to be used as a reference for automated or semi-automated code refactoring.
 
-## 1. Core Concept Changes
+## Core Concept Changes
 
 -   **Session vs. Context:** The concept of a session, previously `Task.sessionId`, is now attached to the `Message` via `Message.contextId`. The `Task` also has a `contextId`, but it's primarily for grouping. Code that relied on `Task.sessionId` for conversation history must now use `Message.contextId`.
 -   **Request/Response Structure:** The structure of JSON-RPC requests and responses is now strictly defined by the SDK's Pydantic models (e.g., `SendMessageRequest`, `JSONRPCResponse` as a discriminated union). Direct dictionary manipulation is replaced by model instantiation and validation.
 -   **Status Signaling:** The practice of embedding custom status signals (e.g., `tool_invocation_start`) in the `metadata` field of a message is deprecated. The new standard is to use a dedicated, structured `DataPart` within a multi-part `Message`.
 
-## 2. Import & Type Mapping
+## Import and Type Mapping
 
 ### Import Paths
 
@@ -25,7 +28,7 @@ This document provides a comprehensive, technical mapping for migrating Solace A
 | `List[A2APart]` | `List[ContentPart]` | Standard type hint for a list of message parts. |
 | `FileContent` | `Union[FileWithBytes, FileWithUri]` | The `file` attribute of a `FilePart` is now a discriminated union. |
 
-## 3. Object Creation & Property Access Mapping
+## Object Creation and Property Access Mapping
 
 This table maps common legacy patterns to their new equivalents using the `a2a` helper layer.
 
@@ -56,7 +59,7 @@ This table maps common legacy patterns to their new equivalents using the `a2a` 
 | Topic Matching | `_topic_matches_subscription(...)` | `a2a.topic_matches_subscription(...)` |
 | Extract Task ID from Topic | `_extract_task_id_from_topic(...)` | `a2a.extract_task_id_from_topic(...)` |
 
-## 4. Full Method Examples
+## Full Method Examples
 
 These examples provide larger, "before and after" contexts for the refactoring patterns.
 

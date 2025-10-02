@@ -1,6 +1,6 @@
 {
   "position":40,
-  "label": "Deployment",
+  "label": "Deploying Solace Agent Mesh",
   "collapsible": true,
   "collapsed": true
 }

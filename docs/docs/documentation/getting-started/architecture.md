@@ -1,11 +1,7 @@
 ---
 title: Architecture
-sidebar_position: 4
+sidebar_position: 18
 ---
-
-# Solace Agent Mesh Architecture
-
-## Overview
 
 Solace Agent Mesh is an event-driven framework for creating a distributed ecosystem of collaborative AI agents. The architecture is designed to decouple agent logic from communication and orchestration, enabling scalability, resilience, and modularity.
 

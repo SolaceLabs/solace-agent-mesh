@@ -34,7 +34,7 @@ This creates a streamlined workflow where bug reports are automatically enhanced
 
 ## Setting Up the Environment
 
-First, you need to [install Solace Agent Mesh and the Solace Agent Mesh CLI](../getting-started/installation.md), and then [create a new Solace Agent Mesh project](../getting-started/quick-start.md).
+First, you need to [install Solace Agent Mesh and the Solace Agent Mesh CLI](../../installing-and-configuring/installation.md), and then [create a new Solace Agent Mesh project](../../getting-started/try-sam.md).
 
 For this tutorial, you need to create or use an existing [Solace Event Broker](https://solace.com/products/event-broker/) or [event mesh](https://solace.com/solutions/initiative/event-mesh/) created using Solace event brokers.
 

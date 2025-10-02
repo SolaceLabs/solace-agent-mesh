@@ -11,8 +11,8 @@ This tutorial sets up a MongoDB agent in Solace Agent Mesh, which allows the Sol
 
 Before starting this tutorial, ensure that you have installed and configured Solace Agent Mesh:
 
-- [Installed Solace Agent Mesh and the Solace Agent Mesh CLI](../getting-started/installation.md)
-- [Created a new Solace Agent Mesh project](../getting-started/quick-start.md)
+- [Installed Solace Agent Mesh and the Solace Agent Mesh CLI](../../installing-and-configuring/installation.md)
+- [Created a new Solace Agent Mesh project](../../getting-started/try-sam.md)
 - Access to a MongoDB database (local or remote)
 
 ## Adding the MongoDB Plugin

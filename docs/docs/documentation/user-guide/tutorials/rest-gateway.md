@@ -18,7 +18,7 @@ The gateway is designed to be highly configurable and supports two distinct oper
 
 ## Setting Up the Environment
 
-First, you need to [install Solace Agent Mesh and the Solace Agent Mesh CLI](../getting-started/installation.md), and then [create a new Solace Agent Mesh project](../getting-started/quick-start.md).
+First, you need to [install Solace Agent Mesh and the Solace Agent Mesh CLI](../../installing-and-configuring/installation.md), and then [create a new Solace Agent Mesh project](../../getting-started/try-sam.md).
 
 ## Adding the REST Gateway Plugin
 
@@ -75,7 +75,7 @@ curl --location 'http://localhost:8080/api/v2/tasks/{taskId}' \
 ```
 
 :::warning
-It might take a while for the system to respond. See the [observability](../deployment/observability.md) page for more information about monitoring the system while it processes the request.
+It might take a while for the system to respond. See the [observability](../../deploying/observability.md) page for more information about monitoring the system while it processes the request.
 :::
 
 Sample output:

@@ -62,7 +62,7 @@ Follow these steps to create your Bedrock resources:
 
 ### Create a Solace Agent Mesh Project
 
-You must [install Solace Agent Mesh and Solace Mesh Agent CLI](../getting-started/installation.md), and then you'll want to [create a new Solace Agent Mesh project](../getting-started/quick-start.md).
+You must [install Solace Agent Mesh and Solace Mesh Agent CLI](../../installing-and-configuring/installation.md), and then you'll want to [create a new Solace Agent Mesh project](../../getting-started/try-sam.md).
 
 
 ## Integrating Bedrock with Solace Agent Mesh

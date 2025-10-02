@@ -1,20 +1,16 @@
 ---
-title: Create Agents
+title: Creating Agents
 sidebar_position: 30
 ---
 
-# Creating Agents
-
-## Introduction
-
 :::tip
-For a more comprehensive tutorial example, see the [Build Your Own Agent](../tutorials/custom-agent.md) guide.
+For a more comprehensive tutorial example, see the [Build Your Own Agent](tutorials/custom-agent.md) guide.
 This page provides an in-depth theoretical overview of creating agents in Solace Agent Mesh.
 :::
 
 Solace Agent Mesh is a powerful platform that enables you to create intelligent agents that can communicate with each other and perform complex tasks. At its core, Solace Agent Mesh uses a **tool-based architecture** where LLM-powered agents are equipped with specific capabilities (tools) that they can use to accomplish user requests.
 
-**Before continuing with this tutorial, make sure you are familiar with the basic [agent concept](../concepts/agents.md).**
+**Before continuing with this tutorial, make sure you are familiar with the basic [agent concept](../components/agents.md).**
 
 This tutorial guides you through creating your first Solace Agent Mesh agent from scratch. You will learn how to:
 
@@ -65,7 +61,7 @@ Before diving into the implementation, it is important to understand the key con
 The LLM (Large Language Model) orchestrating your agent decides which tools to use based on the user's request and the tool descriptions you provide.
 
 :::tip
-Solace Agent Mesh provides a set of [built-in tools](./builtin-tools/builtin-tools.md) plus support for [model context protocol (MCP)](../tutorials/mcp-integration.md) servers, which can be configured in the tools list of your agent configuration.
+Solace Agent Mesh provides a set of [built-in tools](../components/builtin-tools/builtin-tools.md) plus support for [model context protocol (MCP)](tutorials/mcp-integration.md) servers, which can be configured in the tools list of your agent configuration.
 :::
 
 ### Configuration File 
@@ -77,7 +73,7 @@ The `config.yaml` (for plugin template) or `agent-name.yaml` (for agent instance
 - **Tools list**: Defines which tools the agent can access and how they're configured
 - **Lifecycle functions**: Setup and cleanup procedures
 - **Framework services**: Session management, artifact storage, and so on.
-- **[Agent card](../concepts/agents.md#agent-card)**: Metadata describing the agent capabilities, skills and its visibility in the system
+- **[Agent card](../components/agents.md#agent-card)**: Metadata describing the agent capabilities, skills and its visibility in the system
 
 ### Tool Configuration
 
@@ -120,14 +116,14 @@ Create a simple agent that can greet users and demonstrate the core concepts.
 You can create an agent either by using the `sam add agent` command or by creating a new plugin of type agent, `sam plugin create my-hello-agent --type agent`. 
 
 :::tip
-For information and recommendations about these options, see [`Agent or Plugin: Which To use?`](../concepts/plugins.md#agent-or-plugin-which-to-use).
+For information and recommendations about these options, see [`Agent or Plugin: Which To use?`](../components/plugins.md#agent-or-plugin-which-to-use).
 :::
 
 
 ### Step 1: Initialize your Agent
 
 In this tutorial, you create a new agent by creating a new plugin of type agent.
-For an example of custom agents, see [Build Your Own Agent](../tutorials/custom-agent.md) guide.
+For an example of custom agents, see [Build Your Own Agent](tutorials/custom-agent.md) guide.
 
 Although the directory structure for plugins is slightly different than the one for agents, both require a YAML configuration file, and a python module with the tools and lifecycle functions you want.
 
@@ -572,7 +568,7 @@ The following command will produce a python wheel file under `dist` directory:
 sam plugin build
 ```
 
-Check into [your Solace Agent Mesh project directory](../getting-started/quick-start.md#create-a-project), and add the plugin wheel with a given name:
+Check into [your Solace Agent Mesh project directory](../getting-started/try-sam.md#create-a-project), and add the plugin wheel with a given name:
 
 ```
 sam plugin add my-first-weather-agent --plugin PATH/TO/weather-agent/dist/weather-agent.whl

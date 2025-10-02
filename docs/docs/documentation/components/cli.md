@@ -10,7 +10,7 @@ Solace Agent Mesh comes with a comprehensive CLI tool that you can use to create
 
 ## Installation
 
-The Solace Agent Mesh CLI is installed as part of the package for Solace Agent Mesh. For more information, see [Installation](../getting-started/installation.md).
+The Solace Agent Mesh CLI is installed as part of the package for Solace Agent Mesh. For more information, see [Installation](../installing-and-configuring/installation.md).
 
 :::tip[CLI Tips]
 
@@ -130,7 +130,7 @@ sam add agent [OPTIONS] [NAME]
 - `--inter-agent-communication-timeout INTEGER` – Timeout in seconds for inter-agent communication.
 - `-h, --help` – Displays the help message and exits.
 
-For more information, see [Agents](../concepts/agents.md).
+For more information, see [Agents](agents.md).
 
 #### Add `gateway`
 
@@ -153,7 +153,7 @@ sam add gateway [OPTIONS] [NAME]
 - `--response-format TEXT` – Response format for the gateway (can be multi-line).
 - `-h, --help` – Displays the help message and exits.
 
-For more information, see [Gateways](../concepts/gateways.md).
+For more information, see [Gateways](gateways.md).
 
 
 
@@ -220,7 +220,7 @@ The `plugin` command allows you to manage plugins for Solace Agent Mesh applicat
 sam plugin [COMMAND] [OPTIONS]
 ```
 
-For more information, see [Plugins](../concepts/plugins.md).
+For more information, see [Plugins](plugins.md).
 
 #### `create` - Create a Plugin
 

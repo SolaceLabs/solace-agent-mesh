@@ -8,7 +8,7 @@ sidebar_position: 10
 This tutorial walks you through the process of integrating a Model Context Protocol (MCP) Server into Solace Agent Mesh.
 
 :::info[Learn about agents]
-You should have an understanding of agents in Solace Agent Mesh. For more information, see [Agents](../concepts/agents.md).
+You should have an understanding of agents in Solace Agent Mesh. For more information, see [Agents](../../components/agents.md).
 :::
 
 Solace Agent Mesh now provides **native MCP support** through the framework itself. No additional plugins are required - you can connect to MCP servers directly by configuring your agent YAML file with MCP tools.
@@ -17,7 +17,7 @@ MCP integration allows your agents to connect to external MCP servers and use th
 
 ## Setting Up the Environment
 
-You must [install Solace Agent Mesh and Solace Agent Mesh CLI](../getting-started/installation.md), and then [create a new Solace Agent Mesh project](../getting-started/quick-start.md).
+You must [install Solace Agent Mesh and Solace Agent Mesh CLI](../../installing-and-configuring/installation.md), and then [create a new Solace Agent Mesh project](../../getting-started/try-sam.md).
 
 For this tutorial using the filesystem MCP server, you also need Node.js and NPM installed.
 

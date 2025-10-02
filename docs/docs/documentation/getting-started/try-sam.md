@@ -1,9 +1,7 @@
 ---
-title: Quick Start
-sidebar_position: 30
+title: Try Solace Agent Mesh
+sidebar_position: 16
 ---
-
-# Quick Start
 
 To get started with Solace Agent Mesh, you can either use the preset configuration from the Docker image or create your own complete project.
 
@@ -47,13 +45,13 @@ docker run --rm -it --platform linux/amd64  -p 8000:8000 -v $(pwd):/app \
 ## Create a Project
 
 :::note[Plugins]
-Looking to get started with plugins? For more information, see the [Plugins](../concepts/plugins.md).
+Looking to get started with plugins? For more information, see the [Plugins](../components/plugins.md).
 :::
 
 ### Prerequisites
 
-1. You must have installed the Solace Agent Mesh CLI. If not, see the [Installation](./installation.md) page.
-2. You must have activated the virtual environment you created following the [Installation](./installation.md) page. For containerized deployment such as Docker, ignore this prerequisite.
+1. You must have installed the Solace Agent Mesh CLI. If not, see the *installation* page.
+2. You must have activated the virtual environment you created following the *installation* page. For containerized deployment such as Docker, ignore this prerequisite.
 3. You must have an available AI provider and API key. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 4, Google Gemini 2.5 pro, or OpenAI GPT-5.
 
 Create a directory for your project and navigate to it.
@@ -124,7 +122,7 @@ This is the case for all the model names, such as LLMs, image generators, embedd
 
 ## Running the Project
 
-To run the project, you can use the `run` command to execute all the components in a single, multi-threaded application. It's possible to split the components into separate processes. See the [deployment](../deployment/deploy.md) page for more information.
+To run the project, you can use the `run` command to execute all the components in a single, multi-threaded application. It's possible to split the components into separate processes. See the [deployment](../deploying/deploy.md) page for more information.
 
 ```sh
 solace-agent-mesh run
@@ -134,7 +132,7 @@ solace-agent-mesh run
 Environment variables are loaded from your configuration file (typically a `.env` file at the project root) by default. To use system environment variables instead, use the `-u` or `--system-env` option.
 :::
 
-To learn more about the other CLI commands, see the [CLI documentation](../concepts/cli.md).
+To learn more about the other CLI commands, see the [CLI documentation](../components/cli.md).
 
 <details>
   <summary>Docker Alternative for Running the Project</summary>
@@ -187,12 +185,12 @@ Try some commands like `Suggest some good outdoor activities in London given the
 
 ## Try a Tutorial
 
-Try adding a new agent to the system by following the tutorial on adding an [SQL database agent](../tutorials/sql-database.md). This tutorial guides you through the process of adding the SQL agent plugin and adding some sample data to the database.
+Try adding a new agent to the system by following the tutorial on adding an [SQL database agent](../user-guide/tutorials/sql-database.md). This tutorial guides you through the process of adding the SQL agent plugin and adding some sample data to the database.
 
 ## Next Steps
 
 Solace Agent Mesh uses two main types of components, **agents** and **gateways**. The system comes with a built-in orchestrator agent and a web user interface gateway (which you enabled during the `init` step).
 
-You can learn more about [gateways](../concepts/gateways.md). Alternatively, you can learn about [using plugins](../concepts/plugins.md#use-a-plugin) or [creating your own new gateways](../user-guide/create-gateways.md).
+You can learn more about [gateways](../components/gateways.md). Alternatively, you can learn about [using plugins](../components/plugins.md#use-a-plugin) or [creating your own new gateways](../user-guide/create-gateways.md).
 
-Also, you can learn more about [agents](../concepts/agents.md) or about [creating your own agents](../user-guide/create-agents.md).
+Also, you can learn more about [agents](../components/agents.md) or about [creating your own agents](../user-guide/create-agents.md).

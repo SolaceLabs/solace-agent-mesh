@@ -188,4 +188,4 @@ The `data_tools_config` section configures the behavior of data analysis tools.
 
 ## System Logs
 
-For details on how to configure system logging, including log rotation and verbosity levels, please see the [System Logs](../../deployment/debugging.md#system-logs) section in the debugging documentation.
+For details on how to configure system logging, including log rotation and verbosity levels, please see the [System Logs](../deploying/debugging.md#system-logs) section in the debugging documentation.
