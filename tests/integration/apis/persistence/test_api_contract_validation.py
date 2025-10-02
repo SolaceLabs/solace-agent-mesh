@@ -24,14 +24,21 @@ class TestSessionsAPIContract:
 
         data = response.json()
         assert isinstance(data, dict)
-        assert "sessions" in data
-        assert "totalCount" in data
-        assert isinstance(data["sessions"], list)
-        assert isinstance(data["totalCount"], int)
+        assert "data" in data
+        assert "meta" in data
+        assert isinstance(data["data"], list)
+        assert isinstance(data["meta"], dict)
+
+        # Validate meta pagination fields
+        meta = data["meta"]
+        assert "pageNumber" in meta
+        assert "pageSize" in meta
+        assert "totalCount" in meta
+        assert "totalPages" in meta
 
         # If sessions exist, validate schema
-        if data["sessions"]:
-            session = data["sessions"][0]
+        if data["data"]:
+            session = data["data"][0]
             required_fields = ["id", "userId", "agentId", "createdTime"]
             for field in required_fields:
                 assert field in session
