@@ -1,7 +1,7 @@
 """add retention indexes
 
 Revision ID: add_retention_indexes
-Revises: 20250910_d5b3f8f2e9a0
+Revises: 20250930_token_usage
 Create Date: 2025-01-02 12:00:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_retention_indexes'
-down_revision = '20250910_d5b3f8f2e9a0'
+down_revision = '20250930_token_usage'
 branch_labels = None
 depends_on = None
 
