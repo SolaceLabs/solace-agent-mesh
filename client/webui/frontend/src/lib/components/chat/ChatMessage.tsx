@@ -8,7 +8,6 @@ import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
 import type { FileAttachment, MessageFE, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
-import { authenticatedFetch } from "@/lib/utils/api";
 
 import { FileAttachmentMessage, FileMessage } from "./file/FileMessage";
 import { ContentRenderer } from "./preview/ContentRenderer";
@@ -86,33 +85,7 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
                 )
             );
             
-            try {
-                const response = await authenticatedFetch(`/api/v1/tasks/${gatewayTaskId}:cancel`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        jsonrpc: "2.0",
-                        method: "tasks/cancel",
-                        params: {
-                            id: gatewayTaskId,
-                        },
-                        id: Date.now(),
-                    }),
-                    credentials: "include",
-                });
-                
-                if (response.ok) {
-                    console.log("Authentication rejected successfully");
-                    // The SSE handler will receive the final event and update isResponding to false
-                    // No need to manually call handleCancel as that would send another cancel request
-                } else {
-                    console.error("Failed to reject authentication:", response.status, response.statusText);
-                }
-            } catch (error) {
-                console.error("Error rejecting authentication:", error);
-            }
+            chatContext.handleCancel();
         };
 
         const targetAgent = message.authenticationLink.targetAgent || "Agent";
