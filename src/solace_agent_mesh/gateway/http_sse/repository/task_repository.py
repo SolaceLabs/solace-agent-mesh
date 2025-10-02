@@ -119,6 +119,51 @@ class TaskRepository(ITaskRepository):
         models = query.all()
         return [self._task_model_to_entity(model) for model in models]
 
+    def delete_tasks_older_than(self, cutoff_time_ms: int, batch_size: int) -> int:
+        """
+        Delete tasks (and their events via cascade) older than the cutoff time.
+        Uses batch deletion to avoid long-running transactions.
+
+        Args:
+            cutoff_time_ms: Epoch milliseconds - tasks with start_time before this will be deleted
+            batch_size: Number of tasks to delete per batch
+
+        Returns:
+            Total number of tasks deleted
+        """
+        total_deleted = 0
+        
+        while True:
+            # Find a batch of task IDs to delete
+            task_ids_to_delete = (
+                self.db.query(TaskModel.id)
+                .filter(TaskModel.start_time < cutoff_time_ms)
+                .limit(batch_size)
+                .all()
+            )
+            
+            if not task_ids_to_delete:
+                break
+            
+            # Extract IDs from the result tuples
+            ids = [task_id[0] for task_id in task_ids_to_delete]
+            
+            # Delete this batch
+            deleted_count = (
+                self.db.query(TaskModel)
+                .filter(TaskModel.id.in_(ids))
+                .delete(synchronize_session=False)
+            )
+            
+            self.db.commit()
+            total_deleted += deleted_count
+            
+            # If we deleted fewer than batch_size, we're done
+            if deleted_count < batch_size:
+                break
+        
+        return total_deleted
+
     def _task_model_to_entity(self, model: TaskModel) -> Task:
         """Convert SQLAlchemy task model to domain entity."""
         return Task.model_validate(model)

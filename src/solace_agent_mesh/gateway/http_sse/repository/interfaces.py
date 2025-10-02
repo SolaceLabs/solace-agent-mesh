@@ -104,6 +104,11 @@ class ITaskRepository(ABC):
         """Search for tasks with filters."""
         pass
 
+    @abstractmethod
+    def delete_tasks_older_than(self, cutoff_time_ms: int, batch_size: int) -> int:
+        """Delete tasks older than cutoff time using batch deletion."""
+        pass
+
 
 class IFeedbackRepository(ABC):
     """Interface for feedback data access operations."""
@@ -111,4 +116,9 @@ class IFeedbackRepository(ABC):
     @abstractmethod
     def save(self, feedback: Feedback) -> Feedback:
         """Save feedback."""
+        pass
+
+    @abstractmethod
+    def delete_feedback_older_than(self, cutoff_time_ms: int, batch_size: int) -> int:
+        """Delete feedback older than cutoff time using batch deletion."""
         pass

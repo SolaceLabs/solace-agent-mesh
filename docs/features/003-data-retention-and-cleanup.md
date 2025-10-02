@@ -114,17 +114,17 @@ The primary goal is to implement a configurable, automated data retention system
 
 ### Phase 3: Repository Layer (Files to Modify)
 
-- [ ] **Step 3.1**: Extend `TaskRepository` in `src/solace_agent_mesh/gateway/http_sse/repository/task_repository.py`
+- [x] **Step 3.1**: Extend `TaskRepository` in `src/solace_agent_mesh/gateway/http_sse/repository/task_repository.py`
   - Add `delete_tasks_older_than(cutoff_time_ms: int, batch_size: int) -> int` method
   - Implement batch deletion logic with proper transaction handling
   - Return total count of deleted records
 
-- [ ] **Step 3.2**: Extend `FeedbackRepository` in `src/solace_agent_mesh/gateway/http_sse/repository/feedback_repository.py`
+- [x] **Step 3.2**: Extend `FeedbackRepository` in `src/solace_agent_mesh/gateway/http_sse/repository/feedback_repository.py`
   - Add `delete_feedback_older_than(cutoff_time_ms: int, batch_size: int) -> int` method
   - Implement batch deletion logic with proper transaction handling
   - Return total count of deleted records
 
-- [ ] **Step 3.3**: Update repository interfaces in `src/solace_agent_mesh/gateway/http_sse/repository/interfaces.py`
+- [x] **Step 3.3**: Update repository interfaces in `src/solace_agent_mesh/gateway/http_sse/repository/interfaces.py`
   - Add method signatures to `ITaskRepository` interface
   - Add method signatures to `IFeedbackRepository` interface (if interface exists)
 
