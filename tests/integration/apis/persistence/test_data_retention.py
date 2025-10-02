@@ -639,3 +639,194 @@ def test_task_and_feedback_retention_periods_independent(
             retention_service.config["feedback_retention_days"] = (
                 original_feedback_retention
             )
+
+
+# Phase 7: Edge Cases
+
+
+def test_data_retention_respects_disabled_config(api_client, test_database_engine):
+    """
+    Tests that cleanup doesn't run when disabled.
+    Corresponds to Test Plan 7.1.
+    """
+    # Arrange: Create old data
+    now_ms = now_epoch_ms()
+    old_time_ms = now_ms - (100 * 24 * 60 * 60 * 1000)
+    
+    old_task_id = "task-disabled-test"
+    _create_task_directly_in_db(
+        test_database_engine, old_task_id, "sam_dev_user", "Old task", old_time_ms
+    )
+    
+    old_feedback_id = "feedback-disabled-test"
+    _create_feedback_directly_in_db(
+        test_database_engine, old_feedback_id, old_task_id, "sam_dev_user", old_time_ms
+    )
+    
+    # Verify initial state
+    assert _count_tasks_in_db(test_database_engine) == 1
+    assert _count_feedback_in_db(test_database_engine) == 1
+    
+    # Act: Run cleanup with service disabled
+    from solace_agent_mesh.gateway.http_sse import dependencies
+    
+    retention_service = dependencies.get_data_retention_service(
+        dependencies.sac_component_instance
+    )
+    
+    original_enabled = retention_service.config.get("enabled")
+    retention_service.config["enabled"] = False
+    
+    try:
+        retention_service.cleanup_old_data()
+        
+        # Assert: Nothing should be deleted
+        assert _count_tasks_in_db(test_database_engine) == 1
+        assert _count_feedback_in_db(test_database_engine) == 1
+    finally:
+        if original_enabled is not None:
+            retention_service.config["enabled"] = original_enabled
+
+
+def test_data_retention_boundary_conditions(api_client, test_database_engine):
+    """
+    Tests boundary conditions for retention cutoff times.
+    Corresponds to Test Plan 7.2.
+    """
+    # Arrange: Create tasks at exact boundary times
+    now_ms = now_epoch_ms()
+    retention_days = 90
+    
+    # Calculate exact cutoff (90 days ago to the millisecond)
+    cutoff_ms = now_ms - (retention_days * 24 * 60 * 60 * 1000)
+    
+    # Task exactly at cutoff time (should be kept, >= comparison)
+    exact_task_id = "task-exact-cutoff"
+    _create_task_directly_in_db(
+        test_database_engine, exact_task_id, "sam_dev_user", "Exact cutoff", cutoff_ms
+    )
+    
+    # Task 1 millisecond before cutoff (should be deleted)
+    before_task_id = "task-before-cutoff"
+    _create_task_directly_in_db(
+        test_database_engine,
+        before_task_id,
+        "sam_dev_user",
+        "Before cutoff",
+        cutoff_ms - 1,
+    )
+    
+    # Task 1 millisecond after cutoff (should be kept)
+    after_task_id = "task-after-cutoff"
+    _create_task_directly_in_db(
+        test_database_engine,
+        after_task_id,
+        "sam_dev_user",
+        "After cutoff",
+        cutoff_ms + 1,
+    )
+    
+    # Verify initial state
+    assert _count_tasks_in_db(test_database_engine) == 3
+    
+    # Act: Run cleanup with 90-day retention
+    from solace_agent_mesh.gateway.http_sse import dependencies
+    
+    retention_service = dependencies.get_data_retention_service(
+        dependencies.sac_component_instance
+    )
+    
+    original_retention = retention_service.config.get("task_retention_days")
+    retention_service.config["task_retention_days"] = retention_days
+    
+    try:
+        retention_service.cleanup_old_data()
+        
+        # Assert: Check boundary behavior
+        Session = sessionmaker(bind=test_database_engine)
+        db = Session()
+        try:
+            # Task at exact cutoff should remain (>= comparison)
+            exact_task = db.query(TaskModel).filter_by(id=exact_task_id).first()
+            assert exact_task is not None, "Task at exact cutoff should remain"
+            
+            # Task before cutoff should be deleted
+            before_task = db.query(TaskModel).filter_by(id=before_task_id).first()
+            assert before_task is None, "Task before cutoff should be deleted"
+            
+            # Task after cutoff should remain
+            after_task = db.query(TaskModel).filter_by(id=after_task_id).first()
+            assert after_task is not None, "Task after cutoff should remain"
+            
+            # Final count should be 2
+            assert _count_tasks_in_db(test_database_engine) == 2
+        finally:
+            db.close()
+    finally:
+        if original_retention is not None:
+            retention_service.config["task_retention_days"] = original_retention
+
+
+def test_data_retention_handles_empty_database(api_client, test_database_engine):
+    """
+    Tests that cleanup handles empty database gracefully.
+    Corresponds to Test Plan 7.3.
+    """
+    # Arrange: Ensure database is empty
+    assert _count_tasks_in_db(test_database_engine) == 0
+    assert _count_feedback_in_db(test_database_engine) == 0
+    
+    # Act: Run cleanup on empty database
+    from solace_agent_mesh.gateway.http_sse import dependencies
+    
+    retention_service = dependencies.get_data_retention_service(
+        dependencies.sac_component_instance
+    )
+    
+    # Should not raise any errors
+    retention_service.cleanup_old_data()
+    
+    # Assert: Database still empty, no errors
+    assert _count_tasks_in_db(test_database_engine) == 0
+    assert _count_feedback_in_db(test_database_engine) == 0
+
+
+def test_data_retention_handles_database_errors(api_client, test_database_engine, monkeypatch):
+    """
+    Tests that cleanup handles database errors gracefully.
+    Corresponds to Test Plan 7.4.
+    """
+    # Arrange: Create a task
+    now_ms = now_epoch_ms()
+    old_time_ms = now_ms - (100 * 24 * 60 * 60 * 1000)
+    
+    task_id = "task-error-test"
+    _create_task_directly_in_db(
+        test_database_engine, task_id, "sam_dev_user", "Error test task", old_time_ms
+    )
+    
+    assert _count_tasks_in_db(test_database_engine) == 1
+    
+    # Act: Mock the repository to raise an exception
+    from solace_agent_mesh.gateway.http_sse import dependencies
+    from solace_agent_mesh.gateway.http_sse.repository.task_repository import TaskRepository
+    
+    original_delete = TaskRepository.delete_tasks_older_than
+    
+    def mock_delete_with_error(self, cutoff_time_ms, batch_size):
+        raise Exception("Simulated database error")
+    
+    monkeypatch.setattr(TaskRepository, "delete_tasks_older_than", mock_delete_with_error)
+    
+    retention_service = dependencies.get_data_retention_service(
+        dependencies.sac_component_instance
+    )
+    
+    # Should not crash, should log error and continue
+    retention_service.cleanup_old_data()
+    
+    # Assert: Task still exists (cleanup failed but didn't crash)
+    assert _count_tasks_in_db(test_database_engine) == 1
+    
+    # Restore original method
+    monkeypatch.setattr(TaskRepository, "delete_tasks_older_than", original_delete)
