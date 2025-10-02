@@ -174,11 +174,26 @@ class TestTasksAPIContract:
         print("✓ POST /message:send response schema valid")
 
     def test_post_tasks_subscribe_response_schema(self, api_client: TestClient):
-        """Test POST /tasks/subscribe returns proper JSONRPC response"""
+        """Test POST /message:stream returns proper JSONRPC response"""
 
-        task_data = {"agent_name": "TestAgent", "message": "Subscribe schema test"}
+        import uuid
 
-        response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+        task_data = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Subscribe schema test"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+
+        response = api_client.post("/api/v1/message:stream", json=task_data)
 
         assert response.status_code == 200
         assert response.headers.get("content-type") == "application/json"
@@ -189,38 +204,56 @@ class TestTasksAPIContract:
         # Validate JSONRPC response structure
         assert "result" in data
         result = data["result"]
-        assert "taskId" in result
-        assert "sessionId" in result
-        assert result["taskId"] is not None
-        assert result["sessionId"] is not None
+        assert "id" in result
+        assert "contextId" in result
+        assert result["id"] is not None
+        assert result["contextId"] is not None
 
-        print("✓ POST /tasks/subscribe response schema valid")
+        print("✓ POST /message:stream response schema valid")
 
     def test_post_tasks_cancel_response_schema(self, api_client: TestClient):
-        """Test POST /tasks/cancel returns proper JSONRPC response"""
+        """Test POST /tasks/{taskId}:cancel returns proper response"""
+
+        import uuid
 
         # First create a task to cancel
-        task_data = {"agent_name": "TestAgent", "message": "Task to cancel"}
-        response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
-        task_id = response.json()["result"]["taskId"]
+        task_data = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Task to cancel"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        response = api_client.post("/api/v1/message:stream", json=task_data)
+        task_id = response.json()["result"]["id"]
 
         # Test cancel
-        cancel_data = {"task_id": task_id}
-        response = api_client.post("/api/v1/tasks/cancel", data=cancel_data)
+        cancel_data = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "tasks/cancel",
+            "params": {"id": task_id},
+        }
+        response = api_client.post(f"/api/v1/tasks/{task_id}:cancel", json=cancel_data)
 
-        assert response.status_code == 200
+        assert response.status_code == 202  # Accepted for async operation
         assert response.headers.get("content-type") == "application/json"
 
         data = response.json()
         assert isinstance(data, dict)
 
-        # Validate JSONRPC response structure
-        assert "result" in data
-        result = data["result"]
-        assert "message" in result
-        assert task_id in result["message"]
+        # Validate response structure
+        assert "message" in data
+        assert "sent" in data["message"].lower() or "cancellation" in data["message"].lower()
 
-        print("✓ POST /tasks/cancel response schema valid")
+        print("✓ POST /tasks/{taskId}:cancel response schema valid")
 
 
 class TestHTTPStatusCodes:
