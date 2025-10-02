@@ -106,8 +106,8 @@ The primary goal is to implement a configurable, automated data retention system
 
 ### Phase 2: Database Migrations (New Files)
 
-- [ ] **Step 2.1**: Create new Alembic migration file
-  - File: `src/solace_agent_mesh/gateway/http_sse/alembic/versions/YYYYMMDD_<revision>_add_retention_indexes.py`
+- [x] **Step 2.1**: Create new Alembic migration file
+  - File: `src/solace_agent_mesh/gateway/http_sse/alembic/versions/20250102_add_retention_indexes.py`
   - Add index on `tasks.start_time`
   - Add index on `feedback.created_time`
   - Include proper `upgrade()` and `downgrade()` functions
