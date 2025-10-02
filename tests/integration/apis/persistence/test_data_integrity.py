@@ -171,7 +171,12 @@ def test_cross_user_data_isolation_comprehensive(api_client: TestClient, test_ap
                         "role": "user",
                         "messageId": str(uuid.uuid4()),
                         "kind": "message",
-                        "parts": [{"kind": "text", "text": f"User 1's session {i + 1} with {agent}"}],
+                        "parts": [
+                            {
+                                "kind": "text",
+                                "text": f"User 1's session {i + 1} with {agent}",
+                            }
+                        ],
                         "metadata": {"agent_name": agent},
                     }
                 },
@@ -191,7 +196,12 @@ def test_cross_user_data_isolation_comprehensive(api_client: TestClient, test_ap
                         "role": "user",
                         "messageId": str(uuid.uuid4()),
                         "kind": "message",
-                        "parts": [{"kind": "text", "text": f"User 1's follow-up in session {i + 1}"}],
+                        "parts": [
+                            {
+                                "kind": "text",
+                                "text": f"User 1's follow-up in session {i + 1}",
+                            }
+                        ],
                         "metadata": {"agent_name": agent},
                         "contextId": session_id,
                     }
@@ -215,7 +225,12 @@ def test_cross_user_data_isolation_comprehensive(api_client: TestClient, test_ap
                         "role": "user",
                         "messageId": str(uuid.uuid4()),
                         "kind": "message",
-                        "parts": [{"kind": "text", "text": f"User 2's session {i + 1} with {agent}"}],
+                        "parts": [
+                            {
+                                "kind": "text",
+                                "text": f"User 2's session {i + 1} with {agent}",
+                            }
+                        ],
                         "metadata": {"agent_name": agent},
                     }
                 },
@@ -288,7 +303,9 @@ def test_orphaned_data_prevention(api_client: TestClient):
                 "role": "user",
                 "messageId": str(uuid.uuid4()),
                 "kind": "message",
-                "parts": [{"kind": "text", "text": "Message that should not become orphaned"}],
+                "parts": [
+                    {"kind": "text", "text": "Message that should not become orphaned"}
+                ],
                 "metadata": {"agent_name": "TestAgent"},
             }
         },
@@ -347,7 +364,9 @@ def test_orphaned_data_prevention(api_client: TestClient):
                 "role": "user",
                 "messageId": str(uuid.uuid4()),
                 "kind": "message",
-                "parts": [{"kind": "text", "text": "Attempt to create orphaned message"}],
+                "parts": [
+                    {"kind": "text", "text": "Attempt to create orphaned message"}
+                ],
                 "metadata": {"agent_name": "TestAgent"},
                 "contextId": session_id,
             }
@@ -385,7 +404,9 @@ def test_referential_integrity_with_multiple_deletions(api_client: TestClient):
                     "role": "user",
                     "messageId": str(uuid.uuid4()),
                     "kind": "message",
-                    "parts": [{"kind": "text", "text": f"Initial message for session {i + 1}"}],
+                    "parts": [
+                        {"kind": "text", "text": f"Initial message for session {i + 1}"}
+                    ],
                     "metadata": {"agent_name": "TestAgent"},
                 }
             },
@@ -406,7 +427,12 @@ def test_referential_integrity_with_multiple_deletions(api_client: TestClient):
                         "role": "user",
                         "messageId": str(uuid.uuid4()),
                         "kind": "message",
-                        "parts": [{"kind": "text", "text": f"Message {j + 2} in session {i + 1}"}],
+                        "parts": [
+                            {
+                                "kind": "text",
+                                "text": f"Message {j + 2} in session {i + 1}",
+                            }
+                        ],
                         "metadata": {"agent_name": "TestAgent"},
                         "contextId": session_id,
                     }
@@ -542,9 +568,9 @@ def test_session_consistency_across_operations(api_client: TestClient):
     session_response = api_client.get(f"/api/v1/sessions/{session_id}")
     assert session_response.status_code == 200
     session_data = session_response.json()
-    assert session_data["id"] == session_id
-    assert session_data["name"] == "Consistency Test Session"
-    assert session_data["agent_id"] == "TestAgent"
+    assert session_data["data"]["id"] == session_id
+    assert session_data["data"]["name"] == "Consistency Test Session"
+    assert session_data["data"]["agentId"] == "TestAgent"
 
     # 4. Verify message history consistency
     history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
@@ -574,11 +600,11 @@ def test_session_consistency_across_operations(api_client: TestClient):
     sessions_data = sessions_list.json()
 
     target_session = next(
-        (s for s in sessions_data["sessions"] if s["id"] == session_id), None
+        (s for s in sessions_data["data"] if s["id"] == session_id), None
     )
     assert target_session is not None
     assert target_session["name"] == "Consistency Test Session"
-    assert target_session["agent_id"] == "TestAgent"
+    assert target_session["agentId"] == "TestAgent"
 
     print(f"✓ Session consistency maintained across {len(operations)} operations")
 
@@ -656,8 +682,10 @@ def test_data_integrity_under_concurrent_operations(api_client: TestClient):
     final_session = api_client.get(f"/api/v1/sessions/{session_id}")
     assert final_session.status_code == 200
     session_data = final_session.json()
-    assert session_data["id"] == session_id
-    assert session_data["name"] == "Updated Name 3"  # Should have the last update
+    assert session_data["data"]["id"] == session_id
+    assert (
+        session_data["data"]["name"] == "Updated Name 3"
+    )  # Should have the last update
 
     final_history = api_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert final_history.status_code == 200
@@ -737,9 +765,9 @@ def test_user_data_cleanup_integrity(api_client: TestClient):
     sessions_list = api_client.get("/api/v1/sessions")
     assert sessions_list.status_code == 200
     sessions_data = sessions_list.json()
-    assert len(sessions_data["sessions"]) >= 4
+    assert len(sessions_data["data"]) >= 4
 
-    current_session_ids = {s["id"] for s in sessions_data["sessions"]}
+    current_session_ids = {s["id"] for s in sessions_data["data"]}
     for session_id in session_ids:
         assert session_id in current_session_ids
 

@@ -12,7 +12,10 @@ from fastapi.testclient import TestClient
 @pytest.fixture
 def multi_user_test_setup(test_app):
     """Creates multiple test clients with different user authentications using FastAPI dependency overrides"""
-    from solace_agent_mesh.gateway.http_sse.dependencies import get_user_id, sac_component_instance
+    from solace_agent_mesh.gateway.http_sse.dependencies import (
+        get_user_id,
+        sac_component_instance,
+    )
     from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
 
     # Track which user should be returned
@@ -41,7 +44,7 @@ def multi_user_test_setup(test_app):
     # Mock get_user_id dependency
     def mock_get_user_id():
         return current_test_user["user_id"]
-    
+
     # Mock authenticate_and_enrich_user on the component
     async def mock_authenticate_and_enrich_user(request_or_data):
         return mock_get_current_user()
@@ -53,9 +56,11 @@ def multi_user_test_setup(test_app):
     # Set dependency overrides
     test_app.dependency_overrides[get_current_user] = mock_get_current_user
     test_app.dependency_overrides[get_user_id] = mock_get_user_id
-    
+
     # Override the component's authenticate method
-    sac_component_instance.authenticate_and_enrich_user = mock_authenticate_and_enrich_user
+    sac_component_instance.authenticate_and_enrich_user = (
+        mock_authenticate_and_enrich_user
+    )
 
     # Create wrapper clients that switch user context
     class UserTestClient(TestClient):
@@ -102,6 +107,7 @@ def test_cross_user_session_access_returns_404(multi_user_test_setup):
 
     # User A creates a session
     import uuid
+
     task_payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),
@@ -160,6 +166,7 @@ def test_cross_user_session_history_returns_404(multi_user_test_setup):
 
     # User A creates a session with messages
     import uuid
+
     task_payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),
@@ -191,9 +198,7 @@ def test_cross_user_session_history_returns_404(multi_user_test_setup):
     assert unauthorized_history.status_code == 404
     response_data = unauthorized_history.json()
     # Handle both regular detail format and JSON-RPC error format
-    error_message = response_data.get("detail", "") or response_data.get(
-        "error", {}
-    ).get("message", "")
+    error_message = response_data.get("message", "")
     assert "not found" in error_message.lower()
 
     print(
@@ -208,6 +213,7 @@ def test_cross_user_session_update_returns_404(multi_user_test_setup):
 
     # User A creates a session
     import uuid
+
     task_payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),
@@ -241,16 +247,14 @@ def test_cross_user_session_update_returns_404(multi_user_test_setup):
     )
     assert unauthorized_update.status_code == 404
     response_data = unauthorized_update.json()
-    error_message = response_data.get("detail", "") or response_data.get(
-        "error", {}
-    ).get("message", "")
+    error_message = response_data.get("message")
     assert "not found" in error_message.lower()
 
     # Verify session name wasn't changed by unauthorized user
     verify_response = first_user_client.get(f"/api/v1/sessions/{session_id}")
     assert verify_response.status_code == 200
     assert (
-        verify_response.json()["name"] == "User A's Updated Session"
+        verify_response.json()["data"]["name"] == "User A's Updated Session"
     )  # Should still be User A's name
 
     print(
@@ -265,6 +269,7 @@ def test_cross_user_session_deletion_returns_404(multi_user_test_setup):
 
     # User A creates a session
     import uuid
+
     task_payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),
@@ -274,7 +279,12 @@ def test_cross_user_session_deletion_returns_404(multi_user_test_setup):
                 "role": "user",
                 "messageId": str(uuid.uuid4()),
                 "kind": "message",
-                "parts": [{"kind": "text", "text": "User A's session to be protected from deletion"}],
+                "parts": [
+                    {
+                        "kind": "text",
+                        "text": "User A's session to be protected from deletion",
+                    }
+                ],
                 "metadata": {"agent_name": "TestAgent"},
             }
         },
@@ -291,15 +301,13 @@ def test_cross_user_session_deletion_returns_404(multi_user_test_setup):
     unauthorized_delete = second_user_client.delete(f"/api/v1/sessions/{session_id}")
     assert unauthorized_delete.status_code == 404
     response_data = unauthorized_delete.json()
-    error_message = response_data.get("detail", "") or response_data.get(
-        "error", {}
-    ).get("message", "")
+    error_message = response_data.get("message", "")
     assert "not found" in error_message.lower()
 
     # Verify session still exists for User A
     verify_response = first_user_client.get(f"/api/v1/sessions/{session_id}")
     assert verify_response.status_code == 200
-    assert verify_response.json()["id"] == session_id
+    assert verify_response.json()["data"]["id"] == session_id
 
     print(
         f"✓ Cross-user session deletion properly blocked with 404 for session {session_id}"
@@ -312,7 +320,7 @@ def test_session_isolation_in_listing(multi_user_test_setup):
     first_user_client, second_user_client = multi_user_test_setup
 
     import uuid
-    
+
     # User A creates multiple sessions
     user_a_sessions = []
     for i in range(3):
@@ -359,7 +367,7 @@ def test_session_isolation_in_listing(multi_user_test_setup):
     user_a_list = first_user_client.get("/api/v1/sessions")
     assert user_a_list.status_code == 200
     user_a_data = user_a_list.json()
-    user_a_session_ids = {s["id"] for s in user_a_data["sessions"]}
+    user_a_session_ids = {s["id"] for s in user_a_data["data"]}
 
     # User A should see all their sessions and none of User B's
     for session_id in user_a_sessions:
@@ -371,7 +379,7 @@ def test_session_isolation_in_listing(multi_user_test_setup):
     user_b_list = second_user_client.get("/api/v1/sessions")
     assert user_b_list.status_code == 200
     user_b_data = user_b_list.json()
-    user_b_session_ids = {s["id"] for s in user_b_data["sessions"]}
+    user_b_session_ids = {s["id"] for s in user_b_data["data"]}
 
     # User B should see all their sessions and none of User A's
     for session_id in user_b_sessions:
@@ -393,6 +401,7 @@ def test_consistent_404_for_nonexistent_and_unauthorized_sessions(
 
     # User A creates a session
     import uuid
+
     task_payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),
@@ -402,7 +411,9 @@ def test_consistent_404_for_nonexistent_and_unauthorized_sessions(
                 "role": "user",
                 "messageId": str(uuid.uuid4()),
                 "kind": "message",
-                "parts": [{"kind": "text", "text": "Real session for consistency test"}],
+                "parts": [
+                    {"kind": "text", "text": "Real session for consistency test"}
+                ],
                 "metadata": {"agent_name": "TestAgent"},
             }
         },
@@ -427,9 +438,7 @@ def test_consistent_404_for_nonexistent_and_unauthorized_sessions(
 
         assert response.status_code == 404
         response_data = response.json()
-        error_message = response_data.get("detail", "") or response_data.get(
-            "error", {}
-        ).get("message", "")
+        error_message = response_data.get("message", "")
         assert "not found" in error_message.lower()
 
     # Test PATCH endpoints
@@ -496,6 +505,7 @@ def test_session_ownership_after_multiple_operations(multi_user_test_setup):
 
     # User A creates a session and performs multiple operations
     import uuid
+
     task_payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),
@@ -570,7 +580,7 @@ def test_session_ownership_after_multiple_operations(multi_user_test_setup):
     # Verify User A still has full access
     final_get = first_user_client.get(f"/api/v1/sessions/{session_id}")
     assert final_get.status_code == 200
-    assert final_get.json()["name"] == "Updated Name"
+    assert final_get.json()["data"]["name"] == "Updated Name"
 
     print(
         f"✓ Session ownership consistently maintained across multiple operations for session {session_id}"
