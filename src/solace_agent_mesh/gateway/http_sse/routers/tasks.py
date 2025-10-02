@@ -12,6 +12,7 @@ from fastapi import (
     Response,
     status,
 )
+from fastapi.exceptions import RequestValidationError
 from typing import List, Optional, Union
 
 from solace_ai_connector.common.log import log
@@ -70,7 +71,7 @@ async def _submit_task(
 
     if not agent_name:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Missing 'agent_name' in request payload message metadata.",
         )
 

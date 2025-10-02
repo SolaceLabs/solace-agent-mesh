@@ -20,7 +20,7 @@ class DataRetentionService:
     """
 
     # Validation constants
-    MIN_RETENTION_DAYS = 7
+    MIN_RETENTION_DAYS = 1
     MIN_CLEANUP_INTERVAL_HOURS = 1
     MIN_BATCH_SIZE = 1
     MAX_BATCH_SIZE = 10000

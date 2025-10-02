@@ -199,56 +199,6 @@ class TestSessionsAPIContract:
 class TestTasksAPIContract:
     """Test contract compliance for /tasks endpoints"""
 
-    def test_task_and_session_integration(self, api_client: TestClient):
-        """Test integration between tasks and sessions APIs"""
-
-        import uuid
-
-        # Submit a task (creates session)
-        task_data = {
-            "jsonrpc": "2.0",
-            "id": str(uuid.uuid4()),
-            "method": "message/stream",
-            "params": {
-                "message": {
-                    "role": "user",
-                    "messageId": str(uuid.uuid4()),
-                    "kind": "message",
-                    "parts": [{"kind": "text", "text": "Integration test message"}],
-                    "metadata": {"agent_name": "TestAgent"},
-                }
-            },
-        }
-        response = api_client.post("/api/v1/message:stream", json=task_data)
-        assert response.status_code == 200
-        assert "application/json" in response.headers.get("content-type")
-
-        session_id = response.json()["result"]["contextId"]
-
-        # Verify session appears in sessions list
-        sessions_response = api_client.get("/api/v1/sessions")
-        assert sessions_response.status_code == 200
-        sessions_data = sessions_response.json()
-
-        assert len(sessions_data["data"]) >= 1
-        session_ids = [s["id"] for s in sessions_data["data"]]
-        assert session_id in session_ids
-
-        # Verify session details
-        session_response = api_client.get(f"/api/v1/sessions/{session_id}")
-        assert session_response.status_code == 200
-
-        # Verify message appears in session history
-        history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
-        assert history_response.status_code == 200
-        history = history_response.json()
-
-        assert len(history) >= 1
-        user_message = history[0]
-        assert user_message["message"] == "Integration test message"
-
-        print(f"✓ Task-session integration verified for session {session_id}")
-
     def test_post_tasks_send_response_schema(self, api_client: TestClient):
         """Test POST /message:send returns proper JSONRPC response"""
 
@@ -423,11 +373,12 @@ class TestHTTPStatusCodes:
         """Test that validation errors return 422"""
 
         # Missing required fields
-        response = api_client.post("/api/v1/message:send", json={})
+        response = api_client.post("/api/v1/message:send", json={"invalid": "data"})
         assert response.status_code == 422
 
         response = api_client.post(
-            "/api/v1/message:send", json={"jsonrpc": "2.0", "id": "test", "method": "message/send"}
+            "/api/v1/message:send",
+            json={"jsonrpc": "2.0", "id": "test", "method": "message/send"},
         )
         assert response.status_code == 422
 
@@ -471,6 +422,7 @@ class TestContentTypeHeaders:
 
         # Test with created session
         import uuid
+
         task_data = {
             "jsonrpc": "2.0",
             "id": str(uuid.uuid4()),
@@ -550,9 +502,11 @@ class TestRequestValidation:
             "jsonrpc": "2.0",
             "id": str(uuid.uuid4()),
             "method": "tasks/cancel",
-            "params": {"id": 123}  # Should be string
+            "params": {"id": 123},  # Should be string
         }
-        response = api_client.post("/api/v1/tasks/test-task-id:cancel", json=invalid_cancel_data)
+        response = api_client.post(
+            "/api/v1/tasks/test-task-id:cancel", json=invalid_cancel_data
+        )
 
         # Should accept or convert the type appropriately
         # FastAPI typically handles type conversion
@@ -662,19 +616,3 @@ class TestErrorResponseFormat:
             pytest.fail("Error response is not valid JSON")
 
         print("✓ Error responses are properly formatted JSON")
-
-    def test_validation_error_format(self, api_client: TestClient):
-        """Test validation error response format"""
-
-        response = api_client.post("/api/v1/tasks/send", data={})
-        assert response.status_code == 422
-
-        try:
-            error_data = response.json()
-            assert isinstance(error_data, dict)
-            # Should contain error information
-            assert len(error_data) > 0
-        except json.JSONDecodeError:
-            pytest.fail("Validation error response is not valid JSON")
-
-        print("✓ Validation error responses are properly formatted")

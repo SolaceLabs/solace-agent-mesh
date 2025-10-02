@@ -281,13 +281,13 @@ class WebUIBackendApp(BaseGatewayApp):
                     "type": "integer",
                     "required": False,
                     "default": 90,
-                    "description": "Number of days to retain task and task_event records. Minimum: 7 days.",
+                    "description": "Number of days to retain task and task_event records. Minimum: 1 day.",
                 },
                 "feedback_retention_days": {
                     "type": "integer",
                     "required": False,
                     "default": 90,
-                    "description": "Number of days to retain feedback records. Minimum: 7 days.",
+                    "description": "Number of days to retain feedback records. Minimum: 1 day.",
                 },
                 "cleanup_interval_hours": {
                     "type": "integer",
