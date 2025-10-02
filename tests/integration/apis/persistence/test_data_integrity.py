@@ -69,7 +69,7 @@ def test_session_deletion_cascades_to_messages(api_client: TestClient):
     assert len(history) >= 4  # Should have at least 4 user messages
 
     message_contents = [
-        msg["message"] for msg in history if msg["sender_type"] == "user"
+        msg["message"] for msg in history if msg["senderType"] == "user"
     ]
     assert "First message in session" in message_contents
     assert "Fourth message to test cascade" in message_contents
@@ -228,7 +228,7 @@ def test_cross_user_data_isolation_comprehensive(api_client: TestClient, test_ap
         user1_messages = [
             msg["message"]
             for msg in user1_history.json()
-            if msg["sender_type"] == "user"
+            if msg["senderType"] == "user"
         ]
 
         # User 1's messages should contain their content
@@ -340,7 +340,7 @@ def test_referential_integrity_with_multiple_deletions(api_client: TestClient):
         history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
         assert history_response.status_code == 200
         messages = history_response.json()
-        user_messages = [msg for msg in messages if msg["sender_type"] == "user"]
+        user_messages = [msg for msg in messages if msg["senderType"] == "user"]
         assert len(user_messages) >= expected_count
 
     # Delete sessions in random order
@@ -375,7 +375,7 @@ def test_referential_integrity_with_multiple_deletions(api_client: TestClient):
             assert remaining_history.status_code == 200
             remaining_messages = remaining_history.json()
             user_messages = [
-                msg for msg in remaining_messages if msg["sender_type"] == "user"
+                msg for msg in remaining_messages if msg["senderType"] == "user"
             ]
             assert len(user_messages) >= remaining_count
 
@@ -441,7 +441,9 @@ def test_session_consistency_across_operations(api_client: TestClient):
                     "role": "user",
                     "messageId": str(uuid.uuid4()),
                     "kind": "message",
-                    "parts": [{"kind": "text", "text": f"Consistency test message {i + 2}"}],
+                    "parts": [
+                        {"kind": "text", "text": f"Consistency test message {i + 2}"}
+                    ],
                     "metadata": {"agent_name": "TestAgent"},
                     "contextId": session_id,
                 }
@@ -465,7 +467,7 @@ def test_session_consistency_across_operations(api_client: TestClient):
     assert history_response.status_code == 200
     history = history_response.json()
 
-    user_messages = [msg for msg in history if msg["sender_type"] == "user"]
+    user_messages = [msg for msg in history if msg["senderType"] == "user"]
     assert len(user_messages) >= 6  # Initial + 5 additional messages
 
     # Verify message ordering and content
@@ -562,9 +564,9 @@ def test_data_integrity_under_concurrent_operations(api_client: TestClient):
     # Verify all operations succeeded
     successful_ops = sum(1 for _, success in operations_results if success)
     total_ops = len(operations_results)
-    assert successful_ops == total_ops, (
-        f"Only {successful_ops}/{total_ops} operations succeeded"
-    )
+    assert (
+        successful_ops == total_ops
+    ), f"Only {successful_ops}/{total_ops} operations succeeded"
 
     # Verify final data integrity
     final_session = api_client.get(f"/api/v1/sessions/{session_id}")
@@ -577,7 +579,7 @@ def test_data_integrity_under_concurrent_operations(api_client: TestClient):
     assert final_history.status_code == 200
     history = final_history.json()
 
-    user_messages = [msg for msg in history if msg["sender_type"] == "user"]
+    user_messages = [msg for msg in history if msg["senderType"] == "user"]
     assert len(user_messages) >= 11  # Initial + 10 concurrent messages
 
     # Check that all concurrent messages are present
@@ -610,7 +612,9 @@ def test_user_data_cleanup_integrity(api_client: TestClient):
                     "role": "user",
                     "messageId": str(uuid.uuid4()),
                     "kind": "message",
-                    "parts": [{"kind": "text", "text": f"Cleanup test session {i + 1}"}],
+                    "parts": [
+                        {"kind": "text", "text": f"Cleanup test session {i + 1}"}
+                    ],
                     "metadata": {"agent_name": agent_name},
                 }
             },
@@ -631,7 +635,12 @@ def test_user_data_cleanup_integrity(api_client: TestClient):
                         "role": "user",
                         "messageId": str(uuid.uuid4()),
                         "kind": "message",
-                        "parts": [{"kind": "text", "text": f"Message {j + 1} in session {i + 1}"}],
+                        "parts": [
+                            {
+                                "kind": "text",
+                                "text": f"Message {j + 1} in session {i + 1}",
+                            }
+                        ],
                         "metadata": {"agent_name": agent_name},
                         "contextId": session_id,
                     }
