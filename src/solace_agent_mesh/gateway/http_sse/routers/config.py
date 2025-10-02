@@ -36,6 +36,21 @@ async def get_app_config(
             feature_enablement["taskLogging"] = True
             log.debug("%s taskLogging feature flag is enabled.", log_prefix)
 
+        # Determine if feedback should be enabled
+        # Feedback requires SQL session storage for persistence
+        feedback_enabled = component.get_config("frontend_collect_feedback", False)
+        if feedback_enabled:
+            session_config = component.get_config("session_service", {})
+            session_type = session_config.get("type", "memory")
+            if session_type != "sql":
+                log.warning(
+                    "%s Feedback is configured but session_service type is '%s' (not 'sql'). "
+                    "Disabling feedback for frontend.",
+                    log_prefix,
+                    session_type
+                )
+                feedback_enabled = False
+
         config_data = {
             "frontend_server_url": "",
             "frontend_auth_login_url": component.get_config(
@@ -48,9 +63,7 @@ async def get_app_config(
                 "frontend_welcome_message", ""
             ),
             "frontend_redirect_url": component.get_config("frontend_redirect_url", ""),
-            "frontend_collect_feedback": component.get_config(
-                "frontend_collect_feedback", False
-            ),
+            "frontend_collect_feedback": feedback_enabled,
             "frontend_bot_name": component.get_config("frontend_bot_name", "A2A Agent"),
             "frontend_feature_enablement": feature_enablement,
             "persistence_enabled": api_config.get("persistence_enabled", False),
