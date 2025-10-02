@@ -172,28 +172,12 @@ def create_webui_gateway_config(
         if session_type == "sql":
             session_service_lines = [
                 f'type: "{session_type}"',
-                f'database_url: "${{WEB_UI_GATEWAY_DATABASE_URL}}"',
+                'database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///data/webui_gateway.db}"',
                 f'default_behavior: "{session_behavior}"',
             ]
             session_service_block = "\n" + "\n".join(
                 [f"        {line}" for line in session_service_lines]
             )
-            
-            data_dir = project_root / "data"
-            data_dir.mkdir(exist_ok=True)
-            webui_db_file = data_dir / "webui_gateway.db"
-            webui_database_url = f"sqlite:///{webui_db_file.resolve()}"
-            
-            try:
-                env_path = project_root / ".env"
-                with open(env_path, "a", encoding="utf-8") as f:
-                    f.write(f'\nWEB_UI_GATEWAY_DATABASE_URL="{webui_database_url}"\n')
-                click.echo(f"  Added WEB_UI_GATEWAY_DATABASE_URL to .env: {webui_database_url}")
-            except Exception as e:
-                click.echo(
-                    click.style(f"Warning: Could not add WEB_UI_GATEWAY_DATABASE_URL to .env: {e}", fg="yellow"),
-                    err=True,
-                )
         else:
             session_service_block = "*default_session_service"
         

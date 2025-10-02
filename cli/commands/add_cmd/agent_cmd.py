@@ -66,7 +66,7 @@ def _write_agent_yaml_from_data(
 
             if type_val == "sql":
                 database_url_placeholder = (
-                    f"${{{formatted_names['SNAKE_UPPER_CASE_NAME']}_DATABASE_URL}}"
+                    f"${{{formatted_names['SNAKE_UPPER_CASE_NAME']}_DATABASE_URL, sqlite:///{file_name_snake}.db}}"
                 )
                 session_service_lines.append(
                     f'database_url: "{database_url_placeholder}"'
