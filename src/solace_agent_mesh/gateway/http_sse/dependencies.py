@@ -62,18 +62,18 @@ def init_database(database_url: str):
     global SessionLocal
     if SessionLocal is None:
         engine = create_engine(database_url)
-        
+
         # Enable foreign keys for SQLite only (database-agnostic)
         from sqlalchemy import event
-        
+
         @event.listens_for(engine, "connect")
         def set_sqlite_pragma(dbapi_conn, connection_record):
             # Only apply to SQLite connections
-            if database_url.startswith('sqlite'):
+            if database_url.startswith("sqlite"):
                 cursor = dbapi_conn.cursor()
                 cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.close()
-        
+
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
         log.info("[Dependencies] Database initialized with foreign key support.")
     else:
@@ -265,26 +265,31 @@ def get_data_retention_service(
 ) -> "DataRetentionService | None":
     """
     FastAPI dependency to get the DataRetentionService instance.
-    
+
     Returns:
         DataRetentionService instance if database is configured and service is initialized,
         None otherwise.
-    
+
     Note:
         This dependency is primarily for future API endpoints that might expose
         data retention statistics or manual cleanup triggers. The service itself
         runs automatically via timer in the component.
     """
     log.debug("[Dependencies] get_data_retention_service called")
-    
+
     if not component.database_url:
-        log.debug("[Dependencies] Database not configured, returning None for data retention service")
+        log.debug(
+            "[Dependencies] Database not configured, returning None for data retention service"
+        )
         return None
-    
-    if not hasattr(component, 'data_retention_service') or component.data_retention_service is None:
+
+    if (
+        not hasattr(component, "data_retention_service")
+        or component.data_retention_service is None
+    ):
         log.warning("[Dependencies] DataRetentionService not initialized on component")
         return None
-    
+
     return component.data_retention_service
 
 
@@ -400,18 +405,22 @@ class ValidatedUserConfig:
     ) -> dict[str, Any]:
         user_id = user_config.get("user_profile", {}).get("id")
 
-        log.debug(f"[Dependencies] ValidatedUserConfig called for user_id: {user_id} with required scopes: {self.required_scopes}")
+        log.debug(
+            f"[Dependencies] ValidatedUserConfig called for user_id: {user_id} with required scopes: {self.required_scopes}"
+        )
 
         # Validate scopes
         if not config_resolver.is_feature_enabled(
-                user_config, {"tool_metadata": {"required_scopes": self.required_scopes}}, {}
+            user_config,
+            {"tool_metadata": {"required_scopes": self.required_scopes}},
+            {},
         ):
             log.warning(
                 f"[Dependencies] Authorization denied for user '{user_id}'. Required scopes: {self.required_scopes}"
             )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Not authorized. Required scopes: {self.required_scopes}"
+                detail=f"Not authorized. Required scopes: {self.required_scopes}",
             )
 
         return user_config
@@ -502,8 +511,6 @@ def get_session_business_service(
     return SessionService(component=component)
 
 
-
-
 @contextmanager
 def create_full_session_service_with_transaction():
     """Create full SessionService with business logic and its own transaction for non-HTTP contexts."""
@@ -514,13 +521,15 @@ def create_full_session_service_with_transaction():
     try:
         session_repository = SessionRepository(db)
         message_repository = MessageRepository(db)
-        
+
         # Get the component instance to pass to SessionService
         component = sac_component_instance
-        
+
         # Return the FULL SessionService with business logic
-        session_service = SessionService(session_repository, message_repository, component)
-        
+        session_service = SessionService(
+            session_repository, message_repository, component
+        )
+
         yield session_service, db
         db.commit()
     except Exception:
@@ -543,7 +552,9 @@ def get_session_validator(
                 db = SessionLocal()
                 try:
                     session_repository = SessionRepository(db)
-                    session_domain = session_repository.find_user_session(session_id, user_id)
+                    session_domain = session_repository.find_user_session(
+                        session_id, user_id
+                    )
                     return session_domain is not None
                 finally:
                     db.close()
@@ -584,6 +595,8 @@ def get_session_business_service_optional(
 ) -> SessionService | None:
     """Optional session service dependency that returns None if database is not configured."""
     if SessionLocal is None:
-        log.debug("[Dependencies] Database not configured, returning None for session service")
+        log.debug(
+            "[Dependencies] Database not configured, returning None for session service"
+        )
         return None
     return SessionService(component=component)
