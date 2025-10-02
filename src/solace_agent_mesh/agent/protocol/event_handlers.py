@@ -419,9 +419,14 @@ async def handle_a2a_request(component, message: SolaceMessage):
             logical_task_id = str(a2a.get_request_id(a2a_request))
 
             try:
-                from solace_agent_mesh_enterprise.auth.input_required import a2a_auth_message_handler
+                from solace_agent_mesh_enterprise.auth.input_required import (
+                    a2a_auth_message_handler,
+                )
+
                 try:
-                    message_handled = await a2a_auth_message_handler(component, a2a_message, logical_task_id)
+                    message_handled = await a2a_auth_message_handler(
+                        component, a2a_message, logical_task_id
+                    )
                     if message_handled:
                         message.call_acknowledgements()
                         log.info(
@@ -440,7 +445,6 @@ async def handle_a2a_request(component, message: SolaceMessage):
 
             except ImportError:
                 pass
-            
 
             # The session id is now contextId on the message
             original_session_id = a2a_message.context_id
@@ -1082,6 +1086,26 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                         component.log_identifier,
                                         sub_task_id,
                                     )
+
+                                    if (
+                                        status_event.metadata
+                                        and "task_call_stack" in status_event.metadata
+                                        and isinstance(
+                                            status_event.metadata["task_call_stack"],
+                                            list,
+                                        )
+                                    ):
+                                        task_call_stack = status_event.metadata[
+                                            "task_call_stack"
+                                        ].copy()
+                                        task_call_stack.insert(0, sub_task_id)
+                                        event_metadata["task_call_stack"] = (
+                                            task_call_stack
+                                        )
+                                    else:
+                                        event_metadata["task_call_stack"] = [
+                                            sub_task_id
+                                        ]
 
                                     status_event.metadata = event_metadata
                                     status_event.task_id = main_logical_task_id
