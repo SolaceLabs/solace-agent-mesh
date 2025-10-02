@@ -339,29 +339,51 @@ def test_orphaned_data_prevention(api_client: TestClient):
 def test_referential_integrity_with_multiple_deletions(api_client: TestClient):
     """Test database referential integrity with multiple session deletions"""
 
+    import uuid
+
     # Create multiple sessions with various message counts
     sessions_data = []
 
     for i in range(5):
         # Create session
-        task_data = {
-            "agent_name": "TestAgent",
-            "message": f"Initial message for session {i + 1}",
+        task_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": f"Initial message for session {i + 1}"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
         }
-        response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+        response = api_client.post("/api/v1/message:stream", json=task_payload)
         assert response.status_code == 200
-        session_id = response.json()["result"]["sessionId"]
+        session_id = response.json()["result"]["contextId"]
 
         # Add varying numbers of messages
         message_count = (i + 1) * 2  # 2, 4, 6, 8, 10 messages
         for j in range(message_count - 1):  # -1 because we already have initial message
-            followup_data = {
-                "agent_name": "TestAgent",
-                "message": f"Message {j + 2} in session {i + 1}",
-                "session_id": session_id,
+            followup_payload = {
+                "jsonrpc": "2.0",
+                "id": str(uuid.uuid4()),
+                "method": "message/stream",
+                "params": {
+                    "message": {
+                        "role": "user",
+                        "messageId": str(uuid.uuid4()),
+                        "kind": "message",
+                        "parts": [{"kind": "text", "text": f"Message {j + 2} in session {i + 1}"}],
+                        "metadata": {"agent_name": "TestAgent"},
+                        "contextId": session_id,
+                    }
+                },
             }
             followup_response = api_client.post(
-                "/api/v1/tasks/subscribe", data=followup_data
+                "/api/v1/message:stream", json=followup_payload
             )
             assert followup_response.status_code == 200
 
