@@ -31,10 +31,12 @@ class TestSessionsAPIContract:
 
         # Validate meta pagination fields
         meta = data["meta"]
-        assert "pageNumber" in meta
-        assert "pageSize" in meta
-        assert "totalCount" in meta
-        assert "totalPages" in meta
+        assert "pagination" in meta
+        pagination = meta["pagination"]
+        assert "pageNumber" in pagination
+        assert "pageSize" in pagination
+        assert "count" in pagination
+        assert "nextPage" in pagination
 
         # If sessions exist, validate schema
         if data["data"]:
