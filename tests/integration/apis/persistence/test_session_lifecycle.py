@@ -25,7 +25,7 @@ def test_send_task_creates_session_with_message(api_client: TestClient):
 
     # Send a streaming task which creates a session
     import uuid
-    
+
     task_payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),
@@ -333,7 +333,7 @@ def test_end_to_end_session_workflow(api_client: TestClient):
     sessions_data = sessions_response.json()
     sessions = sessions_data["sessions"]
     assert len(sessions) == 1
-    assert sessions_data["total_count"] == 1
+    assert sessions_data["totalCount"] == 1
     assert sessions[0]["id"] == session_id
 
     # 3. Send additional message to same session
