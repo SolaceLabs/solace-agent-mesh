@@ -12,11 +12,26 @@ from fastapi.testclient import TestClient
 def test_session_deletion_cascades_to_messages(api_client: TestClient):
     """Test that deleting a session removes all associated messages"""
 
+    import uuid
+
     # Create a session with multiple messages
-    task_data = {"agent_name": "TestAgent", "message": "First message in session"}
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "First message in session"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response.status_code == 200
-    session_id = response.json()["result"]["sessionId"]
+    session_id = response.json()["result"]["contextId"]
 
     # Add more messages to the session
     additional_messages = [
@@ -26,16 +41,26 @@ def test_session_deletion_cascades_to_messages(api_client: TestClient):
     ]
 
     for message in additional_messages:
-        followup_data = {
-            "agent_name": "TestAgent",
-            "message": message,
-            "session_id": session_id,
+        followup_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": message}],
+                    "metadata": {"agent_name": "TestAgent"},
+                    "contextId": session_id,
+                }
+            },
         }
         followup_response = api_client.post(
-            "/api/v1/tasks/subscribe", data=followup_data
+            "/api/v1/message:stream", json=followup_payload
         )
         assert followup_response.status_code == 200
-        assert followup_response.json()["result"]["sessionId"] == session_id
+        assert followup_response.json()["result"]["contextId"] == session_id
 
     # Verify session has multiple messages
     history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
@@ -374,14 +399,26 @@ def test_referential_integrity_with_multiple_deletions(api_client: TestClient):
 def test_session_consistency_across_operations(api_client: TestClient):
     """Test that session data remains consistent across multiple operations"""
 
+    import uuid
+
     # Create a session
-    task_data = {
-        "agent_name": "TestAgent",
-        "message": "Initial consistency test message",
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Initial consistency test message"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
     }
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response.status_code == 200
-    session_id = response.json()["result"]["sessionId"]
+    session_id = response.json()["result"]["contextId"]
 
     # Perform multiple operations and verify consistency
     operations = []
@@ -395,14 +432,24 @@ def test_session_consistency_across_operations(api_client: TestClient):
 
     # 2. Add multiple messages
     for i in range(5):
-        msg_data = {
-            "agent_name": "TestAgent",
-            "message": f"Consistency test message {i + 2}",
-            "session_id": session_id,
+        msg_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": f"Consistency test message {i + 2}"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                    "contextId": session_id,
+                }
+            },
         }
-        msg_response = api_client.post("/api/v1/tasks/subscribe", data=msg_data)
+        msg_response = api_client.post("/api/v1/message:stream", json=msg_payload)
         assert msg_response.status_code == 200
-        assert msg_response.json()["result"]["sessionId"] == session_id
+        assert msg_response.json()["result"]["contextId"] == session_id
         operations.append(f"message_{i + 2}")
 
     # 3. Verify session integrity after each operation
@@ -453,23 +500,48 @@ def test_session_consistency_across_operations(api_client: TestClient):
 def test_data_integrity_under_concurrent_operations(api_client: TestClient):
     """Test data integrity when performing multiple operations on the same session"""
 
+    import uuid
+
     # Create a session
-    task_data = {"agent_name": "TestAgent", "message": "Concurrent operations test"}
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Concurrent operations test"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response.status_code == 200
-    session_id = response.json()["result"]["sessionId"]
+    session_id = response.json()["result"]["contextId"]
 
     # Perform multiple operations in sequence (simulating concurrent access)
     operations_results = []
 
     # Add messages
     for i in range(10):
-        msg_data = {
-            "agent_name": "TestAgent",
-            "message": f"Concurrent message {i + 1}",
-            "session_id": session_id,
+        msg_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": f"Concurrent message {i + 1}"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                    "contextId": session_id,
+                }
+            },
         }
-        msg_response = api_client.post("/api/v1/tasks/subscribe", data=msg_data)
+        msg_response = api_client.post("/api/v1/message:stream", json=msg_payload)
         operations_results.append(("message", msg_response.status_code == 200))
 
     # Update session name multiple times
@@ -522,27 +594,50 @@ def test_data_integrity_under_concurrent_operations(api_client: TestClient):
 def test_user_data_cleanup_integrity(api_client: TestClient):
     """Test that when all user sessions are deleted, no orphaned data remains"""
 
+    import uuid
+
     # Create multiple sessions for the user
     session_ids = []
 
     for i in range(4):
-        task_data = {
-            "agent_name": "TestAgent" if i % 2 == 0 else "TestPeerAgentA",
-            "message": f"Cleanup test session {i + 1}",
+        agent_name = "TestAgent" if i % 2 == 0 else "TestPeerAgentA"
+        task_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": f"Cleanup test session {i + 1}"}],
+                    "metadata": {"agent_name": agent_name},
+                }
+            },
         }
-        response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+        response = api_client.post("/api/v1/message:stream", json=task_payload)
         assert response.status_code == 200
-        session_id = response.json()["result"]["sessionId"]
+        session_id = response.json()["result"]["contextId"]
         session_ids.append(session_id)
 
         # Add messages to each session
         for j in range(3):
-            msg_data = {
-                "agent_name": task_data["agent_name"],
-                "message": f"Message {j + 1} in session {i + 1}",
-                "session_id": session_id,
+            msg_payload = {
+                "jsonrpc": "2.0",
+                "id": str(uuid.uuid4()),
+                "method": "message/stream",
+                "params": {
+                    "message": {
+                        "role": "user",
+                        "messageId": str(uuid.uuid4()),
+                        "kind": "message",
+                        "parts": [{"kind": "text", "text": f"Message {j + 1} in session {i + 1}"}],
+                        "metadata": {"agent_name": agent_name},
+                        "contextId": session_id,
+                    }
+                },
             }
-            msg_response = api_client.post("/api/v1/tasks/subscribe", data=msg_data)
+            msg_response = api_client.post("/api/v1/message:stream", json=msg_payload)
             assert msg_response.status_code == 200
 
     # Verify all sessions exist
