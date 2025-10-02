@@ -243,6 +243,44 @@ class WebUIBackendApp(BaseGatewayApp):
                 },
             },
         },
+        {
+            "name": "data_retention",
+            "required": False,
+            "type": "dict",
+            "description": "Configuration for automatic cleanup of old data.",
+            "dict_schema": {
+                "enabled": {
+                    "type": "boolean",
+                    "required": False,
+                    "default": True,
+                    "description": "Enable/disable automatic data cleanup.",
+                },
+                "task_retention_days": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 90,
+                    "description": "Number of days to retain task and task_event records. Minimum: 7 days.",
+                },
+                "feedback_retention_days": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 90,
+                    "description": "Number of days to retain feedback records. Minimum: 7 days.",
+                },
+                "cleanup_interval_hours": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 24,
+                    "description": "How often to run the cleanup job (in hours). Minimum: 1 hour.",
+                },
+                "batch_size": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 1000,
+                    "description": "Number of records to delete per batch to avoid long-running transactions. Range: 1-10000.",
+                },
+            },
+        },
     ]
 
     def __init__(self, app_info: Dict[str, Any], **kwargs):

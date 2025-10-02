@@ -96,11 +96,11 @@ The primary goal is to implement a configurable, automated data retention system
 
 ### Phase 1: Configuration and Schema (Files to Modify)
 
-- [ ] **Step 1.1**: Add `data_retention` configuration block to `WebUIBackendApp.SPECIFIC_APP_SCHEMA_PARAMS` in `src/solace_agent_mesh/gateway/http_sse/app.py`
+- [x] **Step 1.1**: Add `data_retention` configuration block to `WebUIBackendApp.SPECIFIC_APP_SCHEMA_PARAMS` in `src/solace_agent_mesh/gateway/http_sse/app.py`
   - Include all 6 configuration parameters with proper types, defaults, and descriptions
   - Add validation rules in the schema
 
-- [ ] **Step 1.2**: Update example configuration file `examples/gateways/webui_example.yaml`
+- [x] **Step 1.2**: Update example configuration file `examples/gateways/webui_example.yaml`
   - Add commented-out `data_retention` block showing all available options
   - Include explanatory comments about what each option does
 
