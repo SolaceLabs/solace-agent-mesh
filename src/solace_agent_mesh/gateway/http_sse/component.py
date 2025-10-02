@@ -195,13 +195,74 @@ class WebUIBackendComponent(BaseGatewayComponent):
             publish_func=self.publish_a2a,
         )
 
+        # Initialize data retention service and timer
+        self.data_retention_service = None
+        self._data_retention_timer_id = None
+        data_retention_config = self.get_config("data_retention", {})
+        if data_retention_config.get("enabled", True):
+            log.info("%s Data retention is enabled. Initializing service and timer...", self.log_identifier)
+            
+            # Import and initialize the DataRetentionService
+            from .services.data_retention_service import DataRetentionService
+            
+            session_factory = None
+            if self.database_url:
+                # SessionLocal will be initialized later in setup_dependencies
+                # We'll pass a lambda that returns SessionLocal when called
+                session_factory = lambda: dependencies.SessionLocal() if dependencies.SessionLocal else None
+            
+            self.data_retention_service = DataRetentionService(
+                session_factory=session_factory,
+                config=data_retention_config
+            )
+            
+            # Create and start the cleanup timer
+            cleanup_interval_hours = data_retention_config.get("cleanup_interval_hours", 24)
+            cleanup_interval_ms = cleanup_interval_hours * 60 * 60 * 1000
+            self._data_retention_timer_id = f"data_retention_cleanup_{self.gateway_id}"
+            
+            self.add_timer(
+                delay_ms=cleanup_interval_ms,
+                timer_id=self._data_retention_timer_id,
+                interval_ms=cleanup_interval_ms,
+            )
+            log.info(
+                "%s Data retention timer created with ID '%s' and interval %d hours.",
+                self.log_identifier,
+                self._data_retention_timer_id,
+                cleanup_interval_hours,
+            )
+        else:
+            log.info("%s Data retention is disabled via configuration.", self.log_identifier)
+
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
 
     def process_event(self, event: Event):
         if event.event_type == EventType.TIMER:
-            if event.data.get("timer_id") == self._sse_cleanup_timer_id:
+            timer_id = event.data.get("timer_id")
+            
+            if timer_id == self._sse_cleanup_timer_id:
                 log.debug("%s SSE buffer cleanup timer triggered.", self.log_identifier)
                 self.sse_event_buffer.cleanup_stale_buffers()
+                return
+            
+            if timer_id == self._data_retention_timer_id:
+                log.debug("%s Data retention cleanup timer triggered.", self.log_identifier)
+                if self.data_retention_service:
+                    try:
+                        self.data_retention_service.cleanup_old_data()
+                    except Exception as e:
+                        log.error(
+                            "%s Error during data retention cleanup: %s",
+                            self.log_identifier,
+                            e,
+                            exc_info=True,
+                        )
+                else:
+                    log.warning(
+                        "%s Data retention timer fired but service is not initialized.",
+                        self.log_identifier,
+                    )
                 return
 
         super().process_event(event)
@@ -1275,7 +1336,18 @@ class WebUIBackendComponent(BaseGatewayComponent):
     def cleanup(self):
         """Gracefully shuts down the component and the FastAPI server."""
         log.info("%s Cleaning up Web UI Backend Component...", self.log_identifier)
+        
+        # Cancel timers
         self.cancel_timer(self._sse_cleanup_timer_id)
+        if self._data_retention_timer_id:
+            self.cancel_timer(self._data_retention_timer_id)
+            log.info("%s Cancelled data retention cleanup timer.", self.log_identifier)
+        
+        # Clean up data retention service
+        if self.data_retention_service:
+            self.data_retention_service = None
+            log.info("%s Data retention service cleaned up.", self.log_identifier)
+        
         log.info("%s Cleaning up visualization resources...", self.log_identifier)
         if self._visualization_message_queue:
             self._visualization_message_queue.put(None)
