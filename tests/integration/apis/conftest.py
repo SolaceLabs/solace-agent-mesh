@@ -16,9 +16,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import StaticPool
 
-# Remove old persistence service import - using direct SQLAlchemy now
-from solace_agent_mesh.gateway.http_sse.repository.models.base import Base
-
 # Import FastAPI components
 from solace_agent_mesh.gateway.http_sse.main import app as fastapi_app
 from solace_agent_mesh.gateway.http_sse.main import setup_dependencies
@@ -61,9 +58,8 @@ def test_database_engine(test_database_url):
         pool_recycle=300,
     )
 
-    # Create all tables
-    Base.metadata.create_all(bind=engine)
-    print(f"[API Tests] Test database created at {test_database_url}")
+    # Tables will be created by Alembic migrations in setup_dependencies()
+    print(f"[API Tests] Test database engine created at {test_database_url}")
 
     yield engine
 
