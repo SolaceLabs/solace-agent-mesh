@@ -319,15 +319,56 @@ def test_content_type_consistency_in_errors(api_client: TestClient):
 def test_error_response_encoding_handling(api_client: TestClient):
     """Test that error responses handle encoding correctly"""
 
+    import uuid
+
     # Test with unicode characters in request that causes error
     unicode_test_cases = [
-        {"agent_name": "TestAgent", "message": "测试消息 🚀"},  # Valid unicode
-        {"agent_name": "TestAgent"},  # Missing message (validation error)
-        {"message": "Test with émojis 🎉"},  # Missing agent_name
+        {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/send",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "测试消息 🚀"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        },  # Valid unicode
+        {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/send",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Test"}],
+                    "metadata": {},  # Missing agent_name
+                }
+            },
+        },
+        {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/send",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Test with émojis 🎉"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        },
     ]
 
     for test_data in unicode_test_cases:
-        response = api_client.post("/api/v1/tasks/send", data=test_data)
+        response = api_client.post("/api/v1/message:send", json=test_data)
 
         # Should handle unicode correctly even in errors
         if response.status_code != 200:
