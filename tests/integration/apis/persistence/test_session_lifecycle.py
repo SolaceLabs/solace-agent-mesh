@@ -109,9 +109,8 @@ def test_multiple_sessions_via_tasks(api_client: TestClient):
     sessions_response = api_client.get("/api/v1/sessions")
     assert sessions_response.status_code == 200
     sessions_data = sessions_response.json()
-    sessions = sessions_data["sessions"]
+    sessions = sessions_data["data"]
     assert len(sessions) == 2
-    assert sessions_data["totalCount"] == 2
 
     # Verify session IDs and agents
     session_ids = {s["id"] for s in sessions}

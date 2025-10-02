@@ -415,7 +415,7 @@ def test_referential_integrity_with_multiple_deletions(api_client: TestClient):
     sessions_list = api_client.get("/api/v1/sessions")
     assert sessions_list.status_code == 200
     sessions_data = sessions_list.json()
-    current_session_ids = {s["id"] for s in sessions_data["sessions"]}
+    current_session_ids = {s["id"] for s in sessions_data["data"]}
 
     for session_id in deleted_sessions:
         assert session_id not in current_session_ids
@@ -710,7 +710,7 @@ def test_user_data_cleanup_integrity(api_client: TestClient):
     final_sessions = final_sessions_list.json()
 
     # Should be empty or not contain any of our deleted sessions
-    final_session_ids = {s["id"] for s in final_sessions["sessions"]}
+    final_session_ids = {s["id"] for s in final_sessions["data"]}
     for session_id in session_ids:
         assert session_id not in final_session_ids
 

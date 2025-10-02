@@ -241,12 +241,12 @@ def test_send_task_to_existing_session(api_client: TestClient):
     # Send follow-up task to same session
     followup_task_payload = {
         "jsonrpc": "2.0",
-        "id": "test-req-followup",
+        "id": str(uuid.uuid4()),
         "method": "message/stream",
         "params": {
             "message": {
                 "role": "user",
-                "messageId": "test-msg-followup",
+                "messageId": str(uuid.uuid4()),
                 "kind": "message",
                 "parts": [{"kind": "text", "text": "Follow-up message"}],
                 "metadata": {"agent_name": "TestAgent"},
@@ -317,6 +317,8 @@ def test_cancel_task(api_client: TestClient):
 def test_task_with_different_agents(api_client: TestClient):
     """Test sending tasks to different agents"""
 
+    import uuid
+
     agents_and_messages = [
         ("TestAgent", "Task for main agent"),
         ("TestPeerAgentA", "Task for peer agent A"),
@@ -329,12 +331,12 @@ def test_task_with_different_agents(api_client: TestClient):
     for i, (agent_name, message) in enumerate(agents_and_messages):
         task_payload = {
             "jsonrpc": "2.0",
-            "id": f"test-req-agent-{i}",
+            "id": str(uuid.uuid4()),
             "method": "message/stream",
             "params": {
                 "message": {
                     "role": "user",
-                    "messageId": f"test-msg-agent-{i}",
+                    "messageId": str(uuid.uuid4()),
                     "kind": "message",
                     "parts": [{"kind": "text", "text": message}],
                     "metadata": {"agent_name": agent_name},
