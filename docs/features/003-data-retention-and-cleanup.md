@@ -130,7 +130,7 @@ The primary goal is to implement a configurable, automated data retention system
 
 ### Phase 4: Service Layer (New File)
 
-- [ ] **Step 4.1**: Create `DataRetentionService` class
+- [x] **Step 4.1**: Create `DataRetentionService` class
   - File: `src/solace_agent_mesh/gateway/http_sse/services/data_retention_service.py`
   - Implement `__init__(session_factory, config)` constructor
   - Implement `cleanup_old_data()` main orchestration method
