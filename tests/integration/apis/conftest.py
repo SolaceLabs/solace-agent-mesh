@@ -163,6 +163,22 @@ def mock_component(test_database_engine):
     )
     component.get_task_logger_service.return_value = real_task_logger_service
 
+    # Create a real DataRetentionService instance for data retention tests
+    from solace_agent_mesh.gateway.http_sse.services.data_retention_service import (
+        DataRetentionService,
+    )
+    data_retention_config = {
+        "enabled": True,
+        "task_retention_days": 90,
+        "feedback_retention_days": 90,
+        "cleanup_interval_hours": 24,
+        "batch_size": 1000,
+    }
+    real_data_retention_service = DataRetentionService(
+        session_factory=Session, config=data_retention_config
+    )
+    component.data_retention_service = real_data_retention_service
+
     # Create a mock CoreA2AService instance for task cancellation tests
     mock_core_a2a_service = Mock(spec=CoreA2AService)
     
