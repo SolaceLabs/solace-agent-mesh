@@ -23,34 +23,35 @@ The design of Solace Agent Mesh is founded on several key architectural principl
 The architecture comprises several distinct types of components that interact through the Solace broker.
 
 ```mermaid
-graph TD
+graph TB
     subgraph External Systems
         direction TB
-        UserInterfaces["User Interfaces<br/>(Web UI, Slack, CLI)"]
-        APIs["External Systems & APIs"]
+        UserInterfaces("User Interfaces<br/>(Web UI, Slack, CLI)")
+        APIs("External Systems & APIs")
     end
 
-    subgraph SolaceAgentMesh [Solace Agent Mesh]
+    subgraph SolaceAgentMesh ["Solace Agent Mesh"]
         direction TB
         subgraph Gateways
-            WebUIGateway["Web UI Gateway"]
-            CustomGateway["Custom Gateway"]
+            WebUIGateway("Web UI Gateway")
+            CustomGateway("Custom Gateway")
         end
 
-        Broker["Solace Event Broker<br/>(A2A Protocol over Topics)"]
+        Broker("Solace Event Broker<br/>(A2A Protocol Over Topics)")
 
         subgraph AgentHosts ["Agent Hosts (SAC Applications)"]
-            AgentHost1["Agent Host<br/>(Runs Agent A)"]
-            AgentHost2["Agent Host<br/>(Runs Agent B)"]
-            AgentHostN["..."]
+            AgentHost1("Agent Host<br/>(Runs Agent A)")
+            AgentHost2("Agent Host<br/>(Runs Agent B)")
+            AgentHostN("...")
         end
     end
 
     subgraph BackendServices [Backend Services & Tools]
-        LLM["Large Language Models"]
-        CustomTools["Custom Tools<br/>(Python, MCP)"]
-        DataStores["Databases & Vector Stores"]
-        ArtifactService["Artifact Service<br/>(Filesystem, Cloud Storage)"]
+        direction TB
+        LLM("Large Language Models")
+        CustomTools("Custom Tools<br/>(Python, MCP)")
+        DataStores("Databases & Vector Stores")
+        ArtifactService("Artifact Service<br/>(Filesystem, Cloud Storage)")
     end
 
     %% Connections
@@ -70,15 +71,16 @@ graph TD
     AgentHost2 -- Uses --> DataStores
     AgentHost2 -- Uses --> ArtifactService
 
+
     %% Styling
-    classDef externalBoxes fill:#FFF7C2,stroke:#03213B,stroke-width:2px,color:#03213B,rx:10,ry:10;
-    classDef gatewayContainer fill:#F4F4F4,stroke:#03213B,stroke-width:2px,color:#03213B,rx:10,ry:10;
-    classDef gatewayBoxes fill:#C2F7FF,stroke:#03213B,stroke-width:2px,color:#03213B,rx:10,ry:10;
-    classDef mesh fill:#E8FFF0,stroke:#03213B,stroke-width:2px,color:#03213B,rx:10,ry:10;
-    classDef broker fill:#00C895,stroke:#03213B,stroke-width:2px,color:#03213B,rx:10,ry:10;
-    classDef agentContainer fill:#F4F4F4,stroke:#03213B,stroke-width:2px,color:#03213B,rx:10,ry:10;
-    classDef agentBoxes fill:#C2F7FF,stroke:#03213B,stroke-width:2px,color:#03213B,rx:10,ry:10;
-    classDef serviceBoxes fill:#FFF7C2,stroke:#03213B,stroke-width:2px,color:#03213B,rx:10,ry:10
+    classDef externalBoxes fill:#FFF7C2,stroke:#03213B,stroke-width:2px,color:#03213B;
+    classDef gatewayContainer fill:#F4F4F4,stroke:#03213B,stroke-width:2px,color:#03213B;
+    classDef gatewayBoxes fill:#C2F7FF,stroke:#03213B,stroke-width:2px,color:#03213B;
+    classDef mesh fill:#E8FFF0,stroke:#03213B,stroke-width:2px,color:#03213B;
+    classDef broker fill:#00C895,stroke:#03213B,stroke-width:2px,color:#03213B;
+    classDef agentContainer fill:#F4F4F4,stroke:#03213B,stroke-width:2px,color:#03213B;
+    classDef agentBoxes fill:#C2F7FF,stroke:#03213B,stroke-width:2px,color:#03213B;
+    classDef serviceBoxes fill:#FFF7C2,stroke:#03213B,stroke-width:2px,color:#03213B
 
     class UserInterfaces,APIs externalBoxes;
     class WebUIGateway,CustomGateway gatewayBoxes;

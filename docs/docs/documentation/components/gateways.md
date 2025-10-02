@@ -64,6 +64,19 @@ sequenceDiagram
             Gateway-->>External: Send Formatted Response
         end
     end
+
+    %%{init: {
+        'theme': 'base',
+        'themeVariables': {
+            'actorBkg': '#00C895',
+            'actorBorder': '#00C895',
+            'actorTextColor': '#000000',
+            'noteBkgColor': '#FFF7C2',
+            'noteTextColor': '#000000',
+            'noteBorderColor': '#FFF7C2'
+        }
+    }}%%
+
 ```
 
 ## Available Gateways
@@ -116,7 +129,7 @@ To create a gateway from scratch, you need to use the CLI `add gateway` command 
 sam add gateway my-interface
 ```
 
-To learn more about creating your own gateway, see [Create Custom Gateways](../user-guide/create-gateways.md).
+To learn more about creating your own gateway, see [Create Custom Gateways](../developing/create-gateways.md).
 
 :::tip[Share and Reuse]
 If you would like to share your custom gateway with the community or re-use it within other projects, you can create a plugin for it. For more information, see [Create Plugins](./plugins.md#create-a-plugin).

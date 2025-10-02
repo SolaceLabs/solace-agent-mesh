@@ -82,14 +82,14 @@ Solace Agent Mesh includes a rich library of pre-packaged tools for common tasks
 For unique business logic or specialized tasks, you can create your own tools using Python. This is the most powerful and flexible method, supporting everything from simple functions to advanced, class-based tool factories that can generate multiple tools programmatically.
 
 -   **Use Case**: For implementing custom logic, integrating with proprietary systems, or creating dynamically configured tools.
--   **Learn More**: See the [Creating Python Tools](../user-guide/creating-python-tools.md) guide for a complete walkthrough.
+-   **Learn More**: See the [Creating Python Tools](../developing/creating-python-tools.md) guide for a complete walkthrough.
 
 ### 3. MCP (Model Context Protocol) Tools
 
 For integrating with external, standalone tool servers that conform to the Model Context Protocol, you can configure an MCP tool. This allows agents to communicate with tools running in separate processes or on different machines.
 
 -   **Use Case**: For integrating with existing MCP-compliant tool servers or language-agnostic tool development.
--   **Learn More**: See the [MCP Integration Tutorial](../user-guide/tutorials/mcp-integration.md).
+-   **Learn More**: See the [MCP Integration Tutorial](../developing/tutorials/mcp-integration.md).
 
 ## Agent Card
 
@@ -132,7 +132,7 @@ agent_card:
     description: "Generates a PNG image from Mermaid diagram syntax. Input: mermaid_syntax (string), output_filename (string, optional)."
 ```
 
-This card clearly communicates that the agent can take text (the Mermaid syntax) and produce a file (the PNG image), and it details the specific "mermaid_diagram_generator" skill it offers. For more details on creating agents and configuring their cards, see [Creating Custom Agents](../user-guide/create-agents.md).
+This card clearly communicates that the agent can take text (the Mermaid syntax) and produce a file (the PNG image), and it details the specific "mermaid_diagram_generator" skill it offers. For more details on creating agents and configuring their cards, see [Creating Custom Agents](../developing/create-agents.md).
 
 ## User-Defined Agents
 
@@ -150,7 +150,7 @@ The following Solace Agent Mesh CLI command creates an agent configuration:
 sam add agent my-agent [--gui]
 ```
 
-For more information, see [Creating Custom Agents](../user-guide/create-agents.md).
+For more information, see [Creating Custom Agents](../developing/create-agents.md).
 
 ## Agent Plugins
 
