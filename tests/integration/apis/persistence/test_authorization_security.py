@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 @pytest.fixture
 def multi_user_test_setup(test_app):
     """Creates multiple test clients with different user authentications using FastAPI dependency overrides"""
-    from solace_agent_mesh.gateway.http_sse.dependencies import get_user_id
+    from solace_agent_mesh.gateway.http_sse.dependencies import get_user_id, sac_component_instance
     from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
 
     # Track which user should be returned
@@ -41,13 +41,21 @@ def multi_user_test_setup(test_app):
     # Mock get_user_id dependency
     def mock_get_user_id():
         return current_test_user["user_id"]
+    
+    # Mock authenticate_and_enrich_user on the component
+    async def mock_authenticate_and_enrich_user(request_or_data):
+        return mock_get_current_user()
 
-    # Store original overrides
+    # Store original overrides and component method
     original_overrides = test_app.dependency_overrides.copy()
+    original_auth_method = sac_component_instance.authenticate_and_enrich_user
 
     # Set dependency overrides
     test_app.dependency_overrides[get_current_user] = mock_get_current_user
     test_app.dependency_overrides[get_user_id] = mock_get_user_id
+    
+    # Override the component's authenticate method
+    sac_component_instance.authenticate_and_enrich_user = mock_authenticate_and_enrich_user
 
     # Create wrapper clients that switch user context
     class UserTestClient(TestClient):
@@ -70,9 +78,10 @@ def multi_user_test_setup(test_app):
 
     yield first_user_client, second_user_client
 
-    # Restore original dependency overrides
+    # Restore original dependency overrides AND component method
     test_app.dependency_overrides.clear()
     test_app.dependency_overrides.update(original_overrides)
+    sac_component_instance.authenticate_and_enrich_user = original_auth_method
 
 
 def test_cross_user_session_access_returns_404(multi_user_test_setup):
