@@ -34,7 +34,7 @@ jobs:
               with:
                   fetch-depth: 0
             - name: Generate Changelog
-              uses: SolaceDev/maas-build-actions/generate-github-release-notes@sam-wheel
+              uses: SolaceDev/solace-public-workflows/generate-github-changelog@gen-log
               with:
                   from-ref: ${{ inputs.from_ref || '1.4.9' }}
                   to-ref: ${{ inputs.to_ref || 'v1.2.20' }}
