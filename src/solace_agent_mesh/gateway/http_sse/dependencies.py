@@ -519,16 +519,11 @@ def create_full_session_service_with_transaction():
 
     db = SessionLocal()
     try:
-        session_repository = SessionRepository(db)
-        message_repository = MessageRepository(db)
-
         # Get the component instance to pass to SessionService
         component = sac_component_instance
 
-        # Return the FULL SessionService with business logic
-        session_service = SessionService(
-            session_repository, message_repository, component
-        )
+        # SessionService only needs the component - it creates repos internally
+        session_service = SessionService(component=component)
 
         yield session_service, db
         db.commit()
