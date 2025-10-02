@@ -24,7 +24,9 @@ const OrchestratorAgentNode: React.FC<NodeProps<OrchestratorAgentNodeType>> = ({
             <Handle type="source" position={Position.Bottom} id="orch-bottom-output" className="!bg-indigo-500" isConnectable={true} />
             <Handle type="target" position={Position.Left} id="orch-left-input" className="!bg-indigo-500" isConnectable={true} />
             <div className="flex items-center justify-center">
-                <div className="text-md font-bold truncate" style={{ maxWidth: "200px" }}>{data.label}</div>
+                <div className="text-md truncate font-bold" style={{ maxWidth: "200px" }}>
+                    {data.label}
+                </div>
             </div>
         </div>
     );

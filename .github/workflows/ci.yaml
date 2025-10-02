@@ -36,12 +36,24 @@ jobs:
       MANIFEST_AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_READ_ONLY_AWS_ACCESS_KEY_ID }}
       MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
       MANIFEST_AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-  docker-build:
-    name: Build Docker Image
+  # ----------------------------------------------------
+  # PHASE 0: Prepare Metadata and Determine Build Strategy
+  # ----------------------------------------------------
+  prepare-metadata:
+    name: Prepare Build Metadata
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      short_sha: ${{ steps.get_commit_hash.outputs.short_sha }}
+      commit_hash: ${{ steps.get_commit_hash.outputs.commit_hash }}
+      release_tag: ${{ steps.release_tag.outputs.release_tag }}
+      image_name: ${{ steps.tag_images.outputs.image_name }}
+      tags: ${{ steps.tag_images.outputs.tags }}
+      docker_push: ${{ steps.set_build_params.outputs.docker_push }}
+      update_manifest: ${{ steps.set_build_params.outputs.update_manifest }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Get Commit Hash
         id: get_commit_hash
@@ -68,34 +80,37 @@ jobs:
       - name: Set Build Params
         id: set_build_params
         run: |
-          if [[ "${{ github.event_name  == 'push' }}" == "true" ]]; then
-            export DOCKER_PUSH=true
-            export UPDATE_MANIFEST=true
+          if [[ "${{ github.event_name == 'push' }}" == "true" ]]; then
+            echo "docker_push=true" >> $GITHUB_OUTPUT
+            echo "Will push images for branch push"
+            
+            # Only update manifest for default branch pushes
+            if [[ "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
+              echo "update_manifest=true" >> $GITHUB_OUTPUT
+              echo "Will update release manifest for default branch push"
+            else
+              echo "update_manifest=false" >> $GITHUB_OUTPUT
+              echo "Will not update release manifest for non-default branch push"
+            fi
           else
-            export DOCKER_PUSH=false
-            export UPDATE_MANIFEST=false
+            echo "docker_push=false" >> $GITHUB_OUTPUT
+            echo "update_manifest=false" >> $GITHUB_OUTPUT
+            echo "Will build but not push for PR"
           fi
-          echo "DOCKER_PUSH=$DOCKER_PUSH" >> $GITHUB_ENV
-          echo "UPDATE_MANIFEST=$UPDATE_MANIFEST" >> $GITHUB_ENV
-
-      - name: Setup Qemu
-        uses: docker/setup-qemu-action@v3.6.0
-
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3.10.0
+          echo "Always building multiplatform for all scenarios"
 
       - name: Configure AWS credentials
-        if: fromJSON(env.DOCKER_PUSH)
-        uses: aws-actions/configure-aws-credentials@v4
+        if: fromJSON(steps.set_build_params.outputs.docker_push)
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
       - name: Login to Amazon ECR
-        if: fromJSON(env.DOCKER_PUSH)
+        if: fromJSON(steps.set_build_params.outputs.docker_push)
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
       - name: Tag Images
         id: tag_images
@@ -122,47 +137,118 @@ jobs:
           tags="${tags},${image_name}:${release_tag}"
           tags="${tags},${image_name}:${release_tag}-${short_sha}"
 
+          echo "image_name=${image_name}" >> $GITHUB_OUTPUT
           echo "tags=${tags}" >> $GITHUB_OUTPUT
           echo "Created tags: ${tags}"
 
-      - name: Set Docker Platforms
-        id: set_docker_platforms
-        run: |
-          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
-            echo "DOCKER_PLATFORMS=linux/amd64,linux/arm64" >> $GITHUB_ENV
-            echo "Default branch push: building multiplatform"
-          else
-            echo "DOCKER_PLATFORMS=linux/amd64" >> $GITHUB_ENV
-            echo "PR or non-default branch: building single platform"
-          fi
+  # ----------------------------------------------------
+  # PHASE 1 & 2: Multiplatform Builds (Always Both Platforms)
+  # ----------------------------------------------------
+  build-platform:
+    name: Build ${{ matrix.platform.name }}
+    needs: prepare-metadata
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: linux/amd64
+            runner: ubuntu-24.04
+            tag_suffix: amd64
+          - name: linux/arm64
+            runner: ubuntu-24.04-arm
+            tag_suffix: arm64
+    runs-on: ${{ matrix.platform.runner }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
-      - name: Build and Push Docker Image
-        uses: docker/build-push-action@v6.16.0
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Configure AWS credentials
+        if: fromJSON(needs.prepare-metadata.outputs.docker_push)
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      - name: Login to Amazon ECR
+        if: fromJSON(needs.prepare-metadata.outputs.docker_push)
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Build and Push Platform-Specific Image
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
         with:
           context: .
           file: Dockerfile
-          platforms: ${{ env.DOCKER_PLATFORMS }}
-          tags: ${{ steps.tag_images.outputs.tags }}
-          push: ${{ fromJSON(env.DOCKER_PUSH)}}
-          cache-from: type=gha
-          cache-to: type=gha
+          platforms: ${{ matrix.platform.name }}
+          tags: ${{ needs.prepare-metadata.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-${{ matrix.platform.tag_suffix }}
+          push: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
+          cache-from: type=gha,scope=${{ matrix.platform.tag_suffix }}
+          cache-to: type=gha,scope=${{ matrix.platform.tag_suffix }},mode=max
+
+  # ----------------------------------------------------
+  # PHASE 3: Merge Multi-Platform Manifest (Always)
+  # ----------------------------------------------------
+  merge-manifest:
+    name: Create Multi-Platform Manifest
+    needs: [prepare-metadata, build-platform]
+    if: fromJSON(needs.prepare-metadata.outputs.docker_push)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        if: fromJSON(needs.prepare-metadata.outputs.docker_push)
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      - name: Login to Amazon ECR
+        if: fromJSON(needs.prepare-metadata.outputs.docker_push)
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Create and Push Multi-Platform Manifest
+        if: fromJSON(needs.prepare-metadata.outputs.docker_push)
+        run: |
+          # Define the platform-specific tags
+          AMD_TAG="${{ needs.prepare-metadata.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-amd64"
+          ARM_TAG="${{ needs.prepare-metadata.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-arm64"
+          
+          # Convert comma-separated tags string to array and create manifest for each
+          IFS=',' read -ra TAGS <<< "${{ needs.prepare-metadata.outputs.tags }}"
+          for TAG in "${TAGS[@]}"; do
+            # Trim any whitespace
+            TAG=$(echo "$TAG" | xargs)
+            echo "Creating manifest for tag: $TAG"
+            docker buildx imagetools create \
+              --tag "$TAG" \
+              "$AMD_TAG" \
+              "$ARM_TAG"
+          done
+          
+          echo "Multi-platform manifest created successfully"
 
       - name: Update Release Manifest
-        if: fromJSON(env.UPDATE_MANIFEST)
+        if: fromJSON(needs.prepare-metadata.outputs.update_manifest)
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
         run: |
           # Set release manifest variables
-          export release_version="${{ steps.get_version.outputs.version }}-${{ steps.get_commit_hash.outputs.short_sha }}"
-          export version="${{ steps.get_version.outputs.version }}"
-          export image_tag="${{ steps.get_version.outputs.version }}-${{ steps.get_commit_hash.outputs.short_sha }}"
+          export release_version="${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}"
+          export version="${{ needs.prepare-metadata.outputs.version }}"
+          export image_tag="${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}"
           export chart_version="n/a"
-          export sha="${{ steps.get_commit_hash.outputs.commit_hash }}"
+          export sha="${{ needs.prepare-metadata.outputs.commit_hash }}"
           export squad="ai"
           export repository="solace-agent-mesh"
-          export release_tag="${{ steps.release_tag.outputs.release_tag }}"
+          export release_tag="${{ needs.prepare-metadata.outputs.release_tag }}"
 
           # Update DynamoDB manifest
           aws dynamodb update-item \
