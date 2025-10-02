@@ -312,15 +312,30 @@ class TestHTTPStatusCodes:
     def test_successful_operations_return_2xx(self, api_client: TestClient):
         """Test that successful operations return appropriate 2xx status codes"""
 
+        import uuid
+
         # GET empty sessions list
         response = api_client.get("/api/v1/sessions")
         assert 200 <= response.status_code < 300
 
         # POST task creation
-        task_data = {"agent_name": "TestAgent", "message": "Status code test"}
-        response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+        task_data = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Status code test"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        response = api_client.post("/api/v1/message:stream", json=task_data)
         assert 200 <= response.status_code < 300
-        session_id = response.json()["result"]["sessionId"]
+        session_id = response.json()["result"]["contextId"]
 
         # GET specific session
         response = api_client.get(f"/api/v1/sessions/{session_id}")
@@ -349,15 +364,12 @@ class TestHTTPStatusCodes:
         """Test that validation errors return 422"""
 
         # Missing required fields
-        response = api_client.post("/api/v1/tasks/send", data={})
+        response = api_client.post("/api/v1/message:send", json={})
         assert response.status_code == 422
 
         response = api_client.post(
-            "/api/v1/tasks/send", data={"agent_name": "TestAgent"}
+            "/api/v1/message:send", json={"jsonrpc": "2.0", "id": "test", "method": "message/send"}
         )
-        assert response.status_code == 422
-
-        response = api_client.post("/api/v1/tasks/send", data={"message": "Test"})
         assert response.status_code == 422
 
         print("✓ Validation errors return 422")
@@ -458,18 +470,27 @@ class TestRequestValidation:
     def test_field_type_validation(self, api_client: TestClient):
         """Test field type validation"""
 
-        # Test invalid task_id type for cancellation
-        invalid_cancel_data = {"task_id": 123}  # Should be string
-        response = api_client.post("/api/v1/tasks/cancel", json=invalid_cancel_data)
+        import uuid
+
+        # Test invalid params in cancel request
+        invalid_cancel_data = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "tasks/cancel",
+            "params": {"id": 123}  # Should be string
+        }
+        response = api_client.post("/api/v1/tasks/test-task-id:cancel", json=invalid_cancel_data)
 
         # Should accept or convert the type appropriately
         # FastAPI typically handles type conversion
-        assert response.status_code in [200, 422]
+        assert response.status_code in [200, 400, 422]
 
         print("✓ Field type validation working")
 
     def test_empty_and_null_values(self, api_client: TestClient):
         """Test handling of empty and null values"""
+
+        import uuid
 
         # Test empty strings
         task_data = {
