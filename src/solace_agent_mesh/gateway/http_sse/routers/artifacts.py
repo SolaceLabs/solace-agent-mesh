@@ -715,7 +715,7 @@ async def upload_artifact(
         f"[ArtifactRouter:Post:{filename}] User={user_id}, Session={session_id} -"
     )
     log.info(
-        "%s Request received. Upload filename: '%s', content type: %s, Metadata provided: %s",
+        "%s Request received. Upload filename: '%s', content type: %s",
         log_prefix,
         upload_file.filename,
         upload_file.content_type,

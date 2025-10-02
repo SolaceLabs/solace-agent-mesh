@@ -19,7 +19,7 @@ def _create_task_directly_in_db(db_engine, task_id: str, user_id: str, message: 
     """
     Creates a task record directly in the database, bypassing the API.
     This avoids race conditions with the automatic TaskLoggerService.
-    
+
     Args:
         db_engine: SQLAlchemy engine for the test database
         task_id: The task ID to create
@@ -115,7 +115,7 @@ def test_task_list_is_isolated_by_user(multi_user_task_auth_setup, test_db_engin
     # Create tasks directly in the database with specific user IDs
     task_a_id = f"task-user-a-{uuid.uuid4().hex[:8]}"
     task_b_id = f"task-user-b-{uuid.uuid4().hex[:8]}"
-    
+
     _create_task_directly_in_db(test_db_engine, task_a_id, "user_a", "Task for user A")
     _create_task_directly_in_db(test_db_engine, task_b_id, "user_b", "Task for user B")
 
@@ -145,7 +145,9 @@ def test_task_detail_is_isolated_by_user(multi_user_task_auth_setup, test_db_eng
 
     # Create a task directly in the database for user A
     task_a_id = f"task-private-a-{uuid.uuid4().hex[:8]}"
-    _create_task_directly_in_db(test_db_engine, task_a_id, "user_a", "Private task for user A")
+    _create_task_directly_in_db(
+        test_db_engine, task_a_id, "user_a", "Private task for user A"
+    )
 
     # User A can get their own task details
     response_a = user_a_client.get(f"/api/v1/tasks/{task_a_id}")
@@ -155,7 +157,9 @@ def test_task_detail_is_isolated_by_user(multi_user_task_auth_setup, test_db_eng
     # User B tries to get User A's task details, should be forbidden
     response_b = user_b_client.get(f"/api/v1/tasks/{task_a_id}")
     assert response_b.status_code == 403
-    assert "You do not have permission to view this task" in response_b.json()["detail"]
+    data = response_b.json()
+
+    assert "You do not have permission to view this task" in data["error"]["message"]
 
 
 def test_admin_can_query_all_tasks(multi_user_task_auth_setup, test_db_engine):
@@ -168,9 +172,13 @@ def test_admin_can_query_all_tasks(multi_user_task_auth_setup, test_db_engine):
     # Create tasks directly in the database for user A and B
     task_a_id = f"task-admin-a-{uuid.uuid4().hex[:8]}"
     task_b_id = f"task-admin-b-{uuid.uuid4().hex[:8]}"
-    
-    _create_task_directly_in_db(test_db_engine, task_a_id, "user_a", "User A task for admin view")
-    _create_task_directly_in_db(test_db_engine, task_b_id, "user_b", "User B task for admin view")
+
+    _create_task_directly_in_db(
+        test_db_engine, task_a_id, "user_a", "User A task for admin view"
+    )
+    _create_task_directly_in_db(
+        test_db_engine, task_b_id, "user_b", "User B task for admin view"
+    )
 
     # Admin queries for all tasks (by not specifying a user_id)
     response_all = admin_client.get("/api/v1/tasks")

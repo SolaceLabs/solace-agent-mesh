@@ -31,7 +31,7 @@ class TestSessionsAPIContract:
         # If sessions exist, validate schema
         if data["sessions"]:
             session = data["sessions"][0]
-            required_fields = ["id", "user_id", "agent_id", "created_at"]
+            required_fields = ["id", "userId", "agentId", "createdTime"]
             for field in required_fields:
                 assert field in session
                 assert session[field] is not None
@@ -71,7 +71,7 @@ class TestSessionsAPIContract:
         assert isinstance(session, dict)
 
         # Validate required fields
-        required_fields = ["id", "user_id", "agent_id", "created_at"]
+        required_fields = ["id", "userId", "agentId", "createdTime"]
         for field in required_fields:
             assert field in session
             assert session[field] is not None
@@ -114,12 +114,12 @@ class TestSessionsAPIContract:
 
         if history:
             message = history[0]
-            required_fields = ["message", "sender_type", "sender_name", "created_at"]
+            required_fields = ["message", "senderType", "senderName", "createdTime"]
             for field in required_fields:
                 assert field in message
                 assert message[field] is not None
 
-            assert message["sender_type"] in ["user", "assistant"]
+            assert message["senderType"] in ["user", "assistant"]
 
         print(f"✓ GET /sessions/{session_id}/messages response schema valid")
 
