@@ -37,7 +37,7 @@ graph TD
             CustomGateway["Custom Gateway"]
         end
 
-        Broker["Solace Broker<br/>(A2A Protocol over Topics)"]
+        Broker["Solace Event Broker<br/>(A2A Protocol over Topics)"]
 
         subgraph AgentHosts ["Agent Hosts (SAC Applications)"]
             AgentHost1["Agent Host<br/>(Runs Agent A)"]
@@ -71,17 +71,23 @@ graph TD
     AgentHost2 -- Uses --> ArtifactService
 
     %% Styling
-    classDef external fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#0D47A1;
-    classDef gateway fill:#E8F5E8,stroke:#388E3C,stroke-width:2px,color:#1B5E20;
-    classDef mesh fill:#FFF8E1,stroke:#F57C00,stroke-width:2px,color:#E65100;
-    classDef agent fill:#FFF3E0,stroke:#FF9800,stroke-width:2px,color:#E65100;
-    classDef service fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#4A148C;
+    classDef externalBoxes fill:#FFF7C2,stroke:#03213B,stroke-width:2px,color:#03213B,rx:10,ry:10;
+    classDef gatewayContainer fill:#F4F4F4,stroke:#03213B,stroke-width:2px,color:#03213B,rx:10,ry:10;
+    classDef gatewayBoxes fill:#C2F7FF,stroke:#03213B,stroke-width:2px,color:#03213B,rx:10,ry:10;
+    classDef mesh fill:#E8FFF0,stroke:#03213B,stroke-width:2px,color:#03213B,rx:10,ry:10;
+    classDef broker fill:#00C895,stroke:#03213B,stroke-width:2px,color:#03213B,rx:10,ry:10;
+    classDef agentContainer fill:#F4F4F4,stroke:#03213B,stroke-width:2px,color:#03213B,rx:10,ry:10;
+    classDef agentBoxes fill:#C2F7FF,stroke:#03213B,stroke-width:2px,color:#03213B,rx:10,ry:10;
+    classDef serviceBoxes fill:#FFF7C2,stroke:#03213B,stroke-width:2px,color:#03213B,rx:10,ry:10
 
-    class UserInterfaces,APIs external;
-    class WebUIGateway,CustomGateway gateway;
-    class Broker,SolaceAgentMesh mesh;
-    class AgentHosts,AgentHost1,AgentHost2,AgentHostN agent;
-    class LLM,CustomTools,DataStores,ArtifactService service;
+    class UserInterfaces,APIs externalBoxes;
+    class WebUIGateway,CustomGateway gatewayBoxes;
+    class Gateways gatewayContainer;
+    class Broker broker;
+    class SolaceAgentMesh mesh;
+    class AgentHosts agentContainer;
+    class AgentHost1,AgentHost2,AgentHostN agentBoxes;
+    class LLM,CustomTools,DataStores,ArtifactService serviceBoxes;
 ```
 
 ### Solace Event Broker
