@@ -16,18 +16,6 @@ This feature treats the chat session as **UI state that needs to be persisted**,
 
 Think of this as "save game state" for the chat UI, not as "message logging."
 
-### Relationship to Public APIs
-
-This persistence API is **UI-specific** and separate from:
-- **REST Gateway API**: For programmatic agent interaction (no UI state)
-- **Management APIs**: For system administration and configuration
-
-If we expose chat APIs publicly, clients would:
-1. Use the REST Gateway for simple programmatic access (no persistence needed)
-2. Use this UI persistence API only if building a browser-based chat interface with stateful UI elements
-
-The persistence API is an optional service for UI clients, not a requirement for agent interaction.
-
 ## Problem Statement
 
 ### Current Issues
