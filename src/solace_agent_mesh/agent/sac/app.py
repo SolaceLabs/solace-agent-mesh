@@ -80,8 +80,8 @@ class AgentDiscoveryConfig(SamConfigBase):
     health_check_enabled: bool = Field(
         default=True, description="Enable health checking for discovered agents."
     )
-    health_check_max_retries: int = Field(
-        default=30, description="Maximum number of retries before de-registering an unresponsive agent."
+    health_check_ttl_seconds: int = Field(
+        default=30, description="Time-to-live in seconds after which an unresponsive agent is de-registered."
     )
     health_check_interval_seconds: int = Field(
         default=60, description="Interval in seconds between health checks."

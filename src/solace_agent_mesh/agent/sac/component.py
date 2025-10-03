@@ -3160,6 +3160,7 @@ class SamAgentComponent(SamComponentBase):
         """
         Checks the health of peer agents and de-registers unresponsive ones.
         This is called periodically by the health check timer.
+        Uses TTL-based expiration to determine if an agent is unresponsive.
         """
         if not self.agent_discovery_config.get("health_check_enabled", True):
             log.debug("%s Agent health checks are disabled in configuration.", self.log_identifier)
@@ -3167,14 +3168,16 @@ class SamAgentComponent(SamComponentBase):
             
         log.debug("%s Performing agent health check...", self.log_identifier)
         
-        health_check_interval = self.agent_discovery_config.get("health_check_interval_seconds", 10)
-        max_retries = self.agent_discovery_config.get("health_check_max_retries", 1)
+        # Get TTL from configuration or use default from constants
+        from ...common.constants import DEFAULT_AGENT_TTL
+        ttl_seconds = self.agent_discovery_config.get("health_check_ttl_seconds", DEFAULT_AGENT_TTL)
+        health_check_interval = self.agent_discovery_config.get("health_check_interval_seconds", 5)
         
         log.debug(
-            "%s Health check configuration: interval=%d seconds, max_retries=%d",
+            "%s Health check configuration: interval=%d seconds, TTL=%d seconds",
             self.log_identifier,
             health_check_interval,
-            max_retries
+            ttl_seconds
         )
         
         # Get all agent names from the registry
@@ -3190,35 +3193,19 @@ class SamAgentComponent(SamComponentBase):
             if agent_name == self.agent_name:
                 continue
                 
-            # Get the last seen timestamp for this agent
-            last_seen = self.agent_registry.get_last_seen(agent_name)
-            if last_seen is None:
-                log.debug(
-                    "%s Agent '%s' has no last_seen timestamp. Skipping health check.",
-                    self.log_identifier,
-                    agent_name
-                )
-                continue
-                
-            # Check if the agent has been unresponsive for too long
-            current_time = time.time()
-            time_since_last_seen = current_time - last_seen
-            if time_since_last_seen > health_check_interval:
+            # Check if the agent's TTL has expired
+            is_expired, time_since_last_seen = self.agent_registry.check_ttl_expired(agent_name, ttl_seconds)
+            
+            if is_expired:
                 unresponsive_agents += 1
-                
-                # Increment the retry count using the registry method
-                retry_count = self.agent_registry.increment_retry_count(agent_name)
-                
-                # Check if the agent has exceeded the retry limit
-                if retry_count >= max_retries:
-                    log.warning(
-                        "%s Agent '%s' has exceeded the retry limit (%d). De-registering. Time since last seen: %d seconds",
-                        self.log_identifier,
-                        agent_name,
-                        max_retries,
-                        int(time_since_last_seen)
-                    )
-                    agents_to_deregister.append(agent_name)
+                log.warning(
+                    "%s Agent '%s' TTL has expired. De-registering. Time since last seen: %d seconds (TTL: %d seconds)",
+                    self.log_identifier,
+                    agent_name,
+                    time_since_last_seen,
+                    ttl_seconds
+                )
+                agents_to_deregister.append(agent_name)
             
         # De-register unresponsive agents
         for agent_name in agents_to_deregister:
