@@ -1,5 +1,5 @@
 import uuid
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, List, Dict, Any
 
 from solace_ai_connector.common.log import log
 from sqlalchemy.orm import Session as DbSession
@@ -11,6 +11,8 @@ from ..repository import (
     Session,
     SessionHistory,
 )
+from ..repository.chat_task_repository import ChatTaskRepository
+from ..repository.entities import ChatTask
 from ..shared.enums import MessageType, SenderType
 from ..shared.types import PaginationInfo, SessionId, UserId
 from ..shared import now_epoch_ms
@@ -242,6 +244,148 @@ class SessionService:
 
         log.info("Added message to session %s from %s", session_id, sender_name)
         return saved_message
+
+    def save_task(
+        self,
+        db: DbSession,
+        task_id: str,
+        session_id: str,
+        user_id: str,
+        user_message: Optional[str],
+        message_bubbles: List[Dict[str, Any]],
+        task_metadata: Optional[Dict[str, Any]] = None
+    ) -> ChatTask:
+        """
+        Save a complete task interaction.
+        
+        Args:
+            db: Database session
+            task_id: A2A task ID
+            session_id: Session ID
+            user_id: User ID
+            user_message: Original user input text
+            message_bubbles: Array of all message bubbles displayed during this task
+            task_metadata: Task-level metadata (status, feedback, agent name, etc.)
+            
+        Returns:
+            Saved ChatTask entity
+            
+        Raises:
+            ValueError: If session not found or validation fails
+        """
+        # Validate session exists and belongs to user
+        session_repository, _ = self._get_repositories(db)
+        session = session_repository.find_user_session(session_id, user_id)
+        if not session:
+            raise ValueError(f"Session {session_id} not found for user {user_id}")
+        
+        # Create task entity
+        task = ChatTask(
+            id=task_id,
+            session_id=session_id,
+            user_id=user_id,
+            user_message=user_message,
+            message_bubbles=message_bubbles,
+            task_metadata=task_metadata,
+            created_time=now_epoch_ms(),
+            updated_time=None
+        )
+        
+        # Save via repository
+        task_repo = ChatTaskRepository(db)
+        saved_task = task_repo.save(task)
+        
+        # Update session activity
+        session.mark_activity()
+        session_repository.save(session)
+        
+        log.info(f"Saved task {task_id} for session {session_id}")
+        return saved_task
+
+    def get_session_tasks(
+        self,
+        db: DbSession,
+        session_id: str,
+        user_id: str
+    ) -> List[ChatTask]:
+        """
+        Get all tasks for a session.
+        
+        Args:
+            db: Database session
+            session_id: Session ID
+            user_id: User ID
+            
+        Returns:
+            List of ChatTask entities in chronological order
+            
+        Raises:
+            ValueError: If session not found
+        """
+        # Validate session exists and belongs to user
+        session_repository, _ = self._get_repositories(db)
+        session = session_repository.find_user_session(session_id, user_id)
+        if not session:
+            raise ValueError(f"Session {session_id} not found for user {user_id}")
+        
+        # Load tasks
+        task_repo = ChatTaskRepository(db)
+        return task_repo.find_by_session(session_id, user_id)
+
+    def get_session_messages_from_tasks(
+        self,
+        db: DbSession,
+        session_id: str,
+        user_id: str
+    ) -> List[Message]:
+        """
+        Get session messages by flattening task message_bubbles.
+        This provides backward compatibility with the old message-based API.
+        
+        Args:
+            db: Database session
+            session_id: Session ID
+            user_id: User ID
+            
+        Returns:
+            List of Message entities flattened from tasks
+            
+        Raises:
+            ValueError: If session not found
+        """
+        # Load tasks
+        tasks = self.get_session_tasks(db, session_id, user_id)
+        
+        # Flatten message_bubbles from all tasks
+        messages = []
+        for task in tasks:
+            for bubble in task.message_bubbles:
+                # Determine sender type from bubble type
+                bubble_type = bubble.get("type", "agent")
+                sender_type = SenderType.USER if bubble_type == "user" else SenderType.AGENT
+                
+                # Get sender name
+                if bubble_type == "user":
+                    sender_name = user_id
+                else:
+                    # Try to get agent name from task metadata, fallback to "agent"
+                    sender_name = "agent"
+                    if task.task_metadata:
+                        sender_name = task.task_metadata.get("agent_name", "agent")
+                
+                # Create Message entity
+                message = Message(
+                    id=bubble.get("id", str(uuid.uuid4())),
+                    session_id=session_id,
+                    message=bubble.get("text", ""),
+                    sender_type=sender_type,
+                    sender_name=sender_name,
+                    message_type=MessageType.TEXT,
+                    created_time=task.created_time
+                )
+                messages.append(message)
+        
+        return messages
 
     def _is_valid_session_id(self, session_id: SessionId) -> bool:
         return (

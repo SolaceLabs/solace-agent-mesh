@@ -53,11 +53,11 @@
 - [ ] 4.12 Test: Authorization filtering works
 
 ### Step 5: Session Service (2-3 hours)
-- [ ] 5.1 Add `save_task()` method to `SessionService`
-- [ ] 5.2 Add `get_session_tasks()` method
-- [ ] 5.3 Add `get_session_messages_from_tasks()` method
-- [ ] 5.4 Implement session validation in all methods
-- [ ] 5.5 Implement authorization checks
+- [x] 5.1 Add `save_task()` method to `SessionService`
+- [x] 5.2 Add `get_session_tasks()` method
+- [x] 5.3 Add `get_session_messages_from_tasks()` method
+- [x] 5.4 Implement session validation in all methods
+- [x] 5.5 Implement authorization checks
 - [ ] 5.6 Test: Task saving works
 - [ ] 5.7 Test: Task retrieval works
 - [ ] 5.8 Test: Message flattening works correctly
