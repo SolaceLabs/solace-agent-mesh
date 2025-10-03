@@ -63,11 +63,11 @@
 - [ ] 5.8 Test: Message flattening works correctly
 
 ### Step 6: API DTOs (1-2 hours)
-- [ ] 6.1 Create `task_requests.py` with `SaveTaskRequest`
-- [ ] 6.2 Add field aliases for camelCase conversion
-- [ ] 6.3 Add validators for required fields
-- [ ] 6.4 Create `task_responses.py` with `TaskResponse`
-- [ ] 6.5 Create `TaskListResponse`
+- [x] 6.1 Create `task_requests.py` with `SaveTaskRequest`
+- [x] 6.2 Add field aliases for camelCase conversion
+- [x] 6.3 Add validators for required fields
+- [x] 6.4 Create `task_responses.py` with `TaskResponse`
+- [x] 6.5 Create `TaskListResponse`
 - [ ] 6.6 Test: DTOs validate correctly
 - [ ] 6.7 Test: Serialization/deserialization works
 - [ ] 6.8 Test: Field aliases work

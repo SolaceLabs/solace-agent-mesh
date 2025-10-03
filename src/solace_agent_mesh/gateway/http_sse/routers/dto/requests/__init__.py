@@ -7,9 +7,11 @@ from .session_requests import (
     GetSessionHistoryRequest,
     UpdateSessionRequest,
 )
+from .task_requests import SaveTaskRequest
 
 __all__ = [
     "GetSessionRequest",
     "GetSessionHistoryRequest",
     "UpdateSessionRequest",
+    "SaveTaskRequest",
 ]
