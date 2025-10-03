@@ -12,16 +12,30 @@ from fastapi.testclient import TestClient
 def test_complete_user_conversation_workflow(api_client: TestClient):
     """Test a complete user conversation workflow from start to finish"""
 
+    import uuid
+
     # 1. Start a new conversation
     print("1. Starting new conversation...")
-    task_data = {
-        "agent_name": "TestAgent",
-        "message": "Hello, I need help with data analysis",
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [
+                    {"kind": "text", "text": "Hello, I need help with data analysis"}
+                ],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
     }
 
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response.status_code == 200
-    session_id = response.json()["result"]["sessionId"]
+    session_id = response.json()["result"]["contextId"]
 
     # 2. Continue the conversation with follow-up questions
     print("2. Sending follow-up messages...")
@@ -32,14 +46,24 @@ def test_complete_user_conversation_workflow(api_client: TestClient):
     ]
 
     for message in followup_messages:
-        followup_data = {
-            "agent_name": "TestAgent",
-            "message": message,
-            "session_id": session_id,
+        followup_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": message}],
+                    "metadata": {"agent_name": "TestAgent"},
+                    "contextId": session_id,
+                }
+            },
         }
-        response = api_client.post("/api/v1/tasks/subscribe", data=followup_data)
+        response = api_client.post("/api/v1/message:stream", json=followup_payload)
         assert response.status_code == 200
-        assert response.json()["result"]["sessionId"] == session_id
+        assert response.json()["result"]["contextId"] == session_id
 
     # 3. Check conversation history
     print("3. Checking conversation history...")
@@ -48,7 +72,7 @@ def test_complete_user_conversation_workflow(api_client: TestClient):
     history = history_response.json()
 
     # Should have original message + 3 follow-ups = 4 user messages minimum
-    user_messages = [msg for msg in history if msg["sender_type"] == "user"]
+    user_messages = [msg for msg in history if msg["senderType"] == "user"]
     assert len(user_messages) >= 4
 
     # Verify messages are in order
@@ -77,15 +101,17 @@ def test_complete_user_conversation_workflow(api_client: TestClient):
     assert sessions_response.status_code == 200
     sessions_data = sessions_response.json()
 
-    target_session = next(s for s in sessions_data["sessions"] if s["id"] == session_id)
+    target_session = next(s for s in sessions_data["data"] if s["id"] == session_id)
     assert target_session["name"] == "Data Analysis Help Session"
-    assert target_session["agent_id"] == "TestAgent"
+    assert target_session["agentId"] == "TestAgent"
 
     print(f"✓ Complete conversation workflow successful for session {session_id}")
 
 
 def test_multi_agent_consultation_workflow(api_client: TestClient):
     """Test workflow where user consults multiple agents for different expertise"""
+
+    import uuid
 
     # User starts conversations with different agents for different topics
     agent_consultations = [
@@ -99,11 +125,24 @@ def test_multi_agent_consultation_workflow(api_client: TestClient):
     # 1. Start consultations with each agent
     print("1. Starting consultations with multiple agents...")
     for agent_name, initial_message in agent_consultations:
-        task_data = {"agent_name": agent_name, "message": initial_message}
+        task_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": initial_message}],
+                    "metadata": {"agent_name": agent_name},
+                }
+            },
+        }
 
-        response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+        response = api_client.post("/api/v1/message:stream", json=task_payload)
         assert response.status_code == 200
-        session_id = response.json()["result"]["sessionId"]
+        session_id = response.json()["result"]["contextId"]
         session_ids.append(session_id)
 
         print(f"  ✓ Started session {session_id} with {agent_name}")
@@ -120,13 +159,23 @@ def test_multi_agent_consultation_workflow(api_client: TestClient):
         session_ids, agent_consultations, strict=False
     ):
         for question in followup_questions:
-            followup_data = {
-                "agent_name": agent_name,
-                "message": question,
-                "session_id": session_id,
+            followup_payload = {
+                "jsonrpc": "2.0",
+                "id": str(uuid.uuid4()),
+                "method": "message/stream",
+                "params": {
+                    "message": {
+                        "role": "user",
+                        "messageId": str(uuid.uuid4()),
+                        "kind": "message",
+                        "parts": [{"kind": "text", "text": question}],
+                        "metadata": {"agent_name": agent_name},
+                        "contextId": session_id,
+                    }
+                },
             }
 
-            response = api_client.post("/api/v1/tasks/subscribe", data=followup_data)
+            response = api_client.post("/api/v1/message:stream", json=followup_payload)
             assert response.status_code == 200
 
     # 3. Verify all sessions are separate and contain correct conversations
@@ -136,21 +185,21 @@ def test_multi_agent_consultation_workflow(api_client: TestClient):
     sessions_data = sessions_response.json()
 
     # Should have 3 sessions for 3 different agents
-    assert len(sessions_data["sessions"]) >= 3
+    assert len(sessions_data["data"]) >= 3
 
     for session_id, (agent_name, initial_message) in zip(
         session_ids, agent_consultations, strict=False
     ):
         # Verify session metadata
-        session = next(s for s in sessions_data["sessions"] if s["id"] == session_id)
-        assert session["agent_id"] == agent_name
+        session = next(s for s in sessions_data["data"] if s["id"] == session_id)
+        assert session["agentId"] == agent_name
 
         # Verify conversation history
         history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
         assert history_response.status_code == 200
         history = history_response.json()
 
-        user_messages = [msg for msg in history if msg["sender_type"] == "user"]
+        user_messages = [msg for msg in history if msg["senderType"] == "user"]
         assert len(user_messages) >= 4  # initial + 3 follow-ups
         assert user_messages[0]["message"] == initial_message
 
@@ -173,6 +222,9 @@ def test_multi_agent_consultation_workflow(api_client: TestClient):
 def test_document_processing_workflow(api_client: TestClient):
     """Test workflow involving file upload and processing"""
 
+    import uuid
+    import base64
+
     # 1. Upload documents for processing
     print("1. Uploading documents for processing...")
 
@@ -182,19 +234,49 @@ def test_document_processing_workflow(api_client: TestClient):
         b"# Data Analysis Report\n\nSummary of findings from recent data analysis..."
     )
 
-    files = [
-        ("files", ("requirements.md", io.BytesIO(doc1_content), "text/markdown")),
-        ("files", ("analysis.md", io.BytesIO(doc2_content), "text/markdown")),
-    ]
+    # Encode files as base64 for inline transmission
+    doc1_b64 = base64.b64encode(doc1_content).decode("utf-8")
+    doc2_b64 = base64.b64encode(doc2_content).decode("utf-8")
 
-    task_data = {
-        "agent_name": "TestAgent",
-        "message": "Please analyze these documents and provide a summary",
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [
+                    {
+                        "kind": "text",
+                        "text": "Please analyze these documents and provide a summary",
+                    },
+                    {
+                        "kind": "file",
+                        "file": {
+                            "bytes": doc1_b64,
+                            "name": "requirements.md",
+                            "mimeType": "text/markdown",
+                        },
+                    },
+                    {
+                        "kind": "file",
+                        "file": {
+                            "bytes": doc2_b64,
+                            "name": "analysis.md",
+                            "mimeType": "text/markdown",
+                        },
+                    },
+                ],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
     }
 
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data, files=files)
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response.status_code == 200
-    session_id = response.json()["result"]["sessionId"]
+    session_id = response.json()["result"]["contextId"]
 
     # 2. Ask follow-up questions about the documents
     print("2. Asking follow-up questions...")
@@ -205,13 +287,23 @@ def test_document_processing_workflow(api_client: TestClient):
     ]
 
     for question in followup_questions:
-        followup_data = {
-            "agent_name": "TestAgent",
-            "message": question,
-            "session_id": session_id,
+        followup_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": question}],
+                    "metadata": {"agent_name": "TestAgent"},
+                    "contextId": session_id,
+                }
+            },
         }
 
-        response = api_client.post("/api/v1/tasks/subscribe", data=followup_data)
+        response = api_client.post("/api/v1/message:stream", json=followup_payload)
         assert response.status_code == 200
 
     # 3. Verify conversation history includes file-related discussion
@@ -220,7 +312,7 @@ def test_document_processing_workflow(api_client: TestClient):
     assert history_response.status_code == 200
     history = history_response.json()
 
-    user_messages = [msg for msg in history if msg["sender_type"] == "user"]
+    user_messages = [msg for msg in history if msg["senderType"] == "user"]
     assert len(user_messages) >= 4  # initial + 3 follow-ups
 
     # First message should mention documents
@@ -238,6 +330,8 @@ def test_document_processing_workflow(api_client: TestClient):
 def test_session_management_workflow(api_client: TestClient):
     """Test comprehensive session management operations"""
 
+    import uuid
+
     # 1. Create multiple sessions over time
     print("1. Creating multiple sessions...")
     sessions_created = []
@@ -250,11 +344,24 @@ def test_session_management_workflow(api_client: TestClient):
     ]
 
     for agent_name, message, intended_name in session_configs:
-        task_data = {"agent_name": agent_name, "message": message}
+        task_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": message}],
+                    "metadata": {"agent_name": agent_name},
+                }
+            },
+        }
 
-        response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+        response = api_client.post("/api/v1/message:stream", json=task_payload)
         assert response.status_code == 200
-        session_id = response.json()["result"]["sessionId"]
+        session_id = response.json()["result"]["contextId"]
 
         sessions_created.append(
             {"id": session_id, "agent": agent_name, "name": intended_name}
@@ -275,14 +382,14 @@ def test_session_management_workflow(api_client: TestClient):
     assert sessions_response.status_code == 200
     sessions_data = sessions_response.json()
 
-    assert len(sessions_data["sessions"]) >= len(sessions_created)
+    assert len(sessions_data["data"]) >= len(sessions_created)
 
     for created_session in sessions_created:
         found_session = next(
-            s for s in sessions_data["sessions"] if s["id"] == created_session["id"]
+            s for s in sessions_data["data"] if s["id"] == created_session["id"]
         )
         assert found_session["name"] == created_session["name"]
-        assert found_session["agent_id"] == created_session["agent"]
+        assert found_session["agentId"] == created_session["agent"]
 
     # 4. Delete some sessions (simulate cleanup)
     print("4. Cleaning up old sessions...")
@@ -298,7 +405,7 @@ def test_session_management_workflow(api_client: TestClient):
     assert sessions_response.status_code == 200
     remaining_sessions = sessions_response.json()
 
-    remaining_ids = {s["id"] for s in remaining_sessions["sessions"]}
+    remaining_ids = {s["id"] for s in remaining_sessions["data"]}
     for deleted_session in sessions_to_delete:
         assert deleted_session["id"] not in remaining_ids
 
@@ -312,13 +419,28 @@ def test_session_management_workflow(api_client: TestClient):
 def test_error_recovery_workflow(api_client: TestClient):
     """Test workflow that handles various error conditions gracefully"""
 
+    import uuid
+
     # 1. Start a normal conversation
     print("1. Starting normal conversation...")
-    task_data = {"agent_name": "TestAgent", "message": "Normal conversation start"}
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Normal conversation start"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
 
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response.status_code == 200
-    session_id = response.json()["result"]["sessionId"]
+    session_id = response.json()["result"]["contextId"]
 
     # 2. Try various error conditions and verify graceful handling
     print("2. Testing error conditions...")
@@ -327,29 +449,31 @@ def test_error_recovery_workflow(api_client: TestClient):
     response = api_client.get("/api/v1/sessions/nonexistent_session")
     assert response.status_code == 404
 
-    # Try to send task with invalid data
-    response = api_client.post("/api/v1/tasks/send", data={})
+    # Try to send task with invalid data (empty JSON-RPC payload)
+    response = api_client.post("/api/v1/message:send", json={})
     assert response.status_code == 422
-
-    # Try to cancel non-existent task
-    response = api_client.post("/api/v1/tasks/cancel", data={"task_id": "nonexistent"})
-    assert response.status_code in [
-        400,
-        422,
-        500,
-    ]  # Various error responses are acceptable
 
     # 3. Verify original session still works after errors
     print("3. Verifying original session still works...")
-    followup_data = {
-        "agent_name": "TestAgent",
-        "message": "Follow-up after errors",
-        "session_id": session_id,
+    followup_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Follow-up after errors"}],
+                "metadata": {"agent_name": "TestAgent"},
+                "contextId": session_id,
+            }
+        },
     }
 
-    response = api_client.post("/api/v1/tasks/subscribe", data=followup_data)
+    response = api_client.post("/api/v1/message:stream", json=followup_payload)
     assert response.status_code == 200
-    assert response.json()["result"]["sessionId"] == session_id
+    assert response.json()["result"]["contextId"] == session_id
 
     # 4. Verify session history is intact
     print("4. Verifying session history is intact...")
@@ -357,7 +481,7 @@ def test_error_recovery_workflow(api_client: TestClient):
     assert history_response.status_code == 200
     history = history_response.json()
 
-    user_messages = [msg for msg in history if msg["sender_type"] == "user"]
+    user_messages = [msg for msg in history if msg["senderType"] == "user"]
     assert len(user_messages) >= 2
     assert user_messages[0]["message"] == "Normal conversation start"
     assert user_messages[-1]["message"] == "Follow-up after errors"
@@ -368,19 +492,36 @@ def test_error_recovery_workflow(api_client: TestClient):
 def test_high_volume_workflow(api_client: TestClient):
     """Test workflow with high volume of API calls"""
 
+    import uuid
+
     print("1. Creating multiple concurrent sessions...")
 
     # Create many sessions quickly
     session_ids = []
     for i in range(10):
-        task_data = {
-            "agent_name": "TestAgent",
-            "message": f"Batch session {i} - testing high volume",
+        task_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [
+                        {
+                            "kind": "text",
+                            "text": f"Batch session {i} - testing high volume",
+                        }
+                    ],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
         }
 
-        response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+        response = api_client.post("/api/v1/message:stream", json=task_payload)
         assert response.status_code == 200
-        session_id = response.json()["result"]["sessionId"]
+        session_id = response.json()["result"]["contextId"]
         session_ids.append(session_id)
 
     print(f"2. Created {len(session_ids)} sessions")
@@ -389,13 +530,23 @@ def test_high_volume_workflow(api_client: TestClient):
     print("3. Sending multiple messages to each session...")
     for session_id in session_ids:
         for j in range(3):
-            followup_data = {
-                "agent_name": "TestAgent",
-                "message": f"Message {j} to session",
-                "session_id": session_id,
+            followup_payload = {
+                "jsonrpc": "2.0",
+                "id": str(uuid.uuid4()),
+                "method": "message/stream",
+                "params": {
+                    "message": {
+                        "role": "user",
+                        "messageId": str(uuid.uuid4()),
+                        "kind": "message",
+                        "parts": [{"kind": "text", "text": f"Message {j} to session"}],
+                        "metadata": {"agent_name": "TestAgent"},
+                        "contextId": session_id,
+                    }
+                },
             }
 
-            response = api_client.post("/api/v1/tasks/subscribe", data=followup_data)
+            response = api_client.post("/api/v1/message:stream", json=followup_payload)
             assert response.status_code == 200
 
     # Verify all sessions exist and have correct message counts
@@ -405,7 +556,7 @@ def test_high_volume_workflow(api_client: TestClient):
     sessions_data = sessions_response.json()
 
     # Should have at least our created sessions
-    assert len(sessions_data["sessions"]) >= len(session_ids)
+    assert len(sessions_data["data"]) >= len(session_ids)
 
     # Verify each session has the expected number of messages
     for session_id in session_ids:
@@ -413,7 +564,7 @@ def test_high_volume_workflow(api_client: TestClient):
         assert history_response.status_code == 200
         history = history_response.json()
 
-        user_messages = [msg for msg in history if msg["sender_type"] == "user"]
+        user_messages = [msg for msg in history if msg["senderType"] == "user"]
         assert len(user_messages) >= 4  # Initial + 3 follow-ups
 
     print(

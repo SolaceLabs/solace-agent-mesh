@@ -1,0 +1,295 @@
+# DEVELOPER GUIDE: alembic
+
+## Quick Summary
+This directory contains Alembic database migration configuration and version files for the HTTP SSE gateway. It provides database schema management capabilities, including initial table creation, performance optimization through indexing, timestamp format standardization, and task management features with token usage tracking. The directory consists of the main Alembic environment configuration (`env.py`) and a versions subdirectory containing sequential migration files that handle schema evolution over time.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `env.py` - Alembic environment configuration for running migrations in offline/online modes
+
+- **Subdirectories:**
+  - `versions/` - Contains sequential database migration files for schema evolution and task management
+
+## Developer API Reference
+
+### Direct Files
+
+#### env.py
+**Purpose:** Alembic environment configuration that handles migration execution in both offline and online modes with proper model registration
+**Import:** This is an Alembic configuration file - not directly imported by application code
+
+**Functions:**
+- `run_migrations_offline() -> None` - Executes migrations without database connection (generates SQL scripts)
+- `run_migrations_online() -> None` - Executes migrations with live database connection and proper URL handling
+
+**Constants/Variables:**
+- `config` - Alembic Config object providing access to .ini file values
+- `target_metadata` - SQLAlchemy metadata from repository Base class for autogenerate support
+
+### Subdirectory APIs
+
+#### versions/
+**Purpose:** Contains sequential Alembic migration files that define database schema changes including core tables, indexes, timestamp modernization, task management, and token usage tracking
+**Key Exports:** Migration functions for complete schema evolution (upgrade/downgrade operations)
+**Import Examples:**
+```python
+# These are migration files executed by Alembic CLI, not directly imported
+# Access via Alembic commands:
+# alembic upgrade head
+# alembic downgrade base
+```
+
+**Available Migrations:**
+- `d5b3f8f2e9a0` - Initial database schema (sessions and chat_messages tables)
+- `b1c2d3e4f5g6` - Performance indexes for query optimization
+- `f6e7d8c9b0a1` - Timestamp conversion to epoch milliseconds
+- `079e06e9b448` - Task management tables (tasks, task_events, feedback)
+- `20250930_token_usage` - Token usage tracking columns for AI model consumption monitoring
+
+## Complete Usage Guide
+
+### 1. Setting Up Alembic Environment
+
+```python
+# The env.py automatically imports all repository models for metadata
+from solace_agent_mesh.gateway.http_sse.repository.models.base import Base
+from solace_agent_mesh.gateway.http_sse.repository.models.session_model import SessionModel
+from solace_agent_mesh.gateway.http_sse.repository.models.message_model import MessageModel
+from solace_agent_mesh.gateway.http_sse.repository.models.task_model import TaskModel
+from solace_agent_mesh.gateway.http_sse.repository.models.task_event_model import TaskEventModel
+from solace_agent_mesh.gateway.http_sse.repository.models.feedback_model import FeedbackModel
+
+target_metadata = Base.metadata
+```
+
+### 2. Running Migrations
+
+```bash
+# Check current migration status
+alembic current
+
+# Run all pending migrations to latest
+alembic upgrade head
+
+# Run specific migration
+alembic upgrade d5b3f8f2e9a0
+
+# Rollback to previous migration
+alembic downgrade -1
+
+# Rollback to specific migration
+alembic downgrade b1c2d3e4f5g6
+
+# Rollback all migrations
+alembic downgrade base
+
+# View migration history
+alembic history
+```
+
+### 3. Complete Migration Sequence and Schema Evolution
+
+```bash
+# Step 1: Create initial database schema
+alembic upgrade d5b3f8f2e9a0
+# Creates: sessions table, chat_messages table with relationships
+
+# Step 2: Add performance indexes
+alembic upgrade b1c2d3e4f5g6
+# Adds: indexes on user_id, timestamps, composite fields
+
+# Step 3: Modernize timestamp format
+alembic upgrade f6e7d8c9b0a1
+# Converts: datetime columns to epoch milliseconds
+# Renames: columns for consistency (created_at → created_time)
+
+# Step 4: Add task management features
+alembic upgrade 079e06e9b448
+# Creates: tasks, task_events, feedback tables with proper relationships
+
+# Step 5: Add token usage tracking
+alembic upgrade 20250930_token_usage
+# Adds: token usage columns for AI model consumption monitoring
+```
+
+### 4. Working with Different Database Engines
+
+```python
+# The env.py handles multiple database types automatically
+# Configure database URL in alembic.ini or environment:
+
+# PostgreSQL
+# sqlalchemy.url = postgresql://user:pass@localhost/dbname
+
+# SQLite
+# sqlalchemy.url = sqlite:///./database.db
+
+# MySQL
+# sqlalchemy.url = mysql://user:pass@localhost/dbname
+```
+
+### 5. Integration with Repository Layer
+
+```python
+# The migrations work with the repository models
+from solace_agent_mesh.gateway.http_sse.repository.models.base import Base
+from solace_agent_mesh.gateway.http_sse.repository.models.session_model import SessionModel
+from solace_agent_mesh.gateway.http_sse.repository.models.message_model import MessageModel
+from solace_agent_mesh.gateway.http_sse.repository.models.task_model import TaskModel
+from solace_agent_mesh.gateway.http_sse.repository.models.task_event_model import TaskEventModel
+from solace_agent_mesh.gateway.http_sse.repository.models.feedback_model import FeedbackModel
+
+# After running all migrations, your models will have the updated schema:
+# - All timestamp fields use epoch milliseconds
+# - Proper indexes for performance
+# - Standardized column names
+# - Complete task management functionality
+# - Token usage tracking for AI model consumption
+```
+
+### 6. Offline Migration Generation
+
+```bash
+# Generate SQL scripts without executing (useful for production deployments)
+# This uses run_migrations_offline() function from env.py
+
+# Generate SQL for specific migration
+alembic upgrade d5b3f8f2e9a0 --sql
+
+# Generate SQL for all pending migrations
+alembic upgrade head --sql
+
+# Generate SQL for token usage migration
+alembic upgrade 20250930_token_usage --sql
+```
+
+### 7. Common Development Patterns
+
+```bash
+# Development workflow:
+# 1. Make model changes in repository
+# 2. Generate new migration
+alembic revision --autogenerate -m "description of changes"
+
+# 3. Review generated migration file
+# 4. Test migration
+alembic upgrade head
+
+# 5. Test rollback
+alembic downgrade -1
+
+# Production deployment:
+# 1. Generate SQL scripts
+alembic upgrade head --sql > migration.sql
+
+# 2. Review and execute SQL manually in production
+```
+
+### 8. Database Schema After All Migrations
+
+```sql
+-- Final schema structure after all migrations:
+
+-- Core tables:
+-- sessions table:
+--   id (String, Primary Key)
+--   name (String)
+--   user_id (String, Indexed)
+--   agent_id (String)
+--   created_time (BigInteger, epoch ms)
+--   updated_time (BigInteger, epoch ms)
+
+-- chat_messages table:
+--   id (String, Primary Key)
+--   session_id (String, Foreign Key to sessions.id)
+--   message (Text)
+--   sender_type (String)
+--   sender_name (String)
+--   created_time (BigInteger, epoch ms, Indexed)
+
+-- Task management tables:
+-- tasks table:
+--   id (String, Primary Key)
+--   user_id (String, Indexed)
+--   start_time (BigInteger, epoch ms)
+--   end_time (BigInteger, epoch ms)
+--   status (String)
+--   initial_request_text (Text)
+--   total_input_tokens (Integer)
+--   total_output_tokens (Integer)
+--   total_cached_input_tokens (Integer)
+--   token_usage_details (Text, JSON)
+
+-- task_events table:
+--   id (String, Primary Key)
+--   task_id (String, Foreign Key to tasks.id)
+--   user_id (String)
+--   created_time (BigInteger, epoch ms)
+--   topic (String)
+--   direction (String)
+--   payload (Text)
+
+-- feedback table:
+--   id (String, Primary Key)
+--   session_id (String, Foreign Key to sessions.id)
+--   task_id (String, Foreign Key to tasks.id)
+--   user_id (String)
+--   rating (Integer)
+--   comment (Text)
+--   created_time (BigInteger, epoch ms)
+
+-- Performance indexes:
+--   idx_sessions_user_id
+--   idx_sessions_created_time
+--   idx_sessions_updated_time
+--   idx_chat_messages_session_id
+--   idx_chat_messages_created_time
+--   idx_chat_messages_session_created (composite)
+--   idx_tasks_user_id
+--   idx_task_events_task_id
+--   idx_task_events_created_time
+--   idx_feedback_session_id
+--   idx_feedback_task_id
+```
+
+### 9. Cross-Platform Timestamp Handling
+
+```python
+# The f6e7d8c9b0a1 migration handles database-specific timestamp conversion:
+
+# SQLite: Uses table recreation approach
+# - Creates new tables with epoch millisecond columns
+# - Migrates data with timestamp conversion
+# - Drops old tables and renames new ones
+
+# PostgreSQL/MySQL: Uses ALTER COLUMN approach
+# - Directly modifies column types
+# - Converts existing data in place
+# - More efficient for large datasets
+```
+
+### 10. Token Usage Tracking
+
+```python
+# The 20250930_token_usage migration adds AI model consumption tracking:
+
+# Token usage columns added to tasks table:
+# - total_input_tokens: Total input tokens consumed
+# - total_output_tokens: Total output tokens generated
+# - total_cached_input_tokens: Cached input tokens used
+# - token_usage_details: JSON field for detailed token usage breakdown
+
+# Usage example after migration:
+from solace_agent_mesh.gateway.http_sse.repository.models.task_model import TaskModel
+
+# Query tasks with token usage
+task = session.query(TaskModel).filter_by(id="task_id").first()
+print(f"Input tokens: {task.total_input_tokens}")
+print(f"Output tokens: {task.total_output_tokens}")
+print(f"Cached tokens: {task.total_cached_input_tokens}")
+print(f"Details: {task.token_usage_details}")
+```
+
+This Alembic configuration provides a comprehensive database migration system that handles schema evolution, performance optimization, cross-database compatibility, complete task management functionality, and AI model token usage tracking for the HTTP SSE gateway component.
+
+# content_hash: 2904df085decd08d4411ff2583b376a04fc56ba1eae82ba45f4a91e1a930b710

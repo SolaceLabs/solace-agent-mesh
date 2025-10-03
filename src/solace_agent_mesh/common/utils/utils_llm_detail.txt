@@ -1,0 +1,572 @@
+# LLM Summary Detail File
+
+This file is a concatenation of all individual *llm.txt files found in the 'utils' directory tree. Each section below corresponds to a specific directory's summary file.
+
+================================================================================
+
+## Section 1: solace_agent_mesh/common/utils/embeds/embeds_llm.txt
+
+**Source file:** `solace_agent_mesh/common/utils/embeds/embeds_llm.txt`
+
+# DEVELOPER GUIDE: embeds
+
+## Quick Summary
+The `embeds` directory provides a comprehensive system for finding, parsing, and resolving embedded expressions within strings. These expressions use `«...»` syntax and can represent dynamic values like mathematical calculations, datetimes, UUIDs, or content from stored artifacts. The system supports multi-step data transformation pipelines, recursive embed resolution, and includes safety features like depth and size limits. It's designed as a core component for dynamic content generation and data processing in agent workflows.
+
+## Files Overview
+- `__init__.py` - Main public entry point exporting key functions and constants
+- `constants.py` - Defines embed syntax (delimiters, separators), regex patterns, and type classifications
+- `converter.py` - Data format conversion and serialization functions
+- `evaluators.py` - Specific evaluation logic for simple embed types (math, datetime, uuid, etc.)
+- `modifiers.py` - Data transformation functions that can be chained together (jsonpath, slice, grep, etc.)
+- `resolver.py` - Core orchestration engine handling embed resolution, modifier chains, and recursion
+- `types.py` - DataFormat enum for tracking data types during transformations
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Main public entry point that exports the most commonly used functions and constants from other modules.
+
+**Import:** `from solace_agent_mesh.common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed, EMBED_REGEX`
+
+**Functions:**
+- `evaluate_embed(embed_type: str, expression: str, format_spec: Optional[str], context: Dict[str, Any], log_identifier: str, config: Optional[Dict] = None, current_depth: int = 0, visited_artifacts: Optional[Set[Tuple[str, int]]] = None) -> Union[Tuple[str, Optional[str], int], Tuple[None, str, Any]]` - Evaluates a single parsed embed expression
+- `resolve_embeds_in_string(text: str, context: Any, resolver_func: Callable, types_to_resolve: Set[str], log_identifier: str = "[EmbedUtil]", config: Optional[Dict[str, Any]] = None) -> Tuple[str, int, List[Tuple[int, Any]]]` - Resolves embeds in a string for a single pass (non-recursive)
+- `resolve_embeds_recursively_in_string(text: str, context: Any, resolver_func: Callable, types_to_resolve: Set[str], log_identifier: str, config: Optional[Dict], max_depth: int, current_depth: int = 0, visited_artifacts: Optional[Set[Tuple[str, int]]] = None, accumulated_size: int = 0, max_total_size: int = -1) -> str` - Recursively resolves all embeds in a string with depth and size limits
+
+**Constants/Variables:**
+- `EMBED_DELIMITER_OPEN: str` - Opening delimiter (`«`)
+- `EMBED_DELIMITER_CLOSE: str` - Closing delimiter (`»`)
+- `EMBED_TYPE_SEPARATOR: str` - Type/expression separator (`:`)
+- `EMBED_FORMAT_SEPARATOR: str` - Format specifier separator (`|`)
+- `EMBED_CHAIN_DELIMITER: str` - Modifier chain separator (`>>>`)
+- `EMBED_REGEX: re.Pattern` - Compiled regex for finding embeds
+- `EARLY_EMBED_TYPES: Set[str]` - Types resolved in initial pass
+- `LATE_EMBED_TYPES: Set[str]` - Types resolved in subsequent pass
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed, EMBED_REGEX
+
+# Basic embed resolution
+context = {
+    "artifact_service": my_artifact_service,
+    "session_context": {"app_name": "myapp", "user_id": "user123", "session_id": "sess456"}
+}
+
+text = "The result is «math:10 * 1.15 | .2f» and ID is «uuid:new»"
+resolved = await resolve_embeds_recursively_in_string(
+    text=text,
+    context=context,
+    resolver_func=evaluate_embed,
+    types_to_resolve={"math", "uuid"},
+    log_identifier="[MyApp]",
+    config={},
+    max_depth=5
+)
+```
+
+### constants.py
+**Purpose:** Defines all static constants governing embed syntax and classification.
+
+**Import:** `from solace_agent_mesh.common.utils.embeds.constants import EMBED_REGEX, EARLY_EMBED_TYPES`
+
+**Constants/Variables:**
+- `EMBED_DELIMITER_OPEN: str` - Opening delimiter (`«`)
+- `EMBED_DELIMITER_CLOSE: str` - Closing delimiter (`»`)
+- `EMBED_TYPE_SEPARATOR: str` - Type/expression separator (`:`)
+- `EMBED_FORMAT_SEPARATOR: str` - Format specifier separator (`|`)
+- `EMBED_CHAIN_DELIMITER: str` - Modifier chain separator (`>>>`)
+- `EMBED_REGEX: re.Pattern` - Compiled regex with capture groups for type, expression, and format
+- `EARLY_EMBED_TYPES: Set[str]` - Simple embed types resolved first (`math`, `datetime`, `uuid`, `artifact_meta`, `status_update`)
+- `LATE_EMBED_TYPES: Set[str]` - Complex embed types resolved later (`artifact_content`)
+- `TEXT_CONTAINER_MIME_TYPES: Set[str]` - MIME types considered text-based
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds.constants import EMBED_REGEX
+
+text = "Price: «math:10 * 1.15 | .2f» ID: «uuid:new»"
+for match in EMBED_REGEX.finditer(text):
+    embed_type = match.group(1)      # "math" or "uuid"
+    expression = match.group(2)      # "10 * 1.15 " or "new"
+    format_spec = match.group(3)     # " .2f" or None
+    print(f"Type: {embed_type}, Expr: '{expression}', Format: '{format_spec}'")
+```
+
+### converter.py
+**Purpose:** Provides data conversion between different formats and serialization to final string representations.
+
+**Import:** `from solace_agent_mesh.common.utils.embeds.converter import convert_data, serialize_data`
+
+**Functions:**
+- `convert_data(current_data: Any, current_format: Optional[DataFormat], target_format: DataFormat, log_id: str = "[Converter]", original_mime_type: Optional[str] = None) -> Tuple[Any, DataFormat, Optional[str]]` - Converts data between DataFormat types using MIME type hints
+- `serialize_data(data: Any, data_format: Optional[DataFormat], target_string_format: Optional[str], original_mime_type: Optional[str], log_id: str = "[Serializer]") -> Tuple[str, Optional[str]]` - Serializes data to final string format (text, json, csv, datauri, or Python format specs)
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds.converter import convert_data, serialize_data
+from solace_agent_mesh.common.utils.embeds.types import DataFormat
+
+# Convert CSV bytes to list of dictionaries
+csv_bytes = b"id,name\n1,Alice\n2,Bob"
+list_data, new_format, err = convert_data(
+    current_data=csv_bytes,
+    current_format=DataFormat.BYTES,
+    target_format=DataFormat.LIST_OF_DICTS,
+    original_mime_type="text/csv"
+)
+
+# Serialize to pretty JSON
+json_str, err = serialize_data(
+    data=list_data,
+    data_format=DataFormat.LIST_OF_DICTS,
+    target_string_format="json_pretty",
+    original_mime_type=None
+)
+```
+
+### evaluators.py
+**Purpose:** Contains evaluation logic for simple embed types and the evaluator registry.
+
+**Import:** `from solace_agent_mesh.common.utils.embeds.evaluators import EMBED_EVALUATORS`
+
+**Functions:**
+- `_evaluate_math_embed(expression: str, context: Any, log_identifier: str, format_spec: Optional[str] = None) -> Tuple[str, Optional[str], int]` - Evaluates mathematical expressions using asteval
+- `_evaluate_datetime_embed(expression: str, context: Any, log_identifier: str, format_spec: Optional[str] = None) -> Tuple[str, Optional[str], int]` - Formats current datetime
+- `_evaluate_uuid_embed(expression: str, context: Any, log_identifier: str, format_spec: Optional[str] = None) -> Tuple[str, Optional[str], int]` - Generates UUID4 strings
+- `_evaluate_artifact_meta_embed(expression: str, context: Dict[str, Any], log_identifier: str, format_spec: Optional[str] = None) -> Tuple[str, Optional[str], int]` - Loads and formats artifact metadata
+- `_evaluate_artifact_content_embed(expression: str, context: Any, log_identifier: str, config: Optional[Dict] = None) -> Tuple[Optional[bytes], Optional[str], Optional[str]]` - Loads raw artifact content
+
+**Constants/Variables:**
+- `EMBED_EVALUATORS: Dict[str, Callable]` - Registry mapping embed types to evaluator functions
+- `MATH_SAFE_SYMBOLS: Dict[str, Any]` - Safe mathematical functions and constants for math embeds
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds.evaluators import EMBED_EVALUATORS
+
+# Math evaluation
+result, error, size = EMBED_EVALUATORS["math"]("2 + 3 * 4", {}, "[Test]", ".2f")
+# result: "14.00", error: None, size: 5
+
+# DateTime formatting  
+result, error, size = EMBED_EVALUATORS["datetime"]("%Y-%m-%d", {}, "[Test]")
+# result: "2024-01-15", error: None, size: 10
+```
+
+### modifiers.py
+**Purpose:** Implements data transformation functions that can be chained together in artifact_content embeds.
+
+**Import:** `from solace_agent_mesh.common.utils.embeds.modifiers import MODIFIER_DEFINITIONS, _parse_modifier_chain`
+
+**Functions:**
+- `_apply_jsonpath(current_data: Any, expression: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Applies JSONPath expressions to JSON data
+- `_apply_select_cols(current_data: List[Dict], cols_str: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Selects specific columns from tabular data
+- `_apply_filter_rows_eq(current_data: List[Dict], filter_spec: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Filters rows by column value equality
+- `_apply_slice_rows(current_data: List[Dict], slice_spec: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Slices rows using Python slice notation
+- `_apply_slice_lines(current_data: str, slice_spec: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Slices text lines
+- `_apply_grep(current_data: str, pattern: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Filters lines matching regex pattern
+- `_apply_head(current_data: str, n_str: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Returns first N lines
+- `_apply_tail(current_data: str, n_str: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Returns last N lines
+- `_apply_template(current_data: Any, template_spec: str, mime_type: Optional[str], log_id: str, context: Any) -> Tuple[Any, Optional[str], Optional[str]]` - Applies Mustache templates from artifacts
+- `_parse_modifier_chain(expression: str) -> Tuple[str, List[Tuple[str, str]], Optional[str]]` - Parses artifact_content expression into components
+
+**Constants/Variables:**
+- `MODIFIER_IMPLEMENTATIONS: Dict[str, Callable]` - Registry of modifier functions
+- `MODIFIER_DEFINITIONS: Dict[str, Dict[str, Any]]` - Modifier metadata including accepted/produced formats
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds.modifiers import _parse_modifier_chain
+
+# Parse a complex artifact_content expression
+expression = "data.csv:1 >>> select_cols:name,age >>> filter_rows_eq:age:25 >>> format:json"
+artifact_spec, modifiers, output_format = _parse_modifier_chain(expression)
+# artifact_spec: "data.csv:1"
+# modifiers: [("select_cols", "name,age"), ("filter_rows_eq", "age:25")]
+# output_format: "json"
+```
+
+### resolver.py
+**Purpose:** Core orchestration engine that handles the complete embed resolution process including modifier chains and recursion.
+
+**Import:** `from solace_agent_mesh.common.utils.embeds.resolver import resolve_embeds_in_string, evaluate_embed`
+
+**Functions:**
+- `resolve_embeds_in_string(text: str, context: Any, resolver_func: Callable, types_to_resolve: Set[str], log_identifier: str = "[EmbedUtil]", config: Optional[Dict[str, Any]] = None) -> Tuple[str, int, List[Tuple[int, Any]]]` - Single-pass embed resolution with buffering support
+- `resolve_embeds_recursively_in_string(text: str, context: Any, resolver_func: Callable, types_to_resolve: Set[str], log_identifier: str, config: Optional[Dict], max_depth: int, current_depth: int = 0, visited_artifacts: Optional[Set[Tuple[str, int]]] = None, accumulated_size: int = 0, max_total_size: int = -1) -> str` - Recursive embed resolution with safety limits
+- `evaluate_embed(embed_type: str, expression: str, format_spec: Optional[str], context: Dict[str, Any], log_identifier: str, config: Optional[Dict] = None, current_depth: int = 0, visited_artifacts: Optional[Set[Tuple[str, int]]] = None) -> Union[Tuple[str, Optional[str], int], Tuple[None, str, Any]]` - Main embed evaluation dispatcher
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds.resolver import resolve_embeds_in_string, evaluate_embed
+
+# Single-pass resolution
+text = "Result: «math:2+3» and «uuid:new»"
+context = {"artifact_service": service, "session_context": session_ctx}
+
+resolved_text, processed_index, signals = await resolve_embeds_in_string(
+    text=text,
+    context=context,
+    resolver_func=evaluate_embed,
+    types_to_resolve={"math", "uuid"},
+    log_identifier="[MyApp]",
+    config={}
+)
+
+# Complex artifact content with modifiers
+result, error, size = await evaluate_embed(
+    embed_type="artifact_content",
+    expression="sales.csv >>> select_cols:product,revenue >>> format:json",
+    format_spec=None,
+    context=context,
+    log_identifier="[Sales]"
+)
+```
+
+### types.py
+
+================================================================================
+
+## Section 2: solace_agent_mesh/common/utils/utils_llm.txt
+
+**Source file:** `solace_agent_mesh/common/utils/utils_llm.txt`
+
+## Quick Summary
+The `utils` directory provides essential utility functions and tools for the Solace Agent Mesh system. It contains both direct utility files for common operations (MIME type handling, caching, message validation, authentication) and a sophisticated `embeds` subdirectory that implements a dynamic expression evaluation system. The utilities work together to provide platform compatibility, security features, data processing capabilities, and dynamic content generation for agent workflows.
+
+## Files and Subdirectories Overview
+
+### Direct Files:
+- **`__init__.py`** - Main entry point exporting commonly used utilities like MIME type checking
+- **`artifact_utils.py`** - Utilities for working with ADK artifacts, including version resolution
+- **`asyncio_macos_fix.py`** - Automatic fix for asyncio subprocess issues on macOS
+- **`in_memory_cache.py`** - Thread-safe singleton cache with TTL support
+- **`initializer.py`** - Enterprise feature initialization and configuration loading
+- **`log_formatters.py`** - Custom logging formatters for platforms like Datadog
+- **`message_utils.py`** - Message size calculation and validation utilities
+- **`mime_helpers.py`** - MIME type classification and file extension utilities
+- **`push_notification_auth.py`** - JWT-based authentication for push notifications
+- **`pydantic_utils.py`** - Pydantic BaseModel with dict-like access for configuration
+- **`type_utils.py`** - Robust type checking utilities for development environments
+
+### Subdirectories:
+- **`embeds/`** - Dynamic expression evaluation system using `«...»` syntax for mathematical calculations, datetime formatting, UUID generation, and artifact content processing
+
+## Developer API Reference
+
+### Direct Files
+
+#### __init__.py
+**Purpose:** Main entry point for the utils package, exporting the most commonly used utility functions
+**Import:** `from solace_agent_mesh.common.utils import is_text_based_mime_type`
+
+**Functions:**
+- `is_text_based_mime_type(mime_type: Optional[str]) -> bool` - Checks if a MIME type represents text-based content
+
+#### artifact_utils.py
+**Purpose:** Common utility functions for working with ADK artifacts
+**Import:** `from solace_agent_mesh.common.utils.artifact_utils import get_latest_artifact_version`
+
+**Functions:**
+- `get_latest_artifact_version(artifact_service: BaseArtifactService, app_name: str, user_id: str, session_id: str, filename: str) -> Optional[int]` - Resolves the latest version number for a given artifact
+
+#### asyncio_macos_fix.py
+**Purpose:** Automatic fix for asyncio subprocess creation issues on macOS (imported for side effects)
+**Import:** `from solace_agent_mesh.common.utils import asyncio_macos_fix`
+
+**Functions:**
+- `apply_macos_asyncio_fix() -> bool` - Applies the asyncio fix for macOS subprocess support
+- `ensure_asyncio_compatibility() -> bool` - Ensures asyncio compatibility for subprocess creation
+
+#### in_memory_cache.py
+**Purpose:** Thread-safe singleton in-memory cache with TTL support
+**Import:** `from solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache`
+
+**Classes:**
+- **`InMemoryCache`** - Singleton cache class
+  - `set(key: str, value: Any, ttl: Optional[int] = None) -> None` - Store value with optional TTL
+  - `get(key: str, default: Any = None) -> Any` - Retrieve value or default
+  - `delete(key: str) -> bool` - Delete specific key
+  - `clear() -> bool` - Clear all cached data
+
+#### initializer.py
+**Purpose:** Handles initialization of enterprise features if available
+**Import:** `from solace_agent_mesh.common.utils.initializer import initialize`
+
+**Functions:**
+- `initialize() -> None` - Initializes enterprise features using SAM_AUTHORIZATION_CONFIG environment variable
+
+#### log_formatters.py
+**Purpose:** Custom logging formatters for structured output
+**Import:** `from solace_agent_mesh.common.utils.log_formatters import DatadogJsonFormatter`
+
+**Classes:**
+- **`DatadogJsonFormatter(logging.Formatter)`** - JSON formatter with Datadog-compatible attributes including trace IDs
+
+#### message_utils.py
+**Purpose:** Message size calculation and validation utilities
+**Import:** `from solace_agent_mesh.common.utils.message_utils import calculate_message_size, validate_message_size`
+
+**Functions:**
+- `calculate_message_size(payload: Dict[str, Any]) -> int` - Calculate exact message size using JSON + UTF-8 encoding
+- `validate_message_size(payload: Dict[str, Any], max_size_bytes: int, component_identifier: str = "Unknown") -> Tuple[bool, int]` - Validate message doesn't exceed size limits
+
+**Constants:**
+- `MAX_UTF8_BYTES_PER_CHARACTER: int` - Maximum UTF-8 bytes per character (4)
+
+#### mime_helpers.py
+**Purpose:** MIME type classification and file extension utilities
+**Import:** `from solace_agent_mesh.common.utils.mime_helpers import is_text_based_mime_type, get_extension_for_mime_type, is_text_based_file`
+
+**Functions:**
+- `is_text_based_mime_type(mime_type: Optional[str]) -> bool` - Check if MIME type is text-based
+- `is_text_based_file(mime_type: Optional[str], content_bytes: Optional[bytes] = None) -> bool` - Determine if file is text-based using MIME type and content analysis
+- `get_extension_for_mime_type(mime_type: Optional[str], default_extension: str = ".dat") -> str` - Get file extension for MIME type
+
+**Constants:**
+- `TEXT_CONTAINER_MIME_TYPES: Set[str]` - Set of non-text/* MIME types that contain text
+
+#### push_notification_auth.py
+**Purpose:** JWT-based authentication for push notifications with request integrity verification
+**Import:** `from solace_agent_mesh.common.utils.push_notification_auth import PushNotificationSenderAuth, PushNotificationReceiverAuth`
+
+**Classes:**
+- **`PushNotificationSenderAuth`** - Handles sending authenticated notifications
+  - `generate_jwk() -> None` - Generate RSA key pair for signing
+  - `handle_jwks_endpoint(request: Request) -> JSONResponse` - Serve public keys endpoint
+  - `send_push_notification(url: str, data: dict[str, Any]) -> None` - Send authenticated notification
+  - `verify_push_notification_url(url: str) -> bool` - Verify notification URL
+- **`PushNotificationReceiverAuth`** - Handles receiving and verifying notifications
+  - `load_jwks(jwks_url: str) -> None` - Load public keys from JWKS endpoint
+  - `verify_push_notification(request: Request) -> bool` - Verify notification authenticity
+
+#### pydantic_utils.py
+**Purpose:** Provides a Pydantic BaseModel for SAM configuration with dict-like access
+**Import:** `from solace_agent_mesh.common.utils.pydantic_utils import SamConfigBase`
+
+**Classes:**
+- **`SamConfigBase(BaseModel)`** - Pydantic BaseModel with dict-like access
+  - `model_validate_and_clean(cls: Type[T], obj: Any) -> T` - Validates dict after removing None values
+  - `get(key: str, default: Any = None) -> Any` - Dict-like .get() method
+  - `__getitem__(key: str) -> Any` - Dict-like ['key'] access
+  - `__setitem__(key: str, value: Any)` - Dict-like ['key'] = value assignment
+  - `__contains__(key: str) -> bool` - Dict-like 'in' support
+  - `keys()`, `values()`, `items()`, `__iter__()` - Dict-like iteration methods
+
+#### type_utils.py
+**Purpose:** Utilities for robust type checking, especially in development environments
+**Import:** `from solace_agent_mesh.common.utils.type_utils import is_subclass_by_name`
+
+**Functions:**
+- `is_subclass_by_name(cls_to_check: type, base_class_name: str) -> bool` - Checks if a class is a subclass by looking for the base class name in the MRO
+
+### Subdirectory APIs
+
+#### embeds/
+**Purpose:** Comprehensive dynamic expression evaluation system using `«...»` syntax for mathematical calculations, datetime formatting, UUID generation, and artifact content processing with transformation pipelines
+**Key Exports:** Main resolution functions, evaluator registry, modifier system, and type constants
+**Import Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed, EMBED_REGEX
+from solace_agent_mesh.common.utils.embeds.constants import EARLY_EMBED_TYPES, LATE_EMBED_TYPES
+from solace_agent_mesh.common.utils.embeds.types import DataFormat
+```
+
+## Complete Usage Guide
+
+### 1. Basic Utility Operations
+
+```python
+# Import commonly used utilities
+from solace_agent_mesh.common.utils import is_text_based_mime_type
+from solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache
+from solace_agent_mesh.common.utils.message_utils import validate_message_size, calculate_message_size
+from solace_agent_mesh.common.utils.mime_helpers import get_extension_for_mime_type, is_text_based_file
+
+# MIME type checking
+if is_text_based_mime_type("application/json"):
+    print("JSON is text-based")
+
+# File analysis with content
+with open("data.bin", "rb") as f:
+    content = f.read()
+if is_text_based_file("application/octet-stream", content):
+    print("File contains text despite binary MIME type")
+
+# Singleton cache usage
+cache = InMemoryCache()
+cache.set("user_session", {"user_id": "123", "role": "admin"}, ttl=3600)  # 1 hour TTL
+session_data = cache.get("user_session", {})
+
+# Message size validation
+payload = {"message": "Hello world", "data": [1, 2, 3], "metadata": {"timestamp": "2024-01-15"}}
+is_valid, size = validate_message_size(payload, max_size_bytes=1024, component_identifier="MessageProcessor")
+if not is_valid:
+    print(f"Message too large: {size} bytes exceeds 1024 byte limit")
+
+# Get appropriate file extension
+extension = get_extension_for_mime_type("image/png")  # Returns ".png"
+filename = f"image_{uuid.uuid4()}{extension}"
+```
+
+### 2. Configuration and Type Utilities
+
+```python
+from solace_agent_mesh.common.utils.pydantic_utils import SamConfigBase
+from solace_agent_mesh.common.utils.type_utils import is_subclass_by_name
+from pydantic import Field
+from typing import Optional
+
+# Define configuration with Pydantic validation and dict-like access
+class AgentConfig(SamConfigBase):
+    name: str
+    timeout: int = 30
+    debug: bool = False
+    api_key: Optional[str] = None
+
+# Load config from YAML/dict with None value cleaning
+config_dict = {
+    "name": "my_agent",
+    "timeout": None,  # Will use default value of 30
+    "debug": True,
+    "api_key": None   # Will use default value of None
+}
+
+config = AgentConfig.model_validate_and_clean(config_dict)
+
+# Use both Pydantic and dict-style access
+print(config.name)              # Pydantic style: "my_agent"
+print(config["timeout"])        # Dict style: 30 (default applied)
+print(config.get("debug", False))  # Dict .get(): True
+
+# Check if field was explicitly set
+if "api_key" in config:
+    print("API key was provided")
+else:
+    print("API key not provided, using default")
+
+# Robust type checking for development
+class BaseAgent:
+    pass
+
+class MyAgent(BaseAgent):
+    pass
+
+# This works even if BaseAgent is loaded from different paths
+if is_subclass_by_name(MyAgent, "BaseAgent"):
+    print("MyAgent is a BaseAgent subclass")
+```
+
+### 3. Platform Compatibility and System Initialization
+
+```python
+# Early in application startup - import for side effects
+from solace_agent_mesh.common.utils import asyncio_macos_fix  # Auto-applies macOS fix
+from solace_agent_mesh.common.utils.initializer import initialize
+
+# Initialize enterprise features if available
+try:
+    initialize()
+    print("Enterprise features initialized")
+except Exception as e:
+    print(f"Running in community mode: {e}")
+
+# Now asyncio subprocess creation works reliably on macOS
+import asyncio
+
+async def run_command(cmd: str):
+    process = await asyncio.create_subprocess_exec(
+        *cmd.split(),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await process.communicate()
+    return stdout.decode(), stderr.decode(), process.returncode
+
+# This will work on macOS without NotImplementedError
+result = await run_command("echo Hello World")
+```
+
+### 4. Structured Logging Setup
+
+```python
+import logging
+import os
+from solace_agent_mesh.common.utils.log_formatters import DatadogJsonFormatter
+
+# Configure structured JSON logging
+logger = logging.getLogger("my_application")
+handler = logging.StreamHandler()
+handler.setFormatter(DatadogJsonFormatter())
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+# Set service name for Datadog
+os.environ["SERVICE_NAME"] = "my_agent_service"
+
+# Log with structured data - automatically includes trace IDs if available
+logger.info("User action completed", extra={
+    "user_id": "user123",
+    "action": "file_upload",
+    "file_size": 1024,
+    "dd.trace_id": "abc123"  # Will be included in JSON output
+})
+
+# Output will be JSON with timestamp, level, service, code location, etc.
+```
+
+### 5. Secure Push Notification System
+
+```python
+from solace_agent_mesh.common.utils.push_notification_auth import (
+    PushNotificationSenderAuth, 
+    PushNotificationReceiverAuth
+)
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import Response, JSONResponse
+
+# Sender setup and usage
+sender_auth = PushNotificationSenderAuth()
+sender_auth.generate_jwk()  # Generate RSA key pair
+
+async def notify_clients(event_data: dict):
+    client_urls = ["https://client1.example.com/webhook", "https://client2.example.com/webhook"]
+    
+    for url in client_urls:
+        # Verify URL accepts notifications
+        if await sender_auth.verify_push_notification_url(url):
+            # Send authenticated notification
+            await sender_auth.send_push_notification(url, {
+                "event": "data_updated",
+                "timestamp": "2024-01-15T10:30:00Z",
+                "data": event_data
+            })
+        else:
+            print(f"Failed to verify URL: {url}")
+
+# Receiver setup
+app = Starlette()
+receiver_auth = PushNotificationReceiverAuth()
+
+# Load sender's public keys
+await receiver_auth.load_jwks("https://sender.example.com/.well-known/jwks.json")
+
+@app.route("/webhook", methods=["POST"])
+async def webhook_handler(request: Request):
+    try:
+        # Verify JWT signature and request integrity
+        if await receiver_auth.verify_push_notification(request):
+            data = await request.json()
+            # Process authenticated notification
+            print(f"Received verified notification: {data}")
+            return Response("OK")
+        else:
+            return Response("Unauthorized", status_code=401)
+    except Exception as e:
+        print(f"
+
+================================================================================
+

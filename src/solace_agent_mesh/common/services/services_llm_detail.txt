@@ -1,0 +1,459 @@
+# LLM Summary Detail File
+
+This file is a concatenation of all individual *llm.txt files found in the 'services' directory tree. Each section below corresponds to a specific directory's summary file.
+
+================================================================================
+
+## Section 1: solace_agent_mesh/common/services/providers/providers_llm.txt
+
+**Source file:** `solace_agent_mesh/common/services/providers/providers_llm.txt`
+
+## Quick Summary
+This directory contains concrete implementations (providers) for the abstract services defined in the parent `services` package. These providers offer specific ways to fulfill service contracts, such as sourcing user identity information from a local file.
+
+## Files Overview
+- `__init__.py` - Package initialization file marking the directory as a Python package
+- `local_file_identity_service.py` - File-based identity service implementation that reads user data from local JSON files
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Initializes the providers package
+**Import:** `from solace_agent_mesh.common.services import providers`
+
+This file contains no public classes or functions - it serves only as package documentation.
+
+### local_file_identity_service.py
+**Purpose:** Provides a file-based identity service that reads user profiles from a local JSON file, ideal for development, testing, or small-scale deployments
+**Import:** `from solace_agent_mesh.common.services.providers.local_file_identity_service import LocalFileIdentityService`
+
+**Classes:**
+- `LocalFileIdentityService(config: Dict[str, Any])` - Identity service that sources user data from a local JSON file
+  - `async get_user_profile(auth_claims: Dict[str, Any]) -> Optional[Dict[str, Any]]` - Looks up a user profile using the lookup key from auth claims
+  - `async search_users(query: str, limit: int = 10) -> List[Dict[str, Any]]` - Performs case-insensitive search on user names and emails
+  - `file_path: str` - Path to the JSON file containing user data
+  - `lookup_key: str` - Key used to identify users (defaults to "id")
+  - `all_users: List[Dict[str, Any]]` - Complete list of user profiles loaded from file
+  - `user_index: Dict[str, Dict[str, Any]]` - In-memory index mapping lookup keys to user profiles
+
+**Usage Examples:**
+```python
+import asyncio
+import json
+from solace_agent_mesh.common.services.providers.local_file_identity_service import LocalFileIdentityService
+
+# Create sample users.json file
+users_data = [
+    {
+        "id": "jdoe",
+        "email": "jane.doe@example.com", 
+        "name": "Jane Doe",
+        "title": "Senior Engineer",
+        "manager_id": "ssmith"
+    },
+    {
+        "id": "ssmith",
+        "email": "sam.smith@example.com",
+        "name": "Sam Smith", 
+        "title": "Engineering Manager"
+    }
+]
+
+with open("users.json", "w") as f:
+    json.dump(users_data, f)
+
+async def main():
+    # Initialize the service
+    config = {
+        "file_path": "users.json",
+        "lookup_key": "id"  # Optional, defaults to "id"
+    }
+    
+    identity_service = LocalFileIdentityService(config)
+    
+    # Get user profile by ID
+    auth_claims = {"id": "jdoe"}
+    profile = await identity_service.get_user_profile(auth_claims)
+    print(f"User profile: {profile}")
+    
+    # Search for users
+    results = await identity_service.search_users("jane", limit=5)
+    print(f"Search results: {results}")
+    
+    # Handle missing user
+    missing = await identity_service.get_user_profile({"id": "nonexistent"})
+    print(f"Missing user: {missing}")  # Returns None
+
+asyncio.run(main())
+```
+
+================================================================================
+
+## Section 2: solace_agent_mesh/common/services/services_llm.txt
+
+**Source file:** `solace_agent_mesh/common/services/services_llm.txt`
+
+# DEVELOPER GUIDE: services
+
+## Quick Summary
+The `services` directory provides a modular and extensible framework for integrating external data sources related to identity and employee information into the Solace AI Connector. It is built on a provider pattern, defining abstract base classes (`BaseIdentityService`, `BaseEmployeeService`) that establish a clear contract for what data and functionality a service must provide.
+
+The core architecture revolves around factory functions (`create_identity_service`, `create_employee_service`) that instantiate specific service providers based on a configuration dictionary. This allows the application to remain decoupled from the concrete implementations. The `providers/` subdirectory contains concrete implementations, including a built-in file-based identity service, while external providers can be dynamically loaded as plugins through Python's entry points system.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `__init__.py`: Marks the directory as a Python package with shared, reusable services
+  - `employee_service.py`: Defines the abstract contract and factory for employee data services
+  - `identity_service.py`: Defines the abstract contract and factory for user identity services
+- **Subdirectories:**
+  - `providers/`: Contains concrete implementations of the service contracts, including a file-based identity provider
+
+## Developer API Reference
+
+### Direct Files
+
+#### employee_service.py
+**Purpose:** Defines the abstract base class (`BaseEmployeeService`) that all employee service providers must implement, and a factory function (`create_employee_service`) to instantiate them. It enforces a canonical schema for employee data to ensure consistency across different providers.
+**Import:** `from solace_agent_mesh.common.services.employee_service import BaseEmployeeService, create_employee_service`
+
+**Classes/Functions/Constants:**
+- **`class BaseEmployeeService(ABC)`**: The abstract base class for employee service providers.
+    - **`__init__(self, config: Dict[str, Any])`**: Initializes the service, setting up configuration and an optional in-memory cache.
+    - **`async def get_employee_dataframe(self) -> pd.DataFrame`**: (Abstract) Returns the entire employee directory as a pandas DataFrame.
+    - **`async def get_employee_profile(self, employee_id: str) -> Optional[Dict[str, Any]]`**: (Abstract) Fetches the profile for a single employee, conforming to the canonical schema.
+    - **`async def get_time_off_data(self, employee_id: str) -> List[Dict[str, Any]]`**: (Abstract) Retrieves a list of time-off entries for an employee.
+    - **`async def get_employee_profile_picture(self, employee_id: str) -> Optional[str]`**: (Abstract) Fetches an employee's profile picture as a data URI string.
+- **`def create_employee_service(config: Optional[Dict[str, Any]]) -> Optional[BaseEmployeeService]`**: A factory function that dynamically loads and instantiates an employee service provider based on the `type` specified in the configuration. It primarily uses Python's entry points to find and load external plugins.
+
+#### identity_service.py
+**Purpose:** Defines the abstract base class (`BaseIdentityService`) for identity providers and a factory function (`create_identity_service`) to create instances of them. This service is used for user lookups and profile enrichment.
+**Import:** `from solace_agent_mesh.common.services.identity_service import BaseIdentityService, create_identity_service`
+
+**Classes/Functions/Constants:**
+- **`class BaseIdentityService(ABC)`**: The abstract base class for identity service providers.
+    - **`__init__(self, config: Dict[str, Any])`**: Initializes the service, setting up configuration and an optional in-memory cache.
+    - **`async def get_user_profile(self, auth_claims: Dict[str, Any]) -> Optional[Dict[str, Any]]`**: (Abstract) Fetches additional profile details for an authenticated user based on claims.
+    - **`async def search_users(self, query: str, limit: int = 10) -> List[Dict[str, Any]]`**: (Abstract) Searches for users based on a query string (e.g., for autocomplete).
+- **`def create_identity_service(config: Optional[Dict[str, Any]]) -> Optional[BaseIdentityService]`**: A factory function that instantiates an identity service provider. It has special handling for the built-in `local_file` provider and uses Python entry points for all other provider types.
+
+### Subdirectory APIs
+
+#### providers/
+**Purpose:** Contains concrete implementations of the abstract service classes, providing specific ways to fulfill service contracts such as sourcing user identity information from local files
+**Key Exports:** `LocalFileIdentityService`
+**Import Examples:**
+```python
+from solace_agent_mesh.common.services.providers.local_file_identity_service import LocalFileIdentityService
+```
+
+## Complete Usage Guide
+
+### 1. Using Service Factories (Recommended Approach)
+The factories are the primary way to create and use services. They abstract away the specific implementation details and handle plugin loading.
+
+**Example: Creating Identity and Employee Services**
+
+```python
+import asyncio
+from solace_agent_mesh.common.services.identity_service import create_identity_service
+from solace_agent_mesh.common.services.employee_service import create_employee_service
+
+async def main():
+    # --- Identity Service Example (using built-in provider) ---
+    identity_config = {
+        "type": "local_file",
+        "file_path": "path/to/your/users.json",
+        "lookup_key": "email",  # Key to use for lookups from auth_claims
+        "cache_ttl_seconds": 3600
+    }
+    identity_service = create_identity_service(identity_config)
+
+    if identity_service:
+        print("Identity Service created.")
+        # Fetch a user profile
+        auth_claims = {"email": "jane.doe@example.com"}
+        user_profile = await identity_service.get_user_profile(auth_claims)
+        print(f"User Profile: {user_profile}")
+
+        # Search for users
+        search_results = await identity_service.search_users("Jane")
+        print(f"Search Results: {search_results}")
+
+    # --- Employee Service Example (using external plugin) ---
+    # The 'type' must match the name of a registered plugin entry point
+    employee_config = {
+        "type": "bamboohr_plugin",
+        "api_key": "your-secret-api-key",
+        "subdomain": "your-company",
+        "cache_ttl_seconds": 7200
+    }
+    employee_service = create_employee_service(employee_config)
+
+    if employee_service:
+        print("\nEmployee Service created.")
+        # Get a detailed employee profile
+        employee_profile = await employee_service.get_employee_profile("jane.doe@example.com")
+        print(f"Employee Profile: {employee_profile}")
+
+        # Get time off data
+        time_off = await employee_service.get_time_off_data("jane.doe@example.com")
+        print(f"Time Off Data: {time_off}")
+
+        # Get employee directory as DataFrame
+        df = await employee_service.get_employee_dataframe()
+        print(f"Employee Directory Shape: {df.shape}")
+
+# Run the example
+asyncio.run(main())
+```
+
+### 2. Direct Provider Instantiation
+While factories are preferred, you can instantiate providers from the `providers/` directory directly. This is useful for testing or when you know you will always use a specific built-in provider.
+
+**Example: Direct Use of LocalFileIdentityService**
+
+```python
+import asyncio
+import json
+from solace_agent_mesh.common.services.providers.local_file_identity_service import LocalFileIdentityService
+
+async def main():
+    # First, create a sample users.json file
+    users_data = [
+        {
+            "id": "jdoe",
+            "email": "jane.doe@example.com", 
+            "name": "Jane Doe",
+            "title": "Senior Engineer",
+            "manager_id": "ssmith"
+        },
+        {
+            "id": "ssmith",
+            "email": "sam.smith@example.com",
+            "name": "Sam Smith", 
+            "title": "Engineering Manager"
+        }
+    ]
+
+    with open("users.json", "w") as f:
+        json.dump(users_data, f)
+
+    # Configuration does not need a 'type' key for direct instantiation
+    config = {
+        "file_path": "users.json",
+        "lookup_key": "id",
+        "cache_ttl_seconds": 1800
+    }
+
+    # Instantiate the class directly
+    local_service = LocalFileIdentityService(config)
+    print("LocalFileIdentityService created directly")
+
+    # Get user profile by ID
+    auth_claims = {"id": "jdoe"}
+    profile = await local_service.get_user_profile(auth_claims)
+    print(f"User profile: {profile}")
+    
+    # Search for users
+    results = await local_service.search_users("jane", limit=5)
+    print(f"Search results: {results}")
+
+asyncio.run(main())
+```
+
+### 3. Creating Custom Service Providers
+To create your own service provider, inherit from the appropriate base class and implement all abstract methods.
+
+**Example: Custom Employee Service Provider**
+
+```python
+import pandas as pd
+from typing import Any, Dict, List, Optional
+from solace_agent_mesh.common.services.employee_service import BaseEmployeeService
+
+class CustomEmployeeService(BaseEmployeeService):
+    """Custom employee service that connects to your HR system."""
+    
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__(config)
+        self.api_endpoint = config.get("api_endpoint")
+        self.api_key = config.get("api_key")
+    
+    async def get_employee_dataframe(self) -> pd.DataFrame:
+        """Fetch all employees and return as DataFrame."""
+        # Your implementation here
+        # This should return a DataFrame with canonical schema columns:
+        # id, displayName, workEmail, jobTitle, department, location, supervisorId, hireDate, mobilePhone
+        employees_data = [
+            {
+                "id": "jdoe@company.com",
+                "displayName": "Jane Doe",
+                "workEmail": "jdoe@company.com",
+                "jobTitle": "Software Engineer",
+                "department": "Engineering",
+                "location": "San Francisco",
+                "supervisorId": "manager@company.com",
+                "hireDate": "2023-01-15",
+                "mobilePhone": "+1-555-0123"
+            }
+        ]
+        return pd.DataFrame(employees_data)
+    
+    async def get_employee_profile(self, employee_id: str) -> Optional[Dict[str, Any]]:
+        """Get single employee profile."""
+        # Your implementation here
+        return {
+            "id": employee_id,
+            "displayName": "Jane Doe",
+            "workEmail": employee_id,
+            "jobTitle": "Software Engineer"
+        }
+    
+    async def get_time_off_data(self, employee_id: str) -> List[Dict[str, Any]]:
+        """Get employee time off data."""
+        # Your implementation here
+        return [
+            {
+                'start': '2025-07-04',
+                'end': '2025-07-04',
+                'type': 'Holiday',
+                'amount': 'full_day'
+            }
+        ]
+    
+    async def get_employee_profile_picture(self, employee_id: str) -> Optional[str]:
+        """Get employee profile picture as data URI."""
+        # Your implementation here
+        return None  # or return "data:image/jpeg;base64,..."
+
+# Usage
+async def use_custom_service():
+    config = {
+        "api_endpoint": "https://your-hr-api.com",
+        "api_key": "your-api-key",
+        "cache_ttl_seconds": 3600
+    }
+    
+    service = CustomEmployeeService(config)
+    profile = await service.get_employee_profile("jdoe@company.com")
+    print(f"Custom service profile: {profile}")
+```
+
+### 4. Working with Both Services Together
+Often you'll want to use both identity and employee services together for comprehensive user information.
+
+**Example: Combined Service Usage**
+
+```python
+import asyncio
+from solace_agent_mesh.common.services.identity_service import create_identity_service
+from solace_agent_mesh.common.services.employee_service import create_employee_service
+
+async def get_complete_user_info(user_email: str):
+    """Get comprehensive user information from both services."""
+    
+    # Configure services
+    identity_config = {
+        "type": "local_file",
+        "file_path": "users.json",
+        "lookup_key": "email"
+    }
+    
+    employee_config = {
+        "type": "your_hr_plugin",
+        "api_key": "your-key"
+    }
+    
+    # Create services
+    identity_service = create_identity_service(identity_config)
+    employee_service = create_employee_service(employee_config)
+    
+    # Gather information
+    user_info = {}
+    
+    if identity_service:
+        auth_claims = {"email": user_email}
+        identity_profile = await identity_service.get_user_profile(auth_claims)
+        if identity_profile:
+            user_info.update(identity_profile)
+    
+    if employee_service:
+        employee_profile = await employee_service.get_employee_profile(user_email)
+        if employee_profile:
+            user_info.update(employee_profile)
+            
+        # Get additional employee data
+        time_off = await employee_service.get_time_off_data(user_email)
+        user_info["time_off"] = time_off
+        
+        profile_pic = await employee_service.get_employee_profile_picture(user_email)
+        if profile_pic:
+            user_info["profile_picture"] = profile_pic
+    
+    return user_info
+
+# Usage
+async def main():
+    complete_info = await get_complete_user_info("jane.doe@example.com")
+    print(f"Complete user information: {complete_info}")
+
+asyncio.run(main())
+```
+
+### 5. Using the Built-in LocalFileIdentityService
+The `providers/` subdirectory includes a ready-to-use file-based identity service that's perfect for development and testing.
+
+**Example: Setting up LocalFileIdentityService with Factory**
+
+```python
+import asyncio
+import json
+from solace_agent_mesh.common.services.identity_service import create_identity_service
+
+async def setup_file_based_identity():
+    # Create sample users.json file
+    users_data = [
+        {
+            "id": "jdoe",
+            "email": "jane.doe@example.com", 
+            "name": "Jane Doe",
+            "title": "Senior Engineer",
+            "manager_id": "ssmith"
+        },
+        {
+            "id": "ssmith",
+            "email": "sam.smith@example.com",
+            "name": "Sam Smith", 
+            "title": "Engineering Manager"
+        }
+    ]
+
+    with open("users.json", "w") as f:
+        json.dump(users_data, f)
+
+    # Use factory to create the service
+    config = {
+        "type": "local_file",  # This triggers the built-in provider
+        "file_path": "users.json",
+        "lookup_key": "email",  # Use email for lookups
+        "cache_ttl_seconds": 3600
+    }
+    
+    identity_service = create_identity_service(config)
+    
+    # Test the service
+    auth_claims = {"email": "jane.doe@example.com"}
+    profile = await identity_service.get_user_profile(auth_claims)
+    print(f"Profile found: {profile}")
+    
+    # Search functionality
+    search_results = await identity_service.search_users("jane")
+    print(f"Search results: {search_results}")
+
+asyncio.run(setup_file_based_identity())
+```
+
+This comprehensive guide shows how the services framework provides a clean, extensible way to integrate various data sources while maintaining consistent interfaces and supporting both built-in providers and external plugins through the factory pattern and plugin system.
+
+================================================================================
+

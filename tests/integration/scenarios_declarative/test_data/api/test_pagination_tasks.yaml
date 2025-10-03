@@ -1,0 +1,107 @@
+test_case_id: "api_pagination_tasks_001"
+description: "Tests pagination for the /api/v1/tasks endpoint."
+tags: ["api", "tasks"]
+
+setup_tasks:
+  - task_id: "page-task-01"
+    message: "Task one"
+    start_time_iso: "2025-03-01T10:01:00+00:00"
+  - task_id: "page-task-02"
+    message: "Task two"
+    start_time_iso: "2025-03-01T10:02:00+00:00"
+  - task_id: "page-task-03"
+    message: "Task three"
+    start_time_iso: "2025-03-01T10:03:00+00:00"
+  - task_id: "page-task-04"
+    message: "Task four"
+    start_time_iso: "2025-03-01T10:04:00+00:00"
+  - task_id: "page-task-05"
+    message: "Task five"
+    start_time_iso: "2025-03-01T10:05:00+00:00"
+  - task_id: "page-task-06"
+    message: "Task six"
+    start_time_iso: "2025-03-01T10:06:00+00:00"
+  - task_id: "page-task-07"
+    message: "Task seven"
+    start_time_iso: "2025-03-01T10:07:00+00:00"
+  - task_id: "page-task-08"
+    message: "Task eight"
+    start_time_iso: "2025-03-01T10:08:00+00:00"
+  - task_id: "page-task-09"
+    message: "Task nine"
+    start_time_iso: "2025-03-01T10:09:00+00:00"
+  - task_id: "page-task-10"
+    message: "Task ten"
+    start_time_iso: "2025-03-01T10:10:00+00:00"
+  - task_id: "page-task-11"
+    message: "Task eleven"
+    start_time_iso: "2025-03-01T10:11:00+00:00"
+  - task_id: "page-task-12"
+    message: "Task twelve"
+    start_time_iso: "2025-03-01T10:12:00+00:00"
+
+expected_http_responses:
+  - description: "Get first page of 5 tasks"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        page: 1
+        page_size: 5
+    expected_status_code: 200
+    expected_list_length: 5
+    expected_json_body_matches: # Descending order by start_time
+      - id: "page-task-12"
+      - id: "page-task-11"
+      - id: "page-task-10"
+      - id: "page-task-09"
+      - id: "page-task-08"
+
+  - description: "Get second page of 5 tasks"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        page: 2
+        page_size: 5
+    expected_status_code: 200
+    expected_list_length: 5
+    expected_json_body_matches:
+      - id: "page-task-07"
+      - id: "page-task-06"
+      - id: "page-task-05"
+      - id: "page-task-04"
+      - id: "page-task-03"
+
+  - description: "Get third page with remaining 2 tasks"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        page: 3
+        page_size: 5
+    expected_status_code: 200
+    expected_list_length: 2
+    expected_json_body_matches:
+      - id: "page-task-02"
+      - id: "page-task-01"
+
+  - description: "Get fourth page, which should be empty"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        page: 4
+        page_size: 5
+    expected_status_code: 200
+    expected_body_is_empty_list: true
+
+  - description: "Get all 12 tasks with a large page size"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        page: 1
+        page_size: 20
+    expected_status_code: 200
+    expected_list_length: 12

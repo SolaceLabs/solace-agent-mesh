@@ -1,0 +1,83 @@
+# DEVELOPER GUIDE: requests
+
+## Quick Summary
+This directory contains request Data Transfer Objects (DTOs) for API endpoints, specifically focused on session management operations. These Pydantic models define the structure and validation rules for incoming API requests.
+
+## Files Overview
+- `__init__.py` - Exports all session-related request DTOs for easy importing
+- `session_requests.py` - Defines request DTOs for session CRUD operations (get, update, history retrieval)
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Provides centralized imports for all request DTOs
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.dto.requests import GetSessionRequest, GetSessionHistoryRequest, UpdateSessionRequest`
+
+**Usage Examples:**
+```python
+# Import all session request DTOs
+from solace_agent_mesh.gateway.http_sse.routers.dto.requests import (
+    GetSessionRequest,
+    GetSessionHistoryRequest,
+    UpdateSessionRequest
+)
+```
+
+### session_requests.py
+**Purpose:** Defines Pydantic models for session-related API request validation
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.dto.requests.session_requests import GetSessionRequest, GetSessionHistoryRequest, UpdateSessionRequest`
+
+**Classes:**
+- `GetSessionRequest(session_id: SessionId, user_id: UserId)` - Request DTO for retrieving a specific session by ID
+- `GetSessionHistoryRequest(session_id: SessionId, user_id: UserId, pagination: Optional[PaginationInfo] = None)` - Request DTO for retrieving session message history with optional pagination
+- `UpdateSessionRequest(session_id: SessionId, user_id: UserId, name: str)` - Request DTO for updating session details with validation (name must be 1-255 characters)
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.requests.session_requests import (
+    GetSessionRequest,
+    GetSessionHistoryRequest,
+    UpdateSessionRequest
+)
+from pydantic import ValidationError
+
+# Create a request to get a specific session
+get_session_req = GetSessionRequest(
+    session_id="session456",
+    user_id="user123"
+)
+
+# Create a request to get session history with pagination
+get_history_req = GetSessionHistoryRequest(
+    session_id="session456",
+    user_id="user123",
+    pagination={"page": 1, "size": 20}
+)
+
+# Create a request to update a session name
+update_req = UpdateSessionRequest(
+    session_id="session456",
+    user_id="user123",
+    name="My Updated Session"
+)
+
+# Validate request data from dictionary
+request_data = {
+    "session_id": "session789",
+    "user_id": "user456",
+    "name": "New Session Name"
+}
+
+try:
+    validated_request = UpdateSessionRequest(**request_data)
+    print(f"Valid request: {validated_request}")
+except ValidationError as e:
+    print(f"Validation failed: {e}")
+
+# Access validated fields
+print(f"Session ID: {update_req.session_id}")
+print(f"User ID: {update_req.user_id}")
+print(f"New name: {update_req.name}")
+```
+
+# content_hash: d40151714f449905662170c71b393dba7c98e7ec1c46f5f3a861097b2d5376b2

@@ -1,0 +1,185 @@
+# LLM Summary Detail File
+
+This file is a concatenation of all individual *llm.txt files found in the 'middleware' directory tree. Each section below corresponds to a specific directory's summary file.
+
+================================================================================
+
+## Section 1: solace_agent_mesh/common/middleware/middleware_llm.txt
+
+**Source file:** `solace_agent_mesh/common/middleware/middleware_llm.txt`
+
+# DEVELOPER GUIDE: middleware
+
+## Quick Summary
+The `middleware` directory provides a pluggable framework for system components that can be extended or replaced at runtime. It offers a registry system to dynamically bind custom implementations for core functionalities like configuration resolution. The default implementations provide permissive behavior, making them suitable for development and testing environments where all features are enabled by default.
+
+## Files Overview
+- `__init__.py`: Exposes the main public classes of the middleware package for easy importing.
+- `config_resolver.py`: Defines the default, permissive configuration resolution middleware.
+- `registry.py`: Provides the `MiddlewareRegistry` for dynamically binding custom middleware implementations.
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** This file serves as the entry point to the `middleware` package, exporting the primary public interfaces for developers to use.
+
+**Import:** `from solace_agent_mesh.common.middleware import ConfigResolver, MiddlewareRegistry`
+
+**Usage Examples:**
+```python
+# Import the main classes directly from the middleware package
+from solace_agent_mesh.common.middleware import ConfigResolver, MiddlewareRegistry
+
+# Now you can use ConfigResolver and MiddlewareRegistry
+print(ConfigResolver)
+print(MiddlewareRegistry)
+```
+
+### config_resolver.py
+**Purpose:** This file provides a pluggable interface for resolving user-specific configuration and determining feature availability. The default `ConfigResolver` class is permissive, allowing all operations and enabling all features, which is ideal for development or simple deployments.
+
+**Import:** `from solace_agent_mesh.common.middleware import ConfigResolver`
+
+**Classes:**
+- `ConfigResolver()` - A class containing static methods to resolve user-specific configuration and determine feature availability. This default implementation is permissive.
+  - `resolve_user_config(user_identity: Any, gateway_context: Dict[str, Any], base_config: Dict[str, Any]) -> Dict[str, Any]` - (async) Resolves user-specific configuration. The default implementation returns the `base_config` unchanged.
+  - `is_feature_enabled(user_config: Dict[str, Any], feature_descriptor: Dict[str, Any], context: Dict[str, Any]) -> bool` - Checks if a feature is enabled for a user. The default implementation always returns `True`.
+  - `validate_operation_config(user_config: Dict[str, Any], operation_spec: Dict[str, Any], validation_context: Dict[str, Any]) -> Dict[str, Any]` - Validates if an operation is allowed for a user. The default implementation always returns a dictionary with `{'valid': True}`.
+  - `filter_available_options(user_config: Dict[str, Any], available_options: List[Dict[str, Any]], filter_context: Dict[str, Any]) -> List[Dict[str, Any]]` - Filters a list of options based on user permissions. The default implementation returns the original `available_options` list.
+
+**Usage Examples:**
+```python
+import asyncio
+from solace_agent_mesh.common.middleware import ConfigResolver
+
+async def main():
+    # Example user identity and base configuration
+    user_id = "test-user@example.com"
+    base_conf = {"api_key": "default_key", "allowed_models": ["gpt-3.5-turbo"]}
+
+    # 1. Resolve user configuration (default implementation returns base_conf)
+    user_config = await ConfigResolver.resolve_user_config(
+        user_identity=user_id,
+        gateway_context={"gateway_id": "gw-1"},
+        base_config=base_conf
+    )
+    print(f"Resolved User Config: {user_config}")
+
+    # 2. Check if a feature is enabled (default is always True)
+    feature_desc = {"feature_type": "ai_tool", "function_name": "code_interpreter"}
+    is_enabled = ConfigResolver.is_feature_enabled(
+        user_config=user_config,
+        feature_descriptor=feature_desc,
+        context={}
+    )
+    print(f"Is Feature Enabled: {is_enabled}")
+
+    # 3. Validate an operation (default is always valid)
+    op_spec = {"operation_type": "model_inference", "model": "gpt-4"}
+    validation = ConfigResolver.validate_operation_config(
+        user_config=user_config,
+        operation_spec=op_spec,
+        validation_context={}
+    )
+    print(f"Operation Validation: {validation}")
+
+    # 4. Filter available options (default returns all options)
+    all_models = [
+        {"name": "gpt-3.5-turbo", "provider": "openai"},
+        {"name": "gpt-4", "provider": "openai"},
+    ]
+    available_models = ConfigResolver.filter_available_options(
+        user_config=user_config,
+        available_options=all_models,
+        filter_context={"type": "language_model"}
+    )
+    print(f"Filtered Options: {available_models}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### registry.py
+**Purpose:** This file provides the `MiddlewareRegistry`, a static class that allows developers to dynamically bind, or "plug in," their own custom middleware implementations at runtime. This is the core of the pluggable system.
+
+**Import:** `from solace_agent_mesh.common.middleware import MiddlewareRegistry`
+
+**Classes:**
+- `MiddlewareRegistry()` - A registry for managing middleware implementations. All methods are class methods.
+  - `bind_config_resolver(resolver_class: Type)` - Binds a custom class that implements the `ConfigResolver` interface. This new class will be used for all subsequent configuration resolution calls.
+  - `get_config_resolver() -> Type` - Returns the currently bound `ConfigResolver` class. If no custom resolver has been bound, it returns the default `ConfigResolver`.
+  - `register_initialization_callback(callback: callable)` - Registers a function to be executed when `initialize_middleware()` is called. Useful for setting up custom middleware components at application startup.
+  - `initialize_middleware()` - Executes all registered initialization callbacks. This should be called once during application startup.
+  - `reset_bindings()` - Resets all bindings back to their defaults. This is primarily useful for testing environments.
+  - `get_registry_status() -> Dict[str, Any]` - Returns a dictionary containing the current status of the registry, such as which resolver is bound.
+
+**Usage Examples:**
+```python
+import asyncio
+from typing import Any, Dict, List
+from solace_agent_mesh.common.middleware import MiddlewareRegistry, ConfigResolver
+
+# 1. Define a custom ConfigResolver implementation
+class MyCustomConfigResolver:
+    """A custom resolver that only allows 'admin' users to use 'gpt-4'."""
+    @staticmethod
+    async def resolve_user_config(user_identity: Any, gateway_context: Dict[str, Any], base_config: Dict[str, Any]) -> Dict[str, Any]:
+        if user_identity == "admin":
+            return {"role": "admin", "allowed_models": ["gpt-4", "gpt-3.5-turbo"]}
+        return {"role": "user", "allowed_models": ["gpt-3.5-turbo"]}
+
+    @staticmethod
+    def validate_operation_config(user_config: Dict, operation_spec: Dict, validation_context: Dict) -> Dict:
+        model = operation_spec.get("model")
+        if model and model not in user_config.get("allowed_models", []):
+            return {"valid": False, "reason": f"Model '{model}' not allowed for this user."}
+        return {"valid": True}
+    
+    # Inherit other methods from the default for simplicity
+    is_feature_enabled = ConfigResolver.is_feature_enabled
+    filter_available_options = ConfigResolver.filter_available_options
+
+# 2. Define an initialization callback
+def setup_custom_logging():
+    print("Custom middleware initialization logic is running!")
+
+# 3. Bind the custom components
+MiddlewareRegistry.bind_config_resolver(MyCustomConfigResolver)
+MiddlewareRegistry.register_initialization_callback(setup_custom_logging)
+
+# 4. Initialize the middleware (e.g., at application startup)
+print("--- Initializing Middleware ---")
+MiddlewareRegistry.initialize_middleware()
+print("--- Initialization Complete ---")
+
+# 5. Use the middleware system
+async def check_permissions():
+    # The registry will now use MyCustomConfigResolver automatically
+    CurrentResolver = MiddlewareRegistry.get_config_resolver()
+    print(f"Current resolver is: {CurrentResolver.__name__}")
+
+    # Check an admin user
+    admin_config = await CurrentResolver.resolve_user_config("admin", {}, {})
+    validation_result = CurrentResolver.validate_operation_config(
+        admin_config, {"model": "gpt-4"}, {}
+    )
+    print(f"Admin validation for gpt-4: {validation_result}")
+
+    # Check a regular user
+    user_config = await CurrentResolver.resolve_user_config("user", {}, {})
+    validation_result = CurrentResolver.validate_operation_config(
+        user_config, {"model": "gpt-4"}, {}
+    )
+    print(f"User validation for gpt-4: {validation_result}")
+
+# Run the example
+asyncio.run(check_permissions())
+
+# 6. Check status and reset (useful for testing)
+print(f"\nRegistry Status: {MiddlewareRegistry.get_registry_status()}")
+MiddlewareRegistry.reset_bindings()
+print(f"Registry Status after reset: {MiddlewareRegistry.get_registry_status()}")
+```
+
+================================================================================
+

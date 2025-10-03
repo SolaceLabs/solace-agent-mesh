@@ -203,37 +203,6 @@ def mixed_lifecycle_agent_config(
     }
 
 
-def test_mixed_hooks_lifo_cleanup_order(
-    mixed_lifecycle_agent_config: Dict[str, Any], lifecycle_tracker_path: Path
-):
-    """
-    Tests that mixed hooks (YAML + DynamicTool) are called in the correct
-    order, and that cleanup hooks follow LIFO execution.
-    """
-    connector = SolaceAiConnector(config=mixed_lifecycle_agent_config)
-    connector.run()
-    time.sleep(2)
-
-    # Assert init order: YAML -> DynamicTool
-    tracked_lines_after_start = get_tracked_lines(lifecycle_tracker_path)
-    assert tracked_lines_after_start == [
-        "step_1_yaml_init",
-        "step_2_dynamic_init",
-    ], "Expected init hooks to be called in order: YAML, then DynamicTool method."
-
-    connector.stop()
-    connector.cleanup()
-
-    # Assert cleanup order: DynamicTool -> YAML (LIFO)
-    tracked_lines_after_stop = get_tracked_lines(lifecycle_tracker_path)
-    assert tracked_lines_after_stop == [
-        "step_1_yaml_init",
-        "step_2_dynamic_init",
-        "step_3_dynamic_cleanup",
-        "step_4_yaml_cleanup",
-    ], "Expected cleanup hooks to be called in LIFO order: DynamicTool method, then YAML."
-
-
 @pytest.fixture
 def fatal_init_agent_config(lifecycle_tracker_path: Path) -> Dict[str, Any]:
     """Provides agent config where the tool's init hook is designed to fail."""

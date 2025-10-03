@@ -1,0 +1,82 @@
+# LLM Summary Detail File
+
+This file is a concatenation of all individual *llm.txt files found in the 'sac' directory tree. Each section below corresponds to a specific directory's summary file.
+
+================================================================================
+
+## Section 1: solace_agent_mesh/common/sac/sac_llm.txt
+
+**Source file:** `solace_agent_mesh/common/sac/sac_llm.txt`
+
+# DEVELOPER GUIDE: sac
+
+## Quick Summary
+The `sac` directory provides the base component framework for Solace Agent Mesh (SAM) implementations in the Solace AI Connector. It offers a standardized foundation for building high-level SAM components like Agents and Gateways with built-in async operations management and message publishing capabilities.
+
+## Files Overview
+- `__init__.py` - Empty package initialization file
+- `sam_component_base.py` - Abstract base class providing async thread management and A2A message publishing for SAM components
+
+## Developer API Reference
+
+### sam_component_base.py
+**Purpose:** Provides an abstract base class for SAM components with managed asyncio event loops and message publishing
+**Import:** `from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase`
+
+**Classes:**
+- `SamComponentBase(info: Dict[str, Any], **kwargs: Any)` - Abstract base class for high-level SAM components (Agents, Gateways)
+  - `publish_a2a_message(payload: Dict, topic: str, user_properties: Optional[Dict] = None) -> None` - Publishes A2A messages with size validation
+  - `run() -> None` - Starts the component's dedicated async thread
+  - `cleanup() -> None` - Cleans up resources including async thread and loop
+  - `get_async_loop() -> Optional[asyncio.AbstractEventLoop]` - Returns the dedicated asyncio event loop
+  - `_async_setup_and_run() -> None` - Abstract method for subclasses to implement main async logic
+  - `_pre_async_cleanup() -> None` - Abstract method for cleanup before async loop stops
+  - `namespace: str` - The configured namespace for the component
+  - `max_message_size_bytes: int` - Maximum allowed message size in bytes
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase
+from typing import Dict, Any
+import asyncio
+
+class MyAgent(SamComponentBase):
+    def __init__(self, info: Dict[str, Any], **kwargs: Any):
+        super().__init__(info, **kwargs)
+        # Additional initialization
+    
+    async def _async_setup_and_run(self) -> None:
+        """Implement your main async logic here"""
+        while not self.stop_signal.is_set():
+            # Your async operations
+            await asyncio.sleep(1)
+    
+    def _pre_async_cleanup(self) -> None:
+        """Cleanup before async loop stops"""
+        # Your cleanup logic
+        pass
+
+# Usage
+config = {
+    "namespace": "my_namespace",
+    "max_message_size_bytes": 1048576  # 1MB
+}
+agent = MyAgent(config)
+
+# Publish a message
+payload = {"message": "Hello World"}
+agent.publish_a2a_message(
+    payload=payload,
+    topic="sam/agents/my_agent/response",
+    user_properties={"correlation_id": "123"}
+)
+
+# Start the component
+agent.run()
+
+# Later, cleanup
+agent.cleanup()
+```
+
+================================================================================
+

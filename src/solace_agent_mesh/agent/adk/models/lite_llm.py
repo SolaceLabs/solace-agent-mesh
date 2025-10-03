@@ -700,6 +700,7 @@ class LiteLlm(BaseLlm):
             "messages": messages,
             "tools": tools,
             "response_format": response_format,
+            "stream_options": {"include_usage": True},
         }
         completion_args.update(self._additional_args)
 

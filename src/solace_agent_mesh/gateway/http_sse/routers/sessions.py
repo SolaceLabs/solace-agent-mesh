@@ -17,7 +17,6 @@ from .dto.responses.session_responses import MessageResponse, SessionResponse
 router = APIRouter()
 
 
-
 @router.get("/sessions", response_model=PaginatedResponse[SessionResponse])
 async def get_all_sessions(
     page_number: int = Query(default=1, ge=1, alias="pageNumber"),
@@ -27,7 +26,9 @@ async def get_all_sessions(
     session_service: SessionService = Depends(get_session_business_service),
 ):
     user_id = user.get("id")
-    log.info(f"User '{user_id}' is listing sessions with pagination (page={page_number}, size={page_size})")
+    log.info(
+        f"User '{user_id}' is listing sessions with pagination (page={page_number}, size={page_size})"
+    )
 
     try:
         pagination = PaginationParams(page_number=page_number, page_size=page_size)
@@ -265,6 +266,15 @@ async def delete_session(
     log.info("User %s attempting to delete session %s", user_id, session_id)
 
     try:
+        if (
+            not session_id
+            or session_id.strip() == ""
+            or session_id in ["null", "undefined"]
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+            )
+
         deleted = session_service.delete_session_with_notifications(
             db=db, session_id=session_id, user_id=user_id
         )
@@ -276,6 +286,8 @@ async def delete_session(
 
         log.info("Session %s deleted successfully", session_id)
 
+    except HTTPException:
+        raise
     except ValueError as e:
         log.warning("Validation error deleting session %s: %s", session_id, e)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

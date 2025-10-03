@@ -1,0 +1,13 @@
+test_case_id: "api_get_tasks_empty_state_001"
+description: "Tests that GET /api/v1/tasks returns an empty list on a clean database."
+tags: ["api", "tasks"]
+
+# No input is provided, so the test will proceed directly to HTTP assertions.
+
+expected_http_responses:
+  - description: "GET /api/v1/tasks should return an empty list"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+    expected_status_code: 200
+    expected_body_is_empty_list: true

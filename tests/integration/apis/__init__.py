@@ -1,6 +1,5 @@
 """
-API-level testing framework for Solace Agent Mesh persistence features.
-
-This framework provides black box testing of the persistence layer using
-lightweight test components with real databases.
+This directory is reserved for future API-specific integration tests,
+should they be needed. The primary integration testing is now handled
+by the declarative scenario runner.
 """

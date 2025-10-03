@@ -1,0 +1,263 @@
+# DEVELOPER GUIDE: entities
+
+## Quick Summary
+The entities directory contains domain entities for the repository layer, providing core business objects for managing chat sessions, messages, tasks, feedback, and events with built-in validation and business logic.
+
+## Files Overview
+- `__init__.py` - Exports the main domain entities (Feedback, Message, Session, SessionHistory, Task, TaskEvent)
+- `feedback.py` - Feedback entity for user ratings and comments on tasks
+- `message.py` - Message entity with content validation and sender type checking
+- `session.py` - Session entity with name management and access control
+- `session_history.py` - Composite entity combining sessions with their message history
+- `task.py` - Task entity for tracking user tasks and their status with token usage
+- `task_event.py` - Task event entity for tracking events related to tasks
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Provides centralized imports for all domain entities
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Feedback, Message, Session, SessionHistory, Task, TaskEvent`
+
+### feedback.py
+**Purpose:** Defines the Feedback domain entity for user ratings and comments
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Feedback`
+
+**Classes:**
+- `Feedback(id: str, session_id: str, task_id: str, user_id: str, rating: str, comment: str | None = None, created_time: int)` - Feedback domain entity
+  - `id: str` - Unique feedback identifier
+  - `session_id: str` - Associated session identifier
+  - `task_id: str` - Associated task identifier
+  - `user_id: str` - User who provided feedback
+  - `rating: str` - User rating
+  - `comment: str | None` - Optional feedback comment
+  - `created_time: int` - Feedback creation timestamp
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Feedback
+
+# Create feedback
+feedback = Feedback(
+    id="feedback_123",
+    session_id="session_456",
+    task_id="task_789",
+    user_id="user_123",
+    rating="5",
+    comment="Great service!",
+    created_time=1640995200000
+)
+```
+
+### message.py
+**Purpose:** Defines the Message domain entity with business logic for chat messages
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Message`
+
+**Classes:**
+- `Message(id: MessageId, session_id: SessionId, message: str, sender_type: SenderType, sender_name: str, message_type: MessageType = MessageType.TEXT, created_time: int)` - Message domain entity with business logic
+  - `validate_message_content() -> None` - Validates message content is not empty and under 10MB limit
+  - `is_from_user() -> bool` - Checks if message is from a user
+  - `is_from_agent() -> bool` - Checks if message is from an agent
+  - `is_system_message() -> bool` - Checks if message is a system message
+  - `id: MessageId` - Unique message identifier
+  - `session_id: SessionId` - Associated session identifier
+  - `message: str` - Message content
+  - `sender_type: SenderType` - Type of sender (USER, AGENT, SYSTEM)
+  - `sender_name: str` - Name of the message sender
+  - `message_type: MessageType` - Type of message content
+  - `created_time: int` - Message creation timestamp
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Message
+from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType, MessageType
+
+# Create a user message
+message = Message(
+    id="msg_123",
+    session_id="session_456",
+    message="Hello, how can I help?",
+    sender_type=SenderType.USER,
+    sender_name="John Doe",
+    message_type=MessageType.TEXT,
+    created_time=1640995200000
+)
+
+# Validate message content
+message.validate_message_content()
+
+# Check sender type
+if message.is_from_user():
+    print("Message from user")
+```
+
+### session.py
+**Purpose:** Defines the Session domain entity with business logic for chat sessions
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Session`
+
+**Classes:**
+- `Session(id: SessionId, user_id: UserId, name: str | None = None, agent_id: AgentId | None = None, created_time: int, updated_time: int | None = None)` - Session domain entity with business logic
+  - `update_name(new_name: str) -> None` - Updates session name with validation and sets updated_time
+  - `mark_activity() -> None` - Marks session as having recent activity by updating timestamp
+  - `can_be_deleted_by_user(user_id: UserId) -> bool` - Checks if user can delete this session
+  - `can_be_accessed_by_user(user_id: UserId) -> bool` - Checks if user can access this session
+  - `id: SessionId` - Unique session identifier
+  - `user_id: UserId` - Owner user identifier
+  - `name: str | None` - Optional session name
+  - `agent_id: AgentId | None` - Optional associated agent identifier
+  - `created_time: int` - Session creation timestamp
+  - `updated_time: int | None` - Last update timestamp
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Session
+
+# Create a new session
+session = Session(
+    id="session_123",
+    user_id="user_456",
+    name="Customer Support Chat",
+    agent_id="agent_789",
+    created_time=1640995200000
+)
+
+# Update session name
+session.update_name("Updated Chat Name")
+
+# Mark activity
+session.mark_activity()
+
+# Check permissions
+if session.can_be_accessed_by_user("user_456"):
+    print("User can access this session")
+```
+
+### session_history.py
+**Purpose:** Defines a composite entity that combines a session with its message history
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import SessionHistory`
+
+**Classes:**
+- `SessionHistory(session: Session, messages: list[Message] = [], total_message_count: int = 0)` - Composite entity representing a session with its messages
+  - `session: Session` - The session entity
+  - `messages: list[Message]` - List of messages in the session
+  - `total_message_count: int` - Total count of messages (may exceed messages list length for pagination)
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import SessionHistory, Session, Message
+from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType
+
+# Create session history
+session = Session(
+    id="session_123",
+    user_id="user_456",
+    created_time=1640995200000
+)
+
+messages = [
+    Message(
+        id="msg_1",
+        session_id="session_123",
+        message="Hello",
+        sender_type=SenderType.USER,
+        sender_name="John",
+        created_time=1640995200000
+    )
+]
+
+history = SessionHistory(
+    session=session,
+    messages=messages,
+    total_message_count=1
+)
+
+# Access session and messages
+print(f"Session: {history.session.id}")
+print(f"Message count: {len(history.messages)}")
+print(f"Total messages: {history.total_message_count}")
+```
+
+### task.py
+**Purpose:** Defines the Task domain entity for tracking user tasks with token usage metrics
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Task`
+
+**Classes:**
+- `Task(id: str, user_id: str, start_time: int, end_time: int | None = None, status: str | None = None, initial_request_text: str | None = None, total_input_tokens: int | None = None, total_output_tokens: int | None = None, total_cached_input_tokens: int | None = None, token_usage_details: dict | None = None)` - Task domain entity with token usage tracking
+  - `id: str` - Unique task identifier
+  - `user_id: str` - User who owns the task
+  - `start_time: int` - Task start timestamp
+  - `end_time: int | None` - Optional task end timestamp
+  - `status: str | None` - Optional task status
+  - `initial_request_text: str | None` - Optional initial request text
+  - `total_input_tokens: int | None` - Total input tokens used
+  - `total_output_tokens: int | None` - Total output tokens generated
+  - `total_cached_input_tokens: int | None` - Total cached input tokens used
+  - `token_usage_details: dict | None` - Detailed token usage information
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Task
+
+# Create a task
+task = Task(
+    id="task_123",
+    user_id="user_456",
+    start_time=1640995200000,
+    status="in_progress",
+    initial_request_text="Help me with my order"
+)
+
+# Task with token usage tracking
+task_with_tokens = Task(
+    id="task_124",
+    user_id="user_456",
+    start_time=1640995200000,
+    end_time=1640995800000,
+    status="completed",
+    total_input_tokens=150,
+    total_output_tokens=300,
+    total_cached_input_tokens=50,
+    token_usage_details={"model": "gpt-4", "cost": 0.05}
+)
+```
+
+### task_event.py
+**Purpose:** Defines the TaskEvent domain entity for tracking events related to tasks
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import TaskEvent`
+
+**Classes:**
+- `TaskEvent(id: str, task_id: str, user_id: str | None = None, created_time: int, topic: str, direction: str, payload: dict[str, Any])` - TaskEvent domain entity
+  - `id: str` - Unique event identifier
+  - `task_id: str` - Associated task identifier
+  - `user_id: str | None` - Optional user identifier
+  - `created_time: int` - Event creation timestamp
+  - `topic: str` - Event topic
+  - `direction: str` - Event direction
+  - `payload: dict[str, Any]` - Event payload data
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import TaskEvent
+
+# Create a task event
+event = TaskEvent(
+    id="event_123",
+    task_id="task_456",
+    user_id="user_789",
+    created_time=1640995200000,
+    topic="task.status.changed",
+    direction="outbound",
+    payload={"status": "completed", "result": "success"}
+)
+
+# Event without user
+system_event = TaskEvent(
+    id="event_124",
+    task_id="task_456",
+    created_time=1640995200000,
+    topic="task.system.notification",
+    direction="inbound",
+    payload={"message": "Task processing started"}
+)
+```
+
+# content_hash: 14f978bcbf2c820db1c7f3185ffa1529a656b3b5fa0f64cff81927eb2f7d12e9

@@ -1,0 +1,193 @@
+# LLM Summary Detail File
+
+This file is a concatenation of all individual *llm.txt files found in the 'a2a' directory tree. Each section below corresponds to a specific directory's summary file.
+
+================================================================================
+
+## Section 1: solace_agent_mesh/common/a2a/a2a_llm.txt
+
+**Source file:** `solace_agent_mesh/common/a2a/a2a_llm.txt`
+
+# DEVELOPER GUIDE: a2a
+
+## Quick Summary
+The `a2a` directory provides a comprehensive abstraction layer for the A2A (Agent-to-Agent) protocol, offering helper functions for creating, consuming, and translating A2A protocol objects. It acts as a facade that insulates applications from the specifics of the underlying a2a-sdk, providing simplified interfaces for messages, artifacts, tasks, events, and protocol-level operations.
+
+## Files Overview
+- `__init__.py` - Main entry point exposing all commonly used A2A helpers
+- `artifact.py` - Helpers for creating and consuming A2A Artifact objects
+- `events.py` - Helpers for creating and consuming A2A asynchronous event objects
+- `message.py` - Helpers for creating and consuming A2A Message and Part objects
+- `protocol.py` - Helpers for A2A protocol-level concerns like topic construction and JSON-RPC
+- `task.py` - Helpers for creating and consuming A2A Task objects
+- `translation.py` - Helpers for translating between A2A protocol objects and other domains
+- `types.py` - Custom type aliases and models for the A2A helper layer
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Main entry point that exposes all commonly used A2A helpers for easy access
+**Import:** `from solace_agent_mesh.common.a2a import *`
+
+This file re-exports all public functions from the other modules, allowing developers to import everything from the main package.
+
+### artifact.py
+**Purpose:** Provides helpers for creating and consuming A2A Artifact objects
+**Import:** `from solace_agent_mesh.common.a2a.artifact import create_text_artifact, create_data_artifact, get_artifact_id`
+
+**Functions:**
+- `create_text_artifact(name: str, text: str, description: str = "", artifact_id: Optional[str] = None) -> Artifact` - Creates a new Artifact containing a single TextPart
+- `create_data_artifact(name: str, data: dict[str, Any], description: str = "", artifact_id: Optional[str] = None) -> Artifact` - Creates a new Artifact containing a single DataPart
+- `update_artifact_parts(artifact: Artifact, new_parts: List[ContentPart]) -> Artifact` - Returns a new Artifact with replaced parts
+- `prepare_file_part_for_publishing(part: FilePart, mode: str, artifact_service: "BaseArtifactService", user_id: str, session_id: str, target_agent_name: str, log_identifier: str) -> Optional[FilePart]` - Prepares a FilePart for publishing based on the artifact handling mode
+- `resolve_file_part_uri(part: FilePart, artifact_service: "BaseArtifactService", log_identifier: str) -> FilePart` - Resolves an artifact URI within a FilePart into embedded bytes
+- `get_artifact_id(artifact: Artifact) -> str` - Safely retrieves the ID from an Artifact
+- `get_artifact_name(artifact: Artifact) -> Optional[str]` - Safely retrieves the name from an Artifact
+- `get_parts_from_artifact(artifact: Artifact) -> List[ContentPart]` - Extracts unwrapped content parts from an Artifact
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.a2a.artifact import create_text_artifact, get_artifact_id
+
+# Create a text artifact
+artifact = create_text_artifact(
+    name="My Document",
+    text="This is the content of my document",
+    description="A sample text document"
+)
+
+# Get artifact ID
+artifact_id = get_artifact_id(artifact)
+```
+
+### events.py
+**Purpose:** Provides helpers for creating and consuming A2A asynchronous event objects
+**Import:** `from solace_agent_mesh.common.a2a.events import create_status_update, create_artifact_update`
+
+**Functions:**
+- `create_data_signal_event(task_id: str, context_id: str, signal_data: SignalData, agent_name: str, part_metadata: Optional[Dict[str, Any]] = None) -> TaskStatusUpdateEvent` - Creates a TaskStatusUpdateEvent from signal data
+- `create_status_update(task_id: str, context_id: str, message: Message, is_final: bool = False, metadata: Optional[Dict[str, Any]] = None) -> TaskStatusUpdateEvent` - Creates a new TaskStatusUpdateEvent
+- `create_artifact_update(task_id: str, context_id: str, artifact: Artifact, append: bool = False, last_chunk: bool = False, metadata: Optional[Dict[str, Any]] = None) -> TaskArtifactUpdateEvent` - Creates a new TaskArtifactUpdateEvent
+- `get_message_from_status_update(event: TaskStatusUpdateEvent) -> Optional[Message]` - Extracts Message from TaskStatusUpdateEvent
+- `get_data_parts_from_status_update(event: TaskStatusUpdateEvent) -> List[DataPart]` - Extracts DataPart objects from status update
+- `get_artifact_from_artifact_update(event: TaskArtifactUpdateEvent) -> Optional[Artifact]` - Extracts Artifact from TaskArtifactUpdateEvent
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.a2a.events import create_status_update
+from solace_agent_mesh.common.a2a.message import create_agent_text_message
+
+# Create a status update event
+message = create_agent_text_message("Processing your request...")
+status_event = create_status_update(
+    task_id="task-123",
+    context_id="context-456",
+    message=message,
+    is_final=False
+)
+```
+
+### message.py
+**Purpose:** Provides helpers for creating and consuming A2A Message and Part objects
+**Import:** `from solace_agent_mesh.common.a2a.message import create_agent_text_message, create_text_part, get_text_from_message`
+
+**Functions:**
+- `create_agent_text_message(text: str, task_id: Optional[str] = None, context_id: Optional[str] = None, message_id: Optional[str] = None) -> Message` - Creates agent message with TextPart
+- `create_agent_data_message(data: dict[str, Any], task_id: Optional[str] = None, context_id: Optional[str] = None, message_id: Optional[str] = None, part_metadata: Optional[Dict[str, Any]] = None) -> Message` - Creates agent message with DataPart
+- `create_agent_parts_message(parts: List[ContentPart], task_id: Optional[str] = None, context_id: Optional[str] = None, message_id: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> Message` - Creates agent message with multiple parts
+- `create_user_message(parts: List[ContentPart], task_id: Optional[str] = None, context_id: Optional[str] = None, message_id: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> Message` - Creates user message with multiple parts
+- `create_text_part(text: str, metadata: Optional[Dict[str, Any]] = None) -> TextPart` - Creates a TextPart object
+- `create_file_part_from_uri(uri: str, name: Optional[str] = None, mime_type: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> FilePart` - Creates FilePart from URI
+- `create_file_part_from_bytes(content_bytes: bytes, name: Optional[str] = None, mime_type: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> FilePart` - Creates FilePart from bytes
+- `create_data_part(data: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None) -> DataPart` - Creates a DataPart object
+- `update_message_parts(message: Message, new_parts: List[ContentPart]) -> Message` - Returns a new Message with replaced parts
+- `get_text_from_message(message: Message, delimiter: str = "\n") -> str` - Extracts and joins all text content from Message
+- `get_data_parts_from_message(message: Message) -> List[DataPart]` - Extracts DataPart objects from Message
+- `get_file_parts_from_message(message: Message) -> List[FilePart]` - Extracts FilePart objects from Message
+- `get_message_id(message: Message) -> str` - Gets message ID
+- `get_context_id(message: Message) -> Optional[str]` - Gets context ID
+- `get_task_id(message: Message) -> Optional[str]` - Gets task ID
+- `get_parts_from_message(message: Message) -> List[ContentPart]` - Extracts unwrapped content parts from Message
+- `get_text_from_text_part(part: TextPart) -> str` - Gets text from TextPart
+- `get_data_from_data_part(part: DataPart) -> Dict[str, Any]` - Gets data from DataPart
+- `get_metadata_from_part(part: ContentPart) -> Optional[Dict[str, Any]]` - Gets metadata from any Part
+- `get_file_from_file_part(part: FilePart) -> Optional[Union[FileWithUri, FileWithBytes]]` - Gets File object from FilePart
+- `get_uri_from_file_part(part: FilePart) -> Optional[str]` - Gets URI from FilePart
+- `get_bytes_from_file_part(part: FilePart) -> Optional[bytes]` - Gets decoded bytes from FilePart
+- `get_filename_from_file_part(part: FilePart) -> Optional[str]` - Gets filename from FilePart
+- `get_mimetype_from_file_part(part: FilePart) -> Optional[str]` - Gets MIME type from FilePart
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.a2a.message import create_agent_text_message, create_text_part, create_user_message
+
+# Create a simple text message
+message = create_agent_text_message(
+    text="Hello, how can I help you?",
+    task_id="task-123",
+    context_id="context-456"
+)
+
+# Create a user message with multiple parts
+text_part = create_text_part("Please analyze this data:")
+data_part = create_data_part({"values": [1, 2, 3, 4, 5]})
+user_message = create_user_message(
+    parts=[text_part, data_part],
+    task_id="task-123"
+)
+```
+
+### protocol.py
+**Purpose:** Provides helpers for A2A protocol-level concerns like topic construction and JSON-RPC
+**Import:** `from solace_agent_mesh.common.a2a.protocol import get_agent_request_topic, create_send_message_request`
+
+**Constants/Variables:**
+- `A2A_VERSION: str` - Current A2A protocol version ("v1")
+- `A2A_BASE_PATH: str` - Base path for A2A topics ("a2a/v1")
+
+**Functions:**
+- `get_a2a_base_topic(namespace: str) -> str` - Returns base topic prefix for A2A communication
+- `get_discovery_topic(namespace: str) -> str` - Returns topic for agent card discovery
+- `get_agent_request_topic(namespace: str, agent_name: str) -> str` - Returns topic for sending requests to specific agent
+- `get_gateway_status_topic(namespace: str, gateway_id: str, task_id: str) -> str` - Returns topic for publishing status updates to gateway
+- `get_gateway_response_topic(namespace: str, gateway_id: str, task_id: str) -> str` - Returns topic for publishing final response to gateway
+- `get_gateway_status_subscription_topic(namespace: str, self_gateway_id: str) -> str` - Returns wildcard topic for gateway to receive status updates
+- `get_gateway_response_subscription_topic(namespace: str, self_gateway_id: str) -> str` - Returns wildcard topic for gateway to receive responses
+- `get_peer_agent_status_topic(namespace: str, delegating_agent_name: str, sub_task_id: str) -> str` - Returns topic for publishing status to delegating agent
+- `get_agent_response_topic(namespace: str, delegating_agent_name: str, sub_task_id: str) -> str` - Returns topic for publishing response to delegating agent
+- `get_agent_response_subscription_topic(namespace: str, self_agent_name: str) -> str` - Returns wildcard topic for agent to receive responses
+- `get_agent_status_subscription_topic(namespace: str, self_agent_name: str) -> str` - Returns wildcard topic for agent to receive status updates
+- `get_client_response_topic(namespace: str, client_id: str) -> str` - Returns topic for publishing response to client
+- `get_client_status_topic(namespace: str, client_id: str, task_id: str) -> str` - Returns topic for publishing status to client
+- `get_client_status_subscription_topic(namespace: str, client_id: str) -> str` - Returns wildcard topic for client to receive status
+- `create_send_message_request(message: Message, task_id: str, metadata: Optional[Dict[str, Any]] = None) -> SendMessageRequest` - Creates SendMessageRequest object
+- `create_send_streaming_message_request(message: Message, task_id: str, metadata: Optional[Dict[str, Any]] = None) -> SendStreamingMessageRequest` - Creates SendStreamingMessageRequest object
+- `create_success_response(result: Any, request_id: Optional[Union[str, int]]) -> JSONRPCResponse` - Creates successful JSON-RPC response
+- `create_internal_error_response(message: str, request_id: Optional[Union[str, int]], data: Optional[Dict[str, Any]] = None) -> JSONRPCResponse` - Creates internal error response
+- `create_invalid_request_error_response(message: str, request_id: Optional[Union[str, int]], data: Optional[Any] = None) -> JSONRPCResponse` - Creates invalid request error response
+- `create_cancel_task_request(task_id: str) -> CancelTaskRequest` - Creates CancelTaskRequest object
+- `get_request_id(request: A2ARequest) -> str | int` - Gets JSON-RPC request ID
+- `get_request_method(request: A2ARequest) -> str` - Gets JSON-RPC method name
+- `get_message_from_send_request(request: A2ARequest) -> Optional[Message]` - Gets Message from send request
+- `get_task_id_from_cancel_request(request: A2ARequest) -> Optional[str]` - Gets task ID from cancel request
+- `get_response_id(response: JSONRPCResponse) -> Optional[Union[str, int]]` - Gets response ID
+- `get_response_result(response: JSONRPCResponse) -> Optional[Any]` - Gets response result
+- `get_response_error(response: JSONRPCResponse) -> Optional[JSONRPCError]` - Gets response error
+- `topic_matches_subscription(topic: str, subscription: str) -> bool` - Checks if topic matches Solace subscription pattern
+- `subscription_to_regex(subscription: str) -> str` - Converts Solace subscription to regex
+- `extract_task_id_from_topic(topic: str, subscription_pattern: str, log_identifier: str) -> Optional[str]` - Extracts task ID from topic
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.a2a.protocol import get_agent_request_topic, create_send_message_request
+from solace_agent_mesh.common.a2a.message import create_agent_text_message
+
+# Get topic for sending request to an agent
+topic = get_agent_request_topic("my-namespace", "my-agent")
+
+# Create a send message request
+message = create_agent_text_message("Hello agent!")
+request = create_sen
+
+================================================================================
+

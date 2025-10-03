@@ -72,3 +72,27 @@ export const authenticatedFetch = async (url: string, options: RequestInit = {})
 
     return response;
 };
+
+export interface FeedbackPayload {
+    taskId: string;
+    sessionId: string;
+    feedbackType: "up" | "down";
+    feedbackText?: string;
+}
+
+export const submitFeedback = async (payload: FeedbackPayload) => {
+    const response = await authenticatedFetch("/api/v1/feedback", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: "Failed to submit feedback" }));
+        throw new Error(errorData.detail || "Failed to submit feedback");
+    }
+
+    return response.json();
+};

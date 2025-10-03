@@ -71,4 +71,26 @@ apps:
       # --- Frontend Config Passthrough ---
       frontend_welcome_message: ${FRONTEND_WELCOME_MESSAGE}
       frontend_bot_name: ${FRONTEND_BOT_NAME}
-      frontend_collect_feedback: ${FRONTEND_COLLECT_FEEDBACK}
+      frontend_collect_feedback: true
+
+      task_logging:
+        enabled: true
+        log_status_updates: true
+        log_artifact_events: true
+        log_file_parts: true
+        max_file_part_size_bytes: 10240
+
+      feedback_publishing:
+        enabled: true
+        topic: "${NAMESPACE}/sam/feedback/v1"
+        include_task_info: "stim" # Options: "none", "summary", "stim"
+        max_payload_size_bytes: 9000000 # 9MB default, safety margin below 10MB broker limit
+
+      # --- Data Retention Configuration ---
+      # Automatically cleans up old tasks, task events, and feedback to prevent unbounded database growth
+      # data_retention:
+      #   enabled: true                    # Enable/disable automatic cleanup (default: true)
+      #   task_retention_days: 90          # Days to retain task records (default: 90, minimum: 7)
+      #   feedback_retention_days: 90      # Days to retain feedback records (default: 90, minimum: 7)
+      #   cleanup_interval_hours: 24       # How often cleanup runs (default: 24, minimum: 1)
+      #   batch_size: 1000                 # Records deleted per transaction (default: 1000, range: 1-10000)
