@@ -66,7 +66,7 @@ def _write_agent_yaml_from_data(
 
             if type_val == "sql":
                 database_url_placeholder = (
-                    f"${{{formatted_names['SNAKE_UPPER_CASE_NAME']}_DATABASE_URL, sqlite:///{file_name_snake}.db}}"
+                    f"${{{formatted_names['SNAKE_UPPER_CASE_NAME']}, sqlite:///{file_name_snake}.db}}"
                 )
                 session_service_lines.append(
                     f'database_url: "{database_url_placeholder}"'
@@ -411,9 +411,8 @@ def create_agent_config(
                 )
                 collected_options[DATABASE_URL_KEY] = database_url
             else:
-                data_dir = project_root / "data"
-                data_dir.mkdir(exist_ok=True)
-                db_file = data_dir / f"{formatted_names['SNAKE_CASE_NAME']}.db"
+
+                db_file = project_root / f"{formatted_names['SNAKE_CASE_NAME']}.db"
                 database_url = f"sqlite:///{db_file.resolve()}"
                 click.echo(
                     f"  Using default SQLite database for {agent_name_camel_case} agent: {db_file}"
@@ -429,10 +428,6 @@ def create_agent_config(
                 )
                 raise ValueError(error_msg)
 
-            click.echo(f"  Validating database: {db_url}")
-            create_and_validate_database(
-                db_url, f"{agent_name_camel_case} agent database"
-            )
         except Exception as e:
             click.echo(
                 click.style(

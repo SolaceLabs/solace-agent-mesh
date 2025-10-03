@@ -100,6 +100,10 @@ def add_plugin_component_cmd(
         "__COMPONENT_SPACED_CAPITALIZED_NAME__": component_formats[
             "SPACED_CAPITALIZED_NAME"
         ],
+        "session_service: *default_session_service": f'''session_service: 
+        type: "sql"
+        database_url: "${{{component_formats['SNAKE_UPPER_CASE_NAME']}, sqlite:///{component_formats['SNAKE_CASE_NAME']}.db}}"
+        default_behavior: "PERSISTENT"'''
     }
 
     processed_config_content = plugin_config_content
