@@ -4,6 +4,30 @@
 
 Refactor the chat message persistence system to make the frontend the authoritative source of truth for what users see in the chat window, rather than having the backend attempt to infer the displayed state from A2A protocol messages.
 
+## Design Philosophy
+
+### UI State Persistence vs. Protocol Message Storage
+
+This feature treats the chat session as **UI state that needs to be persisted**, not as a log of protocol messages. The key distinction:
+
+- **What we're storing**: The visual state of the chat window (what the user sees and interacts with)
+- **What we're NOT storing**: Raw A2A protocol messages or backend processing state
+- **Why**: The UI contains state that doesn't exist in A2A messages (feedback, form inputs, UI preferences, expanded/collapsed artifacts)
+
+Think of this as "save game state" for the chat UI, not as "message logging."
+
+### Relationship to Public APIs
+
+This persistence API is **UI-specific** and separate from:
+- **REST Gateway API**: For programmatic agent interaction (no UI state)
+- **Management APIs**: For system administration and configuration
+
+If we expose chat APIs publicly, clients would:
+1. Use the REST Gateway for simple programmatic access (no persistence needed)
+2. Use this UI persistence API only if building a browser-based chat interface with stateful UI elements
+
+The persistence API is an optional service for UI clients, not a requirement for agent interaction.
+
 ## Problem Statement
 
 ### Current Issues
@@ -31,6 +55,8 @@ Refactor the chat message persistence system to make the frontend the authoritat
 3. **Simplified Backend**: The backend becomes a simple storage layer that doesn't need to understand A2A protocol details or make decisions about what to save.
 
 4. **Integrated State**: All UI state (feedback, attachments, notifications) is saved together with the messages as a cohesive unit.
+
+5. **Clear API Boundaries**: Maintain clear separation between UI persistence (this feature), programmatic access (REST Gateway), and system management (Admin APIs). Each serves a distinct purpose and audience.
 
 ### Secondary Goals
 
@@ -184,6 +210,128 @@ The following are explicitly out of scope for this feature:
 7. Feature flags or gradual rollout
 8. Handling edge cases like browser crashes mid-stream
 9. Message size limits or validation
+10. **Automatic conflict resolution** if multiple clients modify the same session simultaneously (last-write-wins is acceptable)
+11. **Validation of UI state correctness** beyond schema validation (frontend is trusted to send valid UI state)
+12. **Recovery mechanisms for corrupted UI state** beyond "start a new session"
+13. **Synchronization between REST Gateway and Chat UI APIs** (they serve different purposes and don't need to sync)
+
+## Failure Scenarios and Recovery
+
+### Scenario 1: Network Failure During Save
+
+**What happens:**
+- Frontend renders message to user
+- Save request fails due to network issue
+- User sees the message but it's not persisted
+
+**Recovery:**
+- Retry with exponential backoff (3 attempts)
+- If all retries fail, block next user input with message: "Saving previous message..."
+- If network remains down, accept data loss (user can see message but won't persist)
+- When network recovers, user can continue (lost message won't reappear on reload)
+
+**Rationale:** Temporary network issues shouldn't block the user indefinitely. The immediate chat experience is more important than perfect persistence.
+
+### Scenario 2: Frontend Bug Sends Invalid Data
+
+**What happens:**
+- Frontend sends malformed JSON or missing required fields
+- Backend returns 422 Unprocessable Entity
+- Frontend logs error but doesn't notify user
+
+**Recovery:**
+- Frontend continues normal operation (message still visible)
+- Data not persisted (will be lost on session reload)
+- Bug should be caught in testing/monitoring
+
+**Rationale:** This indicates a frontend bug, not a user error. Silent failure is acceptable since the user's immediate experience isn't affected.
+
+### Scenario 3: Database Failure
+
+**What happens:**
+- Backend database is unavailable
+- Save requests return 500 Internal Server Error
+- Frontend retries but continues to fail
+
+**Recovery:**
+- After retries exhausted, show user notification: "Unable to save chat history. Your messages are visible but won't be saved."
+- Allow user to continue chatting (messages visible but not persisted)
+- When database recovers, new messages will be saved
+
+**Rationale:** Database failures affect all persistence, regardless of who initiates the save. Graceful degradation is better than blocking the user.
+
+### Scenario 4: Frontend Sends Corrupted/Malicious Data
+
+**What happens:**
+- Frontend (or malicious client) sends extremely large payloads or malformed data
+- Backend validates and rejects with 400/422 error
+
+**Impact:**
+- Only affects that user's UI state
+- Doesn't impact backend agent logic
+- Doesn't affect other users
+- User can start a new session to recover
+
+**Mitigation:**
+- Size limits enforced (10MB per task)
+- Schema validation with Pydantic
+- This data is isolated from backend processing logic
+
+**Rationale:** UI state corruption is isolated and recoverable. It's equivalent to a user entering garbage in the chat input.
+
+## Public API Considerations
+
+### API Separation Strategy
+
+We maintain **three distinct API surfaces**:
+
+1. **REST Gateway API** (for programmatic access)
+   - Simple request/response model
+   - No UI state or persistence
+   - Suitable for scripts, integrations, automation
+   - Example: `POST /api/v1/agent/query`
+
+2. **Chat UI Persistence API** (this feature)
+   - Saves/loads UI state for browser-based chat
+   - Includes feedback, form inputs, UI preferences
+   - Only needed for stateful UI clients
+   - Example: `POST /api/v1/sessions/{id}/tasks`
+
+3. **Management API** (system administration)
+   - User management, configuration, monitoring
+   - Not related to chat functionality
+   - Example: `GET /api/v1/admin/users`
+
+### When to Use Which API
+
+**Use REST Gateway if:**
+- Building a script or automation
+- No UI state to preserve
+- Simple request/response interaction
+- Don't need conversation history
+
+**Use Chat UI Persistence API if:**
+- Building a browser-based chat interface
+- Need to preserve UI state (feedback, forms, preferences)
+- Want conversation history across sessions
+- Implementing features like message editing, reactions, etc.
+
+### Public API Exposure
+
+If we expose these APIs publicly:
+
+**REST Gateway:**
+- ✅ Safe to expose - simple, stateless
+- No persistence concerns
+- Standard API authentication/authorization
+
+**Chat UI Persistence API:**
+- ⚠️ Expose with clear documentation
+- Clients must understand they're responsible for saving UI state
+- Provide SDK/examples showing proper usage
+- Document that this is for UI clients, not programmatic access
+
+**Key Point:** The persistence API is an **optional service** for UI clients. It's not required for agent interaction. Clients using the REST Gateway don't need to think about persistence at all.
 
 ## Future Considerations
 
@@ -205,12 +353,14 @@ This design enables future enhancements:
 
 ## Risks and Mitigations
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Network failures during save | Medium | Implement retry queue, accept some data loss |
-| Large message payloads | Low | JSON storage is efficient, no immediate size concerns |
-| Concurrent updates to same task | Low | Last-write-wins is acceptable for this use case |
-| Frontend bugs causing bad data | Medium | Validate data structure on backend, log errors |
+| Risk | Impact | Likelihood | Mitigation | Acceptance Criteria |
+|------|--------|------------|------------|---------------------|
+| **Frontend fails to save after rendering** | Medium | Low | 1. Retry logic with exponential backoff<br>2. Block next user input until save completes<br>3. Show subtle indicator if save is pending<br>4. Accept that temporary network failures may lose recent messages | User can send next message only after previous task is saved |
+| **Frontend sends corrupted data** | Low | Low | 1. Backend validates JSON structure<br>2. Size limits on all fields<br>3. Schema validation with Pydantic<br>4. This data only affects UI rendering, not backend logic | Backend rejects invalid payloads with 422 error |
+| **Out of sync between UI and backend** | Medium | Low | 1. Frontend is source of truth for UI state<br>2. Backend never modifies saved UI state<br>3. Load operation is idempotent<br>4. Worst case: user refreshes to get clean state | Session reload shows exactly what was saved |
+| **Public API confusion** | Low | Low | 1. Document this as UI-specific persistence API<br>2. Keep REST Gateway separate for programmatic access<br>3. Clear API documentation about use cases | API docs clearly distinguish UI vs. programmatic APIs |
+| **Database corruption from bad frontend** | Low | Very Low | 1. This data is isolated (only affects UI rendering)<br>2. Doesn't impact backend agent logic<br>3. User can always start new session<br>4. Could add admin tools to clean up corrupted sessions | Corrupted UI state doesn't break backend functionality |
+| **Large message payloads** | Low | Medium | 1. 10MB limit per task<br>2. HTTP compression<br>3. Monitor payload sizes<br>4. Consider pagination for very long sessions | 99% of tasks under 1MB |
 
 ## Approval
 
