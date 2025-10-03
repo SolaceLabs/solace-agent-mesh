@@ -3,6 +3,7 @@ SQLAlchemy models and Pydantic models for database persistence.
 """
 
 from .base import Base
+from .chat_task_model import ChatTaskModel
 from .feedback_model import FeedbackModel
 from .message_model import MessageModel, CreateMessageModel, UpdateMessageModel
 from .session_model import SessionModel, CreateSessionModel, UpdateSessionModel
@@ -11,6 +12,7 @@ from .task_model import TaskModel
 
 __all__ = [
     "Base",
+    "ChatTaskModel",
     "MessageModel",
     "SessionModel",
     "CreateMessageModel",

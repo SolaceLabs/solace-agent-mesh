@@ -30,11 +30,11 @@
 - [ ] 2.8 Test: Business logic methods work correctly
 
 ### Step 3: SQLAlchemy Model (1 hour)
-- [ ] 3.1 Create `chat_task_model.py` inheriting from `Base`
-- [ ] 3.2 Set `__tablename__ = "chat_tasks"`
-- [ ] 3.3 Define all columns matching database schema
-- [ ] 3.4 Configure foreign key with CASCADE delete
-- [ ] 3.5 Update `models/__init__.py` to export `ChatTaskModel`
+- [x] 3.1 Create `chat_task_model.py` inheriting from `Base`
+- [x] 3.2 Set `__tablename__ = "chat_tasks"`
+- [x] 3.3 Define all columns matching database schema
+- [x] 3.4 Configure foreign key with CASCADE delete
+- [x] 3.5 Update `models/__init__.py` to export `ChatTaskModel`
 - [ ] 3.6 Test: Model imports without errors
 - [ ] 3.7 Test: JSON columns serialize/deserialize correctly
 
