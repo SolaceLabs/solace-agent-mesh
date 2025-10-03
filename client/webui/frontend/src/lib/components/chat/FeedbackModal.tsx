@@ -50,7 +50,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, f
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
                     <DialogTitle>Provide Feedback</DialogTitle>
                     <DialogDescription className="flex flex-col gap-2">
@@ -76,7 +76,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, f
                         Cancel
                     </Button>
                     <Button variant="default" onClick={handleSubmit} disabled={isSubmitting}>
-                        {isSubmitting ? "Submitting..." : "Submit Feedback"}
+                        {isSubmitting ? "Submitting..." : "Submit"}
                     </Button>
                 </DialogFooter>
             </DialogContent>
