@@ -37,7 +37,7 @@ const MessageActions: React.FC<{
     const [feedbackType, setFeedbackType] = useState<"up" | "down" | null>(null);
 
     const taskId = message.taskId;
-    const hasSubmitted = taskId ? submittedFeedback[taskId] !== undefined : false;
+    const submittedFeedbackType = taskId ? submittedFeedback[taskId]?.type : undefined;
 
     const handleThumbClick = (type: "up" | "down") => {
         setFeedbackType(type);
@@ -72,18 +72,33 @@ const MessageActions: React.FC<{
             <div className="mt-3 space-y-2">
                 <div className="flex items-center justify-start gap-2">
                     {showWorkflowButton && <ViewWorkflowButton onClick={handleViewWorkflowClick} />}
-                    {shouldShowFeedback && !hasSubmitted && (
+                    {shouldShowFeedback && (
                         <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleThumbClick("up")}>
-                                <ThumbsUp className="h-4 w-4" />
+                            <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-6 w-6" 
+                                onClick={() => handleThumbClick("up")}
+                                disabled={!!submittedFeedbackType}
+                            >
+                                <ThumbsUp 
+                                    className={`h-4 w-4 ${submittedFeedbackType === "up" ? "fill-green-500 text-green-500" : ""}`} 
+                                />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleThumbClick("down")}>
-                                <ThumbsDown className="h-4 w-4" />
+                            <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-6 w-6" 
+                                onClick={() => handleThumbClick("down")}
+                                disabled={!!submittedFeedbackType}
+                            >
+                                <ThumbsDown 
+                                    className={`h-4 w-4 ${submittedFeedbackType === "down" ? "fill-red-500 text-red-500" : ""}`} 
+                                />
                             </Button>
                         </div>
                     )}
                 </div>
-                {hasSubmitted && <div className="text-xs text-gray-500">Thank you for your feedback!</div>}
             </div>
             {feedbackType && (
                 <FeedbackModal
