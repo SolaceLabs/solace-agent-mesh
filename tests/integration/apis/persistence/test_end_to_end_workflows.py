@@ -101,7 +101,7 @@ def test_complete_user_conversation_workflow(api_client: TestClient):
     assert sessions_response.status_code == 200
     sessions_data = sessions_response.json()
 
-    target_session = next(s for s in sessions_data["sessions"] if s["id"] == session_id)
+    target_session = next(s for s in sessions_data["data"] if s["id"] == session_id)
     assert target_session["name"] == "Data Analysis Help Session"
     assert target_session["agentId"] == "TestAgent"
 
@@ -185,13 +185,13 @@ def test_multi_agent_consultation_workflow(api_client: TestClient):
     sessions_data = sessions_response.json()
 
     # Should have 3 sessions for 3 different agents
-    assert len(sessions_data["sessions"]) >= 3
+    assert len(sessions_data["data"]) >= 3
 
     for session_id, (agent_name, initial_message) in zip(
         session_ids, agent_consultations, strict=False
     ):
         # Verify session metadata
-        session = next(s for s in sessions_data["sessions"] if s["id"] == session_id)
+        session = next(s for s in sessions_data["data"] if s["id"] == session_id)
         assert session["agentId"] == agent_name
 
         # Verify conversation history
@@ -382,11 +382,11 @@ def test_session_management_workflow(api_client: TestClient):
     assert sessions_response.status_code == 200
     sessions_data = sessions_response.json()
 
-    assert len(sessions_data["sessions"]) >= len(sessions_created)
+    assert len(sessions_data["data"]) >= len(sessions_created)
 
     for created_session in sessions_created:
         found_session = next(
-            s for s in sessions_data["sessions"] if s["id"] == created_session["id"]
+            s for s in sessions_data["data"] if s["id"] == created_session["id"]
         )
         assert found_session["name"] == created_session["name"]
         assert found_session["agentId"] == created_session["agent"]
@@ -405,7 +405,7 @@ def test_session_management_workflow(api_client: TestClient):
     assert sessions_response.status_code == 200
     remaining_sessions = sessions_response.json()
 
-    remaining_ids = {s["id"] for s in remaining_sessions["sessions"]}
+    remaining_ids = {s["id"] for s in remaining_sessions["data"]}
     for deleted_session in sessions_to_delete:
         assert deleted_session["id"] not in remaining_ids
 
@@ -556,7 +556,7 @@ def test_high_volume_workflow(api_client: TestClient):
     sessions_data = sessions_response.json()
 
     # Should have at least our created sessions
-    assert len(sessions_data["sessions"]) >= len(session_ids)
+    assert len(sessions_data["data"]) >= len(session_ids)
 
     # Verify each session has the expected number of messages
     for session_id in session_ids:

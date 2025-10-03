@@ -74,26 +74,26 @@ const MessageActions: React.FC<{
                     {showWorkflowButton && <ViewWorkflowButton onClick={handleViewWorkflowClick} />}
                     {shouldShowFeedback && (
                         <div className="flex items-center gap-1">
-                            <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className={`h-6 w-6 ${submittedFeedbackType ? "opacity-100" : ""}`}
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`h-6 w-6 ${submittedFeedbackType ? "!opacity-100" : ""}`}
                                 onClick={() => handleThumbClick("up")}
                                 disabled={!!submittedFeedbackType}
                             >
-                                <ThumbsUp 
-                                    className={`h-4 w-4 ${submittedFeedbackType === "up" ? "fill-yellow-500 text-yellow-500 dark:fill-yellow-500 dark:text-yellow-500 !opacity-100" : ""}`} 
+                                <ThumbsUp
+                                    className={`h-4 w-4 ${submittedFeedbackType === "up" ? "fill-yellow-500 text-yellow-500 dark:fill-yellow-500 dark:text-yellow-500 !opacity-100" : ""}`}
                                 />
                             </Button>
-                            <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className={`h-6 w-6 ${submittedFeedbackType ? "opacity-100" : ""}`}
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`h-6 w-6 ${submittedFeedbackType ? "!opacity-100" : ""}`}
                                 onClick={() => handleThumbClick("down")}
                                 disabled={!!submittedFeedbackType}
                             >
-                                <ThumbsDown 
-                                    className={`h-4 w-4 ${submittedFeedbackType === "down" ? "fill-yellow-500 text-yellow-500 dark:fill-yellow-500 dark:text-yellow-500 !opacity-100" : ""}`} 
+                                <ThumbsDown
+                                    className={`h-4 w-4 ${submittedFeedbackType === "down" ? "fill-yellow-500 text-yellow-500 dark:fill-yellow-500 dark:text-yellow-500 opacity-100" : ""}`}
                                 />
                             </Button>
                         </div>
