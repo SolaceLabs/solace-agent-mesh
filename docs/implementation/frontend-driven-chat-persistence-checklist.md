@@ -150,8 +150,8 @@
 - [ ] 11.9 Test: Files and artifacts display
 
 ### Step 12: Feedback Verification (30 minutes)
-- [ ] 12.1 Verify `handleFeedbackSubmit()` still works
-- [ ] 12.2 Confirm backend handles task metadata update
+- [x] 12.1 Verify `handleFeedbackSubmit()` still works
+- [x] 12.2 Confirm backend handles task metadata update
 - [ ] 12.3 Test: Feedback submission works
 - [ ] 12.4 Test: Task metadata updated in database
 - [ ] 12.5 Test: UI reflects feedback state
