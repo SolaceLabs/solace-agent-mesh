@@ -20,12 +20,12 @@
 - [ ] 1.8 Verify table structure and foreign key cascade
 
 ### Step 2: Domain Entity (1 hour)
-- [ ] 2.1 Create `chat_task.py` with Pydantic model
-- [ ] 2.2 Add all fields matching schema
-- [ ] 2.3 Implement `add_feedback(feedback_type, feedback_text)` method
-- [ ] 2.4 Implement `get_feedback()` method
-- [ ] 2.5 Add validation for non-empty `message_bubbles`
-- [ ] 2.6 Update `entities/__init__.py` to export `ChatTask`
+- [x] 2.1 Create `chat_task.py` with Pydantic model
+- [x] 2.2 Add all fields matching schema
+- [x] 2.3 Implement `add_feedback(feedback_type, feedback_text)` method
+- [x] 2.4 Implement `get_feedback()` method
+- [x] 2.5 Add validation for non-empty `message_bubbles`
+- [x] 2.6 Update `entities/__init__.py` to export `ChatTask`
 - [ ] 2.7 Test: Entity instantiation with valid data
 - [ ] 2.8 Test: Business logic methods work correctly
 
