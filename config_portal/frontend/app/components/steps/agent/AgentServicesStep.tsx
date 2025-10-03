@@ -121,7 +121,7 @@ const AgentServicesStep: React.FC<StepProps> = ({
         <Select
           id="session_service_type"
           name="session_service_type"
-          value={data.session_service_type || USE_DEFAULT_SHARED_SESSION}
+          value={data.session_service_type || "sql"}
           onChange={handleServiceTypeChange}
           options={sessionServiceTypeOptions}
         />
