@@ -86,23 +86,24 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
         }
         print("\nConfigured TestMCPServer for stdio mode (ADK will start process).")
 
-        # Start HTTP server
+        # Start SSE HTTP server
         port = find_free_port()
         base_url = f"http://127.0.0.1:{port}"
-        health_url = f"{base_url}/health"
+        health_url = f"{base_url}/mcp/health"
         sse_url = f"{base_url}/sse"  # The default path for fastmcp sse transport
+        http_url = f"{base_url}/mcp"
         command = [
             sys.executable,
             SERVER_PATH,
             "--transport",
-            "sse",
+            "http+sse",
             "--port",
             str(port),
         ]
         process = subprocess.Popen(
             command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-        print(f"\nStarted TestMCPServer in http mode (PID: {process.pid})...")
+        print(f"\nStarted TestMCPServer (PID: {process.pid})...")
 
         # Readiness check by polling the /health endpoint
         max_wait_seconds = 10
@@ -120,7 +121,7 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
 
         if not is_ready:
             pytest.fail(
-                f"Test MCP Server (http) failed to start on port {port} within {max_wait_seconds} seconds."
+                f"Test MCP Server failed to start on port {port} within {max_wait_seconds} seconds."
             )
 
         http_params = {
@@ -128,7 +129,12 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
             "url": sse_url,
         }
 
-        connection_params = {"stdio": stdio_params, "http": http_params}
+        streamable_params = {
+            "type": "streamable-http",
+            "url": http_url,
+        }
+
+        connection_params = {"stdio": stdio_params, "http": http_params, "streamable_http": streamable_params}
 
         yield connection_params
 
@@ -152,7 +158,6 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
                     "\nTestMCPServer process did not terminate gracefully, had to be killed."
                 )
             print("TestMCPServer terminated.")
-
         print(
             "\nNo external TestMCPServer process to terminate for stdio mode (ADK manages process)."
         )
@@ -444,6 +449,11 @@ def shared_solace_connector(
             "tool_name": "get_data_http",
             "connection_params": mcp_server_harness["http"],
         },
+        {
+            "tool_type": "mcp",
+            "tool_name": "get_data_streamable_http",
+            "connection_params": mcp_server_harness["streamable_http"],
+        }
     ]
     sam_agent_app_config = create_agent_config(
         agent_name="TestAgent",
