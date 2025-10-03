@@ -3,7 +3,7 @@ Repository interfaces defining contracts for data access.
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from ..shared.types import PaginationInfo, PaginationParams, SessionId, UserId
 from .entities import Feedback, Message, Session, Task, TaskEvent
@@ -142,7 +142,7 @@ class IChatTaskRepository(ABC):
         pass
 
     @abstractmethod
-    def find_by_id(self, task_id: str, user_id: UserId) -> "ChatTask" | None:
+    def find_by_id(self, task_id: str, user_id: UserId) -> Optional["ChatTask"]:
         """Find a specific task."""
         pass
 
