@@ -47,8 +47,7 @@ jobs:
       short_sha: ${{ steps.get_commit_hash.outputs.short_sha }}
       commit_hash: ${{ steps.get_commit_hash.outputs.commit_hash }}
       release_tag: ${{ steps.release_tag.outputs.release_tag }}
-      image_name: ${{ steps.tag_images.outputs.image_name }}
-      tags: ${{ steps.tag_images.outputs.tags }}
+      use_ecr: ${{ steps.set_registry.outputs.use_ecr }}
       docker_push: ${{ steps.set_build_params.outputs.docker_push }}
       update_manifest: ${{ steps.set_build_params.outputs.update_manifest }}
     steps:
@@ -112,34 +111,24 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
-      - name: Tag Images
-        id: tag_images
-        shell: bash
+      - name: Set Registry Type
+        id: set_registry
         run: |
-          version="${{ steps.get_version.outputs.version }}"
-          release_tag="${{ steps.release_tag.outputs.release_tag }}"
-          short_sha="${{ steps.get_commit_hash.outputs.short_sha }}"
-
-          # Determine image name based on event and branch
+          # Determine if we should use ECR (don't expose the actual registry URL)
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
-            # Push to default branch - use ECR registry
-            image_name="${{ secrets.SAM_AWS_ECR_REGISTRY }}/solace-agent-mesh"
-            echo "Using ECR registry for default branch push"
+            # Check if ECR registry is available
+            ecr_registry="${{ secrets.SAM_AWS_ECR_REGISTRY }}"
+            if [[ -n "${ecr_registry}" && "${ecr_registry}" != "" ]]; then
+              echo "use_ecr=true" >> $GITHUB_OUTPUT
+              echo "Will use ECR registry for default branch push"
+            else
+              echo "use_ecr=false" >> $GITHUB_OUTPUT
+              echo "ECR registry not available, will use GitHub repository"
+            fi
           else
-            # PR or other branch - use GitHub repo name
-            image_name="${{ github.repository }}"
-            echo "Using GitHub repository name for PR/branch build"
+            echo "use_ecr=false" >> $GITHUB_OUTPUT
+            echo "Will use GitHub repository for PR/branch build"
           fi
-
-          # Create tags array
-          tags="${image_name}:${version}"
-          tags="${tags},${image_name}:${version}-${short_sha}"
-          tags="${tags},${image_name}:${release_tag}"
-          tags="${tags},${image_name}:${release_tag}-${short_sha}"
-
-          echo "image_name=${image_name}" >> $GITHUB_OUTPUT
-          echo "tags=${tags}" >> $GITHUB_OUTPUT
-          echo "Created tags: ${tags}"
 
   # ----------------------------------------------------
   # PHASE 1 & 2: Multiplatform Builds (Always Both Platforms)
@@ -177,13 +166,25 @@ jobs:
         if: fromJSON(needs.prepare-metadata.outputs.docker_push)
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
+      - name: Determine Image Name
+        id: image_name
+        run: |
+          if [[ "${{ fromJSON(needs.prepare-metadata.outputs.use_ecr) }}" == "true" ]]; then
+            image_name="${{ secrets.SAM_AWS_ECR_REGISTRY }}/solace-agent-mesh"
+            echo "Using ECR registry: ${image_name}"
+          else
+            image_name="${{ github.repository }}"
+            echo "Using GitHub repository: ${image_name}"
+          fi
+          echo "image_name=${image_name}" >> $GITHUB_OUTPUT
+
       - name: Build and Push Platform-Specific Image
         uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
         with:
           context: .
           file: Dockerfile
           platforms: ${{ matrix.platform.name }}
-          tags: ${{ needs.prepare-metadata.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-${{ matrix.platform.tag_suffix }}
+          tags: ${{ steps.image_name.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-${{ matrix.platform.tag_suffix }}
           push: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
           cache-from: type=gha,scope=${{ matrix.platform.tag_suffix }}
           cache-to: type=gha,scope=${{ matrix.platform.tag_suffix }},mode=max
@@ -212,15 +213,44 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
+      - name: Determine Image Name and Tags
+        id: image_tags
+        run: |
+          # Reconstruct image name based on registry type
+          if [[ "${{ fromJSON(needs.prepare-metadata.outputs.use_ecr) }}" == "true" ]]; then
+            image_name="${{ secrets.SAM_AWS_ECR_REGISTRY }}/solace-agent-mesh"
+            echo "Using ECR registry: ${image_name}"
+          else
+            image_name="${{ github.repository }}"
+            echo "Using GitHub repository: ${image_name}"
+          fi
+          
+          # Reconstruct tags
+          version="${{ needs.prepare-metadata.outputs.version }}"
+          release_tag="${{ needs.prepare-metadata.outputs.release_tag }}"
+          short_sha="${{ needs.prepare-metadata.outputs.short_sha }}"
+          
+          tags="${image_name}:${version}"
+          tags="${tags},${image_name}:${version}-${short_sha}"
+          tags="${tags},${image_name}:${release_tag}"
+          tags="${tags},${image_name}:${release_tag}-${short_sha}"
+          
+          echo "image_name=${image_name}" >> $GITHUB_OUTPUT
+          echo "tags=${tags}" >> $GITHUB_OUTPUT
+          echo "Created tags: ${tags}"
+
       - name: Create and Push Multi-Platform Manifest
         if: fromJSON(needs.prepare-metadata.outputs.docker_push)
         run: |
           # Define the platform-specific tags
-          AMD_TAG="${{ needs.prepare-metadata.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-amd64"
-          ARM_TAG="${{ needs.prepare-metadata.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-arm64"
+          AMD_TAG="${{ steps.image_tags.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-amd64"
+          ARM_TAG="${{ steps.image_tags.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-arm64"
+          
+          echo "AMD64 Tag: ${AMD_TAG}"
+          echo "ARM64 Tag: ${ARM_TAG}"
           
           # Convert comma-separated tags string to array and create manifest for each
-          IFS=',' read -ra TAGS <<< "${{ needs.prepare-metadata.outputs.tags }}"
+          IFS=',' read -ra TAGS <<< "${{ steps.image_tags.outputs.tags }}"
           for TAG in "${TAGS[@]}"; do
             # Trim any whitespace
             TAG=$(echo "$TAG" | xargs)
