@@ -1263,6 +1263,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 setCurrentTaskId(taskId);
                 setTaskIdInSidePanel(taskId);
+
+                // Update user message with taskId so it's included in final save
+                setMessages(prev => prev.map(msg => 
+                    msg.metadata?.messageId === userMsg.metadata?.messageId 
+                        ? { ...msg, taskId: taskId }
+                        : msg
+                ));
             } catch (error) {
                 addNotification(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
                 setIsResponding(false);
