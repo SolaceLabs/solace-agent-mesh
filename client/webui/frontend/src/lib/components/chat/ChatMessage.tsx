@@ -18,6 +18,7 @@ import type { FileAttachment, MessageFE, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
 
 import { FileAttachmentMessage, FileMessage } from "./file/FileMessage";
+import { FeedbackModal } from "./FeedbackModal";
 import { ContentRenderer } from "./preview/ContentRenderer";
 import { extractEmbeddedContent } from "./preview/contentUtils";
 import { decodeBase64Content } from "./preview/previewUtils";
@@ -31,41 +32,32 @@ const MessageActions: React.FC<{
     showFeedbackActions: boolean;
     handleViewWorkflowClick: () => void;
 }> = ({ message, showWorkflowButton, showFeedbackActions, handleViewWorkflowClick }) => {
-    const { configCollectFeedback, submittedFeedback, handleFeedbackSubmit } = useChatContext();
-    const [isPrompting, setIsPrompting] = useState(false);
+    const { configCollectFeedback, submittedFeedback, handleFeedbackSubmit, addNotification } = useChatContext();
+    const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
     const [feedbackType, setFeedbackType] = useState<"up" | "down" | null>(null);
-    const [feedbackText, setFeedbackText] = useState("");
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     const taskId = message.taskId;
     const hasSubmitted = taskId ? submittedFeedback[taskId] !== undefined : false;
 
-    useEffect(() => {
-        if (isPrompting) {
-            textareaRef.current?.focus();
-        }
-    }, [isPrompting]);
-
     const handleThumbClick = (type: "up" | "down") => {
         setFeedbackType(type);
-        setIsPrompting(true);
+        setIsFeedbackModalOpen(true);
     };
 
-    const handleCancel = () => {
-        setIsPrompting(false);
+    const handleModalClose = () => {
+        setIsFeedbackModalOpen(false);
         setFeedbackType(null);
-        setFeedbackText("");
     };
 
-    const handleSubmit = async () => {
+    const handleModalSubmit = async (feedbackText: string) => {
         if (!feedbackType || !taskId) return;
 
         try {
             await handleFeedbackSubmit(taskId, feedbackType, feedbackText);
-            setIsPrompting(false);
-            setFeedbackText("");
+            addNotification("Feedback submitted successfully", "success");
         } catch (error) {
-            // Error is logged in the provider, UI doesn't need to do anything special
+            addNotification("Failed to submit feedback. Please try again.", "error");
+            throw error; // Re-throw to prevent modal from closing
         }
     };
 
@@ -76,41 +68,32 @@ const MessageActions: React.FC<{
     }
 
     return (
-        <div className="mt-3 space-y-2">
-            <div className="flex items-center justify-start gap-2">
-                {showWorkflowButton && <ViewWorkflowButton onClick={handleViewWorkflowClick} />}
-                {shouldShowFeedback && !hasSubmitted && !isPrompting && (
-                    <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleThumbClick("up")}>
-                            <ThumbsUp className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleThumbClick("down")}>
-                            <ThumbsDown className="h-4 w-4" />
-                        </Button>
-                    </div>
-                )}
-            </div>
-            {isPrompting && (
-                <div className="flex w-full min-w-[20rem] flex-col items-end gap-2">
-                    <Textarea
-                        ref={textareaRef}
-                        placeholder="Provide additional feedback..."
-                        value={feedbackText}
-                        onChange={(e) => setFeedbackText(e.target.value)}
-                        className="text-sm"
-                    />
-                    <div className="flex gap-2">
-                        <Button variant="outline" onClick={handleCancel}>
-                            Cancel
-                        </Button>
-                        <Button variant="default" onClick={handleSubmit}>
-                            Submit Feedback
-                        </Button>
-                    </div>
+        <>
+            <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-start gap-2">
+                    {showWorkflowButton && <ViewWorkflowButton onClick={handleViewWorkflowClick} />}
+                    {shouldShowFeedback && !hasSubmitted && (
+                        <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleThumbClick("up")}>
+                                <ThumbsUp className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleThumbClick("down")}>
+                                <ThumbsDown className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    )}
                 </div>
+                {hasSubmitted && <div className="text-xs text-gray-500">Thank you for your feedback!</div>}
+            </div>
+            {feedbackType && (
+                <FeedbackModal
+                    isOpen={isFeedbackModalOpen}
+                    onClose={handleModalClose}
+                    feedbackType={feedbackType}
+                    onSubmit={handleModalSubmit}
+                />
             )}
-            {hasSubmitted && <div className="text-xs text-gray-500">Thank you for your feedback!</div>}
-        </div>
+        </>
     );
 };
 
