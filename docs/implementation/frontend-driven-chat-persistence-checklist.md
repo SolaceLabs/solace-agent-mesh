@@ -10,10 +10,10 @@
 ## Backend Implementation
 
 ### Step 1: Database Migration (1-2 hours)
-- [ ] 1.1 Generate migration: `alembic revision -m "create_chat_tasks_table"`
-- [ ] 1.2 Implement `upgrade()` - create `chat_tasks` table with all columns
-- [ ] 1.3 Create indexes on `session_id`, `user_id`, `created_time`
-- [ ] 1.4 Implement `downgrade()` - drop table
+- [x] 1.1 Generate migration: `alembic revision -m "create_chat_tasks_table"`
+- [x] 1.2 Implement `upgrade()` - create `chat_tasks` table with all columns
+- [x] 1.3 Create indexes on `session_id`, `user_id`, `created_time`
+- [x] 1.4 Implement `downgrade()` - drop table
 - [ ] 1.5 Test: `alembic upgrade head`
 - [ ] 1.6 Test: `alembic downgrade -1`
 - [ ] 1.7 Test: `alembic upgrade head` again
