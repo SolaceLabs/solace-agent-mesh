@@ -68,6 +68,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const latestStatusText = useRef<string | null>(null);
     const sseEventSequenceRef = useRef<number>(0);
     const isCancellingRef = useRef(isCancelling);
+    const savingTasksRef = useRef<Set<string>>(new Set());
 
     useEffect(() => {
         isCancellingRef.current = isCancelling;
@@ -167,6 +168,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }) => {
             if (!persistenceEnabled || !sessionId) return;
 
+            // Prevent duplicate saves (handles React Strict Mode + race conditions)
+            if (savingTasksRef.current.has(taskData.task_id)) {
+                return;
+            }
+
+            // Mark as saving
+            savingTasksRef.current.add(taskData.task_id);
+
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}/chat-tasks`, {
                     method: "POST",
@@ -183,11 +192,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     const errorData = await response.json().catch(() => ({ detail: "Failed to save task" }));
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
-
-                console.log(`Task ${taskData.task_id} saved successfully`);
             } catch (error) {
                 console.error(`Error saving task ${taskData.task_id}:`, error);
                 // Don't throw - saving is best-effort and silent per NFR-1
+            } finally {
+                // Always remove from saving set after a delay to handle rapid re-renders
+                setTimeout(() => {
+                    savingTasksRef.current.delete(taskData.task_id);
+                }, 100);
             }
         },
         [apiPrefix, sessionId, persistenceEnabled]
