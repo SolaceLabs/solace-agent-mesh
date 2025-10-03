@@ -215,11 +215,13 @@ class TaskLoggerService:
             return None
 
     def _infer_event_details(
-        self, topic: str, parsed_event: Any, user_props: Dict
+        self, topic: str, parsed_event: Any, user_props: Dict | None
     ) -> tuple[str, str | None, str | None]:
         """Infers direction, task_id, and user_id from a parsed A2A event."""
         direction = "unknown"
         task_id = None
+        # Ensure user_props is a dict, not None
+        user_props = user_props or {}
         user_id = user_props.get("userId")
 
         if isinstance(parsed_event, A2ARequest):
@@ -238,7 +240,7 @@ class TaskLoggerService:
                 task_id = parsed_event.data.get("taskId")
 
         if not user_id:
-            user_config = user_props.get("a2aUserConfig", {})
+            user_config = user_props.get("a2aUserConfig") or user_props.get("a2a_user_config")
             if isinstance(user_config, dict):
                 user_profile = user_config.get("user_profile", {})
                 if isinstance(user_profile, dict):

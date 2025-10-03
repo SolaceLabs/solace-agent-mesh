@@ -1054,7 +1054,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 if (responseSessionId && responseSessionId !== effectiveSessionId) {
-                    console.warn(`Backend returned a different session ID (${responseSessionId}) than expected (${effectiveSessionId}). Updating to: ${responseSessionId}`);
+                    if (effectiveSessionId) {
+                        console.warn(`Backend returned a different session ID (${responseSessionId}) than expected (${effectiveSessionId}). Updating to: ${responseSessionId}`);
+                    } else {
+                        console.log(`Backend created new session: ${responseSessionId}`);
+                    }
                     setSessionId(responseSessionId);
                 }
 
