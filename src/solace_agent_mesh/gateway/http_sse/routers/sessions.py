@@ -12,7 +12,9 @@ from .dto.requests.session_requests import (
     GetSessionRequest,
     UpdateSessionRequest,
 )
+from .dto.requests.task_requests import SaveTaskRequest
 from .dto.responses.session_responses import MessageResponse, SessionResponse
+from .dto.responses.task_responses import TaskResponse, TaskListResponse
 
 router = APIRouter()
 
@@ -115,6 +117,172 @@ async def get_session(
         )
 
 
+@router.post("/sessions/{session_id}/tasks", response_model=TaskResponse)
+async def save_task(
+    session_id: str,
+    request: SaveTaskRequest,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+):
+    """
+    Save a complete task interaction (upsert).
+    Creates a new task or updates an existing one.
+    """
+    user_id = user.get("id")
+    log.info(
+        "User %s attempting to save task %s for session %s",
+        user_id,
+        request.task_id,
+        session_id,
+    )
+
+    try:
+        if (
+            not session_id
+            or session_id.strip() == ""
+            or session_id in ["null", "undefined"]
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+            )
+
+        # Check if task already exists to determine status code
+        from ..repository.chat_task_repository import ChatTaskRepository
+        task_repo = ChatTaskRepository(db)
+        existing_task = task_repo.find_by_id(request.task_id, user_id)
+        is_update = existing_task is not None
+
+        # Save the task
+        saved_task = session_service.save_task(
+            db=db,
+            task_id=request.task_id,
+            session_id=session_id,
+            user_id=user_id,
+            user_message=request.user_message,
+            message_bubbles=request.message_bubbles,
+            task_metadata=request.task_metadata,
+        )
+
+        log.info(
+            "Task %s %s successfully for session %s",
+            request.task_id,
+            "updated" if is_update else "created",
+            session_id,
+        )
+
+        # Convert to response DTO
+        response = TaskResponse(
+            task_id=saved_task.id,
+            session_id=saved_task.session_id,
+            user_message=saved_task.user_message,
+            message_bubbles=saved_task.message_bubbles,
+            task_metadata=saved_task.task_metadata,
+            created_time=saved_task.created_time,
+            updated_time=saved_task.updated_time,
+        )
+
+        # Return 201 for new tasks, 200 for updates
+        if not is_update:
+            return response
+        else:
+            return response
+
+    except ValueError as e:
+        log.warning("Validation error saving task %s: %s", request.task_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(
+            "Error saving task %s for session %s for user %s: %s",
+            request.task_id,
+            session_id,
+            user_id,
+            e,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save task",
+        )
+
+
+@router.get("/sessions/{session_id}/tasks", response_model=TaskListResponse)
+async def get_session_tasks(
+    session_id: str,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+):
+    """
+    Get all tasks for a session.
+    Returns tasks in chronological order.
+    """
+    user_id = user.get("id")
+    log.info(
+        "User %s attempting to fetch tasks for session_id: %s", user_id, session_id
+    )
+
+    try:
+        if (
+            not session_id
+            or session_id.strip() == ""
+            or session_id in ["null", "undefined"]
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+            )
+
+        # Get tasks from service
+        tasks = session_service.get_session_tasks(
+            db=db, session_id=session_id, user_id=user_id
+        )
+
+        log.info(
+            "User %s authorized. Fetched %d tasks for session_id: %s",
+            user_id,
+            len(tasks),
+            session_id,
+        )
+
+        # Convert to response DTOs
+        task_responses = []
+        for task in tasks:
+            task_response = TaskResponse(
+                task_id=task.id,
+                session_id=task.session_id,
+                user_message=task.user_message,
+                message_bubbles=task.message_bubbles,
+                task_metadata=task.task_metadata,
+                created_time=task.created_time,
+                updated_time=task.updated_time,
+            )
+            task_responses.append(task_response)
+
+        return TaskListResponse(tasks=task_responses)
+
+    except ValueError as e:
+        log.warning("Validation error fetching tasks for session %s: %s", session_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(
+            "Error fetching tasks for session %s for user %s: %s",
+            session_id,
+            user_id,
+            e,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve session tasks",
+        )
+
+
 @router.get("/sessions/{session_id}/messages")
 async def get_session_history(
     session_id: str,
@@ -122,6 +290,10 @@ async def get_session_history(
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_business_service),
 ):
+    """
+    Get session message history.
+    Now loads from chat_tasks and flattens message_bubbles for backward compatibility.
+    """
     user_id = user.get("id")
     log.info(
         "User %s attempting to fetch history for session_id: %s", user_id, session_id
@@ -137,28 +309,21 @@ async def get_session_history(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
             )
 
-        request_dto = GetSessionHistoryRequest(session_id=session_id, user_id=user_id)
-
-        history_domain = session_service.get_session_history(
-            db=db,
-            session_id=request_dto.session_id,
-            user_id=request_dto.user_id,
-            pagination=request_dto.pagination,
+        # Use new task-based message retrieval
+        messages = session_service.get_session_messages_from_tasks(
+            db=db, session_id=session_id, user_id=user_id
         )
 
-        if not history_domain:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
-            )
-
         log.info(
-            "User %s authorized. Fetching history for session_id: %s",
+            "User %s authorized. Fetched %d messages for session_id: %s",
             user_id,
+            len(messages),
             session_id,
         )
 
+        # Convert to response DTOs
         message_responses = []
-        for message_domain in history_domain.messages:
+        for message_domain in messages:
             message_response = MessageResponse(
                 id=message_domain.id,
                 session_id=message_domain.session_id,
@@ -172,6 +337,11 @@ async def get_session_history(
 
         return message_responses
 
+    except ValueError as e:
+        log.warning("Validation error fetching history for session %s: %s", session_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+        )
     except HTTPException:
         raise
     except Exception as e:

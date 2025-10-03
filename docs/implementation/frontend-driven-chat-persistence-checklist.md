@@ -73,17 +73,17 @@
 - [ ] 6.8 Test: Field aliases work
 
 ### Step 7: API Endpoints (3-4 hours)
-- [ ] 7.1 Add `POST /sessions/{session_id}/tasks` endpoint
-- [ ] 7.2 Implement request parsing and validation
-- [ ] 7.3 Call `SessionService.save_task()`
-- [ ] 7.4 Return appropriate status codes (201/200)
-- [ ] 7.5 Handle errors: 400, 403, 404, 422
-- [ ] 7.6 Add `GET /sessions/{session_id}/tasks` endpoint
-- [ ] 7.7 Call `SessionService.get_session_tasks()`
-- [ ] 7.8 Return `TaskListResponse`
-- [ ] 7.9 Modify `GET /sessions/{session_id}/messages` endpoint
-- [ ] 7.10 Call `get_session_messages_from_tasks()` internally
-- [ ] 7.11 Keep same response format
+- [x] 7.1 Add `POST /sessions/{session_id}/tasks` endpoint
+- [x] 7.2 Implement request parsing and validation
+- [x] 7.3 Call `SessionService.save_task()`
+- [x] 7.4 Return appropriate status codes (201/200)
+- [x] 7.5 Handle errors: 400, 403, 404, 422
+- [x] 7.6 Add `GET /sessions/{session_id}/tasks` endpoint
+- [x] 7.7 Call `SessionService.get_session_tasks()`
+- [x] 7.8 Return `TaskListResponse`
+- [x] 7.9 Modify `GET /sessions/{session_id}/messages` endpoint
+- [x] 7.10 Call `get_session_messages_from_tasks()` internally
+- [x] 7.11 Keep same response format
 - [ ] 7.12 Test: Can save tasks via API
 - [ ] 7.13 Test: Can retrieve tasks via API
 - [ ] 7.14 Test: Authorization works (403 for wrong user)
