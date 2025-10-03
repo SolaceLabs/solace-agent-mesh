@@ -104,22 +104,22 @@
 ## Frontend Implementation
 
 ### Step 9: Helper Functions (2-3 hours)
-- [ ] 9.1 Create `serializeMessageBubble(message: MessageFE)` in `ChatProvider.tsx`
-- [ ] 9.2 Extract text from parts array
-- [ ] 9.3 Convert File objects to {name, type}
-- [ ] 9.4 Include all optional fields
-- [ ] 9.5 Create `saveTaskToBackend(taskData)` function
-- [ ] 9.6 Use `authenticatedFetch` to POST
-- [ ] 9.7 Handle errors gracefully (log only, no notifications)
-- [ ] 9.8 Create `deserializeTaskToMessages(task)` function
-- [ ] 9.9 Convert each bubble to MessageFE
-- [ ] 9.10 Reconstruct parts array
-- [ ] 9.11 Set isComplete: true
-- [ ] 9.12 Create `loadSessionTasks(sessionId)` function
-- [ ] 9.13 Fetch tasks from API
-- [ ] 9.14 Deserialize to messages
-- [ ] 9.15 Extract feedback state
-- [ ] 9.16 Update state
+- [x] 9.1 Create `serializeMessageBubble(message: MessageFE)` in `ChatProvider.tsx`
+- [x] 9.2 Extract text from parts array
+- [x] 9.3 Convert File objects to {name, type}
+- [x] 9.4 Include all optional fields
+- [x] 9.5 Create `saveTaskToBackend(taskData)` function
+- [x] 9.6 Use `authenticatedFetch` to POST
+- [x] 9.7 Handle errors gracefully (log only, no notifications)
+- [x] 9.8 Create `deserializeTaskToMessages(task)` function
+- [x] 9.9 Convert each bubble to MessageFE
+- [x] 9.10 Reconstruct parts array
+- [x] 9.11 Set isComplete: true
+- [x] 9.12 Create `loadSessionTasks(sessionId)` function
+- [x] 9.13 Fetch tasks from API
+- [x] 9.14 Deserialize to messages
+- [x] 9.15 Extract feedback state
+- [x] 9.16 Update state
 - [ ] 9.17 Test: Serialization preserves all data
 - [ ] 9.18 Test: Deserialization recreates messages correctly
 

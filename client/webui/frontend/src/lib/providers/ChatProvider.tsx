@@ -137,6 +137,131 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [apiPrefix]
     );
 
+    // Helper function to serialize a MessageFE to MessageBubble format for backend
+    const serializeMessageBubble = useCallback((message: MessageFE) => {
+        const textParts = message.parts?.filter(p => p.kind === "text") as TextPart[] | undefined;
+        const combinedText = textParts?.map(p => p.text).join("") || "";
+
+        return {
+            id: message.metadata?.messageId || `msg-${v4()}`,
+            type: message.isUser ? "user" : (message.artifactNotification ? "artifact_notification" : "agent"),
+            text: combinedText,
+            parts: message.parts,
+            files: message.files,
+            uploadedFiles: message.uploadedFiles?.map(f => ({
+                name: f.name,
+                type: f.type
+            })),
+            artifactNotification: message.artifactNotification,
+            isError: message.isError
+        };
+    }, []);
+
+    // Helper function to save task data to backend
+    const saveTaskToBackend = useCallback(
+        async (taskData: {
+            task_id: string;
+            user_message?: string;
+            message_bubbles: any[];
+            task_metadata?: any;
+        }) => {
+            if (!persistenceEnabled || !sessionId) return;
+
+            try {
+                const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}/tasks`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        taskId: taskData.task_id,
+                        userMessage: taskData.user_message,
+                        messageBubbles: taskData.message_bubbles,
+                        taskMetadata: taskData.task_metadata
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ detail: "Failed to save task" }));
+                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+                }
+
+                console.log(`Task ${taskData.task_id} saved successfully`);
+            } catch (error) {
+                console.error(`Error saving task ${taskData.task_id}:`, error);
+                // Don't throw - saving is best-effort and silent per NFR-1
+            }
+        },
+        [apiPrefix, sessionId, persistenceEnabled]
+    );
+
+    // Helper function to deserialize task data to MessageFE objects
+    const deserializeTaskToMessages = useCallback((task: {
+        task_id: string;
+        message_bubbles: any[];
+        task_metadata?: any;
+        created_time: number;
+    }): MessageFE[] => {
+        return task.message_bubbles.map(bubble => ({
+            taskId: task.task_id,
+            role: bubble.type === "user" ? "user" : "agent",
+            parts: bubble.parts || [{ kind: "text", text: bubble.text || "" }],
+            isUser: bubble.type === "user",
+            isComplete: true,
+            files: bubble.files,
+            uploadedFiles: bubble.uploadedFiles,
+            artifactNotification: bubble.artifactNotification,
+            isError: bubble.isError,
+            metadata: {
+                messageId: bubble.id,
+                sessionId: sessionId,
+                lastProcessedEventSequence: 0
+            }
+        }));
+    }, [sessionId]);
+
+    // Helper function to load session tasks and reconstruct messages
+    const loadSessionTasks = useCallback(
+        async (sessionId: string) => {
+            try {
+                const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}/tasks`);
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ detail: "Failed to load session tasks" }));
+                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+                }
+
+                const data = await response.json();
+                const tasks = data.tasks || [];
+
+                // Deserialize all tasks to messages
+                const allMessages: MessageFE[] = [];
+                for (const task of tasks) {
+                    const taskMessages = deserializeTaskToMessages(task);
+                    allMessages.push(...taskMessages);
+                }
+
+                // Extract feedback state from task metadata
+                const feedbackMap: Record<string, { type: "up" | "down"; text: string }> = {};
+                for (const task of tasks) {
+                    if (task.task_metadata?.feedback) {
+                        feedbackMap[task.task_id] = {
+                            type: task.task_metadata.feedback.type,
+                            text: task.task_metadata.feedback.text || ""
+                        };
+                    }
+                }
+
+                // Update state
+                setMessages(allMessages);
+                setSubmittedFeedback(feedbackMap);
+            } catch (error) {
+                console.error("Error loading session tasks:", error);
+                addNotification("Error loading session history. Please try again.", "error");
+                throw error;
+            }
+        },
+        [apiPrefix, deserializeTaskToMessages, addNotification]
+    );
+
     const uploadArtifactFile = useCallback(
         async (file: File, overrideSessionId?: string): Promise<{ uri: string; sessionId: string } | null> => {
             const currentSessionId = overrideSessionId || sessionId;
