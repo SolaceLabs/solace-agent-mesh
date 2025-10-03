@@ -39,14 +39,14 @@
 - [ ] 3.7 Test: JSON columns serialize/deserialize correctly
 
 ### Step 4: Repository (2-3 hours)
-- [ ] 4.1 Add `IChatTaskRepository` interface to `interfaces.py`
-- [ ] 4.2 Create `chat_task_repository.py` implementing interface
-- [ ] 4.3 Implement `save(task)` with upsert logic
-- [ ] 4.4 Implement `find_by_session(session_id, user_id)`
-- [ ] 4.5 Implement `find_by_id(task_id, user_id)`
-- [ ] 4.6 Implement `delete_by_session(session_id)`
-- [ ] 4.7 Add `_model_to_entity()` helper method
-- [ ] 4.8 Update `repository/__init__.py` to export repository
+- [x] 4.1 Add `IChatTaskRepository` interface to `interfaces.py`
+- [x] 4.2 Create `chat_task_repository.py` implementing interface
+- [x] 4.3 Implement `save(task)` with upsert logic
+- [x] 4.4 Implement `find_by_session(session_id, user_id)`
+- [x] 4.5 Implement `find_by_id(task_id, user_id)`
+- [x] 4.6 Implement `delete_by_session(session_id)`
+- [x] 4.7 Add `_model_to_entity()` helper method
+- [x] 4.8 Update `repository/__init__.py` to export repository
 - [ ] 4.9 Test: Upsert creates new task
 - [ ] 4.10 Test: Upsert updates existing task
 - [ ] 4.11 Test: Find by session returns correct tasks

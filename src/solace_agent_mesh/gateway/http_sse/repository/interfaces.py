@@ -3,9 +3,13 @@ Repository interfaces defining contracts for data access.
 """
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 from ..shared.types import PaginationInfo, PaginationParams, SessionId, UserId
 from .entities import Feedback, Message, Session, Task, TaskEvent
+
+if TYPE_CHECKING:
+    from .entities import ChatTask
 
 
 class ISessionRepository(ABC):
@@ -121,4 +125,28 @@ class IFeedbackRepository(ABC):
     @abstractmethod
     def delete_feedback_older_than(self, cutoff_time_ms: int, batch_size: int) -> int:
         """Delete feedback older than cutoff time using batch deletion."""
+        pass
+
+
+class IChatTaskRepository(ABC):
+    """Interface for chat task data access operations."""
+
+    @abstractmethod
+    def save(self, task: "ChatTask") -> "ChatTask":
+        """Save or update a chat task (upsert)."""
+        pass
+
+    @abstractmethod
+    def find_by_session(self, session_id: SessionId, user_id: UserId) -> list["ChatTask"]:
+        """Find all tasks for a session."""
+        pass
+
+    @abstractmethod
+    def find_by_id(self, task_id: str, user_id: UserId) -> "ChatTask" | None:
+        """Find a specific task."""
+        pass
+
+    @abstractmethod
+    def delete_by_session(self, session_id: SessionId) -> bool:
+        """Delete all tasks for a session."""
         pass
