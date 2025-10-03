@@ -1998,12 +1998,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 a2a_task_id,
             )
 
-            # NOTE: Agent message persistence is now handled by the frontend.
-            # The frontend saves complete task interactions (user + agent messages)
-            # after the task completes. This ensures accurate replay of what the
-            # user actually saw, including resolved embeds and UI state.
-            # See: frontend-driven-chat-persistence feature documentation.
-
         except Exception as e:
             log.exception(
                 "%s Failed to send final_response via SSE for A2A Task ID %s: %s",
