@@ -161,10 +161,10 @@
 ## Cleanup
 
 ### Step 13: Remove Old Backend Logic (1 hour)
-- [ ] 13.1 Locate agent message saving code in `component.py`
-- [ ] 13.2 Remove section that saves final agent response
-- [ ] 13.3 Keep SSE sending logic intact
-- [ ] 13.4 Add comment explaining frontend handles persistence
+- [x] 13.1 Locate agent message saving code in `component.py`
+- [x] 13.2 Remove section that saves final agent response
+- [x] 13.3 Keep SSE sending logic intact
+- [x] 13.4 Add comment explaining frontend handles persistence
 - [ ] 13.5 Test: Backend no longer saves agent messages
 - [ ] 13.6 Test: SSE functionality still works
 - [ ] 13.7 Test: No errors in logs

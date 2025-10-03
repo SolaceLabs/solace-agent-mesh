@@ -1998,59 +1998,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 a2a_task_id,
             )
 
-            # Store final agent response in persistence layer if available
-            if hasattr(self, "database_url") and self.database_url:
-                try:
-                    session_id = external_request_context.get("a2a_session_id")
-                    user_id = external_request_context.get("user_id_for_a2a")
-                    agent_name = external_request_context.get(
-                        "target_agent_name", "agent"
-                    )
-
-                    message_text = ""
-                    if task_data.status and task_data.status.message:
-                        parts = a2a.get_parts_from_message(task_data.status.message)
-                        for part in parts:
-                            if hasattr(part, "text") and part.text:
-                                if message_text:
-                                    message_text += "\n"
-                                message_text += part.text
-
-                    if message_text and session_id and user_id:
-                        from .dependencies import SessionLocal, get_session_business_service
-                        from ...gateway.http_sse.shared.enums import SenderType
-
-                        # For background processing, create simple session wrapper
-                        if SessionLocal:
-                            db = SessionLocal()
-                            try:
-                                session_service = get_session_business_service()
-                                session_service.add_message_to_session(
-                                    db=db,
-                                    session_id=session_id,
-                                    user_id=user_id,
-                                    message=message_text,
-                                    sender_type=SenderType.AGENT,
-                                    sender_name=agent_name,
-                                    agent_id=agent_name,
-                                )
-                                db.commit()
-                            except Exception:
-                                db.rollback()
-                                raise
-                            finally:
-                                db.close()
-                        log.info(
-                            "%s Final agent response stored in session %s",
-                            log_id_prefix,
-                            session_id,
-                        )
-                except Exception as storage_error:
-                    log.warning(
-                        "%s Failed to store final agent response: %s",
-                        log_id_prefix,
-                        storage_error,
-                    )
+            # NOTE: Agent message persistence is now handled by the frontend.
+            # The frontend saves complete task interactions (user + agent messages)
+            # after the task completes. This ensures accurate replay of what the
+            # user actually saw, including resolved embeds and UI state.
+            # See: frontend-driven-chat-persistence feature documentation.
 
         except Exception as e:
             log.exception(
