@@ -874,27 +874,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setIsCancelling(false);
 
             try {
-                const history = await getHistory(newSessionId);
-                const formattedMessages: MessageFE[] = history.map((msg: HistoryMessage) => ({
-                    parts: [{ kind: "text", text: msg.message }],
-                    isUser: msg.senderType === "user",
-                    isComplete: true,
-                    role: msg.senderType === "user" ? "user" : "agent",
-                    metadata: {
-                        sessionId: msg.sessionId,
-                        messageId: msg.id,
-                        lastProcessedEventSequence: 0,
-                    },
-                }));
+                // Load session tasks instead of old message history
+                await loadSessionTasks(newSessionId);
 
+                // Load session metadata (name)
                 const sessionResponse = await authenticatedFetch(`${apiPrefix}/sessions/${newSessionId}`);
                 if (sessionResponse.ok) {
                     const sessionData = await sessionResponse.json();
                     setSessionName(sessionData.name);
                 }
 
+                // Update session state
                 setSessionId(newSessionId);
-                setMessages(formattedMessages);
                 setUserInput("");
                 setIsResponding(false);
                 setCurrentTaskId(null);
@@ -908,7 +899,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 addNotification("Error switching session. Please try again.", "error");
             }
         },
-        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, addNotification, getHistory]
+        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, addNotification, loadSessionTasks]
     );
 
     const updateSessionName = useCallback(

@@ -139,11 +139,11 @@
 - [ ] 10.13 Test: All data preserved
 
 ### Step 11: Session Loading Logic (1-2 hours)
-- [ ] 11.1 Update `handleSwitchSession()` in `ChatProvider.tsx`
-- [ ] 11.2 Replace `getHistory()` call with `loadSessionTasks()`
-- [ ] 11.3 Use new deserialization logic
-- [ ] 11.4 Update state with messages and feedback
-- [ ] 11.5 Verify `handleNewSession()` needs no changes
+- [x] 11.1 Update `handleSwitchSession()` in `ChatProvider.tsx`
+- [x] 11.2 Replace `getHistory()` call with `loadSessionTasks()`
+- [x] 11.3 Use new deserialization logic
+- [x] 11.4 Update state with messages and feedback
+- [x] 11.5 Verify `handleNewSession()` needs no changes
 - [ ] 11.6 Test: Session history loads correctly
 - [ ] 11.7 Test: Messages in correct order
 - [ ] 11.8 Test: Feedback state restored
