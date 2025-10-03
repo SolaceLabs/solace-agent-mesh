@@ -123,7 +123,8 @@ export interface MessageFE {
         text: string;
         targetAgent?: string;
         gatewayTaskId?: string;
-        actionTaken?: boolean; // Track if user has taken action (authenticated or rejected)
+        authenticationAttempted?: boolean; // Track if auth button was clicked
+        rejected?: boolean; // Track if reject button was clicked
     };
     metadata?: {
         // Optional metadata, e.g., for feedback or correlation

@@ -35,16 +35,17 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
 
     // Handle authentication link FIRST (before checking for empty text)
     if (message.authenticationLink) {
-        const isActionTaken = message.authenticationLink.actionTaken || false;
+        const authenticationAttempted = message.authenticationLink.authenticationAttempted || false;
+        const rejected = message.authenticationLink.rejected || false;
         
         const handleAuthClick = () => {
-            if (isActionTaken) return; // Prevent multiple clicks
+            if (authenticationAttempted || rejected) return; // Prevent multiple clicks
             
-            // Update the message to mark action as taken
+            // Update the message to mark authentication as attempted
             chatContext.setMessages((prevMessages: MessageFE[]) =>
                 prevMessages.map(msg =>
                     msg.metadata?.messageId === message.metadata?.messageId && msg.authenticationLink
-                        ? { ...msg, authenticationLink: { ...msg.authenticationLink, actionTaken: true } }
+                        ? { ...msg, authenticationLink: { ...msg.authenticationLink, authenticationAttempted: true } }
                         : msg
                 )
             );
@@ -60,27 +61,27 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
         };
 
         const handleRejectClick = async () => {
-            if (isActionTaken) return; // Prevent multiple clicks
+            if (authenticationAttempted || rejected) return; // Prevent multiple clicks
             
             const gatewayTaskId = message.authenticationLink?.gatewayTaskId;
             if (!gatewayTaskId) {
                 console.error("No gateway_task_id available for rejection");
-                // Still mark action as taken to disable buttons
+                // Still mark as rejected to disable buttons
                 chatContext.setMessages((prevMessages: MessageFE[]) =>
                     prevMessages.map(msg =>
                         msg.metadata?.messageId === message.metadata?.messageId && msg.authenticationLink
-                            ? { ...msg, authenticationLink: { ...msg.authenticationLink, actionTaken: true } }
+                            ? { ...msg, authenticationLink: { ...msg.authenticationLink, rejected: true } }
                             : msg
                     )
                 );
                 return;
             }
             
-            // Mark action as taken immediately to disable buttons
+            // Mark as rejected immediately to disable buttons
             chatContext.setMessages((prevMessages: MessageFE[]) =>
                 prevMessages.map(msg =>
                     msg.metadata?.messageId === message.metadata?.messageId && msg.authenticationLink
-                        ? { ...msg, authenticationLink: { ...msg.authenticationLink, actionTaken: true } }
+                        ? { ...msg, authenticationLink: { ...msg.authenticationLink, rejected: true } }
                         : msg
                 )
             );
@@ -103,25 +104,25 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
                 <div className="flex space-x-3">
                     <button
                         onClick={handleRejectClick}
-                        disabled={isActionTaken}
+                        disabled={authenticationAttempted || rejected}
                         className={`flex-1 px-4 py-2 text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                            isActionTaken
+                            authenticationAttempted || rejected
                                 ? "text-gray-400 bg-gray-100 dark:bg-gray-700 dark:text-gray-500 border border-gray-200 dark:border-gray-600 cursor-not-allowed"
                                 : "text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-gray-500"
                         }`}
                     >
-                        {isActionTaken ? "Rejected" : "Reject"}
+                        {rejected ? "Rejected" : "Reject"}
                     </button>
                     <button
                         onClick={handleAuthClick}
-                        disabled={isActionTaken}
+                        disabled={authenticationAttempted || rejected}
                         className={`flex-1 px-4 py-2 text-sm font-medium text-white rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                            isActionTaken
+                            authenticationAttempted || rejected
                                 ? "bg-gray-400 cursor-not-allowed"
                                 : "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500"
                         }`}
                     >
-                        {isActionTaken ? "Authentication Window Opened" : message.authenticationLink.text}
+                        {authenticationAttempted ? "Authentication Window Opened" : message.authenticationLink.text}
                     </button>
                 </div>
             </div>
