@@ -207,13 +207,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     // Helper function to deserialize task data to MessageFE objects
     const deserializeTaskToMessages = useCallback((task: {
-        task_id: string;
-        message_bubbles: any[];
-        task_metadata?: any;
-        created_time: number;
+        taskId: string;
+        messageBubbles: any[];
+        taskMetadata?: any;
+        createdTime: number;
     }): MessageFE[] => {
-        return task.message_bubbles.map(bubble => ({
-            taskId: task.task_id,
+        return task.messageBubbles.map(bubble => ({
+            taskId: task.taskId,
             role: bubble.type === "user" ? "user" : "agent",
             parts: bubble.parts || [{ kind: "text", text: bubble.text || "" }],
             isUser: bubble.type === "user",
@@ -254,10 +254,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Extract feedback state from task metadata
                 const feedbackMap: Record<string, { type: "up" | "down"; text: string }> = {};
                 for (const task of tasks) {
-                    if (task.task_metadata?.feedback) {
-                        feedbackMap[task.task_id] = {
-                            type: task.task_metadata.feedback.type,
-                            text: task.task_metadata.feedback.text || ""
+                    if (task.taskMetadata?.feedback) {
+                        feedbackMap[task.taskId] = {
+                            type: task.taskMetadata.feedback.type,
+                            text: task.taskMetadata.feedback.text || ""
                         };
                     }
                 }
