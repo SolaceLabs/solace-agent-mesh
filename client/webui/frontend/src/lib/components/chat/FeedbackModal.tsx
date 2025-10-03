@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Textarea } from "@/lib/components/ui";
+import { Button, Textarea } from "@/lib/components/ui";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui/dialog";
 
 interface FeedbackModalProps {
     isOpen: boolean;
