@@ -124,15 +124,15 @@
 - [ ] 9.18 Test: Deserialization recreates messages correctly
 
 ### Step 10: Message Saving Logic (2-3 hours)
-- [ ] 10.1 Update `handleSubmit()` for user messages
-- [ ] 10.2 After receiving taskId, call `saveTaskToBackend()`
-- [ ] 10.3 Save initial task data with user message
-- [ ] 10.4 Don't wait for save completion
-- [ ] 10.5 Update `handleSseMessage()` for agent messages
-- [ ] 10.6 When `isFinalEvent` is true, gather all messages
-- [ ] 10.7 Filter out status bubbles (`isStatusBubble === true`)
-- [ ] 10.8 Serialize messages to MessageBubble format
-- [ ] 10.9 Call `saveTaskToBackend()` with complete data
+- [x] 10.1 Update `handleSubmit()` for user messages
+- [x] 10.2 After receiving taskId, call `saveTaskToBackend()`
+- [x] 10.3 Save initial task data with user message
+- [x] 10.4 Don't wait for save completion
+- [x] 10.5 Update `handleSseMessage()` for agent messages
+- [x] 10.6 When `isFinalEvent` is true, gather all messages
+- [x] 10.7 Filter out status bubbles (`isStatusBubble === true`)
+- [x] 10.8 Serialize messages to MessageBubble format
+- [x] 10.9 Call `saveTaskToBackend()` with complete data
 - [ ] 10.10 Test: User messages saved after submission
 - [ ] 10.11 Test: Agent messages saved when complete
 - [ ] 10.12 Test: Status bubbles filtered out

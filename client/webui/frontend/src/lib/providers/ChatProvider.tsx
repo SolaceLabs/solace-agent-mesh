@@ -706,6 +706,46 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
                     setIsCancelling(false);
                 }
+                
+                // Save complete task when agent response is done (Step 10.5-10.9)
+                if (currentTaskIdFromResult && sessionId) {
+                    // Gather all messages for this task, filtering out status bubbles
+                    setMessages(currentMessages => {
+                        const taskMessages = currentMessages.filter(
+                            msg => msg.taskId === currentTaskIdFromResult && !msg.isStatusBubble
+                        );
+                        
+                        if (taskMessages.length > 0) {
+                            // Serialize all message bubbles
+                            const messageBubbles = taskMessages.map(serializeMessageBubble);
+                            
+                            // Extract user message text
+                            const userMessage = taskMessages.find(m => m.isUser);
+                            const userMessageText = userMessage?.parts
+                                ?.filter(p => p.kind === "text")
+                                .map(p => (p as TextPart).text)
+                                .join("") || "";
+                            
+                            // Determine task status
+                            const hasError = taskMessages.some(m => m.isError);
+                            const taskStatus = hasError ? "error" : "completed";
+                            
+                            // Save complete task (don't wait for completion)
+                            saveTaskToBackend({
+                                task_id: currentTaskIdFromResult,
+                                user_message: userMessageText,
+                                message_bubbles: messageBubbles,
+                                task_metadata: {
+                                    status: taskStatus,
+                                    agent_name: selectedAgentName
+                                }
+                            });
+                        }
+                        
+                        return currentMessages;
+                    });
+                }
+                
                 setIsResponding(false);
                 closeCurrentEventSource();
                 setCurrentTaskId(null);
@@ -716,7 +756,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }, 100);
             }
         },
-        [addNotification, closeCurrentEventSource, artifactsRefetch]
+        [addNotification, closeCurrentEventSource, artifactsRefetch, sessionId, selectedAgentName, saveTaskToBackend, serializeMessageBubble]
     );
 
     const handleNewSession = useCallback(async () => {
@@ -1185,6 +1225,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         console.log(`Backend created new session: ${responseSessionId}`);
                     }
                     setSessionId(responseSessionId);
+                    effectiveSessionId = responseSessionId;
+                }
+
+                // Save initial task with user message (Step 10.2-10.3)
+                if (effectiveSessionId) {
+                    await saveTaskToBackend({
+                        task_id: taskId,
+                        user_message: currentInput,
+                        message_bubbles: [serializeMessageBubble(userMsg)],
+                        task_metadata: {
+                            status: "pending",
+                            agent_name: selectedAgentName
+                        }
+                    });
                 }
 
                 // If it was a new session, generate and persist its name.
@@ -1215,7 +1269,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [sessionId, userInput, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName]
+        [sessionId, userInput, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble]
     );
 
     useEffect(() => {
