@@ -168,7 +168,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             if (!persistenceEnabled || !sessionId) return;
 
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}/tasks`, {
+                const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}/chat-tasks`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -222,7 +222,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const loadSessionTasks = useCallback(
         async (sessionId: string) => {
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}/tasks`);
+                const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}/chat-tasks`);
 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ detail: "Failed to load session tasks" }));

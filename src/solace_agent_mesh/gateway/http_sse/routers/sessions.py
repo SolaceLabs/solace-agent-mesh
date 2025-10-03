@@ -117,7 +117,7 @@ async def get_session(
         )
 
 
-@router.post("/sessions/{session_id}/tasks", response_model=TaskResponse)
+@router.post("/sessions/{session_id}/chat-tasks", response_model=TaskResponse)
 async def save_task(
     session_id: str,
     request: SaveTaskRequest,
@@ -209,7 +209,7 @@ async def save_task(
         )
 
 
-@router.get("/sessions/{session_id}/tasks", response_model=TaskListResponse)
+@router.get("/sessions/{session_id}/chat-tasks", response_model=TaskListResponse)
 async def get_session_tasks(
     session_id: str,
     db: Session = Depends(get_db),
