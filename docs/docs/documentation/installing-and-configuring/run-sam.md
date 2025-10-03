@@ -1,9 +1,7 @@
 ---
-title: Running Solace Agent Mesh
-sidebar_position: 41
+title: Creating and Running a SAM Project
+sidebar_position: 320
 ---
-
-# Running Solace Agent Mesh
 
 This guide walks you through creating and running a complete Solace Agent Mesh project. This approach provides full control over your configuration and is suitable for development, testing, and production environments.
 

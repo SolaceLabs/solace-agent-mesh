@@ -1,6 +1,6 @@
 ---
 title: Solace AI Event Connector
-sidebar_position: 10
+sidebar_position: 240
 ---
 
 # Solace AI Event Connector

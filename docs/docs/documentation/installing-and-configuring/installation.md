@@ -1,6 +1,6 @@
 ---
-title: Installation
-sidebar_position: 40
+title: Installing Solace Agent Mesh
+sidebar_position: 310
 ---
 
 # Prerequisites

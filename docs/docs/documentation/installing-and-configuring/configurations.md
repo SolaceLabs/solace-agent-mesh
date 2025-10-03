@@ -1,6 +1,6 @@
 ---
-title: Configurations
-sidebar_position: 10
+title: Configuring SAM
+sidebar_position: 330
 toc_max_heading_level: 4
 ---
 

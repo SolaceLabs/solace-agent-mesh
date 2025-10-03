@@ -1,6 +1,6 @@
 ---
 title: Project Structure
-sidebar_position: 20
+sidebar_position: 410
 ---
 
 # Project Structure

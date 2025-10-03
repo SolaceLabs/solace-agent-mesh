@@ -1,9 +1,7 @@
 ---
 title: Plugins
-sidebar_position: 60
+sidebar_position: 270
 ---
-
-## Plugins
 
 Plugins provide a mechanism to extend the functionality of Solace Agent Mesh in a modular, shareable, and reusable way. The current plugin ecosystem includes agents, gateways, and specialized integrations.
 

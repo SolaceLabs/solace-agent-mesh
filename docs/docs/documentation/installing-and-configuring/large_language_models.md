@@ -1,6 +1,6 @@
 ---
-title: Configuring Large Language Models
-sidebar_position: 12
+title: Configuration Settings for LLMs
+sidebar_position: 340
 ---
 
 The `apps.app_config.model` field which can also be configured globally in `shared_config.yaml` under the `models` section, allows you to specify the connection details for different Large Language Model (LLM) providers. Solace Agent Mesh leverages [LiteLLM](https://docs.litellm.ai/docs/providers) to support a variety of LLM providers seamlessly. All fields provided in the `models` section are directly passed to LiteLLM, allowing you to configure any supported model.

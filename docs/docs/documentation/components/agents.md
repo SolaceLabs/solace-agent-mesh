@@ -1,6 +1,6 @@
 ---
 title: Agents
-sidebar_position: 6
+sidebar_position: 250
 ---
 
 Agents are specialized processing units within the Solace Agent Mesh framework that are built around the Google Agent Development Kit (ADK) and provide the core intelligence layer. They:

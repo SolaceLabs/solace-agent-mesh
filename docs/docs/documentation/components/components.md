@@ -1,6 +1,6 @@
 ---
 title: Components
-sidebar_position: 18
+sidebar_position: 200
 ---
 
 Solace Agent Mesh is built on event-driven architecture principles using the A2A (Agent-to-Agent) protocol, with all components communicating through a standardized protocol over the Solace broker. This architectural choice enables loose coupling between components, making the system highly flexible and scalable.

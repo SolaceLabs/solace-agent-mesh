@@ -1,6 +1,6 @@
 ---
 title: Solace Agent Mesh CLI
-sidebar_position: 5
+sidebar_position: 220
 toc_max_heading_level: 4
 ---
 
