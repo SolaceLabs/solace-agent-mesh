@@ -47,6 +47,7 @@ class FeedbackService:
         Processes and stores the feedback. If a repository is configured,
         it saves to the database. Otherwise, it logs the feedback.
         Also publishes feedback to a Solace topic if configured.
+        Additionally updates the corresponding task's metadata with the feedback.
         """
         if self.session_factory:
             task_id = getattr(payload, "task_id", None)
@@ -86,6 +87,11 @@ class FeedbackService:
                     db.rollback()
                 finally:
                     db.close()
+
+                # Update task metadata with feedback
+                self._update_task_metadata_with_feedback(
+                    task_id, user_id, payload.feedback_type, payload.feedback_text
+                )
         else:
             log.warning(
                 "Feedback received but no database repository is configured. "
@@ -101,6 +107,59 @@ class FeedbackService:
                 "Failed to publish feedback event for user '%s': %s", user_id, e
             )
             # Do not re-raise, as the primary operation (DB save) may have succeeded.
+
+    def _update_task_metadata_with_feedback(
+        self, task_id: str, user_id: str, feedback_type: str, feedback_text: str | None
+    ):
+        """
+        Update the task's metadata with feedback information.
+        
+        Args:
+            task_id: The task ID to update
+            user_id: The user ID who submitted feedback
+            feedback_type: Type of feedback ("up" or "down")
+            feedback_text: Optional feedback text
+        """
+        if not self.session_factory:
+            log.debug(
+                "No session factory available, skipping task metadata update for task %s",
+                task_id
+            )
+            return
+
+        db = self.session_factory()
+        try:
+            from ..repository.chat_task_repository import ChatTaskRepository
+            
+            task_repo = ChatTaskRepository(db)
+            task = task_repo.find_by_id(task_id, user_id)
+            
+            if task:
+                # Update feedback in task metadata
+                task.add_feedback(feedback_type, feedback_text)
+                task_repo.save(task)
+                db.commit()
+                log.info(
+                    "Updated task metadata with feedback for task '%s' by user '%s'",
+                    task_id,
+                    user_id
+                )
+            else:
+                log.warning(
+                    "Task '%s' not found for user '%s', cannot update task metadata with feedback",
+                    task_id,
+                    user_id
+                )
+        except Exception as e:
+            log.warning(
+                "Failed to update task metadata with feedback for task '%s': %s",
+                task_id,
+                e
+            )
+            db.rollback()
+            # Don't re-raise - feedback was already saved to feedback table
+        finally:
+            db.close()
 
     async def _publish_feedback_event(self, payload: "FeedbackPayload", user_id: str):
         """Publishes the feedback as an event to the message broker if configured."""

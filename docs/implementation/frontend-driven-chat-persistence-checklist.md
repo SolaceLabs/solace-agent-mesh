@@ -90,11 +90,11 @@
 - [ ] 7.15 Test: Backward compatibility maintained
 
 ### Step 8: Feedback Service (1-2 hours)
-- [ ] 8.1 Modify `process_feedback()` in `FeedbackService`
-- [ ] 8.2 After saving to feedback table, load task
-- [ ] 8.3 Update `task_metadata.feedback` if task exists
-- [ ] 8.4 Save updated task via repository
-- [ ] 8.5 Handle errors gracefully (log but don't fail)
+- [x] 8.1 Modify `process_feedback()` in `FeedbackService`
+- [x] 8.2 After saving to feedback table, load task
+- [x] 8.3 Update `task_metadata.feedback` if task exists
+- [x] 8.4 Save updated task via repository
+- [x] 8.5 Handle errors gracefully (log but don't fail)
 - [ ] 8.6 Test: Feedback saves to feedback table
 - [ ] 8.7 Test: Task metadata is updated
 - [ ] 8.8 Test: Missing task doesn't break submission
