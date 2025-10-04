@@ -2,6 +2,9 @@ import React, { useState, useCallback, useEffect, useRef, type FormEvent, type R
 import { v4 } from "uuid";
 
 import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
+
+// Schema version for data migration purposes
+const CURRENT_SCHEMA_VERSION = 1;
 import { authenticatedFetch, getAccessToken, submitFeedback } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
 import type {
@@ -183,8 +186,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     body: JSON.stringify({
                         taskId: taskData.task_id,
                         userMessage: taskData.user_message,
-                        messageBubbles: taskData.message_bubbles,
-                        taskMetadata: taskData.task_metadata
+                        // Serialize to JSON strings before sending
+                        messageBubbles: JSON.stringify(taskData.message_bubbles),
+                        taskMetadata: taskData.task_metadata ? JSON.stringify(taskData.task_metadata) : null
                     })
                 });
 
@@ -244,16 +248,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const data = await response.json();
                 const tasks = data.tasks || [];
 
+                // Parse JSON strings from backend
+                const parsedTasks = tasks.map(task => ({
+                    ...task,
+                    messageBubbles: JSON.parse(task.messageBubbles),
+                    taskMetadata: task.taskMetadata ? JSON.parse(task.taskMetadata) : null
+                }));
+
                 // Deserialize all tasks to messages
                 const allMessages: MessageFE[] = [];
-                for (const task of tasks) {
+                for (const task of parsedTasks) {
                     const taskMessages = deserializeTaskToMessages(task);
                     allMessages.push(...taskMessages);
                 }
 
                 // Extract feedback state from task metadata
                 const feedbackMap: Record<string, { type: "up" | "down"; text: string }> = {};
-                for (const task of tasks) {
+                for (const task of parsedTasks) {
                     if (task.taskMetadata?.feedback) {
                         feedbackMap[task.taskId] = {
                             type: task.taskMetadata.feedback.type,
@@ -748,6 +759,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 user_message: userMessageText,
                                 message_bubbles: messageBubbles,
                                 task_metadata: {
+                                    schema_version: CURRENT_SCHEMA_VERSION,
                                     status: taskStatus,
                                     agent_name: selectedAgentName
                                 }
@@ -1238,6 +1250,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         user_message: currentInput,
                         message_bubbles: [serializeMessageBubble(userMsg)],
                         task_metadata: {
+                            schema_version: CURRENT_SCHEMA_VERSION,
                             status: "pending",
                             agent_name: selectedAgentName
                         }
