@@ -365,9 +365,24 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     }
                 }
 
+                // Extract agent name from the most recent task
+                // (Use the last task's agent since that's the most recent interaction)
+                let agentName: string | null = null;
+                for (let i = migratedTasks.length - 1; i >= 0; i--) {
+                    if (migratedTasks[i].taskMetadata?.agent_name) {
+                        agentName = migratedTasks[i].taskMetadata.agent_name;
+                        break;
+                    }
+                }
+
                 // Update state
                 setMessages(allMessages);
                 setSubmittedFeedback(feedbackMap);
+                
+                // Set the agent name if found
+                if (agentName) {
+                    setSelectedAgentName(agentName);
+                }
             } catch (error) {
                 console.error("Error loading session tasks:", error);
                 addNotification("Error loading session history. Please try again.", "error");
