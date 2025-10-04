@@ -17,12 +17,14 @@ from fastapi import Request as FastAPIRequest
 from solace_ai_connector.common.log import log
 from solace_ai_connector.components.inputs_outputs.broker_input import BrokerInput
 from solace_ai_connector.flow.app import App as SACApp
+from solace_ai_connector.common.event import Event, EventType
 
 from ...common.agent_registry import AgentRegistry
 from ...core_a2a.service import CoreA2AService
 from ...gateway.base.component import BaseGatewayComponent
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
+from .sse_event_buffer import SSEEventBuffer
 from .components import VisualizationForwarderComponent
 
 try:
@@ -119,8 +121,25 @@ class WebUIBackendComponent(BaseGatewayComponent):
             raise ValueError(f"Configuration retrieval error: {e}") from e
 
         sse_max_queue_size = self.get_config("sse_max_queue_size", 200)
+        sse_buffer_max_age_seconds = self.get_config("sse_buffer_max_age_seconds", 600)
 
-        self.sse_manager = SSEManager(max_queue_size=sse_max_queue_size)
+        self.sse_event_buffer = SSEEventBuffer(
+            max_queue_size=sse_max_queue_size,
+            max_age_seconds=sse_buffer_max_age_seconds,
+        )
+        self.sse_manager = SSEManager(
+            max_queue_size=sse_max_queue_size, event_buffer=self.sse_event_buffer
+        )
+
+        self._sse_cleanup_timer_id = f"sse_cleanup_{self.gateway_id}"
+        cleanup_interval_sec = self.get_config(
+            "sse_buffer_cleanup_interval_seconds", 300
+        )
+        self.add_timer(
+            delay_ms=cleanup_interval_sec * 1000,
+            timer_id=self._sse_cleanup_timer_id,
+            interval_ms=cleanup_interval_sec * 1000,
+        )
 
         session_config = self._resolve_session_config()
         if session_config.get("type") == "sql":
@@ -168,6 +187,15 @@ class WebUIBackendComponent(BaseGatewayComponent):
         )
 
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
+
+    def process_event(self, event: Event):
+        if event.event_type == EventType.TIMER:
+            if event.data.get("timer_id") == self._sse_cleanup_timer_id:
+                log.debug("%s SSE buffer cleanup timer triggered.", self.log_identifier)
+                self.sse_event_buffer.cleanup_stale_buffers()
+                return
+
+        super().process_event(event)
 
     def _get_visualization_lock(self) -> asyncio.Lock:
         """Get or create a visualization lock for the current event loop."""
@@ -846,6 +874,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         request = external_event_data
         try:
+            user_info = {}
             if hasattr(request.state, "user") and request.state.user:
                 user_info = request.state.user
                 username = user_info.get("username")
@@ -855,7 +884,12 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         log_id_prefix,
                         username,
                     )
-                    return {"id": username, "name": username, "email": username}
+                    return {
+                        "id": username,
+                        "name": username,
+                        "email": username,
+                        "user_info": user_info,
+                    }
 
             log.debug(
                 "%s No authenticated user in request.state, falling back to SessionManager.",
@@ -865,7 +899,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             log.debug(
                 "%s Extracted user_id '%s' via SessionManager.", log_id_prefix, user_id
             )
-            return {"id": user_id, "name": user_id}
+            return {"id": user_id, "name": user_id, "user_info": user_info}
 
         except Exception as e:
             log.error("%s Failed to extract user_id from request: %s", log_id_prefix, e)
@@ -983,7 +1017,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
 
         except Exception as e:
-            log.exception(
+            log.error(
                 "%s [_start_listener] Failed to start FastAPI/Uvicorn server: %s",
                 self.log_identifier,
                 e,
@@ -1031,6 +1065,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
     def cleanup(self):
         """Gracefully shuts down the component and the FastAPI server."""
         log.info("%s Cleaning up Web UI Backend Component...", self.log_identifier)
+        self.cancel_timer(self._sse_cleanup_timer_id)
         log.info("%s Cleaning up visualization resources...", self.log_identifier)
         if self._visualization_message_queue:
             self._visualization_message_queue.put(None)
@@ -1061,6 +1096,35 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self._global_visualization_subscriptions.clear()
         self._cleanup_visualization_locks()
         log.info("%s Visualization resources cleaned up.", self.log_identifier)
+
+        super().cleanup()
+
+        if self.fastapi_thread and self.fastapi_thread.is_alive():
+            log.info(
+                "%s Waiting for FastAPI server thread to exit...", self.log_identifier
+            )
+            self.fastapi_thread.join(timeout=10)
+            if self.fastapi_thread.is_alive():
+                log.warning(
+                    "%s FastAPI server thread did not exit gracefully.",
+                    self.log_identifier,
+                )
+
+        if self.sse_manager:
+            log.info(
+                "%s Closing active SSE connections (best effort)...",
+                self.log_identifier,
+            )
+            try:
+                asyncio.run(self.sse_manager.close_all())
+            except Exception as sse_close_err:
+                log.error(
+                    "%s Error closing SSE connections during cleanup: %s",
+                    self.log_identifier,
+                    sse_close_err,
+                )
+
+        log.info("%s Web UI Backend Component cleanup finished.", self.log_identifier)
 
     def _infer_visualization_event_details(
         self, topic: str, payload: dict[str, Any]
@@ -1307,35 +1371,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 topic,
             )
         return agents
-
-        super().cleanup()
-
-        if self.fastapi_thread and self.fastapi_thread.is_alive():
-            log.info(
-                "%s Waiting for FastAPI server thread to exit...", self.log_identifier
-            )
-            self.fastapi_thread.join(timeout=10)
-            if self.fastapi_thread.is_alive():
-                log.warning(
-                    "%s FastAPI server thread did not exit gracefully.",
-                    self.log_identifier,
-                )
-
-        if self.sse_manager:
-            log.info(
-                "%s Closing active SSE connections (best effort)...",
-                self.log_identifier,
-            )
-            try:
-                asyncio.run(self.sse_manager.close_all())
-            except Exception as sse_close_err:
-                log.error(
-                    "%s Error closing SSE connections during cleanup: %s",
-                    self.log_identifier,
-                    sse_close_err,
-                )
-
-        log.info("%s Web UI Backend Component cleanup finished.", self.log_identifier)
 
     def get_agent_registry(self) -> AgentRegistry:
         return self.agent_registry
@@ -1664,22 +1699,31 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
                     if message_text and session_id and user_id:
                         from .dependencies import (
-                            create_session_service_with_transaction,
+                            SessionLocal,
+                            get_session_business_service,
                         )
                         from ...gateway.http_sse.shared.enums import SenderType
 
-                        with create_session_service_with_transaction() as (
-                            session_service,
-                            db,
-                        ):
-                            session_service.add_message_to_session(
-                                session_id=session_id,
-                                user_id=user_id,
-                                message=message_text,
-                                sender_type=SenderType.AGENT,
-                                sender_name=agent_name,
-                                agent_id=agent_name,
-                            )
+                        # For background processing, create simple session wrapper
+                        if SessionLocal:
+                            db = SessionLocal()
+                            try:
+                                session_service = get_session_business_service()
+                                session_service.add_message_to_session(
+                                    db=db,
+                                    session_id=session_id,
+                                    user_id=user_id,
+                                    message=message_text,
+                                    sender_type=SenderType.AGENT,
+                                    sender_name=agent_name,
+                                    agent_id=agent_name,
+                                )
+                                db.commit()
+                            except Exception:
+                                db.rollback()
+                                raise
+                            finally:
+                                db.close()
                         log.info(
                             "%s Final agent response stored in session %s",
                             log_id_prefix,

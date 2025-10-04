@@ -19,6 +19,7 @@ from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
 from ...common.a2a.types import ArtifactInfo
 from ...common.utils.mime_helpers import is_text_based_mime_type, is_text_based_file
+from ...common.constants import TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY, TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH
 from ...agent.utils.context_helpers import get_original_session_id
 
 if TYPE_CHECKING:
@@ -818,9 +819,12 @@ async def load_artifact_content_or_metadata(
     )
 
     if max_content_length is None and component:
-        max_content_length = component.get_config(
-            "text_artifact_content_max_length", 1000
-        )
+        max_content_length = component.get_config("text_artifact_content_max_length")
+        if max_content_length is None:
+            raise ValueError(
+                f"{log_identifier_req} Component config 'text_artifact_content_max_length' is not set."
+            )
+
         if max_content_length < 100:
             log.warning(
                 "%s text_artifact_content_max_length too small (%d), using minimum: 100",
@@ -828,15 +832,16 @@ async def load_artifact_content_or_metadata(
                 max_content_length,
             )
             max_content_length = 100
-        elif max_content_length > 100000:
+        elif max_content_length > TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY:
             log.warning(
-                "%s text_artifact_content_max_length too large (%d), using maximum: 100000",
+                "%s text_artifact_content_max_length too large (%d), using maximum: %d",
                 log_identifier_req,
                 max_content_length,
+                TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY,
             )
-            max_content_length = 100000
+            max_content_length = TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY
     elif max_content_length is None:
-        max_content_length = 1000
+        max_content_length = TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH
 
     log.debug(
         "%s Using max_content_length: %d characters (from %s).",
@@ -983,8 +988,18 @@ async def load_artifact_content_or_metadata(
                 if is_text:
                     try:
                         content_str = data_bytes.decode(encoding, errors=error_handling)
+                        message_to_llm = ""
                         if len(content_str) > max_content_length:
                             truncated_content = content_str[:max_content_length] + "..."
+
+                            if max_content_length < TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY:
+                                message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters. 
+                                                The artifact is larger ({len(content_str)} characters).
+                                                Please request again with larger max size up to {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} for the full artifact."""
+                            else:
+                                message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters. 
+                                                The artifact content met the maximum allowed size of {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} characters.
+                                                Please continue with this truncated content as the full artifact cannot be provided."""
                             log.info(
                                 "%s Loaded and decoded text artifact '%s' v%d. Returning truncated content (%d chars, limit: %d).",
                                 log_identifier,
@@ -1008,6 +1023,7 @@ async def load_artifact_content_or_metadata(
                             "version": version_to_load,
                             "mime_type": mime_type,
                             "content": truncated_content,
+                            "message_to_llm": message_to_llm,
                             "size_bytes": size_bytes,
                         }
                     except UnicodeDecodeError as decode_err:

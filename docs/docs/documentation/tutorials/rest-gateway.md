@@ -4,7 +4,7 @@ sidebar_position: 15
 ---
 
 
-Solace Agent Mesh (SAM) REST API Gateway provides a standard, robust, and secure HTTP-based entry point for programmatic and system-to-system integrations. It allows external clients to submit tasks to SAM agents, manage files, and discover agent capabilities using a familiar RESTful interface.
+Solace Agent Mesh REST API Gateway provides a standard, robust, and secure HTTP-based entry point for programmatic and system-to-system integrations. It allows external clients to submit tasks to Solace Agent Mesh agents, manage files, and discover agent capabilities using a familiar RESTful interface.
 
 The gateway is designed to be highly configurable and supports two distinct operational modes to cater to both modern, asynchronous workflows and legacy, synchronous systems.
 
@@ -14,11 +14,11 @@ The gateway is designed to be highly configurable and supports two distinct oper
 *   **Asynchronous by Default**: The v2 API uses a "202 Accepted + Poll" pattern, ideal for long-running agent tasks.
 *   **Delegated Authentication**: Integrates with an external authentication service via bearer tokens for secure access.
 *   **File Handling**: Supports file uploads for tasks and provides download URLs for generated artifacts.
-*   **Dynamic Configuration**: All gateway behaviors, including server settings and authentication, are configured via the main SAM Host YAML file.
+*   **Dynamic Configuration**: All gateway behaviors, including server settings and authentication, are configured via the main Solace Agent Mesh Host YAML file.
 
 ## Setting Up the Environment
 
-First, you need to [install Solace Agent Mesh and the SAM CLI](../getting-started/installation.md), and then [create a new Solace Agent Mesh project](../getting-started/quick-start.md).
+First, you need to [install Solace Agent Mesh and the Solace Agent Mesh CLI](../getting-started/installation.md), and then [create a new Solace Agent Mesh project](../getting-started/quick-start.md).
 
 ## Adding the REST Gateway Plugin
 
@@ -39,8 +39,8 @@ This command:
 
 For further configuration, you can edit the `configs/gateways/my-http-rest.yaml` file. This file contains the gateway configuration that can be customized for your use case.
 
-:::info[Using local Solace PubSub+ Broker container]
-Solace PubSub+ Broker container uses port 8080. You need to edit the `rest_api_server_port` field and `external_auth_service_url` field in the `configs/gateways/my-http-rest.yaml` file to a free port other than 8080 (for example: 8081).
+:::info[Using a local Solace Broker container]
+The Solace broker container uses port 8080. You need to edit the `rest_api_server_port` field and `external_auth_service_url` field in the `configs/gateways/my-http-rest.yaml` file to a free port other than 8080 (for example: 8081).
 
 You can edit the YAML file directly or add environment variables `REST_API_PORT=8081` and `EXTERNAL_AUTH_SERVICE_URL=http://localhost:8081`.
 
@@ -57,7 +57,7 @@ sam run configs/gateways/my-http-rest.yaml
 
 ## Sending a Request via REST API
 
-You can also interact with SAM via the **REST API**.
+You can also interact with Solace Agent Mesh via the **REST API**.
 
 The REST API gateway runs on `http://localhost:8080` by default. You can use either the legacy v1 API or the modern async v2 API.
 

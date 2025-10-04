@@ -36,6 +36,7 @@ ORCHESTRATOR_DEFAULTS = {
         "allow_list": ["*"],
         "request_timeout_seconds": DEFAULT_COMMUNICATION_TIMEOUT,
     },
+    "use_orchestrator_db": True,
 }
 
 
@@ -87,10 +88,20 @@ def create_orchestrator_config(
         options,
         "session_service_type",
         "Enter session service type",
-        "memory",
+        "sql",
         skip_interactive,
         choices=["sql", "memory", "vertex_rag"],
     )
+
+    if session_type == "sql":
+        options["use_orchestrator_db"] = ask_if_not_provided(
+            options,
+            "use_orchestrator_db",
+            "Use default orchestrator database? (true/false)",
+            ORCHESTRATOR_DEFAULTS["use_orchestrator_db"],
+            skip_interactive,
+            is_bool=True,
+        )
 
     session_behavior = ask_if_not_provided(
         options,
@@ -309,7 +320,7 @@ def create_orchestrator_config(
             artifact_base_path_line = f'base_path: "{artifact_base_path}"'
         elif artifact_type == "s3":
             s3_config_lines = ["bucket_name: ${S3_BUCKET_NAME}"]
-            s3_config_lines.append("endpoint_url: ${S3_ENDPOINT_URL:-}")
+            s3_config_lines.append("endpoint_url: ${S3_ENDPOINT_URL}")
             s3_config_lines.append("region: ${S3_REGION}")
             artifact_base_path_line = "\n      ".join(s3_config_lines)
 

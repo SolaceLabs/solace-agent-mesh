@@ -2,40 +2,42 @@
 Session-related response DTOs.
 """
 
-from typing import List, Optional
-from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
-from ....shared.types import SessionId, UserId, MessageId, PaginationInfo
-from ....shared.enums import SenderType, MessageType
+from ....shared.enums import MessageType, SenderType
+from ....shared.types import MessageId, PaginationInfo, SessionId, UserId
+from .base_responses import BaseTimestampResponse
 
 
-class MessageResponse(BaseModel):
+class MessageResponse(BaseTimestampResponse):
     """Response DTO for a chat message."""
+
     id: MessageId
-    session_id: SessionId
+    session_id: SessionId = Field(alias="sessionId")
     message: str
-    sender_type: SenderType
-    sender_name: str
-    message_type: MessageType = MessageType.TEXT
-    timestamp: datetime
-    created_at: datetime
-    updated_at: Optional[datetime] = None
+    sender_type: SenderType = Field(alias="senderType")
+    sender_name: str = Field(alias="senderName")
+    message_type: MessageType = Field(default=MessageType.TEXT, alias="messageType")
+    created_time: int = Field(alias="createdTime")
+    updated_time: int | None = Field(default=None, alias="updatedTime")
 
 
-class SessionResponse(BaseModel):
+class SessionResponse(BaseTimestampResponse):
     """Response DTO for a session."""
+
     id: SessionId
-    user_id: UserId
-    name: Optional[str] = None
-    agent_id: Optional[str] = None
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    last_activity: Optional[datetime] = None
+    user_id: UserId = Field(alias="userId")
+    name: str | None = None
+    agent_id: str | None = Field(default=None, alias="agentId")
+    created_time: int = Field(alias="createdTime")
+    updated_time: int | None = Field(default=None, alias="updatedTime")
 
 
 class SessionListResponse(BaseModel):
     """Response DTO for a list of sessions."""
-    sessions: List[SessionResponse]
-    pagination: Optional[PaginationInfo] = None
-    total_count: int
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    sessions: list[SessionResponse]
+    pagination: PaginationInfo | None = None
+    total_count: int = Field(alias="totalCount")

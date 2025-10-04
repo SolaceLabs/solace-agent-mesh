@@ -15,9 +15,12 @@ from typing import (
     get_args,
     Union,
     Literal,
+    TYPE_CHECKING,
+    Type,
 )
 import inspect
 
+from pydantic import BaseModel
 from google.adk.tools import BaseTool, ToolContext
 from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
@@ -33,6 +36,11 @@ from ...common.utils.embeds import (
 )
 
 
+if TYPE_CHECKING:
+    from ..sac.component import SamAgentComponent
+    from .tool_config_types import AnyToolConfig
+
+
 # --- Base Class for Programmatic Tools ---
 
 
@@ -42,12 +50,34 @@ class DynamicTool(BaseTool, ABC):
     descriptions, and parameter schemas programmatically.
     """
 
-    def __init__(self, tool_config: Optional[dict] = None):
+    config_model: Optional[Type[BaseModel]] = None
+
+    def __init__(self, tool_config: Optional[Union[dict, BaseModel]] = None):
         # Initialize with placeholder values, will be overridden by properties
         super().__init__(
             name="dynamic_tool_placeholder", description="dynamic_tool_placeholder"
         )
         self.tool_config = tool_config or {}
+
+    async def init(
+        self, component: "SamAgentComponent", tool_config: "AnyToolConfig"
+    ) -> None:
+        """
+        (Optional) Asynchronously initializes resources for the tool.
+        This method is called once when the agent starts up.
+        The `component` provides access to agent-wide state, and `tool_config`
+        is the validated Pydantic model instance if `config_model` is defined.
+        """
+        pass
+
+    async def cleanup(
+        self, component: "SamAgentComponent", tool_config: "AnyToolConfig"
+    ) -> None:
+        """
+        (Optional) Asynchronously cleans up resources used by the tool.
+        This method is called once when the agent is shutting down.
+        """
+        pass
 
     @property
     @abstractmethod
@@ -231,7 +261,7 @@ class _FunctionAsDynamicTool(DynamicTool):
     def __init__(
         self,
         func: Callable,
-        tool_config: Optional[dict] = None,
+        tool_config: Optional[Union[dict, BaseModel]] = None,
         provider_instance: Optional[Any] = None,
     ):
         super().__init__(tool_config=tool_config)
@@ -289,6 +319,7 @@ class DynamicToolProvider(ABC):
     programmatically from a single configuration block.
     """
 
+    config_model: Optional[Type[BaseModel]] = None
     _decorated_tools: List[Callable] = []
 
     @classmethod
@@ -313,7 +344,7 @@ class DynamicToolProvider(ABC):
         return func
 
     def _create_tools_from_decorators(
-        self, tool_config: Optional[dict] = None
+        self, tool_config: Optional[Union[dict, BaseModel]] = None
     ) -> List[DynamicTool]:
         """
         Internal helper to convert decorated functions into DynamicTool instances.
@@ -325,7 +356,7 @@ class DynamicToolProvider(ABC):
         return tools
 
     def get_all_tools_for_framework(
-        self, tool_config: Optional[dict] = None
+        self, tool_config: Optional[Union[dict, BaseModel]] = None
     ) -> List[DynamicTool]:
         """
         Framework-internal method that automatically combines decorated tools with custom tools.
@@ -346,7 +377,7 @@ class DynamicToolProvider(ABC):
         return decorated_tools + custom_tools
 
     @abstractmethod
-    def create_tools(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
+    def create_tools(self, tool_config: Optional[Union[dict, BaseModel]] = None) -> List[DynamicTool]:
         """
         Generate and return a list of custom DynamicTool instances.
 

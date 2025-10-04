@@ -34,7 +34,7 @@ AGENT_DEFAULTS = {
     "enable_embed_resolution": True,
     "enable_artifact_content_instruction": True,
     "tools": "[]",
-    "session_service_type": "sql",
+    "session_service_type": USE_DEFAULT_SHARED_SESSION,
     "session_service_behavior": "PERSISTENT",
     "artifact_service_type": USE_DEFAULT_SHARED_ARTIFACT,
     "artifact_service_base_path": "/tmp/samv2",

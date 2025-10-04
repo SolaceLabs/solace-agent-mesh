@@ -1,15 +1,6 @@
 import React from "react";
 
-import { 
-    AudioRenderer, 
-    CsvRenderer, 
-    HtmlRenderer, 
-    ImageRenderer, 
-    MarkdownRenderer, 
-    MermaidRenderer, 
-    StructuredDataRenderer,
-    TextRenderer
-} from "./Renderers";
+import { AudioRenderer, CsvRenderer, HtmlRenderer, ImageRenderer, MarkdownRenderer, MermaidRenderer, StructuredDataRenderer, TextRenderer } from "./Renderers";
 
 interface ContentRendererProps {
     content: string;

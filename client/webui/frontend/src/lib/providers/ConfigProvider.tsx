@@ -152,7 +152,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
             </div>
         );
     }
-    
+
     return (
         <div className="flex min-h-screen items-center justify-center bg-white dark:bg-gray-900">
             <div className="text-center">

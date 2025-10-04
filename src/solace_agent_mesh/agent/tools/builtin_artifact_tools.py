@@ -39,6 +39,9 @@ from google.adk.models import LlmRequest
 from google.adk.models.registry import LLMRegistry
 from ...common.utils.mime_helpers import is_text_based_file
 
+CATEGORY_NAME = "Artifact Management"
+CATEGORY_DESCRIPTION = "List, read, create, update, and delete artifacts."
+
 
 async def _internal_create_artifact(
     filename: str,
@@ -1570,6 +1573,8 @@ append_to_artifact_tool_def = BuiltinTool(
     implementation=append_to_artifact,
     description="Appends a chunk of content to an existing artifact. This operation will create a new version of the artifact. The content_chunk should be a string, potentially base64 encoded if it represents binary data (indicated by mime_type). The chunk size should be limited (e.g., max 3KB) by the LLM.",
     category="artifact_management",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:artifact:append"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
@@ -1597,6 +1602,8 @@ list_artifacts_tool_def = BuiltinTool(
     implementation=list_artifacts,
     description="Lists all available data artifact filenames and their versions for the current session. Includes a summary of the latest version's metadata for each artifact.",
     category="artifact_management",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:artifact:list"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
@@ -1611,6 +1618,8 @@ load_artifact_tool_def = BuiltinTool(
     implementation=load_artifact,
     description="Loads the content or metadata of a specific artifact version. If load_metadata_only is True, loads the full metadata dictionary. Otherwise, loads text content (potentially truncated) or a summary for binary types.",
     category="artifact_management",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:artifact:load"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
@@ -1645,6 +1654,8 @@ apply_embed_and_create_artifact_tool_def = BuiltinTool(
     implementation=apply_embed_and_create_artifact,
     description="Resolves an 'artifact_content' embed directive (including modifiers and formatting) and saves the resulting content as a new artifact. The entire embed directive must be provided as a string.",
     category="artifact_management",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:artifact:create", "tool:artifact:load"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
@@ -1674,6 +1685,8 @@ extract_content_from_artifact_tool_def = BuiltinTool(
     implementation=extract_content_from_artifact,
     description="Loads an existing artifact, uses an internal LLM to process its content based on an 'extraction_goal,' and manages the output by returning it or saving it as a new artifact.",
     category="artifact_management",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:artifact:load", "tool:artifact:create"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
@@ -1804,6 +1817,8 @@ delete_artifact_tool_def = BuiltinTool(
     implementation=delete_artifact,
     description="Deletes a specific version of an artifact, or all versions if no version is specified.",
     category="artifact_management",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:artifact:delete"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,

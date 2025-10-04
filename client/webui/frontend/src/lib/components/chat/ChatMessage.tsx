@@ -55,7 +55,7 @@ const MessageContent: React.FC<{ message: MessageFE; textContent: string }> = ({
             const finalContent = decodeBase64Content(item.content);
             if (finalContent) {
                 contentElements.push(
-                    <div key={`embedded-${index}`} className="my-2 h-auto w-md max-w-md overflow-hidden">
+                    <div key={`embedded-${index}`} className="my-2 h-auto w-md max-w-md">
                         <ContentRenderer content={finalContent} rendererType={item.type} mime_type={item.mimeType} setRenderError={setRenderError} />
                     </div>
                 );
@@ -168,7 +168,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                         <ArtifactMessage key={`part-artifact-${index}`} status="failed" name={artifactPart.name} error={artifactPart.error} />
                     );
                 default:
-                        return null;
+                    return null;
             }
         }
         return null;
@@ -177,15 +177,15 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
     // Count text and artifact parts for workflow button logic
     const textParts = groupedParts.filter(part => part.kind === "text");
     const artifactParts = groupedParts.filter(part => part.kind === "artifact" || part.kind === "file");
-    
+
     return (
         <div key={message.metadata?.messageId} className="space-y-2">
             {/* Render parts in their original order to preserve interleaving */}
             {groupedParts.map((part, index) => {
                 if (part.kind === "text") {
-                    const isLastTextPart = index === groupedParts.length - 1 || 
+                    const isLastTextPart = index === groupedParts.length - 1 ||
                         !groupedParts.slice(index + 1).some(p => p.kind === "text");
-                    
+
                     return (
                         <ChatBubble key={`part-${index}`} variant={variant}>
                             <ChatBubbleMessage variant={variant}>
@@ -204,7 +204,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                 }
                 return null;
             })}
-            
+
             {/* Show workflow button if no text content but artifacts are present */}
             {textParts.length === 0 && artifactParts.length > 0 && showWorkflowButton && (
                 <div className="flex justify-end">

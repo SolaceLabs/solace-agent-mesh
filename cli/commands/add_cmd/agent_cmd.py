@@ -5,7 +5,7 @@ from pathlib import Path
 import click
 import yaml
 
-from config_portal.backend.common import AGENT_DEFAULTS, USE_DEFAULT_SHARED_ARTIFACT
+from config_portal.backend.common import AGENT_DEFAULTS, USE_DEFAULT_SHARED_ARTIFACT, USE_DEFAULT_SHARED_SESSION
 
 from ...utils import (
     ask_if_not_provided,
@@ -53,7 +53,7 @@ def _write_agent_yaml_from_data(
     try:
         modified_content = load_template("agent_template.yaml")
         session_service_type_opt = config_options.get("session_service_type")
-        if session_service_type_opt and session_service_type_opt != "memory":
+        if session_service_type_opt and session_service_type_opt != USE_DEFAULT_SHARED_SESSION:
             type_val = session_service_type_opt
             behavior_val = config_options.get(
                 "session_service_behavior", AGENT_DEFAULTS["session_service_behavior"]
@@ -95,7 +95,7 @@ def _write_agent_yaml_from_data(
                 custom_artifact_lines.append(f'base_path: "{base_path_val}"')
             elif type_val == "s3":
                 custom_artifact_lines.append("bucket_name: ${S3_BUCKET_NAME}")
-                custom_artifact_lines.append("endpoint_url: ${S3_ENDPOINT_URL:-}")
+                custom_artifact_lines.append("endpoint_url: ${S3_ENDPOINT_URL}")
                 custom_artifact_lines.append("region: ${S3_REGION}")
             custom_artifact_lines.append(f"artifact_scope: {scope_val}")
             artifact_service_block = "\n" + "\n".join(
@@ -295,6 +295,9 @@ def _write_agent_yaml_from_data(
             modified_content = modified_content.replace(placeholder, str(value))
         if config_options.get(DATABASE_URL_KEY):
             env_key = f"{formatted_names['SNAKE_UPPER_CASE_NAME']}_DATABASE_URL"
+            if config_options[DATABASE_URL_KEY] == "default_agent_db":
+                db_file = project_root / "data" / f"{formatted_names['SNAKE_CASE_NAME']}.db"
+                config_options[DATABASE_URL_KEY] = f"sqlite:///{db_file.resolve()}"
             if not _append_to_env_file(
                 project_root, env_key, config_options[DATABASE_URL_KEY]
             ):
@@ -386,7 +389,7 @@ def create_agent_config(
         "Session service type",
         AGENT_DEFAULTS["session_service_type"],
         skip_interactive,
-        choices=["sql", "memory", "vertex_rag"],
+        choices=[USE_DEFAULT_SHARED_SESSION, "sql", "memory", "vertex_rag"],
     )
 
     if collected_options.get("session_service_type") == "sql":

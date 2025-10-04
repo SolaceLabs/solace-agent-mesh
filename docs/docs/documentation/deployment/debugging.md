@@ -10,7 +10,7 @@ The following sections provide common debugging approaches to help you diagnose 
 
 ## Isolate Components
 
-Running only the necessary components in isolation can help pinpoint issues. The `run` Solace Agent Mesh (SAM) CLI command allows you to specify which files to run.
+Running only the necessary components in isolation can help pinpoint issues. The `run` Solace Agent Mesh CLI command allows you to specify which files to run.
 
 For example:
 
@@ -70,7 +70,7 @@ Set breakpoints in your code to pause execution and inspect variable states.
 
 ## Invoke the Agent Directly
 
-For debugging and testing, you can send direct messages to an agent by directly selecting the agent in the web UI agent dropdown or by using the PubSub+ event broker. This requires specifying the appropriate topic, user properties, and payload.
+For debugging and testing, you can send direct messages to an agent by directly selecting the agent in the web UI agent dropdown or by using the Solace event broker. This requires specifying the appropriate topic, user properties, and payload.
 
 #### Tools for Sending Messages
 - **[Solace Try Me VSCode Extension](https://marketplace.visualstudio.com/items?itemName=solace-tools.solace-try-me-vsc-extension)**

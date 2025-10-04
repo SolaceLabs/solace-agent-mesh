@@ -6,11 +6,11 @@ toc_max_heading_level: 4
 
 # RAG Integration
 
-This tutorial guides you through setting up and configuring Solace Agent Mesh (SAM) Retrieval Augmented Generation (RAG) plugin. The RAG plugin enables your agents to answer questions by retrieving information from a knowledge base of your documents.
+This tutorial guides you through setting up and configuring Solace Agent Mesh Retrieval Augmented Generation (RAG) plugin. The RAG plugin enables your agents to answer questions by retrieving information from a knowledge base of your documents.
 
-## What is SAM RAG?
+## What is Solace Agent Mesh RAG?
 
-The SAM RAG plugin enhances your agents with the ability to perform retrieval-augmented generation. This means the agent can:
+The Solace Agent Mesh RAG plugin enhances your agents with the ability to perform retrieval-augmented generation. This means the agent can:
 - **Scan** documents from various sources (local filesystem, Google Drive, etc.).
 - **Preprocess** and **split** the text into manageable chunks.
 - **Embed** these chunks into vectors and store them in a vector database.
@@ -22,7 +22,7 @@ This allows you to build agents that can answer questions about your own private
 ## Prerequisites
 
 Before you begin, ensure you have:
-- [Installed Solace Agent Mesh and the SAM CLI](../getting-started/installation.md).
+- [Installed Solace Agent Mesh and the Solace Agent Mesh CLI](../getting-started/installation.md).
 - [Created a new Solace Agent Mesh project](../getting-started/quick-start.md).
 - Access to a vector database (for example, Qdrant, Chroma, and Pinecone).
 - Access to an LLM for generation and an embedding model.
@@ -30,7 +30,7 @@ Before you begin, ensure you have:
 
 ## Adding the RAG Plugin
 
-To add the RAG plugin to your SAM project, run the following command:
+To add the RAG plugin to your Solace Agent Mesh project, run the following command:
 
 ```sh
 sam plugin add my-rag-agent --plugin sam-rag
@@ -53,7 +53,7 @@ Like other agents, the RAG agent needs a connection to the Solace broker and a c
 shared_config:
   - broker_connection: &broker_connection
       dev_mode: ${SOLACE_DEV_MODE, false}
-      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8080}
+      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8008}
       broker_username: ${SOLACE_BROKER_USERNAME, default}
       broker_password: ${SOLACE_BROKER_PASSWORD, default}
       broker_vpn: ${SOLACE_BROKER_VPN, default}
@@ -216,7 +216,7 @@ The RAG agent relies heavily on environment variables. Here are some of the most
 
 ```bash
 # Solace Connection
-SOLACE_BROKER_URL=ws://localhost:8080
+SOLACE_BROKER_URL=ws://localhost:8008
 SOLACE_BROKER_VPN=default
 SOLACE_BROKER_USERNAME=default
 SOLACE_BROKER_PASSWORD=default
@@ -267,12 +267,12 @@ This method uses the configured `scanner` component. The agent automatically ing
 First, create a simple text file named `sam_features.txt` and add some content to it. For example:
 
 ```text
-Solace Agent Mesh (SAM) is a powerful framework for building AI agents.
-Key features of SAM include:
+Solace Agent Mesh is a powerful framework for building AI agents.
+Key features of Solace Agent Mesh include:
 - A flexible plugin architecture.
 - Integration with various LLMs and vector databases.
 - Scalable gateways for different communication protocols.
-- An event-driven design based on Solace PubSub+.
+- An event-driven design based on Solace event broker.
 ```
 
 **Step 2: Place the Document in the Scanned Directory**

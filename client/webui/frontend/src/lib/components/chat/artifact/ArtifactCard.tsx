@@ -11,7 +11,7 @@ interface ArtifactCardProps {
 
 export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview }) => {
     const { setPreviewArtifact } = useChatContext();
-    
+
     // Create a FileAttachment from the ArtifactInfo
     const fileAttachment = {
         name: artifact.filename,

@@ -15,6 +15,7 @@ from solace_ai_connector.common.log import log
 
 from ....gateway.http_sse.session_manager import SessionManager
 from ....gateway.http_sse.services.task_service import TaskService
+from ....gateway.http_sse.services.session_service import SessionService
 
 from a2a.types import (
     CancelTaskRequest,
@@ -29,6 +30,7 @@ from ....gateway.http_sse.dependencies import (
     get_session_manager,
     get_sac_component,
     get_task_service,
+    get_session_business_service,
 )
 
 from typing import TYPE_CHECKING
@@ -45,6 +47,7 @@ async def _submit_task(
     session_manager: SessionManager,
     component: "WebUIBackendComponent",
     is_streaming: bool,
+    session_service: SessionService | None = None,
 ):
     """Helper to submit a task, handling both streaming and non-streaming cases."""
     log_prefix = f"[POST /api/v1/message:{'stream' if is_streaming else 'send'}] "
@@ -76,84 +79,94 @@ async def _submit_task(
         )
 
         client_id = session_manager.get_a2a_client_id(request)
-        
-        # Use session ID from frontend request (contextId) instead of cookie-based session
+
+        # Use session ID from frontend request (contextId per A2A spec) instead of cookie-based session
         # Handle various falsy values: None, empty string, whitespace-only string
-        log.info("%s[DEBUG] payload.params.message: %s", log_prefix, payload.params.message)
-        log.info("%s[DEBUG] hasattr context_id: %s", log_prefix, hasattr(payload.params.message, 'context_id'))
-        if hasattr(payload.params.message, 'context_id'):
-            log.info("%s[DEBUG] context_id value: %s", log_prefix, payload.params.message.context_id)
-        
         frontend_session_id = None
-        if hasattr(payload.params.message, 'context_id') and payload.params.message.context_id:
+        if (
+            hasattr(payload.params.message, "context_id")
+            and payload.params.message.context_id
+        ):
             context_id = payload.params.message.context_id
             if isinstance(context_id, str) and context_id.strip():
                 frontend_session_id = context_id.strip()
-                log.info("%s[DEBUG] Extracted frontend_session_id: %s", log_prefix, frontend_session_id)
-        
+
+        user_id = user_identity.get("id")
+        from ....gateway.http_sse.dependencies import SessionLocal
+
         if frontend_session_id:
             session_id = frontend_session_id
-            log.info("%sUsing session ID from frontend request: %s", log_prefix, session_id)
+            log.info(
+                "%sUsing session ID from frontend request: %s", log_prefix, session_id
+            )
         else:
-            # Create new session when frontend doesn't provide one (None, empty, or whitespace-only)
+            # Create new session when frontend doesn't provide one
             session_id = session_manager.create_new_session_id(request)
-            log.info("%sNo valid session ID from frontend, created new session: %s", log_prefix, session_id)
+            log.info(
+                "%sNo valid session ID from frontend, created new session: %s",
+                log_prefix,
+                session_id,
+            )
+
+            # Immediately create session in database if persistence is enabled
+            # This ensures the session exists before any other operations (like artifact listing)
+            if SessionLocal is not None and session_service is not None:
+                db = SessionLocal()
+                try:
+                    session_service.create_session(
+                        db=db,
+                        user_id=user_id,
+                        agent_id=agent_name,
+                        session_id=session_id,
+                    )
+                    db.commit()
+                    log.info("%sCreated session in database: %s", log_prefix, session_id)
+                except Exception as e:
+                    db.rollback()
+                    log.warning("%sFailed to create session in database: %s", log_prefix, e)
+                finally:
+                    db.close()
 
         log.info(
             "%sUsing ClientID: %s, SessionID: %s", log_prefix, client_id, session_id
         )
 
         # Store message in persistence layer if available
-        user_id = user_identity.get("id")
-        from ....gateway.http_sse.dependencies import SessionLocal
-        if is_streaming and SessionLocal is not None:
+        if is_streaming and SessionLocal is not None and session_service is not None:
+            db = SessionLocal()
             try:
-                from ....gateway.http_sse.dependencies import create_session_service_with_transaction
                 from ....gateway.http_sse.shared.enums import SenderType
-                
-                with create_session_service_with_transaction() as (session_service, db):
-                    existing_session = session_service.get_session(session_id=session_id, user_id=user_id)
-                    if not existing_session:
-                        log.info("%sCreating new session in database: %s", log_prefix, session_id)
-                        try:
-                            session_service.create_session(
-                                user_id=user_id,
-                                agent_id=agent_name,
-                                name=None,
-                                session_id=session_id
-                            )
-                        except Exception as create_error:
-                            log.warning("%sSession creation failed, checking if session exists: %s", log_prefix, create_error)
-                            existing_session = session_service.get_session(session_id=session_id, user_id=user_id)
-                            if not existing_session:
-                                raise create_error
-                            log.info("%sSession was created by another request: %s", log_prefix, session_id)
-                    
-                    message_text = ""
-                    if payload.params and payload.params.message:
-                        parts = a2a.get_parts_from_message(payload.params.message)
-                        for part in parts:
-                            if hasattr(part, 'text'):
-                                message_text = part.text
-                                break
-                    
-                    message_domain = session_service.add_message_to_session(
-                        session_id=session_id,
-                        user_id=user_id,
-                        message=message_text or "Task submitted",
-                        sender_type=SenderType.USER,
-                        sender_name=user_id or "user",
-                        agent_id=agent_name,
-                    )
-                    
-                    if message_domain:
-                        log.info("%sMessage stored in session %s", log_prefix, session_id)
-                    else:
-                        log.warning("%sFailed to store message in session %s", log_prefix, session_id)
+
+                message_text = ""
+                if payload.params and payload.params.message:
+                    parts = a2a.get_parts_from_message(payload.params.message)
+                    for part in parts:
+                        if hasattr(part, "text"):
+                            message_text = part.text
+                            break
+
+                session_service.add_message_to_session(
+                    db=db,
+                    session_id=session_id,
+                    user_id=user_id,
+                    message=message_text or "Task submitted",
+                    sender_type=SenderType.USER,
+                    sender_name=user_id or "user",
+                    agent_id=agent_name,
+                )
+                db.commit()
             except Exception as e:
-                log.error("%sFailed to store message in session service: %s", log_prefix, e)
+                db.rollback()
+                log.error(
+                    "%sFailed to store message in session service: %s", log_prefix, e
+                )
+            finally:
+                db.close()
         else:
-            log.debug("%sNo persistence available or non-streaming - skipping message storage", log_prefix)
+            log.debug(
+                "%sNo persistence available or non-streaming - skipping message storage",
+                log_prefix,
+            )
 
         # Use the helper to get the unwrapped parts from the incoming message.
         a2a_parts = a2a.get_parts_from_message(payload.params.message)
@@ -226,6 +239,7 @@ async def send_task_to_agent(
         session_manager=session_manager,
         component=component,
         is_streaming=False,
+        session_service=None,
     )
 
 
@@ -235,6 +249,7 @@ async def subscribe_task_from_agent(
     payload: SendStreamingMessageRequest,
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
+    session_service: SessionService = Depends(get_session_business_service),
 ):
     """
     Submits a streaming task request to the specified agent.
@@ -247,6 +262,7 @@ async def subscribe_task_from_agent(
         session_manager=session_manager,
         component=component,
         is_streaming=True,
+        session_service=session_service,
     )
 
 

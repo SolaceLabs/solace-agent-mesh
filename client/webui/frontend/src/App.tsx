@@ -8,7 +8,7 @@ import { useAuthContext, useBeforeUnload } from "@/lib/hooks";
 function AppContent() {
     const [activeNavItem, setActiveNavItem] = useState<string>("chat");
     const { isAuthenticated, login, useAuthorization } = useAuthContext();
-    
+
     // Enable beforeunload warning when chat data is present
     useBeforeUnload();
 

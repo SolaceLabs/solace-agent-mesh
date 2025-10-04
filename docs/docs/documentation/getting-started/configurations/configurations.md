@@ -1,6 +1,6 @@
 ---
 title: Configurations
-sidebar_position: 50
+sidebar_position: 10
 toc_max_heading_level: 4
 ---
 
@@ -36,7 +36,7 @@ The file uses YAML anchors (`&anchor_name`) to create reusable configuration blo
 shared_config:
   - broker_connection: &broker_connection
       dev_mode: ${SOLACE_DEV_MODE, false}
-      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8080}
+      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8008}
       broker_username: ${SOLACE_BROKER_USERNAME, default}
       broker_password: ${SOLACE_BROKER_PASSWORD, default}
       broker_vpn: ${SOLACE_BROKER_VPN, default}
@@ -90,12 +90,12 @@ shared_config:
 
 #### Broker Connection
 
-The `broker_connection` section configures the connection to the Solace PubSub+ event broker. The connection parameters are described in the following table:
+The `broker_connection` section configures the connection to the Solace event broker. The connection parameters are described in the following table:
 
 | Parameter | Environment Variable | Description | Default |
 | :--- | :--- | :--- | :--- |
 | `dev_mode` | `SOLACE_DEV_MODE` | When set to `true`, uses an in-memory broker for testing. | `false` |
-| `broker_url` | `SOLACE_BROKER_URL` | The URL of the Solace broker. | `ws://localhost:8080` |
+| `broker_url` | `SOLACE_BROKER_URL` | The URL of the Solace broker. | `ws://localhost:8008` |
 | `broker_username` | `SOLACE_BROKER_USERNAME` | The username for authenticating with the broker. | `default` |
 | `broker_password` | `SOLACE_BROKER_PASSWORD` | The password for authenticating with the broker. | `default` |
 | `broker_vpn` | `SOLACE_BROKER_VPN` | The Message VPN to connect to on the broker. | `default` |
@@ -145,6 +145,10 @@ The `shared_config.yaml` example defines several models for different purposes. 
 
 You can define any number of models in this section and reference them in your agent configurations. **By default, the system only uses the `planning` and the `general` models. No need to fill the other fields**
 
+:::info
+For more information on configuring different LLM models and SSL/TLS settings, please refer to the [LLM Models](./litellm_models.md) documentation.
+:::
+
 #### Services
 
 The `services` section in `shared_config.yaml` is used to configure various services that are available to agents.
@@ -155,8 +159,12 @@ The parameters are described in the following table:
 
 | Parameter | Options | Description | Default |
 | :--- | :--- | :--- | :--- |
-| `type` | `memory`, `vertex_rag` | Configuration for ADK Session Service | `memory` |
+| `type` | `memory`, `sql`, `vertex_rag` | Configuration for ADK Session Service | `memory` |
 | `default_behavior` | `PERSISTENT`, `RUN_BASED` | The default behavior of keeping the session history | `PERSISTENT` |
+
+:::tip
+Although the default session service type is `memory`, both Orchestrator Agent and Web UI gateway use `sql` as their session service to allow for persistent sessions.
+:::
 
 ##### Artifact Service
 
@@ -184,4 +192,4 @@ The `data_tools_config` section configures the behavior of data analysis tools.
 
 ## System Logs
 
-For details on how to configure system logging, including log rotation and verbosity levels, please see the [System Logs](../deployment/debugging.md#system-logs) section in the debugging documentation.
+For details on how to configure system logging, including log rotation and verbosity levels, please see the [System Logs](../../deployment/debugging.md#system-logs) section in the debugging documentation.

@@ -4,9 +4,6 @@ Defines configuration schema and programmatically creates the WebUIBackendCompon
 """
 
 from typing import Any, Dict, List
-import os
-from alembic import command
-from alembic.config import Config
 from solace_ai_connector.common.log import log
 
 from ...gateway.http_sse.component import WebUIBackendComponent
@@ -188,31 +185,6 @@ class WebUIBackendApp(BaseGatewayApp):
         )
         super().__init__(app_info, **kwargs)
 
-        try:
-            
-            alembic_ini_path = os.path.join(os.path.dirname(__file__), "alembic.ini")
-            if os.path.exists(alembic_ini_path):
-                log.debug("Loading Alembic configuration from alembic.ini.")
-                alembic_cfg = Config(alembic_ini_path)
-            else:
-                log.warning(
-                    "alembic.ini not found. Falling back to programmatic configuration."
-                )
-                alembic_cfg = Config()
-                alembic_cfg.set_main_option(
-                    "script_location",
-                    os.path.join(os.path.dirname(__file__), "alembic"),
-                )
-            
-            session_service_config = self.get_config("session_service", {})
-            db_url = session_service_config.get("database_url")
-            if db_url:
-                alembic_cfg.set_main_option("sqlalchemy.url", db_url)
-                command.upgrade(alembic_cfg, "head")
-            else:
-                log.warning("Database URL not configured. Skipping migrations.")
-        except Exception as e:
-            log.warning(f"Alembic migration failed: {e}")
 
         log.debug("%s WebUIBackendApp initialization complete.", self.name)
 

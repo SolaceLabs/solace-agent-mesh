@@ -17,7 +17,7 @@ export const ToggleThemeButton: React.FC = () => {
                     aria-label={label}
                     title={label}
                 >
-                    <SunMoon className="mb-1 w-6 h-6" />
+                    <SunMoon className="mb-1 h-6 w-6" />
                 </button>
             </TooltipTrigger>
             <TooltipContent side="right">{label}</TooltipContent>

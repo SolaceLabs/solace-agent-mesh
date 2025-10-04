@@ -1,6 +1,6 @@
-# SAM Gateway Migration Guide: Upgrading to the A2A SDK                                                                                                                                                   
+# Solace Agent Mesh Gateway Migration Guide: Upgrading to the A2A SDK                                                                                                                                                   
                                                                                                                                                                                                           
-This guide is for developers who have built or are maintaining a custom Solace Agent Mesh (SAM) gateway. A recent architectural update has aligned SAM with the official Agent-to-Agent (A2A) protocol    
+This guide is for developers who have built or are maintaining a custom Solace Agent Mesh gateway. A recent architectural update has aligned Solace Agent Mesh with the official Agent-to-Agent (A2A) protocol    
 specification by adopting the `a2a-sdk`. This migration requires some changes to your gateway code to ensure compatibility.                                                                               
                                                                                                                                                                                                           
 This document provides a high-level overview of the conceptual changes and a practical checklist to guide you through the upgrade process.                                                                

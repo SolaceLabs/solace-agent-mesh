@@ -4,22 +4,19 @@ import type { BaseRendererProps } from ".";
 
 export const HtmlRenderer: React.FC<BaseRendererProps> = ({ content, setRenderError }) => {
     const preparedContent = useMemo(() => {
-        const cleanHtml = content; 
+        const cleanHtml = content;
 
         // This regex finds script tags and wraps their content in an IIFE
-        const wrappedContent = cleanHtml.replace(
-            /<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi,
-            (match: string, scriptContent: string) => {
-                const scriptTagMatch = match.match(/<script(\s[^>]*)?>/i);
-                const attributes = scriptTagMatch && scriptTagMatch[1] ? scriptTagMatch[1] : "";
-                return `<script${attributes}>(function() {\ntry {\n${scriptContent}\n} catch (e) { console.error('Error in sandboxed script:', e); }\n})();</script>`;
-            }
-        );
+        const wrappedContent = cleanHtml.replace(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi, (match: string, scriptContent: string) => {
+            const scriptTagMatch = match.match(/<script(\s[^>]*)?>/i);
+            const attributes = scriptTagMatch && scriptTagMatch[1] ? scriptTagMatch[1] : "";
+            return `<script${attributes}>(function() {\ntry {\n${scriptContent}\n} catch (e) { console.error('Error in sandboxed script:', e); }\n})();</script>`;
+        });
         return wrappedContent;
     }, [content]);
 
     return (
-        <div className="h-full w-full overflow-hidden dark:bg-gray-400 border">
+        <div className="h-full w-full overflow-hidden border dark:bg-gray-400">
             <iframe
                 srcDoc={preparedContent}
                 title="HTML Preview"
