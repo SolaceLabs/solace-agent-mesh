@@ -46,6 +46,7 @@ class BlockStartedEvent(ParserEvent):
 class BlockProgressedEvent(ParserEvent):
     """Emitted periodically while content is being buffered for a block."""
 
+    params: Dict[str, Any]
     buffered_size: int
     chunk: str
 
@@ -171,10 +172,14 @@ class FencedBlockStreamParser:
         if self._speculative_buffer.startswith(BLOCK_START_SEQUENCE):
             if char == "\n":
                 # We found the newline, the block is officially started.
+                print(
+                    f"[FencedBlockStreamParser] Block started. Speculative buffer: {self._speculative_buffer}"
+                )
                 self._state = ParserState.IN_BLOCK
                 # Extract the parameters string between the start sequence and the newline
                 params_str = self._speculative_buffer[len(BLOCK_START_SEQUENCE) : -1]
                 self._block_params = dict(PARAMS_REGEX.findall(params_str))
+                print(f"[FencedBlockStreamParser] Parsed params: {self._block_params}")
                 events.append(BlockStartedEvent(params=self._block_params))
                 self._speculative_buffer = ""  # Clear buffer, we are done with it.
             # else, we are still buffering the parameters line.
@@ -202,6 +207,9 @@ class FencedBlockStreamParser:
             final_content = self._artifact_buffer[
                 : -len(ARTIFACT_BLOCK_DELIMITER_CLOSE)
             ]
+            print(
+                f"[FencedBlockStreamParser] Block completed. Content length: {len(final_content)}"
+            )
             events.append(
                 BlockCompletedEvent(params=self._block_params, content=final_content)
             )
@@ -215,7 +223,14 @@ class FencedBlockStreamParser:
                 new_chunk = self._artifact_buffer[
                     self._last_progress_update_size : current_size
                 ]
+                print(
+                    f"[FencedBlockStreamParser] Block progress. Buffered size: {current_size}"
+                )
                 events.append(
-                    BlockProgressedEvent(buffered_size=current_size, chunk=new_chunk)
+                    BlockProgressedEvent(
+                        params=self._block_params,
+                        buffered_size=current_size,
+                        chunk=new_chunk,
+                    )
                 )
                 self._last_progress_update_size = current_size

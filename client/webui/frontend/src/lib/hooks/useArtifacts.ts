@@ -10,6 +10,7 @@ interface UseArtifactsReturn {
     isLoading: boolean;
     error: string | null;
     refetch: () => Promise<void>;
+    setArtifacts: React.Dispatch<React.SetStateAction<ArtifactInfo[]>>;
 }
 
 /**
@@ -60,5 +61,6 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
         isLoading,
         error,
         refetch: fetchArtifacts,
+        setArtifacts,
     };
 };

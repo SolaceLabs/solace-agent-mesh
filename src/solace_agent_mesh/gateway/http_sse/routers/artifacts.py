@@ -41,6 +41,7 @@ from ....common.utils.embeds import (
     resolve_embeds_recursively_in_string,
 )
 from ....common.utils.mime_helpers import is_text_based_mime_type
+from ....common.utils.embeds.types import ResolutionMode
 from ..dependencies import (
     ValidatedUserConfig,
     get_sac_component,
@@ -52,6 +53,7 @@ from ..dependencies import (
     get_session_business_service_optional,
     get_db_optional,
 )
+
 
 if TYPE_CHECKING:
     from ....gateway.http_sse.component import WebUIBackendComponent
@@ -488,6 +490,7 @@ async def get_latest_artifact(
                     context=context_for_resolver,
                     resolver_func=evaluate_embed,
                     types_to_resolve=LATE_EMBED_TYPES,
+                    resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT,
                     log_identifier=f"{log_prefix}[RecursiveResolve]",
                     config=config_for_resolver,
                     max_depth=component.gateway_recursive_embed_depth,
@@ -666,6 +669,7 @@ async def get_specific_artifact_version(
                     context=context_for_resolver,
                     resolver_func=evaluate_embed,
                     types_to_resolve=LATE_EMBED_TYPES,
+                    resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT,
                     log_identifier=f"{log_prefix}[RecursiveResolve]",
                     config=config_for_resolver,
                     max_depth=component.gateway_recursive_embed_depth,

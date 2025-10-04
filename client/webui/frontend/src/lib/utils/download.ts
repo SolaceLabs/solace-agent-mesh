@@ -2,7 +2,7 @@ import type { FileAttachment } from "@/lib/types";
 import { authenticatedFetch } from "./api";
 
 // Helper function to parse the custom artifact URI
-const parseArtifactUri = (uri: string): { filename: string; version: string | null } | null => {
+export const parseArtifactUri = (uri: string): { filename: string; version: string | null } | null => {
     try {
         const url = new URL(uri);
         if (url.protocol !== "artifact:") {

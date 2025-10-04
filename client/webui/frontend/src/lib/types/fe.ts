@@ -74,6 +74,7 @@ export interface ArtifactInfo {
     versionCount?: number; // Optional: Total number of available versions
     description?: string | null; // Optional: Description of the artifact
     schema?: string | null | object; // Optional: Schema for the structure artifact
+    accumulatedContent?: string; // Optional: Accumulated base64 content during creation
 }
 
 /**
@@ -98,6 +99,25 @@ export interface Notification {
     type?: "success" | "info" | "error";
 }
 
+export interface ArtifactPart {
+    kind: "artifact";
+    status: "in-progress" | "completed" | "failed";
+    name: string;
+    description?: string;
+    bytesTransferred?: number;
+    file?: FileAttachment; // The completed file info
+    error?: string;
+}
+
+export type PartFE = Part | ArtifactPart;
+
+/**
+ * State for managing artifact rendering preferences and expanded state
+ */
+export interface ArtifactRenderingState {
+    expandedArtifacts: Set<string>;
+}
+
 /**
  * Represents a single message in the chat conversation.
  */
@@ -110,13 +130,7 @@ export interface MessageFE {
     isThinkingMessage?: boolean; // Specific flag for the "thinking" status message
     isComplete?: boolean; // ADDED: True if the agent response associated with this message is complete
     isError?: boolean; // ADDED: True if this message represents an error/failure
-    files?: FileAttachment[]; // Array of files returned by the agent with this message
     uploadedFiles?: File[]; // Array of files uploaded by the user with this message
-    artifactNotification?: {
-        // ADDED: For displaying artifact arrival notifications
-        name: string;
-        version?: number; // Optional: If version info is available from metadata
-    };
     toolEvents?: ToolEvent[]; // --- NEW: Array to hold tool call results ---
     metadata?: {
         // Optional metadata, e.g., for feedback or correlation
@@ -124,7 +138,7 @@ export interface MessageFE {
         sessionId?: string; // The A2A session ID associated with this message exchange
         lastProcessedEventSequence?: number; // Sequence number of the last SSE event processed for this bubble
     };
-    parts: Part[];
+    parts: PartFE[];
 }
 
 // Layout Types

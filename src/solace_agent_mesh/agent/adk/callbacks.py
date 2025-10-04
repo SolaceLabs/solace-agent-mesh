@@ -167,12 +167,27 @@ async def process_artifact_blocks_callback(
                             event.params,
                         )
                         filename = event.params.get("filename", "unknown_artifact")
+                        description = event.params.get("description")
                         if a2a_context:
+                            status_text = f"Receiving artifact `{filename}`..."
+                            if description:
+                                status_text = f"Receiving artifact `{filename}`: {description}"
                             progress_data = AgentProgressUpdateData(
-                                status_text=f"Receiving artifact `{filename}`..."
+                                status_text=status_text
                             )
                             await _publish_data_part_status_update(
                                 host_component, a2a_context, progress_data
+                            )
+                            # Also send an initial in-progress event to create the UI bubble
+                            artifact_progress_data = ArtifactCreationProgressData(
+                                filename=filename,
+                                description=description,
+                                status="in-progress",
+                                bytes_transferred=0,
+                                artifact_chunk=None,
+                            )
+                            await _publish_data_part_status_update(
+                                host_component, a2a_context, artifact_progress_data
                             )
                         params_str = " ".join(
                             [f'{k}="{v}"' for k, v in event.params.items()]
@@ -186,12 +201,14 @@ async def process_artifact_blocks_callback(
                             log_identifier,
                             event.buffered_size,
                         )
-                        params = parser._block_params
+                        params = event.params
                         filename = params.get("filename", "unknown_artifact")
                         if a2a_context:
                             progress_data = ArtifactCreationProgressData(
                                 filename=filename,
-                                bytes_saved=event.buffered_size,
+                                description=params.get("description"),
+                                status="in-progress",
+                                bytes_transferred=event.buffered_size,
                                 artifact_chunk=event.chunk,
                             )
                             await _publish_data_part_status_update(
@@ -233,6 +250,16 @@ async def process_artifact_blocks_callback(
                                     "original_text": original_text,
                                 }
                             )
+                            if a2a_context:
+                                progress_data = ArtifactCreationProgressData(
+                                    filename=filename or "unknown_artifact",
+                                    description=params.get("description"),
+                                    status="failed",
+                                    bytes_transferred=0,
+                                )
+                                await _publish_data_part_status_update(
+                                    host_component, a2a_context, progress_data
+                                )
                             continue
 
                         kwargs_for_call = {
@@ -296,9 +323,30 @@ async def process_artifact_blocks_callback(
                                     log_identifier,
                                     e_track,
                                 )
+                            if a2a_context:
+                                progress_data = ArtifactCreationProgressData(
+                                    filename=filename,
+                                    description=params.get("description"),
+                                    status="completed",
+                                    bytes_transferred=len(event.content),
+                                    mime_type=params.get("mime_type"),
+                                )
+                                await _publish_data_part_status_update(
+                                    host_component, a2a_context, progress_data
+                                )
                         else:
                             status_for_tool = "error"
                             version_for_tool = 0
+                            if a2a_context:
+                                progress_data = ArtifactCreationProgressData(
+                                    filename=filename,
+                                    description=params.get("description"),
+                                    status="failed",
+                                    bytes_transferred=len(event.content),
+                                )
+                                await _publish_data_part_status_update(
+                                    host_component, a2a_context, progress_data
+                                )
 
                         session.state["completed_artifact_blocks_list"].append(
                             {
@@ -786,6 +834,7 @@ It can span multiple lines.
   - The parameters `filename` and `mime_type` are required. `description` is optional but recommended.
   - All parameter values **MUST** be enclosed in double quotes.
   - You **MUST NOT** use double quotes `"` inside the parameter values (e.g., within the description string). Use single quotes or rephrase instead.
+  - The content saved will automatically be made available to the user at the point in the response where this embed is located. No need to additionally return it
 
 The system will automatically save the content and give you a confirmation in the next turn."""
 
@@ -826,7 +875,7 @@ def _generate_embed_instruction(
     )
 
     base_instruction = f"""\
-You can use dynamic embeds in your text responses and tool parameters using the syntax {open_delim}type:expression {chain_delim} format{close_delim}. This allows you to
+You can use dynamic embeds in your text responses and tool parameters using the syntax {open_delim}type:expression{close_delim}. This allows you to
 always have correct information in your output. Specifically, make sure you always use embeds for math, even if it is simple. You will make mistakes if you try to do math yourself.
 Use HTML entities to escape the delimiters.
 This host resolves the following embed types *early* (before sending to the LLM or tool): {early_types}. This means the embed is replaced with its resolved value.
@@ -837,7 +886,11 @@ This host resolves the following embed types *early* (before sending to the LLM 
 - `{open_delim}status_update:Your message here{close_delim}`: Generates an immediate, distinct status message event that is displayed to the user (e.g., 'Thinking...', 'Searching database...'). This message appears in a status area, not as part of the main chat conversation. Use this to provide interim feedback during processing."""
 
     artifact_content_instruction = f"""
-- `{open_delim}artifact_content:filename[:version] {chain_delim} modifier1:value1 {chain_delim} ... {chain_delim} format:output_format{close_delim}`: Embeds artifact content after applying a chain of modifiers. This is resolved *late* (typically by a gateway before final display).
+The following embeds are resolved *late* (by the gateway before final display):
+- `{open_delim}artifact_return:filename[:version]{close_delim}`: **This is the primary way to return an artifact to the user.** It attaches the specified artifact to the message. The embed itself is removed from the text. Use this instead of describing a file and expecting the user to download it.
+- `{open_delim}artifact_content:filename[:version] {chain_delim} modifier1:value1 {chain_delim} ... {chain_delim} format:output_format{close_delim}`: Embeds artifact content after applying a chain of modifiers.
+    - If this embed resolves to binary content (like an image), it will be automatically converted into an attached file, similar to `artifact_return`.
+    - artifact_return is not necessary if the artifact was just created by you with save_artifact, since it will automatically be attached to your message.
     - Use `{chain_delim}` to separate the artifact identifier from the modifier steps and the final format step.
     - Available modifiers: {modifier_list}.
     - The `format:output_format` step *must* be the last step in the chain. Supported formats include `text`, `datauri`, `json`, `json_pretty`, `csv`. Formatting as datauri, will include the data URI prefix, so do not add it yourself.

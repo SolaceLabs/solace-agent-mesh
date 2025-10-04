@@ -7,10 +7,7 @@ import asyncio
 import functools
 import threading
 import concurrent.futures
-import uuid
 import fnmatch
-import base64
-from datetime import datetime, timezone
 import json
 from solace_ai_connector.common.message import (
     Message as SolaceMessage,
@@ -1300,7 +1297,7 @@ class SamAgentComponent(SamComponentBase):
                 context_id=a2a_context.get("contextId"),
                 signal_data=progress_data,
                 agent_name=self.agent_name,
-                part_metadata={"source_embed_type": "status_update"},
+                # part_metadata={"source_embed_type": "status_update"},
             )
 
             await self._publish_status_update_with_buffer_flush(
@@ -1734,7 +1731,7 @@ class SamAgentComponent(SamComponentBase):
                 log_id,
                 len(signals_found),
             )
-            for _signal_index, signal_data_tuple in signals_found:
+            for _signal_index, signal_data_tuple, placeholder in signals_found:
                 if (
                     isinstance(signal_data_tuple, tuple)
                     and len(signal_data_tuple) == 3
@@ -1750,6 +1747,7 @@ class SamAgentComponent(SamComponentBase):
                     await self._publish_agent_status_signal_update(
                         status_text, a2a_context
                     )
+                    resolved_text = resolved_text.replace(placeholder, "")
 
         return resolved_text, unprocessed_tail
 
@@ -3179,6 +3177,7 @@ class SamAgentComponent(SamComponentBase):
                     types_to_resolve=EARLY_EMBED_TYPES,
                     log_identifier=method_context_log_identifier,
                     config=resolver_config,
+                    resolution_mode="early",
                 )
             )
             unprocessed_tail = raw_text[processed_until_index:]

@@ -1,3 +1,4 @@
+export * from "./useArtifactRendering";
 export * from "./useAgentCards";
 export * from "./useArtifacts";
 export * from "./useAuthContext";

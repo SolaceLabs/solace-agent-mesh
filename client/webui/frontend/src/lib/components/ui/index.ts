@@ -5,6 +5,7 @@ export { Textarea } from "./textarea";
 export { Avatar, AvatarImage, AvatarFallback } from "./avatar";
 export { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./dialog";
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./resizable";
+export { Spinner } from "./spinner";
 export { Pagination, PaginationContent, PaginationLink, PaginationItem, PaginationPrevious, PaginationNext, PaginationEllipsis } from "./pagination";
 
 // Layout Components
