@@ -320,7 +320,7 @@ def create_orchestrator_config(
             artifact_base_path_line = f'base_path: "{artifact_base_path}"'
         elif artifact_type == "s3":
             s3_config_lines = ["bucket_name: ${S3_BUCKET_NAME}"]
-            s3_config_lines.append("endpoint_url: ${S3_ENDPOINT_URL:-}")
+            s3_config_lines.append("endpoint_url: ${S3_ENDPOINT_URL}")
             s3_config_lines.append("region: ${S3_REGION}")
             artifact_base_path_line = "\n      ".join(s3_config_lines)
 
