@@ -2,7 +2,7 @@
 Task-related response DTOs.
 """
 
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from .base_responses import BaseTimestampResponse
