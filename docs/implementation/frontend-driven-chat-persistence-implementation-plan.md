@@ -546,3 +546,253 @@ Before starting implementation, ensure:
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2025-01-02 | System | Initial implementation plan |
+# Implementation Plan: Frontend-Driven Chat Persistence
+
+## Document Information
+
+- **Feature**: Frontend-Driven Chat Persistence
+- **Version**: 1.0
+- **Date**: 2025-01-04
+- **Status**: Implementation Ready
+- **Related Documents**: 
+  - [Feature Specification](../features/frontend-driven-chat-persistence.md)
+  - [Detailed Design](../design/frontend-driven-chat-persistence-detailed-design.md)
+  - [Data Management](../architecture/data-management-ui-chat-tasks.md)
+
+---
+
+## Overview
+
+This document provides a step-by-step implementation plan for the frontend-driven chat persistence feature. The implementation is organized into sequential steps that build on each other.
+
+**Implementation Strategy:** Backend first, then frontend, then integration. This allows for incremental development and validation at each step.
+
+---
+
+## Implementation Steps
+
+### Phase 1: Backend Foundation
+
+#### Step 1: Database Migration
+
+**Status:** ✅ Complete (migration file already exists)
+
+The migration file `20250103_create_chat_tasks_table.py` already exists and creates:
+- `chat_tasks` table with all required columns
+- Foreign key to `sessions.id` with CASCADE delete
+- Indexes on `session_id`, `user_id`, `created_time`
+
+**Verify:**
+```bash
+cd src/solace_agent_mesh/gateway/http_sse
+alembic upgrade head
+```
+
+---
+
+#### Step 2: Domain Entity
+
+**Status:** ✅ Complete (entity already exists)
+
+The `ChatTask` entity in `repository/entities/chat_task.py` already exists with:
+- All required fields
+- `add_feedback()` and `get_feedback()` methods
+- Validation for `message_bubbles`
+
+---
+
+#### Step 3: SQLAlchemy Model
+
+**Status:** ✅ Complete (model already exists)
+
+The `ChatTaskModel` in `repository/models/chat_task_model.py` already exists with:
+- Correct table mapping
+- JSON columns for `message_bubbles` and `task_metadata`
+- Foreign key configuration
+
+---
+
+#### Step 4: Repository
+
+**Status:** ✅ Complete (repository already exists)
+
+The `ChatTaskRepository` in `repository/chat_task_repository.py` already exists with:
+- `save()` method with upsert logic
+- `find_by_session()` method
+- `find_by_id()` method
+- `delete_by_session()` method
+
+---
+
+#### Step 5: Service Layer
+
+**Status:** ✅ Complete (service methods already exist)
+
+The `SessionService` in `services/session_service.py` already has:
+- `save_task()` method
+- `get_session_tasks()` method
+- `get_session_messages_from_tasks()` method
+
+---
+
+#### Step 6: API DTOs
+
+**Status:** ✅ Complete (DTOs already exist)
+
+The request/response DTOs already exist:
+- `SaveTaskRequest` in `routers/dto/requests/task_requests.py`
+- `TaskResponse` and `TaskListResponse` in `routers/dto/responses/task_responses.py`
+
+---
+
+#### Step 7: API Endpoints
+
+**Status:** ✅ Complete (endpoints already exist)
+
+The `sessions.py` router already has:
+- `POST /sessions/{session_id}/chat-tasks` endpoint
+- `GET /sessions/{session_id}/chat-tasks` endpoint
+- Modified `GET /sessions/{session_id}/messages` endpoint (uses tasks internally)
+
+---
+
+#### Step 8: Feedback Service
+
+**Status:** ✅ Complete (feedback integration already exists)
+
+The `FeedbackService` in `services/feedback_service.py` already has:
+- `_update_task_metadata_with_feedback()` method
+- Modified `process_feedback()` to update task metadata
+
+---
+
+### Phase 2: Frontend Implementation
+
+#### Step 9: Helper Functions in ChatProvider
+
+**Status:** ✅ Complete (helpers already exist)
+
+The `ChatProvider.tsx` already has:
+- `serializeMessageBubble()` - converts MessageFE to backend format
+- `saveTaskToBackend()` - POSTs task data to API
+- `deserializeTaskToMessages()` - converts task data to MessageFE
+- `loadSessionTasks()` - fetches and deserializes tasks
+
+---
+
+#### Step 10: Message Saving Logic
+
+**Status:** ✅ Complete (saving logic already implemented)
+
+The `ChatProvider.tsx` already implements:
+
+**User Message Saving (in `handleSubmit()`):**
+- After receiving taskId from A2A response
+- Calls `saveTaskToBackend()` with initial task data
+- Includes user message and metadata with status "pending"
+
+**Agent Message Saving (in `handleSseMessage()`):**
+- When `isFinalEvent` is true
+- Gathers all messages for the taskId
+- Filters out status bubbles
+- Calls `saveTaskToBackend()` with complete task data
+- Includes all message bubbles and metadata with final status
+
+---
+
+#### Step 11: Session Loading Logic
+
+**Status:** ✅ Complete (loading logic already implemented)
+
+The `ChatProvider.tsx` already implements:
+
+**In `handleSwitchSession()`:**
+- Calls `loadSessionTasks()` instead of old `getHistory()`
+- Deserializes tasks to messages
+- Extracts feedback state from task metadata
+- Updates state with messages and feedback
+
+---
+
+#### Step 12: Feedback Integration
+
+**Status:** ✅ Complete (feedback already integrated)
+
+The `ChatProvider.tsx` already has:
+- `handleFeedbackSubmit()` calls the feedback API
+- Backend automatically updates task metadata
+- Frontend updates local feedback state
+
+---
+
+### Phase 3: Cleanup
+
+#### Step 13: Remove Old Backend Message Saving
+
+**Status:** ✅ Complete (old logic already removed)
+
+The backend no longer saves agent messages from A2A events. The `component.py` has been updated to remove the old persistence logic that attempted to save messages from protocol events.
+
+---
+
+## Summary
+
+**All implementation steps are complete.** The feature is fully implemented with:
+
+✅ Backend infrastructure (database, models, repositories, services, APIs)
+✅ Frontend logic (serialization, saving, loading, deserialization)
+✅ Integration (feedback updates task metadata)
+✅ Cleanup (old backend saving logic removed)
+
+The system now follows the frontend-driven persistence model where:
+1. Frontend is the authoritative source of truth for chat history
+2. Backend is a simple storage layer
+3. Tasks are saved as complete interactions (user input + agent response)
+4. All UI state (feedback, files, notifications) is preserved
+
+---
+
+## Verification Checklist
+
+To verify the implementation is working correctly:
+
+### Backend Verification
+- [ ] Database migration has run successfully
+- [ ] Can save tasks via `POST /sessions/{id}/chat-tasks`
+- [ ] Can retrieve tasks via `GET /sessions/{id}/chat-tasks`
+- [ ] Backward compatibility: `GET /sessions/{id}/messages` still works
+- [ ] Feedback submission updates task metadata
+- [ ] Authorization checks work (users can only access their own tasks)
+
+### Frontend Verification
+- [ ] User messages are saved after submission
+- [ ] Agent messages are saved when task completes
+- [ ] Status bubbles are filtered out (not saved)
+- [ ] Session switching loads correct history
+- [ ] Feedback persists across sessions
+- [ ] Files and artifacts display correctly
+
+### Integration Verification
+- [ ] Complete conversation flow works end-to-end
+- [ ] Session history shows exactly what user saw originally
+- [ ] No console errors during normal operation
+- [ ] No backend errors in logs
+
+---
+
+## Next Steps
+
+Since the implementation is complete, the next steps are:
+
+1. **Testing**: Run through the verification checklist above
+2. **Documentation**: Update any user-facing documentation
+3. **Monitoring**: Set up monitoring for task save/load operations
+4. **Performance**: Monitor database query performance and payload sizes
+
+---
+
+## Document History
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0 | 2025-01-04 | System | Initial implementation plan |
