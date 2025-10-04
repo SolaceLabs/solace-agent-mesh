@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
 
-import { useConfigContext, useArtifacts, useAgents } from "@/lib/hooks";
+import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
 import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
 import type { ArtifactInfo, ArtifactRenderingState, CancelTaskRequest, FileAttachment, FilePart, JSONRPCErrorResponse, Message, MessageFE, Notification, Part, SendStreamingMessageRequest, SendStreamingMessageSuccessResponse, Session, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart, ArtifactPart } from "@/lib/types";
@@ -57,7 +57,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         error: agentsError,
         isLoading: agentsLoading,
         refetch: agentsRefetch,
-    } = useAgents();
+    } = useAgentCards();
 
     // Chat Side Panel State
     const {
