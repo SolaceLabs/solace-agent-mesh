@@ -5,6 +5,71 @@ import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
 
 // Schema version for data migration purposes
 const CURRENT_SCHEMA_VERSION = 1;
+
+// Migration function: V0 -> V1 (adds schema_version to tasks without one)
+const migrateV0ToV1 = (task: any): any => {
+    return {
+        ...task,
+        taskMetadata: {
+            ...task.taskMetadata,
+            schema_version: 1
+        }
+    };
+};
+
+// TODO: Uncomment and implement when future branch merges
+// Migration function: V1 -> V2 (restructure for new schema)
+// const migrateV1ToV2 = (task: any): any => {
+//     const migratedBubbles = task.messageBubbles.map((bubble: any) => {
+//         const newBubble = { ...bubble };
+//         
+//         // Move files array into parts
+//         if (bubble.files && Array.isArray(bubble.files) && bubble.files.length > 0) {
+//             const fileParts = bubble.files.map((file: any) => ({
+//                 kind: "file",
+//                 file: file
+//             }));
+//             newBubble.parts = [...(bubble.parts || []), ...fileParts];
+//             delete newBubble.files;
+//         }
+//         
+//         // Move artifactNotification into parts
+//         if (bubble.artifactNotification) {
+//             const artifactPart = {
+//                 kind: "artifact",
+//                 status: "completed" as const,
+//                 name: bubble.artifactNotification.name,
+//                 description: bubble.artifactNotification.description
+//             };
+//             newBubble.parts = [...(bubble.parts || []), artifactPart];
+//             delete newBubble.artifactNotification;
+//         }
+//         
+//         // Remove deprecated type
+//         if (newBubble.type === "artifact_notification") {
+//             newBubble.type = "agent";
+//         }
+//         
+//         return newBubble;
+//     });
+//     
+//     return {
+//         ...task,
+//         messageBubbles: migratedBubbles,
+//         taskMetadata: {
+//             ...task.taskMetadata,
+//             schema_version: 2
+//         }
+//     };
+// };
+
+// Migration registry: maps version numbers to migration functions
+const MIGRATIONS: Record<number, (task: any) => any> = {
+    0: migrateV0ToV1,
+    // Uncomment when future branch merges:
+    // 1: migrateV1ToV2,
+};
+
 import { authenticatedFetch, getAccessToken, submitFeedback } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
 import type {
@@ -234,6 +299,30 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }));
     }, [sessionId]);
 
+    // Helper function to apply migrations to a task
+    const migrateTask = useCallback((task: any): any => {
+        const version = task.taskMetadata?.schema_version || 0;
+        
+        if (version >= CURRENT_SCHEMA_VERSION) {
+            // Already at current version
+            return task;
+        }
+        
+        // Apply migrations sequentially
+        let migratedTask = task;
+        for (let v = version; v < CURRENT_SCHEMA_VERSION; v++) {
+            const migrationFunc = MIGRATIONS[v];
+            if (migrationFunc) {
+                migratedTask = migrationFunc(migratedTask);
+                console.log(`Migrated task ${task.taskId} from v${v} to v${v + 1}`);
+            } else {
+                console.warn(`No migration function found for version ${v}`);
+            }
+        }
+        
+        return migratedTask;
+    }, []);
+
     // Helper function to load session tasks and reconstruct messages
     const loadSessionTasks = useCallback(
         async (sessionId: string) => {
@@ -255,16 +344,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     taskMetadata: task.taskMetadata ? JSON.parse(task.taskMetadata) : null
                 }));
 
+                // Apply migrations to each task
+                const migratedTasks = parsedTasks.map(migrateTask);
+
                 // Deserialize all tasks to messages
                 const allMessages: MessageFE[] = [];
-                for (const task of parsedTasks) {
+                for (const task of migratedTasks) {
                     const taskMessages = deserializeTaskToMessages(task);
                     allMessages.push(...taskMessages);
                 }
 
                 // Extract feedback state from task metadata
                 const feedbackMap: Record<string, { type: "up" | "down"; text: string }> = {};
-                for (const task of parsedTasks) {
+                for (const task of migratedTasks) {
                     if (task.taskMetadata?.feedback) {
                         feedbackMap[task.taskId] = {
                             type: task.taskMetadata.feedback.type,
@@ -282,7 +374,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 throw error;
             }
         },
-        [apiPrefix, deserializeTaskToMessages, addNotification]
+        [apiPrefix, deserializeTaskToMessages, addNotification, migrateTask]
     );
 
     const uploadArtifactFile = useCallback(
