@@ -153,15 +153,15 @@ async def save_task(
         existing_task = task_repo.find_by_id(request.task_id, user_id)
         is_update = existing_task is not None
 
-        # Save the task
+        # Save the task - pass strings directly
         saved_task = session_service.save_task(
             db=db,
             task_id=request.task_id,
             session_id=session_id,
             user_id=user_id,
             user_message=request.user_message,
-            message_bubbles=request.message_bubbles,
-            task_metadata=request.task_metadata,
+            message_bubbles=request.message_bubbles,  # Already a string
+            task_metadata=request.task_metadata,      # Already a string
         )
 
         log.info(

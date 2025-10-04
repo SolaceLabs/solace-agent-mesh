@@ -252,8 +252,8 @@ class SessionService:
         session_id: str,
         user_id: str,
         user_message: Optional[str],
-        message_bubbles: List[Dict[str, Any]],
-        task_metadata: Optional[Dict[str, Any]] = None
+        message_bubbles: str,  # JSON string (opaque)
+        task_metadata: Optional[str] = None  # JSON string (opaque)
     ) -> ChatTask:
         """
         Save a complete task interaction.
@@ -279,14 +279,14 @@ class SessionService:
         if not session:
             raise ValueError(f"Session {session_id} not found for user {user_id}")
         
-        # Create task entity
+        # Create task entity - pass strings directly
         task = ChatTask(
             id=task_id,
             session_id=session_id,
             user_id=user_id,
             user_message=user_message,
-            message_bubbles=message_bubbles,
-            task_metadata=task_metadata,
+            message_bubbles=message_bubbles,  # Already a string
+            task_metadata=task_metadata,      # Already a string
             created_time=now_epoch_ms(),
             updated_time=None
         )

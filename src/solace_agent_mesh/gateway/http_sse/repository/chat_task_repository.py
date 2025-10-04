@@ -26,20 +26,20 @@ class ChatTaskRepository(IChatTaskRepository):
         ).first()
 
         if existing:
-            # Update existing task
+            # Update existing task - store strings directly
             existing.user_message = task.user_message
-            existing.message_bubbles = task.message_bubbles
-            existing.task_metadata = task.task_metadata
+            existing.message_bubbles = task.message_bubbles  # Already a string
+            existing.task_metadata = task.task_metadata      # Already a string
             existing.updated_time = now_epoch_ms()
         else:
-            # Create new task
+            # Create new task - store strings directly
             model = ChatTaskModel(
                 id=task.id,
                 session_id=task.session_id,
                 user_id=task.user_id,
                 user_message=task.user_message,
-                message_bubbles=task.message_bubbles,
-                task_metadata=task.task_metadata,
+                message_bubbles=task.message_bubbles,  # Already a string
+                task_metadata=task.task_metadata,      # Already a string
                 created_time=task.created_time,
                 updated_time=task.updated_time
             )
@@ -90,4 +90,14 @@ class ChatTaskRepository(IChatTaskRepository):
 
     def _model_to_entity(self, model: ChatTaskModel) -> ChatTask:
         """Convert SQLAlchemy model to domain entity."""
-        return ChatTask.model_validate(model)
+        # No deserialization - just pass strings through
+        return ChatTask(
+            id=model.id,
+            session_id=model.session_id,
+            user_id=model.user_id,
+            user_message=model.user_message,
+            message_bubbles=model.message_bubbles,  # String (opaque)
+            task_metadata=model.task_metadata,      # String (opaque)
+            created_time=model.created_time,
+            updated_time=model.updated_time
+        )

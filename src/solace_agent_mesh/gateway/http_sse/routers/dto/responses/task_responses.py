@@ -2,7 +2,7 @@
 Task-related response DTOs.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Optional
 from pydantic import BaseModel, Field
 
 from .base_responses import BaseTimestampResponse
@@ -14,8 +14,8 @@ class TaskResponse(BaseTimestampResponse):
     task_id: str = Field(..., alias="taskId")
     session_id: str = Field(..., alias="sessionId")
     user_message: Optional[str] = Field(None, alias="userMessage")
-    message_bubbles: List[Dict[str, Any]] = Field(..., alias="messageBubbles")
-    task_metadata: Optional[Dict[str, Any]] = Field(None, alias="taskMetadata")
+    message_bubbles: str = Field(..., alias="messageBubbles")  # JSON string (opaque)
+    task_metadata: Optional[str] = Field(None, alias="taskMetadata")  # JSON string (opaque)
     created_time: int = Field(..., alias="createdTime")
     updated_time: Optional[int] = Field(None, alias="updatedTime")
     
