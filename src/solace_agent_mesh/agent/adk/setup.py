@@ -580,13 +580,15 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
             tool_config_model.tool_name,
         )
 
-    tool_configurator = MiddlewareRegistry.get_tool_configurator()
     additional_params = {}
+    try:
+        from solace_agent_mesh_enterprise.common.tool_configurator import (
+            configure_mcp_tool,
+        )
 
-    if tool_configurator:
         try:
             # Call the tool configurator with MCP-specific context
-            additional_params = tool_configurator(
+            additional_params = configure_mcp_tool(
                 tool_type="mcp",
                 component=component,
                 tool_config=tool_config,
@@ -602,6 +604,8 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
             )
             # Continue with normal tool creation if configurator fails
             additional_params = {}
+    except ImportError:
+        pass
 
     # Create the EmbedResolvingMCPToolset with base parameters
     toolset_params = {
