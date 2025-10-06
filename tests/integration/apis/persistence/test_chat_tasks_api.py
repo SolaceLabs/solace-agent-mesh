@@ -738,7 +738,7 @@ class TestDataValidation:
         assert retrieved_bubbles[99]["text"] == "Message number 99 with some content to make it realistic"
         
         retrieved_metadata = json.loads(retrieved_task["taskMetadata"])
-        assert retrieve_metadata["status"] == "completed"
+        assert retrieved_metadata["status"] == "completed"
         assert "level_0" in retrieved_metadata["nested_data"]
         assert "level_19" in retrieved_metadata["nested_data"]
         assert len(retrieved_metadata["nested_data"]["level_0"]["items"]) == 10
