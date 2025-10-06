@@ -28,14 +28,14 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         return "session"
 
     def find_by_user(
-        self, user_id: UserId, pagination: PaginationInfo | None = None
+        self, user_id: UserId, pagination: PaginationParams | None = None
     ) -> list[Session]:
         """Find all sessions for a specific user."""
         query = self.db.query(SessionModel).filter(SessionModel.user_id == user_id)
         query = query.order_by(SessionModel.updated_time.desc())
 
         if pagination:
-            offset = (pagination.page - 1) * pagination.page_size
+            offset = (pagination.page_number - 1) * pagination.page_size
             query = query.offset(offset).limit(pagination.page_size)
 
         models = query.all()

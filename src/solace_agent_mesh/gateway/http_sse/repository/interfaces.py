@@ -17,7 +17,7 @@ class ISessionRepository(ABC):
     
     @abstractmethod
     def find_by_user(
-        self, user_id: UserId, pagination: PaginationInfo | None = None
+        self, user_id: UserId, pagination: PaginationParams | None = None
     ) -> list[Session]:
         """Find all sessions for a specific user."""
         pass

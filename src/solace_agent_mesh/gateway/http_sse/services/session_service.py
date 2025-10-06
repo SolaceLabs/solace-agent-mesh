@@ -54,16 +54,8 @@ class SessionService:
         pagination = get_pagination_or_default(pagination)
         session_repository = self._get_repositories(db)
 
-        pagination_info = PaginationInfo(
-            page=pagination.page_number,
-            page_size=pagination.page_size,
-            total_items=0,
-            total_pages=0,
-            has_next=False,
-            has_previous=False,
-        )
-
-        sessions = session_repository.find_by_user(user_id, pagination_info)
+        # Pass pagination params directly - repository will handle offset calculation
+        sessions = session_repository.find_by_user(user_id, pagination)
         total_count = session_repository.count_by_user(user_id)
 
         return PaginatedResponse.create(sessions, total_count, pagination)
