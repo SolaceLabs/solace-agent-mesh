@@ -14,7 +14,7 @@ export const ChatSessionDialog: React.FC<ChatSessionDialogProps> = ({ isOpen, on
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent>
+            <DialogContent showCloseButton={false}>
                 <DialogHeader>
                     <DialogTitle className="flex max-w-[400px] flex-row gap-1">{persistenceEnabled === false ? "New Chat Session?" : "Start New Chat Session?"}</DialogTitle>
                     <DialogDescription className="flex flex-col gap-2">
@@ -24,7 +24,7 @@ export const ChatSessionDialog: React.FC<ChatSessionDialogProps> = ({ isOpen, on
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={onClose}>
+                    <Button variant="ghost" onClick={onClose}>
                         Cancel
                     </Button>
                     <Button
