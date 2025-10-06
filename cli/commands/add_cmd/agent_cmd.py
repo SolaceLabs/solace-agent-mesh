@@ -95,7 +95,7 @@ def _write_agent_yaml_from_data(
                 custom_artifact_lines.append(f'base_path: "{base_path_val}"')
             elif type_val == "s3":
                 custom_artifact_lines.append("bucket_name: ${S3_BUCKET_NAME}")
-                custom_artifact_lines.append("endpoint_url: ${S3_ENDPOINT_URL:-}")
+                custom_artifact_lines.append("endpoint_url: ${S3_ENDPOINT_URL}")
                 custom_artifact_lines.append("region: ${S3_REGION}")
             custom_artifact_lines.append(f"artifact_scope: {scope_val}")
             artifact_service_block = "\n" + "\n".join(
