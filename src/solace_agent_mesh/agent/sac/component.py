@@ -430,27 +430,21 @@ class SamAgentComponent(SamComponentBase):
                 )
                 
             # Set up health check timer if enabled
-            if self.agent_discovery_config.get("health_check_enabled", True):
-                health_check_interval_seconds = self.agent_discovery_config.get("health_check_interval_seconds", 10)
-                if health_check_interval_seconds > 0:
-                    log.info(
-                        "%s Scheduling agent health check every %d seconds.",
-                        self.log_identifier,
-                        health_check_interval_seconds,
-                    )
-                    self.add_timer(
-                        delay_ms=health_check_interval_seconds * 1000,
-                        timer_id=self.HEALTH_CHECK_TIMER_ID,
-                        interval_ms=health_check_interval_seconds * 1000,
-                    )
-                else:
-                    log.warning(
-                        "%s Agent health check interval not configured or invalid, health checks will not run periodically.",
-                        self.log_identifier,
-                    )
-            else:
+            health_check_interval_seconds = self.agent_discovery_config.get("health_check_interval_seconds", 10)
+            if health_check_interval_seconds > 0:
                 log.info(
-                    "%s Agent health checks are disabled in configuration.",
+                    "%s Scheduling agent health check every %d seconds.",
+                    self.log_identifier,
+                    health_check_interval_seconds,
+                )
+                self.add_timer(
+                    delay_ms=health_check_interval_seconds * 1000,
+                    timer_id=self.HEALTH_CHECK_TIMER_ID,
+                    interval_ms=health_check_interval_seconds * 1000,
+                )
+            else:
+                log.warning(
+                    "%s Agent health check interval not configured or invalid, health checks will not run periodically.",
                     self.log_identifier,
                 )
                 
@@ -3162,9 +3156,6 @@ class SamAgentComponent(SamComponentBase):
         This is called periodically by the health check timer.
         Uses TTL-based expiration to determine if an agent is unresponsive.
         """
-        if not self.agent_discovery_config.get("health_check_enabled", True):
-            log.debug("%s Agent health checks are disabled in configuration.", self.log_identifier)
-            return
             
         log.debug("%s Performing agent health check...", self.log_identifier)
         
