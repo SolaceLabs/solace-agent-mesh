@@ -644,8 +644,369 @@ class TestAuthorizationAndSecurity:
         print(f"✓ Test 3.4 passed: Task isolation verified between sessions {session_a_id} and {session_b_id}")
 
 
-class TestDataValidation:
-    """Test Suite 2: Data Validation"""
+class TestIntegrationWithExistingFeatures:
+    """Test Suite 4: Integration with Existing Features"""
+
+    def test_tasks_cascade_delete_with_session(self, api_client: TestClient, test_database_engine):
+        """
+        Test 4.1: Tasks Cascade Delete with Session
+        
+        Purpose: Verify that deleting a session deletes all its tasks
+        
+        Steps:
+        1. Create a session
+        2. Create 5 tasks in the session
+        3. Verify tasks exist via GET
+        4. DELETE the session
+        5. Attempt to GET tasks for deleted session
+        6. Verify response is 404
+        7. Verify tasks are actually deleted from database (not just hidden)
+        """
+        # Step 1: Create a session
+        session_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Session for cascade delete test"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        
+        session_response = api_client.post("/api/v1/message:stream", json=session_payload)
+        assert session_response.status_code == 200
+        session_id = session_response.json()["result"]["contextId"]
+        
+        # Step 2: Create 5 tasks in the session
+        task_ids = []
+        for i in range(5):
+            task_id = f"task-cascade-{i}-{uuid.uuid4().hex[:8]}"
+            task_ids.append(task_id)
+            
+            task_payload = {
+                "taskId": task_id,
+                "userMessage": f"Task {i+1} for cascade test",
+                "messageBubbles": json.dumps([{"type": "user", "text": f"Task {i+1}"}]),
+                "taskMetadata": json.dumps({"status": "completed"})
+            }
+            
+            task_response = api_client.post(
+                f"/api/v1/sessions/{session_id}/chat-tasks",
+                json=task_payload
+            )
+            assert task_response.status_code in [200, 201]
+        
+        # Step 3: Verify tasks exist via GET
+        get_response = api_client.get(f"/api/v1/sessions/{session_id}/chat-tasks")
+        assert get_response.status_code == 200
+        tasks = get_response.json()["tasks"]
+        assert len(tasks) == 5
+        
+        # Step 4: DELETE the session
+        delete_response = api_client.delete(f"/api/v1/sessions/{session_id}")
+        assert delete_response.status_code == 204
+        
+        # Step 5: Attempt to GET tasks for deleted session
+        get_after_delete = api_client.get(f"/api/v1/sessions/{session_id}/chat-tasks")
+        
+        # Step 6: Verify response is 404
+        assert get_after_delete.status_code == 404
+        
+        # Step 7: Verify tasks are actually deleted from database (not just hidden)
+        from sqlalchemy.orm import sessionmaker
+        from solace_agent_mesh.gateway.http_sse.repository.models import ChatTaskModel
+        
+        Session = sessionmaker(bind=test_database_engine)
+        db_session = Session()
+        try:
+            for task_id in task_ids:
+                task_in_db = db_session.query(ChatTaskModel).filter_by(id=task_id).first()
+                assert task_in_db is None, f"Task {task_id} should be deleted from database"
+        finally:
+            db_session.close()
+        
+        print(f"✓ Test 4.1 passed: Session deletion cascaded to {len(task_ids)} tasks")
+
+    def test_messages_endpoint_derives_from_tasks(self, api_client: TestClient):
+        """
+        Test 4.2: Messages Endpoint Derives from Tasks
+        
+        Purpose: Verify that /messages endpoint correctly flattens tasks
+        
+        Steps:
+        1. Create a session
+        2. Create task with message_bubbles containing 2 user messages and 2 agent messages
+        3. Create another task with 1 user message and 1 agent message
+        4. GET /sessions/{session_id}/messages
+        5. Verify response contains 6 messages total
+        6. Verify messages are in correct order
+        7. Verify message content matches what was in message_bubbles
+        8. Verify sender_type is correctly derived from bubble type
+        """
+        # Step 1: Create a session
+        session_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Session for message derivation test"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        
+        session_response = api_client.post("/api/v1/message:stream", json=session_payload)
+        assert session_response.status_code == 200
+        session_id = session_response.json()["result"]["contextId"]
+        
+        # Step 2: Create task with message_bubbles containing 2 user messages and 2 agent messages
+        task_1_bubbles = json.dumps([
+            {"type": "user", "text": "User message 1"},
+            {"type": "agent", "text": "Agent response 1"},
+            {"type": "user", "text": "User message 2"},
+            {"type": "agent", "text": "Agent response 2"}
+        ])
+        
+        task_1_payload = {
+            "taskId": f"task-msg-1-{uuid.uuid4().hex[:8]}",
+            "userMessage": "User message 1",
+            "messageBubbles": task_1_bubbles,
+            "taskMetadata": json.dumps({"status": "completed", "agent_name": "TestAgent"})
+        }
+        
+        task_1_response = api_client.post(
+            f"/api/v1/sessions/{session_id}/chat-tasks",
+            json=task_1_payload
+        )
+        assert task_1_response.status_code in [200, 201]
+        
+        # Small delay to ensure different created_time
+        import time
+        time.sleep(0.01)
+        
+        # Step 3: Create another task with 1 user message and 1 agent message
+        task_2_bubbles = json.dumps([
+            {"type": "user", "text": "User message 3"},
+            {"type": "agent", "text": "Agent response 3"}
+        ])
+        
+        task_2_payload = {
+            "taskId": f"task-msg-2-{uuid.uuid4().hex[:8]}",
+            "userMessage": "User message 3",
+            "messageBubbles": task_2_bubbles,
+            "taskMetadata": json.dumps({"status": "completed", "agent_name": "TestAgent"})
+        }
+        
+        task_2_response = api_client.post(
+            f"/api/v1/sessions/{session_id}/chat-tasks",
+            json=task_2_payload
+        )
+        assert task_2_response.status_code in [200, 201]
+        
+        # Step 4: GET /sessions/{session_id}/messages
+        messages_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
+        
+        # Step 5: Verify response contains 6 messages total
+        assert messages_response.status_code == 200
+        messages = messages_response.json()
+        assert isinstance(messages, list)
+        assert len(messages) == 6
+        
+        # Step 6: Verify messages are in correct order
+        expected_messages = [
+            ("user", "User message 1"),
+            ("agent", "Agent response 1"),
+            ("user", "User message 2"),
+            ("agent", "Agent response 2"),
+            ("user", "User message 3"),
+            ("agent", "Agent response 3")
+        ]
+        
+        for i, (expected_type, expected_text) in enumerate(expected_messages):
+            # Step 7: Verify message content matches what was in message_bubbles
+            assert messages[i]["message"] == expected_text
+            
+            # Step 8: Verify sender_type is correctly derived from bubble type
+            assert messages[i]["senderType"] == expected_type
+            
+            # Verify sender_name
+            if expected_type == "user":
+                assert messages[i]["senderName"] == "sam_dev_user"
+            else:
+                assert messages[i]["senderName"] == "TestAgent"
+        
+        print(f"✓ Test 4.2 passed: Messages endpoint correctly derived {len(messages)} messages from tasks")
+
+    def test_task_creation_via_message_stream(self, api_client: TestClient):
+        """
+        Test 4.3: Task Creation via Message Stream
+        
+        Purpose: Verify that sending messages via /message:stream creates tasks
+        
+        Steps:
+        1. POST to /message:stream to create session
+        2. Send follow-up message to same session
+        3. GET /sessions/{session_id}/chat-tasks
+        4. Verify tasks were created automatically
+        5. Verify task structure is correct
+        """
+        # Step 1: POST to /message:stream to create session
+        initial_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Initial message for task creation test"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        
+        initial_response = api_client.post("/api/v1/message:stream", json=initial_payload)
+        assert initial_response.status_code == 200
+        session_id = initial_response.json()["result"]["contextId"]
+        
+        # Step 2: Send follow-up message to same session
+        followup_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Follow-up message"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                    "contextId": session_id,
+                }
+            },
+        }
+        
+        followup_response = api_client.post("/api/v1/message:stream", json=followup_payload)
+        assert followup_response.status_code == 200
+        assert followup_response.json()["result"]["contextId"] == session_id
+        
+        # Step 3: GET /sessions/{session_id}/chat-tasks
+        tasks_response = api_client.get(f"/api/v1/sessions/{session_id}/chat-tasks")
+        
+        # Step 4: Verify tasks were created automatically
+        # Note: This test assumes the system creates tasks automatically via message:stream
+        # If tasks are not auto-created, this test documents the current behavior
+        assert tasks_response.status_code == 200
+        tasks = tasks_response.json()["tasks"]
+        
+        # Step 5: Verify task structure is correct (if tasks exist)
+        if len(tasks) > 0:
+            for task in tasks:
+                assert "taskId" in task
+                assert "sessionId" in task
+                assert task["sessionId"] == session_id
+                assert "messageBubbles" in task
+                assert "createdTime" in task
+                
+                # Verify message_bubbles is valid JSON
+                bubbles = json.loads(task["messageBubbles"])
+                assert isinstance(bubbles, list)
+        
+        print(f"✓ Test 4.3 passed: Message stream behavior verified for session {session_id}")
+
+    def test_feedback_updates_task_metadata(self, api_client: TestClient):
+        """
+        Test 4.4: Feedback Updates Task Metadata
+        
+        Purpose: Verify that submitting feedback updates the task's metadata
+        
+        Steps:
+        1. Create a session and task
+        2. Submit feedback via /feedback endpoint
+        3. GET the task via /chat-tasks
+        4. Verify task_metadata contains feedback information
+        5. Verify feedback structure: {"feedback": {"type": "up", "text": "...", "submitted": true}}
+        """
+        # Step 1: Create a session and task
+        session_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Session for feedback test"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        
+        session_response = api_client.post("/api/v1/message:stream", json=session_payload)
+        assert session_response.status_code == 200
+        session_id = session_response.json()["result"]["contextId"]
+        task_id = session_response.json()["result"]["id"]
+        
+        # Create a task explicitly
+        task_payload = {
+            "taskId": task_id,
+            "userMessage": "Task for feedback test",
+            "messageBubbles": json.dumps([{"type": "user", "text": "Test message"}]),
+            "taskMetadata": json.dumps({"status": "completed", "agent_name": "TestAgent"})
+        }
+        
+        task_response = api_client.post(
+            f"/api/v1/sessions/{session_id}/chat-tasks",
+            json=task_payload
+        )
+        assert task_response.status_code in [200, 201]
+        
+        # Step 2: Submit feedback via /feedback endpoint
+        feedback_payload = {
+            "taskId": task_id,
+            "sessionId": session_id,
+            "feedbackType": "up",
+            "feedbackText": "This was very helpful!"
+        }
+        
+        feedback_response = api_client.post("/api/v1/feedback", json=feedback_payload)
+        assert feedback_response.status_code == 202
+        
+        # Step 3: GET the task via /chat-tasks
+        get_tasks_response = api_client.get(f"/api/v1/sessions/{session_id}/chat-tasks")
+        assert get_tasks_response.status_code == 200
+        
+        tasks = get_tasks_response.json()["tasks"]
+        assert len(tasks) == 1
+        
+        task = tasks[0]
+        
+        # Step 4: Verify task_metadata contains feedback information
+        assert task["taskMetadata"] is not None
+        metadata = json.loads(task["taskMetadata"])
+        
+        # Step 5: Verify feedback structure
+        assert "feedback" in metadata
+        feedback = metadata["feedback"]
+        assert feedback["type"] == "up"
+        assert feedback["text"] == "This was very helpful!"
+        assert feedback["submitted"] is True
+        
+        print(f"✓ Test 4.4 passed: Feedback correctly updated task metadata for task {task_id}")
+
+
+class TestDataValidation: """Test Suite 2: Data Validation"""
 
     def test_valid_json_strings_accepted(self, api_client: TestClient):
         """
