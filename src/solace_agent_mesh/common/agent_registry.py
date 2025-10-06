@@ -33,28 +33,6 @@ class AgentRegistry:
             # Store the agent information
             self._agents[agent_card.name] = agent_card
             self._last_seen[agent_card.name] = current_time
-            
-            if is_new:
-                log.info(
-                    "AGENT REGISTRATION: New agent '%s' registered in registry. "
-                    "Timestamp: %s",
-                    agent_card.name,
-                    current_time
-                )
-                
-                # Log agent capabilities at debug level
-                if hasattr(agent_card, 'capabilities') and agent_card.capabilities:
-                    log.debug(
-                        "Agent '%s' capabilities: %s",
-                        agent_card.name,
-                        agent_card.capabilities.model_dump() if hasattr(agent_card.capabilities, 'model_dump') else str(agent_card.capabilities)
-                    )
-            else:
-                log.debug(
-                    "Agent '%s' heartbeat received. Last seen timestamp updated to %s",
-                    agent_card.name,
-                    current_time
-                )
                     
             return is_new
 

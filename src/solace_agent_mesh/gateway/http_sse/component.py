@@ -141,29 +141,22 @@ class WebUIBackendComponent(BaseGatewayComponent):
         )
         
         # Set up health check timer for agent registry
-        self.HEALTH_CHECK_TIMER_ID = f"agent_health_check_{self.gateway_id}"
-        health_check_enabled = self.get_config("agent_health_check_enabled", True)
-        if health_check_enabled:
-            health_check_interval_seconds = self.get_config("agent_health_check_interval_seconds", 10)
-            if health_check_interval_seconds > 0:
-                log.info(
-                    "%s Scheduling agent health check every %d seconds.",
-                    self.log_identifier,
-                    health_check_interval_seconds,
-                )
-                self.add_timer(
-                    delay_ms=health_check_interval_seconds * 1000,
-                    timer_id=self.HEALTH_CHECK_TIMER_ID,
-                    interval_ms=health_check_interval_seconds * 1000,
-                )
-            else:
-                log.warning(
-                    "%s Agent health check interval not configured or invalid, health checks will not run periodically.",
-                    self.log_identifier,
-                )
-        else:
+        self.health_check_timer_id = f"agent_health_check_{self.gateway_id}"
+        health_check_interval_seconds = self.get_config("agent_health_check_interval_seconds", 10)
+        if health_check_interval_seconds > 0:
             log.info(
-                "%s Agent health checks are disabled in configuration.",
+                "%s Scheduling agent health check every %d seconds.",
+                self.log_identifier,
+                health_check_interval_seconds,
+            )
+            self.add_timer(
+                delay_ms=health_check_interval_seconds * 1000,
+                timer_id=self.health_check_timer_id,
+                interval_ms=health_check_interval_seconds * 1000,
+            )
+        else:
+            log.warning(
+                "%s Agent health check interval not configured or invalid, health checks will not run periodically.",
                 self.log_identifier,
             )
 
@@ -220,7 +213,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 log.debug("%s SSE buffer cleanup timer triggered.", self.log_identifier)
                 self.sse_event_buffer.cleanup_stale_buffers()
                 return
-            elif event.data.get("timer_id") == self.HEALTH_CHECK_TIMER_ID:
+            elif event.data.get("timer_id") == self.health_check_timer_id:
                 log.debug("%s Agent health check timer triggered.", self.log_identifier)
                 self._check_agent_health()
                 return
@@ -1090,7 +1083,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
         """Gracefully shuts down the component and the FastAPI server."""
         log.info("%s Cleaning up Web UI Backend Component...", self.log_identifier)
         self.cancel_timer(self._sse_cleanup_timer_id)
-        self.cancel_timer(self.HEALTH_CHECK_TIMER_ID)
+        self.cancel_timer(self.health_check_timer_id)
         log.info("%s Cleaning up visualization resources...", self.log_identifier)
         if self._visualization_message_queue:
             self._visualization_message_queue.put(None)
@@ -1406,9 +1399,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
         This is called periodically by the health check timer.
         Uses TTL-based expiration to determine if an agent is unresponsive.
         """
-        if not self.get_config("agent_health_check_enabled", True):
-            log.debug("%s Agent health checks are disabled in configuration.", self.log_identifier)
-            return
             
         log.debug("%s Performing agent health check...", self.log_identifier)
         
@@ -1464,47 +1454,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
         De-registers an agent from the registry and publishes a de-registration event.
         """
         # Remove from registry
-        registry_removed = self.agent_registry.remove_agent(agent_name)
-        
-        # Publish de-registration event if agent was in registry
-        if registry_removed:
-            try:
-                # Create a de-registration event topic
-                namespace = self.get_config("namespace")
-                deregistration_topic = f"{namespace}/a2a/events/agent/deregistered"
-                
-                current_time = datetime.now(timezone.utc).timestamp()
-                
-                # Create the payload
-                deregistration_payload = {
-                    "event_type": "agent.deregistered",
-                    "agent_name": agent_name,
-                    "reason": "health_check_failure",
-                    "metadata": {
-                        "timestamp": current_time,
-                        "deregistered_by": self.gateway_id
-                    }
-                }
-                
-                # Publish the event
-                self.publish_a2a(
-                    topic=deregistration_topic,
-                    payload=deregistration_payload
-                )
-                
-                log.info(
-                    "%s Published de-registration event for agent '%s' to topic '%s'",
-                    self.log_identifier,
-                    agent_name,
-                    deregistration_topic
-                )
-            except Exception as e:
-                log.error(
-                    "%s Failed to publish de-registration event for agent '%s': %s",
-                    self.log_identifier,
-                    agent_name,
-                    e
-                )
+        self.agent_registry.remove_agent(agent_name)
 
     def get_sse_manager(self) -> SSEManager:
         return self.sse_manager
