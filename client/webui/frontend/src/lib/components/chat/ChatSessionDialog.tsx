@@ -14,7 +14,7 @@ export const ChatSessionDialog: React.FC<ChatSessionDialogProps> = ({ isOpen, on
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent showCloseButton={false}>
+            <DialogContent>
                 <DialogHeader>
                     <DialogTitle className="flex max-w-[400px] flex-row gap-1">{persistenceEnabled === false ? "New Chat Session?" : "Start New Chat Session?"}</DialogTitle>
                     <DialogDescription className="flex flex-col gap-2">
