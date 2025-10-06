@@ -353,3 +353,394 @@ class TestBasicCRUDOperations:
         assert retrieved_task["updatedTime"] is not None
         
         print(f"✓ Test 1.3 passed: Updated task {task_id} via upsert for session {session_id}")
+
+    def test_empty_session_returns_empty_array(self, api_client: TestClient):
+        """
+        Test 1.4: Empty Session Returns Empty Array
+        
+        Purpose: Verify that a session with no tasks returns empty array
+        
+        Steps:
+        1. Create a session
+        2. GET /sessions/{session_id}/chat-tasks
+        3. Verify response status is 200
+        4. Verify response is {"tasks": []}
+        """
+        # Step 1: Create a session
+        session_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Create empty session"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        
+        session_response = api_client.post("/api/v1/message:stream", json=session_payload)
+        assert session_response.status_code == 200
+        session_id = session_response.json()["result"]["contextId"]
+        
+        # Step 2: GET /sessions/{session_id}/chat-tasks
+        get_response = api_client.get(f"/api/v1/sessions/{session_id}/chat-tasks")
+        
+        # Step 3: Verify response status is 200
+        assert get_response.status_code == 200
+        
+        # Step 4: Verify response is {"tasks": []}
+        response_data = get_response.json()
+        assert "tasks" in response_data
+        assert response_data["tasks"] == []
+        assert len(response_data["tasks"]) == 0
+        
+        print(f"✓ Test 1.4 passed: Empty session {session_id} returns empty task array")
+
+
+class TestDataValidation:
+    """Test Suite 2: Data Validation"""
+
+    def test_valid_json_strings_accepted(self, api_client: TestClient):
+        """
+        Test 2.1: Valid JSON Strings Accepted
+        
+        Purpose: Verify that valid JSON strings are accepted for message_bubbles and task_metadata
+        
+        Test Cases:
+        - Simple array
+        - Complex nested structure
+        - Empty metadata (null)
+        - Complex metadata
+        """
+        # Create a session first
+        session_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Session for validation tests"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        
+        session_response = api_client.post("/api/v1/message:stream", json=session_payload)
+        assert session_response.status_code == 200
+        session_id = session_response.json()["result"]["contextId"]
+        
+        # Test Case 1: Simple array
+        task_payload_1 = {
+            "taskId": f"task-simple-{uuid.uuid4().hex[:8]}",
+            "userMessage": "Simple test",
+            "messageBubbles": json.dumps([{"type": "user", "text": "Hi"}]),
+            "taskMetadata": json.dumps({"status": "completed"})
+        }
+        
+        response_1 = api_client.post(
+            f"/api/v1/sessions/{session_id}/chat-tasks",
+            json=task_payload_1
+        )
+        assert response_1.status_code in [200, 201]
+        
+        # Test Case 2: Complex nested structure
+        task_payload_2 = {
+            "taskId": f"task-complex-{uuid.uuid4().hex[:8]}",
+            "userMessage": "Complex test",
+            "messageBubbles": json.dumps([
+                {
+                    "type": "agent",
+                    "parts": [{"text": "Hello"}],
+                    "metadata": {"nested": {"deep": "value"}}
+                }
+            ]),
+            "taskMetadata": json.dumps({"status": "completed", "agent": "TestAgent"})
+        }
+        
+        response_2 = api_client.post(
+            f"/api/v1/sessions/{session_id}/chat-tasks",
+            json=task_payload_2
+        )
+        assert response_2.status_code in [200, 201]
+        
+        # Test Case 3: Empty metadata (null)
+        task_payload_3 = {
+            "taskId": f"task-null-meta-{uuid.uuid4().hex[:8]}",
+            "userMessage": "Null metadata test",
+            "messageBubbles": json.dumps([{"type": "user", "text": "Test"}]),
+            "taskMetadata": None
+        }
+        
+        response_3 = api_client.post(
+            f"/api/v1/sessions/{session_id}/chat-tasks",
+            json=task_payload_3
+        )
+        assert response_3.status_code in [200, 201]
+        
+        # Test Case 4: Complex metadata with feedback
+        task_payload_4 = {
+            "taskId": f"task-complex-meta-{uuid.uuid4().hex[:8]}",
+            "userMessage": "Complex metadata test",
+            "messageBubbles": json.dumps([{"type": "user", "text": "Test"}]),
+            "taskMetadata": json.dumps({
+                "status": "completed",
+                "feedback": {"type": "up", "text": "Great!"}
+            })
+        }
+        
+        response_4 = api_client.post(
+            f"/api/v1/sessions/{session_id}/chat-tasks",
+            json=task_payload_4
+        )
+        assert response_4.status_code in [200, 201]
+        
+        print(f"✓ Test 2.1 passed: All valid JSON strings accepted for session {session_id}")
+
+    def test_empty_message_bubbles_rejected(self, api_client: TestClient):
+        """
+        Test 2.4: Empty message_bubbles Rejected
+        
+        Purpose: Verify that message_bubbles cannot be empty
+        
+        Test Cases:
+        - Empty string
+        - Empty array
+        - Null value
+        """
+        # Create a session first
+        session_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Session for empty validation"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        
+        session_response = api_client.post("/api/v1/message:stream", json=session_payload)
+        assert session_response.status_code == 200
+        session_id = session_response.json()["result"]["contextId"]
+        
+        # Test Case 1: Empty string
+        task_payload_1 = {
+            "taskId": f"task-empty-string-{uuid.uuid4().hex[:8]}",
+            "userMessage": "Empty string test",
+            "messageBubbles": "",
+            "taskMetadata": None
+        }
+        
+        response_1 = api_client.post(
+            f"/api/v1/sessions/{session_id}/chat-tasks",
+            json=task_payload_1
+        )
+        assert response_1.status_code == 422
+        
+        # Test Case 2: Empty array
+        task_payload_2 = {
+            "taskId": f"task-empty-array-{uuid.uuid4().hex[:8]}",
+            "userMessage": "Empty array test",
+            "messageBubbles": json.dumps([]),
+            "taskMetadata": None
+        }
+        
+        response_2 = api_client.post(
+            f"/api/v1/sessions/{session_id}/chat-tasks",
+            json=task_payload_2
+        )
+        assert response_2.status_code == 422
+        
+        # Test Case 3: Null value
+        task_payload_3 = {
+            "taskId": f"task-null-bubbles-{uuid.uuid4().hex[:8]}",
+            "userMessage": "Null bubbles test",
+            "messageBubbles": None,
+            "taskMetadata": None
+        }
+        
+        response_3 = api_client.post(
+            f"/api/v1/sessions/{session_id}/chat-tasks",
+            json=task_payload_3
+        )
+        assert response_3.status_code == 422
+        
+        print(f"✓ Test 2.4 passed: Empty message_bubbles correctly rejected for session {session_id}")
+
+    def test_missing_required_fields_rejected(self, api_client: TestClient):
+        """
+        Test 2.5: Missing Required Fields Rejected
+        
+        Purpose: Verify that missing required fields are rejected
+        
+        Test Cases:
+        - Missing task_id
+        - Missing message_bubbles
+        """
+        # Create a session first
+        session_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Session for missing fields test"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        
+        session_response = api_client.post("/api/v1/message:stream", json=session_payload)
+        assert session_response.status_code == 200
+        session_id = session_response.json()["result"]["contextId"]
+        
+        # Test Case 1: Missing task_id
+        task_payload_1 = {
+            # "taskId": missing
+            "userMessage": "Missing task_id",
+            "messageBubbles": json.dumps([{"type": "user", "text": "Test"}]),
+            "taskMetadata": None
+        }
+        
+        response_1 = api_client.post(
+            f"/api/v1/sessions/{session_id}/chat-tasks",
+            json=task_payload_1
+        )
+        assert response_1.status_code == 422
+        
+        # Test Case 2: Missing message_bubbles
+        task_payload_2 = {
+            "taskId": f"task-missing-bubbles-{uuid.uuid4().hex[:8]}",
+            "userMessage": "Missing message_bubbles",
+            # "messageBubbles": missing
+            "taskMetadata": None
+        }
+        
+        response_2 = api_client.post(
+            f"/api/v1/sessions/{session_id}/chat-tasks",
+            json=task_payload_2
+        )
+        assert response_2.status_code == 422
+        
+        print(f"✓ Test 2.5 passed: Missing required fields correctly rejected for session {session_id}")
+
+    def test_large_payload_handling(self, api_client: TestClient):
+        """
+        Test 2.6: Large Payload Handling
+        
+        Purpose: Verify that large but valid payloads are handled correctly
+        
+        Steps:
+        1. Create message_bubbles with 100 message objects
+        2. Create task_metadata with large nested structure
+        3. POST the task
+        4. Verify it succeeds
+        5. GET the task back
+        6. Verify data integrity (no truncation)
+        """
+        # Step 1 & 2: Create large payloads
+        # Create a session first
+        session_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Session for large payload test"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        }
+        
+        session_response = api_client.post("/api/v1/message:stream", json=session_payload)
+        assert session_response.status_code == 200
+        session_id = session_response.json()["result"]["contextId"]
+        
+        # Create message_bubbles with 100 message objects
+        large_bubbles = []
+        for i in range(100):
+            large_bubbles.append({
+                "type": "user" if i % 2 == 0 else "agent",
+                "text": f"Message number {i} with some content to make it realistic",
+                "metadata": {"index": i, "timestamp": f"2025-01-01T{i:02d}:00:00Z"}
+            })
+        
+        message_bubbles_json = json.dumps(large_bubbles)
+        
+        # Create large nested metadata structure
+        large_metadata = {
+            "status": "completed",
+            "agent_name": "TestAgent",
+            "nested_data": {
+                f"level_{i}": {
+                    "data": f"value_{i}",
+                    "items": [f"item_{j}" for j in range(10)]
+                }
+                for i in range(20)
+            }
+        }
+        
+        task_metadata_json = json.dumps(large_metadata)
+        
+        task_id = f"task-large-{uuid.uuid4().hex[:8]}"
+        
+        # Step 3: POST the task
+        task_payload = {
+            "taskId": task_id,
+            "userMessage": "Large payload test",
+            "messageBubbles": message_bubbles_json,
+            "taskMetadata": task_metadata_json
+        }
+        
+        post_response = api_client.post(
+            f"/api/v1/sessions/{session_id}/chat-tasks",
+            json=task_payload
+        )
+        
+        # Step 4: Verify it succeeds
+        assert post_response.status_code in [200, 201]
+        
+        # Step 5: GET the task back
+        get_response = api_client.get(f"/api/v1/sessions/{session_id}/chat-tasks")
+        assert get_response.status_code == 200
+        
+        tasks = get_response.json()["tasks"]
+        assert len(tasks) == 1
+        
+        retrieved_task = tasks[0]
+        
+        # Step 6: Verify data integrity (no truncation)
+        assert retrieved_task["taskId"] == task_id
+        assert retrieved_task["messageBubbles"] == message_bubbles_json
+        assert retrieved_task["taskMetadata"] == task_metadata_json
+        
+        # Verify we can parse the JSON back
+        retrieved_bubbles = json.loads(retrieved_task["messageBubbles"])
+        assert len(retrieved_bubbles) == 100
+        assert retrieved_bubbles[0]["text"] == "Message number 0 with some content to make it realistic"
+        assert retrieved_bubbles[99]["text"] == "Message number 99 with some content to make it realistic"
+        
+        retrieved_metadata = json.loads(retrieved_task["taskMetadata"])
+        assert retrieve_metadata["status"] == "completed"
+        assert "level_0" in retrieved_metadata["nested_data"]
+        assert "level_19" in retrieved_metadata["nested_data"]
+        assert len(retrieved_metadata["nested_data"]["level_0"]["items"]) == 10
+        
+        print(f"✓ Test 2.6 passed: Large payload handled correctly for session {session_id}")
