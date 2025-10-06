@@ -139,6 +139,33 @@ class WebUIBackendComponent(BaseGatewayComponent):
             timer_id=self._sse_cleanup_timer_id,
             interval_ms=cleanup_interval_sec * 1000,
         )
+        
+        # Set up health check timer for agent registry
+        self.HEALTH_CHECK_TIMER_ID = f"agent_health_check_{self.gateway_id}"
+        health_check_enabled = self.get_config("agent_health_check_enabled", True)
+        if health_check_enabled:
+            health_check_interval_seconds = self.get_config("agent_health_check_interval_seconds", 10)
+            if health_check_interval_seconds > 0:
+                log.info(
+                    "%s Scheduling agent health check every %d seconds.",
+                    self.log_identifier,
+                    health_check_interval_seconds,
+                )
+                self.add_timer(
+                    delay_ms=health_check_interval_seconds * 1000,
+                    timer_id=self.HEALTH_CHECK_TIMER_ID,
+                    interval_ms=health_check_interval_seconds * 1000,
+                )
+            else:
+                log.warning(
+                    "%s Agent health check interval not configured or invalid, health checks will not run periodically.",
+                    self.log_identifier,
+                )
+        else:
+            log.info(
+                "%s Agent health checks are disabled in configuration.",
+                self.log_identifier,
+            )
 
         session_config = self._resolve_session_config()
         if session_config.get("type") == "sql":
@@ -192,6 +219,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
             if event.data.get("timer_id") == self._sse_cleanup_timer_id:
                 log.debug("%s SSE buffer cleanup timer triggered.", self.log_identifier)
                 self.sse_event_buffer.cleanup_stale_buffers()
+                return
+            elif event.data.get("timer_id") == self.HEALTH_CHECK_TIMER_ID:
+                log.debug("%s Agent health check timer triggered.", self.log_identifier)
+                self._check_agent_health()
                 return
 
         super().process_event(event)
@@ -1059,6 +1090,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
         """Gracefully shuts down the component and the FastAPI server."""
         log.info("%s Cleaning up Web UI Backend Component...", self.log_identifier)
         self.cancel_timer(self._sse_cleanup_timer_id)
+        self.cancel_timer(self.HEALTH_CHECK_TIMER_ID)
         log.info("%s Cleaning up visualization resources...", self.log_identifier)
         if self._visualization_message_queue:
             self._visualization_message_queue.put(None)
@@ -1367,6 +1399,112 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
     def get_agent_registry(self) -> AgentRegistry:
         return self.agent_registry
+        
+    def _check_agent_health(self):
+        """
+        Checks the health of peer agents and de-registers unresponsive ones.
+        This is called periodically by the health check timer.
+        Uses TTL-based expiration to determine if an agent is unresponsive.
+        """
+        if not self.get_config("agent_health_check_enabled", True):
+            log.debug("%s Agent health checks are disabled in configuration.", self.log_identifier)
+            return
+            
+        log.debug("%s Performing agent health check...", self.log_identifier)
+        
+        # Get TTL from configuration or use default from constants
+        from ...common.constants import DEFAULT_AGENT_TTL
+        ttl_seconds = self.get_config("agent_health_check_ttl_seconds", DEFAULT_AGENT_TTL)
+        health_check_interval = self.get_config("agent_health_check_interval_seconds", 10)
+        
+        log.debug(
+            "%s Health check configuration: interval=%d seconds, TTL=%d seconds",
+            self.log_identifier,
+            health_check_interval,
+            ttl_seconds
+        )
+        
+        # Get all agent names from the registry
+        agent_names = self.agent_registry.get_agent_names()
+        total_agents = len(agent_names)
+        unresponsive_agents = 0
+        agents_to_deregister = []
+        
+        log.debug("%s Checking health of %d peer agents", self.log_identifier, total_agents)
+        
+        for agent_name in agent_names:
+            # Check if the agent's TTL has expired
+            is_expired, time_since_last_seen = self.agent_registry.check_ttl_expired(agent_name, ttl_seconds)
+            
+            if is_expired:
+                unresponsive_agents += 1
+                log.warning(
+                    "%s Agent '%s' TTL has expired. De-registering. Time since last seen: %d seconds (TTL: %d seconds)",
+                    self.log_identifier,
+                    agent_name,
+                    time_since_last_seen,
+                    ttl_seconds
+                )
+                agents_to_deregister.append(agent_name)
+        
+        # De-register unresponsive agents
+        for agent_name in agents_to_deregister:
+            self._deregister_agent(agent_name)
+            
+        log.info(
+            "%s Agent health check completed. Total agents: %d, Unresponsive: %d, De-registered: %d",
+            self.log_identifier,
+            total_agents,
+            unresponsive_agents,
+            len(agents_to_deregister)
+        )
+        
+    def _deregister_agent(self, agent_name: str):
+        """
+        De-registers an agent from the registry and publishes a de-registration event.
+        """
+        # Remove from registry
+        registry_removed = self.agent_registry.remove_agent(agent_name)
+        
+        # Publish de-registration event if agent was in registry
+        if registry_removed:
+            try:
+                # Create a de-registration event topic
+                namespace = self.get_config("namespace")
+                deregistration_topic = f"{namespace}/a2a/events/agent/deregistered"
+                
+                current_time = datetime.now(timezone.utc).timestamp()
+                
+                # Create the payload
+                deregistration_payload = {
+                    "event_type": "agent.deregistered",
+                    "agent_name": agent_name,
+                    "reason": "health_check_failure",
+                    "metadata": {
+                        "timestamp": current_time,
+                        "deregistered_by": self.gateway_id
+                    }
+                }
+                
+                # Publish the event
+                self.publish_a2a(
+                    topic=deregistration_topic,
+                    payload=deregistration_payload
+                )
+                
+                log.info(
+                    "%s Published de-registration event for agent '%s' to topic '%s'",
+                    self.log_identifier,
+                    agent_name,
+                    deregistration_topic
+                )
+            except Exception as e:
+                log.error(
+                    "%s Failed to publish de-registration event for agent '%s': %s",
+                    self.log_identifier,
+                    agent_name,
+                    e
+                )
 
     def get_sse_manager(self) -> SSEManager:
         return self.sse_manager
