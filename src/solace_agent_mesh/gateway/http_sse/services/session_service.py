@@ -31,10 +31,9 @@ class SessionService:
 
     def _get_repositories(self, db: DbSession):
         """Create repositories for the given database session."""
-        from ..repository import SessionRepository, MessageRepository
+        from ..repository import SessionRepository
         session_repository = SessionRepository(db)
-        message_repository = MessageRepository(db)
-        return session_repository, message_repository
+        return session_repository
 
     def is_persistence_enabled(self) -> bool:
         """Checks if the service is configured with a persistent backend."""
@@ -78,7 +77,7 @@ class SessionService:
         if not self._is_valid_session_id(session_id):
             return None
 
-        session_repository, _ = self._get_repositories(db)
+        session_repository = self._get_repositories(db)
         return session_repository.find_user_session(session_id, user_id)
 
     def get_session_history(
@@ -133,7 +132,7 @@ class SessionService:
             updated_time=now_ms,
         )
 
-        session_repository, _ = self._get_repositories(db)
+        session_repository = self._get_repositories(db)
         created_session = session_repository.save(session)
         log.info("Created new session %s for user %s", created_session.id, user_id)
 
@@ -154,7 +153,7 @@ class SessionService:
         if len(name.strip()) > 255:
             raise ValueError("Session name cannot exceed 255 characters")
 
-        session_repository, _ = self._get_repositories(db)
+        session_repository = self._get_repositories(db)
         session = session_repository.find_user_session(session_id, user_id)
         if not session:
             return None
@@ -171,7 +170,7 @@ class SessionService:
         if not self._is_valid_session_id(session_id):
             raise ValueError("Invalid session ID")
 
-        session_repository, _ = self._get_repositories(db)
+        session_repository = self._get_repositories(db)
         session = session_repository.find_user_session(session_id, user_id)
         if not session:
             log.warning(
@@ -274,7 +273,7 @@ class SessionService:
             ValueError: If session not found or validation fails
         """
         # Validate session exists and belongs to user
-        session_repository, _ = self._get_repositories(db)
+        session_repository = self._get_repositories(db)
         session = session_repository.find_user_session(session_id, user_id)
         if not session:
             raise ValueError(f"Session {session_id} not found for user {user_id}")
@@ -323,7 +322,7 @@ class SessionService:
             ValueError: If session not found
         """
         # Validate session exists and belongs to user
-        session_repository, _ = self._get_repositories(db)
+        session_repository = self._get_repositories(db)
         session = session_repository.find_user_session(session_id, user_id)
         if not session:
             raise ValueError(f"Session {session_id} not found for user {user_id}")

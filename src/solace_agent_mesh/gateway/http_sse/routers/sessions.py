@@ -13,7 +13,7 @@ from .dto.requests.session_requests import (
     UpdateSessionRequest,
 )
 from .dto.requests.task_requests import SaveTaskRequest
-from .dto.responses.session_responses import MessageResponse, SessionResponse
+from .dto.responses.session_responses import SessionResponse
 from .dto.responses.task_responses import TaskResponse, TaskListResponse
 
 router = APIRouter()
