@@ -10,6 +10,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
+            "python": "${workspaceFolder}/.venv/bin/python", 
             "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_example.yaml",
             "justMyCode": false,
             "env": {
