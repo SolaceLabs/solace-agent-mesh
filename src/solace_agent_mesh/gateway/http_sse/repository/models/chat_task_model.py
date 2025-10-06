@@ -3,6 +3,7 @@ ChatTask SQLAlchemy model.
 """
 
 from sqlalchemy import BigInteger, Column, ForeignKey, String, Text
+from sqlalchemy.orm import relationship
 
 from .base import Base
 
@@ -25,3 +26,6 @@ class ChatTaskModel(Base):
     task_metadata = Column(Text, nullable=True)
     created_time = Column(BigInteger, nullable=False, index=True)
     updated_time = Column(BigInteger, nullable=True)
+
+    # Relationship to session
+    session = relationship("SessionModel", back_populates="chat_tasks")
