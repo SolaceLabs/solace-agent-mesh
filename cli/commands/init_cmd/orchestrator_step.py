@@ -84,32 +84,13 @@ def create_orchestrator_config(
         is_bool=True,
     )
 
-    session_type = ask_if_not_provided(
+    options["use_orchestrator_db"] = ask_if_not_provided(
         options,
-        "session_service_type",
-        "Enter session service type",
-        "sql",
+        "use_orchestrator_db",
+        "Use default orchestrator database? (true/false)",
+        ORCHESTRATOR_DEFAULTS["use_orchestrator_db"],
         skip_interactive,
-        choices=["sql", "memory", "vertex_rag"],
-    )
-
-    if session_type == "sql":
-        options["use_orchestrator_db"] = ask_if_not_provided(
-            options,
-            "use_orchestrator_db",
-            "Use default orchestrator database? (true/false)",
-            ORCHESTRATOR_DEFAULTS["use_orchestrator_db"],
-            skip_interactive,
-            is_bool=True,
-        )
-
-    session_behavior = ask_if_not_provided(
-        options,
-        "session_service_behavior",
-        "Enter session service behavior",
-        "PERSISTENT",
-        skip_interactive,
-        choices=["PERSISTENT", "RUN_BASED"],
+        is_bool=True,
     )
 
     artifact_type = ask_if_not_provided(
@@ -412,17 +393,14 @@ def create_orchestrator_config(
         - You must then review the list of artifacts and return the ones that are important for the user by using the `signal_artifact_for_return` tool.
         - Provide regular progress updates using `status_update` embed directives, especially before initiating any tool call."""
 
-        if session_type == "sql":
-            session_service_lines = [
-                f'type: "{session_type}"',
-                'database_url: "${ORCHESTRATOR_DATABASE_URL, sqlite:///orchestrator.db}"',
-                f'default_behavior: "{session_behavior}"',
-            ]
-            session_service_block = "\n" + "\n".join(
-                [f"        {line}" for line in session_service_lines]
-            )
-        else:
-            session_service_block = "*default_session_service"
+        session_service_lines = [
+            f'type: "sql"',
+            'database_url: "${ORCHESTRATOR_DATABASE_URL, sqlite:///orchestrator.db}"',
+            f'default_behavior: "PERSISTENT"',
+        ]
+        session_service_block = "\n" + "\n".join(
+            [f"        {line}" for line in session_service_lines]
+        )
 
         orchestrator_replacements = {
             "__NAMESPACE__": "${NAMESPACE}",

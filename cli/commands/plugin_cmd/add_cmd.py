@@ -81,7 +81,6 @@ def add_plugin_component_cmd(
         )
     try:
         plugin_config_content = plugin_config_path.read_text(encoding="utf-8")
-        click.echo(f"Found plugin config.yaml content:\n{plugin_config_content}")
     except Exception as e:
         return error_exit(
             f"Error reading plugin config.yaml from {plugin_config_path}: {e}"
@@ -99,11 +98,7 @@ def add_plugin_component_cmd(
         "__COMPONENT_SPACED_NAME__": component_formats["SPACED_NAME"],
         "__COMPONENT_SPACED_CAPITALIZED_NAME__": component_formats[
             "SPACED_CAPITALIZED_NAME"
-        ],
-        "session_service: *default_session_service": f'''session_service: 
-        type: "sql"
-        database_url: "${{{component_formats['SNAKE_UPPER_CASE_NAME']}, sqlite:///{component_formats['SNAKE_CASE_NAME']}.db}}"
-        default_behavior: "PERSISTENT"'''
+        ]
     }
 
     processed_config_content = plugin_config_content
@@ -128,7 +123,6 @@ def add_plugin_component_cmd(
     try:
         with open(target_path, "w", encoding="utf-8") as f:
             f.write(processed_config_content)
-        click.echo(f"Processed: {processed_config_content}")
         click.echo(f"  Created component configuration: {target_path}")
         click.echo(
             click.style(

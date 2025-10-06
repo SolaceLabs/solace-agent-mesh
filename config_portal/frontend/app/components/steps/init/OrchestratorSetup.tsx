@@ -310,7 +310,7 @@ export default function OrchestratorSetup({
             <h3 className="text-lg font-medium text-gray-900 mb-2">Session Service</h3>
           </div>
           
-          <FormField 
+          { /* <FormField
             label="Session Service Type" 
             htmlFor="session_service_type"
             required
@@ -321,25 +321,22 @@ export default function OrchestratorSetup({
               value={sessionServiceType}
               onChange={handleSessionServiceTypeChange}
             />
-          </FormField>
+          </FormField> */ }
 
-          {/* eslint-disable-next-line */}
-          {/* sessionServiceType === 'sql' && (
-            <FormField
-              label="Orchestrator Database URL"
-              htmlFor="orchestrator_database_url"
-              helpText="Leave blank to create a default SQLite database"
-            >
-              <Input
-                id="orchestrator_database_url"
-                value={orchestratorDatabaseUrl}
-                onChange={handleOrchestratorDatabaseUrlChange}
-                placeholder="e.g., sqlite:///./data/orchestrator.db"
-              />
-            </FormField>
-          ) */}
-          
           <FormField
+            label="Orchestrator Database URL"
+            htmlFor="orchestrator_database_url"
+            helpText="Leave blank to create a default SQLite database"
+          >
+            <Input
+              id="orchestrator_database_url"
+              value={orchestratorDatabaseUrl}
+              onChange={handleOrchestratorDatabaseUrlChange}
+              placeholder="e.g., sqlite:///orchestrator.db"
+            />
+          </FormField>
+          
+          {/* <FormField
             label="Session Behavior"
             htmlFor="session_behavior"
             required
@@ -351,6 +348,7 @@ export default function OrchestratorSetup({
               onChange={handleSessionBehaviorChange}
             />
           </FormField>
+          */ }
           
           <div className="col-span-2 mt-4">
             <h3 className="text-lg font-medium text-gray-900 mb-2">Artifact Service</h3>

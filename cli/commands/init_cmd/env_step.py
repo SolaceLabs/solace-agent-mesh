@@ -18,8 +18,6 @@ ENV_DEFAULTS = {
     "FASTAPI_PORT": "8000",
     "FASTAPI_HTTPS_PORT": "8443",
     "ENABLE_EMBED_RESOLUTION": "true",
-    "WEB_UI_GATEWAY_DATABASE_URL": "sqlite:///webui_gateway.db",
-    "ORCHESTRATOR_DATABASE_URL": "sqlite:///orchestrator.db",
     "SSL_KEYFILE": "",
     "SSL_CERTFILE": "",
     "SSL_KEYFILE_PASSWORD": "",
