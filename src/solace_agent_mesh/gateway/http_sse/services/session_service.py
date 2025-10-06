@@ -336,7 +336,7 @@ class SessionService:
         db: DbSession,
         session_id: str,
         user_id: str
-    ) -> List[Message]:
+    ) -> List[Dict[str, Any]]:
         """
         Get session messages by flattening task message_bubbles.
         This provides backward compatibility with the old message-based API.
@@ -347,7 +347,7 @@ class SessionService:
             user_id: User ID
             
         Returns:
-            List of Message entities flattened from tasks
+            List of message dictionaries flattened from tasks
             
         Raises:
             ValueError: If session not found
@@ -358,10 +358,13 @@ class SessionService:
         # Flatten message_bubbles from all tasks
         messages = []
         for task in tasks:
-            for bubble in task.message_bubbles:
+            import json
+            message_bubbles = json.loads(task.message_bubbles) if isinstance(task.message_bubbles, str) else task.message_bubbles
+            
+            for bubble in message_bubbles:
                 # Determine sender type from bubble type
                 bubble_type = bubble.get("type", "agent")
-                sender_type = SenderType.USER if bubble_type == "user" else SenderType.AGENT
+                sender_type = "user" if bubble_type == "user" else "agent"
                 
                 # Get sender name
                 if bubble_type == "user":
@@ -370,18 +373,19 @@ class SessionService:
                     # Try to get agent name from task metadata, fallback to "agent"
                     sender_name = "agent"
                     if task.task_metadata:
-                        sender_name = task.task_metadata.get("agent_name", "agent")
+                        task_metadata = json.loads(task.task_metadata) if isinstance(task.task_metadata, str) else task.task_metadata
+                        sender_name = task_metadata.get("agent_name", "agent")
                 
-                # Create Message entity
-                message = Message(
-                    id=bubble.get("id", str(uuid.uuid4())),
-                    session_id=session_id,
-                    message=bubble.get("text", ""),
-                    sender_type=sender_type,
-                    sender_name=sender_name,
-                    message_type=MessageType.TEXT,
-                    created_time=task.created_time
-                )
+                # Create message dictionary
+                message = {
+                    "id": bubble.get("id", str(uuid.uuid4())),
+                    "session_id": session_id,
+                    "message": bubble.get("text", ""),
+                    "sender_type": sender_type,
+                    "sender_name": sender_name,
+                    "message_type": "text",
+                    "created_time": task.created_time
+                }
                 messages.append(message)
         
         return messages
