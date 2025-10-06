@@ -95,14 +95,6 @@ interface ChatProviderProps {
     children: ReactNode;
 }
 
-interface HistoryMessage {
-    id: string;
-    message: string;
-    senderType: "user" | "llm";
-    sessionId: string;
-    createdTime: string;
-}
-
 // File utils
 const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
 const fileToBase64 = (file: File): Promise<string> => {
@@ -193,18 +185,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             return [...prev, newNotification];
         });
     }, []);
-
-    const getHistory = useCallback(
-        async (sessionId: string) => {
-            const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}/messages`);
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ detail: "Failed to fetch session history" }));
-                throw new Error(errorData.detail || `HTTP error ${response.status}`);
-            }
-            return response.json();
-        },
-        [apiPrefix]
-    );
 
     // Helper function to serialize a MessageFE to MessageBubble format for backend
     const serializeMessageBubble = useCallback((message: MessageFE) => {
@@ -302,12 +282,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Helper function to apply migrations to a task
     const migrateTask = useCallback((task: any): any => {
         const version = task.taskMetadata?.schema_version || 0;
-        
+
         if (version >= CURRENT_SCHEMA_VERSION) {
             // Already at current version
             return task;
         }
-        
+
         // Apply migrations sequentially
         let migratedTask = task;
         for (let v = version; v < CURRENT_SCHEMA_VERSION; v++) {
@@ -319,7 +299,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 console.warn(`No migration function found for version ${v}`);
             }
         }
-        
+
         return migratedTask;
     }, []);
 
@@ -378,7 +358,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Update state
                 setMessages(allMessages);
                 setSubmittedFeedback(feedbackMap);
-                
+
                 // Set the agent name if found
                 if (agentName) {
                     setSelectedAgentName(agentName);
@@ -836,7 +816,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
                     setIsCancelling(false);
                 }
-                
+
                 // Save complete task when agent response is done (Step 10.5-10.9)
                 if (currentTaskIdFromResult && sessionId) {
                     // Gather all messages for this task, filtering out status bubbles
@@ -844,22 +824,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         const taskMessages = currentMessages.filter(
                             msg => msg.taskId === currentTaskIdFromResult && !msg.isStatusBubble
                         );
-                        
+
                         if (taskMessages.length > 0) {
                             // Serialize all message bubbles
                             const messageBubbles = taskMessages.map(serializeMessageBubble);
-                            
+
                             // Extract user message text
                             const userMessage = taskMessages.find(m => m.isUser);
                             const userMessageText = userMessage?.parts
                                 ?.filter(p => p.kind === "text")
                                 .map(p => (p as TextPart).text)
                                 .join("") || "";
-                            
+
                             // Determine task status
                             const hasError = taskMessages.some(m => m.isError);
                             const taskStatus = hasError ? "error" : "completed";
-                            
+
                             // Save complete task (don't wait for completion)
                             saveTaskToBackend({
                                 task_id: currentTaskIdFromResult,
@@ -872,11 +852,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 }
                             });
                         }
-                        
+
                         return currentMessages;
                     });
                 }
-                
+
                 setIsResponding(false);
                 closeCurrentEventSource();
                 setCurrentTaskId(null);
@@ -934,17 +914,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Reset UI state with empty session ID
         const welcomeMessages: MessageFE[] = configWelcomeMessage
             ? [
-                  {
-                      parts: [{ kind: "text", text: configWelcomeMessage }],
-                      isUser: false,
-                      isComplete: true,
-                      role: "agent",
-                      metadata: {
-                          sessionId: "", // Empty - will be populated when session is created
-                          lastProcessedEventSequence: 0,
-                      },
-                  },
-              ]
+                {
+                    parts: [{ kind: "text", text: configWelcomeMessage }],
+                    isUser: false,
+                    isComplete: true,
+                    role: "agent",
+                    metadata: {
+                        sessionId: "", // Empty - will be populated when session is created
+                        lastProcessedEventSequence: 0,
+                    },
+                },
+            ]
             : [];
 
         setMessages(welcomeMessages);
@@ -1385,8 +1365,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setTaskIdInSidePanel(taskId);
 
                 // Update user message with taskId so it's included in final save
-                setMessages(prev => prev.map(msg => 
-                    msg.metadata?.messageId === userMsg.metadata?.messageId 
+                setMessages(prev => prev.map(msg =>
+                    msg.metadata?.messageId === userMsg.metadata?.messageId
                         ? { ...msg, taskId: taskId }
                         : msg
                 ));
