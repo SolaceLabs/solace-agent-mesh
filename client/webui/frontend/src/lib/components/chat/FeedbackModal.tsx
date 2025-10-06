@@ -61,7 +61,6 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, f
                 <div className="flex flex-col gap-2">
                     <Textarea
                         ref={textareaRef}
-                        placeholder="Enter your feedback here (optional)..."
                         value={feedbackText}
                         onChange={(e) => setFeedbackText(e.target.value)}
                         className="min-h-[120px] text-sm"
