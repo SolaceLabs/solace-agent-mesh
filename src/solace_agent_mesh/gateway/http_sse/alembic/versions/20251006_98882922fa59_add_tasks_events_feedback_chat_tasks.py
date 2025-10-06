@@ -98,10 +98,26 @@ def upgrade() -> None:
     op.drop_index(op.f('ix_sessions_updated_time'), table_name='sessions')
     op.drop_index(op.f('ix_sessions_user_id'), table_name='sessions')
     op.drop_index(op.f('ix_sessions_user_id_updated_time'), table_name='sessions')
+    
+    # Drop the chat_messages table - replaced by chat_tasks
+    op.drop_table('chat_messages')
 
 
 def downgrade() -> None:
     """Drop tasks, task_events, feedback, and chat_tasks tables."""
+    
+    # Recreate chat_messages table
+    op.create_table(
+        'chat_messages',
+        sa.Column('id', sa.String(), nullable=False),
+        sa.Column('session_id', sa.String(), nullable=False),
+        sa.Column('message', sa.Text(), nullable=False),
+        sa.Column('created_time', sa.BigInteger(), nullable=False),
+        sa.Column('sender_type', sa.String(length=50), nullable=True),
+        sa.Column('sender_name', sa.String(length=255), nullable=True),
+        sa.ForeignKeyConstraint(['session_id'], ['sessions.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id')
+    )
     
     # Recreate old indexes
     op.create_index(op.f('ix_sessions_user_id_updated_time'), 'sessions', ['user_id', 'updated_time'], unique=False)
