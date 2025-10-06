@@ -44,13 +44,13 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, f
         }
     };
 
-    const feedbackPrompt = feedbackType === "up" 
-        ? "What did you like about the response?" 
+    const feedbackPrompt = feedbackType === "up"
+        ? "What did you like about the response?"
         : "What did you dislike about the response?";
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="sm:max-w-[750px]" showCloseButton={false}>
+            <DialogContent className="sm:max-w-[750px]">
                 <DialogHeader>
                     <DialogTitle>Provide Feedback</DialogTitle>
                     <DialogDescription className="flex flex-col gap-2">
