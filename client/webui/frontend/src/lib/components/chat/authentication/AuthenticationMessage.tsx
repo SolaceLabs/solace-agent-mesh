@@ -25,18 +25,7 @@ export const AuthenticationMessage: React.FC<{ message: MessageFE }> = ({ messag
         const handleRejectClick = async () => {
             if (authenticationAttempted || rejected) return;
 
-            const gatewayTaskId = message.authenticationLink?.gatewayTaskId;
-            if (!gatewayTaskId) {
-                console.error("No gateway_task_id available for rejection");
-
-                // Still mark as rejected to disable buttons
-                setMessages((prevMessages: MessageFE[]) =>
-                    prevMessages.map(msg => (msg.metadata?.messageId === message.metadata?.messageId && msg.authenticationLink ? { ...msg, authenticationLink: { ...msg.authenticationLink, rejected: true } } : msg))
-                );
-                return;
-            }
-
-            // Mark as rejected immediately to disable buttons
+            // Update the message to mark authentication as rejected
             setMessages((prevMessages: MessageFE[]) =>
                 prevMessages.map(msg => (msg.metadata?.messageId === message.metadata?.messageId && msg.authenticationLink ? { ...msg, authenticationLink: { ...msg.authenticationLink, rejected: true } } : msg))
             );
@@ -47,7 +36,7 @@ export const AuthenticationMessage: React.FC<{ message: MessageFE }> = ({ messag
         const targetAgent = message.authenticationLink.targetAgent || "Agent";
 
         return (
-            <div className="w-1/2 rounded-lg border p-4 shadow-sm">
+            <div className="w-1/2 rounded-lg border p-4">
                 <div className="font-semibold">Action Needed</div>
                 <div className="py-4">The "{targetAgent}" agent requires authentication.</div>
                 <div className="flex flex-row justify-end gap-2">
