@@ -172,51 +172,6 @@ class SessionService:
 
         return True
 
-    def add_message_to_session(
-        self,
-        db: DbSession,
-        session_id: SessionId,
-        user_id: UserId,
-        message: str,
-        sender_type: SenderType,
-        sender_name: str,
-        agent_id: str | None = None,
-        message_type: MessageType = MessageType.TEXT,
-    ) -> Message:
-        if not self._is_valid_session_id(session_id):
-            raise ValueError("Invalid session ID")
-
-        if not message or message.strip() == "":
-            raise ValueError("Message cannot be empty")
-
-        session_repository = self._get_repositories(db)
-        session = session_repository.find_user_session(session_id, user_id)
-        if not session:
-            session = self.create_session(
-                db=db,
-                user_id=user_id,
-                agent_id=agent_id,
-                session_id=session_id,
-            )
-
-        message_entity = Message(
-            id=str(uuid.uuid4()),
-            session_id=session_id,
-            message=message.strip(),
-            sender_type=sender_type,
-            sender_name=sender_name,
-            message_type=message_type,
-            created_time=now_epoch_ms(),
-        )
-
-        saved_message = message_repository.save(message_entity)
-
-        session.mark_activity()
-        session_repository.save(session)
-
-        log.info("Added message to session %s from %s", session_id, sender_name)
-        return saved_message
-
     def save_task(
         self,
         db: DbSession,
