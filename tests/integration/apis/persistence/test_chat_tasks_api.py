@@ -1006,7 +1006,8 @@ class TestIntegrationWithExistingFeatures:
         print(f"✓ Test 4.4 passed: Feedback correctly updated task metadata for task {task_id}")
 
 
-class TestDataValidation: """Test Suite 2: Data Validation"""
+class TestDataValidation:
+    """Test Suite 2: Data Validation"""
 
     def test_valid_json_strings_accepted(self, api_client: TestClient):
         """
