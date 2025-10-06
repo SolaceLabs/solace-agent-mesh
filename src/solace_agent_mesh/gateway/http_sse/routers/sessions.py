@@ -320,8 +320,21 @@ async def get_session_history(
             session_id,
         )
 
-        # Messages are already in the correct format (list of dicts)
-        return messages
+        # Convert snake_case to camelCase for backwards compatibility
+        camel_case_messages = []
+        for msg in messages:
+            camel_msg = {
+                "id": msg["id"],
+                "sessionId": msg["session_id"],
+                "message": msg["message"],
+                "senderType": msg["sender_type"],
+                "senderName": msg["sender_name"],
+                "messageType": msg["message_type"],
+                "createdTime": msg["created_time"]
+            }
+            camel_case_messages.append(camel_msg)
+        
+        return camel_case_messages
 
     except ValueError as e:
         log.warning("Validation error fetching history for session %s: %s", session_id, e)
