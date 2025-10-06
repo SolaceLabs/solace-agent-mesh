@@ -1,17 +1,15 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
 import type { ReactNode } from "react";
 
 import { AlertCircle, FileText, ThumbsDown, ThumbsUp } from "lucide-react";
 
 import {
     ChatBubble,
-    ChatBubbleAction,
-    ChatBubbleActionWrapper,
     ChatBubbleMessage,
     MarkdownHTMLConverter,
     MessageBanner,
 } from "@/lib/components";
-import { Button, Textarea } from "@/lib/components/ui";
+import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
 import type { FileAttachment, MessageFE, TextPart } from "@/lib/types";
@@ -250,8 +248,8 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                 )}
                 <MessageActions
                     message={message}
-                    showWorkflowButton={showWorkflowButton}
-                    showFeedbackActions={showFeedbackActions}
+                    showWorkflowButton={!!showWorkflowButton}
+                    showFeedbackActions={!!showFeedbackActions}
                     handleViewWorkflowClick={handleViewWorkflowClick}
                 />
             </ChatBubbleMessage>
