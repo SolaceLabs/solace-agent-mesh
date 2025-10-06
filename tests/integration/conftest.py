@@ -90,8 +90,8 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
         port = find_free_port()
         base_url = f"http://127.0.0.1:{port}"
         health_url = f"{base_url}/mcp/health"
-        sse_url = f"{base_url}/sse"  # The default path for fastmcp sse transport
-        http_url = f"{base_url}/mcp"
+        sse_url = f"{base_url}/sse/"  # The default path for fastmcp sse transport
+        http_url = f"{base_url}/mcp/"
         command = [
             sys.executable,
             SERVER_PATH,
