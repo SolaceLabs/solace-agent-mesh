@@ -8,7 +8,6 @@ from ..shared.auth_utils import get_current_user
 from ..shared.pagination import DataResponse, PaginatedResponse, PaginationParams
 from ..shared.response_utils import create_data_response
 from .dto.requests.session_requests import (
-    GetSessionHistoryRequest,
     GetSessionRequest,
     UpdateSessionRequest,
 )

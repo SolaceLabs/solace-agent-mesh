@@ -10,7 +10,6 @@ from .session_repository import SessionRepository
 
 # Entities (re-exported for convenience)
 from .entities.session import Session
-from .entities.session_history import SessionHistory
 
 # Models (re-exported for convenience)
 from .models.base import Base
@@ -22,8 +21,7 @@ __all__ = [
     # Implementations
     "SessionRepository",
     # Entities
-    "Session", 
-    "SessionHistory",
+    "Session",
     # Models
     "Base",
     "SessionModel",

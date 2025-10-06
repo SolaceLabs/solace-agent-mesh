@@ -5,16 +5,13 @@ from solace_ai_connector.common.log import log
 from sqlalchemy.orm import Session as DbSession
 
 from ..repository import (
-    IMessageRepository,
     ISessionRepository,
-    Message,
     Session,
-    SessionHistory,
 )
 from ..repository.chat_task_repository import ChatTaskRepository
 from ..repository.entities import ChatTask
-from ..shared.enums import MessageType, SenderType
-from ..shared.types import PaginationInfo, SessionId, UserId
+from ..shared.enums import SenderType
+from ..shared.types import SessionId, UserId
 from ..shared import now_epoch_ms
 from ..shared.pagination import PaginationParams, PaginatedResponse, get_pagination_or_default
 
@@ -30,7 +27,7 @@ class SessionService:
         self.component = component
 
     def _get_repositories(self, db: DbSession):
-        """Create repositories for the given database session."""
+        """Create session repository for the given database session."""
         from ..repository import SessionRepository
         session_repository = SessionRepository(db)
         return session_repository
@@ -55,7 +52,7 @@ class SessionService:
             raise ValueError("User ID cannot be empty")
 
         pagination = get_pagination_or_default(pagination)
-        session_repository, _ = self._get_repositories(db)
+        session_repository = self._get_repositories(db)
 
         pagination_info = PaginationInfo(
             page=pagination.page_number,
@@ -79,30 +76,6 @@ class SessionService:
 
         session_repository = self._get_repositories(db)
         return session_repository.find_user_session(session_id, user_id)
-
-    def get_session_history(
-        self,
-        db: DbSession,
-        session_id: SessionId,
-        user_id: UserId,
-        pagination: PaginationInfo | None = None,
-    ) -> SessionHistory | None:
-        if not self._is_valid_session_id(session_id):
-            return None
-
-        session_repository, _ = self._get_repositories(db)
-        result = session_repository.find_user_session_with_messages(
-            session_id, user_id, pagination
-        )
-        if not result:
-            return None
-
-        session, messages = result
-        return SessionHistory(
-            session=session,
-            messages=messages,
-            total_message_count=len(messages),
-        )
 
     def create_session(
         self,
@@ -216,7 +189,7 @@ class SessionService:
         if not message or message.strip() == "":
             raise ValueError("Message cannot be empty")
 
-        session_repository, message_repository = self._get_repositories(db)
+        session_repository = self._get_repositories(db)
         session = session_repository.find_user_session(session_id, user_id)
         if not session:
             session = self.create_session(

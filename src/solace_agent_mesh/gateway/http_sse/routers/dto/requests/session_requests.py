@@ -2,23 +2,15 @@
 Session-related request DTOs.
 """
 
-from typing import Optional
 from pydantic import BaseModel, Field
 
-from ....shared.types import SessionId, UserId, PaginationInfo
+from ....shared.types import SessionId, UserId
 
 
 class GetSessionRequest(BaseModel):
     """Request DTO for retrieving a specific session."""
     session_id: SessionId
     user_id: UserId
-
-
-class GetSessionHistoryRequest(BaseModel):
-    """Request DTO for retrieving session message history."""
-    session_id: SessionId
-    user_id: UserId
-    pagination: Optional[PaginationInfo] = None
 
 
 class UpdateSessionRequest(BaseModel):
