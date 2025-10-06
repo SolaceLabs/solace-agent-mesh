@@ -145,41 +145,20 @@ def create_webui_gateway_config(
         is_bool=True,
     )
 
-    session_type = ask_if_not_provided(
-        options,
-        "webui_session_service_type",
-        "Enter WebUI session service type",
-        "sql",
-        skip_interactive,
-        choices=["sql", "memory"],
-    )
-
-    session_behavior = ask_if_not_provided(
-        options,
-        "webui_session_service_behavior",
-        "Enter WebUI session service behavior",
-        "PERSISTENT",
-        skip_interactive,
-        choices=["PERSISTENT", "RUN_BASED"],
-    )
-
     click.echo("Creating Web UI Gateway configuration file...")
     destination_path = project_root / "configs" / "gateways" / "webui.yaml"
 
     try:
         template_content = load_template("webui.yaml")
         
-        if session_type == "sql":
-            session_service_lines = [
-                f'type: "{session_type}"',
-                'database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui_gateway.db}"',
-                f'default_behavior: "{session_behavior}"',
-            ]
-            session_service_block = "\n" + "\n".join(
-                [f"        {line}" for line in session_service_lines]
-            )
-        else:
-            session_service_block = "*default_session_service"
+        session_service_lines = [
+            f'type: "sql"',
+            'database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui_gateway.db}"',
+            f'default_behavior: "PERSISTENT"',
+        ]
+        session_service_block = "\n" + "\n".join(
+            [f"        {line}" for line in session_service_lines]
+        )
         
         replacements = {
             "__FRONTEND_WELCOME_MESSAGE__": str(
