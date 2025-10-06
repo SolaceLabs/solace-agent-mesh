@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
-const commonTextStyles = "text-[var(--color-brand-wMain)] hover:text-[var(--color-primary-text-w60)] dark:text-[var(--color-primary-w20)] dark:hover:text-[var(--color-primary-text-w10)]";
+const commonTextStyles = "text-[var(--color-brand-wMain)] hover:text-[var(--color-primary-text-w60)] dark:text-[var(--color-brand-wMain)] dark:hover:text-[var(--color-primary-text-w10)]";
 const commonButtonStyles = commonTextStyles + " hover:bg-[var(--color-primary-w10)] dark:hover:bg-[var(--color-primary-w60)]";
 
 const buttonVariants = cva(
