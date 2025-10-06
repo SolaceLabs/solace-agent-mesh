@@ -60,7 +60,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
     }, [expandedContent]);
 
     console.log(`[ArtifactBar] Rendering ${filename} with status: ${status}, bytesTransferred: ${bytesTransferred}`);
-    
+
     // Validate required props
     if (!filename || typeof filename !== 'string') {
         console.error('ArtifactBar: filename is required and must be a string');
@@ -93,7 +93,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                 };
             case "completed":
                 return {
-                    text: size ? `${(size / 1024).toFixed(1)}KB` : "Ready",
+                    text: size ? `${(size / 1024).toFixed(1)}KB` : "",
                     className: "text-green-600 dark:text-green-400",
                 };
             default:
@@ -111,22 +111,22 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
         if (!desc || typeof desc !== 'string') {
             return '';
         }
-        
+
         // Normalize whitespace and remove newlines
         const cleaned = desc.replace(/\s+/g, ' ').trim();
-        
+
         if (cleaned.length <= maxLength) {
             return cleaned;
         }
-        
+
         // Truncate at word boundary if possible
         const truncated = cleaned.substring(0, maxLength);
         const lastSpaceIndex = truncated.lastIndexOf(' ');
-        
+
         if (lastSpaceIndex > maxLength * 0.7) {
             return truncated.substring(0, lastSpaceIndex) + '...';
         }
-        
+
         return truncated + '...';
     };
 
@@ -144,10 +144,9 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
     };
 
     return (
-        <div 
-            className={`w-full border border-[#e0e0e0] dark:border-[#404040] rounded-lg bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all duration-200 ease-in-out ${
-                status === "completed" && actions?.onPreview ? "cursor-pointer" : ""
-            }`}
+        <div
+            className={`w-full border border-[#e0e0e0] dark:border-[#404040] rounded-lg bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all duration-200 ease-in-out ${status === "completed" && actions?.onPreview ? "cursor-pointer" : ""
+                }`}
             onClick={handleBarClick}
         >
             <div className="flex items-center gap-3 p-3 min-h-[60px]">
@@ -166,12 +165,12 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                     <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate leading-tight" title={hasDescription ? description : filename}>
                         {hasDescription ? displayDescription : (filename.length > 50 ? `${filename.substring(0, 47)}...` : filename)}
                     </div>
-                    
+
                     {/* Secondary line: Filename (if description shown) or status */}
                     <div className="text-xs text-gray-600 dark:text-gray-400 truncate mt-1 leading-tight" title={hasDescription ? filename : statusDisplay.text}>
                         {hasDescription ? (filename.length > 60 ? `${filename.substring(0, 57)}...` : filename) : statusDisplay.text}
                     </div>
-                    
+
                     {/* Tertiary line: Status when description is shown */}
                     {hasDescription && (
                         <div className={cn("text-xs mt-0.5 leading-tight", statusDisplay.className)}>
@@ -200,7 +199,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                             <Info className="h-4 w-4" />
                         </Button>
                     )}
-                    
+
                     {status === "completed" && actions?.onDownload && (
                         <Button
                             variant="ghost"
@@ -219,7 +218,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                             <Download className="h-4 w-4" />
                         </Button>
                     )}
-                    
+
                     {status === "completed" && actions?.onPreview && (
                         <Button
                             variant="ghost"
@@ -238,7 +237,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                             <Eye className="h-4 w-4" />
                         </Button>
                     )}
-                    
+
                     {status === "completed" && actions?.onExpand && (
                         <Button
                             variant="ghost"
@@ -261,7 +260,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                             )}
                         </Button>
                     )}
-                    
+
                     {status === "completed" && actions?.onDelete && (
                         <Button
                             variant="ghost"
@@ -280,12 +279,12 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                             <Trash className="h-4 w-4" />
                         </Button>
                     )}
-                    
+
                     {/* Progress indicator for in-progress status */}
                     {status === "in-progress" && (
                         <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
                     )}
-                    
+
                     {/* Error indicator for failed status */}
                     {status === "failed" && (
                         <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center border border-red-200 dark:border-red-800">
@@ -318,7 +317,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                     </Button>
                 )}
             </div>
-            
+
             {/* Expanded Content Section */}
             <div
                 className={cn(
