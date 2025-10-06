@@ -3,6 +3,15 @@ import { v4 } from "uuid";
 
 import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
 
+// Type for tasks loaded from the API
+interface TaskFromAPI {
+    taskId: string;
+    messageBubbles: string;  // JSON string
+    taskMetadata: string | null;  // JSON string
+    createdTime: number;
+    userMessage?: string;
+}
+
 // Schema version for data migration purposes
 const CURRENT_SCHEMA_VERSION = 1;
 
@@ -318,7 +327,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const tasks = data.tasks || [];
 
                 // Parse JSON strings from backend
-                const parsedTasks = tasks.map(task => ({
+                const parsedTasks = tasks.map((task: TaskFromAPI) => ({
                     ...task,
                     messageBubbles: JSON.parse(task.messageBubbles),
                     taskMetadata: task.taskMetadata ? JSON.parse(task.taskMetadata) : null
