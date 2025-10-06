@@ -25,7 +25,7 @@ from ...gateway.http_sse.services.task_logger_service import TaskLoggerService
 from ...gateway.http_sse.services.data_retention_service import DataRetentionService
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
-from .repository import Message, MessageRepository, SessionRepository
+from .repository import SessionRepository
 from .repository.interfaces import ITaskRepository
 from .repository.task_repository import TaskRepository
 from .services.session_service import SessionService

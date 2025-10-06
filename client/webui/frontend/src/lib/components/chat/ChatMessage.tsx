@@ -1,17 +1,15 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
 import type { ReactNode } from "react";
 
 import { AlertCircle, FileText, ThumbsDown, ThumbsUp } from "lucide-react";
 
 import {
     ChatBubble,
-    ChatBubbleAction,
-    ChatBubbleActionWrapper,
     ChatBubbleMessage,
     MarkdownHTMLConverter,
     MessageBanner,
 } from "@/lib/components";
-import { Button, Textarea } from "@/lib/components/ui";
+import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
 import type { ArtifactPart, FileAttachment, FilePart, MessageFE, TextPart } from "@/lib/types";
@@ -83,7 +81,7 @@ const MessageActions: React.FC<{
                                 disabled={!!submittedFeedbackType}
                             >
                                 <ThumbsUp
-                                    className={`h-4 w-4 ${submittedFeedbackType === "up" ? "fill-yellow-500 text-yellow-500 dark:fill-yellow-500 dark:text-yellow-500 !opacity-100" : ""}`}
+                                    className={`h-4 w-4 ${submittedFeedbackType === "up" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] !opacity-100" : ""}`}
                                 />
                             </Button>
                             <Button
@@ -94,7 +92,7 @@ const MessageActions: React.FC<{
                                 disabled={!!submittedFeedbackType}
                             >
                                 <ThumbsDown
-                                    className={`h-4 w-4 ${submittedFeedbackType === "down" ? "fill-yellow-500 text-yellow-500 dark:fill-yellow-500 dark:text-yellow-500 opacity-100" : ""}`}
+                                    className={`h-4 w-4 ${submittedFeedbackType === "down" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] opacity-100" : ""}`}
                                 />
                             </Button>
                         </div>
@@ -222,7 +220,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 
     const variant = message.isUser ? "sent" : "received";
     const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
-    const showFeedbackActions = !message.isUser && message.isComplete && !!message.taskId;
+    const showFeedbackActions = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
 
     const handleViewWorkflowClick = () => {
         if (message.taskId) {

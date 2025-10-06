@@ -17,12 +17,6 @@ if config.config_file_name is not None:
 from solace_agent_mesh.gateway.http_sse.repository.models.base import Base
 
 # Import all models here to ensure they are registered with the Base
-from solace_agent_mesh.gateway.http_sse.repository.models.session_model import (
-    SessionModel,
-)
-from solace_agent_mesh.gateway.http_sse.repository.models.message_model import (
-    MessageModel,
-)
 from solace_agent_mesh.gateway.http_sse.repository.models.task_model import TaskModel
 from solace_agent_mesh.gateway.http_sse.repository.models.task_event_model import (
     TaskEventModel,

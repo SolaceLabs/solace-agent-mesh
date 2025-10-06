@@ -8,12 +8,11 @@ from ..shared.auth_utils import get_current_user
 from ..shared.pagination import DataResponse, PaginatedResponse, PaginationParams
 from ..shared.response_utils import create_data_response
 from .dto.requests.session_requests import (
-    GetSessionHistoryRequest,
     GetSessionRequest,
     UpdateSessionRequest,
 )
 from .dto.requests.task_requests import SaveTaskRequest
-from .dto.responses.session_responses import MessageResponse, SessionResponse
+from .dto.responses.session_responses import SessionResponse
 from .dto.responses.task_responses import TaskResponse, TaskListResponse
 
 router = APIRouter()
@@ -292,7 +291,7 @@ async def get_session_history(
 ):
     """
     Get session message history.
-    Now loads from chat_tasks and flattens message_bubbles for backward compatibility.
+    Loads from chat_tasks and flattens message_bubbles for backward compatibility.
     """
     user_id = user.get("id")
     log.info(
@@ -309,7 +308,7 @@ async def get_session_history(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
             )
 
-        # Use new task-based message retrieval
+        # Use task-based message retrieval (returns list of dicts)
         messages = session_service.get_session_messages_from_tasks(
             db=db, session_id=session_id, user_id=user_id
         )
@@ -321,21 +320,21 @@ async def get_session_history(
             session_id,
         )
 
-        # Convert to response DTOs
-        message_responses = []
-        for message_domain in messages:
-            message_response = MessageResponse(
-                id=message_domain.id,
-                session_id=message_domain.session_id,
-                message=message_domain.message,
-                sender_type=message_domain.sender_type,
-                sender_name=message_domain.sender_name,
-                message_type=message_domain.message_type,
-                created_time=message_domain.created_time,
-            )
-            message_responses.append(message_response)
-
-        return message_responses
+        # Convert snake_case to camelCase for backwards compatibility
+        camel_case_messages = []
+        for msg in messages:
+            camel_msg = {
+                "id": msg["id"],
+                "sessionId": msg["session_id"],
+                "message": msg["message"],
+                "senderType": msg["sender_type"],
+                "senderName": msg["sender_name"],
+                "messageType": msg["message_type"],
+                "createdTime": msg["created_time"]
+            }
+            camel_case_messages.append(camel_msg)
+        
+        return camel_case_messages
 
     except ValueError as e:
         log.warning("Validation error fetching history for session %s: %s", session_id, e)

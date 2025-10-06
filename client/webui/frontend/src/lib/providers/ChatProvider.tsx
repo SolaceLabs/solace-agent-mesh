@@ -2,6 +2,15 @@ import React, { useState, useCallback, useEffect, useRef, type FormEvent, type R
 
 import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
 
+// Type for tasks loaded from the API
+interface TaskFromAPI {
+    taskId: string;
+    messageBubbles: string;  // JSON string
+    taskMetadata: string | null;  // JSON string
+    createdTime: number;
+    userMessage?: string;
+}
+
 // Schema version for data migration purposes
 const CURRENT_SCHEMA_VERSION = 1;
 
@@ -15,52 +24,6 @@ const migrateV0ToV1 = (task: any): any => {
         }
     };
 };
-
-// TODO: Uncomment and implement when future branch merges
-// Migration function: V1 -> V2 (restructure for new schema)
-// const migrateV1ToV2 = (task: any): any => {
-//     const migratedBubbles = task.messageBubbles.map((bubble: any) => {
-//         const newBubble = { ...bubble };
-//         
-//         // Move files array into parts
-//         if (bubble.files && Array.isArray(bubble.files) && bubble.files.length > 0) {
-//             const fileParts = bubble.files.map((file: any) => ({
-//                 kind: "file",
-//                 file: file
-//             }));
-//             newBubble.parts = [...(bubble.parts || []), ...fileParts];
-//             delete newBubble.files;
-//         }
-//         
-//         // Move artifactNotification into parts
-//         if (bubble.artifactNotification) {
-//             const artifactPart = {
-//                 kind: "artifact",
-//                 status: "completed" as const,
-//                 name: bubble.artifactNotification.name,
-//                 description: bubble.artifactNotification.description
-//             };
-//             newBubble.parts = [...(bubble.parts || []), artifactPart];
-//             delete newBubble.artifactNotification;
-//         }
-//         
-//         // Remove deprecated type
-//         if (newBubble.type === "artifact_notification") {
-//             newBubble.type = "agent";
-//         }
-//         
-//         return newBubble;
-//     });
-//     
-//     return {
-//         ...task,
-//         messageBubbles: migratedBubbles,
-//         taskMetadata: {
-//             ...task.taskMetadata,
-//             schema_version: 2
-//         }
-//     };
-// };
 
 // Migration registry: maps version numbers to migration functions
 const MIGRATIONS: Record<number, (task: any) => any> = {
@@ -184,7 +147,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             return [...prev, newNotification];
         });
     }, []);
-
 
     const getHistory = useCallback(
         async (sessionId: string) => {
@@ -328,7 +290,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const tasks = data.tasks || [];
 
                 // Parse JSON strings from backend
-                const parsedTasks = tasks.map((task: any) => ({
+                const parsedTasks = tasks.map((task: TaskFromAPI) => ({
                     ...task,
                     messageBubbles: JSON.parse(task.messageBubbles),
                     taskMetadata: task.taskMetadata ? JSON.parse(task.taskMetadata) : null

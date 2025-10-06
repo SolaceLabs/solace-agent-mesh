@@ -50,7 +50,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, f
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="sm:max-w-[750px]">
+            <DialogContent className="sm:max-w-[750px]" showCloseButton={false}>
                 <DialogHeader>
                     <DialogTitle>Provide Feedback</DialogTitle>
                     <DialogDescription className="flex flex-col gap-2">
@@ -61,7 +61,6 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, f
                 <div className="flex flex-col gap-2">
                     <Textarea
                         ref={textareaRef}
-                        placeholder="Enter your feedback here (optional)..."
                         value={feedbackText}
                         onChange={(e) => setFeedbackText(e.target.value)}
                         className="min-h-[120px] text-sm"
@@ -72,7 +71,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, f
                     </p>
                 </div>
                 <DialogFooter>
-                    <Button variant="outline" onClick={handleClose} disabled={isSubmitting}>
+                    <Button variant="ghost" onClick={handleClose} disabled={isSubmitting}>
                         Cancel
                     </Button>
                     <Button variant="default" onClick={handleSubmit} disabled={isSubmitting}>

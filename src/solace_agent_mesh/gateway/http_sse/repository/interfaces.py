@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Optional
 
 from ..shared.types import PaginationInfo, PaginationParams, SessionId, UserId
-from .entities import Feedback, Message, Session, Task, TaskEvent
+from .entities import Feedback, Session, Task, TaskEvent
 
 if TYPE_CHECKING:
     from .entities import ChatTask
@@ -17,7 +17,7 @@ class ISessionRepository(ABC):
     
     @abstractmethod
     def find_by_user(
-        self, user_id: UserId, pagination: PaginationInfo | None = None
+        self, user_id: UserId, pagination: PaginationParams | None = None
     ) -> list[Session]:
         """Find all sessions for a specific user."""
         pass
@@ -42,34 +42,6 @@ class ISessionRepository(ABC):
     @abstractmethod
     def delete(self, session_id: SessionId, user_id: UserId) -> bool:
         """Delete a session belonging to a user."""
-        pass
-
-    @abstractmethod
-    def find_user_session_with_messages(
-        self, session_id: SessionId, user_id: UserId, pagination: PaginationInfo | None = None
-    ) -> tuple[Session, list[Message]] | None:
-        """Find a session with its messages."""
-        pass
-
-
-class IMessageRepository(ABC):
-    """Interface for message data access operations."""
-    
-    @abstractmethod
-    def find_by_session(
-        self, session_id: SessionId, pagination: PaginationInfo | None = None
-    ) -> list[Message]:
-        """Find all messages in a session."""
-        pass
-
-    @abstractmethod
-    def save(self, message: Message) -> Message:
-        """Save or update a message."""
-        pass
-
-    @abstractmethod
-    def delete_by_session(self, session_id: SessionId) -> bool:
-        """Delete all messages in a session."""
         pass
 
 
