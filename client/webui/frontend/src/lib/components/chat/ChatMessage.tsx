@@ -80,7 +80,7 @@ const MessageActions: React.FC<{
                                 disabled={!!submittedFeedbackType}
                             >
                                 <ThumbsUp
-                                    className={`h-4 w-4 ${submittedFeedbackType === "up" ? "fill-yellow-500 text-yellow-500 dark:fill-yellow-500 dark:text-yellow-500 !opacity-100" : ""}`}
+                                    className={`h-4 w-4 ${submittedFeedbackType === "up" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] !opacity-100" : ""}`}
                                 />
                             </Button>
                             <Button
@@ -91,7 +91,7 @@ const MessageActions: React.FC<{
                                 disabled={!!submittedFeedbackType}
                             >
                                 <ThumbsDown
-                                    className={`h-4 w-4 ${submittedFeedbackType === "down" ? "fill-yellow-500 text-yellow-500 dark:fill-yellow-500 dark:text-yellow-500 opacity-100" : ""}`}
+                                    className={`h-4 w-4 ${submittedFeedbackType === "down" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] opacity-100" : ""}`}
                                 />
                             </Button>
                         </div>
