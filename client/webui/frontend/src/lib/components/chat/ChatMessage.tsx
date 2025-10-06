@@ -14,16 +14,12 @@ import { ContentRenderer } from "./preview/ContentRenderer";
 import { extractEmbeddedContent } from "./preview/contentUtils";
 import { decodeBase64Content } from "./preview/previewUtils";
 import type { ExtractedContent } from "./preview/contentUtils";
+import { AuthenticationMessage } from "./authentication/AuthenticationMessage";
 
 const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
 
 const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
-    const chatContext = useChatContext();
-    
-    if (message.isStatusBubble) {
-        return null;
-    }
 
     // Derive text content from the `parts` array for both user and agent messages.
     const textParts = message.parts?.filter(p => p.kind === "text") as TextPart[] | undefined;
@@ -31,102 +27,6 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
 
     if (message.isUser) {
         return <span>{combinedText}</span>;
-    }
-
-    // Handle authentication link FIRST (before checking for empty text)
-    if (message.authenticationLink) {
-        const authenticationAttempted = message.authenticationLink.authenticationAttempted || false;
-        const rejected = message.authenticationLink.rejected || false;
-        
-        const handleAuthClick = () => {
-            if (authenticationAttempted || rejected) return; // Prevent multiple clicks
-            
-            // Update the message to mark authentication as attempted
-            chatContext.setMessages((prevMessages: MessageFE[]) =>
-                prevMessages.map(msg =>
-                    msg.metadata?.messageId === message.metadata?.messageId && msg.authenticationLink
-                        ? { ...msg, authenticationLink: { ...msg.authenticationLink, authenticationAttempted: true } }
-                        : msg
-                )
-            );
-            
-            const popup = window.open(
-                message.authenticationLink!.url,
-                "_blank",
-                "width=800,height=700,scrollbars=yes,resizable=yes"
-            );
-            if (popup) {
-                popup.focus();
-            }
-        };
-
-        const handleRejectClick = async () => {
-            if (authenticationAttempted || rejected) return; // Prevent multiple clicks
-            
-            const gatewayTaskId = message.authenticationLink?.gatewayTaskId;
-            if (!gatewayTaskId) {
-                console.error("No gateway_task_id available for rejection");
-                // Still mark as rejected to disable buttons
-                chatContext.setMessages((prevMessages: MessageFE[]) =>
-                    prevMessages.map(msg =>
-                        msg.metadata?.messageId === message.metadata?.messageId && msg.authenticationLink
-                            ? { ...msg, authenticationLink: { ...msg.authenticationLink, rejected: true } }
-                            : msg
-                    )
-                );
-                return;
-            }
-            
-            // Mark as rejected immediately to disable buttons
-            chatContext.setMessages((prevMessages: MessageFE[]) =>
-                prevMessages.map(msg =>
-                    msg.metadata?.messageId === message.metadata?.messageId && msg.authenticationLink
-                        ? { ...msg, authenticationLink: { ...msg.authenticationLink, rejected: true } }
-                        : msg
-                )
-            );
-            
-            chatContext.handleCancel();
-        };
-
-        const targetAgent = message.authenticationLink.targetAgent || "Agent";
-        
-        return (
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
-                    Action Needed
-                </h3>
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-md p-3 mb-4">
-                    <div className="text-sm text-gray-600 dark:text-gray-300">
-                        The "{targetAgent}" requires authentication. Please click to proceed.
-                    </div>
-                </div>
-                <div className="flex space-x-3">
-                    <button
-                        onClick={handleRejectClick}
-                        disabled={authenticationAttempted || rejected}
-                        className={`flex-1 px-4 py-2 text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                            authenticationAttempted || rejected
-                                ? "text-gray-400 bg-gray-100 dark:bg-gray-700 dark:text-gray-500 border border-gray-200 dark:border-gray-600 cursor-not-allowed"
-                                : "text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-gray-500"
-                        }`}
-                    >
-                        {rejected ? "Rejected" : "Reject"}
-                    </button>
-                    <button
-                        onClick={handleAuthClick}
-                        disabled={authenticationAttempted || rejected}
-                        className={`flex-1 px-4 py-2 text-sm font-medium text-white rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                            authenticationAttempted || rejected
-                                ? "bg-gray-400 cursor-not-allowed"
-                                : "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500"
-                        }`}
-                    >
-                        {authenticationAttempted ? "Authentication Window Opened" : message.authenticationLink.text}
-                    </button>
-                </div>
-            </div>
-        );
     }
 
     const trimmedText = combinedText.trim();
@@ -219,6 +119,10 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 
     if (message.isStatusBubble) {
         return null;
+    }
+
+    if (message.authenticationLink) {
+        return <AuthenticationMessage message={message} />;
     }
 
     const textContent = message.parts?.some(p => p.kind === "text" && p.text.trim());
