@@ -110,7 +110,7 @@ An agent is the logical entity within an Agent Host that performs tasks. Each ag
 
 ## Key Architectural Flows
 
-Understanding how data flows through the system helps clarify the relationships between components and the role of the event-driven architecture.
+The following flows illustrate how data moves through the system and demonstrate the relationships between components in the event-driven architecture.
 
 ### User Task Processing Flow
 
