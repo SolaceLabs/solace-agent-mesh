@@ -3,20 +3,11 @@ import { v4 } from "uuid";
 
 import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
 
-// Type for tasks loaded from the API
-interface TaskFromAPI {
-    taskId: string;
-    messageBubbles: string;  // JSON string
-    taskMetadata: string | null;  // JSON string
-    createdTime: number;
-    userMessage?: string;
-}
-
 // Schema version for data migration purposes
 const CURRENT_SCHEMA_VERSION = 1;
 
 // Migration function: V0 -> V1 (adds schema_version to tasks without one)
-const migrateV0ToV1 = (task: any): any => {
+const migrateV0ToV1 = (task: TaskDataV0): TaskDataV1 => {
     return {
         ...task,
         taskMetadata: {
@@ -27,7 +18,7 @@ const migrateV0ToV1 = (task: any): any => {
 };
 
 // Migration registry: maps version numbers to migration functions
-const MIGRATIONS: Record<number, (task: any) => any> = {
+const MIGRATIONS: Record<number, (task: TaskDataAnyVersion) => TaskDataAnyVersion> = {
     0: migrateV0ToV1,
     // Uncomment when future branch merges:
     // 1: migrateV1ToV2,
@@ -56,6 +47,44 @@ import type {
 
 interface ChatProviderProps {
     children: ReactNode;
+}
+
+// Version-specific task data types
+interface TaskDataV0 {
+    taskId: string;
+    messageBubbles: unknown[];
+    taskMetadata?: {
+        // V0 has no schema_version
+        [key: string]: unknown;
+    } | null;
+    createdTime: number;
+    userMessage?: string;
+}
+
+interface TaskDataV1 {
+    taskId: string;
+    messageBubbles: unknown[];
+    taskMetadata: {
+        schema_version: 1;
+        [key: string]: unknown;
+    };
+    createdTime: number;
+    userMessage?: string;
+}
+
+// Union type for any version (used during migration)
+type TaskDataAnyVersion = TaskDataV0 | TaskDataV1;
+
+// Alias for the CURRENT version - this is what the rest of the code uses
+type TaskDataCurrent = TaskDataV1;
+
+// Type for tasks loaded from the API (always current version after migration)
+interface TaskFromAPI {
+    taskId: string;
+    messageBubbles: string;  // JSON string
+    taskMetadata: string | null;  // JSON string
+    createdTime: number;
+    userMessage?: string;
 }
 
 // File utils
@@ -243,16 +272,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [sessionId]);
 
     // Helper function to apply migrations to a task
-    const migrateTask = useCallback((task: any): any => {
+    const migrateTask = useCallback((task: TaskDataAnyVersion): TaskDataCurrent => {
         const version = task.taskMetadata?.schema_version || 0;
 
         if (version >= CURRENT_SCHEMA_VERSION) {
             // Already at current version
-            return task;
+            return task as TaskDataCurrent;
         }
 
         // Apply migrations sequentially
-        let migratedTask = task;
+        let migratedTask: TaskDataAnyVersion = task;
         for (let v = version; v < CURRENT_SCHEMA_VERSION; v++) {
             const migrationFunc = MIGRATIONS[v];
             if (migrationFunc) {
@@ -263,7 +292,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         }
 
-        return migratedTask;
+        return migratedTask as TaskDataCurrent;
     }, []);
 
     // Helper function to load session tasks and reconstruct messages
