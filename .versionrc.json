@@ -12,10 +12,12 @@
     { "type": "perf", "section": "Performance" },
     { "type": "test", "section": "Tests" }
   ],
-  "uiChanges": {
-    "enabled": true,
-    "tagPrefix": "ui-v",
-    "pathPatterns": ["client/webui/frontend/**"],
-    "bumpCommitPattern": ".*bump version to ui-v.*\\[skip ci\\]"
+  "customSections": {
+    "UI Changes": {
+      "enabled": true,
+      "tagPrefix": "ui-v",
+      "pathPatterns": ["client/webui/frontend/**"],
+      "bumpCommitPattern": ".*bump version to ui-v.*\\[skip ci\\]"
+    }
   }
 }

@@ -39,9 +39,9 @@ jobs:
               id: generate_changelog
               uses: SolaceDev/solace-public-workflows/generate-github-release-notes@gen-log
               with:
-                  from-ref: ${{ inputs.from_ref }}
-                  to-ref: ${{ inputs.to_ref }}
-                  output-file: ${{ inputs.output_file }}
+                  from-ref: ${{ inputs.from_ref || '1.3.3' }}
+                  to-ref: ${{ inputs.to_ref || '1.4.11' }}
+                  output-file: ${{ inputs.output_file || 'RELEASE_NOTES.md' }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Print Outputs
