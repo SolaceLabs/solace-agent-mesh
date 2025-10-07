@@ -11,6 +11,7 @@ import { MessageBanner } from "../../common";
 import { ContentRenderer } from "../preview/ContentRenderer";
 import { getFileContent, getRenderType } from "../preview/previewUtils";
 import { ArtifactBar } from "../artifact/ArtifactBar";
+import { Spinner } from "../../ui";
 
 type ArtifactMessageProps = (
     | {
@@ -220,8 +221,8 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
     if (isLoading) {
         expandedContent = (
-            <div className="bg-muted flex h-24 items-center justify-center p-4">
-                <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-blue-600"></div>
+            <div className="bg-muted flex h-25 items-center justify-center">
+                <Spinner />
             </div>
         );
     } else if (error) {
@@ -262,30 +263,30 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             <div className="space-y-2 text-sm">
                 {artifact.description && (
                     <div>
-                        <span className="font-medium">Description:</span>
-                        <div className="mt-1 text-gray-600 dark:text-gray-400">{artifact.description}</div>
+                        <span className="text-secondary-foreground">Description:</span>
+                        <div className="mt-1">{artifact.description}</div>
                     </div>
                 )}
                 <div className="grid grid-cols-2 gap-2">
                     <div>
-                        <span className="font-medium">Size:</span>
-                        <div className="text-gray-600 dark:text-gray-400">{formatBytes(artifact.size)}</div>
+                        <span className="text-secondary-foreground">Size:</span>
+                        <div>{formatBytes(artifact.size)}</div>
                     </div>
                     <div>
-                        <span className="font-medium">Modified:</span>
-                        <div className="text-gray-600 dark:text-gray-400">{formatRelativeTime(artifact.last_modified)}</div>
+                        <span className="text-secondary-foreground">Modified:</span>
+                        <div>{formatRelativeTime(artifact.last_modified)}</div>
                     </div>
                 </div>
                 {artifact.mime_type && (
                     <div>
-                        <span className="font-medium">Type:</span>
-                        <div className="text-gray-600 dark:text-gray-400">{artifact.mime_type}</div>
+                        <span className="text-secondary-foreground">Type:</span>
+                        <div>{artifact.mime_type}</div>
                     </div>
                 )}
                 {artifact.uri && (
                     <div>
-                        <span className="font-medium">URI:</span>
-                        <div className="text-xs break-all text-gray-600 dark:text-gray-400">{artifact.uri}</div>
+                        <span className="text-secondary-foreground">URI:</span>
+                        <div className="text-xs break-all">{artifact.uri}</div>
                     </div>
                 )}
             </div>
@@ -301,7 +302,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             return (
                 <div className="space-y-4">
                     {infoContent}
-                    <hr className="border-t border-[#e0e0e0] dark:border-[#404040]" />
+                    <hr className="border-t" />
                     {expandedContent}
                 </div>
             );
@@ -334,6 +335,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             error={props.status === "failed" ? props.error : undefined}
             content={contentPreview}
             expandedContent={finalExpandedContent}
+            context={context}
         />
     );
 };

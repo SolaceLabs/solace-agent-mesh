@@ -28,16 +28,8 @@ export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview 
     };
 
     return (
-        <div
-            className={`${isPreview ? "" : "cursor-pointer hover:bg-[var(--accent-background)] transition-all duration-150"}`}
-            onClick={handleClick}
-        >
-            <ArtifactMessage
-                status="completed"
-                name={artifact.filename}
-                fileAttachment={fileAttachment}
-                context={isPreview ? "list" : "list"}
-            />
+        <div className={`${isPreview ? "" : "cursor-pointer transition-all duration-150 hover:bg-[var(--accent-background)]"}`} onClick={handleClick}>
+            <ArtifactMessage status="completed" name={artifact.filename} fileAttachment={fileAttachment} context="list" />
         </div>
     );
 };
