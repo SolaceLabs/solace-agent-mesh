@@ -61,6 +61,7 @@ Solace Agent Mesh is an agentic framework that provides several key technical ad
 
 Whether you're building a proof-of-concept or planning a production deployment, Solace Agent Mesh provides the foundation you need. For more information, see:
 
+- [Getting Started](../getting-started/getting-started.md): For an overview of Solace Agent Mesh and what you can find in this documentation.
 - [Installation](../installing-and-configuring/installation.md): For installing and setting up Solace Agent Mesh.
 - [Quick Start](./try-sam.md): For creating a project, building, and running Solace Agent Mesh.
 - [Component Overview](../components/components.md): Understanding the parts of Solace Agent Mesh.
