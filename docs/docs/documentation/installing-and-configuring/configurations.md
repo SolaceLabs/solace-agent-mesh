@@ -86,23 +86,23 @@ shared_config:
 
 ## Broker Connection Configuration
 
-The broker connection section establishes how your agents and gateways communicate with the Solace event broker. This configuration determines the reliability, security, and performance characteristics of your mesh communication.
+The event broker connection section establishes how your agents and gateways communicate with the Solace event broker. This configuration determines the reliability, security, and performance characteristics of your mesh communication.
 
-The development mode setting (`dev_mode`) provides a convenient way to switch between production broker connections and an in-memory broker for testing. When enabled, this setting bypasses external broker requirements, allowing you to develop and test your agents without a full Solace infrastructure.
+The development mode setting (`dev_mode`) provides a convenient way to switch between production event broker connections and an in-memory event broker for testing. When enabled, this setting bypasses external event broker requirements, allowing you to develop and test your agents without a full Solace infrastructure.
 
-Connection parameters include the broker URL, which specifies the endpoint for your Solace broker, and authentication credentials consisting of username, password, and Message VPN. The temporary queue setting controls whether agents use ephemeral queues that disappear when the agent disconnects or durable queues that persist messages even during agent downtime.
+Connection parameters include the event broker URL, which specifies the endpoint for your Solace event broker, and authentication credentials consisting of username, password, and Message VPN. The temporary queue setting controls whether agents use ephemeral queues that disappear when the agent disconnects or durable queues that persist messages even during agent downtime.
 
 | Parameter | Environment Variable | Description | Default |
 | :--- | :--- | :--- | :--- |
 | `dev_mode` | `SOLACE_DEV_MODE` | When set to `true`, uses an in-memory broker for testing. | `false` |
-| `broker_url` | `SOLACE_BROKER_URL` | The URL of the Solace broker. | `ws://localhost:8008` |
-| `broker_username` | `SOLACE_BROKER_USERNAME` | The username for authenticating with the broker. | `default` |
-| `broker_password` | `SOLACE_BROKER_PASSWORD` | The password for authenticating with the broker. | `default` |
-| `broker_vpn` | `SOLACE_BROKER_VPN` | The Message VPN to connect to on the broker. | `default` |
+| `broker_url` | `SOLACE_BROKER_URL` | The URL of the Solace event broker. | `ws://localhost:8008` |
+| `broker_username` | `SOLACE_BROKER_USERNAME` | The username for authenticating with the event broker. | `default` |
+| `broker_password` | `SOLACE_BROKER_PASSWORD` | The password for authenticating with the event broker. | `default` |
+| `broker_vpn` | `SOLACE_BROKER_VPN` | The Message VPN to connect to on the event broker. | `default` |
 | `temporary_queue` | `USE_TEMPORARY_QUEUES` | Whether to use temporary queues for communication. If `false`, a durable queue will be created. | `true` |
-| `max_connection_retries` | `MAX_CONNECTION_RETRIES` | The maximum number of times to retry connecting to the broker if the connection fails. A value of `-1` means retry forever. | `-1` |
+| `max_connection_retries` | `MAX_CONNECTION_RETRIES` | The maximum number of times to retry connecting to the event broker if the connection fails. A value of `-1` means retry forever. | `-1` |
 
-For deployments requiring multiple broker connections, you can define additional broker configurations with unique names. For example, create `broker_connection_eu: &broker_connection_eu` for European deployments or `broker_connection_us: &broker_connection_us` for United States deployments. Reference these configurations in your agent files using the appropriate anchor, such as `<<: *broker_connection_eu`.
+For deployments requiring multiple event broker connections, you can define additional event broker configurations with unique names. For example, create `broker_connection_eu: &broker_connection_eu` for European deployments or `broker_connection_us: &broker_connection_us` for United States deployments. Reference these configurations in your agent files using the appropriate anchor, such as `<<: *broker_connection_eu`.
 
 ## Language Model Configuration
 

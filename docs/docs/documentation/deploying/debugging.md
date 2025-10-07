@@ -5,38 +5,64 @@ sidebar_position: 30
 
 # Debugging
 
-Debugging issues in Solace Agent Mesh starts with identifying the problem. You can monitor your system to debug it more effectively. For more information, see [Observability](./observability.md).
-The following sections provide common debugging approaches to help you diagnose and resolve issues.
+Effective debugging in Solace Agent Mesh requires a systematic approach that leverages the platform's distributed architecture. Because your system consists of multiple agents communicating through an event broker, issues can arise at various levels—from individual agent logic to inter-component communication patterns.
 
-## Isolate Components
+The key to successful debugging lies in understanding where problems might occur and having the right tools to investigate each layer of your system. Solace Agent Mesh provides comprehensive observability features that serve as your foundation for debugging activities. For detailed information about these monitoring capabilities, see [Observability](./observability.md).
 
-Running only the necessary components in isolation can help pinpoint issues. The `run` Solace Agent Mesh CLI command allows you to specify which files to run.
+This guide presents proven debugging strategies arranged from simple isolation techniques to advanced diagnostic methods. Each approach targets different types of issues, allowing you to choose the most effective method based on your specific situation.
 
-For example:
+## Isolating Components
+
+When facing complex issues in a multi-agent system, isolation becomes your most powerful debugging technique. By running only the components directly related to your problem, you eliminate variables and focus your investigation on the most likely sources of trouble.
+
+Component isolation works because it reduces system complexity to manageable levels. Instead of trying to understand interactions across dozens of agents, you can focus on a small subset and verify their behavior in controlled conditions.
+
+The Solace Agent Mesh CLI provides precise control over which components run in your debugging session. You can specify exactly which configuration files to load, creating a minimal environment that includes only the agents you need to investigate.
+
+For example, if you're debugging an issue with a specific tool integration, you might run only the orchestrator and the problematic tool agent:
 
 ```bash
 sam run configs/agents/my_tool_1.yaml configs/agents/my_tool_2.yaml
 ```
 
-This command runs only the agents defined in `my_tool_1.yaml` and `my_tool_2.yaml`, reducing noise from unrelated components.
+This command creates a focused debugging environment that includes only the agents defined in `my_tool_1.yaml` and `my_tool_2.yaml`. By eliminating unrelated components, you reduce log noise and make it easier to trace the specific interactions that might be causing problems.
 
-## Examine STIM Files
+This isolation approach is particularly effective when you suspect issues with agent-to-agent communication, configuration problems, or logic errors within specific agents.
 
-[STIM files](./observability.md#stimulus-logs) provide detailed traces of stimulus life cycles. If you have access to the storage location, you can inspect them to analyze message flows.
+## Examining STIM Files
 
-Each `.stim` file contains all broker events related to a single stimulus, from the initial request to the final response.
+STIM files serve as your detailed forensic evidence when debugging complex issues. These comprehensive traces capture every aspect of how requests flow through your system, making them invaluable for understanding problems that span multiple agents or involve timing-sensitive interactions.
 
-## Monitor Broker Activity
+[STIM files](./observability.md#stimulus-logs) provide the most complete picture available of stimulus lifecycles. Unlike real-time monitoring tools that show current activity, STIM files preserve historical data that you can analyze repeatedly and share with team members for collaborative debugging.
 
-For insights into message flows and event interactions, see [Broker Observability](./observability.md#broker-observability).
+Each `.stim` file contains a complete record of all event broker events related to a single stimulus, from the initial user request through every agent interaction to the final response delivery. This comprehensive coverage makes STIM files particularly useful for debugging issues that involve:
 
-## Debug Mode
+- Multi-agent workflows where the problem might occur at any step
+- Timing-related issues where sequence and duration matter
+- Intermittent problems that are difficult to reproduce in real-time
+- Performance bottlenecks that require detailed timing analysis
 
-Because Solace Agent Mesh is a Python-based framework, you can run it in debug mode using an IDE with breakpoints.
+When examining STIM files, look for patterns in agent response times, unexpected message routing, or missing interactions that should have occurred based on your system design.
 
-### Debugging in VSCode
+## Monitoring Event Broker Activity
 
-If you're using VSCode, configure debugging in `.vscode/launch.json`:
+Real-time event broker monitoring provides immediate insights into your system's communication patterns and helps identify issues as they occur. This approach complements STIM file analysis by giving you live visibility into message flows and event interactions.
+
+Broker-level monitoring is particularly valuable because it shows the actual communication happening between components, regardless of how agents are configured or what they report about their own status. This ground-truth perspective helps identify discrepancies between expected and actual behavior.
+
+For comprehensive guidance on event broker monitoring techniques and tools, see [Monitoring Event Broker Activity](./observability.md#monitoring-event-broker-activity).
+
+## Using Debug Mode
+
+Interactive debugging provides the deepest level of investigation capability by allowing you to pause execution and examine system state in real-time. Because Solace Agent Mesh is built on Python, you can leverage standard Python debugging tools and IDE features to step through code execution and inspect variables.
+
+This approach is most effective when you've already isolated the problem to specific components and need to understand exactly what's happening within agent logic or framework code.
+
+### Setting Up VSCode Debugging
+
+VSCode provides an excellent debugging environment for Solace Agent Mesh development. The integrated debugger allows you to set breakpoints, step through code execution, and inspect variables in real-time, making it easier to understand complex agent interactions and identify logic errors.
+
+Configure debugging by creating or updating your `.vscode/launch.json` file:
 
 ```json
 {
@@ -61,31 +87,44 @@ If you're using VSCode, configure debugging in `.vscode/launch.json`:
 }
 ```
 
-To start debugging:
-1. Open the **RUN AND DEBUG** panel on the left sidebar.
-2. Select `sam-debug` from the dropdown.
-3. Click the **Play** to start in debug mode.
+The `"justMyCode": false` setting is particularly important because it allows you to step into Solace Agent Mesh framework code, not just your custom agent logic. This capability is valuable when debugging issues that might involve framework behavior or when you need to understand how your agents interact with the underlying platform.
 
-Set breakpoints in your code to pause execution and inspect variable states.
+To start a debugging session:
 
-## Invoke the Agent Directly
+1. Open the **RUN AND DEBUG** panel in the left sidebar
+2. Select `sam-debug` from the configuration dropdown
+3. Click the **Play** button to launch your system in debug mode
 
-For debugging and testing, you can send direct messages to an agent by directly selecting the agent in the web UI agent dropdown or by using the Solace event broker. This requires specifying the appropriate topic, user properties, and payload.
+Once running, you can set breakpoints in your agent code, framework files, or any Python modules your system uses. When execution hits a breakpoint, you can inspect variable states, evaluate expressions, and step through code line by line to understand exactly what's happening.
 
-#### Tools for Sending Messages
-- **[Solace Try Me VSCode Extension](https://marketplace.visualstudio.com/items?itemName=solace-tools.solace-try-me-vsc-extension)**
-- **[Solace Try Me (STM) CLI Tool](https://github.com/SolaceLabs/solace-tryme-cli)**
+## Invoking Agents Directly
 
-#### Message Format
+Direct agent invocation provides a powerful technique for isolating and testing individual agents outside of normal user workflows. This approach helps you verify that specific agents work correctly in isolation, making it easier to determine whether problems lie within agent logic or in the broader system interactions.
 
-**Topic**:
+You can invoke agents directly through two primary methods: using the web UI's agent selection dropdown for quick testing, or sending messages directly through the Solace event broker for more controlled testing scenarios.
 
+The event broker-based approach gives you complete control over message content and timing, making it ideal for testing edge cases, error conditions, or specific message formats that might be difficult to generate through normal user interactions.
+
+### Using Tools for Direct Message Testing
+
+Several tools facilitate direct message testing, each suited to different debugging scenarios:
+
+**[Solace Try Me VSCode Extension](https://marketplace.visualstudio.com/items?itemName=solace-tools.solace-try-me-vsc-extension)**: Integrates directly into your development environment, making it convenient to test messages without switching contexts. This tool is particularly useful during active development when you need to quickly verify agent behavior.
+
+**[Solace Try Me (STM) CLI Tool](https://github.com/SolaceLabs/solace-tryme-cli)**: Provides command-line access for scripted testing and automation. This tool excels in scenarios where you need to send multiple test messages or integrate testing into automated workflows.
+
+### Formatting Messages for Direct Invocation
+
+Understanding the exact message format is crucial for successful direct agent testing. The following structure represents how the Solace Agent Mesh framework expects messages to be formatted:
+
+**Topic Structure**:
 ```
 [NAME_SPACES]a2a/v1/agent/request/<agent_name>
 ```
 
-**User Properties**:
+Replace `<agent_name>` with the specific agent you want to test. The namespace prefix should match your system configuration.
 
+**Required User Properties**:
 ```
 userId: test-0000
 clientId: test-0000
@@ -93,8 +132,9 @@ replyTo: [NAME_SPACES]a2a/v1/gateway/response/0000000/task-0000000
 a2aUserConfig: {}
 ```
 
-**Payload**:
+These properties provide essential context that agents expect, including user identification and response routing information.
 
+**Message Payload**:
 ```json
 {
     "jsonrpc": "2.0",
@@ -123,25 +163,36 @@ a2aUserConfig: {}
 }
 ```
 
-**Response Topic**:
-
+**Expected Response Topic**:
 ```
 [NAME_SPACES]a2a/v1/gateway/response/0000000/task-0000000
 ```
 
-By sending a request and observing the response, you can verify an agent's behavior in isolation, making it easier to identify issues.
+Subscribe to this topic to receive the agent's response. The response will follow the same JSON-RPC format and contain the agent's output.
 
-## System Logs
+By sending carefully crafted requests and observing responses, you can verify agent behavior in complete isolation. This technique helps distinguish between agent-specific issues and broader system problems, significantly streamlining your debugging process.
 
-System logs provide detailed insights into the system's behavior. The logging behavior is configured in the `configs/logging_config.ini` file, which controls both console (STDOUT) and file-based logging.
+## Analyzing System Logs
 
-By default, the system is configured to:
-- Output logs with a severity of `INFO` and higher to the console (STDOUT).
-- Write more detailed logs with a severity of `DEBUG` and higher to a rotating log file named `sam.log` in the project's root directory.
+System logs serve as your comprehensive record of application behavior, capturing everything from routine operations to error conditions. These logs provide a different perspective than STIM files or event broker monitoring—they focus on internal application state and framework behavior rather than message flows.
 
-### Configuring Log Rotation
+Understanding system logs becomes crucial when debugging issues related to agent initialization, configuration problems, or internal framework errors that might not be visible through other observability tools.
 
-The log file rotation is managed by the `rotatingFileHandler` in `configs/logging_config.ini`. You can customize its behavior by modifying the `args` line:
+The logging system in Solace Agent Mesh uses a dual-output approach designed to balance immediate visibility with detailed historical records. This configuration ensures you have both real-time feedback during development and comprehensive logs for post-incident analysis.
+
+### Understanding Default Logging Configuration
+
+The logging behavior is controlled through the `configs/logging_config.ini` file, which manages both console output and file-based logging with different verbosity levels:
+
+**Console Output**: Displays logs with severity level `INFO` and higher directly to the console (STDOUT). This provides immediate feedback about system status and important events without overwhelming you with debug details during normal operation.
+
+**File-based Logging**: Captures more comprehensive logs with severity level `DEBUG` and higher in a rotating log file named `sam.log` in your project's root directory. This detailed logging includes internal framework operations, detailed timing information, and verbose agent interactions that are valuable for thorough debugging but too noisy for console display.
+
+This dual approach means you can monitor high-level system behavior in real-time while maintaining access to detailed diagnostic information when needed.
+
+## Managing Log Rotation
+
+Log rotation prevents disk space issues while maintaining historical data for analysis. The rotation system is managed by the `rotatingFileHandler` configuration in `configs/logging_config.ini`:
 
 ```ini
 [handler_rotatingFileHandler]
@@ -151,13 +202,32 @@ formatter=simpleFormatter
 args=('sam.log', 'a', 52428800, 10)
 ```
 
-The `args` tuple is defined as follows:
-- `'sam.log'`: The name of the log file.
-- `'a'`: The file mode (append).
-- `52428800`: The maximum size of the log file in bytes before it is rotated. In this case, it's 50 MB.
-- `10`: The number of backup log files to keep.
+Understanding the `args` tuple parameters helps you customize log retention based on your specific needs:
 
-For example, to change the log file size to 20 MB and keep 5 backup files, you would modify the line to:
-`args=('sam.log', 'a', 20971520, 5)`
+**File name** (`'sam.log'`): The base name for your log files. Rotated files will have numbered extensions (sam.log.1, sam.log.2, etc.).
 
-This level of configuration allows you to manage log verbosity and disk space usage according to your needs.
+**File mode** (`'a'`): Append mode ensures new log entries are added to existing files rather than overwriting them.
+
+**Maximum file size** (`52428800`): The size limit in bytes before rotation occurs. The default 50 MB provides substantial logging capacity while keeping individual files manageable.
+
+**Backup count** (`10`): The number of historical log files to retain. This setting balances storage usage with the ability to analyze historical patterns.
+
+### Customizing Log Retention Settings
+
+You can adjust these parameters based on your operational requirements. For example, in a high-traffic production environment, you might want smaller, more frequent rotations:
+
+```ini
+args=('sam.log', 'a', 20971520, 5)
+```
+
+This configuration creates 20 MB log files and keeps 5 backup copies, providing faster log rotation while consuming less disk space.
+
+Conversely, for detailed debugging scenarios, you might prefer larger files with more historical retention:
+
+```ini
+args=('sam.log', 'a', 104857600, 20)
+```
+
+This approach creates 100 MB log files and retains 20 backup copies, giving you extensive historical data for complex debugging scenarios.
+
+These configuration options allow you to balance log verbosity, disk space usage, and historical retention according to your specific debugging and operational needs.

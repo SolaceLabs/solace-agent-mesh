@@ -5,23 +5,35 @@ sidebar_position: 10
 
 # Deployment
 
-## Development
+Solace Agent Mesh offers flexible deployment options designed to meet different operational requirements. Understanding these options helps you choose the right approach for your specific environment and scale needs.
 
-In a development environment, you can use Solace Agent Mesh CLI to run the project as a single application. By default, environment variables are loaded from your configuration file (typically a `.env` file at the project root):
+## Development Environment
+
+During development, simplicity and rapid iteration are key priorities. The Solace Agent Mesh CLI provides a streamlined way to run your entire project as a single application, making it easy to test changes and debug issues locally.
+
+The development setup automatically loads environment variables from your configuration file (typically a `.env` file at the project root), eliminating the need for complex environment management:
 
 ```bash
 sam run
 ```
 
-## Production
+This command starts all configured components together, providing immediate feedback and allowing you to see how different agents interact within your mesh.
 
-For a production environment, use a containerized and reproducible setup. We recommend Docker or Kubernetes.
+## Production Environment
 
-If your host system architecture is not `linux/amd64`, add the `--platform linux/amd64` flag when you run the container.
+Production deployments require different considerations than development environments. You need reproducible builds, scalable infrastructure, and robust monitoring capabilities. Containerization addresses these requirements by providing consistent runtime environments and enabling modern orchestration platforms.
 
-### Docker Deployment
+We recommend using Docker for single-node deployments or Kubernetes for multi-node, scalable deployments. These technologies ensure your application runs consistently across different environments and can scale to meet demand.
 
-Below is a sample Dockerfile for a Solace Agent Mesh project:
+:::note Platform Compatibility
+If your host system architecture is not `linux/amd64`, add the `--platform linux/amd64` flag when you run the container to ensure compatibility with the pre-built images.
+:::
+
+### Deploying with Docker
+
+Docker provides an excellent foundation for production deployments because it packages your application with all its dependencies into a portable container. This approach ensures consistent behavior across different environments and simplifies deployment processes.
+
+The following Dockerfile demonstrates how to containerize a Solace Agent Mesh project:
 
 ```Dockerfile
 FROM solace/solace-agent-mesh:latest
@@ -41,7 +53,7 @@ CMD ["run", "--system-env"]
 
 ```
 
-And the following `.dockerignore`
+To optimize build performance and security, create a `.dockerignore` file that excludes unnecessary files from the Docker build context:
 
 ```
 .env
@@ -53,9 +65,11 @@ dist
 ```
 
 
-### Kubernetes Deployment
+### Deploying with Kubernetes
 
-For scalable and highly available deployments, Kubernetes is recommended. Below is a minimal `Deployment` configuration:
+Kubernetes excels at managing containerized applications at scale, providing features like automatic scaling, rolling updates, and self-healing capabilities. When your Solace Agent Mesh deployment needs to handle varying loads or requires high availability, Kubernetes becomes the preferred orchestration platform.
+
+The following example shows a basic Kubernetes Deployment configuration that you can customize based on your specific requirements:
 
 ```yaml
 apiVersion: apps/v1
@@ -99,30 +113,48 @@ spec:
           emptyDir: {}
 ```
 
-### Splitting and Scaling
+### Separating and Scaling Components
 
-For a robust production setup, consider splitting components into separate containers. This practice enhances scalability and ensures that if one process crashes, the rest of the system remains unaffected. Upon restarting, the failed process rejoins the system.
+A microservices approach to deployment offers significant advantages for production systems. By splitting your Solace Agent Mesh components into separate containers, you achieve better fault isolation, independent scaling, and more granular resource management.
 
-To adapt the setup:
-- Reuse the same Docker image.
-- Adjust the startup command to run only the necessary components.
-- Scale containers independently based on their resource needs.
+This architectural pattern ensures that if one component experiences issues, the rest of your system continues operating normally. When the failed component restarts, it automatically rejoins the mesh through the Solace event broker, maintaining system resilience.
 
-### Storage Considerations
+To implement component separation:
 
+**Reuse the same Docker image**: Your base container image remains consistent across all components, simplifying maintenance and ensuring compatibility.
 
-:::warning
-If using multiple containers, ensure all instances access the same storage with identical configurations.
+**Customize startup commands**: Each container runs only the components it needs by specifying different configuration files in the startup command.
+
+**Scale independently**: Components with higher resource demands or traffic can be scaled separately, optimizing resource utilization and cost.
+
+For example, you might run your main orchestrator in one deployment while scaling your specialized tool agents in separate deployments based on demand.
+
+### Managing Storage Requirements
+
+When deploying multiple containers, shared storage becomes critical for maintaining consistency across your Solace Agent Mesh deployment. All container instances must access the same storage location with identical configurations to ensure proper operation.
+
+:::warning Shared Storage Requirement
+If using multiple containers, ensure all instances access the same storage with identical configurations. Inconsistent storage configurations can lead to data synchronization issues and unpredictable behavior.
 :::
 
-### Security Best Practices
+Consider using persistent volumes in Kubernetes or shared file systems in Docker deployments to meet this requirement.
 
-- **Environment Variables**: Store secrets in a secure vault (for example, AWS Secrets Manager, HashiCorp Vault) rather than in `.env` files.
-- **TLS Encryption**: Ensure that communication between components and with the Solace event broker is encrypted using TLS.
-- **Container Security**: Regularly update container images and use security scanning tools (for example, Trivy, Clair).
+### Implementing Security Best Practices
 
-### Solace Event Broker Configuration
+Production deployments require robust security measures to protect sensitive data and ensure system integrity. Implementing these practices helps safeguard your Solace Agent Mesh deployment against common security threats.
 
-For production environments, it's recommended to use a cloud-managed Solace event broker (or event broker service). For more information, see  [Solace Cloud](https://solace.com/products/event-broker/).
+**Environment Variables and Secrets Management**: Never store sensitive information like API keys, passwords, or certificates in `.env` files or container images. Instead, use dedicated secret management solutions such as AWS Secrets Manager, HashiCorp Vault, or Kubernetes Secrets. These tools provide encryption at rest, access controls, and audit trails for sensitive data.
+
+**TLS Encryption**: All communication channels should use TLS encryption to protect data in transit. This includes communication between Solace Agent Mesh components and connections to the Solace event broker. TLS prevents eavesdropping and ensures data integrity during transmission.
+
+**Container Security**: Maintain security throughout your container lifecycle by regularly updating base images to include the latest security patches. Implement security scanning tools like Trivy or Clair in your CI/CD pipeline to identify vulnerabilities before deployment. Additionally, run containers with minimal privileges and avoid running processes as root when possible.
+
+### Configuring Solace Event Broker
+
+The Solace event broker serves as the communication backbone for your agent mesh, handling all message routing and delivery between components. For production environments, using a cloud-managed Solace event broker provides significant advantages over self-managed installations.
+
+Cloud-managed event brokers offer built-in high availability, automatic scaling, security updates, and professional support. These managed services eliminate the operational overhead of maintaining event broker infrastructure while providing enterprise-grade reliability and performance.
+
+For more information about cloud-managed options, see [Solace Cloud](https://solace.com/products/event-broker/). For detailed configuration instructions, see [Broker Connection Configuration](../installing-and-configuring/configurations.md#broker-connection-configuration).
 
 
