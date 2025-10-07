@@ -87,6 +87,31 @@ interface TaskFromAPI {
     userMessage?: string;
 }
 
+// Type for serialized message bubbles sent to backend
+interface MessageBubble {
+    id: string;
+    type: "user" | "agent" | "artifact_notification";
+    text: string;
+    parts?: Part[];
+    files?: FileAttachment[];
+    uploadedFiles?: Array<{ name: string; type: string }>;
+    artifactNotification?: { name: string; version?: number };
+    isError?: boolean;
+}
+
+// Type for task metadata
+interface TaskMetadata {
+    schema_version: number;
+    status?: string;
+    agent_name?: string;
+    feedback?: {
+        type: "up" | "down";
+        text?: string;
+        submitted?: boolean;
+    };
+    [key: string]: unknown; // Allow additional properties for future extensibility
+}
+
 // File utils
 const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
 const fileToBase64 = (file: File): Promise<string> => {
@@ -179,7 +204,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, []);
 
     // Helper function to serialize a MessageFE to MessageBubble format for backend
-    const serializeMessageBubble = useCallback((message: MessageFE) => {
+    const serializeMessageBubble = useCallback((message: MessageFE): MessageBubble => {
         const textParts = message.parts?.filter(p => p.kind === "text") as TextPart[] | undefined;
         const combinedText = textParts?.map(p => p.text).join("") || "";
 
@@ -203,8 +228,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         async (taskData: {
             task_id: string;
             user_message?: string;
-            message_bubbles: any[];
-            task_metadata?: any;
+            message_bubbles: MessageBubble[];
+            task_metadata?: TaskMetadata;
         }) => {
             if (!persistenceEnabled || !sessionId) return;
 
