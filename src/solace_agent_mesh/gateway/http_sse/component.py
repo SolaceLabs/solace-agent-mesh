@@ -873,6 +873,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         request = external_event_data
         try:
+            user_info = {}
             if hasattr(request.state, "user") and request.state.user:
                 user_info = request.state.user
                 username = user_info.get("username")
@@ -882,7 +883,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         log_id_prefix,
                         username,
                     )
-                    return {"id": username, "name": username, "email": username}
+                    return {"id": username, "name": username, "email": username, "user_info": user_info}
 
             log.debug(
                 "%s No authenticated user in request.state, falling back to SessionManager.",
@@ -892,7 +893,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             log.debug(
                 "%s Extracted user_id '%s' via SessionManager.", log_id_prefix, user_id
             )
-            return {"id": user_id, "name": user_id}
+            return {"id": user_id, "name": user_id, "user_info": user_info}
 
         except Exception as e:
             log.error("%s Failed to extract user_id from request: %s", log_id_prefix, e)

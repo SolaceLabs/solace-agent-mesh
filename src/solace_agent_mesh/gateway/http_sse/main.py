@@ -149,8 +149,7 @@ async def _create_user_state_without_identity_service(user_identifier: str, emai
 async def _create_user_state_with_identity_service(identity_service, user_identifier: str, email_from_auth: str, display_name: str, user_info: dict) -> dict:
     lookup_value = email_from_auth if "@" in email_from_auth else user_identifier
     user_profile = await identity_service.get_user_profile(
-        {identity_service.lookup_key: lookup_value},
-        user_info=user_info
+        {identity_service.lookup_key: lookup_value, "user_info": user_info}
     )
 
     if not user_profile:

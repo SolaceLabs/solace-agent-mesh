@@ -635,17 +635,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Reset UI state with empty session ID
         const welcomeMessages: MessageFE[] = configWelcomeMessage
             ? [
-                {
-                    parts: [{ kind: "text", text: configWelcomeMessage }],
-                    isUser: false,
-                    isComplete: true,
-                    role: "agent",
-                    metadata: {
-                        sessionId: "", // Empty - will be populated when session is created
-                        lastProcessedEventSequence: 0,
-                    },
-                },
-            ]
+                  {
+                      parts: [{ kind: "text", text: configWelcomeMessage }],
+                      isUser: false,
+                      isComplete: true,
+                      role: "agent",
+                      metadata: {
+                          sessionId: "", // Empty - will be populated when session is created
+                          lastProcessedEventSequence: 0,
+                      },
+                  },
+              ]
             : [];
 
         setMessages(welcomeMessages);
@@ -1031,7 +1031,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // If it was a new session, generate and persist its name.
                 if (isNewSession && responseSessionId) {
                     const textParts = userMsg.parts.filter(p => p.kind === "text") as TextPart[];
-                    const combinedText = textParts.map(p => p.text).join(" ").trim();
+                    const combinedText = textParts
+                        .map(p => p.text)
+                        .join(" ")
+                        .trim();
                     if (combinedText) {
                         const newSessionName = combinedText.length > 100 ? `${combinedText.substring(0, 100)}...` : combinedText;
                         setSessionName(newSessionName);
