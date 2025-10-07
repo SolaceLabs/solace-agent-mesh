@@ -44,6 +44,7 @@ import type {
     TaskStatusUpdateEvent,
     TextPart,
 } from "@/lib/types";
+import type { MessageBubble, TaskMetadata, StoredTaskData } from "@/lib/types/storage";
 
 interface ChatProviderProps {
     children: ReactNode;
@@ -85,31 +86,6 @@ interface TaskFromAPI {
     taskMetadata: string | null;  // JSON string
     createdTime: number;
     userMessage?: string;
-}
-
-// Type for serialized message bubbles sent to backend
-interface MessageBubble {
-    id: string;
-    type: "user" | "agent" | "artifact_notification";
-    text: string;
-    parts?: Part[];
-    files?: FileAttachment[];
-    uploadedFiles?: Array<{ name: string; type: string }>;
-    artifactNotification?: { name: string; version?: number };
-    isError?: boolean;
-}
-
-// Type for task metadata
-interface TaskMetadata {
-    schema_version: number;
-    status?: string;
-    agent_name?: string;
-    feedback?: {
-        type: "up" | "down";
-        text?: string;
-        submitted?: boolean;
-    };
-    [key: string]: unknown; // Allow additional properties for future extensibility
 }
 
 // File utils
@@ -272,12 +248,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     // Helper function to deserialize task data to MessageFE objects
-    const deserializeTaskToMessages = useCallback((task: {
-        taskId: string;
-        messageBubbles: any[];
-        taskMetadata?: any;
-        createdTime: number;
-    }): MessageFE[] => {
+    const deserializeTaskToMessages = useCallback((task: StoredTaskData): MessageFE[] => {
         return task.messageBubbles.map(bubble => ({
             taskId: task.taskId,
             role: bubble.type === "user" ? "user" : "agent",
