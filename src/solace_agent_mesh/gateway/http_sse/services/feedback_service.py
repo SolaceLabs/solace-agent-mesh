@@ -3,10 +3,10 @@ Service layer for handling user feedback on chat messages.
 """
 
 import json
+import logging
 import uuid
 from typing import TYPE_CHECKING, Callable
 
-from solace_ai_connector.common.log import log
 from sqlalchemy.orm import Session as DBSession
 
 from ..repository.entities import Feedback
@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
     from ..repository.interfaces import ITaskRepository
 
+log = logging.getLogger(__name__)
 
 class FeedbackService:
     """Handles the business logic for processing user feedback."""
