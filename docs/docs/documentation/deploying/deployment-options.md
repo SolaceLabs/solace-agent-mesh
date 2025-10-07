@@ -1,9 +1,9 @@
 ---
-title: Deployment
+title: Choosing Deployment Options
 sidebar_position: 10
 ---
 
-# Deployment
+# Choosing Deployment Options
 
 Solace Agent Mesh offers flexible deployment options designed to meet different operational requirements. Understanding these options helps you choose the right approach for your specific environment and scale needs.
 

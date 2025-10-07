@@ -1,9 +1,9 @@
 ---
-title: Debugging
+title: Diagnosing and Resolving Problems
 sidebar_position: 30
 ---
 
-# Debugging
+# Diagnosing and Resolving Problems
 
 Effective debugging in Solace Agent Mesh requires a systematic approach that leverages the platform's distributed architecture. Because your system consists of multiple agents communicating through an event broker, issues can arise at various levels—from individual agent logic to inter-component communication patterns.
 
