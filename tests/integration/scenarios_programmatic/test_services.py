@@ -1,6 +1,7 @@
 import json
 import pytest
 import os
+from unittest.mock import Mock
 
 pytestmark = [
     pytest.mark.all,
@@ -43,9 +44,30 @@ def test_local_file_identity_service_initialization():
         service = LocalFileIdentityService(valid_config)
         assert service.file_path == valid_config["file_path"]
         assert service.lookup_key == valid_config["lookup_key"]
+        assert service.component is None, "Component should be None when not provided"
         print("LocalFileIdentityService initialized successfully.")
     except Exception as e:
         pytest.fail(f"Initialization failed with exception: {e}")
+
+def test_local_file_identity_service_initialization_with_component():
+    """
+    Tests that the LocalFileIdentityService initializes correctly with a component parameter.
+    """
+    from src.solace_agent_mesh.common.services.providers.local_file_identity_service import (
+        LocalFileIdentityService,
+    )
+    from unittest.mock import Mock
+
+    try:
+        # Create a mock component
+        mock_component = Mock()
+        service = LocalFileIdentityService(valid_config, component=mock_component)
+        assert service.file_path == valid_config["file_path"]
+        assert service.lookup_key == valid_config["lookup_key"]
+        assert service.component is mock_component, "Component should be set to the provided mock"
+        print("LocalFileIdentityService initialized successfully with component.")
+    except Exception as e:
+        pytest.fail(f"Initialization with component failed with exception: {e}")
 
 def test_local_file_identity_service_invalid_path():
     """
@@ -148,6 +170,7 @@ def test_identity_service_factory():
     service = create_identity_service(valid_config)
     assert service is not None, "Service should be created successfully with valid config."
     assert hasattr(service, 'get_user_profile'), "Service should have 'get_user_profile' method."
+    assert service.component is None, "Component should be None when not provided to factory"
 
     # Test with invalid configuration
     with pytest.raises(ValueError):
@@ -158,6 +181,30 @@ def test_identity_service_factory():
     assert service is None, "Service should be None when no config is provided."
 
     print("Identity service factory works correctly.")
+
+def test_identity_service_factory_with_component():
+    """
+    Tests the identity service factory function with a component parameter.
+    """
+    from src.solace_agent_mesh.common.services.identity_service import (
+        create_identity_service,
+    )
+    from unittest.mock import Mock
+
+    # Create a mock component
+    mock_component = Mock()
+
+    # Test with valid configuration and component
+    service = create_identity_service(valid_config, component=mock_component)
+    assert service is not None, "Service should be created successfully with valid config and component."
+    assert hasattr(service, 'get_user_profile'), "Service should have 'get_user_profile' method."
+    assert service.component is mock_component, "Component should be set to the provided mock"
+
+    # Test with no configuration but with component
+    service = create_identity_service(None, component=mock_component)
+    assert service is None, "Service should be None when no config is provided, regardless of component."
+
+    print("Identity service factory with component works correctly.")
 
 def test_employee_service_factory():
     """
