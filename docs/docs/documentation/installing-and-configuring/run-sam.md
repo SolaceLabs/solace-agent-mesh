@@ -119,13 +119,13 @@ docker run --rm -it -v "$(pwd):/app" --platform linux/amd64 -p 8000:8000 solace/
 
 **Platform Compatibility**: If your host system architecture is not `linux/amd64`, add the `--platform linux/amd64` flag when you run the container.
 
-#### Required Configurations for Docker Deployment
+#### Docker Configuration Requirements
 
 For deployments that use the official Docker image, ensure the following:
 - **Do not use a local Solace broker container** - This configuration is incompatible with Docker deployments
 - **Set `FASTAPI_HOST="0.0.0.0"`** in your `.env` file or system environment variables. This setting is necessary to expose the FastAPI server to the host machine
 
-#### Custom Dependencies
+#### Using Custom Dependencies with Docker
 
 If you are using third-party Python packages or Solace Agent Mesh plugins, you need to build a custom Docker image based on the official image:
 

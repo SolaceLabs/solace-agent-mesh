@@ -155,8 +155,10 @@ solace-agent-mesh --help
 
 ## Next Steps
 
-After successful installation, you can:
+After successful installation, choose your next step based on your goals:
 
-- **Try SAM quickly**: Use the [Docker quick start](../getting-started/try-sam.md) to explore SAM with minimal setup
-- **Create a full project**: Follow the [project setup guide](run-sam.md) for complete control over your configuration
-- **Learn about components**: Explore [agents](../components/agents.md) and [gateways](../components/gateways.md)
+**For Quick Exploration**: If you want to try SAM's capabilities immediately without project setup, use the [Docker quick start](../getting-started/try-sam.md) to explore SAM with minimal configuration.
+
+**For Development Work**: If you're ready to build a complete project with full control over configuration, proceed directly to the [project setup guide](run-sam.md).
+
+**To Learn More**: Explore the system components by reading about [agents](../components/agents.md) and [gateways](../components/gateways.md).

@@ -18,6 +18,10 @@ Before you begin, ensure you have:
 * Docker (or Podman) installed on your system
 * An AI provider and API key from any major provider. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 4, Google Gemini 2.5 Pro, or OpenAI GPT-4
 
+:::tip Ready for Development?
+If you're ready to set up a full development environment with complete project control, skip this quick trial and go directly to the [installation guide](../installing-and-configuring/installation.md) followed by the [project setup guide](../installing-and-configuring/run-sam.md).
+:::
+
 ## Run the Docker Image
 
 The simplest way to try Solace Agent Mesh is to run the pre-configured agents that come with the Docker image. This approach gets you up and running immediately without any project setup.
@@ -53,14 +57,8 @@ After the Docker container starts successfully, you can interact with Solace Age
 
 The web interface provides an intuitive way to interact with your agents and explore SAM's capabilities without any additional setup.
 
-## Understanding the System
-
-Among other important components, Solace Agent Mesh uses agents and gateways. Agents are AI-powered components that perform specific tasks and can communicate with each other. Gateways are interface components that allow external systems and users to interact with the agent mesh.
-
-The preset configuration includes a built-in orchestrator agent and a web user interface gateway, giving you a complete working system to explore immediately.
-
 ## Next Steps
 
 Once you've explored the basic functionality, you can learn more about [agents](../components/agents.md) and how they work, explore [gateways](../components/gateways.md) and different interface options, or try [using plugins](../components/plugins.md#use-a-plugin) to extend functionality.
 
-For serious development work, set up a complete project by following the [project setup guide](../installing-and-configuring/run-sam.md), which provides full control over your configuration and is suitable for development, testing, and production environments.
+For serious development work, set up a complete project by following the [installation guide](../installing-and-configuring/installation.md) and then the [project setup guide](../installing-and-configuring/run-sam.md), which provides full control over your configuration and is suitable for development, testing, and production environments.
