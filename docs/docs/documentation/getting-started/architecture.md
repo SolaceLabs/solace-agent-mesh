@@ -14,9 +14,9 @@ The framework integrates three primary technologies:
 
 The design of Solace Agent Mesh is founded on several key architectural principles:
 
-- **Event-Driven Architecture (EDA)**: All interactions between major components are asynchronous and mediated by the event broker. This eliminates direct dependencies, allowing components to be developed, deployed, and scaled independently.
+- **Event-Driven Architecture (EDA)**: All interactions between major components are asynchronous and mediated by the Solace event broker. This eliminates direct dependencies, allowing components to be developed, deployed, and scaled independently.
 - **Component Decoupling**: Gateways, Agent Hosts, and other services communicate through standardized A2A protocol messages over the event mesh. They do not require knowledge of each other's network location, implementation language, or internal logic.
-- **Scalability and Resilience**: The architecture supports horizontal scaling of Agent Hosts and Gateways. The event broker provides fault tolerance and guaranteed message delivery, ensuring system resilience even if individual components fail or are restarted.
+- **Scalability and Resilience**: The architecture supports horizontal scaling of Agent Hosts and Gateways. The Solace event broker provides fault tolerance and guaranteed message delivery, ensuring system resilience even if individual components fail or are restarted.
 
 ## System Components
 
@@ -146,7 +146,7 @@ The system automatically discovers available agents through a publish-subscribe 
 
 ## A2A Protocol and Topic Structure
 
-The A2A protocol is based on JSON-RPC 2.0 and defines the message formats for all interactions between components. Communication is routed via a hierarchical topic structure on the Solace broker, which allows for precise, point-to-point routing in a decoupled, asynchronous environment.
+The A2A protocol is based on JSON-RPC 2.0 and defines the message formats for all interactions between components. Communication is routed via a hierarchical topic structure on the Solace event broker, which allows for precise, point-to-point routing in a decoupled, asynchronous environment.
 
 | Purpose                  | Topic Pattern                                                    |
 | ------------------------ | ---------------------------------------------------------------- |

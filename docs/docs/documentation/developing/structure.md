@@ -5,7 +5,7 @@ sidebar_position: 410
 
 # Project Structure
 
-Solace Agent Mesh is built on the A2A (Agent-to-Agent) protocol architecture, powered by [Solace AI Event Connector](../components/solace-ai-connector.md) and uses the Solace broker as the communication backbone. The framework is controlled by YAML configuration files that define agents, gateways, and plugins, enabling distributed AI agent communication through event-driven messaging.
+Solace Agent Mesh is built on the A2A (Agent-to-Agent) protocol architecture, powered by [Solace AI Event Connector](../components/solace-ai-connector.md) and uses the Solace event broker as the communication backbone. The framework is controlled by YAML configuration files that define agents, gateways, and plugins, enabling distributed AI agent communication through event-driven messaging.
 
 A fresh Solace Agent Mesh project follows this structure:
 
@@ -41,7 +41,7 @@ The CLI automatically crawls through the `configs` directory to find configurati
 
 The `shared_config.yaml` file is the foundation of your project configuration. It contains common elements that are reused across all agents and gateways using YAML anchors:
 
-- **Broker Connection**: Solace broker settings for A2A communication
+- **Broker Connection**: Solace event broker settings for A2A communication
 - **Model Definitions**: LLM model configurations (planning, general, multimodal, etc.)
 - **Services**: Artifact service, session service, and data tools configuration
 

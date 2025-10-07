@@ -43,11 +43,11 @@ To access this comprehensive overview, open the web interface in your browser an
 
 ## Monitoring Event Broker Activity
 
-The Solace event broker serves as the central nervous system of your agent mesh, handling all communication between components. Monitoring event broker activity provides deep insights into system behavior and helps identify communication issues before they impact users.
+The Solace event broker serves as the central nervous system of your agent mesh, handling all communication between components. Monitoring Solace event broker activity provides deep insights into system behavior and helps identify communication issues before they impact users.
 
 Understanding message flows at the event broker level is essential because it reveals the actual communication patterns between your agents, regardless of how they're configured. This low-level visibility complements the higher-level views provided by the workflow viewer and agents dashboard.
 
-Several specialized tools help you monitor and interact with the event broker:
+Several specialized tools help you monitor and interact with the Solace event broker:
 
 **Solace Broker Manager**: This web-based interface provides comprehensive event broker management capabilities. The *Try Me!* tab is particularly useful for interactive message testing, allowing you to send and receive messages manually to verify system behavior.
 
@@ -80,7 +80,7 @@ This filter removes routine registration messages while preserving visibility in
 
 ## Examining Stimulus Logs
 
-Stimulus logs provide the most detailed level of observability in your Solace Agent Mesh system. While the workflow viewer gives you visual representations and the event broker tools show real-time message flows, stimulus logs create permanent, comprehensive records of every request that flows through your system.
+Stimulus logs provide the most detailed level of observability in your Solace Agent Mesh system. While the workflow viewer gives you visual representations and the Solace event broker tools show real-time message flows, stimulus logs create permanent, comprehensive records of every request that flows through your system.
 
 These logs serve as your system's memory, capturing complete traces that you can analyze long after events occur. This persistent record becomes invaluable for performance analysis, debugging complex issues, and understanding usage patterns over time.
 

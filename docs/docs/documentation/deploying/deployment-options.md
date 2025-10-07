@@ -151,10 +151,10 @@ Production deployments require robust security measures to protect sensitive dat
 
 ### Configuring Solace Event Broker
 
-The Solace event broker serves as the communication backbone for your agent mesh, handling all message routing and delivery between components. For production environments, using a cloud-managed Solace event broker provides significant advantages over self-managed installations.
+The Solace event broker serves as the communication backbone for your agent mesh, handling all message routing and delivery between components. For production environments, using a Solace Cloud-managed event broker provides significant advantages over self-managed installations.
 
-Cloud-managed event brokers offer built-in high availability, automatic scaling, security updates, and professional support. These managed services eliminate the operational overhead of maintaining event broker infrastructure while providing enterprise-grade reliability and performance.
+Solace Cloud-managed event brokers offer built-in high availability, automatic scaling, security updates, and professional support. These managed services eliminate the operational overhead of maintaining event broker infrastructure while providing enterprise-grade reliability and performance.
 
-For more information about cloud-managed options, see [Solace Cloud](https://solace.com/products/event-broker/). For detailed configuration instructions, see [Broker Connection Configuration](../installing-and-configuring/configurations.md#broker-connection-configuration).
+For more information about cloud-managed options, see [Solace Cloud](https://solace.com/products/event-broker/). For detailed configuration instructions, see [Configuring the Event Broker Connection](../installing-and-configuring/configurations.md#configuring-the-event-broker-connection).
 
 

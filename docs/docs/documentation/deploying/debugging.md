@@ -5,7 +5,7 @@ sidebar_position: 30
 
 # Diagnosing and Resolving Problems
 
-Effective debugging in Solace Agent Mesh requires a systematic approach that leverages the platform's distributed architecture. Because your system consists of multiple agents communicating through an event broker, issues can arise at various levels—from individual agent logic to inter-component communication patterns.
+Effective debugging in Solace Agent Mesh requires a systematic approach that leverages the platform's distributed architecture. Because your system consists of multiple agents communicating through a Solace event broker, issues can arise at various levels—from individual agent logic to inter-component communication patterns.
 
 The key to successful debugging lies in understanding where problems might occur and having the right tools to investigate each layer of your system. Solace Agent Mesh provides comprehensive observability features that serve as your foundation for debugging activities. For detailed information about these monitoring capabilities, see [Observability](./observability.md).
 
@@ -35,7 +35,7 @@ STIM files serve as your detailed forensic evidence when debugging complex issue
 
 [STIM files](./observability.md#stimulus-logs) provide the most complete picture available of stimulus lifecycles. Unlike real-time monitoring tools that show current activity, STIM files preserve historical data that you can analyze repeatedly and share with team members for collaborative debugging.
 
-Each `.stim` file contains a complete record of all event broker events related to a single stimulus, from the initial user request through every agent interaction to the final response delivery. This comprehensive coverage makes STIM files particularly useful for debugging issues that involve:
+Each `.stim` file contains a complete record of all Solace event broker events related to a single stimulus, from the initial user request through every agent interaction to the final response delivery. This comprehensive coverage makes STIM files particularly useful for debugging issues that involve:
 
 - Multi-agent workflows where the problem might occur at any step
 - Timing-related issues where sequence and duration matter
@@ -46,11 +46,11 @@ When examining STIM files, look for patterns in agent response times, unexpected
 
 ## Monitoring Event Broker Activity
 
-Real-time event broker monitoring provides immediate insights into your system's communication patterns and helps identify issues as they occur. This approach complements STIM file analysis by giving you live visibility into message flows and event interactions.
+Real-time Solace event broker monitoring provides immediate insights into your system's communication patterns and helps identify issues as they occur. This approach complements STIM file analysis by giving you live visibility into message flows and event interactions.
 
 Broker-level monitoring is particularly valuable because it shows the actual communication happening between components, regardless of how agents are configured or what they report about their own status. This ground-truth perspective helps identify discrepancies between expected and actual behavior.
 
-For comprehensive guidance on event broker monitoring techniques and tools, see [Monitoring Event Broker Activity](./observability.md#monitoring-event-broker-activity).
+For comprehensive guidance on Solace event broker monitoring techniques and tools, see [Monitoring Event Broker Activity](./observability.md#monitoring-event-broker-activity).
 
 ## Using Debug Mode
 
@@ -103,7 +103,7 @@ Direct agent invocation provides a powerful technique for isolating and testing 
 
 You can invoke agents directly through two primary methods: using the web UI's agent selection dropdown for quick testing, or sending messages directly through the Solace event broker for more controlled testing scenarios.
 
-The event broker-based approach gives you complete control over message content and timing, making it ideal for testing edge cases, error conditions, or specific message formats that might be difficult to generate through normal user interactions.
+The Solace event broker-based approach gives you complete control over message content and timing, making it ideal for testing edge cases, error conditions, or specific message formats that might be difficult to generate through normal user interactions.
 
 ### Using Tools for Direct Message Testing
 
@@ -174,7 +174,7 @@ By sending carefully crafted requests and observing responses, you can verify ag
 
 ## Analyzing System Logs
 
-System logs serve as your comprehensive record of application behavior, capturing everything from routine operations to error conditions. These logs provide a different perspective than STIM files or event broker monitoring—they focus on internal application state and framework behavior rather than message flows.
+System logs serve as your comprehensive record of application behavior, capturing everything from routine operations to error conditions. These logs provide a different perspective than STIM files or Solace event broker monitoring—they focus on internal application state and framework behavior rather than message flows.
 
 Understanding system logs becomes crucial when debugging issues related to agent initialization, configuration problems, or internal framework errors that might not be visible through other observability tools.
 

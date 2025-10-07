@@ -4,7 +4,7 @@ sidebar_position: 330
 toc_max_heading_level: 4
 ---
 
-The [`shared_config.yaml`](shared_config.yaml) file serves as the central configuration hub for Solace Agent Mesh, allowing you to define settings that multiple agents and components can share. This centralized approach simplifies management of common configurations such as broker connections, language model settings, and service definitions.
+The [`shared_config.yaml`](shared_config.yaml) file serves as the central configuration hub for Solace Agent Mesh, allowing you to define settings that multiple agents and components can share. This centralized approach simplifies management of common configurations such as Solace event broker connections, language model settings, and service definitions.
 
 ## Understanding Shared Configuration
 
@@ -84,11 +84,11 @@ shared_config:
       max_result_preview_bytes: 4096
 ```
 
-## Broker Connection Configuration
+## Configuring the Event Broker Connection
 
-The event broker connection section establishes how your agents and gateways communicate with the Solace event broker. This configuration determines the reliability, security, and performance characteristics of your mesh communication.
+The Solace event broker connection section establishes how your agents and gateways communicate with the Solace event broker. This configuration determines the reliability, security, and performance characteristics of your mesh communication.
 
-The development mode setting (`dev_mode`) provides a convenient way to switch between production event broker connections and an in-memory event broker for testing. When enabled, this setting bypasses external event broker requirements, allowing you to develop and test your agents without a full Solace infrastructure.
+The development mode setting (`dev_mode`) provides a convenient way to switch between production Solace event broker connections and an in-memory event broker for testing. When enabled, this setting bypasses external event broker requirements, allowing you to develop and test your agents without a full Solace infrastructure.
 
 Connection parameters include the event broker URL, which specifies the endpoint for your Solace event broker, and authentication credentials consisting of username, password, and Message VPN. The temporary queue setting controls whether agents use ephemeral queues that disappear when the agent disconnects or durable queues that persist messages even during agent downtime.
 
@@ -102,7 +102,7 @@ Connection parameters include the event broker URL, which specifies the endpoint
 | `temporary_queue` | `USE_TEMPORARY_QUEUES` | Whether to use temporary queues for communication. If `false`, a durable queue will be created. | `true` |
 | `max_connection_retries` | `MAX_CONNECTION_RETRIES` | The maximum number of times to retry connecting to the event broker if the connection fails. A value of `-1` means retry forever. | `-1` |
 
-For deployments requiring multiple event broker connections, you can define additional event broker configurations with unique names. For example, create `broker_connection_eu: &broker_connection_eu` for European deployments or `broker_connection_us: &broker_connection_us` for United States deployments. Reference these configurations in your agent files using the appropriate anchor, such as `<<: *broker_connection_eu`.
+For deployments requiring multiple Solace event broker connections, you can define additional event broker configurations with unique names. For example, create `broker_connection_eu: &broker_connection_eu` for European deployments or `broker_connection_us: &broker_connection_us` for United States deployments. Reference these configurations in your agent files using the appropriate anchor, such as `<<: *broker_connection_eu`.
 
 ## Language Model Configuration
 

@@ -48,7 +48,7 @@ solace-agent-mesh init --gui
 
 The web-based interface provides an intuitive way to configure your project settings, including:
 - AI model selection and configuration
-- Message broker setup
+- Solace event broker setup
 - Gateway configuration
 - Environment variable management
 
@@ -122,7 +122,7 @@ docker run --rm -it -v "$(pwd):/app" --platform linux/amd64 -p 8000:8000 solace/
 #### Docker Configuration Requirements
 
 For deployments that use the official Docker image, ensure the following:
-- **Do not use a local Solace broker container** - This configuration is incompatible with Docker deployments
+- **Do not use a local Solace event broker container** - This configuration is incompatible with Docker deployments
 - **Set `FASTAPI_HOST="0.0.0.0"`** in your `.env` file or system environment variables. This setting is necessary to expose the FastAPI server to the host machine
 
 #### Using Custom Dependencies with Docker
