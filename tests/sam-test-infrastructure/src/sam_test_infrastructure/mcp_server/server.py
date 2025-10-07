@@ -10,9 +10,7 @@ import logging
 from typing import Any, Dict
 
 from fastmcp import Context, FastMCP
-from fastapi import FastAPI
 from fastmcp.tools.tool import ToolResult
-from fastmcp.server.http import create_sse_app, create_streamable_http_app
 from mcp.types import (
     AudioContent,
     BlobResourceContents,
@@ -60,13 +58,6 @@ class TestMCPServer:
         self.mcp.tool(self.get_data, name="get_data_http")
         self.mcp.tool(self.get_data, name="get_data_streamable_http")
         self.mcp.custom_route("/health", methods=["GET"])(self.health_check)
-
-        http_server = create_streamable_http_app(self.mcp, streamable_http_path="/")
-        sse_server = create_sse_app(self.mcp, sse_path="/", message_path="/")
-
-        self.app = FastAPI(lifespan=http_server.lifespan)
-        self.app.mount("/mcp", http_server)  # Mount the MCP app
-        self.app.mount("/sse", sse_server)  # Mount the SSE app
 
     async def health_check(self, request: Request) -> Response:
         """Simple health check endpoint for HTTP mode."""
@@ -158,31 +149,22 @@ def main():
     parser.add_argument(
         "--transport",
         type=str,
-        choices=["stdio", "http", "sse", "http+sse"],
+        choices=["stdio", "http", "sse"],
         default="stdio",
-        help="The transport protocol to use. Use 'http+sse' for both.",
+        help="The transport protocol to use.",
     )
     parser.add_argument(
         "--port",
         type=int,
         default=8001,
-        help="The port to use for the transport.",
+        help="The port to use for the http transport.",
     )
     args = parser.parse_args()
-
     server_instance = TestMCPServer()
-
     if args.transport == "stdio":
-        server_instance.mcp.run(transport="stdio")
-    elif args.transport == "http+sse":
-        import uvicorn
-        uvicorn.run(server_instance.app, host="127.0.0.1", port=args.port)
+        server_instance.mcp.run(transport=args.transport)
     else:
-        server_instance.mcp.run(
-            transport=args.transport,
-            port=args.port
-        )
-
+        server_instance.mcp.run(transport=args.transport, port=args.port)
 
 
 if __name__ == "__main__":
