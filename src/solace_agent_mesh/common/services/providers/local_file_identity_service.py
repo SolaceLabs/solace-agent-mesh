@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional
 
 from solace_ai_connector.common.log import log
 from ..identity_service import BaseIdentityService
+from ...sac.sam_component_base import SamComponentBase
+
 
 
 class LocalFileIdentityService(BaseIdentityService):
@@ -28,8 +30,8 @@ class LocalFileIdentityService(BaseIdentityService):
     ]
     """
 
-    def __init__(self, config: Dict[str, Any]):
-        super().__init__(config)
+    def __init__(self, config: Dict[str, Any], component: Optional[SamComponentBase] = None):
+        super().__init__(config, component)
         self.file_path = self.config.get("file_path")
         if not self.file_path:
             raise ValueError("LocalFileIdentityService config requires 'file_path'.")

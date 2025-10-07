@@ -148,7 +148,7 @@ class BaseGatewayComponent(SamComponentBase):
 
         identity_service_config = self.get_config("identity_service")
         self.identity_service: Optional[BaseIdentityService] = create_identity_service(
-            identity_service_config
+            identity_service_config, self
         )
 
         self._config_resolver = MiddlewareRegistry.get_config_resolver()
