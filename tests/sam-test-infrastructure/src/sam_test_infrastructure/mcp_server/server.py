@@ -56,6 +56,7 @@ class TestMCPServer:
         # Register the generic tool under two different names for stdio and http
         self.mcp.tool(self.get_data, name="get_data_stdio")
         self.mcp.tool(self.get_data, name="get_data_http")
+        self.mcp.tool(self.get_data, name="get_data_streamable_http")
         self.mcp.custom_route("/health", methods=["GET"])(self.health_check)
 
     async def health_check(self, request: Request) -> Response:
@@ -159,7 +160,6 @@ def main():
         help="The port to use for the http transport.",
     )
     args = parser.parse_args()
-
     server_instance = TestMCPServer()
     if args.transport == "stdio":
         server_instance.mcp.run(transport=args.transport)
