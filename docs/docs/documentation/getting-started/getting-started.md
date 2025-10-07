@@ -11,7 +11,7 @@ Whether you're building intelligent automation systems, creating sophisticated A
 
 ## Understanding Solace Agent Mesh
 
-Before diving into implementation, it's helpful to understand what makes Solace Agent Mesh unique. The framework combines the power of Google's Agent Development Kit with Solace's event-driven messaging platform, creating a robust foundation for multi-agent AI systems. To learn about the core concepts and architectural principles that drive the framework's design, see [What is Solace Agent Mesh?](./what-is-sam.md)
+Before diving into implementation, it's helpful to understand what makes Solace Agent Mesh unique. The framework combines the power of Google's Agent Development Kit with Solace's event-driven messaging platform, creating a robust foundation for multi-agent AI systems. To learn about the core concepts and architectural principles that drive the framework's design, see [What is Solace Agent Mesh?](./introduction.md)
 
 The system's event-driven architecture enables true scalability and reliability, allowing agents to communicate asynchronously while maintaining loose coupling between components. For detailed insights into how these components work together to create a cohesive AI ecosystem, see [Architecture Overview](./architecture.md)
 
