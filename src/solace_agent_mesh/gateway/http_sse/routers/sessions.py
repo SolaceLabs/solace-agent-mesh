@@ -17,6 +17,8 @@ from .dto.responses.task_responses import TaskResponse, TaskListResponse
 
 router = APIRouter()
 
+SESSION_NOT_FOUND_MSG = "Session not found."
+
 
 @router.get("/sessions", response_model=PaginatedResponse[SessionResponse])
 async def get_all_sessions(
@@ -28,7 +30,10 @@ async def get_all_sessions(
 ):
     user_id = user.get("id")
     log.info(
-        f"User '{user_id}' is listing sessions with pagination (page={page_number}, size={page_size})"
+        "User '%s' is listing sessions with pagination (page=%d, size=%d)",
+        user_id,
+        page_number,
+        page_size,
     )
 
     try:
@@ -54,7 +59,7 @@ async def get_all_sessions(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve sessions",
-        )
+        ) from e
 
 
 @router.get("/sessions/{session_id}", response_model=DataResponse[SessionResponse])
@@ -74,7 +79,7 @@ async def get_session(
             or session_id in ["null", "undefined"]
         ):
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
         request_dto = GetSessionRequest(session_id=session_id, user_id=user_id)
@@ -85,7 +90,7 @@ async def get_session(
 
         if not session_domain:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
         log.info("User %s authorized. Fetching session_id: %s", user_id, session_id)
@@ -113,7 +118,7 @@ async def get_session(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve session",
-        )
+        ) from e
 
 
 @router.post("/sessions/{session_id}/chat-tasks", response_model=TaskResponse)
@@ -143,11 +148,12 @@ async def save_task(
             or session_id in ["null", "undefined"]
         ):
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
         # Check if task already exists to determine status code
         from ..repository.chat_task_repository import ChatTaskRepository
+
         task_repo = ChatTaskRepository(db)
         existing_task = task_repo.find_by_id(request.task_id, user_id)
         is_update = existing_task is not None
@@ -160,7 +166,7 @@ async def save_task(
             user_id=user_id,
             user_message=request.user_message,
             message_bubbles=request.message_bubbles,  # Already a string
-            task_metadata=request.task_metadata,      # Already a string
+            task_metadata=request.task_metadata,  # Already a string
         )
 
         log.info(
@@ -181,17 +187,13 @@ async def save_task(
             updated_time=saved_task.updated_time,
         )
 
-        # Return 201 for new tasks, 200 for updates
-        if not is_update:
-            return response
-        else:
-            return response
+        return response
 
     except ValueError as e:
         log.warning("Validation error saving task %s: %s", request.task_id, e)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
-        )
+        ) from e
     except HTTPException:
         raise
     except Exception as e:
@@ -205,7 +207,7 @@ async def save_task(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to save task",
-        )
+        ) from e
 
 
 @router.get("/sessions/{session_id}/chat-tasks", response_model=TaskListResponse)
@@ -231,7 +233,7 @@ async def get_session_tasks(
             or session_id in ["null", "undefined"]
         ):
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
         # Get tasks from service
@@ -265,8 +267,8 @@ async def get_session_tasks(
     except ValueError as e:
         log.warning("Validation error fetching tasks for session %s: %s", session_id, e)
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
-        )
+            status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
+        ) from e
     except HTTPException:
         raise
     except Exception as e:
@@ -279,7 +281,7 @@ async def get_session_tasks(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve session tasks",
-        )
+        ) from e
 
 
 @router.get("/sessions/{session_id}/messages")
@@ -305,7 +307,7 @@ async def get_session_history(
             or session_id in ["null", "undefined"]
         ):
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
         # Use task-based message retrieval (returns list of dicts)
@@ -330,17 +332,19 @@ async def get_session_history(
                 "senderType": msg["sender_type"],
                 "senderName": msg["sender_name"],
                 "messageType": msg["message_type"],
-                "createdTime": msg["created_time"]
+                "createdTime": msg["created_time"],
             }
             camel_case_messages.append(camel_msg)
-        
+
         return camel_case_messages
 
     except ValueError as e:
-        log.warning("Validation error fetching history for session %s: %s", session_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+        log.warning(
+            "Validation error fetching history for session %s: %s", session_id, e
         )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
+        ) from e
     except HTTPException:
         raise
     except Exception as e:
@@ -353,7 +357,7 @@ async def get_session_history(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve session history",
-        )
+        ) from e
 
 
 @router.patch("/sessions/{session_id}", response_model=SessionResponse)
@@ -374,7 +378,7 @@ async def update_session_name(
             or session_id in ["null", "undefined"]
         ):
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
         request_dto = UpdateSessionRequest(
@@ -390,7 +394,7 @@ async def update_session_name(
 
         if not updated_domain:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
         log.info("Session %s updated successfully", session_id)
@@ -410,7 +414,7 @@ async def update_session_name(
         log.warning("Validation error updating session %s: %s", session_id, e)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
-        )
+        ) from e
     except Exception as e:
         log.error(
             "Error updating session %s for user %s: %s",
@@ -421,7 +425,7 @@ async def update_session_name(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update session",
-        )
+        ) from e
 
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -441,7 +445,7 @@ async def delete_session(
             or session_id in ["null", "undefined"]
         ):
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
         deleted = session_service.delete_session_with_notifications(
@@ -450,7 +454,7 @@ async def delete_session(
 
         if not deleted:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
         log.info("Session %s deleted successfully", session_id)
@@ -459,7 +463,9 @@ async def delete_session(
         raise
     except ValueError as e:
         log.warning("Validation error deleting session %s: %s", session_id, e)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
     except Exception as e:
         log.error(
             "Error deleting session %s for user %s: %s",
@@ -470,4 +476,4 @@ async def delete_session(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete session",
-        )
+        ) from e

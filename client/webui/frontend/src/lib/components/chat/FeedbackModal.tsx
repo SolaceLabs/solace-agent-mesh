@@ -32,7 +32,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, f
         try {
             await onSubmit(feedbackText);
             onClose();
-        } catch (error) {
+        } catch {
             // Error handling is done in the parent component
             setIsSubmitting(false);
         }
@@ -44,8 +44,8 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, f
         }
     };
 
-    const feedbackPrompt = feedbackType === "up" 
-        ? "What did you like about the response?" 
+    const feedbackPrompt = feedbackType === "up"
+        ? "What did you like about the response?"
         : "What did you dislike about the response?";
 
     return (
