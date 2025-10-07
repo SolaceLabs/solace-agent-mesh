@@ -294,9 +294,7 @@ def initialize_artifact_service(component) -> BaseArtifactService:
 
             # Set credentials from environment variables as a fallback.
             if "endpoint_url" not in s3_config:
-                env_endpoint_url = os.environ.get("S3_ENDPOINT_URL")
-                if env_endpoint_url is not None:
-                    s3_config["endpoint_url"] = env_endpoint_url
+                s3_config["endpoint_url"] = os.environ.get("S3_ENDPOINT_URL") or "https://s3.amazonaws.com"
             if "aws_access_key_id" not in s3_config:
                 env_access_key = os.environ.get("AWS_ACCESS_KEY_ID")
                 if env_access_key is not None:
