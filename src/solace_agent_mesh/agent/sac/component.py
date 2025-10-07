@@ -7,10 +7,8 @@ import asyncio
 import functools
 import threading
 import concurrent.futures
-import uuid
 import fnmatch
-import base64
-from datetime import datetime, timezone
+import time
 import json
 from solace_ai_connector.common.message import (
     Message as SolaceMessage,
@@ -73,7 +71,7 @@ from ...agent.tools.peer_agent_tool import (
 )
 from ...agent.adk.invocation_monitor import InvocationMonitor
 from ...common.middleware.registry import MiddlewareRegistry
-from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
+from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT, HEALTH_CHECK_TTL_SECONDS, HEALTH_CHECK_INTERVAL_SECONDS
 from ...agent.tools.registry import tool_registry
 from ...common.sac.sam_component_base import SamComponentBase
 
@@ -111,6 +109,7 @@ class SamAgentComponent(SamComponentBase):
 
     CORRELATION_DATA_PREFIX = CORRELATION_DATA_PREFIX
     HOST_COMPONENT_VERSION = "1.0.0-alpha"
+    HEALTH_CHECK_TIMER_ID = "agent_health_check"
 
     def __init__(self, **kwargs):
         """
@@ -127,6 +126,10 @@ class SamAgentComponent(SamComponentBase):
         super().__init__(info, **kwargs)
         self.agent_name = self.get_config("agent_name")
         log.info("%s Initializing A2A ADK Host Component...", self.log_identifier)
+        
+        # Initialize the agent registry for health tracking
+        from ...common.agent_registry import AgentRegistry
+        self.agent_registry = AgentRegistry()
         try:
             self.namespace = self.get_config("namespace")
             if not self.namespace:
@@ -235,7 +238,7 @@ class SamAgentComponent(SamComponentBase):
         self.adk_agent: LlmAgent = None
         self.runner: Runner = None
         self.agent_card_tool_manifest: List[Dict[str, Any]] = []
-        self.peer_agents: Dict[str, Any] = {}
+        self.peer_agents: Dict[str, Any] = {}  # Keep for backward compatibility
         self._card_publish_timer_id: str = f"publish_card_{self.agent_name}"
         self._async_init_future = None
         self.peer_response_queues: Dict[str, asyncio.Queue] = {}
@@ -422,6 +425,26 @@ class SamAgentComponent(SamComponentBase):
                     "%s Agent card publishing interval not configured or invalid, card will not be published periodically.",
                     self.log_identifier,
                 )
+                
+            # Set up health check timer if enabled
+            health_check_interval_seconds = self.agent_discovery_config.get("health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS)
+            if health_check_interval_seconds > 0:
+                log.info(
+                    "%s Scheduling agent health check every %d seconds.",
+                    self.log_identifier,
+                    health_check_interval_seconds,
+                )
+                self.add_timer(
+                    delay_ms=health_check_interval_seconds * 1000,
+                    timer_id=self.HEALTH_CHECK_TIMER_ID,
+                    interval_ms=health_check_interval_seconds * 1000,
+                )
+            else:
+                log.warning(
+                    "%s Agent health check interval not configured or invalid, health checks will not run periodically.",
+                    self.log_identifier,
+                )
+                
             log.info(
                 "%s Initialization complete for agent: %s",
                 self.log_identifier,
@@ -496,10 +519,14 @@ class SamAgentComponent(SamComponentBase):
                     )
 
     def handle_timer_event(self, timer_data: Dict[str, Any]):
-        """Handles timer events, specifically for agent card publishing."""
+        """Handles timer events for agent card publishing and health checks."""
         log.debug("%s Received timer event: %s", self.log_identifier, timer_data)
-        if timer_data.get("timer_id") == self._card_publish_timer_id:
+        timer_id = timer_data.get("timer_id")
+        
+        if timer_id == self._card_publish_timer_id:
             publish_agent_card(self)
+        elif timer_id == self.HEALTH_CHECK_TIMER_ID:
+            self._check_agent_health()
 
     async def handle_cache_expiry_event(self, cache_data: Dict[str, Any]):
         """
@@ -2948,6 +2975,7 @@ class SamAgentComponent(SamComponentBase):
         """Clean up resources on component shutdown."""
         log.info("%s Cleaning up A2A ADK Host Component.", self.log_identifier)
         self.cancel_timer(self._card_publish_timer_id)
+        self.cancel_timer(self.HEALTH_CHECK_TIMER_ID)
 
         cleanup_func_details = self.get_config("agent_cleanup_function")
 
@@ -3118,6 +3146,122 @@ class SamAgentComponent(SamComponentBase):
         For now, using the agent name, but could be made more robust (e.g., hostname + agent name).
         """
         return self.agent_name
+        
+    def _check_agent_health(self):
+        """
+        Checks the health of peer agents and de-registers unresponsive ones.
+        This is called periodically by the health check timer.
+        Uses TTL-based expiration to determine if an agent is unresponsive.
+        """
+            
+        log.debug("%s Performing agent health check...", self.log_identifier)
+        
+        ttl_seconds = self.agent_discovery_config.get("health_check_ttl_seconds", HEALTH_CHECK_TTL_SECONDS)
+        health_check_interval = self.agent_discovery_config.get("health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS)
+        
+        log.debug(
+            "%s Health check configuration: interval=%d seconds, TTL=%d seconds",
+            self.log_identifier,
+            health_check_interval,
+            ttl_seconds
+        )
+        
+        # Get all agent names from the registry
+        agent_names = self.agent_registry.get_agent_names()
+        total_agents = len(agent_names)
+        unresponsive_agents = 0
+        agents_to_deregister = []
+        
+        log.debug("%s Checking health of %d peer agents", self.log_identifier, total_agents)
+        
+        for agent_name in agent_names:
+            # Skip our own agent
+            if agent_name == self.agent_name:
+                continue
+                
+            # Check if the agent's TTL has expired
+            is_expired, time_since_last_seen = self.agent_registry.check_ttl_expired(agent_name, ttl_seconds)
+            
+            if is_expired:
+                unresponsive_agents += 1
+                log.warning(
+                    "%s Agent '%s' TTL has expired. De-registering. Time since last seen: %d seconds (TTL: %d seconds)",
+                    self.log_identifier,
+                    agent_name,
+                    time_since_last_seen,
+                    ttl_seconds
+                )
+                agents_to_deregister.append(agent_name)
+            
+        # De-register unresponsive agents
+        for agent_name in agents_to_deregister:
+            self._deregister_agent(agent_name)
+            
+        log.info(
+            "%s Agent health check completed. Total agents: %d, Unresponsive: %d, De-registered: %d",
+            self.log_identifier,
+            total_agents,
+            unresponsive_agents,
+            len(agents_to_deregister)
+        )
+        
+    def _deregister_agent(self, agent_name: str):
+        """
+        De-registers an agent from the registry and publishes a de-registration event.
+        """
+        # Remove from registry
+        registry_removed = self.agent_registry.remove_agent(agent_name)
+        
+        # Always remove from peer_agents regardless of registry result
+        peer_removed = False
+        if agent_name in self.peer_agents:
+            del self.peer_agents[agent_name]
+            peer_removed = True
+            log.info(
+                "%s Removed agent '%s' from peer_agents dictionary",
+                self.log_identifier,
+                agent_name
+            )
+        
+        # Publish de-registration event if agent was in either data structure
+        if registry_removed or peer_removed:
+            try:
+                # Create a de-registration event topic
+                namespace = self.get_config("namespace")
+                deregistration_topic = f"{namespace}/a2a/events/agent/deregistered"
+                
+                current_time = time.time()
+                
+                # Create the payload
+                deregistration_payload = {
+                    "event_type": "agent.deregistered",
+                    "agent_name": agent_name,
+                    "reason": "health_check_failure",
+                    "metadata": {
+                        "timestamp": current_time,
+                        "deregistered_by": self.agent_name
+                    }
+                }
+                
+                # Publish the event
+                self.publish_a2a_message(
+                    payload=deregistration_payload,
+                    topic=deregistration_topic
+                )
+                
+                log.info(
+                    "%s Published de-registration event for agent '%s' to topic '%s'",
+                    self.log_identifier,
+                    agent_name,
+                    deregistration_topic
+                )
+            except Exception as e:
+                log.error(
+                    "%s Failed to publish de-registration event for agent '%s': %s",
+                    self.log_identifier,
+                    agent_name,
+                    e
+                )
 
     async def _resolve_early_embeds_and_handle_signals(
         self, raw_text: str, a2a_context: Dict
