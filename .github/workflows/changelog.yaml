@@ -2,16 +2,21 @@ name: Generate Github Release Notes Changelog
 run-name: "Generate Github Release Notes Changelog from ${{ inputs.from_ref }} to ${{ inputs.to_ref }}"
 
 on:
+    push:
+        branches:
+            - test-changelog
     workflow_dispatch:
         inputs:
             from_ref:
                 description: "Tag or github reference (e.g., 1.3.3)"
                 type: string
                 required: true
+                default: "1.3.3"
             to_ref:
                 description: "Tag or github reference (e.g., 1.4.11)"
                 type: string
                 required: true
+                default: "1.4.11"
             output_file:
                 description: "Output file path for release notes"
                 type: string
