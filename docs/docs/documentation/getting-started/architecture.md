@@ -10,8 +10,6 @@ The framework integrates three primary technologies:
 - **Solace AI Connector (SAC)**: Serves as the runtime environment for hosting and managing the lifecycle of all system components
 - **Google Agent Development Kit (ADK)**: Provides the core logic for individual agents, including LLM interaction, tool execution, and state management
 
-For detailed information about each component, see [Components](../components/components.md).
-
 ## Architectural Principles
 
 The design of Solace Agent Mesh is founded on several key architectural principles:
@@ -22,7 +20,7 @@ The design of Solace Agent Mesh is founded on several key architectural principl
 
 ## System Components
 
-The architecture diagram below illustrates how the various components of Solace Agent Mesh interact through the Solace Event Broker. External systems connect through gateways, which translate requests into the A2A protocol. Agent hosts run individual agents that can communicate with each other and access backend services like LLMs and databases.
+The architecture comprises several distinct types of components that interact through the Solace Event Broker. External systems connect through gateways, which translate requests into the A2A protocol, while agent hosts run individual agents that can communicate with each other and access backend services like LLMs and databases. For detailed information about each component, see [Components](../components/components.md). The architecture diagram below illustrates how these components work together.
 
 ```mermaid
 graph TB
