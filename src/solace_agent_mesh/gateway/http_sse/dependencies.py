@@ -511,29 +511,6 @@ def get_session_business_service(
     return SessionService(component=component)
 
 
-@contextmanager
-def create_full_session_service_with_transaction():
-    """Create full SessionService with business logic and its own transaction for non-HTTP contexts."""
-    if SessionLocal is None:
-        raise RuntimeError("Database not configured")
-
-    db = SessionLocal()
-    try:
-        # Get the component instance to pass to SessionService
-        component = sac_component_instance
-
-        # SessionService only needs the component - it creates repos internally
-        session_service = SessionService(component=component)
-
-        yield session_service, db
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
-
-
 def get_session_validator(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> Callable[[str, str], bool]:

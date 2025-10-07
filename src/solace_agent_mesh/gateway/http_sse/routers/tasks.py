@@ -148,52 +148,6 @@ async def _submit_task(
             "%sUsing ClientID: %s, SessionID: %s", log_prefix, client_id, session_id
         )
 
-        # Store message in persistence layer if available
-        user_id = user_identity.get("id")
-        from ....gateway.http_sse.dependencies import SessionLocal
-
-        if is_streaming and SessionLocal is not None:
-            try:
-                from ....gateway.http_sse.dependencies import (
-                    create_full_session_service_with_transaction,
-                )
-                from ....gateway.http_sse.shared.enums import SenderType
-
-                # Use the full SessionService with business logic via context manager
-                with create_full_session_service_with_transaction() as (
-                    session_service,
-                    db,
-                ):
-                    message_text = ""
-                    if payload.params and payload.params.message:
-                        parts = a2a.get_parts_from_message(payload.params.message)
-                        for part in parts:
-                            if hasattr(part, "text"):
-                                message_text = part.text
-                                break
-
-                    # Store the actual message text, even if empty
-                    # The session service will validate and handle empty messages
-                    session_service.add_message_to_session(
-                        db=db,
-                        session_id=session_id,
-                        user_id=user_id,
-                        message=message_text if message_text else "",
-                        sender_type=SenderType.USER,
-                        sender_name=user_id or "user",
-                        agent_id=agent_name,
-                    )
-
-            except Exception as e:
-                log.error(
-                    "%sFailed to store message in session service: %s", log_prefix, e
-                )
-        else:
-            log.debug(
-                "%sNo persistence available or non-streaming - skipping message storage",
-                log_prefix,
-            )
-
         # Use the helper to get the unwrapped parts from the incoming message.
         a2a_parts = a2a.get_parts_from_message(payload.params.message)
 
