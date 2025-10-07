@@ -26,7 +26,7 @@ The configuration system uses YAML anchors (`&anchor_name`) to create reusable c
 
 ## Configuration Structure
 
-### Example Configuration File
+The following example shows the structure of the configuration file:
 
 ```yaml
 shared_config:
