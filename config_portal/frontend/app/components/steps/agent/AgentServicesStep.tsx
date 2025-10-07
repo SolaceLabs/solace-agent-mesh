@@ -140,9 +140,9 @@ const AgentServicesStep: React.FC<StepProps> = ({
           onChange={handleServiceTypeChange}
           options={sessionServiceTypeOptions}
         />
-      </FormField> */ }
+      </FormField> 
       
-      { /* {showSessionSpecificConfig && (
+      {showSessionSpecificConfig && (
         <FormField
           label="Session Service Behavior"
           htmlFor="session_service_behavior"

@@ -84,14 +84,15 @@ def create_orchestrator_config(
         is_bool=True,
     )
 
-    options["use_orchestrator_db"] = ask_if_not_provided(
-        options,
-        "use_orchestrator_db",
-        "Use default orchestrator database? (true/false)",
-        ORCHESTRATOR_DEFAULTS["use_orchestrator_db"],
-        skip_interactive,
-        is_bool=True,
-    )
+    options["use_orchestrator_db"] = ORCHESTRATOR_DEFAULTS["use_orchestrator_db"]
+    # options["use_orchestrator_db"] = ask_if_not_provided(
+    #     options,
+    #     "use_orchestrator_db",
+    #     "Use default orchestrator database? (true/false)",
+    #     ORCHESTRATOR_DEFAULTS["use_orchestrator_db"],
+    #     skip_interactive,
+    #     is_bool=True,
+    # )
 
     artifact_type = ask_if_not_provided(
         options,
