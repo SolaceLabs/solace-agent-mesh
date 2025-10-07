@@ -149,8 +149,7 @@ async def _create_user_state_without_identity_service(user_identifier: str, emai
 async def _create_user_state_with_identity_service(identity_service, user_identifier: str, email_from_auth: str, display_name: str, user_info: dict) -> dict:
     lookup_value = email_from_auth if "@" in email_from_auth else user_identifier
     user_profile = await identity_service.get_user_profile(
-        {identity_service.lookup_key: lookup_value},
-        user_info=user_info
+        {identity_service.lookup_key: lookup_value, "user_info": user_info}
     )
 
     if not user_profile:
@@ -479,6 +478,12 @@ def _setup_routers() -> None:
     app.include_router(auth.router, prefix=api_prefix, tags=["Auth"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
+    # Register shared exception handlers from community repo
+    from .shared.exception_handlers import register_exception_handlers
+    register_exception_handlers(app)
+    log.info("Registered shared exception handlers from community repo")
+
+    # Mount enterprise routers if available
     try:
         from solace_agent_mesh_enterprise.webui_backend.routers import get_enterprise_routers
 
@@ -494,9 +499,9 @@ def _setup_routers() -> None:
     except ImportError:
         log.debug("No enterprise package detected - skipping enterprise routers")
     except ModuleNotFoundError:
-        log.debug("Enterprise router module not found - skipping enterprise routers")
+        log.debug("Enterprise module not found - skipping enterprise routers and exception handlers")
     except Exception as e:
-        log.warning("Failed to load enterprise routers: %s", e)
+        log.warning("Failed to load enterprise routers and exception handlers: %s", e)
 
 
 def _setup_static_files() -> None:

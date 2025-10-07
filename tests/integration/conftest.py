@@ -61,7 +61,6 @@ def find_free_port() -> int:
         s.bind(("", 0))
         return s.getsockname()[1]
 
-
 @pytest.fixture(scope="session")
 def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
     """
@@ -86,10 +85,9 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
         }
         print("\nConfigured TestMCPServer for stdio mode (ADK will start process).")
 
-        # Start HTTP server
+        # Start SSE HTTP server
         port = find_free_port()
         base_url = f"http://127.0.0.1:{port}"
-        health_url = f"{base_url}/health"
         sse_url = f"{base_url}/sse"  # The default path for fastmcp sse transport
         command = [
             sys.executable,
@@ -102,7 +100,26 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
         process = subprocess.Popen(
             command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-        print(f"\nStarted TestMCPServer in http mode (PID: {process.pid})...")
+        print(f"\nStarted TestMCPServer in sse mode (PID: {process.pid})...")
+
+        # Start Streamable-http server
+        port = find_free_port()
+        base_url = f"http://127.0.0.1:{port}"
+        http_url = f"{base_url}/mcp"
+        health_url = f"{base_url}/health"
+
+        command = [
+            sys.executable,
+            SERVER_PATH,
+            "--transport",
+            "http",
+            "--port",
+            str(port),
+        ]
+        process2 = subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        print(f"\nStarted TestMCPServer in streamable-http mode (PID: {process2.pid})...")
 
         # Readiness check by polling the /health endpoint
         max_wait_seconds = 10
@@ -128,13 +145,18 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
             "url": sse_url,
         }
 
-        connection_params = {"stdio": stdio_params, "http": http_params}
+        streamable_params = {
+            "type": "streamable-http",
+            "url": http_url,
+        }
+
+        connection_params = {"stdio": stdio_params, "http": http_params, "streamable_http": streamable_params}
 
         yield connection_params
 
     finally:
         if process:
-            print(f"\nTerminating TestMCPServer (PID: {process.pid})...")
+            print(f"\nTerminating http TestMCPServer (PID: {process.pid})...")
             process.terminate()
             try:
                 stdout, stderr = process.communicate(timeout=5)
@@ -149,9 +171,28 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
             except subprocess.TimeoutExpired:
                 process.kill()
                 print(
-                    "\nTestMCPServer process did not terminate gracefully, had to be killed."
+                    "\nHttp TestMCPServer process did not terminate gracefully, had to be killed."
                 )
-            print("TestMCPServer terminated.")
+            print("TestMCPServer (http) terminated.")
+        if process2:
+            print(f"\nTerminating streamable-http TestMCPServer (PID: {process2.pid})...")
+            process2.terminate()
+            try:
+                stdout, stderr = process2.communicate(timeout=5)
+                if stdout:
+                    print(
+                        f"\n--- TestMCPServer STDOUT ---\n{stdout.decode('utf-8', 'ignore')}"
+                    )
+                if stderr:
+                    print(
+                        f"\n--- TestMCPServer STDERR ---\n{stderr.decode('utf-8', 'ignore')}"
+                    )
+            except subprocess.TimeoutExpired:
+                process2.kill()
+                print(
+                    "\nStreamable-http TestMCPServer process did not terminate gracefully, had to be killed."
+                )
+            print("TestMCPServer (streamable-http) terminated.")
 
         print(
             "\nNo external TestMCPServer process to terminate for stdio mode (ADK manages process)."
@@ -444,6 +485,11 @@ def shared_solace_connector(
             "tool_name": "get_data_http",
             "connection_params": mcp_server_harness["http"],
         },
+        {
+            "tool_type": "mcp",
+            "tool_name": "get_data_streamable_http",
+            "connection_params": mcp_server_harness["streamable_http"],
+        }
     ]
     sam_agent_app_config = create_agent_config(
         agent_name="TestAgent",

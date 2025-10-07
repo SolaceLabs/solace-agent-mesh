@@ -14,7 +14,9 @@ from fastapi import (
     Path,
     UploadFile,
     status,
+    Request as FastAPIRequest,
 )
+from pydantic import BaseModel, Field
 from fastapi.responses import Response, StreamingResponse
 
 try:
@@ -46,10 +48,17 @@ from ..dependencies import (
     get_shared_artifact_service,
     get_user_config,
     get_user_id,
+    get_session_manager,
+    get_session_business_service_optional,
+    get_db_optional,
 )
 
 if TYPE_CHECKING:
     from ....gateway.http_sse.component import WebUIBackendComponent
+
+from ..session_manager import SessionManager
+from ..services.session_service import SessionService
+from sqlalchemy.orm import Session
 
 from ....agent.utils.artifact_helpers import (
     DEFAULT_SCHEMA_MAX_KEYS,
@@ -59,7 +68,189 @@ from ....agent.utils.artifact_helpers import (
     save_artifact_with_metadata,
 )
 
+
+class ArtifactUploadResponse(BaseModel):
+    """Response model for artifact upload with camelCase fields."""
+    uri: str
+    session_id: str = Field(..., alias="sessionId")
+    filename: str
+    size: int
+    mime_type: str = Field(..., alias="mimeType")
+    metadata: dict[str, Any]
+    created_at: str = Field(..., alias="createdAt")
+
+    model_config = {"populate_by_name": True}
+
+
 router = APIRouter()
+
+
+@router.post(
+    "/upload",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ArtifactUploadResponse,
+    summary="Upload Artifact (Body-Based Session Management)",
+    description="Uploads file with sessionId and filename in request body. Creates session if sessionId is null/empty.",
+)
+async def upload_artifact_with_session(
+    request: FastAPIRequest,
+    upload_file: UploadFile = File(..., description="The file content to upload"),
+    sessionId: str | None = Form(None, description="Session ID (null/empty to create new session)", alias="sessionId"),
+    filename: str = Form(..., description="The name of the artifact to create/update"),
+    metadata_json: str | None = Form(
+        None, description="JSON string of artifact metadata (e.g., description, source)"
+    ),
+    artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
+    user_id: str = Depends(get_user_id),
+    validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:create"])),
+    session_manager: SessionManager = Depends(get_session_manager),
+    session_service: SessionService | None = Depends(get_session_business_service_optional),
+    db: Session | None = Depends(get_db_optional),
+):
+    """
+    Uploads a file to create a new version of the specified artifact.
+
+    Key features:
+    - Session ID and filename provided in request body (not URL)
+    - Automatically creates new session if session_id is null/empty
+    - Consistent with chat API patterns
+    """
+    log_prefix = f"[POST /artifacts/upload] User {user_id}: "
+
+    # Handle session creation logic (matching chat API pattern)
+    effective_session_id = None
+
+    # Use session ID from request body (matching sessionId pattern in session APIs)
+    if sessionId and sessionId.strip():
+        effective_session_id = sessionId.strip()
+        log.info("%sUsing existing session: %s", log_prefix, effective_session_id)
+    else:
+        # Create new session when no sessionId provided (like chat does for new conversations)
+        effective_session_id = session_manager.create_new_session_id(request)
+        log.info("%sCreated new session for file upload: %s", log_prefix, effective_session_id)
+
+        # Persist session in database if persistence is available (matching chat pattern)
+        if session_service and db:
+            try:
+                session_service.create_session(
+                    db=db,
+                    user_id=user_id,
+                    session_id=effective_session_id,
+                    agent_id=None,  # Will be determined when first message is sent
+                    name=None,      # Will be set when first message is sent
+                )
+                db.commit()
+                log.info("%sSession created and committed to database: %s", log_prefix, effective_session_id)
+            except Exception as session_error:
+                db.rollback()
+                log.warning("%sSession persistence failed, continuing with in-memory session: %s",
+                           log_prefix, session_error)
+        else:
+            log.debug("%sNo persistence available - using in-memory session: %s",
+                     log_prefix, effective_session_id)
+
+    # Validate inputs
+    if not filename or not filename.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Filename is required.",
+        )
+
+    if not upload_file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File upload is required.",
+        )
+
+    # Validate artifact service availability
+    if not artifact_service:
+        log.error("%sArtifact service is not configured.", log_prefix)
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Artifact service is not configured.",
+        )
+
+    # Validate session (now that we have an effective_session_id)
+    if not validate_session(effective_session_id, user_id):
+        log.warning("%sSession validation failed for session: %s", log_prefix, effective_session_id)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid session or insufficient permissions.",
+        )
+
+    log.info("%sUploading file '%s' to session '%s'", log_prefix, filename.strip(), effective_session_id)
+
+    try:
+        # Read and validate file content
+        content_bytes = await upload_file.read()
+        if not content_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File is empty.",
+            )
+
+        mime_type = upload_file.content_type or "application/octet-stream"
+        filename_clean = filename.strip()
+
+        log.debug("%sProcessing file: %s (%d bytes, %s)", log_prefix, filename_clean, len(content_bytes), mime_type)
+
+        # Parse and validate metadata
+        metadata = {}
+        if metadata_json and metadata_json.strip():
+            try:
+                metadata = json.loads(metadata_json.strip())
+                if not isinstance(metadata, dict):
+                    raise ValueError("Metadata must be a JSON object")
+            except (json.JSONDecodeError, ValueError) as e:
+                log.warning("%sInvalid metadata JSON: %s", log_prefix, e)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid JSON in metadata field: {str(e)}",
+                )
+
+        app_name = component.get_config("name", "A2A_WebUI_App")
+
+        # Store the artifact using the service
+        artifact_uri = await artifact_service.store(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=effective_session_id,
+            filename=filename_clean,
+            content_bytes=content_bytes,
+            mime_type=mime_type,
+            metadata=metadata,
+        )
+
+        log.info("%sArtifact stored successfully: %s (%d bytes)", log_prefix, artifact_uri, len(content_bytes))
+
+        # Return standardized response using Pydantic model (ensures camelCase conversion)
+        return ArtifactUploadResponse(
+            uri=artifact_uri,
+            session_id=effective_session_id,  # Will be returned as "sessionId" due to alias
+            filename=filename_clean,
+            size=len(content_bytes),
+            mime_type=mime_type,  # Will be returned as "mimeType" due to alias
+            metadata=metadata,
+            created_at=datetime.now(timezone.utc).isoformat(),  # Will be returned as "createdAt" due to alias
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        log.exception("%sUnexpected error storing artifact: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to store artifact due to an internal error.",
+        )
+    finally:
+        # Ensure file is properly closed
+        try:
+            await upload_file.close()
+        except Exception as close_error:
+            log.warning("%sError closing upload file: %s", log_prefix, close_error)
 
 
 @router.get(
