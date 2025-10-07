@@ -294,7 +294,7 @@ def _write_agent_yaml_from_data(
         for placeholder, value in replacements.items():
             modified_content = modified_content.replace(placeholder, str(value))
         if config_options.get(DATABASE_URL_KEY):
-            env_key = f"{formatted_names['SNAKE_UPPER_CASE_NAME']}_DATABASE_URL"
+            env_key = f"{formatted_names['SNAKE_UPPER_CASE_NAME']}"
             if config_options[DATABASE_URL_KEY] == "default_agent_db":
                 db_file = project_root / "data" / f"{formatted_names['SNAKE_CASE_NAME']}.db"
                 config_options[DATABASE_URL_KEY] = f"sqlite:///{db_file.resolve()}"
@@ -382,6 +382,8 @@ def create_agent_config(
         default_instruction,
         skip_interactive,
     )
+
+    collected_options["session_service_type"] = "sql"
 
     if DATABASE_URL_KEY not in collected_options:
         use_own_db = False

@@ -31,10 +31,11 @@ def create_webui_gateway_config(
 
     add_gateway = options.get("add_webui_gateway")
     if not skip_interactive and add_gateway is None:
-        add_gateway = ask_yes_no_question(
-            "Do you want to add a default Web UI gateway?",
-            default=default_values.get("add_webui_gateway", True),
-        )
+        add_gateway = default_values.get("add_webui_gateway", True)
+        #add_gateway = ask_yes_no_question(
+        #    "Do you want to add a default Web UI gateway?",
+        #    default=default_values.get("add_webui_gateway", True),
+        #)
     elif add_gateway is None:
         add_gateway = default_values.get("add_webui_gateway", True)
 

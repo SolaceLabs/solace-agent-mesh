@@ -306,11 +306,12 @@ export default function OrchestratorSetup({
             />
           </FormField>
           
+          { /*
           <div className="col-span-2 mt-4">
             <h3 className="text-lg font-medium text-gray-900 mb-2">Session Service</h3>
           </div>
           
-          { /* <FormField
+           <FormField
             label="Session Service Type" 
             htmlFor="session_service_type"
             required
@@ -321,7 +322,7 @@ export default function OrchestratorSetup({
               value={sessionServiceType}
               onChange={handleSessionServiceTypeChange}
             />
-          </FormField> */ }
+          </FormField> 
 
           <FormField
             label="Orchestrator Database URL"
@@ -336,7 +337,7 @@ export default function OrchestratorSetup({
             />
           </FormField>
           
-          {/* <FormField
+           <FormField
             label="Session Behavior"
             htmlFor="session_behavior"
             required
