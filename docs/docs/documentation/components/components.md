@@ -3,24 +3,34 @@ title: Components
 sidebar_position: 200
 ---
 
-Solace Agent Mesh is built on event-driven architecture principles using the A2A (Agent-to-Agent) protocol, with all components communicating through a standardized protocol over the Solace broker. This architectural choice enables loose coupling between components, making the system highly flexible and scalable.
+Solace Agent Mesh provides a comprehensive set of components that work together to create a distributed AI agent ecosystem. Each component serves a specific purpose, from managing the command-line interface to orchestrating complex multi-agent workflows.
 
-Solace Agent Mesh integrates the Google Agent Development Kit (ADK) with a Solace event mesh to provide a "Universal A2A Agent Host" that enables distributed AI agent communication. Each component is designed to perform specific roles while working together seamlessly through the A2A protocol.
+This section introduces you to the key components and tools that make up the system. You'll find detailed documentation for each component, along with configuration examples and best practices for implementation.
 
-The key components that make up Solace Agent Mesh are:
+## Command Line Interface
 
-1. **Solace Event Broker or Event Mesh**: The central nervous system of the framework, facilitating A2A protocol communication between all components. [more 🔗](https://solace.com/products/event-broker/)
+The CLI provides the primary interface for managing your Solace Agent Mesh deployment. You can use it to start agents, configure gateways, monitor system health, and perform administrative tasks. The CLI simplifies complex operations and provides helpful feedback during development and deployment. For complete CLI documentation and command reference, see [CLI](./cli.md).
 
-2. **A2A Protocol & Agent Registry**: The standardized communication protocol that enables agent discovery, task delegation, and peer-to-peer communication.
+## Solace AI Connector
 
-3. **Orchestrator**: A specialized agent responsible for breaking down requests into tasks and managing the overall workflow. [more 🔗](./orchestrator.md)
+The Solace AI Connector (SAC) serves as the runtime foundation for all components in the mesh. It provides the infrastructure for hosting agents and gateways, managing their lifecycles, and facilitating communication through the event broker. SAC handles the low-level details of message routing, connection management, and service initialization, allowing you to focus on building agent logic. For detailed information about SAC architecture and configuration, see [Solace AI Connector](./solace-ai-connector.md).
 
-4. **Gateways**: The entry and exit points for the system, providing various interfaces (REST, HTTP SSE, webhooks, event mesh) that translate external requests into A2A protocol messages. [more 🔗](./gateways.md)
+## Agents
 
-5. **Agents**: ADK-powered processing units that communicate through the A2A protocol, each bringing specialized capabilities and tools. [more 🔗](./agents.md)
+Agents are the intelligent processing units that perform tasks within the mesh. Each agent combines the Google Agent Development Kit (ADK) with specialized instructions, LLM configurations, and toolsets to create focused AI capabilities. Agents can work independently or collaborate with other agents to solve complex problems. You can configure agents with different personalities, expertise areas, and access permissions to match your specific use cases. For comprehensive agent configuration and development guidance, see [Agents](./agents.md).
 
-6. **ADK Runtime**: The Google Agent Development Kit provides the core intelligence layer with tool execution, session management, and artifact handling capabilities.
+## Gateways
 
-8. **Built-in Tools**: Comprehensive tool ecosystem including artifact management, data analysis, web tools, and peer agent delegation capabilities.
+Gateways serve as the entry and exit points for your agent mesh, translating between external protocols and the internal A2A communication standard. Whether you need REST APIs, webhooks, WebSocket connections, or integrations with platforms like Slack, gateways handle the protocol conversion and session management. They also manage authentication and authorization, ensuring that user permissions are properly enforced throughout the system. For gateway development and configuration details, see [Gateways](./gateways.md).
 
-9.  **Real-time Monitoring and Debugging Component**: Enables real-time monitoring of system activities and provides interactive debugging capabilities for administrators. [more 🔗](../deploying/observability.md)
+## Orchestrator
+
+The orchestrator is a specialized agent that manages complex workflows by breaking down requests into smaller tasks and coordinating their execution across multiple agents. It understands dependencies between tasks, manages parallel execution, and aggregates results to provide comprehensive responses. The orchestrator is particularly valuable for scenarios that require multiple specialized agents to work together toward a common goal. For orchestrator configuration and workflow design patterns, see [Orchestrator](./orchestrator.md).
+
+## Plugins
+
+Plugins extend the capabilities of Solace Agent Mesh by providing custom tools, integrations, and functionality. You can develop plugins to connect with proprietary systems, add domain-specific tools, or integrate with external services that aren't covered by the built-in toolset. The plugin system provides a standardized way to package and distribute custom functionality across your organization. For plugin development guidelines and examples, see [Plugins](./plugins.md).
+
+## Built-in Tools
+
+Solace Agent Mesh includes a comprehensive set of built-in tools that provide essential capabilities for most AI agent scenarios. These tools handle common tasks like artifact management, data analysis, web interactions, and inter-agent communication. The built-in tools are designed to work seamlessly with the A2A protocol and provide consistent behavior across all agents in your mesh. For detailed documentation of available tools and their usage, see [Built-in Tools](./builtin-tools/builtin-tools.md).

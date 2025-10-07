@@ -3,12 +3,14 @@ title: Architecture Overview
 sidebar_position: 18
 ---
 
-Solace Agent Mesh is an event-driven framework for creating a distributed ecosystem of collaborative AI agents. The architecture is designed to decouple agent logic from communication and orchestration, enabling scalability, resilience, and modularity.
+Solace Agent Mesh is an event-driven framework that creates a distributed ecosystem of collaborative AI agents. The architecture decouples agent logic from communication and orchestration, enabling you to build scalable, resilient, and modular AI systems.
 
-It integrates three primary technologies:
-- **Solace Event Broker**: Provides the messaging fabric for all asynchronous communication, utilizing topic-based routing for the Agent-to-Agent (A2A) protocol.
-- **Solace AI Connector (SAC)**: Serves as the runtime environment for hosting and managing the lifecycle of all system components (Agents and Gateways).
-- **Google Agent Development Kit (ADK)**: Provides the core logic for individual agents, including LLM interaction, tool execution, and state management.
+The framework integrates three primary technologies:
+- **Solace Event Broker**: Provides the messaging fabric for all asynchronous communication, utilizing topic-based routing for the Agent-to-Agent (A2A) protocol
+- **Solace AI Connector (SAC)**: Serves as the runtime environment for hosting and managing the lifecycle of all system components
+- **Google Agent Development Kit (ADK)**: Provides the core logic for individual agents, including LLM interaction, tool execution, and state management
+
+For detailed information about each component, see [Components](../components/components.md).
 
 ## Architectural Principles
 
@@ -20,7 +22,7 @@ The design of Solace Agent Mesh is founded on several key architectural principl
 
 ## System Components
 
-The architecture comprises several distinct types of components that interact through the Solace broker.
+The architecture diagram below illustrates how the various components of Solace Agent Mesh interact through the Solace Event Broker. External systems connect through gateways, which translate requests into the A2A protocol. Agent hosts run individual agents that can communicate with each other and access backend services like LLMs and databases.
 
 ```mermaid
 graph TB
@@ -94,64 +96,59 @@ graph TB
 
 ### Solace Event Broker
 
-The broker is the central messaging fabric. It is responsible for routing all A2A protocol messages between components using a hierarchical topic structure. This enables patterns like request/reply, streaming updates, and publish/subscribe for discovery.
+The Solace Event Broker serves as the central messaging fabric that enables all communication within the agent mesh. It routes A2A protocol messages between components using a hierarchical topic structure, supporting patterns like request/reply, streaming updates, and publish/subscribe for agent discovery. For more information about the Solace Event Broker, see [Solace AI Connector](../components/solace-ai-connector.md).
 
 ### Gateways
 
-Gateways are SAC applications that act as bridges between external systems and the agent mesh. Their primary responsibilities are:
-- **Protocol Translation**: Convert external protocols (for example, HTTP, WebSockets, Slack RTM) into the standardized A2A protocol, and vice-versa.
-- **Authentication and Authorization**: Authenticate incoming requests and, using a pluggable `AuthorizationService`, retrieve the user's permission scopes.
-- **Session Management**: Manage external user sessions and map them to A2A task lifecycles.
-- **Response Handling**: Receive asynchronous A2A responses and status updates from agents and deliver them to the external client.
+Gateways are SAC applications that act as bridges between external systems and the agent mesh. They handle protocol translation, converting external protocols (such as HTTP, WebSockets, or Slack RTM) into the standardized A2A protocol and vice versa. Gateways also manage authentication and authorization, authenticate incoming requests, and use a pluggable AuthorizationService to retrieve user permission scopes. Additionally, they manage external user sessions and map them to A2A task lifecycles, while handling asynchronous responses and status updates from agents.
 
-The **Gateway Development Kit (GDK)** provides `BaseGatewayApp` and `BaseGatewayComponent` classes to abstract common gateway logic, such as A2A protocol handling, agent discovery, and late-stage embed resolution, simplifying the creation of new gateways.
+The Gateway Development Kit (GDK) provides BaseGatewayApp and BaseGatewayComponent classes that abstract common gateway logic, including A2A protocol handling, agent discovery, and late-stage embed resolution. For more information about gateways, see [Gateways](../components/gateways.md).
 
-### Agent Hosts
+### Agent Hosts and Agents
 
-An Agent Host is a SAC application (`SamAgentApp`) that hosts a single ADK-based agent. Its key architectural functions include:
-- **Hosting the ADK Runtime**: It manages the lifecycle of the ADK `Runner` and `LlmAgent`.
-- **A2A Protocol Handling**: The internal `SamAgentComponent` translates incoming A2A requests into ADK `Task` objects and converts ADK `Event` objects into outgoing A2A `TaskStatusUpdateEvent`, `TaskArtifactUpdateEvent`, or final response messages.
-- **Scope Enforcement**: It extracts permission scopes from incoming message properties and filters the agent's available tools accordingly.
-- **Service Initialization**: It initializes ADK services like the `ArtifactService` and `MemoryService` based on its configuration.
+An Agent Host is a SAC application (SamAgentApp) that hosts a single ADK-based agent. It manages the lifecycle of the ADK Runner and LlmAgent, handles A2A protocol translation between incoming requests and ADK Task objects, enforces permission scopes by filtering available tools, and initializes ADK services like the ArtifactService and MemoryService.
 
-### Agents
-
-An agent is the logical entity within an Agent Host that performs tasks. It is defined by its configuration, which includes:
-- **Instructions**: The base prompt that defines its persona, capabilities, and constraints.
-- **LLM Configuration**: The specific large language model to use.
-- **Toolset**: A collection of available tools, which can be built-in, custom Python functions, or MCP Toolsets.
+An agent is the logical entity within an Agent Host that performs tasks. Each agent is defined by its configuration, which includes instructions that define its persona and capabilities, LLM configuration specifying which large language model to use, and a toolset containing built-in tools, custom Python functions, or MCP Toolsets. For more information about agents, see [Agents](../components/agents.md).
 
 ## Key Architectural Flows
 
+Understanding how data flows through the system helps clarify the relationships between components and the role of the event-driven architecture.
+
 ### User Task Processing Flow
 
-1.  An external client sends a request to a **Gateway**.
-2.  The Gateway authenticates the request, retrieves the user's permission scopes via its `AuthorizationService`, and translates the request into an A2A task message. It includes the scopes in the Solace message's user properties.
-3.  The Gateway publishes the message to the target agent's request topic on the **Solace Broker**.
-4.  The corresponding **Agent Host** receives the message. The `SamAgentComponent` extracts the scopes and initiates an ADK task.
-5.  The ADK `LlmAgent` processes the task. Before invoking the LLM, a `before_model_callback` filters the available tools based on the user's scopes.
-6.  As the agent executes, the `SamAgentComponent` translates ADK events into A2A status and artifact update messages, publishing them to the originating Gateway's status topic.
-7.  The Gateway receives these streaming updates, performs any necessary late-stage processing (like resolving `artifact_content` embeds), and forwards them to the client.
-8.  Upon completion, the Agent Host sends a final A2A response message to the Gateway, which delivers it to the client.
+When you submit a request through any gateway, the system processes it through several stages:
+
+1. An external client sends a request to a gateway
+2. The gateway authenticates the request, retrieves your permission scopes via its AuthorizationService, and translates the request into an A2A task message, including the scopes in the Solace message's user properties
+3. The gateway publishes the message to the target agent's request topic on the Solace Broker
+4. The corresponding Agent Host receives the message, with the SamAgentComponent extracting the scopes and initiating an ADK task
+5. The ADK LlmAgent processes the task, with a before_model_callback filtering the available tools based on your scopes before invoking the LLM
+6. As the agent executes, the SamAgentComponent translates ADK events into A2A status and artifact update messages, publishing them to the originating gateway's status topic
+7. The gateway receives these streaming updates, performs any necessary late-stage processing (such as resolving artifact_content embeds), and forwards them to you
+8. Upon completion, the Agent Host sends a final A2A response message to the gateway, which delivers it to you
 
 ### Agent-to-Agent Delegation Flow
 
-1.  **Agent A**, while processing a task, determines a sub-task should be delegated to **Agent B**.
-2.  Agent A uses its `PeerAgentTool` to construct a new A2A task request for Agent B. It propagates the original user's permission scopes to maintain the security context.
-3.  The request is published to Agent B's request topic.
-4.  **Agent B's Host** receives and processes the sub-task, enforcing the propagated scopes on its own toolset.
-5.  Agent B sends status updates and a final response to topics designated by Agent A.
-6.  Agent A receives the results and incorporates them into its ongoing task.
+Agents can delegate subtasks to other agents while maintaining security context:
+
+1. Agent A, while processing a task, determines that a subtask should be delegated to Agent B
+2. Agent A uses its PeerAgentTool to construct a new A2A task request for Agent B, propagating the original user's permission scopes to maintain the security context
+3. The request is published to Agent B's request topic
+4. Agent B's Host receives and processes the subtask, enforcing the propagated scopes on its own toolset
+5. Agent B sends status updates and a final response to topics designated by Agent A
+6. Agent A receives the results and incorporates them into its ongoing task
 
 ### Agent Discovery Flow
 
-1.  On startup and periodically, each **Agent Host** publishes an `AgentCard` (a JSON document describing its agent's capabilities) to a well-known discovery topic (for example, `{namespace}/a2a/v1/discovery/agentcards`).
-2.  **Gateways** and other **Agent Hosts** subscribe to this topic.
-3.  Upon receiving an `AgentCard`, components update their local `AgentRegistry`, making them aware of available agents for user selection (at the Gateway) or peer delegation (at the Agent).
+The system automatically discovers available agents through a publish-subscribe mechanism:
+
+1. On startup and periodically, each Agent Host publishes an AgentCard (a JSON document describing its agent's capabilities) to a well-known discovery topic
+2. Gateways and other Agent Hosts subscribe to this topic
+3. Upon receiving an AgentCard, components update their local AgentRegistry, making them aware of available agents for user selection (at gateways) or peer delegation (at agents)
 
 ## A2A Protocol and Topic Structure
 
-The A2A protocol is based on JSON-RPC 2.0 and defines the message formats for all interactions. Communication is routed via a hierarchical topic structure on the Solace broker.
+The A2A protocol is based on JSON-RPC 2.0 and defines the message formats for all interactions between components. Communication is routed via a hierarchical topic structure on the Solace broker, which allows for precise, point-to-point routing in a decoupled, asynchronous environment.
 
 | Purpose                  | Topic Pattern                                                    |
 | ------------------------ | ---------------------------------------------------------------- |
@@ -162,4 +159,4 @@ The A2A protocol is based on JSON-RPC 2.0 and defines the message formats for al
 | **Peer Delegation Status** | `{namespace}/a2a/v1/agent/status/{delegating_agent_name}/{sub_task_id}` |
 | **Peer Delegation Response** | `{namespace}/a2a/v1/agent/response/{delegating_agent_name}/{sub_task_id}`|
 
-This topic structure allows for precise, point-to-point routing in a decoupled, asynchronous environment.
+For more information about the CLI tools that help you work with these components, see [CLI](../components/cli.md). To learn about extending the system with custom functionality, see [Plugins](../components/plugins.md).
