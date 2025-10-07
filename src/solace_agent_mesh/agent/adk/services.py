@@ -294,9 +294,13 @@ def initialize_artifact_service(component) -> BaseArtifactService:
 
             # Set credentials from environment variables as a fallback.
             if "aws_access_key_id" not in s3_config:
-                s3_config["aws_access_key_id"] = os.environ.get("AWS_ACCESS_KEY_ID")
+                env_access_key = os.environ.get("AWS_ACCESS_KEY_ID")
+                if env_access_key is not None:
+                    s3_config["aws_access_key_id"] = env_access_key
             if "aws_secret_access_key" not in s3_config:
-                s3_config["aws_secret_access_key"] = os.environ.get("AWS_SECRET_ACCESS_KEY")
+                env_secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+                if env_secret_key is not None:
+                    s3_config["aws_secret_access_key"] = env_secret_key
 
             # Filter out any keys that ended up with a None value.
             s3_config_cleaned = {k: v for k, v in s3_config.items() if v is not None}
