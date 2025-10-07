@@ -8,7 +8,7 @@ sidebar_position: 16
 Get started quickly with Solace Agent Mesh (SAM) using our pre-configured Docker image. This approach lets you explore SAM's capabilities without setting up a complete project.
 
 :::warning
-This setup uses in-memory queues instead of a real message broker, making it suitable only for experimentation and small-scale development. It is not suitable for production environments, large projects, or CI/CD pipelines.
+This setup uses in-memory queues instead of a real Solace event broker, making it suitable only for experimentation and small-scale development. It is not suitable for production environments, large projects, or CI/CD pipelines.
 :::
 
 ## Prerequisites
