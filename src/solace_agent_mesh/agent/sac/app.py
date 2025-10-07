@@ -23,7 +23,7 @@ from ...common.a2a import (
     get_agent_status_subscription_topic,
     get_sam_events_subscription_topic,
 )
-from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
+from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT, HEALTH_CHECK_TTL_SECONDS, HEALTH_CHECK_INTERVAL_SECONDS
 from ...agent.sac.component import SamAgentComponent
 from ...agent.utils.artifact_helpers import DEFAULT_SCHEMA_MAX_KEYS
 from ...common.utils.pydantic_utils import SamConfigBase
@@ -77,14 +77,11 @@ class AgentDiscoveryConfig(SamConfigBase):
     enabled: bool = Field(
         default=True, description="Enable discovery and instruction injection."
     )
-    health_check_enabled: bool = Field(
-        default=True, description="Enable health checking for discovered agents."
-    )
     health_check_ttl_seconds: int = Field(
-        default=30, description="Time-to-live in seconds after which an unresponsive agent is de-registered."
+        default=HEALTH_CHECK_TTL_SECONDS, description="Time-to-live in seconds after which an unresponsive agent is de-registered."
     )
     health_check_interval_seconds: int = Field(
-        default=60, description="Interval in seconds between health checks."
+        default=HEALTH_CHECK_INTERVAL_SECONDS, description="Interval in seconds between health checks."
     )
 
 

@@ -141,8 +141,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
         )
         
         # Set up health check timer for agent registry
+        from ...common.constants import HEALTH_CHECK_INTERVAL_SECONDS
         self.health_check_timer_id = f"agent_health_check_{self.gateway_id}"
-        health_check_interval_seconds = self.get_config("agent_health_check_interval_seconds", 10)
+        health_check_interval_seconds = self.get_config("agent_health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS)
         if health_check_interval_seconds > 0:
             log.info(
                 "%s Scheduling agent health check every %d seconds.",
@@ -1403,10 +1404,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
         log.debug("%s Performing agent health check...", self.log_identifier)
         
         # Get TTL from configuration or use default from constants
-        from ...common.constants import DEFAULT_AGENT_TTL
-        ttl_seconds = self.get_config("agent_health_check_ttl_seconds", DEFAULT_AGENT_TTL)
-        health_check_interval = self.get_config("agent_health_check_interval_seconds", 10)
-        
+        from ...common.constants import HEALTH_CHECK_TTL_SECONDS, HEALTH_CHECK_INTERVAL_SECONDS
+        ttl_seconds = self.get_config("agent_health_check_ttl_seconds", HEALTH_CHECK_TTL_SECONDS)
+        health_check_interval = self.get_config("agent_health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS)
+
         log.debug(
             "%s Health check configuration: interval=%d seconds, TTL=%d seconds",
             self.log_identifier,

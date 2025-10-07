@@ -7,11 +7,8 @@ import asyncio
 import functools
 import threading
 import concurrent.futures
-import uuid
 import fnmatch
-import base64
 import time
-from datetime import datetime, timezone
 import json
 from solace_ai_connector.common.message import (
     Message as SolaceMessage,
@@ -74,7 +71,7 @@ from ...agent.tools.peer_agent_tool import (
 )
 from ...agent.adk.invocation_monitor import InvocationMonitor
 from ...common.middleware.registry import MiddlewareRegistry
-from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
+from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT, HEALTH_CHECK_TTL_SECONDS, HEALTH_CHECK_INTERVAL_SECONDS
 from ...agent.tools.registry import tool_registry
 from ...common.sac.sam_component_base import SamComponentBase
 
@@ -430,7 +427,7 @@ class SamAgentComponent(SamComponentBase):
                 )
                 
             # Set up health check timer if enabled
-            health_check_interval_seconds = self.agent_discovery_config.get("health_check_interval_seconds", 10)
+            health_check_interval_seconds = self.agent_discovery_config.get("health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS)
             if health_check_interval_seconds > 0:
                 log.info(
                     "%s Scheduling agent health check every %d seconds.",
@@ -3159,10 +3156,8 @@ class SamAgentComponent(SamComponentBase):
             
         log.debug("%s Performing agent health check...", self.log_identifier)
         
-        # Get TTL from configuration or use default from constants
-        from ...common.constants import DEFAULT_AGENT_TTL
-        ttl_seconds = self.agent_discovery_config.get("health_check_ttl_seconds", DEFAULT_AGENT_TTL)
-        health_check_interval = self.agent_discovery_config.get("health_check_interval_seconds", 5)
+        ttl_seconds = self.agent_discovery_config.get("health_check_ttl_seconds", HEALTH_CHECK_TTL_SECONDS)
+        health_check_interval = self.agent_discovery_config.get("health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS)
         
         log.debug(
             "%s Health check configuration: interval=%d seconds, TTL=%d seconds",

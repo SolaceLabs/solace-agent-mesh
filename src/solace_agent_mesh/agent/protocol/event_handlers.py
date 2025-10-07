@@ -4,7 +4,6 @@ Contains event handling logic for the A2A_ADK_HostComponent.
 
 import json
 import asyncio
-import time
 from typing import TYPE_CHECKING, Dict, Any
 import fnmatch
 from solace_ai_connector.common.log import log
@@ -810,11 +809,12 @@ def handle_agent_card_message(component, message: SolaceMessage):
                     break
 
         if is_allowed:
-            # Store the agent card in the registry for health tracking
-            is_new = component.agent_registry.add_or_update_agent(agent_card)
             
             # Also store in peer_agents for backward compatibility
             component.peer_agents[agent_name] = agent_card
+
+            # Store the agent card in the registry for health tracking
+            is_new = component.agent_registry.add_or_update_agent(agent_card)
             
             if is_new:
                 log.info(
