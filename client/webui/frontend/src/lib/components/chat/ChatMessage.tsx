@@ -1,14 +1,9 @@
 import React, { useState } from "react";
 import type { ReactNode } from "react";
 
-import { AlertCircle, FileText, ThumbsDown, ThumbsUp } from "lucide-react";
+import { AlertCircle, ThumbsDown, ThumbsUp } from "lucide-react";
 
-import {
-    ChatBubble,
-    ChatBubbleMessage,
-    MarkdownHTMLConverter,
-    MessageBanner,
-} from "@/lib/components";
+import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner } from "@/lib/components";
 import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
@@ -73,40 +68,17 @@ const MessageActions: React.FC<{
                     {showWorkflowButton && <ViewWorkflowButton onClick={handleViewWorkflowClick} />}
                     {shouldShowFeedback && (
                         <div className="flex items-center gap-1">
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className={`h-6 w-6 ${submittedFeedbackType ? "!opacity-100" : ""}`}
-                                onClick={() => handleThumbClick("up")}
-                                disabled={!!submittedFeedbackType}
-                            >
-                                <ThumbsUp
-                                    className={`h-4 w-4 ${submittedFeedbackType === "up" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] !opacity-100" : ""}`}
-                                />
+                            <Button variant="ghost" size="icon" className={`h-6 w-6 ${submittedFeedbackType ? "!opacity-100" : ""}`} onClick={() => handleThumbClick("up")} disabled={!!submittedFeedbackType}>
+                                <ThumbsUp className={`h-4 w-4 ${submittedFeedbackType === "up" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] !opacity-100" : ""}`} />
                             </Button>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className={`h-6 w-6 ${submittedFeedbackType ? "!opacity-100" : ""}`}
-                                onClick={() => handleThumbClick("down")}
-                                disabled={!!submittedFeedbackType}
-                            >
-                                <ThumbsDown
-                                    className={`h-4 w-4 ${submittedFeedbackType === "down" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] opacity-100" : ""}`}
-                                />
+                            <Button variant="ghost" size="icon" className={`h-6 w-6 ${submittedFeedbackType ? "!opacity-100" : ""}`} onClick={() => handleThumbClick("down")} disabled={!!submittedFeedbackType}>
+                                <ThumbsDown className={`h-4 w-4 ${submittedFeedbackType === "down" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] opacity-100" : ""}`} />
                             </Button>
                         </div>
                     )}
                 </div>
             </div>
-            {feedbackType && (
-                <FeedbackModal
-                    isOpen={isFeedbackModalOpen}
-                    onClose={handleModalClose}
-                    feedbackType={feedbackType}
-                    onSubmit={handleModalSubmit}
-                />
-            )}
+            {feedbackType && <FeedbackModal isOpen={isFeedbackModalOpen} onClose={handleModalClose} feedbackType={feedbackType} onSubmit={handleModalSubmit} />}
         </>
     );
 };
@@ -182,8 +154,6 @@ const getUploadedFiles = (message: MessageFE) => {
     return null;
 };
 
-
-
 const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean) => {
     console.log(`[ChatMessage] Rendering bubble for message:`, message);
     const { openSidePanelTab, setTaskIdInSidePanel } = chatContext;
@@ -243,25 +213,17 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
             } else if ("uri" in fileInfo && fileInfo.uri) {
                 attachment.uri = fileInfo.uri;
             }
-            return (
-                <ArtifactMessage key={`part-file-${index}`} status="completed" name={attachment.name} fileAttachment={attachment} />
-            );
+            return <ArtifactMessage key={`part-file-${index}`} status="completed" name={attachment.name} fileAttachment={attachment} />;
         }
         if (part.kind === "artifact") {
             const artifactPart = part as ArtifactPart;
             switch (artifactPart.status) {
                 case "completed":
-                    return (
-                        <ArtifactMessage key={`part-artifact-${index}`} status="completed" name={artifactPart.name} fileAttachment={artifactPart.file!} />
-                    );
+                    return <ArtifactMessage key={`part-artifact-${index}`} status="completed" name={artifactPart.name} fileAttachment={artifactPart.file!} />;
                 case "in-progress":
-                    return (
-                        <ArtifactMessage key={`part-artifact-${index}`} status="in-progress" name={artifactPart.name} bytesTransferred={artifactPart.bytesTransferred!} />
-                    );
+                    return <ArtifactMessage key={`part-artifact-${index}`} status="in-progress" name={artifactPart.name} bytesTransferred={artifactPart.bytesTransferred!} />;
                 case "failed":
-                    return (
-                        <ArtifactMessage key={`part-artifact-${index}`} status="failed" name={artifactPart.name} error={artifactPart.error} />
-                    );
+                    return <ArtifactMessage key={`part-artifact-${index}`} status="failed" name={artifactPart.name} error={artifactPart.error} />;
                 default:
                     return null;
             }
@@ -278,22 +240,14 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
             {/* Render parts in their original order to preserve interleaving */}
             {groupedParts.map((part, index) => {
                 if (part.kind === "text") {
-                    const isLastTextPart = index === groupedParts.length - 1 ||
-                        !groupedParts.slice(index + 1).some(p => p.kind === "text");
+                    const isLastTextPart = index === groupedParts.length - 1 || !groupedParts.slice(index + 1).some(p => p.kind === "text");
 
                     return (
                         <ChatBubble key={`part-${index}`} variant={variant}>
                             <ChatBubbleMessage variant={variant}>
                                 <MessageContent message={message} textContent={(part as TextPart).text} />
                                 {/* Show actions on the last text part */}
-                                {isLastTextPart && (
-                                    <MessageActions
-                                        message={message}
-                                        showWorkflowButton={showWorkflowButton}
-                                        showFeedbackActions={showFeedbackActions}
-                                        handleViewWorkflowClick={handleViewWorkflowClick}
-                                    />
-                                )}
+                                {isLastTextPart && <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} />}
                             </ChatBubbleMessage>
                         </ChatBubble>
                     );
@@ -306,12 +260,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
             {/* Show actions if no text content but artifacts are present */}
             {textParts.length === 0 && artifactParts.length > 0 && (
                 <div className="flex justify-end">
-                    <MessageActions
-                        message={message}
-                        showWorkflowButton={showWorkflowButton}
-                        showFeedbackActions={showFeedbackActions}
-                        handleViewWorkflowClick={handleViewWorkflowClick}
-                    />
+                    <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} />
                 </div>
             )}
         </div>

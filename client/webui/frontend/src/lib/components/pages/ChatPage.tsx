@@ -5,7 +5,6 @@ import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
 import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/chat";
-import type { TextPart } from "@/lib/types";
 import { Button, ChatMessageList, CHAT_STYLES } from "@/lib/components/ui";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 import { useChatContext, useTaskContext } from "@/lib/hooks";
@@ -36,7 +35,25 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
-    const { agents, sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, currentTaskId, sessionName } = useChatContext();
+    const {
+        agents,
+        sessionId,
+        messages,
+        setMessages,
+        selectedAgentName,
+        setSelectedAgentName,
+        isSidePanelCollapsed,
+        setIsSidePanelCollapsed,
+        openSidePanelTab,
+        setTaskIdInSidePanel,
+        isResponding,
+        latestStatusText,
+        sessionToDelete,
+        closeSessionDeleteModal,
+        confirmSessionDelete,
+        currentTaskId,
+        sessionName,
+    } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);

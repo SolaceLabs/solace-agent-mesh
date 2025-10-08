@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useChatContext, useArtifactRendering } from "@/lib/hooks";
-import type { FileAttachment, ArtifactPart, ArtifactInfo } from "@/lib/types";
+import type { FileAttachment } from "@/lib/types";
 import { authenticatedFetch } from "@/lib/utils/api";
 import { downloadFile, parseArtifactUri } from "@/lib/utils/download";
 import { generateFileTypePreview } from "./fileUtils";
@@ -11,6 +11,7 @@ import { MessageBanner } from "../../common";
 import { ContentRenderer } from "../preview/ContentRenderer";
 import { getFileContent, getRenderType } from "../preview/previewUtils";
 import { ArtifactBar } from "../artifact/ArtifactBar";
+import { Spinner } from "../../ui";
 
 type ArtifactMessageProps = (
     | {
@@ -38,7 +39,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     if (props.status === "in-progress") {
         console.log(`[ArtifactMessage] In-progress artifact - bytesTransferred: ${props.bytesTransferred}`);
     }
-    const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId, messages, openDeleteModal } = useChatContext();
+    const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId, openDeleteModal } = useChatContext();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [fetchedContent, setFetchedContent] = useState<string | null>(null);
@@ -52,11 +53,11 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const fileAttachment = props.status === "completed" ? props.fileAttachment : undefined;
     const fileName = fileAttachment?.name || props.name;
     const fileMimeType = fileAttachment?.mime_type;
-    
+
     // Use the artifact rendering hook to determine rendering behavior
     const { shouldRender, isExpandable, isExpanded, toggleExpanded } = useArtifactRendering({
         filename: fileName,
-        mimeType: fileMimeType
+        mimeType: fileMimeType,
     });
 
     // Check if this should auto-render (images and audio)
@@ -117,7 +118,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
             const fileUri = fileAttachment?.uri;
             const fileContent = fileAttachment?.content;
-            
+
             if (!fileUri || fileContent) {
                 return; // Already have content or no URI to fetch from
             }
@@ -179,7 +180,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             } catch (error) {
                 console.warn("Failed to generate content preview:", error);
                 // Return fallback preview
-                return `${fileName}\n${fileMimeType || 'Unknown type'}`;
+                return `${fileName}\n${fileMimeType || "Unknown type"}`;
             }
         }
         return undefined;
@@ -188,7 +189,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     // Prepare actions for the artifact bar
     const actions = useMemo(() => {
         if (props.status !== "completed") return undefined;
-        
+
         if (context === "list") {
             return {
                 onInfo: handleInfoClick,
@@ -207,11 +208,8 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick, handlePreviewClick, isExpandable, toggleExpanded]);
 
     // Get description from global artifacts instead of message parts
-    const artifactFromGlobal = useMemo(() => 
-        artifacts.find(art => art.filename === props.name), 
-        [artifacts, props.name]
-    );
-    
+    const artifactFromGlobal = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);
+
     const description = artifactFromGlobal?.description;
 
     // For rendering content, we need the actual content
@@ -220,11 +218,11 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
     // Prepare expanded content if we have content to render
     let expandedContent: React.ReactNode = null;
-    
+
     if (isLoading) {
         expandedContent = (
-            <div className="p-4 h-24 flex items-center justify-center bg-muted">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+            <div className="bg-muted flex h-25 items-center justify-center">
+                <Spinner />
             </div>
         );
     } else if (error) {
@@ -234,21 +232,16 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             const finalContent = getFileContent({ ...fileAttachment!, content: contentToRender });
             if (finalContent) {
                 expandedContent = (
-                    <div className="relative group max-w-full overflow-hidden">
+                    <div className="group relative max-w-full overflow-hidden">
                         {renderError && <MessageBanner variant="error" message={renderError} />}
-                        <div 
-                            style={{ 
-                                maxHeight: shouldRenderInline && !isImage ? "300px" : isImage ? "none" : "400px", 
-                                overflowY: isImage ? "visible" : "auto" 
+                        <div
+                            style={{
+                                maxHeight: shouldRenderInline && !isImage ? "300px" : isImage ? "none" : "400px",
+                                overflowY: isImage ? "visible" : "auto",
                             }}
                             className={isImage ? "drop-shadow-md" : ""}
                         >
-                            <ContentRenderer 
-                                content={finalContent} 
-                                rendererType={renderType} 
-                                mime_type={fileAttachment?.mime_type} 
-                                setRenderError={setRenderError} 
-                            />
+                            <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileAttachment?.mime_type} setRenderError={setRenderError} />
                         </div>
                     </div>
                 );
@@ -270,30 +263,30 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             <div className="space-y-2 text-sm">
                 {artifact.description && (
                     <div>
-                        <span className="font-medium">Description:</span>
-                        <div className="mt-1 text-gray-600 dark:text-gray-400">{artifact.description}</div>
+                        <span className="text-secondary-foreground">Description:</span>
+                        <div className="mt-1">{artifact.description}</div>
                     </div>
                 )}
                 <div className="grid grid-cols-2 gap-2">
                     <div>
-                        <span className="font-medium">Size:</span>
-                        <div className="text-gray-600 dark:text-gray-400">{formatBytes(artifact.size)}</div>
+                        <span className="text-secondary-foreground">Size:</span>
+                        <div>{formatBytes(artifact.size)}</div>
                     </div>
                     <div>
-                        <span className="font-medium">Modified:</span>
-                        <div className="text-gray-600 dark:text-gray-400">{formatRelativeTime(artifact.last_modified)}</div>
+                        <span className="text-secondary-foreground">Modified:</span>
+                        <div>{formatRelativeTime(artifact.last_modified)}</div>
                     </div>
                 </div>
                 {artifact.mime_type && (
                     <div>
-                        <span className="font-medium">Type:</span>
-                        <div className="text-gray-600 dark:text-gray-400">{artifact.mime_type}</div>
+                        <span className="text-secondary-foreground">Type:</span>
+                        <div>{artifact.mime_type}</div>
                     </div>
                 )}
                 {artifact.uri && (
                     <div>
-                        <span className="font-medium">URI:</span>
-                        <div className="text-gray-600 dark:text-gray-400 break-all text-xs">{artifact.uri}</div>
+                        <span className="text-secondary-foreground">URI:</span>
+                        <div className="text-xs break-all">{artifact.uri}</div>
                     </div>
                 )}
             </div>
@@ -304,25 +297,25 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const finalExpandedContent = useMemo(() => {
         const hasInfo = isInfoExpanded && infoContent;
         const hasContent = shouldShowContent && expandedContent;
-        
+
         if (hasInfo && hasContent) {
             return (
                 <div className="space-y-4">
                     {infoContent}
-                    <hr className="border-t border-[#e0e0e0] dark:border-[#404040]" />
+                    <hr className="border-t" />
                     {expandedContent}
                 </div>
             );
         }
-        
+
         if (hasInfo) {
             return infoContent;
         }
-        
+
         if (hasContent) {
             return expandedContent;
         }
-        
+
         return undefined;
     }, [isInfoExpanded, infoContent, shouldShowContent, expandedContent]);
 
@@ -330,7 +323,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     return (
         <ArtifactBar
             filename={fileName}
-            description={description}
+            description={description || ""}
             mimeType={fileMimeType}
             size={fileAttachment?.size}
             status={props.status}
@@ -342,6 +335,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             error={props.status === "failed" ? props.error : undefined}
             content={contentPreview}
             expandedContent={finalExpandedContent}
+            context={context}
         />
     );
 };
