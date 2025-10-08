@@ -14,13 +14,14 @@ export interface ButtonWithCallback {
 interface EmptyStateProps {
     title: string;
     subtitle?: string;
+    variant?: "error" | "empty";
     buttons?: ButtonWithCallback[];
 }
 
-function EmptyState({ title, subtitle, buttons }: EmptyStateProps) {
+function EmptyState({ title, subtitle, variant = "error", buttons }: EmptyStateProps) {
     return (
         <div className="flex h-screen w-screen flex-col items-center justify-center gap-3">
-            <ErrorDisplay width={150} height={150} />
+            {variant === "error" ? <ErrorDisplay width={150} height={150} /> : null}
 
             <p className="text-2xl">{title}</p>
             {subtitle ? <p className="text-base">{subtitle}</p> : null}
