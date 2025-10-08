@@ -31,8 +31,8 @@ function EmptyState({ title, subtitle, image, variant = "error", buttons }: Empt
 
             <div className="flex gap-2">
                 {buttons &&
-                    buttons.map(({ text, variant, onClick }) => (
-                        <Button variant={variant} onClick={onClick}>
+                    buttons.map(({ text, variant, onClick }, index) => (
+                        <Button key={`button-${text}-${index}`} testid={text} title={text} variant={variant} onClick={onClick}>
                             {text}
                         </Button>
                     ))}
