@@ -1,19 +1,30 @@
-import React from "react";
+import React, { useState } from "react";
 import { FolderOpen, Plus } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
-import type { Project } from "@/lib/types/projects";
+import { useProjectContext } from "@/lib/providers";
+import type { Project, UpdateProjectData } from "@/lib/types/projects";
+import { ProjectHeader } from "./ProjectHeader";
+import { ProjectDescription } from "./ProjectDescription";
+import { ProjectChatsSection } from "./ProjectChatsSection";
 
 interface ProjectDetailPanelProps {
     selectedProject: Project | null;
     onCreateNew?: () => void;
+    onChatClick?: (sessionId: string) => void;
 }
 
 export const ProjectDetailPanel: React.FC<ProjectDetailPanelProps> = ({
     selectedProject,
     onCreateNew,
+    onChatClick,
 }) => {
-    // Placeholder state - will be populated in Phase 2
+    const { updateProject } = useProjectContext();
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [isEditingDescription, setIsEditingDescription] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+
+    // Placeholder state
     if (!selectedProject) {
         return (
             <div className="flex h-full items-center justify-center bg-background">
@@ -38,20 +49,60 @@ export const ProjectDetailPanel: React.FC<ProjectDetailPanelProps> = ({
         );
     }
 
-    // Temporary content for Phase 1 - will be replaced in Phase 2
+    const handleSaveName = async (name: string) => {
+        setIsSaving(true);
+        try {
+            const updateData: UpdateProjectData = { name };
+            await updateProject(selectedProject.id, updateData);
+            setIsEditingName(false);
+        } catch (error) {
+            console.error("Failed to update project name:", error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleSaveDescription = async (description: string) => {
+        setIsSaving(true);
+        try {
+            const updateData: UpdateProjectData = { description };
+            await updateProject(selectedProject.id, updateData);
+            setIsEditingDescription(false);
+        } catch (error) {
+            console.error("Failed to update project description:", error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleChatClick = (sessionId: string) => {
+        if (onChatClick) {
+            onChatClick(sessionId);
+        }
+    };
+
     return (
-        <div className="flex h-full flex-col bg-background p-6">
-            <div className="mb-4">
-                <h1 className="text-2xl font-bold text-foreground">{selectedProject.name}</h1>
-                {selectedProject.description && (
-                    <p className="text-sm text-muted-foreground mt-2">{selectedProject.description}</p>
-                )}
-            </div>
-            <div className="flex-1 flex items-center justify-center">
-                <p className="text-muted-foreground">
-                    Project details will be displayed here in Phase 2
-                </p>
-            </div>
+        <div className="flex h-full flex-col bg-background overflow-y-auto">
+            <ProjectHeader
+                project={selectedProject}
+                isEditing={isEditingName}
+                onToggleEdit={() => setIsEditingName(!isEditingName)}
+                onSave={handleSaveName}
+                isSaving={isSaving}
+            />
+
+            <ProjectDescription
+                project={selectedProject}
+                isEditing={isEditingDescription}
+                onToggleEdit={() => setIsEditingDescription(!isEditingDescription)}
+                onSave={handleSaveDescription}
+                isSaving={isSaving}
+            />
+
+            <ProjectChatsSection
+                project={selectedProject}
+                onChatClick={handleChatClick}
+            />
         </div>
     );
 };

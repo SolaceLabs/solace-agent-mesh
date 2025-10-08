@@ -4,7 +4,9 @@ import { Plus } from "lucide-react";
 import { CreateProjectWizard } from "./CreateProjectWizard";
 import { ProjectListSidebar } from "./ProjectListSidebar";
 import { ProjectDetailPanel } from "./ProjectDetailPanel";
+import { ProjectMetadataSidebar } from "./ProjectMetadataSidebar";
 import { useProjectContext } from "@/lib/providers";
+import { useChatContext } from "@/lib/hooks";
 import type { Project, ProjectFormData } from "@/lib/types/projects";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 import { Header } from "@/lib/components/header";
@@ -23,7 +25,9 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
         createProject, 
         selectedProject, 
         setSelectedProject,
+        setActiveProject,
     } = useProjectContext();
+    const { handleSwitchSession } = useChatContext();
 
     const handleCreateProject = async (data: ProjectFormData) => {
         const formData = new FormData();
@@ -63,6 +67,15 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
 
     const handleCreateNew = () => {
         setShowCreateWizard(true);
+    };
+
+    const handleChatClick = async (sessionId: string) => {
+        // Activate the project and switch to the chat
+        if (selectedProject) {
+            setActiveProject(selectedProject);
+            await handleSwitchSession(sessionId);
+            onProjectActivated();
+        }
     };
 
     // Show wizard as overlay
@@ -117,18 +130,15 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
                         <ProjectDetailPanel
                             selectedProject={selectedProject}
                             onCreateNew={handleCreateNew}
+                            onChatClick={handleChatClick}
                         />
                     </ResizablePanel>
 
                     <ResizableHandle />
 
-                    {/* Right Sidebar - Metadata (Placeholder for Phase 2) */}
+                    {/* Right Sidebar - Metadata */}
                     <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
-                        <div className="flex h-full items-center justify-center bg-background border-l">
-                            <p className="text-sm text-muted-foreground">
-                                Metadata sidebar (Phase 2)
-                            </p>
-                        </div>
+                        <ProjectMetadataSidebar selectedProject={selectedProject} />
                     </ResizablePanel>
                 </ResizablePanelGroup>
             </div>
