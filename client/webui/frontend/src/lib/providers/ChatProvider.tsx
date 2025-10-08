@@ -12,8 +12,8 @@ const migrateV0ToV1 = (task: TaskDataV0): TaskDataV1 => {
         ...task,
         taskMetadata: {
             ...task.taskMetadata,
-            schema_version: 1
-        }
+            schema_version: 1,
+        },
     };
 };
 
@@ -82,8 +82,8 @@ type TaskDataCurrent = TaskDataV1;
 // Type for tasks loaded from the API (always current version after migration)
 interface TaskFromAPI {
     taskId: string;
-    messageBubbles: string;  // JSON string
-    taskMetadata: string | null;  // JSON string
+    messageBubbles: string; // JSON string
+    taskMetadata: string | null; // JSON string
     createdTime: number;
     userMessage?: string;
 }
@@ -186,27 +186,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
         return {
             id: message.metadata?.messageId || `msg-${v4()}`,
-            type: message.isUser ? "user" : (message.artifactNotification ? "artifact_notification" : "agent"),
+            type: message.isUser ? "user" : message.artifactNotification ? "artifact_notification" : "agent",
             text: combinedText,
             parts: message.parts,
             files: message.files,
             uploadedFiles: message.uploadedFiles?.map(f => ({
                 name: f.name,
-                type: f.type
+                type: f.type,
             })),
             artifactNotification: message.artifactNotification,
-            isError: message.isError
+            isError: message.isError,
         };
     }, []);
 
     // Helper function to save task data to backend
     const saveTaskToBackend = useCallback(
-        async (taskData: {
-            task_id: string;
-            user_message?: string;
-            message_bubbles: MessageBubble[];
-            task_metadata?: TaskMetadata;
-        }) => {
+        async (taskData: { task_id: string; user_message?: string; message_bubbles: MessageBubble[]; task_metadata?: TaskMetadata }) => {
             if (!persistenceEnabled || !sessionId) return;
 
             // Prevent duplicate saves (handles React Strict Mode + race conditions)
@@ -226,8 +221,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         userMessage: taskData.user_message,
                         // Serialize to JSON strings before sending
                         messageBubbles: JSON.stringify(taskData.message_bubbles),
-                        taskMetadata: taskData.task_metadata ? JSON.stringify(taskData.task_metadata) : null
-                    })
+                        taskMetadata: taskData.task_metadata ? JSON.stringify(taskData.task_metadata) : null,
+                    }),
                 });
 
                 if (!response.ok) {
@@ -248,26 +243,29 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     // Helper function to deserialize task data to MessageFE objects
-    const deserializeTaskToMessages = useCallback((task: StoredTaskData): MessageFE[] => {
-        return task.messageBubbles.map(bubble => ({
-            taskId: task.taskId,
-            role: bubble.type === "user" ? "user" : "agent",
-            parts: bubble.parts || [{ kind: "text", text: bubble.text || "" }],
-            isUser: bubble.type === "user",
-            isComplete: true,
-            files: bubble.files,
-            // uploadedFiles in storage is Array<{name, type}>, but MessageFE expects File[]
-            // We can't reconstruct File objects from stored metadata, so omit this field
-            uploadedFiles: undefined,
-            artifactNotification: bubble.artifactNotification,
-            isError: bubble.isError,
-            metadata: {
-                messageId: bubble.id,
-                sessionId: sessionId,
-                lastProcessedEventSequence: 0
-            }
-        }));
-    }, [sessionId]);
+    const deserializeTaskToMessages = useCallback(
+        (task: StoredTaskData): MessageFE[] => {
+            return task.messageBubbles.map(bubble => ({
+                taskId: task.taskId,
+                role: bubble.type === "user" ? "user" : "agent",
+                parts: bubble.parts || [{ kind: "text", text: bubble.text || "" }],
+                isUser: bubble.type === "user",
+                isComplete: true,
+                files: bubble.files,
+                // uploadedFiles in storage is Array<{name, type}>, but MessageFE expects File[]
+                // We can't reconstruct File objects from stored metadata, so omit this field
+                uploadedFiles: undefined,
+                artifactNotification: bubble.artifactNotification,
+                isError: bubble.isError,
+                metadata: {
+                    messageId: bubble.id,
+                    sessionId: sessionId,
+                    lastProcessedEventSequence: 0,
+                },
+            }));
+        },
+        [sessionId]
+    );
 
     // Helper function to apply migrations to a task
     const migrateTask = useCallback((task: TaskDataAnyVersion): TaskDataCurrent => {
@@ -311,7 +309,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const parsedTasks = tasks.map((task: TaskFromAPI) => ({
                     ...task,
                     messageBubbles: JSON.parse(task.messageBubbles),
-                    taskMetadata: task.taskMetadata ? JSON.parse(task.taskMetadata) : null
+                    taskMetadata: task.taskMetadata ? JSON.parse(task.taskMetadata) : null,
                 }));
 
                 // Apply migrations to each task
@@ -330,7 +328,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     if (task.taskMetadata?.feedback) {
                         feedbackMap[task.taskId] = {
                             type: task.taskMetadata.feedback.type,
-                            text: task.taskMetadata.feedback.text || ""
+                            text: task.taskMetadata.feedback.text || "",
                         };
                     }
                 }
@@ -811,9 +809,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 if (currentTaskIdFromResult && sessionId) {
                     // Gather all messages for this task, filtering out status bubbles
                     setMessages(currentMessages => {
-                        const taskMessages = currentMessages.filter(
-                            msg => msg.taskId === currentTaskIdFromResult && !msg.isStatusBubble
-                        );
+                        const taskMessages = currentMessages.filter(msg => msg.taskId === currentTaskIdFromResult && !msg.isStatusBubble);
 
                         if (taskMessages.length > 0) {
                             // Serialize all message bubbles
@@ -821,10 +817,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                             // Extract user message text
                             const userMessage = taskMessages.find(m => m.isUser);
-                            const userMessageText = userMessage?.parts
-                                ?.filter(p => p.kind === "text")
-                                .map(p => (p as TextPart).text)
-                                .join("") || "";
+                            const userMessageText =
+                                userMessage?.parts
+                                    ?.filter(p => p.kind === "text")
+                                    .map(p => (p as TextPart).text)
+                                    .join("") || "";
 
                             // Determine task status
                             const hasError = taskMessages.some(m => m.isError);
@@ -838,8 +835,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 task_metadata: {
                                     schema_version: CURRENT_SCHEMA_VERSION,
                                     status: taskStatus,
-                                    agent_name: selectedAgentName
-                                }
+                                    agent_name: selectedAgentName,
+                                },
                             });
                         }
 
@@ -904,17 +901,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Reset UI state with empty session ID
         const welcomeMessages: MessageFE[] = configWelcomeMessage
             ? [
-                {
-                    parts: [{ kind: "text", text: configWelcomeMessage }],
-                    isUser: false,
-                    isComplete: true,
-                    role: "agent",
-                    metadata: {
-                        sessionId: "", // Empty - will be populated when session is created
-                        lastProcessedEventSequence: 0,
-                    },
-                },
-            ]
+                  {
+                      parts: [{ kind: "text", text: configWelcomeMessage }],
+                      isUser: false,
+                      isComplete: true,
+                      role: "agent",
+                      metadata: {
+                          sessionId: "", // Empty - will be populated when session is created
+                          lastProcessedEventSequence: 0,
+                      },
+                  },
+              ]
             : [];
 
         setMessages(welcomeMessages);
@@ -1209,6 +1206,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setMessages(prev => [...prev, userMsg]);
             setUserInput("");
 
+            const errors: string[] = [];
+
             try {
                 // 1. Process files using hybrid approach
                 // For new sessions, process sequentially to ensure all files use the same session
@@ -1231,6 +1230,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 }
                                 uploadedFileParts.push({ kind: "file", file: { uri: uploadResult.uri, name: file.name, mimeType: file.type } });
                             } else {
+                                errors.push(`Failed to upload large file: ${file.name}`);
                                 addNotification(`Failed to upload large file: ${file.name}`, "error");
                             }
                         }
@@ -1246,6 +1246,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             if (uploadResult) {
                                 return { kind: "file", file: { uri: uploadResult.uri, name: file.name, mimeType: file.type } };
                             } else {
+                                errors.push(`Failed to upload large file: ${file.name}`);
                                 addNotification(`Failed to upload large file: ${file.name}`, "error");
                                 return null;
                             }
@@ -1266,6 +1267,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 if (currentInput) {
                     messageParts.push({ kind: "text", text: currentInput });
                 }
+
+                if (errors.length > 0) {
+                    messageParts.push({ kind: "text", text: `\n(Note: Some files failed to upload: ${errors.join("; ")})` });
+                }
+
                 messageParts.push(...uploadedFileParts);
 
                 if (messageParts.length === 0) {
@@ -1329,8 +1335,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         task_metadata: {
                             schema_version: CURRENT_SCHEMA_VERSION,
                             status: "pending",
-                            agent_name: selectedAgentName
-                        }
+                            agent_name: selectedAgentName,
+                        },
                     });
                 }
 
@@ -1355,11 +1361,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setTaskIdInSidePanel(taskId);
 
                 // Update user message with taskId so it's included in final save
-                setMessages(prev => prev.map(msg =>
-                    msg.metadata?.messageId === userMsg.metadata?.messageId
-                        ? { ...msg, taskId: taskId }
-                        : msg
-                ));
+                setMessages(prev => prev.map(msg => (msg.metadata?.messageId === userMsg.metadata?.messageId ? { ...msg, taskId: taskId } : msg)));
             } catch (error) {
                 addNotification(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
                 setIsResponding(false);
