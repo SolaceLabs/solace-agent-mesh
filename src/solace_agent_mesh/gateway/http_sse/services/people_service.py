@@ -76,6 +76,7 @@ class PeopleService:
                 e,
             )
             return []
+<<<<<<< HEAD
 
 
 """
@@ -154,3 +155,4 @@ class PeopleService:
                 e,
             )
             return []
+

@@ -44,11 +44,11 @@ def test_404_error_response_consistency(api_client: TestClient):
         except json.JSONDecodeError:
             pytest.fail(f"404 response from {method} {endpoint} is not valid JSON")
 
-        # Should contain error detail
-        assert "detail" in error_data
-        assert isinstance(error_data["detail"], str)
-        assert len(error_data["detail"]) > 0
-        assert "not found" in error_data["detail"].lower()
+        # Should contain error message
+        assert "message" in error_data
+        assert isinstance(error_data["message"], str)
+        assert len(error_data["message"]) > 0
+        assert "not found" in error_data["message"].lower()
 
     print("✓ All 404 error responses have consistent format")
 
@@ -58,16 +58,13 @@ def test_422_validation_error_response_consistency(api_client: TestClient):
 
     # List of requests that should trigger validation errors
     validation_error_requests = [
-        ("POST", "/api/v1/tasks/send", {}),  # Missing required fields
-        ("POST", "/api/v1/tasks/send", {"agent_name": "TestAgent"}),  # Missing message
-        ("POST", "/api/v1/tasks/send", {"message": "Test"}),  # Missing agent_name
-        ("POST", "/api/v1/tasks/subscribe", {}),  # Missing required fields
-        ("POST", "/api/v1/tasks/cancel", {}),  # Missing task_id
+        ("POST", "/api/v1/message:send", {}),  # Missing required fields
+        ("POST", "/api/v1/message:stream", {}),  # Missing required fields
     ]
 
     for method, endpoint, data in validation_error_requests:
         if method == "POST":
-            response = api_client.post(endpoint, data=data)
+            response = api_client.post(endpoint, json=data)
 
         # Should return 422 for validation errors
         assert response.status_code == 422
@@ -84,9 +81,13 @@ def test_422_validation_error_response_consistency(api_client: TestClient):
             pytest.fail(f"422 response from {method} {endpoint} is not valid JSON")
 
         # FastAPI validation errors should have specific structure
-        if "detail" in error_data:
-            # Could be simple detail string or array of validation errors
-            assert isinstance(error_data["detail"], (str, list))
+        if "message" in error_data:
+            # Should have message field
+            assert isinstance(error_data["message"], str)
+
+        # May have validationDetails for field-specific errors
+        if "validationDetails" in error_data and error_data["validationDetails"]:
+            assert isinstance(error_data["validationDetails"], dict)
 
     print("✓ All 422 validation error responses have consistent format")
 
@@ -101,8 +102,8 @@ def test_error_response_headers_consistency(api_client: TestClient):
         ("PATCH", "/api/v1/sessions/nonexistent", 404, {"name": "Test"}),
         ("DELETE", "/api/v1/sessions/nonexistent", 404),
         # 422 validation errors
-        ("POST", "/api/v1/tasks/send", 422, {}),
-        ("POST", "/api/v1/tasks/cancel", 422, {}),
+        ("POST", "/api/v1/message:send", 422, {}),
+        ("POST", "/api/v1/message:stream", 422, {}),
     ]
 
     for scenario in error_scenarios:
@@ -112,7 +113,7 @@ def test_error_response_headers_consistency(api_client: TestClient):
         if method == "GET":
             response = api_client.get(endpoint)
         elif method == "POST":
-            response = api_client.post(endpoint, data=data or {})
+            response = api_client.post(endpoint, json=data or {})
         elif method == "PATCH":
             response = api_client.patch(endpoint, json=data or {})
         elif method == "DELETE":
@@ -140,10 +141,25 @@ def test_error_message_security_no_leakage(api_client: TestClient):
     """Test that error messages don't leak sensitive information"""
 
     # Create a session first to test access control
-    task_data = {"agent_name": "TestAgent", "message": "Security test session"}
-    response = api_client.post("/api/v1/tasks/subscribe", data=task_data)
+    import uuid
+
+    task_data = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Security test session"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    response = api_client.post("/api/v1/message:stream", json=task_data)
     assert response.status_code == 200
-    valid_session_id = response.json()["result"]["sessionId"]
+    valid_session_id = response.json()["result"]["contextId"]
 
     # Test accessing non-existent resources (should not reveal existence)
     security_test_cases = [
@@ -164,7 +180,7 @@ def test_error_message_security_no_leakage(api_client: TestClient):
         assert response.status_code == 404
 
         error_data = response.json()
-        error_detail = error_data.get("detail", "").lower()
+        error_message = error_data.get("message", "").lower()
 
         # Error message should not reveal sensitive information
         sensitive_terms = [
@@ -180,12 +196,12 @@ def test_error_message_security_no_leakage(api_client: TestClient):
         for term in sensitive_terms:
             if term in ["exist", "permission", "unauthorized", "forbidden", "user"]:
                 # These terms should definitely not appear
-                assert term not in error_detail, (
-                    f"Error message contains sensitive term '{term}': {error_detail}"
-                )
+                assert (
+                    term not in error_message
+                ), f"Error message contains sensitive term '{term}': {error_message}"
 
         # Should contain generic "not found" message
-        assert "not found" in error_detail
+        assert "not found" in error_message
 
     print("✓ Error messages don't leak sensitive information")
 
@@ -203,7 +219,7 @@ def test_error_response_structure_validation(api_client: TestClient):
         },
         # 422 validation errors
         {
-            "request": ("POST", "/api/v1/tasks/send", {}),
+            "request": ("POST", "/api/v1/message:send", {}),
             "expected_status": 422,
             "expected_fields": ["detail"],
         },
@@ -217,7 +233,7 @@ def test_error_response_structure_validation(api_client: TestClient):
         if method == "GET":
             response = api_client.get(endpoint)
         elif method == "POST":
-            response = api_client.post(endpoint, data=data[0] if data else {})
+            response = api_client.post(endpoint, json=data[0] if data else {})
 
         assert response.status_code == expected_status
 
@@ -232,21 +248,20 @@ def test_error_response_structure_validation(api_client: TestClient):
         # Handle both standard HTTP error format and JSON-RPC format
         if "jsonrpc" in error_data:
             # JSON-RPC format - check for error field
-            assert "error" in error_data, (
-                "Missing 'error' field in JSON-RPC error response"
-            )
+            assert (
+                "error" in error_data
+            ), "Missing 'error' field in JSON-RPC error response"
             assert error_data["error"] is not None
-            assert "message" in error_data["error"], (
-                "Missing 'message' in JSON-RPC error"
-            )
+            assert (
+                "message" in error_data["error"]
+            ), "Missing 'message' in JSON-RPC error"
         else:
-            # Standard HTTP error format
-            for field in expected_fields:
-                assert field in error_data, (
-                    f"Missing required field '{field}' in error response"
-                )
-                assert error_data[field] is not None
-                assert len(str(error_data[field])) > 0
+            # Standard HTTP error format - should have 'message' field
+            assert (
+                "message" in error_data
+            ), "Missing required field 'message' in error response"
+            assert error_data["message"] is not None
+            assert len(str(error_data["message"])) > 0
 
         # Ensure no internal/debug fields are exposed
         internal_fields = [
@@ -261,9 +276,9 @@ def test_error_response_structure_validation(api_client: TestClient):
         ]
 
         for internal_field in internal_fields:
-            assert internal_field not in error_data, (
-                f"Internal field '{internal_field}' exposed in error response"
-            )
+            assert (
+                internal_field not in error_data
+            ), f"Internal field '{internal_field}' exposed in error response"
 
     print("✓ Error response structures are valid and secure")
 
@@ -274,7 +289,7 @@ def test_content_type_consistency_in_errors(api_client: TestClient):
     # Test different types of errors
     error_endpoints = [
         ("GET", "/api/v1/sessions/nonexistent", 404),
-        ("POST", "/api/v1/tasks/send", 422, {}),
+        ("POST", "/api/v1/message:send", 422, {}),
         ("PATCH", "/api/v1/sessions/nonexistent", 404, {"name": "Test"}),
         ("DELETE", "/api/v1/sessions/nonexistent", 404),
     ]
@@ -308,15 +323,56 @@ def test_content_type_consistency_in_errors(api_client: TestClient):
 def test_error_response_encoding_handling(api_client: TestClient):
     """Test that error responses handle encoding correctly"""
 
+    import uuid
+
     # Test with unicode characters in request that causes error
     unicode_test_cases = [
-        {"agent_name": "TestAgent", "message": "测试消息 🚀"},  # Valid unicode
-        {"agent_name": "TestAgent"},  # Missing message (validation error)
-        {"message": "Test with émojis 🎉"},  # Missing agent_name
+        {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/send",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "测试消息 🚀"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        },  # Valid unicode
+        {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/send",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Test"}],
+                    "metadata": {},  # Missing agent_name
+                }
+            },
+        },
+        {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "message/send",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "messageId": str(uuid.uuid4()),
+                    "kind": "message",
+                    "parts": [{"kind": "text", "text": "Test with émojis 🎉"}],
+                    "metadata": {"agent_name": "TestAgent"},
+                }
+            },
+        },
     ]
 
     for test_data in unicode_test_cases:
-        response = api_client.post("/api/v1/tasks/send", data=test_data)
+        response = api_client.post("/api/v1/message:send", json=test_data)
 
         # Should handle unicode correctly even in errors
         if response.status_code != 200:
@@ -326,14 +382,13 @@ def test_error_response_encoding_handling(api_client: TestClient):
                 assert isinstance(error_data, dict)
 
                 # Error messages should be properly encoded strings
-                if "detail" in error_data:
-                    detail = error_data["detail"]
-                    assert isinstance(detail, (str, list))
+                if "message" in error_data:
+                    message = error_data["message"]
+                    assert isinstance(message, str)
 
                     # Should not contain encoding artifacts
-                    if isinstance(detail, str):
-                        assert "\\u" not in detail  # No escaped unicode
-                        assert "\\x" not in detail  # No escaped bytes
+                    assert "\\u" not in message  # No escaped unicode
+                    assert "\\x" not in message  # No escaped bytes
 
             except (json.JSONDecodeError, UnicodeDecodeError):
                 pytest.fail(

@@ -1,18 +1,17 @@
 import logging
 import uuid
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, List, Dict, Any
 
 from sqlalchemy.orm import Session as DbSession
 
 from ..repository import (
-    IMessageRepository,
     ISessionRepository,
-    Message,
     Session,
-    SessionHistory,
 )
-from ..shared.enums import MessageType, SenderType
-from ..shared.types import PaginationInfo, SessionId, UserId
+from ..repository.chat_task_repository import ChatTaskRepository
+from ..repository.entities import ChatTask
+from ..shared.enums import SenderType
+from ..shared.types import SessionId, UserId
 from ..shared import now_epoch_ms
 from ..shared.pagination import PaginationParams, PaginatedResponse, get_pagination_or_default
 
@@ -30,11 +29,10 @@ class SessionService:
         self.component = component
 
     def _get_repositories(self, db: DbSession):
-        """Create repositories for the given database session."""
-        from ..repository import SessionRepository, MessageRepository
+        """Create session repository for the given database session."""
+        from ..repository import SessionRepository
         session_repository = SessionRepository(db)
-        message_repository = MessageRepository(db)
-        return session_repository, message_repository
+        return session_repository
 
     def is_persistence_enabled(self) -> bool:
         """Checks if the service is configured with a persistent backend."""
@@ -56,18 +54,10 @@ class SessionService:
             raise ValueError("User ID cannot be empty")
 
         pagination = get_pagination_or_default(pagination)
-        session_repository, _ = self._get_repositories(db)
+        session_repository = self._get_repositories(db)
 
-        pagination_info = PaginationInfo(
-            page=pagination.page_number,
-            page_size=pagination.page_size,
-            total_items=0,
-            total_pages=0,
-            has_next=False,
-            has_previous=False,
-        )
-
-        sessions = session_repository.find_by_user(user_id, pagination_info)
+        # Pass pagination params directly - repository will handle offset calculation
+        sessions = session_repository.find_by_user(user_id, pagination)
         total_count = session_repository.count_by_user(user_id)
 
         return PaginatedResponse.create(sessions, total_count, pagination)
@@ -78,32 +68,8 @@ class SessionService:
         if not self._is_valid_session_id(session_id):
             return None
 
-        session_repository, _ = self._get_repositories(db)
+        session_repository = self._get_repositories(db)
         return session_repository.find_user_session(session_id, user_id)
-
-    def get_session_history(
-        self,
-        db: DbSession,
-        session_id: SessionId,
-        user_id: UserId,
-        pagination: PaginationInfo | None = None,
-    ) -> SessionHistory | None:
-        if not self._is_valid_session_id(session_id):
-            return None
-
-        session_repository, _ = self._get_repositories(db)
-        result = session_repository.find_user_session_with_messages(
-            session_id, user_id, pagination
-        )
-        if not result:
-            return None
-
-        session, messages = result
-        return SessionHistory(
-            session=session,
-            messages=messages,
-            total_message_count=len(messages),
-        )
 
     def create_session(
         self,
@@ -133,7 +99,7 @@ class SessionService:
             updated_time=now_ms,
         )
 
-        session_repository, _ = self._get_repositories(db)
+        session_repository = self._get_repositories(db)
         created_session = session_repository.save(session)
         log.info("Created new session %s for user %s", created_session.id, user_id)
 
@@ -154,7 +120,7 @@ class SessionService:
         if len(name.strip()) > 255:
             raise ValueError("Session name cannot exceed 255 characters")
 
-        session_repository, _ = self._get_repositories(db)
+        session_repository = self._get_repositories(db)
         session = session_repository.find_user_session(session_id, user_id)
         if not session:
             return None
@@ -171,7 +137,7 @@ class SessionService:
         if not self._is_valid_session_id(session_id):
             raise ValueError("Invalid session ID")
 
-        session_repository, _ = self._get_repositories(db)
+        session_repository = self._get_repositories(db)
         session = session_repository.find_user_session(session_id, user_id)
         if not session:
             log.warning(
@@ -200,50 +166,151 @@ class SessionService:
 
         return True
 
-    def add_message_to_session(
+    def save_task(
         self,
         db: DbSession,
-        session_id: SessionId,
-        user_id: UserId,
-        message: str,
-        sender_type: SenderType,
-        sender_name: str,
-        agent_id: str | None = None,
-        message_type: MessageType = MessageType.TEXT,
-    ) -> Message:
-        if not self._is_valid_session_id(session_id):
-            raise ValueError("Invalid session ID")
-
-        if not message or message.strip() == "":
-            raise ValueError("Message cannot be empty")
-
-        session_repository, message_repository = self._get_repositories(db)
+        task_id: str,
+        session_id: str,
+        user_id: str,
+        user_message: Optional[str],
+        message_bubbles: str,  # JSON string (opaque)
+        task_metadata: Optional[str] = None  # JSON string (opaque)
+    ) -> ChatTask:
+        """
+        Save a complete task interaction.
+        
+        Args:
+            db: Database session
+            task_id: A2A task ID
+            session_id: Session ID
+            user_id: User ID
+            user_message: Original user input text
+            message_bubbles: Array of all message bubbles displayed during this task
+            task_metadata: Task-level metadata (status, feedback, agent name, etc.)
+            
+        Returns:
+            Saved ChatTask entity
+            
+        Raises:
+            ValueError: If session not found or validation fails
+        """
+        # Validate session exists and belongs to user
+        session_repository = self._get_repositories(db)
         session = session_repository.find_user_session(session_id, user_id)
         if not session:
-            session = self.create_session(
-                db=db,
-                user_id=user_id,
-                agent_id=agent_id,
-                session_id=session_id,
-            )
-
-        message_entity = Message(
-            id=str(uuid.uuid4()),
+            raise ValueError(f"Session {session_id} not found for user {user_id}")
+        
+        # Create task entity - pass strings directly
+        task = ChatTask(
+            id=task_id,
             session_id=session_id,
-            message=message.strip(),
-            sender_type=sender_type,
-            sender_name=sender_name,
-            message_type=message_type,
+            user_id=user_id,
+            user_message=user_message,
+            message_bubbles=message_bubbles,  # Already a string
+            task_metadata=task_metadata,      # Already a string
             created_time=now_epoch_ms(),
+            updated_time=None
         )
-
-        saved_message = message_repository.save(message_entity)
-
+        
+        # Save via repository
+        task_repo = ChatTaskRepository(db)
+        saved_task = task_repo.save(task)
+        
+        # Update session activity
         session.mark_activity()
         session_repository.save(session)
+        
+        log.info(f"Saved task {task_id} for session {session_id}")
+        return saved_task
 
-        log.info("Added message to session %s from %s", session_id, sender_name)
-        return saved_message
+    def get_session_tasks(
+        self,
+        db: DbSession,
+        session_id: str,
+        user_id: str
+    ) -> List[ChatTask]:
+        """
+        Get all tasks for a session.
+        
+        Args:
+            db: Database session
+            session_id: Session ID
+            user_id: User ID
+            
+        Returns:
+            List of ChatTask entities in chronological order
+            
+        Raises:
+            ValueError: If session not found
+        """
+        # Validate session exists and belongs to user
+        session_repository = self._get_repositories(db)
+        session = session_repository.find_user_session(session_id, user_id)
+        if not session:
+            raise ValueError(f"Session {session_id} not found for user {user_id}")
+        
+        # Load tasks
+        task_repo = ChatTaskRepository(db)
+        return task_repo.find_by_session(session_id, user_id)
+
+    def get_session_messages_from_tasks(
+        self,
+        db: DbSession,
+        session_id: str,
+        user_id: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Get session messages by flattening task message_bubbles.
+        This provides backward compatibility with the old message-based API.
+        
+        Args:
+            db: Database session
+            session_id: Session ID
+            user_id: User ID
+            
+        Returns:
+            List of message dictionaries flattened from tasks
+            
+        Raises:
+            ValueError: If session not found
+        """
+        # Load tasks
+        tasks = self.get_session_tasks(db, session_id, user_id)
+        
+        # Flatten message_bubbles from all tasks
+        messages = []
+        for task in tasks:
+            import json
+            message_bubbles = json.loads(task.message_bubbles) if isinstance(task.message_bubbles, str) else task.message_bubbles
+            
+            for bubble in message_bubbles:
+                # Determine sender type from bubble type
+                bubble_type = bubble.get("type", "agent")
+                sender_type = "user" if bubble_type == "user" else "agent"
+                
+                # Get sender name
+                if bubble_type == "user":
+                    sender_name = user_id
+                else:
+                    # Try to get agent name from task metadata, fallback to "agent"
+                    sender_name = "agent"
+                    if task.task_metadata:
+                        task_metadata = json.loads(task.task_metadata) if isinstance(task.task_metadata, str) else task.task_metadata
+                        sender_name = task_metadata.get("agent_name", "agent")
+                
+                # Create message dictionary
+                message = {
+                    "id": bubble.get("id", str(uuid.uuid4())),
+                    "session_id": session_id,
+                    "message": bubble.get("text", ""),
+                    "sender_type": sender_type,
+                    "sender_name": sender_name,
+                    "message_type": "text",
+                    "created_time": task.created_time
+                }
+                messages.append(message)
+        
+        return messages
 
     def _is_valid_session_id(self, session_id: SessionId) -> bool:
         return (

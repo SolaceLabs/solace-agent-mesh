@@ -5,11 +5,11 @@ Session repository implementation using SQLAlchemy.
 from sqlalchemy.orm import Session as DBSession
 
 from ..shared.base_repository import PaginatedRepository
+from ..shared.pagination import PaginationParams
 from ..shared.types import PaginationInfo, SessionId, UserId
-from .entities import Message, Session
+from .entities import Session
 from .interfaces import ISessionRepository
 from .models import (
-    MessageModel,
     SessionModel,
     CreateSessionModel,
     UpdateSessionModel,
@@ -29,14 +29,14 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         return "session"
 
     def find_by_user(
-        self, user_id: UserId, pagination: PaginationInfo | None = None
+        self, user_id: UserId, pagination: PaginationParams | None = None
     ) -> list[Session]:
         """Find all sessions for a specific user."""
         query = self.db.query(SessionModel).filter(SessionModel.user_id == user_id)
         query = query.order_by(SessionModel.updated_time.desc())
 
         if pagination:
-            offset = (pagination.page - 1) * pagination.page_size
+            offset = (pagination.page_number - 1) * pagination.page_size
             query = query.offset(offset).limit(pagination.page_size)
 
         models = query.all()
@@ -96,52 +96,3 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         # Use BaseRepository delete method
         super().delete(self.db, session_id)
         return True
-
-    def find_user_session_with_messages(
-        self,
-        session_id: SessionId,
-        user_id: UserId,
-        pagination: PaginationInfo | None = None,
-    ) -> tuple[Session, list[Message]] | None:
-        """Find a session with its messages."""
-        session_model = (
-            self.db.query(SessionModel)
-            .filter(
-                SessionModel.id == session_id,
-                SessionModel.user_id == user_id,
-            )
-            .first()
-        )
-
-        if not session_model:
-            return None
-
-        message_query = self.db.query(MessageModel).filter(
-            MessageModel.session_id == session_id
-        )
-
-        if pagination:
-            offset = (pagination.page - 1) * pagination.page_size
-            message_query = message_query.offset(offset).limit(pagination.page_size)
-
-        message_models = message_query.order_by(MessageModel.created_time.asc()).all()
-
-        session = Session.model_validate(session_model)
-        messages = [self._message_model_to_entity(model) for model in message_models]
-
-        return session, messages
-
-
-    def _message_model_to_entity(self, model: MessageModel) -> Message:
-        """Convert SQLAlchemy message model to domain entity."""
-        from ..shared.enums import MessageType, SenderType
-
-        return Message(
-            id=model.id,
-            session_id=model.session_id,
-            message=model.message,
-            sender_type=SenderType(model.sender_type),
-            sender_name=model.sender_name,
-            message_type=MessageType.TEXT,  # Default for now
-            created_time=model.created_time,
-        )

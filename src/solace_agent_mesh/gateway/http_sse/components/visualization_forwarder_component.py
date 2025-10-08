@@ -78,7 +78,7 @@ class VisualizationForwarderComponent(ComponentBase):
             forward_data = {
                 "topic": data.get("topic"),
                 "payload": data.get("payload"),
-                "user_properties": data.get("user_properties"),
+                "user_properties": data.get("user_properties") or {},
                 "_original_broker_message": message,
             }
             log.debug(

@@ -24,9 +24,9 @@ class SessionModel(Base):
         BigInteger, nullable=False, default=now_epoch_ms, onupdate=now_epoch_ms
     )
 
-    # Relationship to messages
-    messages = relationship(
-        "MessageModel", back_populates="session", cascade="all, delete-orphan"
+    # Relationship to chat tasks
+    chat_tasks = relationship(
+        "ChatTaskModel", back_populates="session", cascade="all, delete-orphan"
     )
 
 

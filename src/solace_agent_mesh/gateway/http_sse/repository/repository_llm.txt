@@ -1,0 +1,340 @@
+## Quick Summary
+
+The repository directory implements the data access layer for the HTTP SSE gateway using the Repository pattern. It provides a clean separation between domain entities and database persistence through SQLAlchemy ORM models. The architecture consists of abstract interfaces, concrete implementations, domain entities with business logic, and SQLAlchemy models for database operations. The two main subdirectories (entities and models) work together to provide a complete data persistence solution for chat sessions, messages, tasks, feedback, and events.
+
+## Files and Subdirectories Overview
+
+**Direct files:**
+- `__init__.py` - Main package exports for repository interfaces, implementations, entities, and models
+- `interfaces.py` - Abstract repository interfaces defining data access contracts for sessions, messages, tasks, and feedback
+- `message_repository.py` - SQLAlchemy implementation of message data access operations
+- `session_repository.py` - SQLAlchemy implementation of session data access operations
+- `feedback_repository.py` - SQLAlchemy implementation of feedback data access operations
+- `task_repository.py` - SQLAlchemy implementation of task data access operations
+
+**Subdirectories:**
+- `entities/` - Domain entities with business logic for sessions, messages, tasks, feedback, and events
+- `models/` - SQLAlchemy ORM models for database persistence and schema definition
+
+## Developer API Reference
+
+### Direct Files
+
+#### __init__.py
+**Purpose:** Central package exports for all repository components
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository import IMessageRepository, ISessionRepository, MessageRepository, SessionRepository, Session, Message, SessionHistory, Base, MessageModel, SessionModel`
+
+**Exports:**
+- `IMessageRepository` - Message repository interface
+- `ISessionRepository` - Session repository interface  
+- `MessageRepository` - Message repository implementation
+- `SessionRepository` - Session repository implementation
+- `Message` - Message domain entity
+- `Session` - Session domain entity
+- `SessionHistory` - Session with messages composite entity
+- `Base` - SQLAlchemy declarative base
+- `MessageModel` - SQLAlchemy message model
+- `SessionModel` - SQLAlchemy session model
+
+#### interfaces.py
+**Purpose:** Defines abstract repository interfaces for data access contracts
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.interfaces import ISessionRepository, IMessageRepository, ITaskRepository, IFeedbackRepository`
+
+**Classes:**
+- `ISessionRepository(ABC)` - Abstract interface for session data operations
+  - `find_by_user(user_id: UserId, pagination: PaginationInfo | None = None) -> list[Session]` - Find all sessions for a user
+  - `count_by_user(user_id: UserId) -> int` - Count total sessions for a user
+  - `find_user_session(session_id: SessionId, user_id: UserId) -> Session | None` - Find specific user session
+  - `save(session: Session) -> Session` - Save or update a session
+  - `delete(session_id: SessionId, user_id: UserId) -> bool` - Delete user session
+  - `find_user_session_with_messages(session_id: SessionId, user_id: UserId, pagination: PaginationInfo | None = None) -> tuple[Session, list[Message]] | None` - Find session with messages
+
+- `IMessageRepository(ABC)` - Abstract interface for message data operations
+  - `find_by_session(session_id: SessionId, pagination: PaginationInfo | None = None) -> list[Message]` - Find messages in session
+  - `save(message: Message) -> Message` - Save or update a message
+  - `delete_by_session(session_id: SessionId) -> bool` - Delete all session messages
+
+- `ITaskRepository(ABC)` - Abstract interface for task data operations
+  - `save_task(task: Task) -> Task` - Create or update a task
+  - `save_event(event: TaskEvent) -> TaskEvent` - Save a task event
+  - `find_by_id(task_id: str) -> Task | None` - Find a task by its ID
+  - `find_by_id_with_events(task_id: str) -> tuple[Task, list[TaskEvent]] | None` - Find a task with all its events
+  - `search(user_id: UserId, start_date: int | None = None, end_date: int | None = None, search_query: str | None = None, pagination: PaginationParams | None = None) -> list[Task]` - Search for tasks with filters
+  - `delete_tasks_older_than(cutoff_time_ms: int, batch_size: int) -> int` - Delete tasks older than cutoff time
+
+- `IFeedbackRepository(ABC)` - Abstract interface for feedback data operations
+  - `save(feedback: Feedback) -> Feedback` - Save feedback
+  - `delete_feedback_older_than(cutoff_time_ms: int, batch_size: int) -> int` - Delete feedback older than cutoff time
+
+#### message_repository.py
+**Purpose:** SQLAlchemy implementation of message repository interface
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.message_repository import MessageRepository`
+
+**Classes:**
+- `MessageRepository(IMessageRepository)` - SQLAlchemy message repository implementation
+  - `__init__(db: DBSession)` - Initialize with database session
+  - `find_by_session(session_id: SessionId, pagination: PaginationInfo | None = None) -> list[Message]` - Find messages in session with pagination
+  - `save(message: Message) -> Message` - Save or update message in database
+  - `delete_by_session(session_id: SessionId) -> bool` - Delete all messages in session
+  - `_convert_model_to_entity(model: MessageModel) -> Message` - Convert SQLAlchemy model to domain entity
+
+#### session_repository.py
+**Purpose:** SQLAlchemy implementation of session repository interface
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.session_repository import SessionRepository`
+
+**Classes:**
+- `SessionRepository(ISessionRepository)` - SQLAlchemy session repository implementation
+  - `__init__(db: DBSession)` - Initialize with database session
+  - `find_by_user(user_id: UserId, pagination: PaginationInfo | None = None) -> list[Session]` - Find user sessions with pagination
+  - `count_by_user(user_id: UserId) -> int` - Count total sessions for a user
+  - `find_user_session(session_id: SessionId, user_id: UserId) -> Session | None` - Find specific user session
+  - `save(session: Session) -> Session` - Save or update session in database
+  - `delete(session_id: SessionId, user_id: UserId) -> bool` - Delete user session
+  - `find_user_session_with_messages(session_id: SessionId, user_id: UserId, pagination: PaginationInfo | None = None) -> tuple[Session, list[Message]] | None` - Find session with messages
+  - `_message_model_to_entity(model: MessageModel) -> Message` - Convert message model to entity
+
+#### feedback_repository.py
+**Purpose:** SQLAlchemy implementation of feedback repository interface
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.feedback_repository import FeedbackRepository`
+
+**Classes:**
+- `FeedbackRepository(IFeedbackRepository)` - SQLAlchemy feedback repository implementation
+  - `__init__(db: DBSession)` - Initialize with database session
+  - `save(feedback: Feedback) -> Feedback` - Save feedback to database
+  - `delete_feedback_older_than(cutoff_time_ms: int, batch_size: int) -> int` - Delete feedback older than cutoff time using batch deletion
+  - `_model_to_entity(model: FeedbackModel) -> Feedback` - Convert SQLAlchemy model to domain entity
+
+#### task_repository.py
+**Purpose:** SQLAlchemy implementation of task repository interface
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.task_repository import TaskRepository`
+
+**Classes:**
+- `TaskRepository(ITaskRepository)` - SQLAlchemy task repository implementation
+  - `__init__(db: DBSession)` - Initialize with database session
+  - `save_task(task: Task) -> Task` - Create or update a task
+  - `save_event(event: TaskEvent) -> TaskEvent` - Save a task event
+  - `find_by_id(task_id: str) -> Task | None` - Find a task by its ID
+  - `find_by_id_with_events(task_id: str) -> tuple[Task, list[TaskEvent]] | None` - Find a task with all its events
+  - `search(user_id: UserId, start_date: int | None = None, end_date: int | None = None, search_query: str | None = None, pagination: PaginationParams | None = None) -> list[Task]` - Search for tasks with filters
+  - `delete_tasks_older_than(cutoff_time_ms: int, batch_size: int) -> int` - Delete tasks older than cutoff time using batch deletion
+  - `_task_model_to_entity(model: TaskModel) -> Task` - Convert SQLAlchemy task model to domain entity
+  - `_event_model_to_entity(model: TaskEventModel) -> TaskEvent` - Convert SQLAlchemy event model to domain entity
+
+### Subdirectory APIs
+
+#### entities/
+**Purpose:** Provides domain entities with business logic for sessions, messages, tasks, feedback, and events
+**Key Exports:** Message, Session, SessionHistory, Task, TaskEvent, Feedback
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Message, Session, SessionHistory, Task, TaskEvent, Feedback
+```
+
+#### models/
+**Purpose:** Provides SQLAlchemy ORM models for database persistence and schema definition
+**Key Exports:** Base, MessageModel, SessionModel, TaskModel, TaskEventModel, FeedbackModel
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.models import Base, MessageModel, SessionModel, TaskModel, TaskEventModel, FeedbackModel
+```
+
+## Complete Usage Guide
+
+### 1. Setting Up the Repository Layer
+
+```python
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from solace_agent_mesh.gateway.http_sse.repository import (
+    Base, MessageRepository, SessionRepository, TaskRepository, FeedbackRepository
+)
+
+# Create database engine and session
+engine = create_engine("sqlite:///chat.db")
+Base.metadata.create_all(engine)
+Session = sessionmaker(bind=engine)
+db_session = Session()
+
+# Initialize repositories
+message_repo = MessageRepository(db_session)
+session_repo = SessionRepository(db_session)
+task_repo = TaskRepository(db_session)
+feedback_repo = FeedbackRepository(db_session)
+```
+
+### 2. Working with Sessions
+
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Session
+from solace_agent_mesh.gateway.http_sse.shared.types import PaginationInfo
+import time
+
+# Create a new session
+session = Session(
+    id="session_123",
+    user_id="user_456",
+    name="Customer Support Chat",
+    agent_id="agent_789",
+    created_time=int(time.time() * 1000)
+)
+
+# Save session
+saved_session = session_repo.save(session)
+
+# Find user sessions with pagination
+pagination = PaginationInfo(page=1, page_size=10)
+user_sessions = session_repo.find_by_user("user_456", pagination)
+
+# Count total sessions for user
+total_sessions = session_repo.count_by_user("user_456")
+
+# Find specific session
+found_session = session_repo.find_user_session("session_123", "user_456")
+
+# Update session
+if found_session:
+    found_session.update_name("Updated Chat Name")
+    session_repo.save(found_session)
+```
+
+### 3. Working with Messages
+
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Message
+from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType, MessageType
+
+# Create a new message
+message = Message(
+    id="msg_123",
+    session_id="session_123",
+    message="Hello, how can I help you today?",
+    sender_type=SenderType.AGENT,
+    sender_name="Support Agent",
+    message_type=MessageType.TEXT,
+    created_time=int(time.time() * 1000)
+)
+
+# Validate and save message
+message.validate_message_content()
+saved_message = message_repo.save(message)
+
+# Find messages in session
+session_messages = message_repo.find_by_session("session_123", pagination)
+
+# Check message properties
+if message.is_from_agent():
+    print("Message from agent")
+```
+
+### 4. Working with Tasks and Events
+
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Task, TaskEvent
+
+# Create a new task
+task = Task(
+    id="task_123",
+    user_id="user_456",
+    start_time=int(time.time() * 1000),
+    status="in_progress",
+    initial_request_text="Help me with my order"
+)
+
+# Save task
+saved_task = task_repo.save_task(task)
+
+# Create task event
+event = TaskEvent(
+    id="event_123",
+    task_id="task_123",
+    user_id="user_456",
+    created_time=int(time.time() * 1000),
+    topic="task.status.changed",
+    direction="outbound",
+    payload={"status": "completed", "result": "success"}
+)
+
+# Save event
+saved_event = task_repo.save_event(event)
+
+# Find task with events
+result = task_repo.find_by_id_with_events("task_123")
+if result:
+    task, events = result
+    print(f"Task {task.id} has {len(events)} events")
+
+# Search tasks
+from solace_agent_mesh.gateway.http_sse.shared.types import PaginationParams
+pagination_params = PaginationParams(page=1, page_size=10)
+tasks = task_repo.search(
+    user_id="user_456",
+    search_query="order",
+    pagination=pagination_params
+)
+```
+
+### 5. Working with Feedback
+
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Feedback
+
+# Create feedback
+feedback = Feedback(
+    id="feedback_123",
+    session_id="session_123",
+    task_id="task_123",
+    user_id="user_456",
+    rating="up",
+    comment="Great service!",
+    created_time=int(time.time() * 1000)
+)
+
+# Save feedback
+saved_feedback = feedback_repo.save(feedback)
+```
+
+### 6. Working with Session History (Combined Operations)
+
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import SessionHistory
+
+# Get session with messages in one operation
+result = session_repo.find_user_session_with_messages(
+    "session_123", "user_456", pagination
+)
+
+if result:
+    session, messages = result
+    
+    # Create session history object
+    history = SessionHistory(
+        session=session,
+        messages=messages,
+        total_message_count=len(messages)
+    )
+    
+    print(f"Session: {history.session.name}")
+    print(f"Messages: {len(history.messages)}")
+```
+
+### 7. Using Repository Interfaces for Dependency Injection
+
+```python
+from solace_agent_mesh.gateway.http_sse.repository.interfaces import (
+    ISessionRepository, IMessageRepository, ITaskRepository, IFeedbackRepository
+)
+
+class ChatService:
+    def __init__(
+        self, 
+        session_repo: ISessionRepository,
+        message_repo: IMessageRepository,
+        task_repo: ITaskRepository,
+        feedback_repo: IFeedbackRepository
+    ):
+        self.session_repo = session_repo
+        self.message_repo = message_repo
+        self.task_repo = task_repo
+        self.feedback_
+
+# content_hash: e4e822acd625d1acce1f4ea0721844e7428a9b110c9e73b6657b8d3adc8ed038
