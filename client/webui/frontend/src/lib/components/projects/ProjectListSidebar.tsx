@@ -1,7 +1,8 @@
 import React from "react";
 import { Plus, FolderOpen } from "lucide-react";
 
-import { Button, Spinner } from "@/lib/components/ui";
+import { Button } from "@/lib/components/ui";
+import { Spinner } from "@/lib/components/ui/spinner";
 import type { Project } from "@/lib/types/projects";
 import { ProjectListItem } from "./ProjectListItem";
 
