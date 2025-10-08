@@ -137,7 +137,7 @@ async def http_exception_handler(
 async def request_validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
-    """Handle FastAPI request validation errors - 400 Bad Request."""
+    """Handle FastAPI request validation errors - 422 Unprocessable Entity."""
     # Convert Pydantic validation errors to our format
     validation_details = {}
     for error in exc.errors():
@@ -154,7 +154,7 @@ async def request_validation_exception_handler(
         # General bad request
         error_dto = EventErrorDTO.create("bad request")
 
-    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=error_dto.model_dump())
+    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=error_dto.model_dump())
 
 
 def register_exception_handlers(app):

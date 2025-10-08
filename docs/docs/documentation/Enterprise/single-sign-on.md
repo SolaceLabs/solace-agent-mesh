@@ -28,7 +28,7 @@ shared_config:
   # OAuth2 service configuration
   - oauth2_config: &oauth2_config
       enabled: true
-      config_file: "config/sso_vol/oauth2_config.yaml"
+      config_file: "configs/sso_vol/oauth2_config.yaml"
       host: ${OAUTH2_HOST, localhost}
       port: ${OAUTH2_PORT, 9000}
       ssl_cert: ""  # Optional: path to SSL certificate
@@ -39,7 +39,7 @@ flows:
   - name: oauth2_service
     components:
       - component_name: oauth2_auth_service
-        component_module: src.components.oauth2_component
+        component_module: solace_agent_mesh_enterprise.components.oauth2_component
         component_config:
           <<: *oauth2_config
 ```
@@ -142,6 +142,90 @@ security:
 
 </details>
 
+Update your WebUI Gateway to configure login as follows
+
+```
+# Auth-related (placeholders, functionality depends on backend implementation)
+frontend_auth_login_url: ${FRONTEND_AUTH_LOGIN_URL}
+frontend_use_authorization: ${FRONTEND_USE_AUTHORIZATION}
+frontend_redirect_url: ${FRONTEND_REDIRECT_URL, ""}
+
+external_auth_callback_uri: ${EXTERNAL_AUTH_CALLBACK}
+external_auth_service_url: ${EXTERNAL_AUTH_SERVICE_URL}
+external_auth_provider: ${EXTERNAL_AUTH_PROVIDER}
+```
+
+Your final WebUI Gateway yaml configuration should look like this
+
+<details>
+
+<summary>WebUI Gateway SSO Enabled</summary>
+
+**webUI.yaml**
+```yaml
+log:
+  stdout_log_level: INFO
+  log_file_level: INFO
+  log_file: webui_app.log
+
+
+!include ../shared_config.yaml
+
+apps:
+  - name: a2a_webui_app
+    app_base_path: .
+    app_module: solace_agent_mesh.gateway.http_sse.app
+
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      session_secret_key: "${SESSION_SECRET_KEY}"
+
+      artifact_service: *default_artifact_service
+      session_service: 
+        type: "sql"
+        database_url: ${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui_gateway.db}
+        default_behavior: "PERSISTENT"
+      gateway_id: ${WEBUI_GATEWAY_ID}
+      fastapi_host: ${FASTAPI_HOST}
+      fastapi_port: ${FASTAPI_PORT}
+      cors_allowed_origins: 
+        - "http://localhost:3000" 
+        - "http://127.0.0.1:3000"
+
+      enable_embed_resolution: ${ENABLE_EMBED_RESOLUTION} # Enable late-stage resolution
+      gateway_artifact_content_limit_bytes: ${GATEWAY_ARTIFACT_LIMIT_BYTES, 10000000} # Max size for late-stage embeds
+      sse_max_queue_size: ${SSE_MAX_QUEUE_SIZE, 200} # Max size of SSE connection queues
+
+      system_purpose: >
+            The system is an AI Chatbot with agentic capabilities.
+            It will use the agents available to provide information,
+            reasoning and general assistance for the users in this system.
+            **Always return useful artifacts and files that you create to the user.**
+            Provide a status update before each tool call.
+            Your external name is Agent Mesh.
+
+      response_format: >
+            Responses should be clear, concise, and professionally toned.
+            Format responses to the user in Markdown using appropriate formatting.
+
+      # --- Frontend Config Passthrough ---
+      frontend_welcome_message: ${FRONTEND_WELCOME_MESSAGE}
+      frontend_bot_name: ${FRONTEND_BOT_NAME}
+      frontend_collect_feedback: ${FRONTEND_COLLECT_FEEDBACK}
+
+      # Auth-related (placeholders, functionality depends on backend implementation)
+      frontend_auth_login_url: ${FRONTEND_AUTH_LOGIN_URL}
+      frontend_use_authorization: ${FRONTEND_USE_AUTHORIZATION}
+      frontend_redirect_url: ${FRONTEND_REDIRECT_URL, ""}
+
+      external_auth_callback_uri: ${EXTERNAL_AUTH_CALLBACK}
+      external_auth_service_url: ${EXTERNAL_AUTH_SERVICE_URL}
+      external_auth_provider: ${EXTERNAL_AUTH_PROVIDER}
+```
+</details>
 ## Running Solace Agent Mesh Enterprise with SSO enabled
 
 Here is an example of Docker run command with Azure SSO provider for production use case:

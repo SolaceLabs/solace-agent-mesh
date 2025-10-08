@@ -97,19 +97,6 @@ async def process_event(component, event: Event):
                     component.log_identifier,
                 )
                 return
-            if component.invocation_monitor:
-                component.invocation_monitor.log_message_event(
-                    direction="RECEIVED",
-                    topic=topic,
-                    payload=message.get_payload(),
-                    component_identifier=component.log_identifier,
-                )
-            else:
-                log.warning(
-                    "%s InvocationMonitor not available in component for event on topic %s",
-                    component.log_identifier,
-                    topic,
-                )
             namespace = component.get_config("namespace")
             agent_name = component.get_config("agent_name")
             agent_request_topic = get_agent_request_topic(namespace, agent_name)
@@ -1260,6 +1247,8 @@ async def handle_a2a_response(component, message: SolaceMessage):
                 component.log_identifier,
                 sub_task_id,
             )
+            # Reset the timeout since we received a status update
+            await component.reset_peer_timeout(sub_task_id)
             message.call_acknowledgements()
             return
 
