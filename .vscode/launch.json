@@ -10,7 +10,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env preset/agents/basic/main_orchestrator.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_example.yaml",
+            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
