@@ -3,7 +3,7 @@ import { Button } from "@/lib/components/ui/button";
 import type { buttonVariants } from "@/lib/components/ui/button";
 import type { ReactElement } from "react";
 import NotFoundIllustration from "@/assets/illustrations/NotFoundIllustration";
-import ErrorIllustration from "@/assets/illustrations/ErrorDisplay";
+import ErrorIllustration from "@/assets/illustrations/ErrorIllustration";
 
 type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];
 
