@@ -16,7 +16,7 @@ export interface ButtonWithCallback {
 interface EmptyStateProps {
     title: string;
     subtitle?: string;
-    variant?: "error" | "empty";
+    variant?: "error" | "not-found";
     image?: ReactElement;
     buttons?: ButtonWithCallback[];
 }
