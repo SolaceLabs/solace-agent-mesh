@@ -26,22 +26,16 @@ export const ProjectListSidebar: React.FC<ProjectListSidebarProps> = ({
     return (
         <div className="flex h-full flex-col bg-background border-r">
             {/* Header */}
-            <div className="border-b px-4 py-3">
-                <div className="flex items-center justify-between mb-2">
-                    <h2 className="text-lg font-semibold text-foreground">Projects</h2>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={onCreateNew}
-                        className="h-8 w-8 p-0"
-                        tooltip="Create New Project"
-                    >
-                        <Plus className="h-4 w-4" />
-                    </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                    Start a chat with knowledge related to one of the following projects
-                </p>
+            <div className="flex items-center justify-end border-b px-4 py-3">
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onCreateNew}
+                    className="h-8 w-8 p-0"
+                    tooltip="Create New Project"
+                >
+                    <Plus className="h-4 w-4" />
+                </Button>
             </div>
 
             {/* Project List */}
