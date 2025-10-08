@@ -230,3 +230,288 @@ def test_feedback_publishes_event_when_enabled(
     assert published_payload["feedback"]["feedback_type"] == "up"
     assert "task_summary" in published_payload
     assert published_payload["task_summary"]["id"] == task_id
+
+
+def test_feedback_publishing_with_include_task_info_none(
+    api_client: TestClient, monkeypatch, test_database_engine
+):
+    """
+    Tests that when include_task_info is 'none', no task info is included in the published event.
+    """
+    # Arrange
+    mock_publish_func = MagicMock()
+    from solace_agent_mesh.gateway.http_sse import dependencies
+    component = dependencies.sac_component_instance
+
+    monkeypatch.setattr(
+        component,
+        "get_config",
+        lambda key, default=None: {
+            "enabled": True,
+            "topic": "sam/feedback/test/v1",
+            "include_task_info": "none",
+        }
+        if key == "feedback_publishing"
+        else default,
+    )
+    monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
+
+    # Create task
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Task for none test"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
+    assert task_response.status_code == 200
+    task_id = task_response.json()["result"]["id"]
+    session_id = task_response.json()["result"]["contextId"]
+
+    # Create task in DB
+    Session = sessionmaker(bind=test_database_engine)
+    db_session = Session()
+    try:
+        new_task = TaskModel(
+            id=task_id,
+            user_id="sam_dev_user",
+            start_time=now_epoch_ms(),
+            initial_request_text="Task for none test",
+        )
+        db_session.add(new_task)
+        db_session.commit()
+    finally:
+        db_session.close()
+
+    feedback_payload = {"taskId": task_id, "sessionId": session_id, "feedbackType": "down"}
+
+    # Act
+    response = api_client.post("/api/v1/feedback", json=feedback_payload)
+
+    # Assert
+    assert response.status_code == 202
+    mock_publish_func.assert_called_once()
+    
+    published_payload = mock_publish_func.call_args[0][1]
+    
+    # Should have feedback but no task_summary or task_stim_data
+    assert "feedback" in published_payload
+    assert published_payload["feedback"]["task_id"] == task_id
+    assert "task_summary" not in published_payload
+    assert "task_stim_data" not in published_payload
+
+
+def test_feedback_publishing_with_include_task_info_stim(
+    api_client: TestClient, monkeypatch, test_database_engine
+):
+    """
+    Tests that when include_task_info is 'stim', full task history is included in the published event.
+    """
+    # Arrange
+    mock_publish_func = MagicMock()
+    from solace_agent_mesh.gateway.http_sse import dependencies
+    component = dependencies.sac_component_instance
+
+    monkeypatch.setattr(
+        component,
+        "get_config",
+        lambda key, default=None: {
+            "enabled": True,
+            "topic": "sam/feedback/test/v1",
+            "include_task_info": "stim",
+            "max_payload_size_bytes": 9000000,  # Large enough to not trigger fallback
+        }
+        if key == "feedback_publishing"
+        else default,
+    )
+    monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
+
+    # Create task
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Task for stim test"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
+    assert task_response.status_code == 200
+    task_id = task_response.json()["result"]["id"]
+    session_id = task_response.json()["result"]["contextId"]
+
+    # Create task and events in DB
+    from solace_agent_mesh.gateway.http_sse.repository.models import TaskEventModel
+    
+    Session = sessionmaker(bind=test_database_engine)
+    db_session = Session()
+    try:
+        new_task = TaskModel(
+            id=task_id,
+            user_id="sam_dev_user",
+            start_time=now_epoch_ms(),
+            initial_request_text="Task for stim test",
+            status="completed",
+        )
+        db_session.add(new_task)
+        
+        # Add some task events
+        event1 = TaskEventModel(
+            id=str(uuid.uuid4()),
+            task_id=task_id,
+            user_id="sam_dev_user",
+            created_time=now_epoch_ms(),
+            topic="test/topic/request",
+            direction="request",
+            payload={"test": "request_payload"},
+        )
+        event2 = TaskEventModel(
+            id=str(uuid.uuid4()),
+            task_id=task_id,
+            user_id="sam_dev_user",
+            created_time=now_epoch_ms() + 1000,
+            topic="test/topic/response",
+            direction="response",
+            payload={"test": "response_payload"},
+        )
+        db_session.add(event1)
+        db_session.add(event2)
+        db_session.commit()
+    finally:
+        db_session.close()
+
+    feedback_payload = {"taskId": task_id, "sessionId": session_id, "feedbackType": "up"}
+
+    # Act
+    response = api_client.post("/api/v1/feedback", json=feedback_payload)
+
+    # Assert
+    assert response.status_code == 202
+    mock_publish_func.assert_called_once()
+    
+    published_payload = mock_publish_func.call_args[0][1]
+    
+    # Should have feedback and task_stim_data
+    assert "feedback" in published_payload
+    assert published_payload["feedback"]["task_id"] == task_id
+    assert "task_stim_data" in published_payload
+    
+    # Verify stim structure
+    stim_data = published_payload["task_stim_data"]
+    assert "invocation_details" in stim_data
+    assert "invocation_flow" in stim_data
+    assert stim_data["invocation_details"]["task_id"] == task_id
+    assert len(stim_data["invocation_flow"]) == 2  # Two events we created
+
+
+def test_feedback_publishing_stim_fallback_to_summary_on_size_limit(
+    api_client: TestClient, monkeypatch, test_database_engine
+):
+    """
+    Tests that when include_task_info is 'stim' but payload exceeds max_payload_size_bytes,
+    it falls back to 'summary' mode.
+    """
+    # Arrange
+    mock_publish_func = MagicMock()
+    from solace_agent_mesh.gateway.http_sse import dependencies
+    component = dependencies.sac_component_instance
+
+    monkeypatch.setattr(
+        component,
+        "get_config",
+        lambda key, default=None: {
+            "enabled": True,
+            "topic": "sam/feedback/test/v1",
+            "include_task_info": "stim",
+            "max_payload_size_bytes": 100,  # Very small to trigger fallback
+        }
+        if key == "feedback_publishing"
+        else default,
+    )
+    monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
+
+    # Create task
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Task for fallback test"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
+    assert task_response.status_code == 200
+    task_id = task_response.json()["result"]["id"]
+    session_id = task_response.json()["result"]["contextId"]
+
+    # Create task and events in DB
+    from solace_agent_mesh.gateway.http_sse.repository.models import TaskEventModel
+    
+    Session = sessionmaker(bind=test_database_engine)
+    db_session = Session()
+    try:
+        new_task = TaskModel(
+            id=task_id,
+            user_id="sam_dev_user",
+            start_time=now_epoch_ms(),
+            initial_request_text="Task for fallback test",
+            status="completed",
+        )
+        db_session.add(new_task)
+        
+        # Add events with large payloads
+        event1 = TaskEventModel(
+            id=str(uuid.uuid4()),
+            task_id=task_id,
+            user_id="sam_dev_user",
+            created_time=now_epoch_ms(),
+            topic="test/topic/request",
+            direction="request",
+            payload={"large_data": "x" * 1000},  # Large payload
+        )
+        db_session.add(event1)
+        db_session.commit()
+    finally:
+        db_session.close()
+
+    feedback_payload = {"taskId": task_id, "sessionId": session_id, "feedbackType": "up"}
+
+    # Act
+    response = api_client.post("/api/v1/feedback", json=feedback_payload)
+
+    # Assert
+    assert response.status_code == 202
+    mock_publish_func.assert_called_once()
+    
+    published_payload = mock_publish_func.call_args[0][1]
+    
+    # Should have feedback and task_summary (not stim_data due to fallback)
+    assert "feedback" in published_payload
+    assert published_payload["feedback"]["task_id"] == task_id
+    assert "task_summary" in published_payload
+    assert "task_stim_data" not in published_payload
+    
+    # Should have truncation details explaining the fallback
+    assert "truncation_details" in published_payload
+    assert published_payload["truncation_details"]["strategy"] == "fallback_to_summary"
+    assert published_payload["truncation_details"]["reason"] == "payload_too_large"
