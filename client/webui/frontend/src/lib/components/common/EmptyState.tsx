@@ -20,7 +20,7 @@ interface EmptyStateProps {
 
 function EmptyState({ title, subtitle, variant = "error", buttons }: EmptyStateProps) {
     return (
-        <div className="flex h-screen w-screen flex-col items-center justify-center gap-3">
+        <div className="flex h-full w-full flex-col items-center justify-center gap-3">
             {variant === "error" ? <ErrorDisplay width={150} height={150} /> : null}
 
             <p className="text-2xl">{title}</p>
