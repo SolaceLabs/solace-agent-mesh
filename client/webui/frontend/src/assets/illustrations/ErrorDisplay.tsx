@@ -1,6 +1,6 @@
 interface ErrorDisplayProps {
-    width: number;
-    height: number;
+    width?: number;
+    height?: number;
 }
 
 function ErrorDisplay({ width = 24, height = 24 }: ErrorDisplayProps) {
