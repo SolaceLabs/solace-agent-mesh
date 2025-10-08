@@ -1,7 +1,8 @@
 import React, { useRef, useState } from "react";
 import { Upload, FileText, ChevronDown, ChevronRight } from "lucide-react";
 
-import { Button, Spinner } from "@/lib/components/ui";
+import { Button } from "@/lib/components/ui";
+import { Spinner } from "@/lib/components/ui/spinner";
 import { useProjectArtifacts } from "@/lib/hooks/useProjectArtifacts";
 import { useProjectContext } from "@/lib/providers";
 import { useDownload } from "@/lib/hooks/useDownload";
