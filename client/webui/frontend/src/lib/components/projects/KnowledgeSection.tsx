@@ -17,7 +17,7 @@ interface KnowledgeSectionProps {
 export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) => {
     const { artifacts, isLoading, error, refetch } = useProjectArtifacts(project.id);
     const { addFilesToProject, removeFileFromProject } = useProjectContext();
-    const { onDownload } = useDownload();
+    const { onDownload } = useDownload(project.id);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [isCollapsed, setIsCollapsed] = useState(false);
