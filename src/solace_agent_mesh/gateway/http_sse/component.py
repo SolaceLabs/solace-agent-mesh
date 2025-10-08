@@ -463,7 +463,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 raise ValueError("Main app broker configuration is missing.")
 
             # The task logger needs to see ALL messages.
-            subscriptions = [{"topic": f"{self.namespace}/a2a/>"}]
+            subscriptions = [{"topic": f"{self.namespace.rstrip('/')}/a2a/>"}]
 
             broker_input_cfg = {
                 "component_module": "broker_input",
