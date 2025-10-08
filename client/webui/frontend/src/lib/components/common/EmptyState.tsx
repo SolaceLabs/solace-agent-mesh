@@ -1,6 +1,7 @@
 import type { VariantProps } from "class-variance-authority";
 import { Button } from "@/lib/components/ui/button";
 import type { buttonVariants } from "@/lib/components/ui/button";
+import { ErrorDisplay } from "@/assets/illustrations/ErrorDisplay";
 
 type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];
 
@@ -19,6 +20,8 @@ interface EmptyStateProps {
 function EmptyState({ title, subtitle, buttons }: EmptyStateProps) {
     return (
         <div className="flex h-screen w-screen flex-col items-center justify-center gap-3">
+            <ErrorDisplay width={150} height={150} />
+
             <p className="text-2xl">{title}</p>
             {subtitle ? <p className="text-base">{subtitle}</p> : null}
 
