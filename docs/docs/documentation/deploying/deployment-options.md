@@ -33,7 +33,7 @@ If your host system architecture is not `linux/amd64`, add the `--platform linux
 
 Docker provides an excellent foundation for production deployments because it packages your application with all its dependencies into a portable container. This approach ensures consistent behavior across different environments and simplifies deployment processes.
 
-The following Dockerfile demonstrates how to containerize a Agent Mesh project:
+The following Dockerfile demonstrates how to containerize an Agent Mesh project:
 
 ```Dockerfile
 FROM solace/solace-agent-mesh:latest

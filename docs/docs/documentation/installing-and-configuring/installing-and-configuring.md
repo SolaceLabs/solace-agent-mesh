@@ -13,7 +13,7 @@ Before you can build and deploy agent meshes, you need to install the Agent Mesh
 
 ## Creating Your First Project
 
-Once you have Agent Mesh installed, you'll create and run your first project to establish a working agent mesh system. This process involves initializing a new project directory, configuring basic settings through either a web interface or command-line prompts, and starting your agent mesh with the built-in orchestrator and web gateway. The project creation process also handles essential setup tasks like environment variable configuration and component initialization. For step-by-step guidance on project creation and execution, see [Creating and Running an Agent Mesh Project](run-sam.md).
+Once you have Agent Mesh installed, you'll create and run your first project to establish a working agent mesh system. This process involves initializing a new project directory, configuring basic settings through either a web interface or command-line prompts, and starting your agent mesh with the built-in orchestrator and web gateway. The project creation process also handles essential setup tasks like environment variable configuration and component initialization. For step-by-step guidance on project creation and execution, see [Creating and Running an Agent Mesh Project](run-project.md).
 
 ## Managing System Configuration
 

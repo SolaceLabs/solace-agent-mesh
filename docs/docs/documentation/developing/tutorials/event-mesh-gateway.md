@@ -5,15 +5,15 @@ sidebar_position: 20
 
 # Event Mesh Gateway
 
-If you already have an [event mesh](https://solace.com/what-is-an-event-mesh/) in place, you can integrate Solace Agent Mesh into it. This allows you to leverage existing infrastructure while introducing intelligence and automation through Solace Agent Mesh.
+If you already have an [event mesh](https://solace.com/what-is-an-event-mesh/) in place, you can integrate Agent Mesh into it. This allows you to leverage existing infrastructure while introducing intelligence and automation through Agent Mesh.
 
 ## Benefits of Integrating with an Event Mesh
 
-- **Seamless Communication**: Solace Agent Mesh can subscribe to and publish events across the entire event mesh
+- **Seamless Communication**: Agent Mesh can subscribe to and publish events across the entire event mesh
 - **Event-Driven Automation**: Intelligent event processing based on patterns and AI-driven insights
-- **Scalability**: Solace Agent Mesh can dynamically participate in large-scale event-driven systems
+- **Scalability**: Agent Mesh can dynamically participate in large-scale event-driven systems
 
-The Event Mesh Gateway connects Solace Agent Mesh to your existing event mesh infrastructure. Through its asynchronous interfaces, applications within your event mesh can seamlessly access and utilize Solace Agent Mesh capabilities.
+The Event Mesh Gateway connects Agent Mesh to your existing event mesh infrastructure. Through its asynchronous interfaces, applications within your event mesh can seamlessly access and utilize Agent Mesh capabilities.
 
 This tutorial shows you how to build an Event Mesh Gateway that automatically generates and adds concise summaries to Jira bug reports, making them easier to understand at a glance.
 
@@ -34,7 +34,7 @@ This creates a streamlined workflow where bug reports are automatically enhanced
 
 ## Setting Up the Environment
 
-First, you need to [install Solace Agent Mesh and the Solace Agent Mesh CLI](../../installing-and-configuring/installation.md), and then [create a new Solace Agent Mesh project](../../getting-started/try-sam.md).
+First, you need to [install Agent Mesh and the Agent Mesh CLI](../../installing-and-configuring/installation.md), and then [create a new Agent Mesh project](../../installing-and-configuring/run-project.md).
 
 For this tutorial, you need to create or use an existing [Solace Event Broker](https://solace.com/products/event-broker/) or [event mesh](https://solace.com/solutions/initiative/event-mesh/) created using Solace event brokers.
 

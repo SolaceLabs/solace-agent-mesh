@@ -19,7 +19,7 @@ Before you begin, ensure you have:
 * An AI provider and API key from any major provider. For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 4, Google Gemini 2.5 Pro, or OpenAI GPT-4
 
 :::tip Ready for Development?
-If you're ready to set up a full development environment with complete project control, skip this quick trial and go directly to the [installation guide](../installing-and-configuring/installation.md) followed by the [project setup guide](../installing-and-configuring/run-sam.md).
+If you're ready to set up a full development environment with complete project control, skip this quick trial and go directly to the [installation guide](../installing-and-configuring/installation.md) followed by the [project setup guide](../installing-and-configuring/run-project.md).
 :::
 
 ## Run the Docker Image
@@ -36,7 +36,7 @@ If your host system architecture is not `linux/amd64`, you must add the `--platf
 
 ### Using Custom Agents (Optional)
 
-Although the preset agents are sufficient for exploring the capabilities of Agent Mesh, you can optionally run your own custom agents if you already have them configured. However, for any serious development work, we recommend following the complete [project setup guide](../installing-and-configuring/run-sam.md) instead of this Docker shortcut.
+Although the preset agents are sufficient for exploring the capabilities of Agent Mesh, you can optionally run your own custom agents if you already have them configured. However, for any serious development work, we recommend following the complete [project setup guide](../installing-and-configuring/run-project.md) instead of this Docker shortcut.
 
 If you do want to test a custom agent quickly, you can mount your agent configuration into the container using the following command:
 
@@ -61,4 +61,4 @@ The web interface provides an intuitive way to interact with your agents and exp
 
 Once you've explored the basic functionality, you can learn more about [agents](../components/agents.md) and how they work, explore [gateways](../components/gateways.md) and different interface options, or try [using plugins](../components/plugins.md#use-a-plugin) to extend functionality.
 
-For serious development work, set up a complete project by following the [installation guide](../installing-and-configuring/installation.md) and then the [project setup guide](../installing-and-configuring/run-sam.md), which provides full control over your configuration and is suitable for development, testing, and production environments.
+For serious development work, set up a complete project by following the [installation guide](../installing-and-configuring/installation.md) and then the [project setup guide](../installing-and-configuring/run-project.md), which provides full control over your configuration and is suitable for development, testing, and production environments.

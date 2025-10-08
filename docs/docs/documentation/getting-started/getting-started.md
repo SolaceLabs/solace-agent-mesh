@@ -19,11 +19,11 @@ To see how all the pieces fit together, you can explore the key building blocks 
 
 ## Getting Started Quickly
 
-The fastest way to experience Agent Mesh is through our pre-configured Docker setup that gets you up and running with a working system in minutes. This approach lets you explore the framework's capabilities immediately without any installation or complex configuration. To get started right away, see [Try Solace Agent Mesh](./try-sam.md)
+The fastest way to experience Agent Mesh is through our pre-configured Docker setup that gets you up and running with a working system in minutes. This approach lets you explore the framework's capabilities immediately without any installation or complex configuration. To get started right away, see [Try Solace Agent Mesh](./try-agent-mesh.md)
 
 Once you've explored the basic functionality and want to set up your own development environment, you'll need to install the CLI and framework tools. The installation process supports multiple approaches including pip, uv, and Docker, making it easy to integrate with your existing workflow. For complete setup instructions, see [Installation](../installing-and-configuring/installation.md)
 
-For those ready to build their own projects from scratch, comprehensive guidance is available for creating and configuring custom deployments with full control over your agent mesh. This approach provides the flexibility needed for serious development work and production environments. To learn about project creation and configuration, see [Creating and Running an Agent Mesh Project](../installing-and-configuring/run-sam.md)
+For those ready to build their own projects from scratch, comprehensive guidance is available for creating and configuring custom deployments with full control over your agent mesh. This approach provides the flexibility needed for serious development work and production environments. To learn about project creation and configuration, see [Creating and Running an Agent Mesh Project](../installing-and-configuring/run-project.md)
 
 ## Building with Agent Mesh
 

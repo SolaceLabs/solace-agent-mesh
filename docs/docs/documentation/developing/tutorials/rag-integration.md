@@ -6,11 +6,11 @@ toc_max_heading_level: 4
 
 # RAG Integration
 
-This tutorial guides you through setting up and configuring Solace Agent Mesh Retrieval Augmented Generation (RAG) plugin. The RAG plugin enables your agents to answer questions by retrieving information from a knowledge base of your documents.
+This tutorial guides you through setting up and configuring Agent Mesh Retrieval Augmented Generation (RAG) plugin. The RAG plugin enables your agents to answer questions by retrieving information from a knowledge base of your documents.
 
-## What is Solace Agent Mesh RAG?
+## What is Agent Mesh RAG?
 
-The Solace Agent Mesh RAG plugin enhances your agents with the ability to perform retrieval-augmented generation. This means the agent can:
+The Agent Mesh RAG plugin enhances your agents with the ability to perform retrieval-augmented generation. This means the agent can:
 - **Scan** documents from various sources (local filesystem, Google Drive, etc.).
 - **Preprocess** and **split** the text into manageable chunks.
 - **Embed** these chunks into vectors and store them in a vector database.
@@ -22,15 +22,15 @@ This allows you to build agents that can answer questions about your own private
 ## Prerequisites
 
 Before you begin, ensure you have:
-- [Installed Solace Agent Mesh and the Solace Agent Mesh CLI](../../installing-and-configuring/installation.md).
-- [Created a new Solace Agent Mesh project](../../getting-started/try-sam.md).
+- [Installed Agent Mesh and the Agent Mesh CLI](../../installing-and-configuring/installation.md).
+- [Created a new Agent Mesh project](../../installing-and-configuring/run-project.md).
 - Access to a vector database (for example, Qdrant, Chroma, and Pinecone).
 - Access to an LLM for generation and an embedding model.
 - A directory with some documents for the agent to ingest.
 
 ## Adding the RAG Plugin
 
-To add the RAG plugin to your Solace Agent Mesh project, run the following command:
+To add the RAG plugin to your Agent Mesh project, run the following command:
 
 ```sh
 sam plugin add my-rag-agent --plugin sam-rag

@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 # Agent Mesh CLI
 
-Agent Mesh comes with a comprehensive CLI tool that you can use to create, and run an instance of Agent Mesh, which is referred to as a Agent Mesh application. Agent Mesh CLI also allows you to add agents and gateways, manage plugins, help you debug, and much more.
+Agent Mesh comes with a comprehensive CLI tool that you can use to create, and run an instance of Agent Mesh, which is referred to as an Agent Mesh application. Agent Mesh CLI also allows you to add agents and gateways, manage plugins, help you debug, and much more.
 
 ## Installation
 

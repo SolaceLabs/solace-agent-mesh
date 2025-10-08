@@ -5,7 +5,7 @@ sidebar_position: 5
 
 # Build Your Own Agent
 
-This tutorial shows you how to build a sophisticated weather agent using the Solace Agent Mesh framework. Learn how to integrate with external APIs, manage resources properly, and create production-ready agents.
+This tutorial shows you how to build a sophisticated weather agent using the Agent Mesh framework. Learn how to integrate with external APIs, manage resources properly, and create production-ready agents.
 
 ## Overview
 
@@ -59,7 +59,7 @@ For an example of plugin agents, see the [Create Agents](../create-agents.md#ste
 Follow the steps on the GUI to create a new agent named "Weather Agent". We can update the tools/skills section directly in the configuration file later.
 
 :::warning[Important Notice]
-This tutorial is intentionally comprehensive to demonstrate the full flexibility and advanced features available in Solace Agent Mesh agents. For most straightforward use cases, you only need a simple Python function and a corresponding reference in your YAML configuration file.
+This tutorial is intentionally comprehensive to demonstrate the full flexibility and advanced features available in Agent Mesh agents. For most straightforward use cases, you only need a simple Python function and a corresponding reference in your YAML configuration file.
 
 <details>
 <summary>Simple Weather Agent Example</summary>
@@ -237,7 +237,7 @@ sam-project/
 ...
 ```
 :::tip
-IN Solace Agent Mesh, you can create an agent either by using the `sam add agent` command or by creating a new plugin of type agent, `sam plugin create your-agent --type agent`. 
+In Agent Mesh, you can create an agent either by using the `sam add agent` command or by creating a new plugin of type agent, `sam plugin create your-agent --type agent`. 
 
 This tutorial uses the `sam add agent` command to create a new agent named "Weather Agent", for an example of creating a custom agent plugin, see the [Create Agents](../create-agents.md) tutorial.
 
@@ -920,7 +920,7 @@ Before running your weather agent, you'll need to:
 
 ## Step 7: Running the Agent
 
-To start the agent, it is preferred to build the plugin and then install it with your agent name. But for debugging or isolated development testing, you can run your agent from the `src` directory directly using the Solace Agent Mesh CLI.
+To start the agent, it is preferred to build the plugin and then install it with your agent name. But for debugging or isolated development testing, you can run your agent from the `src` directory directly using the Agent Mesh CLI.
 
 Start your weather agent for development purposes run:
 

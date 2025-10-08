@@ -5,7 +5,7 @@ sidebar_position: 60
 
 # Slack Integration
 
-This tutorial integrates a Slack interface into Solace Agent Mesh, enabling interaction with the system directly from your Slack workspace and channels.
+This tutorial integrates a Slack interface into Agent Mesh, enabling interaction with the system directly from your Slack workspace and channels.
 
 :::info[Learn about gateways]
 Read about [Gateways](../../components/gateways.md) before you start this tutorial.
@@ -13,7 +13,7 @@ Read about [Gateways](../../components/gateways.md) before you start this tutori
 
 ## Setting Up the Environment
 
-First, you need to [install Solace Agent Mesh and Solace Mesh Agent CLI](../../installing-and-configuring/installation.md), and then [create a new Solace Agent Mesh project](../../getting-started/try-sam.md) or [create a new gateway plugin](../../components/plugins.md#create-a-plugin).
+First, you need to [install Agent Mesh and Solace Mesh Agent CLI](../../installing-and-configuring/installation.md), and then [create a new Agent Mesh project](../../installing-and-configuring/run-project.md) or [create a new gateway plugin](../../components/plugins.md#create-a-plugin).
 
 ## Creating the Slack App
 
@@ -108,9 +108,9 @@ After installation, the bot token (beginning with `xoxb-`) is visible. Make note
 
 ## Installing the Slack Gateway
 
-After configuring your Slack App, the next step is to add the Slack gateway to Solace Agent Mesh.
+After configuring your Slack App, the next step is to add the Slack gateway to Agent Mesh.
 
-1. Add the gateway plugin using Solace Agent Mesh CLI:
+1. Add the gateway plugin using Agent Mesh CLI:
 
    ```sh
    sam plugin add slack-bot --plugin sam-slack
@@ -141,7 +141,7 @@ Launch the Slack gateway with:
 sam run configs/gateways/slack-bot.yaml
 ```
 
-For detailed information about available Solace Agent Mesh CLI commands, see [the Solace Agent Mesh CLI](../../components/cli.md).
+For detailed information about available Agent Mesh CLI commands, see [the Agent Mesh CLI](../../components/cli.md).
 
 ## Testing the Installation
 

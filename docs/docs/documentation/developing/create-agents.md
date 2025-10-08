@@ -16,7 +16,7 @@ This tutorial guides you through creating your first Agent Mesh agent from scrat
 
 ## Understanding the Architecture
 
-Before diving into implementation, you need to understand how the different components of a Agent Mesh agent work together. This architectural overview will help you see the big picture before you start building.
+Before diving into implementation, you need to understand how the different components of an Agent Mesh agent work together. This architectural overview will help you see the big picture before you start building.
 
 ```mermaid
 graph TD
@@ -472,7 +472,7 @@ sam plugin build
 
 This command packages your agent code, configuration, and dependencies into a distributable wheel file. The wheel file is a standard Python package format that can be installed into any Python environment.
 
-Check into [your Agent Mesh project directory](../getting-started/try-sam.md#create-a-project), and add the plugin wheel with a given name:
+Check into [your Agent Mesh project directory](../getting-started/try-agent-mesh.md), and add the plugin wheel with a given name:
 
 ```bash
 sam plugin add my-first-weather-agent --plugin PATH/TO/weather-agent/dist/weather-agent.whl
