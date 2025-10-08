@@ -71,7 +71,7 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({
                                 value={editedPrompt}
                                 onChange={(e) => setEditedPrompt(e.target.value)}
                                 placeholder="Add a system prompt for this project..."
-                                rows={5}
+                                rows={8}
                                 disabled={isSaving}
                                 className="text-sm"
                             />
@@ -96,7 +96,7 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({
                             </div>
                         </div>
                     ) : (
-                        <div className="text-sm text-muted-foreground whitespace-pre-wrap rounded-md bg-muted p-3">
+                        <div className="text-sm text-muted-foreground whitespace-pre-wrap rounded-md bg-muted p-3 min-h-[120px]">
                             {project.systemPrompt || <span className="italic">No system prompt provided.</span>}
                         </div>
                     )}
