@@ -31,7 +31,7 @@ When a user attempts to access the UI, they are redirected to your OAuth2 provid
 
 You need to create two YAML configuration files in your Named Docker Volume. These files define how the OAuth2 service operates and which identity provider it connects to.
 
-### Creating oauth2_server.yaml
+### Create oauth2_server.yaml
 
 The oauth2_server.yaml file configures the OAuth2 authentication service as a component within Agent Mesh Enterprise. This file tells the system to start the OAuth2 service and specifies where to find its detailed configuration.
 
@@ -79,7 +79,7 @@ This configuration accomplishes several things:
 
 The `${OAUTH2_HOST, localhost}` syntax means the service will use the OAUTH2_HOST environment variable if provided, otherwise it defaults to localhost. This pattern allows you to override configuration values at runtime without modifying the file.
 
-### Creating oauth2_config.yaml
+### Create oauth2_config.yaml
 
 The oauth2_config.yaml file contains provider-specific configuration for your chosen OAuth2 identity provider. This is where you specify which provider to use and provide the necessary credentials and endpoints.
 
@@ -196,7 +196,7 @@ The `session` configuration determines how long authenticated sessions remain va
 
 The `security` section configures Cross-Origin Resource Sharing (CORS) and rate limiting. CORS allows the web UI to communicate with the OAuth2 service from different origins, while rate limiting prevents abuse by restricting the number of authentication requests per minute.
 
-### Update your WebUI Gateway
+### Update Your WebUI Gateway
 
 Update your WebUI Gateway to configure login as follows:
 
