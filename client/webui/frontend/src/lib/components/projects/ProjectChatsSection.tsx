@@ -1,25 +1,36 @@
 import React from "react";
-import { MessageCircle, Calendar } from "lucide-react";
+import { MessageCircle, Calendar, Plus } from "lucide-react";
 
 import { useProjectSessions } from "@/lib/hooks/useProjectSessions";
 import { Spinner } from "@/lib/components/ui/spinner";
+import { Button } from "@/lib/components/ui";
 import { formatTimestamp } from "@/lib/utils/format";
 import type { Project } from "@/lib/types/projects";
 
 interface ProjectChatsSectionProps {
     project: Project;
     onChatClick: (sessionId: string) => void;
+    onStartNewChat?: () => void;
 }
 
 export const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({
     project,
     onChatClick,
+    onStartNewChat,
 }) => {
     const { sessions, isLoading, error } = useProjectSessions(project.id);
 
     return (
         <div className="px-6 py-4">
-            <h3 className="text-sm font-semibold text-foreground mb-3">Chats</h3>
+            <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-foreground">Chats</h3>
+                {onStartNewChat && (
+                    <Button onClick={onStartNewChat} size="sm">
+                        <Plus className="h-4 w-4 mr-2" />
+                        New Chat
+                    </Button>
+                )}
+            </div>
             
             {isLoading && (
                 <div className="flex items-center justify-center p-8">
@@ -36,9 +47,15 @@ export const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({
             {!isLoading && !error && sessions.length === 0 && (
                 <div className="flex flex-col items-center justify-center p-8 text-center border border-dashed rounded-md">
                     <MessageCircle className="h-8 w-8 text-muted-foreground mb-2" />
-                    <p className="text-sm text-muted-foreground">
-                        No chats yet. Activate this project to start chatting.
+                    <p className="text-sm text-muted-foreground mb-4">
+                        No chats yet. Start a new chat with this project's context.
                     </p>
+                    {onStartNewChat && (
+                        <Button onClick={onStartNewChat} size="sm">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Start New Chat
+                        </Button>
+                    )}
                 </div>
             )}
 

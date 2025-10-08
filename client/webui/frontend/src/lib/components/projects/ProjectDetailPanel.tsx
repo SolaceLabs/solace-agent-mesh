@@ -12,12 +12,14 @@ interface ProjectDetailPanelProps {
     selectedProject: Project | null;
     onCreateNew?: () => void;
     onChatClick?: (sessionId: string) => void;
+    onStartNewChat?: () => void;
 }
 
 export const ProjectDetailPanel: React.FC<ProjectDetailPanelProps> = ({
     selectedProject,
     onCreateNew,
     onChatClick,
+    onStartNewChat,
 }) => {
     const { updateProject } = useProjectContext();
     const [isEditingName, setIsEditingName] = useState(false);
@@ -102,6 +104,7 @@ export const ProjectDetailPanel: React.FC<ProjectDetailPanelProps> = ({
             <ProjectChatsSection
                 project={selectedProject}
                 onChatClick={handleChatClick}
+                onStartNewChat={onStartNewChat}
             />
         </div>
     );

@@ -78,6 +78,16 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
         }
     };
 
+    const handleStartNewChat = () => {
+        // Activate the project and start a new chat session
+        if (selectedProject) {
+            setActiveProject(selectedProject);
+            // Note: handleNewSession is not available in ProjectsPage context
+            // We'll navigate to chat page and let ChatPage handle the new session
+            onProjectActivated();
+        }
+    };
+
     // Show wizard as overlay
     if (showCreateWizard) {
         return (
@@ -131,6 +141,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
                             selectedProject={selectedProject}
                             onCreateNew={handleCreateNew}
                             onChatClick={handleChatClick}
+                            onStartNewChat={handleStartNewChat}
                         />
                     </ResizablePanel>
 
