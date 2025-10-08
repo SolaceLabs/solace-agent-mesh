@@ -2,12 +2,13 @@
 Helpers for creating and consuming A2A Artifact objects.
 """
 
-import base64
 import uuid
+import base64
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, List, Optional
-from urllib.parse import parse_qs, urlparse
+from typing import Any, List, Optional, TYPE_CHECKING
+from urllib.parse import urlparse, parse_qs
 
+from .types import ContentPart
 from a2a.types import (
     Artifact,
     DataPart,
@@ -18,9 +19,7 @@ from a2a.types import (
     TextPart,
 )
 from solace_ai_connector.common.log import log
-
 from .. import a2a
-from .types import ContentPart
 
 if TYPE_CHECKING:
     from google.adk.artifacts import BaseArtifactService

@@ -3,35 +3,32 @@ Helpers for translating between A2A protocol objects and other domains,
 such as the Google ADK.
 """
 
-import base64
+from typing import Any, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
 import json
+import base64
 import uuid
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse, parse_qs
+from solace_ai_connector.common.log import log
+from google.genai import types as adk_types
+from google.adk.events import Event as ADKEvent
 
 from a2a.types import (
-    DataPart,
+    Message as A2AMessage,
+    TextPart,
     FilePart,
     FileWithBytes,
     FileWithUri,
-    InternalError,
+    DataPart,
     JSONRPCResponse,
-    TextPart,
+    InternalError,
 )
-from a2a.types import (
-    Message as A2AMessage,
-)
-from google.adk.events import Event as ADKEvent
-from google.genai import types as adk_types
-from solace_ai_connector.common.log import log
 
-from ...agent.utils.context_helpers import get_original_session_id
 from .. import a2a
+from ...agent.utils.context_helpers import get_original_session_id
 
 if TYPE_CHECKING:
     from google.adk.artifacts import BaseArtifactService
-
     from ...agent.sac.component import SamAgentComponent
 
 
@@ -54,9 +51,9 @@ async def _prepare_a2a_filepart_for_adk(
     - It then formats this information into a text string for the LLM.
     """
     from ...agent.utils.artifact_helpers import (
-        format_metadata_for_llm,
-        load_artifact_content_or_metadata,
         save_artifact_with_metadata,
+        load_artifact_content_or_metadata,
+        format_metadata_for_llm,
     )
 
     log_id = f"{component.log_identifier}[PrepareFilePartForADK]"
@@ -550,9 +547,8 @@ async def translate_adk_part_to_a2a_filepart(
     based on the configured artifact_handling_mode.
     If version is not provided, it will be resolved to the latest.
     """
-    from a2a.types import FilePart, FileWithBytes, FileWithUri
-
     from ...common.utils.artifact_utils import get_latest_artifact_version
+    from a2a.types import FilePart, FileWithBytes, FileWithUri
 
     if artifact_handling_mode == "ignore":
         log.debug(

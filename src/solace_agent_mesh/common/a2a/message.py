@@ -6,6 +6,7 @@ import base64
 import uuid
 from typing import Any, Dict, List, Optional, Union
 
+from .types import ContentPart
 from a2a.types import (
     DataPart,
     FilePart,
@@ -18,7 +19,6 @@ from a2a.types import (
 )
 from a2a.utils import message as message_sdk_utils
 
-from .types import ContentPart
 
 # --- Creation Helpers ---
 

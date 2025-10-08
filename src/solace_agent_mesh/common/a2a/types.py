@@ -2,10 +2,9 @@
 Custom type aliases for the A2A helper layer.
 """
 
-from typing import Any, Dict, Optional, Union
-
-from a2a.types import AgentSkill, DataPart, FilePart, TextPart
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from typing import Union, Optional, Dict, Any
+from a2a.types import TextPart, DataPart, FilePart, AgentSkill
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 # A type alias for the raw content parts of a message or artifact.
 # This is the type that application logic should work with, insulating it
