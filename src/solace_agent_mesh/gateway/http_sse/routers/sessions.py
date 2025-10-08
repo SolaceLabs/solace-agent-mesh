@@ -64,7 +64,6 @@ async def get_session(
     session_service: SessionService = Depends(get_session_business_service),
 ):
     user_id = user.get("id")
-    log.info("User %s attempting to fetch session_id: %s", user_id, session_id)
 
     try:
         if (
