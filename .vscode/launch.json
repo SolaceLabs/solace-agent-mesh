@@ -10,7 +10,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_example.yaml",
+            "args": "--envfile .env preset/agents/basic/main_orchestrator.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
@@ -23,6 +23,18 @@
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
             "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_example.yaml examples/agents/test_agent.yaml examples/agents/a2a_multimodal_example.yaml",
+            "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
+        },
+        {
+            "name": "SAM (preset)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env preset/agents/basic/main_orchestrator.yaml preset/agents/basic/webui.yaml preset/agents/markitdown_agents.yaml preset/agents/mermaid_agents.yaml preset/agents/web_agents.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
