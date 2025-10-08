@@ -2,6 +2,7 @@ import type { VariantProps } from "class-variance-authority";
 import { Button } from "@/lib/components/ui/button";
 import type { buttonVariants } from "@/lib/components/ui/button";
 import { ErrorDisplay } from "@/assets/illustrations/ErrorDisplay";
+import type { ReactElement } from "react";
 
 type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];
 
@@ -15,13 +16,14 @@ interface EmptyStateProps {
     title: string;
     subtitle?: string;
     variant?: "error" | "empty";
+    image?: ReactElement;
     buttons?: ButtonWithCallback[];
 }
 
-function EmptyState({ title, subtitle, variant = "error", buttons }: EmptyStateProps) {
+function EmptyState({ title, subtitle, image, variant = "error", buttons }: EmptyStateProps) {
     return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-            {variant === "error" ? <ErrorDisplay width={150} height={150} /> : null}
+            {image ? image : variant === "error" ? <ErrorDisplay width={150} height={150} /> : null}
 
             <p className="text-2xl">{title}</p>
             {subtitle ? <p className="text-base">{subtitle}</p> : null}
