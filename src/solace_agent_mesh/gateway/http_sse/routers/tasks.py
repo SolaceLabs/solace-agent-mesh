@@ -2,20 +2,28 @@
 API Router for submitting and managing tasks to agents.
 """
 
+import yaml
+from datetime import datetime
 from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
     Request as FastAPIRequest,
+    Response,
     status,
 )
-from typing import Union
+from fastapi.exceptions import RequestValidationError
+from typing import List, Optional, Union
 
 from solace_ai_connector.common.log import log
 
 from ....gateway.http_sse.session_manager import SessionManager
 from ....gateway.http_sse.services.task_service import TaskService
 from ....gateway.http_sse.services.session_service import SessionService
+from ....gateway.http_sse.repository.interfaces import ITaskRepository
+from ....gateway.http_sse.repository.entities import Task
+from ....gateway.http_sse.shared.types import PaginationParams, UserId
+from ..utils.stim_utils import create_stim_from_task_data
 
 from a2a.types import (
     CancelTaskRequest,
@@ -31,7 +39,12 @@ from ....gateway.http_sse.dependencies import (
     get_sac_component,
     get_task_service,
     get_session_business_service,
+    get_task_repository,
+    get_user_id,
+    get_user_config,
+    get_session_business_service,
 )
+from ....gateway.http_sse.services.session_service import SessionService
 
 from typing import TYPE_CHECKING
 
@@ -58,7 +71,7 @@ async def _submit_task(
 
     if not agent_name:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Missing 'agent_name' in request payload message metadata.",
         )
 
@@ -120,53 +133,20 @@ async def _submit_task(
                         session_id=session_id,
                     )
                     db.commit()
-                    log.info("%sCreated session in database: %s", log_prefix, session_id)
+                    log.info(
+                        "%sCreated session in database: %s", log_prefix, session_id
+                    )
                 except Exception as e:
                     db.rollback()
-                    log.warning("%sFailed to create session in database: %s", log_prefix, e)
+                    log.warning(
+                        "%sFailed to create session in database: %s", log_prefix, e
+                    )
                 finally:
                     db.close()
 
         log.info(
             "%sUsing ClientID: %s, SessionID: %s", log_prefix, client_id, session_id
         )
-
-        # Store message in persistence layer if available
-        if is_streaming and SessionLocal is not None and session_service is not None:
-            db = SessionLocal()
-            try:
-                from ....gateway.http_sse.shared.enums import SenderType
-
-                message_text = ""
-                if payload.params and payload.params.message:
-                    parts = a2a.get_parts_from_message(payload.params.message)
-                    for part in parts:
-                        if hasattr(part, "text"):
-                            message_text = part.text
-                            break
-
-                session_service.add_message_to_session(
-                    db=db,
-                    session_id=session_id,
-                    user_id=user_id,
-                    message=message_text or "Task submitted",
-                    sender_type=SenderType.USER,
-                    sender_name=user_id or "user",
-                    agent_id=agent_name,
-                )
-                db.commit()
-            except Exception as e:
-                db.rollback()
-                log.error(
-                    "%sFailed to store message in session service: %s", log_prefix, e
-                )
-            finally:
-                db.close()
-        else:
-            log.debug(
-                "%sNo persistence available or non-streaming - skipping message storage",
-                log_prefix,
-            )
 
         # Use the helper to get the unwrapped parts from the incoming message.
         a2a_parts = a2a.get_parts_from_message(payload.params.message)
@@ -219,6 +199,146 @@ async def _submit_task(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_resp.model_dump(exclude_none=True),
+        )
+
+
+@router.get("/tasks", response_model=List[Task], tags=["Tasks"])
+async def search_tasks(
+    request: FastAPIRequest,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    search: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+    query_user_id: Optional[str] = None,
+    user_id: UserId = Depends(get_user_id),
+    user_config: dict = Depends(get_user_config),
+    repo: ITaskRepository = Depends(get_task_repository),
+):
+    """
+    Lists and searches for historical tasks.
+    - Regular users can only search their own tasks.
+    - Users with the 'tasks:read:all' scope can search for any user's tasks by providing `query_user_id`.
+    """
+    log_prefix = f"[GET /api/v1/tasks] "
+    log.info("%sRequest from user %s", log_prefix, user_id)
+
+    target_user_id = user_id
+    can_query_all = user_config.get("scopes", {}).get("tasks:read:all", False)
+
+    if query_user_id:
+        if can_query_all:
+            target_user_id = query_user_id
+            log.info(
+                "%sAdmin user %s is querying for user %s",
+                log_prefix,
+                user_id,
+                target_user_id,
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to query for other users' tasks.",
+            )
+    elif can_query_all:
+        target_user_id = "*"
+        log.info("%sAdmin user %s is querying for all users.", log_prefix, user_id)
+
+    start_time_ms = None
+    if start_date:
+        try:
+            start_time_ms = int(datetime.fromisoformat(start_date).timestamp() * 1000)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid start_date format. Use ISO 8601 format.",
+            )
+
+    end_time_ms = None
+    if end_date:
+        try:
+            end_time_ms = int(datetime.fromisoformat(end_date).timestamp() * 1000)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid end_date format. Use ISO 8601 format.",
+            )
+
+    pagination = PaginationParams(page=page, page_size=page_size)
+
+    try:
+        tasks = repo.search(
+            user_id=target_user_id,
+            start_date=start_time_ms,
+            end_date=end_time_ms,
+            search_query=search,
+            pagination=pagination,
+        )
+        return tasks
+    except Exception as e:
+        log.exception("%sError searching for tasks: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while searching for tasks.",
+        )
+
+
+@router.get("/tasks/{task_id}", tags=["Tasks"])
+async def get_task_as_stim_file(
+    task_id: str,
+    request: FastAPIRequest,
+    user_id: UserId = Depends(get_user_id),
+    user_config: dict = Depends(get_user_config),
+    repo: ITaskRepository = Depends(get_task_repository),
+):
+    """
+    Retrieves the complete event history for a single task and returns it as a `.stim` file.
+    """
+    log_prefix = f"[GET /api/v1/tasks/{task_id}] "
+    log.info("%sRequest from user %s", log_prefix, user_id)
+
+    try:
+        result = repo.find_by_id_with_events(task_id)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task with ID '{task_id}' not found.",
+            )
+
+        task, events = result
+
+        can_read_all = user_config.get("scopes", {}).get("tasks:read:all", False)
+        if task.user_id != user_id and not can_read_all:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to view this task.",
+            )
+
+        # Format into .stim structure
+        stim_data = create_stim_from_task_data(task, events)
+
+        yaml_content = yaml.dump(
+            stim_data,
+            sort_keys=False,
+            allow_unicode=True,
+            indent=2,
+            default_flow_style=False,
+        )
+
+        return Response(
+            content=yaml_content,
+            media_type="application/x-yaml",
+            headers={"Content-Disposition": f'attachment; filename="{task_id}.stim"'},
+        )
+
+    except HTTPException:
+        # Re-raise HTTPExceptions (404, 403, etc.) without modification
+        raise
+    except Exception as e:
+        log.exception("%sError retrieving task: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while retrieving the task.",
         )
 
 
@@ -278,6 +398,7 @@ async def cancel_agent_task(
     """
     Sends a cancellation request for a specific task to the specified agent.
     Returns 202 Accepted, as cancellation is asynchronous.
+    Returns 404 if the task context is not found.
     """
     log_prefix = f"[POST /api/v1/tasks/{taskId}:cancel] "
     log.info("%sReceived cancellation request.", log_prefix)
@@ -290,6 +411,11 @@ async def cancel_agent_task(
 
     context = component.task_context_manager.get_context(taskId)
     if not context:
+        log.warning(
+            "%sNo active task context found for task ID: %s",
+            log_prefix,
+            taskId,
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No active task context found for task ID: {taskId}",

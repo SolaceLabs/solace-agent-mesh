@@ -33,6 +33,13 @@ class TaskExecutionContext:
         self.artifact_signals_to_return: List[Dict[str, Any]] = []
         self.event_loop: Optional[asyncio.AbstractEventLoop] = None
         self.lock: threading.Lock = threading.Lock()
+        
+        # Token usage tracking
+        self.total_input_tokens: int = 0
+        self.total_output_tokens: int = 0
+        self.total_cached_input_tokens: int = 0
+        self.token_usage_by_model: Dict[str, Dict[str, int]] = {}
+        self.token_usage_by_source: Dict[str, Dict[str, int]] = {}
 
     def cancel(self) -> None:
         """Signals that the task should be cancelled."""
@@ -183,3 +190,69 @@ class TaskExecutionContext:
         """Retrieves the stored event loop."""
         with self.lock:
             return self.event_loop
+
+    def record_token_usage(
+        self,
+        input_tokens: int,
+        output_tokens: int,
+        model: str,
+        source: str = "agent",
+        tool_name: Optional[str] = None,
+        cached_input_tokens: int = 0,
+    ) -> None:
+        """
+        Records token usage for an LLM call.
+        
+        Args:
+            input_tokens: Number of input/prompt tokens.
+            output_tokens: Number of output/completion tokens.
+            model: Model identifier used for this call.
+            source: Source of the LLM call ("agent" or "tool").
+            tool_name: Tool name if source is "tool".
+            cached_input_tokens: Number of cached input tokens (optional).
+        """
+        with self.lock:
+            # Update totals
+            self.total_input_tokens += input_tokens
+            self.total_output_tokens += output_tokens
+            self.total_cached_input_tokens += cached_input_tokens
+            
+            # Track by model
+            if model not in self.token_usage_by_model:
+                self.token_usage_by_model[model] = {
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "cached_input_tokens": 0,
+                }
+            self.token_usage_by_model[model]["input_tokens"] += input_tokens
+            self.token_usage_by_model[model]["output_tokens"] += output_tokens
+            self.token_usage_by_model[model]["cached_input_tokens"] += cached_input_tokens
+            
+            # Track by source
+            source_key = f"{source}:{tool_name}" if tool_name else source
+            if source_key not in self.token_usage_by_source:
+                self.token_usage_by_source[source_key] = {
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "cached_input_tokens": 0,
+                }
+            self.token_usage_by_source[source_key]["input_tokens"] += input_tokens
+            self.token_usage_by_source[source_key]["output_tokens"] += output_tokens
+            self.token_usage_by_source[source_key]["cached_input_tokens"] += cached_input_tokens
+
+    def get_token_usage_summary(self) -> Dict[str, Any]:
+        """
+        Returns a summary of all token usage for this task.
+        
+        Returns:
+            Dictionary containing total token counts and breakdowns by model and source.
+        """
+        with self.lock:
+            return {
+                "total_input_tokens": self.total_input_tokens,
+                "total_output_tokens": self.total_output_tokens,
+                "total_cached_input_tokens": self.total_cached_input_tokens,
+                "total_tokens": self.total_input_tokens + self.total_output_tokens,
+                "by_model": dict(self.token_usage_by_model),
+                "by_source": dict(self.token_usage_by_source),
+            }

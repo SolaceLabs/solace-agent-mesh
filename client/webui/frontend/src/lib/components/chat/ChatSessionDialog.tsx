@@ -24,7 +24,7 @@ export const ChatSessionDialog: React.FC<ChatSessionDialogProps> = ({ isOpen, on
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={onClose}>
+                    <Button variant="ghost" onClick={onClose}>
                         Cancel
                     </Button>
                     <Button

@@ -1,0 +1,2562 @@
+# LLM Summary Detail File
+
+This file is a concatenation of all individual *llm.txt files found in the 'common' directory tree. Each section below corresponds to a specific directory's summary file.
+
+================================================================================
+
+## Section 1: solace_agent_mesh/common/a2a/a2a_llm.txt
+
+**Source file:** `solace_agent_mesh/common/a2a/a2a_llm.txt`
+
+# DEVELOPER GUIDE: a2a
+
+## Quick Summary
+The `a2a` directory provides a comprehensive abstraction layer for the A2A (Agent-to-Agent) protocol, offering helper functions for creating, consuming, and translating A2A protocol objects. It acts as a facade that insulates applications from the specifics of the underlying a2a-sdk, providing simplified interfaces for messages, artifacts, tasks, events, and protocol-level operations.
+
+## Files Overview
+- `__init__.py` - Main entry point exposing all commonly used A2A helpers
+- `artifact.py` - Helpers for creating and consuming A2A Artifact objects
+- `events.py` - Helpers for creating and consuming A2A asynchronous event objects
+- `message.py` - Helpers for creating and consuming A2A Message and Part objects
+- `protocol.py` - Helpers for A2A protocol-level concerns like topic construction and JSON-RPC
+- `task.py` - Helpers for creating and consuming A2A Task objects
+- `translation.py` - Helpers for translating between A2A protocol objects and other domains
+- `types.py` - Custom type aliases and models for the A2A helper layer
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Main entry point that exposes all commonly used A2A helpers for easy access
+**Import:** `from solace_agent_mesh.common.a2a import *`
+
+This file re-exports all public functions from the other modules, allowing developers to import everything from the main package.
+
+### artifact.py
+**Purpose:** Provides helpers for creating and consuming A2A Artifact objects
+**Import:** `from solace_agent_mesh.common.a2a.artifact import create_text_artifact, create_data_artifact, get_artifact_id`
+
+**Functions:**
+- `create_text_artifact(name: str, text: str, description: str = "", artifact_id: Optional[str] = None) -> Artifact` - Creates a new Artifact containing a single TextPart
+- `create_data_artifact(name: str, data: dict[str, Any], description: str = "", artifact_id: Optional[str] = None) -> Artifact` - Creates a new Artifact containing a single DataPart
+- `update_artifact_parts(artifact: Artifact, new_parts: List[ContentPart]) -> Artifact` - Returns a new Artifact with replaced parts
+- `prepare_file_part_for_publishing(part: FilePart, mode: str, artifact_service: "BaseArtifactService", user_id: str, session_id: str, target_agent_name: str, log_identifier: str) -> Optional[FilePart]` - Prepares a FilePart for publishing based on the artifact handling mode
+- `resolve_file_part_uri(part: FilePart, artifact_service: "BaseArtifactService", log_identifier: str) -> FilePart` - Resolves an artifact URI within a FilePart into embedded bytes
+- `get_artifact_id(artifact: Artifact) -> str` - Safely retrieves the ID from an Artifact
+- `get_artifact_name(artifact: Artifact) -> Optional[str]` - Safely retrieves the name from an Artifact
+- `get_parts_from_artifact(artifact: Artifact) -> List[ContentPart]` - Extracts unwrapped content parts from an Artifact
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.a2a.artifact import create_text_artifact, get_artifact_id
+
+# Create a text artifact
+artifact = create_text_artifact(
+    name="My Document",
+    text="This is the content of my document",
+    description="A sample text document"
+)
+
+# Get artifact ID
+artifact_id = get_artifact_id(artifact)
+```
+
+### events.py
+**Purpose:** Provides helpers for creating and consuming A2A asynchronous event objects
+**Import:** `from solace_agent_mesh.common.a2a.events import create_status_update, create_artifact_update`
+
+**Functions:**
+- `create_data_signal_event(task_id: str, context_id: str, signal_data: SignalData, agent_name: str, part_metadata: Optional[Dict[str, Any]] = None) -> TaskStatusUpdateEvent` - Creates a TaskStatusUpdateEvent from signal data
+- `create_status_update(task_id: str, context_id: str, message: Message, is_final: bool = False, metadata: Optional[Dict[str, Any]] = None) -> TaskStatusUpdateEvent` - Creates a new TaskStatusUpdateEvent
+- `create_artifact_update(task_id: str, context_id: str, artifact: Artifact, append: bool = False, last_chunk: bool = False, metadata: Optional[Dict[str, Any]] = None) -> TaskArtifactUpdateEvent` - Creates a new TaskArtifactUpdateEvent
+- `get_message_from_status_update(event: TaskStatusUpdateEvent) -> Optional[Message]` - Extracts Message from TaskStatusUpdateEvent
+- `get_data_parts_from_status_update(event: TaskStatusUpdateEvent) -> List[DataPart]` - Extracts DataPart objects from status update
+- `get_artifact_from_artifact_update(event: TaskArtifactUpdateEvent) -> Optional[Artifact]` - Extracts Artifact from TaskArtifactUpdateEvent
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.a2a.events import create_status_update
+from solace_agent_mesh.common.a2a.message import create_agent_text_message
+
+# Create a status update event
+message = create_agent_text_message("Processing your request...")
+status_event = create_status_update(
+    task_id="task-123",
+    context_id="context-456",
+    message=message,
+    is_final=False
+)
+```
+
+### message.py
+**Purpose:** Provides helpers for creating and consuming A2A Message and Part objects
+**Import:** `from solace_agent_mesh.common.a2a.message import create_agent_text_message, create_text_part, get_text_from_message`
+
+**Functions:**
+- `create_agent_text_message(text: str, task_id: Optional[str] = None, context_id: Optional[str] = None, message_id: Optional[str] = None) -> Message` - Creates agent message with TextPart
+- `create_agent_data_message(data: dict[str, Any], task_id: Optional[str] = None, context_id: Optional[str] = None, message_id: Optional[str] = None, part_metadata: Optional[Dict[str, Any]] = None) -> Message` - Creates agent message with DataPart
+- `create_agent_parts_message(parts: List[ContentPart], task_id: Optional[str] = None, context_id: Optional[str] = None, message_id: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> Message` - Creates agent message with multiple parts
+- `create_user_message(parts: List[ContentPart], task_id: Optional[str] = None, context_id: Optional[str] = None, message_id: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> Message` - Creates user message with multiple parts
+- `create_text_part(text: str, metadata: Optional[Dict[str, Any]] = None) -> TextPart` - Creates a TextPart object
+- `create_file_part_from_uri(uri: str, name: Optional[str] = None, mime_type: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> FilePart` - Creates FilePart from URI
+- `create_file_part_from_bytes(content_bytes: bytes, name: Optional[str] = None, mime_type: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> FilePart` - Creates FilePart from bytes
+- `create_data_part(data: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None) -> DataPart` - Creates a DataPart object
+- `update_message_parts(message: Message, new_parts: List[ContentPart]) -> Message` - Returns a new Message with replaced parts
+- `get_text_from_message(message: Message, delimiter: str = "\n") -> str` - Extracts and joins all text content from Message
+- `get_data_parts_from_message(message: Message) -> List[DataPart]` - Extracts DataPart objects from Message
+- `get_file_parts_from_message(message: Message) -> List[FilePart]` - Extracts FilePart objects from Message
+- `get_message_id(message: Message) -> str` - Gets message ID
+- `get_context_id(message: Message) -> Optional[str]` - Gets context ID
+- `get_task_id(message: Message) -> Optional[str]` - Gets task ID
+- `get_parts_from_message(message: Message) -> List[ContentPart]` - Extracts unwrapped content parts from Message
+- `get_text_from_text_part(part: TextPart) -> str` - Gets text from TextPart
+- `get_data_from_data_part(part: DataPart) -> Dict[str, Any]` - Gets data from DataPart
+- `get_metadata_from_part(part: ContentPart) -> Optional[Dict[str, Any]]` - Gets metadata from any Part
+- `get_file_from_file_part(part: FilePart) -> Optional[Union[FileWithUri, FileWithBytes]]` - Gets File object from FilePart
+- `get_uri_from_file_part(part: FilePart) -> Optional[str]` - Gets URI from FilePart
+- `get_bytes_from_file_part(part: FilePart) -> Optional[bytes]` - Gets decoded bytes from FilePart
+- `get_filename_from_file_part(part: FilePart) -> Optional[str]` - Gets filename from FilePart
+- `get_mimetype_from_file_part(part: FilePart) -> Optional[str]` - Gets MIME type from FilePart
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.a2a.message import create_agent_text_message, create_text_part, create_user_message
+
+# Create a simple text message
+message = create_agent_text_message(
+    text="Hello, how can I help you?",
+    task_id="task-123",
+    context_id="context-456"
+)
+
+# Create a user message with multiple parts
+text_part = create_text_part("Please analyze this data:")
+data_part = create_data_part({"values": [1, 2, 3, 4, 5]})
+user_message = create_user_message(
+    parts=[text_part, data_part],
+    task_id="task-123"
+)
+```
+
+### protocol.py
+**Purpose:** Provides helpers for A2A protocol-level concerns like topic construction and JSON-RPC
+**Import:** `from solace_agent_mesh.common.a2a.protocol import get_agent_request_topic, create_send_message_request`
+
+**Constants/Variables:**
+- `A2A_VERSION: str` - Current A2A protocol version ("v1")
+- `A2A_BASE_PATH: str` - Base path for A2A topics ("a2a/v1")
+
+**Functions:**
+- `get_a2a_base_topic(namespace: str) -> str` - Returns base topic prefix for A2A communication
+- `get_discovery_topic(namespace: str) -> str` - Returns topic for agent card discovery
+- `get_agent_request_topic(namespace: str, agent_name: str) -> str` - Returns topic for sending requests to specific agent
+- `get_gateway_status_topic(namespace: str, gateway_id: str, task_id: str) -> str` - Returns topic for publishing status updates to gateway
+- `get_gateway_response_topic(namespace: str, gateway_id: str, task_id: str) -> str` - Returns topic for publishing final response to gateway
+- `get_gateway_status_subscription_topic(namespace: str, self_gateway_id: str) -> str` - Returns wildcard topic for gateway to receive status updates
+- `get_gateway_response_subscription_topic(namespace: str, self_gateway_id: str) -> str` - Returns wildcard topic for gateway to receive responses
+- `get_peer_agent_status_topic(namespace: str, delegating_agent_name: str, sub_task_id: str) -> str` - Returns topic for publishing status to delegating agent
+- `get_agent_response_topic(namespace: str, delegating_agent_name: str, sub_task_id: str) -> str` - Returns topic for publishing response to delegating agent
+- `get_agent_response_subscription_topic(namespace: str, self_agent_name: str) -> str` - Returns wildcard topic for agent to receive responses
+- `get_agent_status_subscription_topic(namespace: str, self_agent_name: str) -> str` - Returns wildcard topic for agent to receive status updates
+- `get_client_response_topic(namespace: str, client_id: str) -> str` - Returns topic for publishing response to client
+- `get_client_status_topic(namespace: str, client_id: str, task_id: str) -> str` - Returns topic for publishing status to client
+- `get_client_status_subscription_topic(namespace: str, client_id: str) -> str` - Returns wildcard topic for client to receive status
+- `create_send_message_request(message: Message, task_id: str, metadata: Optional[Dict[str, Any]] = None) -> SendMessageRequest` - Creates SendMessageRequest object
+- `create_send_streaming_message_request(message: Message, task_id: str, metadata: Optional[Dict[str, Any]] = None) -> SendStreamingMessageRequest` - Creates SendStreamingMessageRequest object
+- `create_success_response(result: Any, request_id: Optional[Union[str, int]]) -> JSONRPCResponse` - Creates successful JSON-RPC response
+- `create_internal_error_response(message: str, request_id: Optional[Union[str, int]], data: Optional[Dict[str, Any]] = None) -> JSONRPCResponse` - Creates internal error response
+- `create_invalid_request_error_response(message: str, request_id: Optional[Union[str, int]], data: Optional[Any] = None) -> JSONRPCResponse` - Creates invalid request error response
+- `create_cancel_task_request(task_id: str) -> CancelTaskRequest` - Creates CancelTaskRequest object
+- `get_request_id(request: A2ARequest) -> str | int` - Gets JSON-RPC request ID
+- `get_request_method(request: A2ARequest) -> str` - Gets JSON-RPC method name
+- `get_message_from_send_request(request: A2ARequest) -> Optional[Message]` - Gets Message from send request
+- `get_task_id_from_cancel_request(request: A2ARequest) -> Optional[str]` - Gets task ID from cancel request
+- `get_response_id(response: JSONRPCResponse) -> Optional[Union[str, int]]` - Gets response ID
+- `get_response_result(response: JSONRPCResponse) -> Optional[Any]` - Gets response result
+- `get_response_error(response: JSONRPCResponse) -> Optional[JSONRPCError]` - Gets response error
+- `topic_matches_subscription(topic: str, subscription: str) -> bool` - Checks if topic matches Solace subscription pattern
+- `subscription_to_regex(subscription: str) -> str` - Converts Solace subscription to regex
+- `extract_task_id_from_topic(topic: str, subscription_pattern: str, log_identifier: str) -> Optional[str]` - Extracts task ID from topic
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.a2a.protocol import get_agent_request_topic, create_send_message_request
+from solace_agent_mesh.common.a2a.message import create_agent_text_message
+
+# Get topic for sending request to an agent
+topic = get_agent_request_topic("my-namespace", "my-agent")
+
+# Create a send message request
+message = create_agent_text_message("Hello agent!")
+request = create_sen
+
+================================================================================
+
+## Section 2: solace_agent_mesh/common/a2a_spec/a2a_spec_llm.txt
+
+**Source file:** `solace_agent_mesh/common/a2a_spec/a2a_spec_llm.txt`
+
+# DEVELOPER GUIDE: a2a_spec
+
+## Quick Summary
+The `a2a_spec` directory contains the complete Agent-to-Agent (A2A) communication specification for the Solace Agent Mesh. It includes the main JSON schema definition (`a2a.json`) that defines all data structures, request/response types, and error codes for agent communication, plus a `schemas/` subdirectory containing specialized validation schemas for various agent signals and progress updates. Together, these provide a comprehensive framework for validating and implementing compliant agent-to-agent communication.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `a2a.json` - Complete JSON Schema specification for A2A protocol including all data types, requests, responses, and error definitions
+  - `a2a_spec_llm.txt` - Developer guide documentation for the A2A specification
+- **Subdirectories:**
+  - `schemas/` - JSON Schema definitions for agent communication signals (progress updates, tool invocations, LLM calls, artifact creation)
+
+## Developer API Reference
+
+### Direct Files
+
+#### a2a.json
+**Purpose:** Complete JSON Schema specification defining the Agent-to-Agent communication protocol
+**Import:** This is a JSON Schema file, typically loaded for validation purposes
+
+**Key Schema Definitions:**
+- **AgentCard** - Self-describing manifest for agents with capabilities, skills, and endpoints
+- **Message** - Individual messages in agent conversations with parts (text, files, data)
+- **Task** - Stateful operations/conversations between clients and agents
+- **A2ARequest/A2AResponse** - All supported JSON-RPC request and response types
+- **Security Schemes** - OAuth2, API Key, mTLS, and other authentication methods
+- **Error Types** - Standard JSON-RPC and A2A-specific error definitions
+
+**Core Data Structures:**
+```typescript
+// Agent Card - describes agent capabilities
+AgentCard {
+  name: string
+  description: string
+  url: string
+  skills: AgentSkill[]
+  capabilities: AgentCapabilities
+  security: SecurityRequirement[]
+  // ... additional fields
+}
+
+// Message - conversation content
+Message {
+  messageId: string
+  role: "user" | "agent"
+  parts: Part[] // TextPart | FilePart | DataPart
+  taskId?: string
+  contextId?: string
+}
+
+// Task - stateful operation
+Task {
+  id: string
+  contextId: string
+  status: TaskStatus
+  history?: Message[]
+  artifacts?: Artifact[]
+}
+```
+
+#### a2a_spec_llm.txt
+**Purpose:** Developer documentation and usage guide for the A2A specification
+**Import:** Documentation file for reference
+
+### Subdirectory APIs
+
+#### schemas/
+**Purpose:** Provides JSON Schema definitions for agent communication signals and progress updates
+**Key Exports:** Schema definitions for progress tracking, tool invocations, LLM calls, and artifact creation
+**Import Examples:**
+```python
+import json
+from jsonschema import validate
+
+# Load and use schemas for validation
+with open('solace_agent_mesh/common/a2a_spec/schemas/agent_progress_update.json') as f:
+    progress_schema = json.load(f)
+```
+
+**Available Schemas:**
+- `agent_progress_update.json` - General progress status messages
+- `artifact_creation_progress.json` - File/artifact creation tracking with chunked data
+- `llm_invocation.json` - LLM model invocation signals
+- `tool_invocation_start.json` - Tool execution start notifications
+- `tool_result.json` - Tool execution completion results
+
+## Complete Usage Guide
+
+### 1. Loading and Using the A2A Schema
+
+```python
+import json
+from jsonschema import validate, Draft7Validator
+
+# Load the main A2A schema
+with open('solace_agent_mesh/common/a2a_spec/a2a.json') as f:
+    a2a_schema = json.load(f)
+
+# Create validator for specific types
+def validate_agent_card(card_data):
+    """Validate an AgentCard against the schema"""
+    card_schema = a2a_schema['definitions']['AgentCard']
+    validate(instance=card_data, schema=card_schema)
+
+def validate_message(message_data):
+    """Validate a Message against the schema"""
+    message_schema = a2a_schema['definitions']['Message']
+    validate(instance=message_data, schema=message_schema)
+
+def validate_request(request_data):
+    """Validate an A2A request"""
+    request_schema = a2a_schema['definitions']['A2ARequest']
+    validate(instance=request_data, schema=request_schema)
+```
+
+### 2. Creating Valid A2A Data Structures
+
+```python
+# Create a valid Message
+message = {
+    "kind": "message",
+    "messageId": "msg-123",
+    "role": "user",
+    "parts": [
+        {
+            "kind": "text",
+            "text": "Hello, can you help me with a task?"
+        }
+    ]
+}
+
+# Create a SendMessage request
+send_request = {
+    "jsonrpc": "2.0",
+    "id": "req-456",
+    "method": "message/send",
+    "params": {
+        "message": message
+    }
+}
+
+# Validate the request
+validate_request(send_request)
+```
+
+### 3. Using Agent Communication Schemas
+
+```python
+import json
+from jsonschema import validate
+
+# Load and validate progress update
+with open('solace_agent_mesh/common/a2a_spec/schemas/agent_progress_update.json') as f:
+    progress_schema = json.load(f)
+
+progress_update = {
+    "type": "agent_progress_update",
+    "status_text": "Processing your request..."
+}
+validate(instance=progress_update, schema=progress_schema)
+
+# Load and validate tool invocation
+with open('solace_agent_mesh/common/a2a_spec/schemas/tool_invocation_start.json') as f:
+    tool_schema = json.load(f)
+
+tool_invocation = {
+    "type": "tool_invocation_start",
+    "tool_name": "file_reader",
+    "tool_args": {"filepath": "/data/file.txt"},
+    "function_call_id": "call_123"
+}
+validate(instance=tool_invocation, schema=tool_schema)
+
+# Load and validate tool result
+with open('solace_agent_mesh/common/a2a_spec/schemas/tool_result.json') as f:
+    result_schema = json.load(f)
+
+tool_result = {
+    "type": "tool_result",
+    "tool_name": "file_reader",
+    "result_data": {"content": "File contents...", "size": 1024},
+    "function_call_id": "call_123"
+}
+validate(instance=tool_result, schema=result_schema)
+```
+
+### 4. Working with Agent Cards
+
+```python
+# Create a complete AgentCard
+agent_card = {
+    "name": "Document Processor",
+    "description": "Agent that processes and analyzes documents",
+    "url": "https://api.example.com/agent",
+    "version": "1.0.0",
+    "protocolVersion": "0.3.0",
+    "capabilities": {
+        "streaming": True,
+        "pushNotifications": False,
+        "stateTransitionHistory": True
+    },
+    "defaultInputModes": ["text/plain", "application/pdf"],
+    "defaultOutputModes": ["text/plain", "application/json"],
+    "skills": [
+        {
+            "id": "document-analysis",
+            "name": "Document Analysis",
+            "description": "Analyze and extract information from documents",
+            "tags": ["document", "analysis", "extraction"]
+        }
+    ]
+}
+
+# Validate the agent card
+validate_agent_card(agent_card)
+```
+
+### 5. Artifact Creation Progress Tracking
+
+```python
+# Load artifact creation schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/artifact_creation_progress.json') as f:
+    artifact_schema = json.load(f)
+
+# Track artifact creation with chunked data
+artifact_progress = {
+    "type": "artifact_creation_progress",
+    "filename": "report.pdf",
+    "bytes_saved": 1024,
+    "artifact_chunk": "JVBERi0xLjQKJcOkw7zDtsO..."  # Base64 encoded chunk
+}
+validate(instance=artifact_progress, schema=artifact_schema)
+```
+
+### 6. LLM Invocation Tracking
+
+```python
+# Load LLM invocation schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/llm_invocation.json') as f:
+    llm_schema = json.load(f)
+
+# Track LLM calls
+llm_invocation = {
+    "type": "llm_invocation",
+    "request": {
+        "model": "gpt-4",
+        "messages": [{"role": "user", "content": "Analyze this data"}],
+        "temperature": 0.7
+    }
+}
+validate(instance=llm_invocation, schema=llm_schema)
+```
+
+### 7. Complete Request/Response Flow with Progress Tracking
+
+```python
+# 1. Create and send a message
+message = {
+    "kind": "message",
+    "messageId": "msg-001",
+    "role": "user",
+    "parts": [{"kind": "text", "text": "Analyze this document"}]
+}
+
+request = {
+    "jsonrpc": "2.0",
+    "id": "req-001",
+    "method": "message/send",
+    "params": {
+        "message": message,
+        "configuration": {
+            "blocking": False,
+            "acceptedOutputModes": ["text/plain", "application/json"]
+        }
+    }
+}
+
+# 2. Send progress updates during processing
+def send_progress_update(status_text):
+    progress = {
+        "type": "agent_progress_update",
+        "status_text": status_text
+    }
+    # Validate and send progress update
+    validate(instance=progress, schema=progress_schema)
+    return progress
+
+# 3. Track tool invocations
+def track_tool_invocation(tool_name, args, call_id):
+    invocation = {
+        "type": "tool_invocation_start",
+        "tool_name": tool_name,
+        "tool_args": args,
+        "function_call_id": call_id
+    }
+    validate(instance=invocation, schema=tool_schema)
+    return invocation
+
+# 4. Track tool results
+def track_tool_result(tool_name, result_data, call_id):
+    result = {
+        "type": "tool_result",
+        "tool_name": tool_name,
+        "result_data": result_data,
+        "function_call_id": call_id
+    }
+    validate(instance=result, schema=result_schema)
+    return result
+```
+
+### 8. Comprehensive Schema Validation Utilities
+
+```python
+class A2AValidator:
+    """Utility class for A2A schema validation"""
+    
+    def __init__(self, schema_dir='solace_agent_mesh/common/a2a_spec'):
+        self.schema_dir = schema_dir
+        self.main_schema = self._load_main_schema()
+        self.signal_schemas = self._load_signal_schemas()
+    
+    def _load_main_schema(self):
+        with open(f'{self.schema_dir}/a2a.json') as f:
+            return json.load(f)
+    
+    def _load_signal_schemas(self):
+        schemas = {}
+        schema_files = [
+            'agent_progress_update.json',
+            'artifact_creation_progress.json',
+            'llm_invocation.json',
+            'tool_invocation_start.json',
+            'tool_result.json'
+        ]
+        for filename in schema_files:
+            with open(f'{self.schema_dir}/schemas/{filename}') as f:
+                schema_name = filename.replace('.json', '')
+                schemas[schema_name] = json.load(f)
+        return schemas
+    
+    def validate_definition(self, data, definition_name):
+        """Validate data against a specific A2A definition"""
+        schema = self.main_schema['definitions'][definition_name]
+        validate(instance=data, schema=schema)
+    
+    def validate_signal(self, data, signal_type):
+        """Validate agent communication signal"""
+        schema = self.signal_schemas[signal_type]
+        validate(instance=data, schema=schema)
+    
+    def validate_a2a_message(self, message_data):
+        """Validate a complete A2A message"""
+        self.validate_definition(message_data, 'Message')
+    
+    def validate_agent_card(self, card_data):
+        """Validate an agent card"""
+        self.validate_definition(card_data, 'AgentCard')
+    
+    def validate_task(self, task_data):
+        """Validate a task object"""
+        self.validate_definition(task_data, 'Task')
+
+# Usage example
+validator = A2AValidator()
+
+# Validate main A2A objects
+validator.validate_agent_card(agent_card)
+validator.validate_a2a_message(message)
+
+# Validate communication signals
+validator.validate_signal(progress_update, 'agent_progress_update')
+validator.validate_signal(tool_invocation, 'tool_invocation_start')
+validator.validate_signal(tool_result, 'tool_result')
+validator.validate_signal(artifact_progress, 'artifact_creation_progress')
+validator.validate_signal(llm_invocation, 'llm_invocation')
+```
+
+### 9. Error Handling with A2A Error Types
+
+```python
+# Create A2A-specific errors using the schema definitions
+task_not_found_error = {
+    "code": -32001,
+    "message": "Task not found",
+    "data": {"taskId": "task-123"}
+}
+
+content_type_error = {
+    "code": -32005,
+    "message": "Incompatible content types",
+    "data": {"requested": "image/png", "supported": ["text/plain", "application/json"]}
+}
+
+# Create error response
+error_response = {
+    "jsonrpc": "2.0",
+    "id": "req-456",
+    "error": task_not_found_error
+}
+
+# Validate error response
+validator.validate_definition(error_response, 'JSONRPCErrorResponse')
+```
+
+This comprehensive guide shows how to use both the main A2A specification and the specialized signal schemas together to build compliant agent-to-agent communication systems in the Solace Agent Mesh, including progress tracking, tool invocation monitoring, LLM call tracking, and artifact creation progress.
+
+================================================================================
+
+## Section 3: solace_agent_mesh/common/a2a_spec/schemas/schemas_llm.txt
+
+**Source file:** `solace_agent_mesh/common/a2a_spec/schemas/schemas_llm.txt`
+
+# DEVELOPER GUIDE: schemas
+
+## Quick Summary
+This directory contains JSON Schema definitions for various agent-to-agent (A2A) communication signals in the Solace Agent Mesh. These schemas define the structure and validation rules for different types of progress updates, tool invocations, and LLM interactions that agents can send to each other.
+
+## Files Overview
+- `agent_progress_update.json` - Schema for general agent progress status messages
+- `artifact_creation_progress.json` - Schema for tracking file/artifact creation progress with chunked data
+- `llm_invocation.json` - Schema for LLM model invocation signals with usage tracking
+- `tool_invocation_start.json` - Schema for tool execution start notifications
+- `tool_result.json` - Schema for tool execution completion results with optional LLM usage
+- `schemas_llm.txt` - Previous developer guide (legacy documentation)
+
+## Developer API Reference
+
+### agent_progress_update.json
+**Purpose:** Defines the schema for agent progress update signals that communicate human-readable status messages between agents.
+
+**Import:** Load as JSON schema for validation
+```python
+import json
+from jsonschema import validate
+```
+
+**Schema Structure:**
+```json
+{
+  "type": "agent_progress_update",
+  "status_text": "string"
+}
+```
+
+**Properties:**
+- `type: "agent_progress_update"` - Constant identifier for this signal type (required)
+- `status_text: string` - Human-readable progress message (required)
+
+**Usage Examples:**
+```python
+import json
+from jsonschema import validate
+
+# Load and use schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/agent_progress_update.json') as f:
+    schema = json.load(f)
+
+# Valid data example
+data = {
+    "type": "agent_progress_update",
+    "status_text": "Analyzing the report..."
+}
+validate(instance=data, schema=schema)
+```
+
+### artifact_creation_progress.json
+**Purpose:** Defines the schema for tracking progress during file or artifact creation operations with chunked data transfer.
+
+**Import:** Load as JSON schema for validation
+```python
+import json
+from jsonschema import validate
+```
+
+**Schema Structure:**
+```json
+{
+  "type": "artifact_creation_progress",
+  "filename": "string",
+  "bytes_saved": "integer",
+  "artifact_chunk": "string"
+}
+```
+
+**Properties:**
+- `type: "artifact_creation_progress"` - Constant identifier for this signal type (required)
+- `filename: string` - Name of the artifact being created (required)
+- `bytes_saved: integer` - Number of bytes saved so far (required)
+- `artifact_chunk: string` - The chunk of artifact data that was saved in this update (required)
+
+**Usage Examples:**
+```python
+import json
+from jsonschema import validate
+
+# Load and use schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/artifact_creation_progress.json') as f:
+    schema = json.load(f)
+
+# Valid data example
+data = {
+    "type": "artifact_creation_progress",
+    "filename": "report.pdf",
+    "bytes_saved": 1024,
+    "artifact_chunk": "JVBERi0xLjQKJcOkw7zDtsO..."
+}
+validate(instance=data, schema=schema)
+```
+
+### llm_invocation.json
+**Purpose:** Defines the schema for LLM invocation signals that communicate when an agent is calling a language model, including token usage tracking.
+
+**Import:** Load as JSON schema for validation
+```python
+import json
+from jsonschema import validate
+```
+
+**Schema Structure:**
+```json
+{
+  "type": "llm_invocation",
+  "request": "object",
+  "usage": {
+    "input_tokens": "integer",
+    "output_tokens": "integer",
+    "cached_input_tokens": "integer",
+    "model": "string"
+  }
+}
+```
+
+**Properties:**
+- `type: "llm_invocation"` - Constant identifier for this signal type (required)
+- `request: object` - Sanitized representation of the LlmRequest object sent to the model (required)
+- `usage: object` - Token usage information for this LLM call (optional)
+  - `input_tokens: integer` - Number of input/prompt tokens (required in usage)
+  - `output_tokens: integer` - Number of output/completion tokens (required in usage)
+  - `cached_input_tokens: integer` - Number of cached input tokens (optional)
+  - `model: string` - Model identifier used for this call (required in usage)
+
+**Usage Examples:**
+```python
+import json
+from jsonschema import validate
+
+# Load and use schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/llm_invocation.json') as f:
+    schema = json.load(f)
+
+# Valid data example with usage tracking
+data = {
+    "type": "llm_invocation",
+    "request": {
+        "model": "gpt-4",
+        "messages": [{"role": "user", "content": "Analyze this data"}],
+        "temperature": 0.7
+    },
+    "usage": {
+        "input_tokens": 150,
+        "output_tokens": 75,
+        "cached_input_tokens": 50,
+        "model": "gpt-4"
+    }
+}
+validate(instance=data, schema=schema)
+```
+
+### tool_invocation_start.json
+**Purpose:** Defines the schema for tool invocation start signals that notify when an agent begins executing a tool.
+
+**Import:** Load as JSON schema for validation
+```python
+import json
+from jsonschema import validate
+```
+
+**Schema Structure:**
+```json
+{
+  "type": "tool_invocation_start",
+  "tool_name": "string",
+  "tool_args": "object",
+  "function_call_id": "string"
+}
+```
+
+**Properties:**
+- `type: "tool_invocation_start"` - Constant identifier for this signal type (required)
+- `tool_name: string` - Name of the tool being called (required)
+- `tool_args: object` - Arguments passed to the tool (required)
+- `function_call_id: string` - ID from the LLM's function call (required)
+
+**Usage Examples:**
+```python
+import json
+from jsonschema import validate
+
+# Load and use schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/tool_invocation_start.json') as f:
+    schema = json.load(f)
+
+# Valid data example
+data = {
+    "type": "tool_invocation_start",
+    "tool_name": "file_reader",
+    "tool_args": {
+        "filepath": "/path/to/file.txt",
+        "encoding": "utf-8"
+    },
+    "function_call_id": "call_abc123"
+}
+validate(instance=data, schema=schema)
+```
+
+### tool_result.json
+**Purpose:** Defines the schema for tool execution result signals that communicate the completion and results of tool invocations, with optional LLM usage tracking.
+
+**Import:** Load as JSON schema for validation
+```python
+import json
+from jsonschema import validate
+```
+
+**Schema Structure:**
+```json
+{
+  "type": "tool_result",
+  "tool_name": "string",
+  "result_data": "any",
+  "function_call_id": "string",
+  "llm_usage": {
+    "input_tokens": "integer",
+    "output_tokens": "integer",
+    "cached_input_tokens": "integer",
+    "model": "string"
+  }
+}
+```
+
+**Properties:**
+- `type: "tool_result"` - Constant identifier for this signal type (required)
+- `tool_name: string` - Name of the tool that was called (required)
+- `result_data: any` - The data returned by the tool (required, can be any type)
+- `function_call_id: string` - ID from the LLM's function call that this result corresponds to (required)
+- `llm_usage: object` - Token usage if this tool made LLM calls (optional)
+  - `input_tokens: integer` - Total input tokens used by tool's LLM calls (required in llm_usage)
+  - `output_tokens: integer` - Total output tokens used by tool's LLM calls (required in llm_usage)
+  - `cached_input_tokens: integer` - Number of cached input tokens (optional)
+  - `model: string` - Model identifier(s) used by the tool (required in llm_usage)
+
+**Usage Examples:**
+```python
+import json
+from jsonschema import validate
+
+# Load and use schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/tool_result.json') as f:
+    schema = json.load(f)
+
+# Valid data example with LLM usage
+data = {
+    "type": "tool_result",
+    "tool_name": "web_search",
+    "result_data": {
+        "results": ["Result 1", "Result 2"],
+        "count": 2
+    },
+    "function_call_id": "call_abc123",
+    "llm_usage": {
+        "input_tokens": 200,
+        "output_tokens": 100,
+        "model": "gpt-4"
+    }
+}
+validate(instance=data, schema=schema)
+```
+
+**Common Usage Pattern:**
+```python
+import json
+from jsonschema import validate
+from pathlib import Path
+from typing import Dict, Any
+
+def validate_a2a_signal(signal_data: Dict[str, Any], schema_name: str) -> bool:
+    """Validate A2A signal data against its schema."""
+    schema_path = Path(f"solace_agent_mesh/common/a2a_spec/schemas/{schema_name}.json")
+    
+    with open(schema_path) as f:
+        schema = json.load(f)
+    
+    try:
+        validate(instance=signal_data, schema=schema)
+        return True
+    except Exception as e:
+        print(f"Validation failed: {e}")
+        return False
+
+def load_schema(schema_name: str) -> Dict[str, Any]:
+    """Load a specific A2A signal schema."""
+    schema_path = Path(f"solace_agent_mesh/common/a2a_spec/schemas/{schema_name}.json")
+    with open(schema_path) as f:
+        return json.load(f)
+
+# Example usage
+progress_data = {
+    "type": "agent_progress_update",
+    "status_text": "Processing request..."
+}
+
+if validate_a2a_signal(progress_data, "agent_progress_update"):
+    print("Signal is valid!")
+
+# Load all schemas for batch validation
+schemas = {
+    "agent_progress": load_schema("agent_progress_update"),
+    "artifact_progress": load_schema("artifact_creation_progress"),
+    "llm_invocation": load_schema("llm_invocation"),
+    "tool_start": load_schema("tool_invocation_start"),
+    "tool_result": load_schema("tool_result")
+}
+```
+
+================================================================================
+
+## Section 4: solace_agent_mesh/common/common_llm.txt
+
+**Source file:** `solace_agent_mesh/common/common_llm.txt`
+
+# DEVELOPER GUIDE: common
+
+## Quick Summary
+The `common` directory provides the foundational infrastructure for Agent-to-Agent (A2A) communication within the Solace Agent Mesh. It establishes the core protocol, data types, and message translation logic that underpins all interactions between AI agents and gateways.
+
+The architecture is designed for clarity and extensibility. Core, low-level definitions are located in **direct files**:
+- `types.py` defines the canonical data structures (e.g., `Message`, `Task`, `AgentCard`).
+- `a2a_protocol.py` handles the construction of Solace topics and the translation between A2A and Google ADK message formats.
+- `agent_registry.py` provides a simple, thread-safe mechanism for discovering and tracking available agents.
+
+This foundation is then leveraged by specialized **subdirectories**, which provide higher-level, ready-to-use components:
+- `client/`: A complete client library for discovering and interacting with remote agents.
+- `server/`: A stand-alone server implementation for building A2A-compliant agents.
+- `middleware/`: A pluggable framework for customizing configuration and feature access.
+- `services/`: A factory-based system for integrating identity and other external data sources.
+- `utils/`: A collection of cross-cutting utilities for caching, logging, and dynamic content processing.
+
+Together, these components form a cohesive ecosystem, enabling developers to either build new agents from scratch using the `server` components or interact with existing agents using the `client` library, all while relying on the same underlying protocol and types.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `__init__.py`: Package initialization file.
+  - `a2a_protocol.py`: Handles A2A topic construction and translation between A2A and ADK message formats.
+  - `agent_registry.py`: A thread-safe registry for managing discovered agent cards.
+  - `constants.py`: Common constants used across the system.
+  - `data_parts.py`: Pydantic models for structured data payloads used in A2A DataPart objects.
+  - `exceptions.py`: Custom exceptions for Solace Agent Mesh.
+  - `types.py`: Contains all Pydantic models for A2A protocol messages, tasks, and data structures.
+- **Subdirectories:**
+  - `a2a/`: Comprehensive abstraction layer providing helper functions for creating, consuming, and translating A2A protocol objects.
+  - `a2a_spec/`: Complete JSON Schema specification for the A2A protocol.
+  - `client/`: Provides a high-level client for discovering and communicating with remote A2A agents.
+  - `middleware/`: A pluggable framework for configuration resolution and system extensibility.
+  - `sac/`: Base component framework for Solace Agent Mesh implementations in the Solace AI Connector.
+  - `sam_events/`: System-level event messaging for session lifecycle, agent health, and configuration changes.
+  - `server/`: A complete A2A server implementation with JSON-RPC support and task management.
+  - `services/`: Provides shared services like identity management using a factory pattern.
+  - `utils/`: Contains common utility functions and an embedded expression processing system.
+
+## Developer API Reference
+
+### Direct Files
+
+#### a2a_protocol.py
+**Purpose:** Provides the core functions for constructing Solace topics according to the A2A specification and for translating messages between the A2A format and the Google ADK format.
+**Import:** `from solace_agent_mesh.common.a2a_protocol import get_agent_request_topic, translate_a2a_to_adk_content`
+
+**Classes/Functions/Constants:**
+- **Constants**:
+  - `A2A_VERSION: str`: The current version of the A2A protocol (e.g., "v1").
+  - `A2A_BASE_PATH: str`: The base path used in all A2A topics (e.g., "a2a/v1").
+- **Topic Construction Functions**:
+  - `get_a2a_base_topic(namespace: str) -> str`: Returns the base topic prefix for all A2A communication.
+  - `get_discovery_topic(namespace: str) -> str`: Returns the topic for agent card discovery.
+  - `get_agent_request_topic(namespace: str, agent_name: str) -> str`: Returns the topic for sending requests to a specific agent.
+  - `get_gateway_status_topic(namespace: str, gateway_id: str, task_id: str) -> str`: Returns the topic for an agent to publish status updates to a gateway.
+  - `get_gateway_response_topic(namespace: str, gateway_id: str, task_id: str) -> str`: Returns the topic for an agent to publish final responses to a gateway.
+  - `get_client_response_topic(namespace: str, client_id: str) -> str`: Returns the topic for publishing final responses to a specific client.
+  - `get_client_status_topic(namespace: str, client_id: str, task_id: str) -> str`: Returns the topic for publishing status updates to a specific client.
+- **Message Translation Functions**:
+  - `translate_a2a_to_adk_content(a2a_message: A2AMessage, log_identifier: str) -> adk_types.Content`: Translates an A2A `Message` object into the Google ADK `Content` format.
+  - `format_adk_event_as_a2a(...) -> Tuple[Optional[JSONRPCResponse], ...]`: Translates an ADK `Event` into an A2A `JSONRPCResponse` containing a `TaskStatusUpdateEvent`.
+  - `format_and_route_adk_event(...) -> Tuple[Optional[Dict], Optional[str], ...]`: A higher-level wrapper that formats an ADK event and determines the correct Solace topic to publish it to.
+
+#### agent_registry.py
+**Purpose:** Provides a simple, thread-safe, in-memory store for discovered `AgentCard` objects. This is useful for components that need to keep track of available agents in the network.
+**Import:** `from solace_agent_mesh.common.agent_registry import AgentRegistry`
+
+**Classes/Functions/Constants:**
+- **`AgentRegistry`**: A thread-safe class for storing and managing agent cards.
+  - `add_or_update_agent(self, agent_card: AgentCard)`: Adds a new agent or updates an existing one.
+  - `get_agent(self, agent_name: str) -> Optional[AgentCard]`: Retrieves an agent card by its unique name.
+  - `get_agent_names(self) -> List[str]`: Returns a sorted list of all discovered agent names.
+  - `clear(self)`: Clears all agents from the registry.
+
+#### constants.py
+**Purpose:** Defines common constants used throughout the Solace Agent Mesh system.
+**Import:** `from solace_agent_mesh.common.constants import DEFAULT_COMMUNICATION_TIMEOUT`
+
+**Classes/Functions/Constants:**
+- `DEFAULT_COMMUNICATION_TIMEOUT: int`: Default timeout for communication operations (600 seconds / 10 minutes).
+- `TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY: int`: Maximum number of characters that can be loaded from a text artifact (200,000).
+- `TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH: int`: Default number of characters to load from a text artifact (100,000).
+
+#### data_parts.py
+**Purpose:** Defines Pydantic models for structured data payloads used in A2A DataPart objects, corresponding to JSON schemas for agent communication signals.
+**Import:** `from solace_agent_mesh.common.data_parts import ToolInvocationStartData, LlmInvocationData`
+
+**Classes/Functions/Constants:**
+- **`ToolInvocationStartData`**: Data model for tool invocation start signals.
+  - `type: Literal["tool_invocation_start"]`: The constant type identifier.
+  - `tool_name: str`: The name of the tool being called.
+  - `tool_args: Dict[str, Any]`: The arguments passed to the tool.
+  - `function_call_id: str`: The ID from the LLM's function call.
+- **`LlmInvocationData`**: Data model for LLM invocation signals.
+  - `type: Literal["llm_invocation"]`: The constant type identifier.
+  - `request: Dict[str, Any]`: A sanitized representation of the LlmRequest object.
+  - `usage: Optional[Dict[str, Any]]`: Token usage information for this LLM call.
+- **`AgentProgressUpdateData`**: Data model for agent progress update signals.
+  - `type: Literal["agent_progress_update"]`: The constant type identifier.
+  - `status_text: str`: A human-readable progress message.
+- **`ArtifactCreationProgressData`**: Data model for artifact creation progress signals.
+  - `type: Literal["artifact_creation_progress"]`: The constant type identifier.
+  - `filename: str`: The name of the artifact being created.
+  - `bytes_saved: int`: The number of bytes saved so far.
+  - `artifact_chunk: str`: The chunk of artifact data that was saved in this progress update.
+- **`ToolResultData`**: Data model for tool execution result signals.
+  - `type: Literal["tool_result"]`: The constant type identifier.
+  - `tool_name: str`: The name of the tool that was called.
+  - `result_data: Any`: The data returned by the tool.
+  - `function_call_id: str`: The ID from the LLM's function call.
+  - `llm_usage: Optional[Dict[str, Any]]`: Token usage if this tool made LLM calls.
+
+#### exceptions.py
+**Purpose:** Defines custom exceptions specific to the Solace Agent Mesh system.
+**Import:** `from solace_agent_mesh.common.exceptions import MessageSizeExceededError`
+
+**Classes/Functions/Constants:**
+- **`MessageSizeExceededError(Exception)`**: Raised when a message exceeds the maximum allowed size.
+  - `__init__(self, actual_size: int, max_size: int, message: str = None)`: Initialize with size information.
+  - `actual_size: int`: The actual size of the message in bytes.
+  - `max_size: int`: The maximum allowed size in bytes.
+
+#### types.py
+**Purpose:** Defines all the Pydantic data models that constitute the A2A protocol. These types ensure data consistency and provide validation across all components.
+**Import:** `from solace_agent_mesh.common.types import Message, Task, AgentCard, JSONRPCRequest, TaskState`
+
+**Classes/Functions/Constants:**
+- **Core Data Structures**:
+  - `Message`: Represents a message from a user or agent, containing a list of `Part` objects.
+  - `Part`: A discriminated union of `TextPart`, `FilePart`, and `DataPart`.
+  - `Task`: The central object representing a complete task, including its ID, status, history, and artifacts.
+  - `TaskStatus`: Describes the current state of a task (e.g., `WORKING`, `COMPLETED`).
+  - `TaskState(Enum)`: An enumeration of all possible task states.
+  - `AgentCard`: A comprehensive description of an agent's identity, capabilities, and skills.
+  - `Artifact`: Represents a task output, such as a generated file or structured data.
+- **JSON-RPC Structures**:
+  - `JSONRPCRequest`: The base model for all JSON-RPC requests.
+  - `JSONRPCResponse`: The base model for all JSON-RPC responses.
+  - `SendTaskRequest`, `GetTaskRequest`, etc.: Specific request types inheriting from `JSONRPCRequest`.
+- **Error Structures**:
+  - `JSONRPCError`: The base model for errors.
+  - `InternalError`, `TaskNotFoundError`, etc.: Specific error types inheriting from `JSONRPCError`.
+
+### Subdirectory APIs
+
+#### a2a/
+**Purpose:** Comprehensive abstraction layer providing helper functions for creating, consuming, and translating A2A protocol objects
+**Key Exports:** Helper functions for messages, tasks, artifacts, events, and protocol operations
+**Import Examples:**
+```python
+from solace_agent_mesh.common.a2a import create_agent_text_message, create_initial_task, translate_a2a_to_adk_content
+from solace_agent_mesh.common.a2a.message import create_text_part, get_text_from_message
+from solace_agent_mesh.common.a2a.protocol import get_agent_request_topic, create_send_message_request
+```
+
+#### a2a_spec/
+**Purpose:** Contains the complete Agent-to-Agent (A2A) communication specification including JSON schema definitions
+**Key Exports:** JSON Schema specifications for A2A protocol and agent communication signals
+**Import Examples:**
+```python
+import json
+from jsonschema import validate
+
+# Load main A2A schema
+with open('solace_agent_mesh/common/a2a_spec/a2a.json') as f:
+    a2a_schema = json.load(f)
+```
+
+#### client/
+**Purpose:** Provides a high-level, asynchronous client library for discovering and interacting with remote A2A agents.
+**Key Exports:** `A2AClient`, `A2ACardResolver`
+**Import Examples:**
+```python
+from solace_agent_mesh.common.client import A2AClient, A2ACardResolver
+```
+
+#### middleware/
+**Purpose:** A pluggable middleware framework for customizing system behavior, such as resolving user-specific configurations and feature flags.
+**Key Exports:** `ConfigResolver`, `MiddlewareRegistry`
+**Import Examples:**
+```python
+from solace_agent_mesh.common.middleware import ConfigResolver, MiddlewareRegistry
+```
+
+#### sac/
+**Purpose:** Base component framework for Solace Agent Mesh implementations in the Solace AI Connector with async operations management
+**Key Exports:** `SamComponentBase`
+**Import Examples:**
+```python
+from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase
+```
+
+#### sam_events/
+**Purpose:** System-level event messaging for session lifecycle, agent health, and configuration changes separate from A2A task communication
+**Key Exports:** `SamEventService`, `SamEvent`, `SessionDeletedEvent`
+**Import Examples:**
+```python
+from solace_agent_mesh.common.sam_events import SamEventService, SamEvent, SessionDeletedEvent
+```
+
+#### server/
+**Purpose:** A complete, stand-alone server for building A2A-compliant agents, handling HTTP requests, JSON-RPC, and task lifecycle management.
+**Key Exports:** `A2AServer`, `TaskManager`, `InMemoryTaskManager`
+**Import Examples:**
+```python
+from solace_agent_mesh.common.server import A2AServer, TaskManager, InMemoryTaskManager
+```
+
+#### services/
+**Purpose:** A factory-based system for integrating external data sources for identity, employee information, and more.
+**Key Exports:** `BaseIdentityService`, `create_identity_service`
+**Import Examples:**
+```python
+from solace_agent_mesh.common.services.identity_service import create_identity_service, BaseIdentityService
+```
+
+#### utils/
+**Purpose:** A collection of cross-cutting utilities for caching, logging, MIME type handling, and dynamic content processing.
+**Key Exports:** `InMemoryCache`, `is_text_based_mime_type`, `resolve_embeds_in_string`
+**Import Examples:**
+```python
+from solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache
+from solace_agent_mesh.common.utils import is_text_based_mime_type
+from solace_agent_mesh.common.utils.embeds import resolve_embeds_recursively_in_string
+```
+
+## Complete Usage Guide
+
+### 1. Basic A2A Protocol Usage
+This example shows how to use the core protocol functions and types to build A2A communication.
+
+```python
+import uuid
+from datetime import datetime, timezone
+from solace_agent_mesh.common.a2a_protocol import (
+    get_agent_request_topic, 
+    get_gateway_status_topic,
+    translate_a2a_to_adk_content
+)
+from solace_agent_mesh.common.types import (
+    Message, 
+    TextPart, 
+    Task, 
+    TaskStatus, 
+    TaskState,
+    AgentCard
+)
+from solace_
+
+================================================================================
+
+## Section 5: solace_agent_mesh/common/middleware/middleware_llm.txt
+
+**Source file:** `solace_agent_mesh/common/middleware/middleware_llm.txt`
+
+# DEVELOPER GUIDE: middleware
+
+## Quick Summary
+The `middleware` directory provides a pluggable framework for system components that can be extended or replaced at runtime. It offers a registry system to dynamically bind custom implementations for core functionalities like configuration resolution. The default implementations provide permissive behavior, making them suitable for development and testing environments where all features are enabled by default.
+
+## Files Overview
+- `__init__.py`: Exposes the main public classes of the middleware package for easy importing.
+- `config_resolver.py`: Defines the default, permissive configuration resolution middleware.
+- `registry.py`: Provides the `MiddlewareRegistry` for dynamically binding custom middleware implementations.
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** This file serves as the entry point to the `middleware` package, exporting the primary public interfaces for developers to use.
+
+**Import:** `from solace_agent_mesh.common.middleware import ConfigResolver, MiddlewareRegistry`
+
+**Usage Examples:**
+```python
+# Import the main classes directly from the middleware package
+from solace_agent_mesh.common.middleware import ConfigResolver, MiddlewareRegistry
+
+# Now you can use ConfigResolver and MiddlewareRegistry
+print(ConfigResolver)
+print(MiddlewareRegistry)
+```
+
+### config_resolver.py
+**Purpose:** This file provides a pluggable interface for resolving user-specific configuration and determining feature availability. The default `ConfigResolver` class is permissive, allowing all operations and enabling all features, which is ideal for development or simple deployments.
+
+**Import:** `from solace_agent_mesh.common.middleware import ConfigResolver`
+
+**Classes:**
+- `ConfigResolver()` - A class containing static methods to resolve user-specific configuration and determine feature availability. This default implementation is permissive.
+  - `resolve_user_config(user_identity: Any, gateway_context: Dict[str, Any], base_config: Dict[str, Any]) -> Dict[str, Any]` - (async) Resolves user-specific configuration. The default implementation returns the `base_config` unchanged.
+  - `is_feature_enabled(user_config: Dict[str, Any], feature_descriptor: Dict[str, Any], context: Dict[str, Any]) -> bool` - Checks if a feature is enabled for a user. The default implementation always returns `True`.
+  - `validate_operation_config(user_config: Dict[str, Any], operation_spec: Dict[str, Any], validation_context: Dict[str, Any]) -> Dict[str, Any]` - Validates if an operation is allowed for a user. The default implementation always returns a dictionary with `{'valid': True}`.
+  - `filter_available_options(user_config: Dict[str, Any], available_options: List[Dict[str, Any]], filter_context: Dict[str, Any]) -> List[Dict[str, Any]]` - Filters a list of options based on user permissions. The default implementation returns the original `available_options` list.
+
+**Usage Examples:**
+```python
+import asyncio
+from solace_agent_mesh.common.middleware import ConfigResolver
+
+async def main():
+    # Example user identity and base configuration
+    user_id = "test-user@example.com"
+    base_conf = {"api_key": "default_key", "allowed_models": ["gpt-3.5-turbo"]}
+
+    # 1. Resolve user configuration (default implementation returns base_conf)
+    user_config = await ConfigResolver.resolve_user_config(
+        user_identity=user_id,
+        gateway_context={"gateway_id": "gw-1"},
+        base_config=base_conf
+    )
+    print(f"Resolved User Config: {user_config}")
+
+    # 2. Check if a feature is enabled (default is always True)
+    feature_desc = {"feature_type": "ai_tool", "function_name": "code_interpreter"}
+    is_enabled = ConfigResolver.is_feature_enabled(
+        user_config=user_config,
+        feature_descriptor=feature_desc,
+        context={}
+    )
+    print(f"Is Feature Enabled: {is_enabled}")
+
+    # 3. Validate an operation (default is always valid)
+    op_spec = {"operation_type": "model_inference", "model": "gpt-4"}
+    validation = ConfigResolver.validate_operation_config(
+        user_config=user_config,
+        operation_spec=op_spec,
+        validation_context={}
+    )
+    print(f"Operation Validation: {validation}")
+
+    # 4. Filter available options (default returns all options)
+    all_models = [
+        {"name": "gpt-3.5-turbo", "provider": "openai"},
+        {"name": "gpt-4", "provider": "openai"},
+    ]
+    available_models = ConfigResolver.filter_available_options(
+        user_config=user_config,
+        available_options=all_models,
+        filter_context={"type": "language_model"}
+    )
+    print(f"Filtered Options: {available_models}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### registry.py
+**Purpose:** This file provides the `MiddlewareRegistry`, a static class that allows developers to dynamically bind, or "plug in," their own custom middleware implementations at runtime. This is the core of the pluggable system.
+
+**Import:** `from solace_agent_mesh.common.middleware import MiddlewareRegistry`
+
+**Classes:**
+- `MiddlewareRegistry()` - A registry for managing middleware implementations. All methods are class methods.
+  - `bind_config_resolver(resolver_class: Type)` - Binds a custom class that implements the `ConfigResolver` interface. This new class will be used for all subsequent configuration resolution calls.
+  - `get_config_resolver() -> Type` - Returns the currently bound `ConfigResolver` class. If no custom resolver has been bound, it returns the default `ConfigResolver`.
+  - `register_initialization_callback(callback: callable)` - Registers a function to be executed when `initialize_middleware()` is called. Useful for setting up custom middleware components at application startup.
+  - `initialize_middleware()` - Executes all registered initialization callbacks. This should be called once during application startup.
+  - `reset_bindings()` - Resets all bindings back to their defaults. This is primarily useful for testing environments.
+  - `get_registry_status() -> Dict[str, Any]` - Returns a dictionary containing the current status of the registry, such as which resolver is bound.
+
+**Usage Examples:**
+```python
+import asyncio
+from typing import Any, Dict, List
+from solace_agent_mesh.common.middleware import MiddlewareRegistry, ConfigResolver
+
+# 1. Define a custom ConfigResolver implementation
+class MyCustomConfigResolver:
+    """A custom resolver that only allows 'admin' users to use 'gpt-4'."""
+    @staticmethod
+    async def resolve_user_config(user_identity: Any, gateway_context: Dict[str, Any], base_config: Dict[str, Any]) -> Dict[str, Any]:
+        if user_identity == "admin":
+            return {"role": "admin", "allowed_models": ["gpt-4", "gpt-3.5-turbo"]}
+        return {"role": "user", "allowed_models": ["gpt-3.5-turbo"]}
+
+    @staticmethod
+    def validate_operation_config(user_config: Dict, operation_spec: Dict, validation_context: Dict) -> Dict:
+        model = operation_spec.get("model")
+        if model and model not in user_config.get("allowed_models", []):
+            return {"valid": False, "reason": f"Model '{model}' not allowed for this user."}
+        return {"valid": True}
+    
+    # Inherit other methods from the default for simplicity
+    is_feature_enabled = ConfigResolver.is_feature_enabled
+    filter_available_options = ConfigResolver.filter_available_options
+
+# 2. Define an initialization callback
+def setup_custom_logging():
+    print("Custom middleware initialization logic is running!")
+
+# 3. Bind the custom components
+MiddlewareRegistry.bind_config_resolver(MyCustomConfigResolver)
+MiddlewareRegistry.register_initialization_callback(setup_custom_logging)
+
+# 4. Initialize the middleware (e.g., at application startup)
+print("--- Initializing Middleware ---")
+MiddlewareRegistry.initialize_middleware()
+print("--- Initialization Complete ---")
+
+# 5. Use the middleware system
+async def check_permissions():
+    # The registry will now use MyCustomConfigResolver automatically
+    CurrentResolver = MiddlewareRegistry.get_config_resolver()
+    print(f"Current resolver is: {CurrentResolver.__name__}")
+
+    # Check an admin user
+    admin_config = await CurrentResolver.resolve_user_config("admin", {}, {})
+    validation_result = CurrentResolver.validate_operation_config(
+        admin_config, {"model": "gpt-4"}, {}
+    )
+    print(f"Admin validation for gpt-4: {validation_result}")
+
+    # Check a regular user
+    user_config = await CurrentResolver.resolve_user_config("user", {}, {})
+    validation_result = CurrentResolver.validate_operation_config(
+        user_config, {"model": "gpt-4"}, {}
+    )
+    print(f"User validation for gpt-4: {validation_result}")
+
+# Run the example
+asyncio.run(check_permissions())
+
+# 6. Check status and reset (useful for testing)
+print(f"\nRegistry Status: {MiddlewareRegistry.get_registry_status()}")
+MiddlewareRegistry.reset_bindings()
+print(f"Registry Status after reset: {MiddlewareRegistry.get_registry_status()}")
+```
+
+================================================================================
+
+## Section 6: solace_agent_mesh/common/sac/sac_llm.txt
+
+**Source file:** `solace_agent_mesh/common/sac/sac_llm.txt`
+
+# DEVELOPER GUIDE: sac
+
+## Quick Summary
+The `sac` directory provides the base component framework for Solace Agent Mesh (SAM) implementations in the Solace AI Connector. It offers a standardized foundation for building high-level SAM components like Agents and Gateways with built-in async operations management and message publishing capabilities.
+
+## Files Overview
+- `__init__.py` - Empty package initialization file
+- `sam_component_base.py` - Abstract base class providing async thread management and A2A message publishing for SAM components
+
+## Developer API Reference
+
+### sam_component_base.py
+**Purpose:** Provides an abstract base class for SAM components with managed asyncio event loops and message publishing
+**Import:** `from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase`
+
+**Classes:**
+- `SamComponentBase(info: Dict[str, Any], **kwargs: Any)` - Abstract base class for high-level SAM components (Agents, Gateways)
+  - `publish_a2a_message(payload: Dict, topic: str, user_properties: Optional[Dict] = None) -> None` - Publishes A2A messages with size validation
+  - `run() -> None` - Starts the component's dedicated async thread
+  - `cleanup() -> None` - Cleans up resources including async thread and loop
+  - `get_async_loop() -> Optional[asyncio.AbstractEventLoop]` - Returns the dedicated asyncio event loop
+  - `_async_setup_and_run() -> None` - Abstract method for subclasses to implement main async logic
+  - `_pre_async_cleanup() -> None` - Abstract method for cleanup before async loop stops
+  - `namespace: str` - The configured namespace for the component
+  - `max_message_size_bytes: int` - Maximum allowed message size in bytes
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase
+from typing import Dict, Any
+import asyncio
+
+class MyAgent(SamComponentBase):
+    def __init__(self, info: Dict[str, Any], **kwargs: Any):
+        super().__init__(info, **kwargs)
+        # Additional initialization
+    
+    async def _async_setup_and_run(self) -> None:
+        """Implement your main async logic here"""
+        while not self.stop_signal.is_set():
+            # Your async operations
+            await asyncio.sleep(1)
+    
+    def _pre_async_cleanup(self) -> None:
+        """Cleanup before async loop stops"""
+        # Your cleanup logic
+        pass
+
+# Usage
+config = {
+    "namespace": "my_namespace",
+    "max_message_size_bytes": 1048576  # 1MB
+}
+agent = MyAgent(config)
+
+# Publish a message
+payload = {"message": "Hello World"}
+agent.publish_a2a_message(
+    payload=payload,
+    topic="sam/agents/my_agent/response",
+    user_properties={"correlation_id": "123"}
+)
+
+# Start the component
+agent.run()
+
+# Later, cleanup
+agent.cleanup()
+```
+
+================================================================================
+
+## Section 7: solace_agent_mesh/common/sam_events/sam_events_llm.txt
+
+**Source file:** `solace_agent_mesh/common/sam_events/sam_events_llm.txt`
+
+# DEVELOPER GUIDE: sam_events
+
+## Quick Summary
+The `sam_events` directory provides system-level event messaging for Solace Agent Mesh (SAM). It enables clean separation between agent-to-agent (A2A) task communication and system events like session lifecycle, agent health, and configuration changes.
+
+## Files Overview
+- `__init__.py` - Package initialization and public API exports
+- `event_service.py` - Core event service implementation with publishing/subscription capabilities
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Package entry point that exports the main classes for SAM event handling
+**Import:** `from solace_agent_mesh.common.sam_events import SamEventService, SamEvent, SessionDeletedEvent`
+
+### event_service.py
+**Purpose:** Implements the core event messaging service for system-level events in SAM
+**Import:** `from solace_agent_mesh.common.sam_events.event_service import SamEventService, SamEvent, SessionDeletedEvent`
+
+**Classes:**
+
+- `SamEvent(event_type: str, event_id: str, timestamp: str, source_component: str, namespace: str, data: Dict[str, Any])` - Base class for all SAM system events
+  - `create(event_type: str, source_component: str, namespace: str, data: Dict[str, Any]) -> SamEvent` - Create a new event with auto-generated ID and timestamp
+  - `to_dict() -> Dict[str, Any]` - Convert event to dictionary for messaging
+  - `event_type: str` - Type of event (e.g., "session.deleted")
+  - `event_id: str` - Unique identifier for the event
+  - `timestamp: str` - ISO format timestamp when event was created
+  - `source_component: str` - Component that generated the event
+  - `namespace: str` - SAM namespace
+  - `data: Dict[str, Any]` - Event-specific data payload
+
+- `SessionDeletedEvent(SamEvent)` - Specialized event for session deletion notifications
+  - `create(namespace: str, source_component: str, session_id: str, user_id: str, agent_id: str, gateway_id: str) -> SessionDeletedEvent` - Create a session deleted event
+
+- `SamEventService(namespace: str, component_name: str, publish_func: Callable[[str, Dict, Optional[Dict]], None])` - Service for publishing and subscribing to SAM system events
+  - `publish_event(event: SamEvent) -> bool` - Publish a system event
+  - `publish_session_deleted(session_id: str, user_id: str, agent_id: str, gateway_id: str) -> bool` - Convenience method to publish session deleted event
+  - `subscribe_to_events(event_type: str, handler: Callable[[SamEvent], None]) -> bool` - Subscribe to events of a specific type
+  - `handle_incoming_event(topic: str, payload: Dict[str, Any]) -> None` - Handle incoming events from messaging system
+  - `namespace: str` - The SAM namespace
+  - `component_name: str` - Name of the component using this service
+
+**Functions:**
+
+- `SamEventService.get_event_topic(namespace: str, event_type: str) -> str` - Get the topic for a specific event type
+
+**Usage Examples:**
+
+```python
+# Basic event service setup
+from solace_agent_mesh.common.sam_events import SamEventService, SamEvent, SessionDeletedEvent
+
+# Initialize the event service
+def my_publish_func(topic: str, payload: dict, headers: dict = None):
+    # Your A2A publishing implementation
+    pass
+
+event_service = SamEventService(
+    namespace="my_namespace",
+    component_name="my_component", 
+    publish_func=my_publish_func
+)
+
+# Create and publish a custom event
+custom_event = SamEvent.create(
+    event_type="agent.health_check",
+    source_component="health_monitor",
+    namespace="my_namespace",
+    data={"status": "healthy", "cpu_usage": 45.2}
+)
+success = event_service.publish_event(custom_event)
+
+# Publish a session deleted event (convenience method)
+success = event_service.publish_session_deleted(
+    session_id="sess_123",
+    user_id="user_456", 
+    agent_id="agent_789",
+    gateway_id="gateway_001"
+)
+
+# Subscribe to events
+def handle_session_deleted(event: SamEvent):
+    session_id = event.data["session_id"]
+    print(f"Session {session_id} was deleted")
+
+event_service.subscribe_to_events("session.deleted", handle_session_deleted)
+
+# Handle incoming events (typically called by your messaging infrastructure)
+incoming_payload = {
+    "event_type": "session.deleted",
+    "event_id": "evt_123",
+    "timestamp": "2024-01-01T12:00:00Z",
+    "source_component": "gateway",
+    "namespace": "my_namespace",
+    "data": {"session_id": "sess_123", "user_id": "user_456"}
+}
+event_service.handle_incoming_event("sam/events/session/deleted", incoming_payload)
+
+# Get topic for an event type
+topic = SamEventService.get_event_topic("my_namespace", "session.deleted")
+print(topic)  # Returns the proper SAM events topic
+```
+
+================================================================================
+
+## Section 8: solace_agent_mesh/common/services/providers/providers_llm.txt
+
+**Source file:** `solace_agent_mesh/common/services/providers/providers_llm.txt`
+
+## Quick Summary
+This directory contains concrete implementations (providers) for the abstract services defined in the parent `services` package. These providers offer specific ways to fulfill service contracts, such as sourcing user identity information from a local file.
+
+## Files Overview
+- `__init__.py` - Package initialization file marking the directory as a Python package
+- `local_file_identity_service.py` - File-based identity service implementation that reads user data from local JSON files
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Initializes the providers package
+**Import:** `from solace_agent_mesh.common.services import providers`
+
+This file contains no public classes or functions - it serves only as package documentation.
+
+### local_file_identity_service.py
+**Purpose:** Provides a file-based identity service that reads user profiles from a local JSON file, ideal for development, testing, or small-scale deployments
+**Import:** `from solace_agent_mesh.common.services.providers.local_file_identity_service import LocalFileIdentityService`
+
+**Classes:**
+- `LocalFileIdentityService(config: Dict[str, Any])` - Identity service that sources user data from a local JSON file
+  - `async get_user_profile(auth_claims: Dict[str, Any]) -> Optional[Dict[str, Any]]` - Looks up a user profile using the lookup key from auth claims
+  - `async search_users(query: str, limit: int = 10) -> List[Dict[str, Any]]` - Performs case-insensitive search on user names and emails
+  - `file_path: str` - Path to the JSON file containing user data
+  - `lookup_key: str` - Key used to identify users (defaults to "id")
+  - `all_users: List[Dict[str, Any]]` - Complete list of user profiles loaded from file
+  - `user_index: Dict[str, Dict[str, Any]]` - In-memory index mapping lookup keys to user profiles
+
+**Usage Examples:**
+```python
+import asyncio
+import json
+from solace_agent_mesh.common.services.providers.local_file_identity_service import LocalFileIdentityService
+
+# Create sample users.json file
+users_data = [
+    {
+        "id": "jdoe",
+        "email": "jane.doe@example.com", 
+        "name": "Jane Doe",
+        "title": "Senior Engineer",
+        "manager_id": "ssmith"
+    },
+    {
+        "id": "ssmith",
+        "email": "sam.smith@example.com",
+        "name": "Sam Smith", 
+        "title": "Engineering Manager"
+    }
+]
+
+with open("users.json", "w") as f:
+    json.dump(users_data, f)
+
+async def main():
+    # Initialize the service
+    config = {
+        "file_path": "users.json",
+        "lookup_key": "id"  # Optional, defaults to "id"
+    }
+    
+    identity_service = LocalFileIdentityService(config)
+    
+    # Get user profile by ID
+    auth_claims = {"id": "jdoe"}
+    profile = await identity_service.get_user_profile(auth_claims)
+    print(f"User profile: {profile}")
+    
+    # Search for users
+    results = await identity_service.search_users("jane", limit=5)
+    print(f"Search results: {results}")
+    
+    # Handle missing user
+    missing = await identity_service.get_user_profile({"id": "nonexistent"})
+    print(f"Missing user: {missing}")  # Returns None
+
+asyncio.run(main())
+```
+
+================================================================================
+
+## Section 9: solace_agent_mesh/common/services/services_llm.txt
+
+**Source file:** `solace_agent_mesh/common/services/services_llm.txt`
+
+# DEVELOPER GUIDE: services
+
+## Quick Summary
+The `services` directory provides a modular and extensible framework for integrating external data sources related to identity and employee information into the Solace AI Connector. It is built on a provider pattern, defining abstract base classes (`BaseIdentityService`, `BaseEmployeeService`) that establish a clear contract for what data and functionality a service must provide.
+
+The core architecture revolves around factory functions (`create_identity_service`, `create_employee_service`) that instantiate specific service providers based on a configuration dictionary. This allows the application to remain decoupled from the concrete implementations. The `providers/` subdirectory contains concrete implementations, including a built-in file-based identity service, while external providers can be dynamically loaded as plugins through Python's entry points system.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `__init__.py`: Marks the directory as a Python package with shared, reusable services
+  - `employee_service.py`: Defines the abstract contract and factory for employee data services
+  - `identity_service.py`: Defines the abstract contract and factory for user identity services
+- **Subdirectories:**
+  - `providers/`: Contains concrete implementations of the service contracts, including a file-based identity provider
+
+## Developer API Reference
+
+### Direct Files
+
+#### employee_service.py
+**Purpose:** Defines the abstract base class (`BaseEmployeeService`) that all employee service providers must implement, and a factory function (`create_employee_service`) to instantiate them. It enforces a canonical schema for employee data to ensure consistency across different providers.
+**Import:** `from solace_agent_mesh.common.services.employee_service import BaseEmployeeService, create_employee_service`
+
+**Classes/Functions/Constants:**
+- **`class BaseEmployeeService(ABC)`**: The abstract base class for employee service providers.
+    - **`__init__(self, config: Dict[str, Any])`**: Initializes the service, setting up configuration and an optional in-memory cache.
+    - **`async def get_employee_dataframe(self) -> pd.DataFrame`**: (Abstract) Returns the entire employee directory as a pandas DataFrame.
+    - **`async def get_employee_profile(self, employee_id: str) -> Optional[Dict[str, Any]]`**: (Abstract) Fetches the profile for a single employee, conforming to the canonical schema.
+    - **`async def get_time_off_data(self, employee_id: str) -> List[Dict[str, Any]]`**: (Abstract) Retrieves a list of time-off entries for an employee.
+    - **`async def get_employee_profile_picture(self, employee_id: str) -> Optional[str]`**: (Abstract) Fetches an employee's profile picture as a data URI string.
+- **`def create_employee_service(config: Optional[Dict[str, Any]]) -> Optional[BaseEmployeeService]`**: A factory function that dynamically loads and instantiates an employee service provider based on the `type` specified in the configuration. It primarily uses Python's entry points to find and load external plugins.
+
+#### identity_service.py
+**Purpose:** Defines the abstract base class (`BaseIdentityService`) for identity providers and a factory function (`create_identity_service`) to create instances of them. This service is used for user lookups and profile enrichment.
+**Import:** `from solace_agent_mesh.common.services.identity_service import BaseIdentityService, create_identity_service`
+
+**Classes/Functions/Constants:**
+- **`class BaseIdentityService(ABC)`**: The abstract base class for identity service providers.
+    - **`__init__(self, config: Dict[str, Any])`**: Initializes the service, setting up configuration and an optional in-memory cache.
+    - **`async def get_user_profile(self, auth_claims: Dict[str, Any]) -> Optional[Dict[str, Any]]`**: (Abstract) Fetches additional profile details for an authenticated user based on claims.
+    - **`async def search_users(self, query: str, limit: int = 10) -> List[Dict[str, Any]]`**: (Abstract) Searches for users based on a query string (e.g., for autocomplete).
+- **`def create_identity_service(config: Optional[Dict[str, Any]]) -> Optional[BaseIdentityService]`**: A factory function that instantiates an identity service provider. It has special handling for the built-in `local_file` provider and uses Python entry points for all other provider types.
+
+### Subdirectory APIs
+
+#### providers/
+**Purpose:** Contains concrete implementations of the abstract service classes, providing specific ways to fulfill service contracts such as sourcing user identity information from local files
+**Key Exports:** `LocalFileIdentityService`
+**Import Examples:**
+```python
+from solace_agent_mesh.common.services.providers.local_file_identity_service import LocalFileIdentityService
+```
+
+## Complete Usage Guide
+
+### 1. Using Service Factories (Recommended Approach)
+The factories are the primary way to create and use services. They abstract away the specific implementation details and handle plugin loading.
+
+**Example: Creating Identity and Employee Services**
+
+```python
+import asyncio
+from solace_agent_mesh.common.services.identity_service import create_identity_service
+from solace_agent_mesh.common.services.employee_service import create_employee_service
+
+async def main():
+    # --- Identity Service Example (using built-in provider) ---
+    identity_config = {
+        "type": "local_file",
+        "file_path": "path/to/your/users.json",
+        "lookup_key": "email",  # Key to use for lookups from auth_claims
+        "cache_ttl_seconds": 3600
+    }
+    identity_service = create_identity_service(identity_config)
+
+    if identity_service:
+        print("Identity Service created.")
+        # Fetch a user profile
+        auth_claims = {"email": "jane.doe@example.com"}
+        user_profile = await identity_service.get_user_profile(auth_claims)
+        print(f"User Profile: {user_profile}")
+
+        # Search for users
+        search_results = await identity_service.search_users("Jane")
+        print(f"Search Results: {search_results}")
+
+    # --- Employee Service Example (using external plugin) ---
+    # The 'type' must match the name of a registered plugin entry point
+    employee_config = {
+        "type": "bamboohr_plugin",
+        "api_key": "your-secret-api-key",
+        "subdomain": "your-company",
+        "cache_ttl_seconds": 7200
+    }
+    employee_service = create_employee_service(employee_config)
+
+    if employee_service:
+        print("\nEmployee Service created.")
+        # Get a detailed employee profile
+        employee_profile = await employee_service.get_employee_profile("jane.doe@example.com")
+        print(f"Employee Profile: {employee_profile}")
+
+        # Get time off data
+        time_off = await employee_service.get_time_off_data("jane.doe@example.com")
+        print(f"Time Off Data: {time_off}")
+
+        # Get employee directory as DataFrame
+        df = await employee_service.get_employee_dataframe()
+        print(f"Employee Directory Shape: {df.shape}")
+
+# Run the example
+asyncio.run(main())
+```
+
+### 2. Direct Provider Instantiation
+While factories are preferred, you can instantiate providers from the `providers/` directory directly. This is useful for testing or when you know you will always use a specific built-in provider.
+
+**Example: Direct Use of LocalFileIdentityService**
+
+```python
+import asyncio
+import json
+from solace_agent_mesh.common.services.providers.local_file_identity_service import LocalFileIdentityService
+
+async def main():
+    # First, create a sample users.json file
+    users_data = [
+        {
+            "id": "jdoe",
+            "email": "jane.doe@example.com", 
+            "name": "Jane Doe",
+            "title": "Senior Engineer",
+            "manager_id": "ssmith"
+        },
+        {
+            "id": "ssmith",
+            "email": "sam.smith@example.com",
+            "name": "Sam Smith", 
+            "title": "Engineering Manager"
+        }
+    ]
+
+    with open("users.json", "w") as f:
+        json.dump(users_data, f)
+
+    # Configuration does not need a 'type' key for direct instantiation
+    config = {
+        "file_path": "users.json",
+        "lookup_key": "id",
+        "cache_ttl_seconds": 1800
+    }
+
+    # Instantiate the class directly
+    local_service = LocalFileIdentityService(config)
+    print("LocalFileIdentityService created directly")
+
+    # Get user profile by ID
+    auth_claims = {"id": "jdoe"}
+    profile = await local_service.get_user_profile(auth_claims)
+    print(f"User profile: {profile}")
+    
+    # Search for users
+    results = await local_service.search_users("jane", limit=5)
+    print(f"Search results: {results}")
+
+asyncio.run(main())
+```
+
+### 3. Creating Custom Service Providers
+To create your own service provider, inherit from the appropriate base class and implement all abstract methods.
+
+**Example: Custom Employee Service Provider**
+
+```python
+import pandas as pd
+from typing import Any, Dict, List, Optional
+from solace_agent_mesh.common.services.employee_service import BaseEmployeeService
+
+class CustomEmployeeService(BaseEmployeeService):
+    """Custom employee service that connects to your HR system."""
+    
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__(config)
+        self.api_endpoint = config.get("api_endpoint")
+        self.api_key = config.get("api_key")
+    
+    async def get_employee_dataframe(self) -> pd.DataFrame:
+        """Fetch all employees and return as DataFrame."""
+        # Your implementation here
+        # This should return a DataFrame with canonical schema columns:
+        # id, displayName, workEmail, jobTitle, department, location, supervisorId, hireDate, mobilePhone
+        employees_data = [
+            {
+                "id": "jdoe@company.com",
+                "displayName": "Jane Doe",
+                "workEmail": "jdoe@company.com",
+                "jobTitle": "Software Engineer",
+                "department": "Engineering",
+                "location": "San Francisco",
+                "supervisorId": "manager@company.com",
+                "hireDate": "2023-01-15",
+                "mobilePhone": "+1-555-0123"
+            }
+        ]
+        return pd.DataFrame(employees_data)
+    
+    async def get_employee_profile(self, employee_id: str) -> Optional[Dict[str, Any]]:
+        """Get single employee profile."""
+        # Your implementation here
+        return {
+            "id": employee_id,
+            "displayName": "Jane Doe",
+            "workEmail": employee_id,
+            "jobTitle": "Software Engineer"
+        }
+    
+    async def get_time_off_data(self, employee_id: str) -> List[Dict[str, Any]]:
+        """Get employee time off data."""
+        # Your implementation here
+        return [
+            {
+                'start': '2025-07-04',
+                'end': '2025-07-04',
+                'type': 'Holiday',
+                'amount': 'full_day'
+            }
+        ]
+    
+    async def get_employee_profile_picture(self, employee_id: str) -> Optional[str]:
+        """Get employee profile picture as data URI."""
+        # Your implementation here
+        return None  # or return "data:image/jpeg;base64,..."
+
+# Usage
+async def use_custom_service():
+    config = {
+        "api_endpoint": "https://your-hr-api.com",
+        "api_key": "your-api-key",
+        "cache_ttl_seconds": 3600
+    }
+    
+    service = CustomEmployeeService(config)
+    profile = await service.get_employee_profile("jdoe@company.com")
+    print(f"Custom service profile: {profile}")
+```
+
+### 4. Working with Both Services Together
+Often you'll want to use both identity and employee services together for comprehensive user information.
+
+**Example: Combined Service Usage**
+
+```python
+import asyncio
+from solace_agent_mesh.common.services.identity_service import create_identity_service
+from solace_agent_mesh.common.services.employee_service import create_employee_service
+
+async def get_complete_user_info(user_email: str):
+    """Get comprehensive user information from both services."""
+    
+    # Configure services
+    identity_config = {
+        "type": "local_file",
+        "file_path": "users.json",
+        "lookup_key": "email"
+    }
+    
+    employee_config = {
+        "type": "your_hr_plugin",
+        "api_key": "your-key"
+    }
+    
+    # Create services
+    identity_service = create_identity_service(identity_config)
+    employee_service = create_employee_service(employee_config)
+    
+    # Gather information
+    user_info = {}
+    
+    if identity_service:
+        auth_claims = {"email": user_email}
+        identity_profile = await identity_service.get_user_profile(auth_claims)
+        if identity_profile:
+            user_info.update(identity_profile)
+    
+    if employee_service:
+        employee_profile = await employee_service.get_employee_profile(user_email)
+        if employee_profile:
+            user_info.update(employee_profile)
+            
+        # Get additional employee data
+        time_off = await employee_service.get_time_off_data(user_email)
+        user_info["time_off"] = time_off
+        
+        profile_pic = await employee_service.get_employee_profile_picture(user_email)
+        if profile_pic:
+            user_info["profile_picture"] = profile_pic
+    
+    return user_info
+
+# Usage
+async def main():
+    complete_info = await get_complete_user_info("jane.doe@example.com")
+    print(f"Complete user information: {complete_info}")
+
+asyncio.run(main())
+```
+
+### 5. Using the Built-in LocalFileIdentityService
+The `providers/` subdirectory includes a ready-to-use file-based identity service that's perfect for development and testing.
+
+**Example: Setting up LocalFileIdentityService with Factory**
+
+```python
+import asyncio
+import json
+from solace_agent_mesh.common.services.identity_service import create_identity_service
+
+async def setup_file_based_identity():
+    # Create sample users.json file
+    users_data = [
+        {
+            "id": "jdoe",
+            "email": "jane.doe@example.com", 
+            "name": "Jane Doe",
+            "title": "Senior Engineer",
+            "manager_id": "ssmith"
+        },
+        {
+            "id": "ssmith",
+            "email": "sam.smith@example.com",
+            "name": "Sam Smith", 
+            "title": "Engineering Manager"
+        }
+    ]
+
+    with open("users.json", "w") as f:
+        json.dump(users_data, f)
+
+    # Use factory to create the service
+    config = {
+        "type": "local_file",  # This triggers the built-in provider
+        "file_path": "users.json",
+        "lookup_key": "email",  # Use email for lookups
+        "cache_ttl_seconds": 3600
+    }
+    
+    identity_service = create_identity_service(config)
+    
+    # Test the service
+    auth_claims = {"email": "jane.doe@example.com"}
+    profile = await identity_service.get_user_profile(auth_claims)
+    print(f"Profile found: {profile}")
+    
+    # Search functionality
+    search_results = await identity_service.search_users("jane")
+    print(f"Search results: {search_results}")
+
+asyncio.run(setup_file_based_identity())
+```
+
+This comprehensive guide shows how the services framework provides a clean, extensible way to integrate various data sources while maintaining consistent interfaces and supporting both built-in providers and external plugins through the factory pattern and plugin system.
+
+================================================================================
+
+## Section 10: solace_agent_mesh/common/utils/embeds/embeds_llm.txt
+
+**Source file:** `solace_agent_mesh/common/utils/embeds/embeds_llm.txt`
+
+# DEVELOPER GUIDE: embeds
+
+## Quick Summary
+The `embeds` directory provides a comprehensive system for finding, parsing, and resolving embedded expressions within strings. These expressions use `«...»` syntax and can represent dynamic values like mathematical calculations, datetimes, UUIDs, or content from stored artifacts. The system supports multi-step data transformation pipelines, recursive embed resolution, and includes safety features like depth and size limits. It's designed as a core component for dynamic content generation and data processing in agent workflows.
+
+## Files Overview
+- `__init__.py` - Main public entry point exporting key functions and constants
+- `constants.py` - Defines embed syntax (delimiters, separators), regex patterns, and type classifications
+- `converter.py` - Data format conversion and serialization functions
+- `evaluators.py` - Specific evaluation logic for simple embed types (math, datetime, uuid, etc.)
+- `modifiers.py` - Data transformation functions that can be chained together (jsonpath, slice, grep, etc.)
+- `resolver.py` - Core orchestration engine handling embed resolution, modifier chains, and recursion
+- `types.py` - DataFormat enum for tracking data types during transformations
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Main public entry point that exports the most commonly used functions and constants from other modules.
+
+**Import:** `from solace_agent_mesh.common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed, EMBED_REGEX`
+
+**Functions:**
+- `evaluate_embed(embed_type: str, expression: str, format_spec: Optional[str], context: Dict[str, Any], log_identifier: str, config: Optional[Dict] = None, current_depth: int = 0, visited_artifacts: Optional[Set[Tuple[str, int]]] = None) -> Union[Tuple[str, Optional[str], int], Tuple[None, str, Any]]` - Evaluates a single parsed embed expression
+- `resolve_embeds_in_string(text: str, context: Any, resolver_func: Callable, types_to_resolve: Set[str], log_identifier: str = "[EmbedUtil]", config: Optional[Dict[str, Any]] = None) -> Tuple[str, int, List[Tuple[int, Any]]]` - Resolves embeds in a string for a single pass (non-recursive)
+- `resolve_embeds_recursively_in_string(text: str, context: Any, resolver_func: Callable, types_to_resolve: Set[str], log_identifier: str, config: Optional[Dict], max_depth: int, current_depth: int = 0, visited_artifacts: Optional[Set[Tuple[str, int]]] = None, accumulated_size: int = 0, max_total_size: int = -1) -> str` - Recursively resolves all embeds in a string with depth and size limits
+
+**Constants/Variables:**
+- `EMBED_DELIMITER_OPEN: str` - Opening delimiter (`«`)
+- `EMBED_DELIMITER_CLOSE: str` - Closing delimiter (`»`)
+- `EMBED_TYPE_SEPARATOR: str` - Type/expression separator (`:`)
+- `EMBED_FORMAT_SEPARATOR: str` - Format specifier separator (`|`)
+- `EMBED_CHAIN_DELIMITER: str` - Modifier chain separator (`>>>`)
+- `EMBED_REGEX: re.Pattern` - Compiled regex for finding embeds
+- `EARLY_EMBED_TYPES: Set[str]` - Types resolved in initial pass
+- `LATE_EMBED_TYPES: Set[str]` - Types resolved in subsequent pass
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed, EMBED_REGEX
+
+# Basic embed resolution
+context = {
+    "artifact_service": my_artifact_service,
+    "session_context": {"app_name": "myapp", "user_id": "user123", "session_id": "sess456"}
+}
+
+text = "The result is «math:10 * 1.15 | .2f» and ID is «uuid:new»"
+resolved = await resolve_embeds_recursively_in_string(
+    text=text,
+    context=context,
+    resolver_func=evaluate_embed,
+    types_to_resolve={"math", "uuid"},
+    log_identifier="[MyApp]",
+    config={},
+    max_depth=5
+)
+```
+
+### constants.py
+**Purpose:** Defines all static constants governing embed syntax and classification.
+
+**Import:** `from solace_agent_mesh.common.utils.embeds.constants import EMBED_REGEX, EARLY_EMBED_TYPES`
+
+**Constants/Variables:**
+- `EMBED_DELIMITER_OPEN: str` - Opening delimiter (`«`)
+- `EMBED_DELIMITER_CLOSE: str` - Closing delimiter (`»`)
+- `EMBED_TYPE_SEPARATOR: str` - Type/expression separator (`:`)
+- `EMBED_FORMAT_SEPARATOR: str` - Format specifier separator (`|`)
+- `EMBED_CHAIN_DELIMITER: str` - Modifier chain separator (`>>>`)
+- `EMBED_REGEX: re.Pattern` - Compiled regex with capture groups for type, expression, and format
+- `EARLY_EMBED_TYPES: Set[str]` - Simple embed types resolved first (`math`, `datetime`, `uuid`, `artifact_meta`, `status_update`)
+- `LATE_EMBED_TYPES: Set[str]` - Complex embed types resolved later (`artifact_content`)
+- `TEXT_CONTAINER_MIME_TYPES: Set[str]` - MIME types considered text-based
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds.constants import EMBED_REGEX
+
+text = "Price: «math:10 * 1.15 | .2f» ID: «uuid:new»"
+for match in EMBED_REGEX.finditer(text):
+    embed_type = match.group(1)      # "math" or "uuid"
+    expression = match.group(2)      # "10 * 1.15 " or "new"
+    format_spec = match.group(3)     # " .2f" or None
+    print(f"Type: {embed_type}, Expr: '{expression}', Format: '{format_spec}'")
+```
+
+### converter.py
+**Purpose:** Provides data conversion between different formats and serialization to final string representations.
+
+**Import:** `from solace_agent_mesh.common.utils.embeds.converter import convert_data, serialize_data`
+
+**Functions:**
+- `convert_data(current_data: Any, current_format: Optional[DataFormat], target_format: DataFormat, log_id: str = "[Converter]", original_mime_type: Optional[str] = None) -> Tuple[Any, DataFormat, Optional[str]]` - Converts data between DataFormat types using MIME type hints
+- `serialize_data(data: Any, data_format: Optional[DataFormat], target_string_format: Optional[str], original_mime_type: Optional[str], log_id: str = "[Serializer]") -> Tuple[str, Optional[str]]` - Serializes data to final string format (text, json, csv, datauri, or Python format specs)
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds.converter import convert_data, serialize_data
+from solace_agent_mesh.common.utils.embeds.types import DataFormat
+
+# Convert CSV bytes to list of dictionaries
+csv_bytes = b"id,name\n1,Alice\n2,Bob"
+list_data, new_format, err = convert_data(
+    current_data=csv_bytes,
+    current_format=DataFormat.BYTES,
+    target_format=DataFormat.LIST_OF_DICTS,
+    original_mime_type="text/csv"
+)
+
+# Serialize to pretty JSON
+json_str, err = serialize_data(
+    data=list_data,
+    data_format=DataFormat.LIST_OF_DICTS,
+    target_string_format="json_pretty",
+    original_mime_type=None
+)
+```
+
+### evaluators.py
+**Purpose:** Contains evaluation logic for simple embed types and the evaluator registry.
+
+**Import:** `from solace_agent_mesh.common.utils.embeds.evaluators import EMBED_EVALUATORS`
+
+**Functions:**
+- `_evaluate_math_embed(expression: str, context: Any, log_identifier: str, format_spec: Optional[str] = None) -> Tuple[str, Optional[str], int]` - Evaluates mathematical expressions using asteval
+- `_evaluate_datetime_embed(expression: str, context: Any, log_identifier: str, format_spec: Optional[str] = None) -> Tuple[str, Optional[str], int]` - Formats current datetime
+- `_evaluate_uuid_embed(expression: str, context: Any, log_identifier: str, format_spec: Optional[str] = None) -> Tuple[str, Optional[str], int]` - Generates UUID4 strings
+- `_evaluate_artifact_meta_embed(expression: str, context: Dict[str, Any], log_identifier: str, format_spec: Optional[str] = None) -> Tuple[str, Optional[str], int]` - Loads and formats artifact metadata
+- `_evaluate_artifact_content_embed(expression: str, context: Any, log_identifier: str, config: Optional[Dict] = None) -> Tuple[Optional[bytes], Optional[str], Optional[str]]` - Loads raw artifact content
+
+**Constants/Variables:**
+- `EMBED_EVALUATORS: Dict[str, Callable]` - Registry mapping embed types to evaluator functions
+- `MATH_SAFE_SYMBOLS: Dict[str, Any]` - Safe mathematical functions and constants for math embeds
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds.evaluators import EMBED_EVALUATORS
+
+# Math evaluation
+result, error, size = EMBED_EVALUATORS["math"]("2 + 3 * 4", {}, "[Test]", ".2f")
+# result: "14.00", error: None, size: 5
+
+# DateTime formatting  
+result, error, size = EMBED_EVALUATORS["datetime"]("%Y-%m-%d", {}, "[Test]")
+# result: "2024-01-15", error: None, size: 10
+```
+
+### modifiers.py
+**Purpose:** Implements data transformation functions that can be chained together in artifact_content embeds.
+
+**Import:** `from solace_agent_mesh.common.utils.embeds.modifiers import MODIFIER_DEFINITIONS, _parse_modifier_chain`
+
+**Functions:**
+- `_apply_jsonpath(current_data: Any, expression: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Applies JSONPath expressions to JSON data
+- `_apply_select_cols(current_data: List[Dict], cols_str: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Selects specific columns from tabular data
+- `_apply_filter_rows_eq(current_data: List[Dict], filter_spec: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Filters rows by column value equality
+- `_apply_slice_rows(current_data: List[Dict], slice_spec: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Slices rows using Python slice notation
+- `_apply_slice_lines(current_data: str, slice_spec: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Slices text lines
+- `_apply_grep(current_data: str, pattern: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Filters lines matching regex pattern
+- `_apply_head(current_data: str, n_str: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Returns first N lines
+- `_apply_tail(current_data: str, n_str: str, mime_type: Optional[str], log_id: str) -> Tuple[Any, Optional[str], Optional[str]]` - Returns last N lines
+- `_apply_template(current_data: Any, template_spec: str, mime_type: Optional[str], log_id: str, context: Any) -> Tuple[Any, Optional[str], Optional[str]]` - Applies Mustache templates from artifacts
+- `_parse_modifier_chain(expression: str) -> Tuple[str, List[Tuple[str, str]], Optional[str]]` - Parses artifact_content expression into components
+
+**Constants/Variables:**
+- `MODIFIER_IMPLEMENTATIONS: Dict[str, Callable]` - Registry of modifier functions
+- `MODIFIER_DEFINITIONS: Dict[str, Dict[str, Any]]` - Modifier metadata including accepted/produced formats
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds.modifiers import _parse_modifier_chain
+
+# Parse a complex artifact_content expression
+expression = "data.csv:1 >>> select_cols:name,age >>> filter_rows_eq:age:25 >>> format:json"
+artifact_spec, modifiers, output_format = _parse_modifier_chain(expression)
+# artifact_spec: "data.csv:1"
+# modifiers: [("select_cols", "name,age"), ("filter_rows_eq", "age:25")]
+# output_format: "json"
+```
+
+### resolver.py
+**Purpose:** Core orchestration engine that handles the complete embed resolution process including modifier chains and recursion.
+
+**Import:** `from solace_agent_mesh.common.utils.embeds.resolver import resolve_embeds_in_string, evaluate_embed`
+
+**Functions:**
+- `resolve_embeds_in_string(text: str, context: Any, resolver_func: Callable, types_to_resolve: Set[str], log_identifier: str = "[EmbedUtil]", config: Optional[Dict[str, Any]] = None) -> Tuple[str, int, List[Tuple[int, Any]]]` - Single-pass embed resolution with buffering support
+- `resolve_embeds_recursively_in_string(text: str, context: Any, resolver_func: Callable, types_to_resolve: Set[str], log_identifier: str, config: Optional[Dict], max_depth: int, current_depth: int = 0, visited_artifacts: Optional[Set[Tuple[str, int]]] = None, accumulated_size: int = 0, max_total_size: int = -1) -> str` - Recursive embed resolution with safety limits
+- `evaluate_embed(embed_type: str, expression: str, format_spec: Optional[str], context: Dict[str, Any], log_identifier: str, config: Optional[Dict] = None, current_depth: int = 0, visited_artifacts: Optional[Set[Tuple[str, int]]] = None) -> Union[Tuple[str, Optional[str], int], Tuple[None, str, Any]]` - Main embed evaluation dispatcher
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds.resolver import resolve_embeds_in_string, evaluate_embed
+
+# Single-pass resolution
+text = "Result: «math:2+3» and «uuid:new»"
+context = {"artifact_service": service, "session_context": session_ctx}
+
+resolved_text, processed_index, signals = await resolve_embeds_in_string(
+    text=text,
+    context=context,
+    resolver_func=evaluate_embed,
+    types_to_resolve={"math", "uuid"},
+    log_identifier="[MyApp]",
+    config={}
+)
+
+# Complex artifact content with modifiers
+result, error, size = await evaluate_embed(
+    embed_type="artifact_content",
+    expression="sales.csv >>> select_cols:product,revenue >>> format:json",
+    format_spec=None,
+    context=context,
+    log_identifier="[Sales]"
+)
+```
+
+### types.py
+
+================================================================================
+
+## Section 11: solace_agent_mesh/common/utils/utils_llm.txt
+
+**Source file:** `solace_agent_mesh/common/utils/utils_llm.txt`
+
+## Quick Summary
+The `utils` directory provides essential utility functions and tools for the Solace Agent Mesh system. It contains both direct utility files for common operations (MIME type handling, caching, message validation, authentication) and a sophisticated `embeds` subdirectory that implements a dynamic expression evaluation system. The utilities work together to provide platform compatibility, security features, data processing capabilities, and dynamic content generation for agent workflows.
+
+## Files and Subdirectories Overview
+
+### Direct Files:
+- **`__init__.py`** - Main entry point exporting commonly used utilities like MIME type checking
+- **`artifact_utils.py`** - Utilities for working with ADK artifacts, including version resolution
+- **`asyncio_macos_fix.py`** - Automatic fix for asyncio subprocess issues on macOS
+- **`in_memory_cache.py`** - Thread-safe singleton cache with TTL support
+- **`initializer.py`** - Enterprise feature initialization and configuration loading
+- **`log_formatters.py`** - Custom logging formatters for platforms like Datadog
+- **`message_utils.py`** - Message size calculation and validation utilities
+- **`mime_helpers.py`** - MIME type classification and file extension utilities
+- **`push_notification_auth.py`** - JWT-based authentication for push notifications
+- **`pydantic_utils.py`** - Pydantic BaseModel with dict-like access for configuration
+- **`type_utils.py`** - Robust type checking utilities for development environments
+
+### Subdirectories:
+- **`embeds/`** - Dynamic expression evaluation system using `«...»` syntax for mathematical calculations, datetime formatting, UUID generation, and artifact content processing
+
+## Developer API Reference
+
+### Direct Files
+
+#### __init__.py
+**Purpose:** Main entry point for the utils package, exporting the most commonly used utility functions
+**Import:** `from solace_agent_mesh.common.utils import is_text_based_mime_type`
+
+**Functions:**
+- `is_text_based_mime_type(mime_type: Optional[str]) -> bool` - Checks if a MIME type represents text-based content
+
+#### artifact_utils.py
+**Purpose:** Common utility functions for working with ADK artifacts
+**Import:** `from solace_agent_mesh.common.utils.artifact_utils import get_latest_artifact_version`
+
+**Functions:**
+- `get_latest_artifact_version(artifact_service: BaseArtifactService, app_name: str, user_id: str, session_id: str, filename: str) -> Optional[int]` - Resolves the latest version number for a given artifact
+
+#### asyncio_macos_fix.py
+**Purpose:** Automatic fix for asyncio subprocess creation issues on macOS (imported for side effects)
+**Import:** `from solace_agent_mesh.common.utils import asyncio_macos_fix`
+
+**Functions:**
+- `apply_macos_asyncio_fix() -> bool` - Applies the asyncio fix for macOS subprocess support
+- `ensure_asyncio_compatibility() -> bool` - Ensures asyncio compatibility for subprocess creation
+
+#### in_memory_cache.py
+**Purpose:** Thread-safe singleton in-memory cache with TTL support
+**Import:** `from solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache`
+
+**Classes:**
+- **`InMemoryCache`** - Singleton cache class
+  - `set(key: str, value: Any, ttl: Optional[int] = None) -> None` - Store value with optional TTL
+  - `get(key: str, default: Any = None) -> Any` - Retrieve value or default
+  - `delete(key: str) -> bool` - Delete specific key
+  - `clear() -> bool` - Clear all cached data
+
+#### initializer.py
+**Purpose:** Handles initialization of enterprise features if available
+**Import:** `from solace_agent_mesh.common.utils.initializer import initialize`
+
+**Functions:**
+- `initialize() -> None` - Initializes enterprise features using SAM_AUTHORIZATION_CONFIG environment variable
+
+#### log_formatters.py
+**Purpose:** Custom logging formatters for structured output
+**Import:** `from solace_agent_mesh.common.utils.log_formatters import DatadogJsonFormatter`
+
+**Classes:**
+- **`DatadogJsonFormatter(logging.Formatter)`** - JSON formatter with Datadog-compatible attributes including trace IDs
+
+#### message_utils.py
+**Purpose:** Message size calculation and validation utilities
+**Import:** `from solace_agent_mesh.common.utils.message_utils import calculate_message_size, validate_message_size`
+
+**Functions:**
+- `calculate_message_size(payload: Dict[str, Any]) -> int` - Calculate exact message size using JSON + UTF-8 encoding
+- `validate_message_size(payload: Dict[str, Any], max_size_bytes: int, component_identifier: str = "Unknown") -> Tuple[bool, int]` - Validate message doesn't exceed size limits
+
+**Constants:**
+- `MAX_UTF8_BYTES_PER_CHARACTER: int` - Maximum UTF-8 bytes per character (4)
+
+#### mime_helpers.py
+**Purpose:** MIME type classification and file extension utilities
+**Import:** `from solace_agent_mesh.common.utils.mime_helpers import is_text_based_mime_type, get_extension_for_mime_type, is_text_based_file`
+
+**Functions:**
+- `is_text_based_mime_type(mime_type: Optional[str]) -> bool` - Check if MIME type is text-based
+- `is_text_based_file(mime_type: Optional[str], content_bytes: Optional[bytes] = None) -> bool` - Determine if file is text-based using MIME type and content analysis
+- `get_extension_for_mime_type(mime_type: Optional[str], default_extension: str = ".dat") -> str` - Get file extension for MIME type
+
+**Constants:**
+- `TEXT_CONTAINER_MIME_TYPES: Set[str]` - Set of non-text/* MIME types that contain text
+
+#### push_notification_auth.py
+**Purpose:** JWT-based authentication for push notifications with request integrity verification
+**Import:** `from solace_agent_mesh.common.utils.push_notification_auth import PushNotificationSenderAuth, PushNotificationReceiverAuth`
+
+**Classes:**
+- **`PushNotificationSenderAuth`** - Handles sending authenticated notifications
+  - `generate_jwk() -> None` - Generate RSA key pair for signing
+  - `handle_jwks_endpoint(request: Request) -> JSONResponse` - Serve public keys endpoint
+  - `send_push_notification(url: str, data: dict[str, Any]) -> None` - Send authenticated notification
+  - `verify_push_notification_url(url: str) -> bool` - Verify notification URL
+- **`PushNotificationReceiverAuth`** - Handles receiving and verifying notifications
+  - `load_jwks(jwks_url: str) -> None` - Load public keys from JWKS endpoint
+  - `verify_push_notification(request: Request) -> bool` - Verify notification authenticity
+
+#### pydantic_utils.py
+**Purpose:** Provides a Pydantic BaseModel for SAM configuration with dict-like access
+**Import:** `from solace_agent_mesh.common.utils.pydantic_utils import SamConfigBase`
+
+**Classes:**
+- **`SamConfigBase(BaseModel)`** - Pydantic BaseModel with dict-like access
+  - `model_validate_and_clean(cls: Type[T], obj: Any) -> T` - Validates dict after removing None values
+  - `get(key: str, default: Any = None) -> Any` - Dict-like .get() method
+  - `__getitem__(key: str) -> Any` - Dict-like ['key'] access
+  - `__setitem__(key: str, value: Any)` - Dict-like ['key'] = value assignment
+  - `__contains__(key: str) -> bool` - Dict-like 'in' support
+  - `keys()`, `values()`, `items()`, `__iter__()` - Dict-like iteration methods
+
+#### type_utils.py
+**Purpose:** Utilities for robust type checking, especially in development environments
+**Import:** `from solace_agent_mesh.common.utils.type_utils import is_subclass_by_name`
+
+**Functions:**
+- `is_subclass_by_name(cls_to_check: type, base_class_name: str) -> bool` - Checks if a class is a subclass by looking for the base class name in the MRO
+
+### Subdirectory APIs
+
+#### embeds/
+**Purpose:** Comprehensive dynamic expression evaluation system using `«...»` syntax for mathematical calculations, datetime formatting, UUID generation, and artifact content processing with transformation pipelines
+**Key Exports:** Main resolution functions, evaluator registry, modifier system, and type constants
+**Import Examples:**
+```python
+from solace_agent_mesh.common.utils.embeds import resolve_embeds_recursively_in_string, evaluate_embed, EMBED_REGEX
+from solace_agent_mesh.common.utils.embeds.constants import EARLY_EMBED_TYPES, LATE_EMBED_TYPES
+from solace_agent_mesh.common.utils.embeds.types import DataFormat
+```
+
+## Complete Usage Guide
+
+### 1. Basic Utility Operations
+
+```python
+# Import commonly used utilities
+from solace_agent_mesh.common.utils import is_text_based_mime_type
+from solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache
+from solace_agent_mesh.common.utils.message_utils import validate_message_size, calculate_message_size
+from solace_agent_mesh.common.utils.mime_helpers import get_extension_for_mime_type, is_text_based_file
+
+# MIME type checking
+if is_text_based_mime_type("application/json"):
+    print("JSON is text-based")
+
+# File analysis with content
+with open("data.bin", "rb") as f:
+    content = f.read()
+if is_text_based_file("application/octet-stream", content):
+    print("File contains text despite binary MIME type")
+
+# Singleton cache usage
+cache = InMemoryCache()
+cache.set("user_session", {"user_id": "123", "role": "admin"}, ttl=3600)  # 1 hour TTL
+session_data = cache.get("user_session", {})
+
+# Message size validation
+payload = {"message": "Hello world", "data": [1, 2, 3], "metadata": {"timestamp": "2024-01-15"}}
+is_valid, size = validate_message_size(payload, max_size_bytes=1024, component_identifier="MessageProcessor")
+if not is_valid:
+    print(f"Message too large: {size} bytes exceeds 1024 byte limit")
+
+# Get appropriate file extension
+extension = get_extension_for_mime_type("image/png")  # Returns ".png"
+filename = f"image_{uuid.uuid4()}{extension}"
+```
+
+### 2. Configuration and Type Utilities
+
+```python
+from solace_agent_mesh.common.utils.pydantic_utils import SamConfigBase
+from solace_agent_mesh.common.utils.type_utils import is_subclass_by_name
+from pydantic import Field
+from typing import Optional
+
+# Define configuration with Pydantic validation and dict-like access
+class AgentConfig(SamConfigBase):
+    name: str
+    timeout: int = 30
+    debug: bool = False
+    api_key: Optional[str] = None
+
+# Load config from YAML/dict with None value cleaning
+config_dict = {
+    "name": "my_agent",
+    "timeout": None,  # Will use default value of 30
+    "debug": True,
+    "api_key": None   # Will use default value of None
+}
+
+config = AgentConfig.model_validate_and_clean(config_dict)
+
+# Use both Pydantic and dict-style access
+print(config.name)              # Pydantic style: "my_agent"
+print(config["timeout"])        # Dict style: 30 (default applied)
+print(config.get("debug", False))  # Dict .get(): True
+
+# Check if field was explicitly set
+if "api_key" in config:
+    print("API key was provided")
+else:
+    print("API key not provided, using default")
+
+# Robust type checking for development
+class BaseAgent:
+    pass
+
+class MyAgent(BaseAgent):
+    pass
+
+# This works even if BaseAgent is loaded from different paths
+if is_subclass_by_name(MyAgent, "BaseAgent"):
+    print("MyAgent is a BaseAgent subclass")
+```
+
+### 3. Platform Compatibility and System Initialization
+
+```python
+# Early in application startup - import for side effects
+from solace_agent_mesh.common.utils import asyncio_macos_fix  # Auto-applies macOS fix
+from solace_agent_mesh.common.utils.initializer import initialize
+
+# Initialize enterprise features if available
+try:
+    initialize()
+    print("Enterprise features initialized")
+except Exception as e:
+    print(f"Running in community mode: {e}")
+
+# Now asyncio subprocess creation works reliably on macOS
+import asyncio
+
+async def run_command(cmd: str):
+    process = await asyncio.create_subprocess_exec(
+        *cmd.split(),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await process.communicate()
+    return stdout.decode(), stderr.decode(), process.returncode
+
+# This will work on macOS without NotImplementedError
+result = await run_command("echo Hello World")
+```
+
+### 4. Structured Logging Setup
+
+```python
+import logging
+import os
+from solace_agent_mesh.common.utils.log_formatters import DatadogJsonFormatter
+
+# Configure structured JSON logging
+logger = logging.getLogger("my_application")
+handler = logging.StreamHandler()
+handler.setFormatter(DatadogJsonFormatter())
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+# Set service name for Datadog
+os.environ["SERVICE_NAME"] = "my_agent_service"
+
+# Log with structured data - automatically includes trace IDs if available
+logger.info("User action completed", extra={
+    "user_id": "user123",
+    "action": "file_upload",
+    "file_size": 1024,
+    "dd.trace_id": "abc123"  # Will be included in JSON output
+})
+
+# Output will be JSON with timestamp, level, service, code location, etc.
+```
+
+### 5. Secure Push Notification System
+
+```python
+from solace_agent_mesh.common.utils.push_notification_auth import (
+    PushNotificationSenderAuth, 
+    PushNotificationReceiverAuth
+)
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import Response, JSONResponse
+
+# Sender setup and usage
+sender_auth = PushNotificationSenderAuth()
+sender_auth.generate_jwk()  # Generate RSA key pair
+
+async def notify_clients(event_data: dict):
+    client_urls = ["https://client1.example.com/webhook", "https://client2.example.com/webhook"]
+    
+    for url in client_urls:
+        # Verify URL accepts notifications
+        if await sender_auth.verify_push_notification_url(url):
+            # Send authenticated notification
+            await sender_auth.send_push_notification(url, {
+                "event": "data_updated",
+                "timestamp": "2024-01-15T10:30:00Z",
+                "data": event_data
+            })
+        else:
+            print(f"Failed to verify URL: {url}")
+
+# Receiver setup
+app = Starlette()
+receiver_auth = PushNotificationReceiverAuth()
+
+# Load sender's public keys
+await receiver_auth.load_jwks("https://sender.example.com/.well-known/jwks.json")
+
+@app.route("/webhook", methods=["POST"])
+async def webhook_handler(request: Request):
+    try:
+        # Verify JWT signature and request integrity
+        if await receiver_auth.verify_push_notification(request):
+            data = await request.json()
+            # Process authenticated notification
+            print(f"Received verified notification: {data}")
+            return Response("OK")
+        else:
+            return Response("Unauthorized", status_code=401)
+    except Exception as e:
+        print(f"
+
+================================================================================
+

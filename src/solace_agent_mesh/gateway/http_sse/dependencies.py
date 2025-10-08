@@ -20,9 +20,14 @@ from ...gateway.base.task_context import TaskContextManager
 from ...gateway.http_sse.services.agent_card_service import AgentCardService
 from ...gateway.http_sse.services.people_service import PeopleService
 from ...gateway.http_sse.services.task_service import TaskService
+from ...gateway.http_sse.services.feedback_service import FeedbackService
+from ...gateway.http_sse.services.task_logger_service import TaskLoggerService
+from ...gateway.http_sse.services.data_retention_service import DataRetentionService
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
-from .repository import Message, MessageRepository, SessionRepository
+from .repository import SessionRepository
+from .repository.interfaces import ITaskRepository
+from .repository.task_repository import TaskRepository
 from .services.session_service import SessionService
 
 try:
@@ -57,8 +62,20 @@ def init_database(database_url: str):
     global SessionLocal
     if SessionLocal is None:
         engine = create_engine(database_url)
+
+        # Enable foreign keys for SQLite only (database-agnostic)
+        from sqlalchemy import event
+
+        @event.listens_for(engine, "connect")
+        def set_sqlite_pragma(dbapi_conn, connection_record):
+            # Only apply to SQLite connections
+            if database_url.startswith("sqlite"):
+                cursor = dbapi_conn.cursor()
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.close()
+
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-        log.info("[Dependencies] Database initialized.")
+        log.info("[Dependencies] Database initialized with foreign key support.")
     else:
         log.warning("[Dependencies] Database already initialized.")
 
@@ -199,12 +216,96 @@ def get_identity_service(
     return component.identity_service
 
 
+def get_db() -> Generator[Session, None, None]:
+    if SessionLocal is None:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Session management requires database configuration.",
+        )
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def get_people_service(
     identity_service: BaseIdentityService | None = Depends(get_identity_service),
 ) -> PeopleService:
     """FastAPI dependency to get an instance of PeopleService."""
     log.debug("[Dependencies] get_people_service called")
     return PeopleService(identity_service=identity_service)
+
+
+def get_task_repository(db: Session = Depends(get_db)) -> ITaskRepository:
+    """FastAPI dependency to get an instance of TaskRepository."""
+    log.debug("[Dependencies] get_task_repository called")
+    return TaskRepository(db)
+
+
+def get_feedback_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+    task_repo: ITaskRepository = Depends(get_task_repository),
+) -> FeedbackService:
+    """FastAPI dependency to get an instance of FeedbackService."""
+    log.debug("[Dependencies] get_feedback_service called")
+    # The session factory is needed for the existing DB save logic.
+    session_factory = SessionLocal if component.database_url else None
+    return FeedbackService(
+        session_factory=session_factory, component=component, task_repo=task_repo
+    )
+
+
+def get_data_retention_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> "DataRetentionService | None":
+    """
+    FastAPI dependency to get the DataRetentionService instance.
+
+    Returns:
+        DataRetentionService instance if database is configured and service is initialized,
+        None otherwise.
+
+    Note:
+        This dependency is primarily for future API endpoints that might expose
+        data retention statistics or manual cleanup triggers. The service itself
+        runs automatically via timer in the component.
+    """
+    log.debug("[Dependencies] get_data_retention_service called")
+
+    if not component.database_url:
+        log.debug(
+            "[Dependencies] Database not configured, returning None for data retention service"
+        )
+        return None
+
+    if (
+        not hasattr(component, "data_retention_service")
+        or component.data_retention_service is None
+    ):
+        log.warning("[Dependencies] DataRetentionService not initialized on component")
+        return None
+
+    return component.data_retention_service
+
+
+def get_task_logger_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> TaskLoggerService:
+    """FastAPI dependency to get an instance of TaskLoggerService."""
+    log.debug("[Dependencies] get_task_logger_service called")
+    task_logger_service = component.get_task_logger_service()
+    if task_logger_service is None:
+        log.error("[Dependencies] TaskLoggerService is not available.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Task logging service is not configured or available.",
+        )
+    return task_logger_service
 
 
 PublishFunc = Callable[[str, dict, dict | None], None]
@@ -304,18 +405,22 @@ class ValidatedUserConfig:
     ) -> dict[str, Any]:
         user_id = user_config.get("user_profile", {}).get("id")
 
-        log.debug(f"[Dependencies] ValidatedUserConfig called for user_id: {user_id} with required scopes: {self.required_scopes}")
+        log.debug(
+            f"[Dependencies] ValidatedUserConfig called for user_id: {user_id} with required scopes: {self.required_scopes}"
+        )
 
         # Validate scopes
         if not config_resolver.is_feature_enabled(
-                user_config, {"tool_metadata": {"required_scopes": self.required_scopes}}, {}
+            user_config,
+            {"tool_metadata": {"required_scopes": self.required_scopes}},
+            {},
         ):
             log.warning(
                 f"[Dependencies] Authorization denied for user '{user_id}'. Required scopes: {self.required_scopes}"
             )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Not authorized. Required scopes: {self.required_scopes}"
+                detail=f"Not authorized. Required scopes: {self.required_scopes}",
             )
 
         return user_config
@@ -396,23 +501,6 @@ def get_task_service(
     )
 
 
-def get_db() -> Generator[Session, None, None]:
-    if SessionLocal is None:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Session management requires database configuration.",
-        )
-    db = SessionLocal()
-    try:
-        yield db
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
-
-
 def get_session_business_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> SessionService:
@@ -421,8 +509,6 @@ def get_session_business_service(
     # Note: Session and message repositories will be created per request
     # when the SessionService methods receive the db parameter
     return SessionService(component=component)
-
-
 
 
 def get_session_validator(
@@ -438,7 +524,9 @@ def get_session_validator(
                 db = SessionLocal()
                 try:
                     session_repository = SessionRepository(db)
-                    session_domain = session_repository.find_user_session(session_id, user_id)
+                    session_domain = session_repository.find_user_session(
+                        session_id, user_id
+                    )
                     return session_domain is not None
                 finally:
                     db.close()
@@ -479,6 +567,8 @@ def get_session_business_service_optional(
 ) -> SessionService | None:
     """Optional session service dependency that returns None if database is not configured."""
     if SessionLocal is None:
-        log.debug("[Dependencies] Database not configured, returning None for session service")
+        log.debug(
+            "[Dependencies] Database not configured, returning None for session service"
+        )
         return None
     return SessionService(component=component)

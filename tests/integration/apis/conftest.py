@@ -16,9 +16,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import StaticPool
 
-# Remove old persistence service import - using direct SQLAlchemy now
-from solace_agent_mesh.gateway.http_sse.repository.models.base import Base
-
 # Import FastAPI components
 from solace_agent_mesh.gateway.http_sse.main import app as fastapi_app
 from solace_agent_mesh.gateway.http_sse.main import setup_dependencies
@@ -28,6 +25,17 @@ from .infrastructure.simple_database_inspector import SimpleDatabaseInspector
 # Import test infrastructure components
 from .infrastructure.simple_database_manager import SimpleDatabaseManager
 from .infrastructure.simple_gateway_adapter import SimpleGatewayAdapter
+
+
+# Imports for feedback test fixture
+from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
+from solace_agent_mesh.gateway.http_sse import dependencies
+from solace_agent_mesh.gateway.http_sse.services.task_logger_service import (
+    TaskLoggerService,
+)
+from solace_agent_mesh.core_a2a.service import CoreA2AService
+from solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager
+from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture(scope="session")
@@ -48,13 +56,20 @@ def test_database_engine(test_database_url):
         echo=False,  # Set to True for SQL debugging
         pool_pre_ping=True,
         pool_recycle=300,
-        pool_timeout=30,
-        max_overflow=0,
     )
+    
+    # Enable foreign keys for SQLite (database-agnostic)
+    from sqlalchemy import event
+    
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, connection_record):
+        if test_database_url.startswith('sqlite'):
+            cursor = dbapi_conn.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
 
-    # Create all tables
-    Base.metadata.create_all(bind=engine)
-    print(f"[API Tests] Test database created at {test_database_url}")
+    # Tables will be created by Alembic migrations in setup_dependencies()
+    print(f"[API Tests] Test database engine created at {test_database_url}")
 
     yield engine
 
@@ -71,7 +86,7 @@ def test_database_url_for_setup(test_database_url):
 
 
 @pytest.fixture(scope="session")
-def mock_component():
+def mock_component(test_database_engine):
     """Creates a mock WebUIBackendComponent for testing"""
     component = Mock()
 
@@ -96,6 +111,9 @@ def mock_component():
         lambda *args: f"test-session-{uuid.uuid4().hex[:8]}"
     )
     mock_session_manager.ensure_a2a_session.side_effect = (
+        lambda *args: f"test-session-{uuid.uuid4().hex[:8]}"
+    )
+    mock_session_manager.create_new_session_id.side_effect = (
         lambda *args: f"test-session-{uuid.uuid4().hex[:8]}"
     )
     component.get_session_manager.return_value = mock_session_manager
@@ -141,6 +159,57 @@ def mock_component():
             "auth_method": "development",
         }
     )
+
+    # Mock the config resolver to handle async user config resolution
+    mock_config_resolver = Mock()
+    mock_config_resolver.resolve_user_config = AsyncMock(return_value={})
+    component.get_config_resolver.return_value = mock_config_resolver
+
+    # Create a real TaskLoggerService instance for persistence tests
+    Session = sessionmaker(bind=test_database_engine)
+    task_logger_config = {"enabled": True}
+    real_task_logger_service = TaskLoggerService(
+        session_factory=Session, config=task_logger_config
+    )
+    component.get_task_logger_service.return_value = real_task_logger_service
+
+    # Create a real DataRetentionService instance for data retention tests
+    from solace_agent_mesh.gateway.http_sse.services.data_retention_service import (
+        DataRetentionService,
+    )
+    data_retention_config = {
+        "enabled": True,
+        "task_retention_days": 90,
+        "feedback_retention_days": 90,
+        "cleanup_interval_hours": 24,
+        "batch_size": 1000,
+    }
+    real_data_retention_service = DataRetentionService(
+        session_factory=Session, config=data_retention_config
+    )
+    component.data_retention_service = real_data_retention_service
+
+    # Create a mock CoreA2AService instance for task cancellation tests
+    mock_core_a2a_service = Mock(spec=CoreA2AService)
+    
+    # Mock the cancel_task method to return valid A2A message components
+    def mock_cancel_task(agent_name, task_id, client_id, user_id):
+        target_topic = f"test_namespace/a2a/v1/agent/cancel/{agent_name}"
+        payload = {
+            "jsonrpc": "2.0",
+            "id": f"cancel-{task_id}",
+            "method": "tasks/cancel",
+            "params": {"id": task_id}
+        }
+        user_properties = {"userId": user_id}
+        return target_topic, payload, user_properties
+    
+    mock_core_a2a_service.cancel_task = mock_cancel_task
+    component.get_core_a2a_service.return_value = mock_core_a2a_service
+
+    # Create a mock SSEManager instance for task service tests
+    mock_sse_manager = Mock(spec=SSEManager)
+    component.get_sse_manager.return_value = mock_sse_manager
 
     print("[API Tests] Mock component created")
     yield component
@@ -197,7 +266,7 @@ def clean_database_between_tests(request, test_database_engine):
 def _clean_main_database(test_database_engine):
     """Clean the main API test database"""
     from sqlalchemy.orm import sessionmaker
-    
+
     SessionLocal = sessionmaker(bind=test_database_engine)
     session = SessionLocal()
     try:
@@ -206,6 +275,12 @@ def _clean_main_database(test_database_engine):
         existing_tables = inspector.get_table_names()
 
         # Delete in correct order to handle foreign key constraints
+        if "feedback" in existing_tables:
+            session.execute(text("DELETE FROM feedback"))
+        if "task_events" in existing_tables:
+            session.execute(text("DELETE FROM task_events"))
+        if "tasks" in existing_tables:
+            session.execute(text("DELETE FROM tasks"))
         if "chat_messages" in existing_tables:
             session.execute(text("DELETE FROM chat_messages"))
         if "sessions" in existing_tables:

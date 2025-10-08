@@ -35,6 +35,13 @@ class LegacyTimestamp(BaseModel):
     updated_at: datetime | None = None
 
 
+class PaginationParams(BaseModel):
+    """Pagination parameters for list requests."""
+
+    page: int
+    page_size: int
+
+
 class PaginationInfo(BaseModel):
     """Pagination information for list responses."""
 

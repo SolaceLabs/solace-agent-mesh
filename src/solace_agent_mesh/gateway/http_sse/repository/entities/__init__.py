@@ -2,8 +2,10 @@
 Domain entities for the repository layer.
 """
 
-from .message import Message
+from .chat_task import ChatTask
+from .feedback import Feedback
 from .session import Session
-from .session_history import SessionHistory
+from .task import Task
+from .task_event import TaskEvent
 
-__all__ = ["Message", "Session", "SessionHistory"]
+__all__ = ["ChatTask", "Feedback", "Session", "Task", "TaskEvent"]
