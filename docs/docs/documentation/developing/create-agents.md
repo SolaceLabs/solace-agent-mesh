@@ -1,3 +1,4 @@
+
 ---
 title: Creating Agents
 sidebar_position: 420
@@ -5,83 +6,83 @@ sidebar_position: 420
 
 :::tip
 For a more comprehensive tutorial example, see the [Build Your Own Agent](tutorials/custom-agent.md) guide.
-This page provides an in-depth theoretical overview of creating agents in Solace Agent Mesh.
+This page walks through the fundamental concepts for creating agents in Solace Agent Mesh.
 :::
 
-Solace Agent Mesh is a powerful platform that enables you to create intelligent agents that can communicate with each other and perform complex tasks. At its core, Solace Agent Mesh uses a **tool-based architecture** where LLM-powered agents are equipped with specific capabilities (tools) that they can use to accomplish user requests.
+Solace Agent Mesh is a powerful platform that enables you to create intelligent agents that can communicate with each other and perform complex tasks. At its core, Solace Agent Mesh uses a tool-based architecture where LLM-powered agents are equipped with specific capabilities (tools) that they can use to accomplish user requests.
 
-**Before continuing with this tutorial, make sure you are familiar with the basic [agent concept](../components/agents.md).**
+Before continuing with this tutorial, make sure you are familiar with the basic [agent concept](../components/agents.md).
 
-This tutorial guides you through creating your first Solace Agent Mesh agent from scratch. You will learn how to:
+This tutorial guides you through creating your first Solace Agent Mesh agent from scratch. You will learn how to define tools as Python functions, configure an agent using YAML, and set up agent lifecycle functions. By the end of this tutorial, you should have a working "Hello World" agent that demonstrates the fundamental concepts of Solace Agent Mesh agent development.
 
-- Define tools as Python functions
-- Configure an agent using YAML
-- Set up agent lifecycle functions
+## Understanding the Architecture
 
-By the end of this tutorial, you should have a working "Hello World" agent that demonstrates the fundamental concepts of Solace Agent Mesh agent development.
+Before diving into implementation, you need to understand how the different components of a Solace Agent Mesh agent work together. This architectural overview will help you see the big picture before you start building.
 
-## Quick Start: Creating Your First Agent
+```mermaid
+graph TD
+    subgraph Agent Configuration
+        direction LR
+        A[config.yaml] -->|Defines| B(Agent Properties);
+        A -->|Lists & Configures| C(Tools);
+    end
 
-You can create an agent directly using the Solace Agent Mesh CLI `sam add agent`:
+    subgraph Agent Host
+        direction TB
+        D[SAM Host] -->|Loads| A;
+        D -->|Instantiates| E[Agent];
+        E -->|Initializes with| F[Lifecycle Functions];
+    end
 
-```bash
-sam add agent my-first-agent
+    subgraph Tool Implementation
+        direction LR
+        G[Python Module tools.py] -->|Contains| H[Tool Functions];
+    end
+
+    subgraph Execution Flow
+        direction TB
+        I[User Request] --> J[LLM Orchestrator];
+        J -->|Selects Tool| K{ADKToolWrapper};
+        K -->|Calls| H;
+        H -->|Accesses| L[ToolContext];
+        H -->|Uses| M[tool_config];
+        H -->|Returns Result| J;
+    end
+
+    C -->|Wrapped by| K;
+
+    style A fill:#b60000,stroke:#faa,stroke-width:2px
+    style H fill:#b60000,stroke:#faa,stroke-width:2px
+    style F fill:#007000,stroke:#faa,stroke-width:2px
 ```
 
-This command:
-- Launches an interactive setup (or use `--gui` for browser-based configuration)
-- Generates the necessary files and configuration
-- Sets up the basic agent structure
-
-Note that create agent as plugin is preferred over create agent directly.
-
-### CLI Options
-
-You can customize the agent creation with provided CLI options.
-
-For a complete list of options, run:
-```bash
-sam add agent --help
-```
+When a user sends a request to your agent, the LLM orchestrator analyzes the request and decides which tool to use. The framework wraps your tool functions and provides them with context and configuration. Your tool executes its logic and returns results to the LLM, which then formulates a response to the user.
 
 ## Core Concepts
 
-Before diving into the implementation, it is important to understand the key concepts that make Solace Agent Mesh agents work:
+Understanding these fundamental concepts will help you build effective agents.
 
-### Tools
+### Tools: The Building Blocks
 
-**Tools are the fundamental building blocks of Solace Agent Mesh agents.** Each tool is implemented as a Python function that performs a specific task. Tools can:
+Tools are the fundamental building blocks of Solace Agent Mesh agents. Each tool is implemented as a Python function that performs a specific task. The LLM orchestrating your agent decides which tools to use based on the user's request and the tool descriptions you provide.
 
-- Process text and data
-- Interact with external APIs
-- Create and manipulate files
-- Communicate with other agents
-- Access databases and services
-
-The LLM (Large Language Model) orchestrating your agent decides which tools to use based on the user's request and the tool descriptions you provide.
+Tools can process text and data, interact with external APIs, create and manipulate files, communicate with other agents, and access databases and services. You write tools as standard Python functions, and the framework handles the integration with the LLM.
 
 :::tip
 Solace Agent Mesh provides a set of [built-in tools](../components/builtin-tools/builtin-tools.md) plus support for [model context protocol (MCP)](tutorials/mcp-integration.md) servers, which can be configured in the tools list of your agent configuration.
 :::
 
-### Configuration File 
+### Configuration File: The Blueprint
 
-The `config.yaml` (for plugin template) or `agent-name.yaml` (for agent instances) file is the blueprint of your agent. It defines:
+The `config.yaml` (for plugin template) or `agent-name.yaml` (for agent instances) file is the blueprint of your agent. This YAML file defines your agent's identity (name, description, and capabilities), model configuration (which LLM to use), tools list (which tools the agent can access and how they're configured), lifecycle functions (setup and cleanup procedures), framework services (session management, artifact storage, and so on), and [agent card](../components/agents.md#agent-card) (metadata describing the agent capabilities, skills and its visibility in the system).
 
-- **Agent identity**: Name, description, and capabilities
-- **Model configuration**: Which LLM to use
-- **Tools list**: Defines which tools the agent can access and how they're configured
-- **Lifecycle functions**: Setup and cleanup procedures
-- **Framework services**: Session management, artifact storage, and so on.
-- **[Agent card](../components/agents.md#agent-card)**: Metadata describing the agent capabilities, skills and its visibility in the system
+The configuration file connects all the pieces together. It tells the framework where to find your tool functions, how to configure them, and what instructions to give the LLM about your agent's purpose.
 
-### Tool Configuration
+### Tool Configuration: Customizing Behavior
 
-Within the `tools` list in your YAML config, each tool can have its own `tool_config` section. This allows you to:
+Within the `tools` list in your YAML config, each tool can have its own `tool_config` section. This allows you to configure the same tool function for different purposes, pass specific parameters to tool instances, and customize tool behavior per agent.
 
-- Configure the same tool function for different purposes
-- Pass specific parameters to tool instances
-- Customize tool behavior per agent
+This design pattern enables code reuse. You can write a single generic tool function and configure it multiple times with different parameters to serve different purposes within the same agent.
 
 :::info
 For tools of type "python", you can also use the `tool_name` and `tool_description` to overwrite the function name and description in the tool docstring.
@@ -89,41 +90,35 @@ For tools of type "python", you can also use the `tool_name` and `tool_descripti
 This is useful when using a generic tool function for multiple purposes, allowing you to provide a more descriptive name and description for each instance.
 :::
 
-### ToolContext
+### ToolContext: Accessing Framework Services
 
-The `ToolContext` object (passed as one of the arguments to your tool function) provides your tools with access to Solace Agent Mesh core services:
+The `ToolContext` object (passed as one of the arguments to your tool function) provides your tools with access to Solace Agent Mesh core services. Through this context object, your tools can access structured logging for debugging and monitoring, the artifact service for file storage and retrieval, session information about the current user and session context, and agent state for sharing data between tool calls.
 
-- **Logging**: Structured logging for debugging and monitoring
-- **Artifact Service**: File storage and retrieval
-- **Session Information**: Current user and session context
-- **Agent State**: Shared data between tool calls
+The framework automatically provides this context to your tool functions. You don't need to create or manage it yourself.
 
-### Lifecycle Functions
+### Lifecycle Functions: Managing Resources
 
-Lifecycle functions allow you to manage resources that should persist for the agent's lifetime:
+Lifecycle functions allow you to manage resources that should persist for the agent's lifetime. The `agent_init_function` runs when the agent starts (for example, to establish database connections), and the `agent_cleanup_function` runs when the agent shuts down (for example, to close connections gracefully).
 
-- **`agent_init_function`**: Runs when the agent starts (for example, database connections)
-- **`agent_cleanup_function`**: Runs when the agent shuts down (for example, closing connections)
+These functions are optional but recommended for managing resources effectively. They ensure that your agent properly initializes any required resources and cleans them up when shutting down.
 
 :::note
 Lifecycle functions are optional but recommended for managing resources effectively.
 :::
 
-## Creating an Agent Plugin: Step-by-Step
+## Creating Your First Agent: Step-by-Step
 
-Create a simple agent that can greet users and demonstrate the core concepts.
+Now that you understand the core concepts, you can create a simple agent that demonstrates how these pieces work together. You will build a "Hello World" agent that can greet users and say goodbye.
 
-You can create an agent either by using the `sam add agent` command or by creating a new plugin of type agent, `sam plugin create my-hello-agent --type agent`. 
+### Step 1: Initialize Your Agent Plugin
+
+You can create an agent either by using the `sam add agent` command or by creating a new plugin of type agent with `sam plugin create my-hello-agent --type agent`.
 
 :::tip
 For information and recommendations about these options, see [`Agent or Plugin: Which To use?`](../components/plugins.md#agent-or-plugin-which-to-use).
 :::
 
-
-### Step 1: Initialize your Agent
-
-In this tutorial, you create a new agent by creating a new plugin of type agent.
-For an example of custom agents, see [Build Your Own Agent](tutorials/custom-agent.md) guide.
+In this tutorial, you create a new agent by creating a new plugin of type agent. For an example of custom agents, see [Build Your Own Agent](tutorials/custom-agent.md) guide.
 
 Although the directory structure for plugins is slightly different than the one for agents, both require a YAML configuration file, and a python module with the tools and lifecycle functions you want.
 
@@ -132,7 +127,8 @@ To create a new agent plugin, run the following command:
 ```bash
 sam plugin create my-hello-agent --type agent
 ```
-And follow the prompts to set up your agent. The prompts create a new directory structure for your agent.
+
+Follow the prompts to set up your agent. The prompts create a new directory structure for your agent:
 
 ```
 my-hello-agent/
@@ -163,14 +159,13 @@ graph TD
     style I fill:#007000,stroke:#333,stroke-width:2px
 ```
 
-### Step 2: The Tool Function
+The `config.yaml` file will contain your agent configuration, `tools.py` will contain your tool functions, and `lifecycle.py` (which you'll create manually) will contain your lifecycle functions. The `pyproject.toml` file manages your plugin's dependencies and metadata.
 
-Create your first tool function:
-The following arguments are provided by the framework:
-- tool_context: Solace Agent Mesh framework context
-- tool_config: Tool-specific configuration (from config.yaml)
+### Step 2: Create Your Tool Functions
 
-For a complete guide on creating python tools, see our **[Creating Python Tools](./creating-python-tools.md)** documentation.
+Tools are where your agent's actual capabilities live. You will create two simple tools: one to greet users and one to say goodbye.
+
+Create your tool functions in the `src/my_hello_agent/tools.py` file. For a complete guide on creating python tools, see our [Creating Python Tools](./creating-python-tools.md) documentation.
 
 ```python
 # src/my_hello_agent/tools.py
@@ -251,16 +246,19 @@ async def farewell_tool(
     }
 ```
 
-**Key Points:**
+Let's examine what makes these tool functions work. All tool functions must be asynchronous (defined with `async def`) because the framework uses asynchronous execution. The framework automatically provides two special parameters: `tool_context` gives you access to framework services like logging and artifact storage, and `tool_config` contains any custom configuration you define in your YAML file.
 
-- **Function Signature**: All tool functions should be `async` and accept `tool_context` and `tool_config` parameters
-- **Return Format**: Return a dictionary with at least a `status` field
-- **Logging**: Use the Solace Agent Mesh logger for consistent logging
-- **Configuration**: Access tool-specific config via the `tool_config` parameter
+The function signature includes regular parameters (like `name`) that the LLM will provide when calling the tool. The docstring is important because the LLM uses it to understand what the tool does and when to use it. You should always write clear, descriptive docstrings.
 
-### Step 3: The Agent Configuration
+The tool retrieves its configuration from the `tool_config` dictionary. This allows you to customize the tool's behavior without changing the code. In this example, you can configure different greeting prefixes for different use cases.
 
-Create the main configuration file for your agent:
+The tool returns a dictionary with at least a `status` field. This structured format makes it easy for the LLM to understand the result. You can include any additional data that might be useful for the LLM or for debugging.
+
+The logging statements help you track what your tool is doing. The framework provides a logger that you should use for consistent logging across your agent.
+
+### Step 3: Configure Your Agent
+
+Now you need to tell the framework about your agent and its tools. Create the main configuration file for your agent in `config.yaml`:
 
 ```yaml
 # File: config.yaml (at root of project directory)
@@ -355,23 +353,34 @@ apps:
 # ... (additional services and configurations)
 ```
 
-**Key Sections Explained:**
+This configuration file connects all the pieces of your agent. Let's examine each section to understand its purpose.
 
-- **`namespace`**: Unique identifier for your agent in the mesh
-- **`model`**: LLM configuration (can be a string or detailed config)
-- **`instruction`**: The system prompt that defines your agent's behavior
-- **`tools`**: List of tools your agent can use, with their configurations
-- **`agent_card`**: Metadata describing your agent's capabilities
+The `namespace` uniquely identifies your agent in the mesh. This allows multiple agents to coexist and communicate. The `agent_name` and `display_name` provide human-readable identifiers for your agent.
 
-### Step 4: The Lifecycle Function
+The `model` section specifies which LLM to use. The `*general_model` reference points to a model configuration defined elsewhere in your configuration files (typically in `shared_config.yaml`). This allows you to centrally manage model configurations across multiple agents.
 
-Lifecycle functions are completely optional but useful for managing resources. They run when the agent starts and stops.
+The `instruction` field contains the system prompt that defines your agent's personality and behavior. This text tells the LLM what role it should play and what capabilities it has. You
+should write clear, specific instructions that help the LLM understand its role.
+
+The `tools` section lists all the tools your agent can use. Each tool entry specifies the `tool_type` (python for custom functions, builtin-group for built-in tools), the `component_module` that contains the function, the `function_name` to call, and optionally a `tool_name` to rename the tool for the LLM. The `tool_config` section passes custom configuration to each tool instance. This is where you provide the `greeting_prefix` and `farewell_prefix` values that your tool functions read.
+
+Notice that you can configure the same function multiple times with different names and configurations. The `hello_tool` function is configured as `greet_user` with one greeting prefix, but you could add another configuration with a different prefix for formal greetings.
+
+The `agent_card` section describes your agent's capabilities to other parts of the system. The `skills` list should match the tools you've configured. Each skill has an `id` that corresponds to a tool name, making it discoverable by other agents and the user interface.
+
+The `session_service` and `artifact_service` references connect your agent to framework services for managing user sessions and storing files. These services are typically defined in your shared configuration.
+
+### Step 4: Create Lifecycle Functions
+
+Lifecycle functions manage resources that should persist for your agent's lifetime. Although these functions are optional, they demonstrate how to properly initialize and clean up resources.
 
 The lifecycle file is not automatically created, so you need to create it manually:
 
 ```bash
 touch src/my_hello_agent/lifecycle.py
 ```
+
+Now add your lifecycle functions:
 
 ```python
 # src/my_hello_agent/lifecycle.py
@@ -440,17 +449,74 @@ def cleanup_hello_agent(host_component: Any):
     log.info(f"{log_identifier} Hello Agent cleanup completed")
 ```
 
-**Key Points:**
+The lifecycle functions follow a specific pattern. The `initialize_hello_agent` function receives two parameters: `host_component` provides access to the agent instance and its methods, and `init_config` contains the validated configuration from your YAML file's `agent_init_function.config` section.
 
-- **Pydantic Models**: Use Pydantic for configuration validation
-- **Shared State**: Store data that persists across tool calls
-- **Resource Management**: Initialize connections in `init`, clean up in `cleanup`
+Using a Pydantic model for `init_config` provides automatic validation. The framework validates your configuration against this model when the agent starts, catching configuration errors early. This is better than manually checking configuration values in your code.
+
+The `host_component` object provides methods for managing agent state. The `set_agent_specific_state` method stores data that persists across tool calls within the same agent instance. This is useful for tracking statistics, caching data, or maintaining connections. The state is specific to this agent instance and is not shared with other agents.
+
+The `cleanup_hello_agent` function runs when the agent shuts down. This is your opportunity to gracefully close connections, save final state, or perform any other cleanup tasks. The function receives only the `host_component` parameter because cleanup typically doesn't need additional configuration.
+
+In this example, you retrieve the greeting count from the agent state and log it. In a real application, you might close database connections, flush caches to disk, or notify other services that the agent is shutting down.
+
+## Running Your Agent
+
+Now that you have created all the necessary components, you can run your agent. The process involves building your plugin and adding it to your Solace Agent Mesh project.
+
+### Building and Installing the Plugin
+
+To properly instantiate your plugin agent, first build the plugin. The following command will produce a python wheel file under `dist` directory:
+
+```bash
+sam plugin build
+```
+
+This command packages your agent code, configuration, and dependencies into a distributable wheel file. The wheel file is a standard Python package format that can be installed into any Python environment.
+
+Check into [your Solace Agent Mesh project directory](../getting-started/try-sam.md#create-a-project), and add the plugin wheel with a given name:
+
+```bash
+sam plugin add my-first-weather-agent --plugin PATH/TO/weather-agent/dist/weather-agent.whl
+```
+
+:::note
+Using the `sam plugin add` command installs your plugin as a python dependency into your python environment.
+This also means changing the source code without reinstalling the plugin will not reflect the changes.
+:::
+
+The `sam plugin add` command does several things. It installs your plugin package into your Python environment, making your tool functions and lifecycle functions importable. It also creates a configuration file in your project's `configs/agents/` directory that references your plugin. This configuration file is what the framework loads when you run your agent.
+
+Now, you can run the complete Solace Agent Mesh application along with your newly added agent:
+
+```bash
+sam run
+```
+
+Alternatively, only run the newly added agent using `sam run configs/agents/my-first-weather-agent.yaml`
+
+### Quick Debug Mode
+
+:::tip[Quick Debug]
+
+For debugging or isolated development testing, you can run your agent from the `src` directory directly using the Solace Agent Mesh CLI.
+
+```bash
+cd src
+sam run ../config.yaml
+```
+
+Changing to the src directory allows the module path to be set correctly so that Solace Agent Mesh can find your functions without your having to install them in your python environment as a plugin package.
+:::
+
+This quick debug mode is useful during development because you can make changes to your code and immediately test them without rebuilding and reinstalling the plugin. However, you should always test with the full plugin installation process before deploying to production.
 
 ## Advanced Concepts
 
+Once you understand the basics, you can explore more advanced patterns for building sophisticated agents.
+
 ### Working with Artifacts
 
-You can enhance our hello tool to save greetings to a file using Solace Agent Mesh's artifact service:
+The artifact service allows your tools to create, store, and retrieve files. You can enhance your hello tool to save greetings to a file using Solace Agent Mesh's artifact service:
 
 ```python
 
@@ -513,9 +579,17 @@ async def hello_tool_with_artifact(
     return result
 ```
 
+This enhanced tool demonstrates several important concepts. The `save_to_file` parameter allows the LLM to decide whether to save the greeting based on the user's request. This gives your agent flexibility in how it uses the tool.
+
+The `tool_context` object provides access to the artifact service through its `_invocation_context` property. The invocation context contains information about the current execution environment, including the user ID, session ID, and app name. These identifiers are necessary for properly organizing and retrieving artifacts.
+
+The `save_artifact_with_metadata` helper function handles the details of saving files to the artifact service. You provide the content as bytes, specify a MIME type, and include metadata that describes the artifact. The metadata makes it easier to search for and manage artifacts later.
+
+Error handling is important when working with external services. The try-except block ensures that if artifact saving fails, your tool can still return a successful greeting. The error is logged and included in the result, allowing the LLM to inform the user about the issue.
+
 ### Using Multiple Tool Configurations
 
-You can configure the same tool function multiple times with different settings:
+You can configure the same tool function multiple times with different settings. This pattern is useful when you want to provide the LLM with multiple variations of the same capability:
 
 ```yaml
 tools:
@@ -544,104 +618,58 @@ tools:
       greeting_prefix: "Hello and welcome"
 ```
 
-This gives your agent multiple greeting styles to choose from based on the context.
+This configuration creates three different tools from the same function. The LLM sees these as distinct capabilities and can choose the appropriate greeting style based on the context of the conversation. For example, it might use the formal greeting for business contexts and the casual greeting for friendly conversations.
 
-## Running Your Agent
+Each tool configuration should have a unique `tool_name` and should be listed in your agent card's skills section. This makes each variation discoverable and allows you to provide specific descriptions for each greeting style.
 
-To run a plugin agent, you first need to package and install it as a plugin. 
+## Quick Start: Using the CLI
 
-:::tip[Quick Debug]
-
-For debugging or isolated development testing, you can run your agent from the `src` directory directly using the Solace Agent Mesh CLI.
+If you want to get started quickly without manually creating all the files, you can use the Solace Agent Mesh CLI to generate the basic structure:
 
 ```bash
-cd src
-sam run ../config.yaml
+sam add agent my-first-agent
 ```
 
-Changing to the src directory allows the module path to be set correctly so that Solace Agent Mesh can find your functions without your having to install them in your python environment as a plugin package.
-:::
+This command launches an interactive setup (or use `--gui` for browser-based configuration) that generates the necessary files and configuration, and sets up the basic agent structure.
 
-To properly instantiate your plugin agent, first build the plugin.
-The following command will produce a python wheel file under `dist` directory:
+Note that creating an agent as a plugin is preferred over creating an agent directly because plugins are more portable and easier to share.
+
+### CLI Options
+
+You can customize the agent creation with provided CLI options. For a complete list of options, run:
+
 ```bash
-sam plugin build
+sam add agent --help
 ```
 
-Check into [your Solace Agent Mesh project directory](../getting-started/try-sam.md#create-a-project), and add the plugin wheel with a given name:
-
-```
-sam plugin add my-first-weather-agent --plugin PATH/TO/weather-agent/dist/weather-agent.whl
-```
-
-:::note
-Using the `sam plugin add` command installs your plugin as a python dependency into your python environment.
-This also means changing the source code without reinstalling the plugin will not reflect the changes.
-:::
-
-Now, you can run the complete Solace Agent Mesh application along with your newly added agent:
-```
-sam run
-```
-
-Alternatively, only run the newly added agent using `sam run configs/agents/my-first-weather-agent.yaml`
-
-
-## Architecture Overview
-
-Here is how all the pieces fit together:
-
-```mermaid
-graph TD
-    subgraph Agent Configuration
-        direction LR
-        A[config.yaml] -->|Defines| B(Agent Properties);
-        A -->|Lists & Configures| C(Tools);
-    end
-
-    subgraph Agent Host
-        direction TB
-        D[SAM Host] -->|Loads| A;
-        D -->|Instantiates| E[Agent];
-        E -->|Initializes with| F[Lifecycle Functions];
-    end
-
-    subgraph Tool Implementation
-        direction LR
-        G[Python Module tools.py] -->|Contains| H[Tool Functions];
-    end
-
-    subgraph Execution Flow
-        direction TB
-        I[User Request] --> J[LLM Orchestrator];
-        J -->|Selects Tool| K{ADKToolWrapper};
-        K -->|Calls| H;
-        H -->|Accesses| L[ToolContext];
-        H -->|Uses| M[tool_config];
-        H -->|Returns Result| J;
-    end
-
-    C -->|Wrapped by| K;
-
-    style A fill:#b60000,stroke:#faa,stroke-width:2px
-    style H fill:#b60000,stroke:#faa,stroke-width:2px
-    style F fill:#007000,stroke:#faa,stroke-width:2px
-```
+The CLI tool is useful for quickly scaffolding new agents, but understanding the manual process helps you customize and troubleshoot your agents more effectively.
 
 ## Best Practices
 
+Following these best practices will help you create robust, maintainable agents.
+
 ### Tool Design
-- **Single Responsibility**: Each tool should do one thing well
-- **Clear Documentation**: Write detailed docstrings for your tools
-- **Error Handling**: Always return structured error responses
-- **Logging**: Use consistent logging for debugging and monitoring
+
+Each tool should do one thing well. This single responsibility principle makes your tools easier to test, debug, and reuse. Instead of creating one large tool that handles multiple tasks, create several focused tools that each handle a specific task.
+
+Write detailed docstrings for your tools. The LLM uses these docstrings to understand what each tool does and when to use it. Include descriptions of all parameters, return values, and any important behavior or limitations.
+
+Always return structured error responses. When something goes wrong, your tool should return a dictionary with a status field indicating failure and a message explaining what went wrong. This allows the LLM to understand the error and potentially retry with different parameters or inform the user about the issue.
+
+Use consistent logging for debugging and monitoring. Log important events, parameter values, and results. This makes it much easier to troubleshoot issues when your agent is running in production.
 
 ### Configuration
-- **Environment Variables**: Use environment variables for sensitive data
-- **Validation**: Use Pydantic models for configuration validation
-- **Documentation**: Comment your configuration files thoroughly
+
+Use environment variables for sensitive data like API keys, database passwords, and other credentials. Never hardcode sensitive information in your configuration files or source code.
+
+Use Pydantic models for configuration validation. This catches configuration errors early and provides clear error messages when something is wrong. It also serves as documentation for what configuration options are available.
+
+Comment your configuration files thoroughly. YAML files can become complex, and clear comments help other developers (and your future self) understand what each section does and why it's configured that way.
 
 ### Testing
-- **Unit Tests**: Test your tool functions independently
-- **Integration Tests**: Test your agent with real Solace Agent Mesh infrastructure
-- **Mock Dependencies**: Mock external services for reliable testing
+
+Write unit tests for your tool functions independently. Test them with various inputs, including edge cases and error conditions. Mock the `tool_context` and `tool_config` parameters to isolate your tool logic from the framework.
+
+Write integration tests that test your agent with real Solace Agent Mesh infrastructure. These tests verify that your configuration is correct and that your tools work properly when called by the LLM.
+
+Mock external dependencies for reliable testing. If your tools call external APIs or databases, create mock versions for testing. This makes your tests faster and more reliable because they don't depend on external services being available.
