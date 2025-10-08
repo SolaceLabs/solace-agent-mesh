@@ -1419,7 +1419,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
         # Get all agent names from the registry
         agent_names = self.agent_registry.get_agent_names()
         total_agents = len(agent_names)
-        unresponsive_agents = 0
         agents_to_deregister = []
         
         log.debug("%s Checking health of %d peer agents", self.log_identifier, total_agents)
@@ -1429,7 +1428,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
             is_expired, time_since_last_seen = self.agent_registry.check_ttl_expired(agent_name, ttl_seconds)
             
             if is_expired:
-                unresponsive_agents += 1
                 log.warning(
                     "%s Agent '%s' TTL has expired. De-registering. Time since last seen: %d seconds (TTL: %d seconds)",
                     self.log_identifier,
@@ -1444,10 +1442,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self._deregister_agent(agent_name)
             
         log.info(
-            "%s Agent health check completed. Total agents: %d, Unresponsive: %d, De-registered: %d",
+            "%s Agent health check completed. Total agents: %d, De-registered: %d",
             self.log_identifier,
             total_agents,
-            unresponsive_agents,
             len(agents_to_deregister)
         )
         
