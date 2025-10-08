@@ -14,6 +14,7 @@ const sessionServiceTypeOptions = [
     label: "Use Default (from shared_config.yaml)",
   },
   { value: "memory", label: "Memory (In-Process)" },
+  { value: "sql", label: "SQL (Relational Database)" },
   { value: "vertex_rag", label: "Vertex RAG (Google Cloud)" },
 ];
 
@@ -55,6 +56,11 @@ const AgentServicesStep: React.FC<StepProps> = ({
         updates.session_service_behavior = undefined;
       } else if (!data.session_service_behavior) {
         updates.session_service_behavior = "PERSISTENT";
+      }
+      if (value === "sql") {
+        updates.database_url = "default_agent_db";
+      } else {
+        updates.database_url = undefined;
       }
     } else if (name === "artifact_service_type") {
       if (value === USE_DEFAULT_SHARED_ARTIFACT) {

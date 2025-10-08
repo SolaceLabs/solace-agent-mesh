@@ -97,7 +97,7 @@ Additional gateway types are available through the plugin ecosystem:
 
 For more information about plugins and how to configure them, see [Plugins](./plugins.md).
 
-One of the official core plugin gateway interfaces is the [Solace Event Mesh Gateway](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/solace-event-mesh), which enables communication with the PubSub+ event broker directly as an input interface.
+One of the official core plugin gateway interfaces is the [Solace Event Mesh Gateway](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/sam-event-mesh-gateway), which enables communication with the PubSub+ event broker directly as an input interface.
 
 :::note
 Each gateway type has its own configuration options and specific features. See the individual gateway documentation pages for detailed information on setup and usage.

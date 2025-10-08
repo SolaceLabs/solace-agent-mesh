@@ -267,11 +267,11 @@ def install_plugin_cmd(
     """
     Installs a plugin from the specified source.
     
-    PLUGIN_SOURCE can be:
-      - A local path to a directory (e.g., '/path/to/plugin')
-      - A local path to a wheel file (e.g., '/path/to/plugin.whl')
-      - A Git URL (e.g., 'https://github.com/user/repo.git')
-      - The name of the plugin from https://github.com/SolaceLabs/solace-agent-mesh-core-plugins
+    PLUGIN_SOURCE can be: \n
+      - A local path to a directory (e.g., '/path/to/plugin') \n
+      - A local path to a wheel file (e.g., '/path/to/plugin.whl') \n
+      - A Git URL (e.g., 'https://github.com/user/repo.git') \n
+      - The name of the plugin from https://github.com/SolaceLabs/solace-agent-mesh-core-plugins \n
     """
     module_name, plugin_path = install_plugin(plugin_source, installer_command)
     if module_name and plugin_path:

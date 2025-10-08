@@ -177,8 +177,7 @@ async def _create_user_state_without_identity_service(user_identifier: str, emai
 async def _create_user_state_with_identity_service(identity_service, user_identifier: str, email_from_auth: str, display_name: str, user_info: dict) -> dict:
     lookup_value = email_from_auth if "@" in email_from_auth else user_identifier
     user_profile = await identity_service.get_user_profile(
-        {identity_service.lookup_key: lookup_value},
-        user_info=user_info
+        {identity_service.lookup_key: lookup_value, "user_info": user_info}
     )
 
     if not user_profile:
@@ -338,38 +337,48 @@ def _setup_alembic_config(database_url: str) -> Config:
 
 
 def _run_community_migrations(database_url: str) -> None:
+    """
+    Run Alembic migrations for the community database schema.
+    This includes sessions, chat_messages tables and their indexes.
+    """
     try:
         from sqlalchemy import create_engine
 
+        log.info("Starting community migrations...")
         engine = create_engine(database_url)
         inspector = sa.inspect(engine)
         existing_tables = inspector.get_table_names()
 
         if not existing_tables or "sessions" not in existing_tables:
-            log.info("Running community database migrations...")
+            log.info("Running initial community database setup")
             alembic_cfg = _setup_alembic_config(database_url)
             command.upgrade(alembic_cfg, "head")
-            log.info("Community database migrations complete.")
+            log.info("Community database migrations completed")
         else:
-            log.info(
-                "Community database tables already exist, skipping community migrations."
-            )
+            log.info("Checking for community schema updates")
+            alembic_cfg = _setup_alembic_config(database_url)
+            command.upgrade(alembic_cfg, "head")
+            log.info("Community database schema is current")
     except Exception as e:
         log.warning(
-            "Community migration check failed, attempting to run migrations anyway: %s",
+            "Community migration check failed: %s - attempting to run migrations",
             e,
         )
         try:
             alembic_cfg = _setup_alembic_config(database_url)
             command.upgrade(alembic_cfg, "head")
-            log.info("Community database migrations complete.")
+            log.info("Community database migrations completed")
         except Exception as migration_error:
-            log.warning(
-                "Community migration failed but continuing: %s", migration_error
-            )
+            log.error("Community migration failed: %s", migration_error)
+            log.error("Check database connectivity and permissions")
+            raise RuntimeError(f"Community database migration failed: {migration_error}") from migration_error
 
 
 def _run_enterprise_migrations(component: "WebUIBackendComponent", database_url: str) -> None:
+    """
+    Run migrations for enterprise features like advanced analytics, audit logs, etc.
+    This is optional and only runs if the enterprise package is available.
+    """
     try:
         from solace_agent_mesh_enterprise.webui_backend.migration_runner import (
             run_migrations,
@@ -377,19 +386,25 @@ def _run_enterprise_migrations(component: "WebUIBackendComponent", database_url:
 
         webui_app = component.get_app()
         app_config = getattr(webui_app, "app_config", {}) if webui_app else {}
-        log.info("Running enterprise migrations...")
+        log.info("Starting enterprise migrations...")
         run_migrations(database_url, app_config)
         log.info("Enterprise migrations completed")
     except (ImportError, ModuleNotFoundError):
         log.debug("Enterprise module not found - skipping enterprise migrations")
     except Exception as e:
-        log.warning("Enterprise migration failed but continuing: %s", e)
+        log.error("Enterprise migration failed: %s", e)
+        log.error("Advanced features may be unavailable")
+        raise RuntimeError(f"Enterprise database migration failed: {e}") from e
 
 
 def _setup_database(component: "WebUIBackendComponent", database_url: str) -> None:
+    """
+    Initialize database connection and run all required migrations.
+    This sets up both community and enterprise database schemas.
+    """
     dependencies.init_database(database_url)
     log.info("Persistence enabled - sessions will be stored in database")
-    log.info("Checking database migrations...")
+    log.info("Running database migrations...")
 
     _run_community_migrations(database_url)
     _run_enterprise_migrations(component, database_url)
@@ -492,6 +507,12 @@ def _setup_routers() -> None:
     app.include_router(projects.router, prefix=api_prefix, tags=["Projects"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
+    # Register shared exception handlers from community repo
+    from .shared.exception_handlers import register_exception_handlers
+    register_exception_handlers(app)
+    log.info("Registered shared exception handlers from community repo")
+
+    # Mount enterprise routers if available
     try:
         from solace_agent_mesh_enterprise.webui_backend.routers import get_enterprise_routers
 
@@ -507,9 +528,9 @@ def _setup_routers() -> None:
     except ImportError:
         log.debug("No enterprise package detected - skipping enterprise routers")
     except ModuleNotFoundError:
-        log.debug("Enterprise router module not found - skipping enterprise routers")
+        log.debug("Enterprise module not found - skipping enterprise routers and exception handlers")
     except Exception as e:
-        log.warning("Failed to load enterprise routers: %s", e)
+        log.warning("Failed to load enterprise routers and exception handlers: %s", e)
 
 
 def _setup_static_files() -> None:

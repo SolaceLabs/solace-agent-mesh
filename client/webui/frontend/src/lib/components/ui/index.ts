@@ -8,6 +8,7 @@ export { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, Dialog
 export { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./card";
 export { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "./form";
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./resizable";
+export { Pagination, PaginationContent, PaginationLink, PaginationItem, PaginationPrevious, PaginationNext, PaginationEllipsis } from "./pagination";
 
 // Layout Components
 export { SidePanel, type SidePanelProps } from "./side-panel";

@@ -2,24 +2,16 @@
 Session-related request DTOs.
 """
 
-from typing import Optional, List
+from typing import Optional
 from pydantic import BaseModel, Field
 
-from ....shared.types import SessionId, UserId, SortInfo, FilterInfo, PaginationInfo
-
-
-class GetSessionsRequest(BaseModel):
-    """Request DTO for retrieving sessions."""
-    user_id: UserId
-    project_id: Optional[str] = None
-    pagination: Optional[PaginationInfo] = None
-    sort: Optional[SortInfo] = None
-    filters: Optional[List[FilterInfo]] = None
+from ....shared.types import SessionId, UserId, PaginationInfo
 
 
 class GetSessionRequest(BaseModel):
     """Request DTO for retrieving a specific session."""
     session_id: SessionId
+    project_id: Optional[str] = None
     user_id: UserId
 
 

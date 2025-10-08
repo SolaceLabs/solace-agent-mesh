@@ -131,7 +131,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
         )
 
         self._sse_cleanup_timer_id = f"sse_cleanup_{self.gateway_id}"
-        cleanup_interval_sec = self.get_config("sse_buffer_cleanup_interval_seconds", 300)
+        cleanup_interval_sec = self.get_config(
+            "sse_buffer_cleanup_interval_seconds", 300
+        )
         self.add_timer(
             delay_ms=cleanup_interval_sec * 1000,
             timer_id=self._sse_cleanup_timer_id,
@@ -173,13 +175,14 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self._visualization_locks_lock = threading.Lock()
         self._global_visualization_subscriptions: dict[str, int] = {}
         self._visualization_processor_task: asyncio.Task | None = None
-        
+
         # Initialize SAM Events service for system events
         from ...common.sam_events import SamEventService
+
         self.sam_events = SamEventService(
             namespace=self.namespace,
-            component_name=f"{self.name}_gateway", 
-            publish_func=self.publish_a2a
+            component_name=f"{self.name}_gateway",
+            publish_func=self.publish_a2a,
         )
 
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
@@ -870,6 +873,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         request = external_event_data
         try:
+            user_info = {}
             if hasattr(request.state, "user") and request.state.user:
                 user_info = request.state.user
                 username = user_info.get("username")
@@ -879,7 +883,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         log_id_prefix,
                         username,
                     )
-                    return {"id": username, "name": username, "email": username}
+                    return {"id": username, "name": username, "email": username, "user_info": user_info}
 
             log.debug(
                 "%s No authenticated user in request.state, falling back to SessionManager.",
@@ -889,7 +893,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             log.debug(
                 "%s Extracted user_id '%s' via SessionManager.", log_id_prefix, user_id
             )
-            return {"id": user_id, "name": user_id}
+            return {"id": user_id, "name": user_id, "user_info": user_info}
 
         except Exception as e:
             log.error("%s Failed to extract user_id from request: %s", log_id_prefix, e)
@@ -1007,7 +1011,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
 
         except Exception as e:
-            log.exception(
+            log.error(
                 "%s [_start_listener] Failed to start FastAPI/Uvicorn server: %s",
                 self.log_identifier,
                 e,
@@ -1024,12 +1028,16 @@ class WebUIBackendComponent(BaseGatewayComponent):
         It's thread-safe as it uses the SAC App instance.
         """
         log.debug(f"[publish_a2a] Starting to publish message to topic: {topic}")
-        log.debug(f"[publish_a2a] Payload type: {type(payload)}, size: {len(str(payload))} chars")
+        log.debug(
+            f"[publish_a2a] Payload type: {type(payload)}, size: {len(str(payload))} chars"
+        )
         log.debug(f"[publish_a2a] User properties: {user_properties}")
-        
+
         try:
             super().publish_a2a_message(payload, topic, user_properties)
-            log.debug(f"[publish_a2a] Successfully called super().publish_a2a_message for topic: {topic}")
+            log.debug(
+                f"[publish_a2a] Successfully called super().publish_a2a_message for topic: {topic}"
+            )
         except Exception as e:
             log.error(f"[publish_a2a] Exception in publish_a2a: {e}", exc_info=True)
             raise
@@ -1143,7 +1151,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 details["source_entity"] = payload.get("source_component", "unknown")
                 details["target_entity"] = "system"
                 return details
-                
+
             # Try to parse as a JSON-RPC response first
             if "result" in payload or "error" in payload:
                 rpc_response = JSONRPCResponse.model_validate(payload)
@@ -1264,9 +1272,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 (summary_str[:100] + "...") if len(summary_str) > 100 else summary_str
             )
         except Exception:
-            details["payload_summary"]["params_preview"] = (
-                "[Could not serialize payload]"
-            )
+            details["payload_summary"][
+                "params_preview"
+            ] = "[Could not serialize payload]"
 
         return details
 
@@ -1669,7 +1677,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 try:
                     session_id = external_request_context.get("a2a_session_id")
                     user_id = external_request_context.get("user_id_for_a2a")
-                    agent_name = external_request_context.get("target_agent_name", "agent")
+                    agent_name = external_request_context.get(
+                        "target_agent_name", "agent"
+                    )
 
                     message_text = ""
                     if task_data.status and task_data.status.message:
@@ -1681,18 +1691,29 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                 message_text += part.text
 
                     if message_text and session_id and user_id:
-                        from .dependencies import create_session_service_with_transaction
+                        from .dependencies import SessionLocal, get_session_business_service
                         from ...gateway.http_sse.shared.enums import SenderType
 
-                        with create_session_service_with_transaction() as (session_service, db):
-                            session_service.add_message_to_session(
-                                session_id=session_id,
-                                user_id=user_id,
-                                message=message_text,
-                                sender_type=SenderType.AGENT,
-                                sender_name=agent_name,
-                                agent_id=agent_name,
-                            )
+                        # For background processing, create simple session wrapper
+                        if SessionLocal:
+                            db = SessionLocal()
+                            try:
+                                session_service = get_session_business_service()
+                                session_service.add_message_to_session(
+                                    db=db,
+                                    session_id=session_id,
+                                    user_id=user_id,
+                                    message=message_text,
+                                    sender_type=SenderType.AGENT,
+                                    sender_name=agent_name,
+                                    agent_id=agent_name,
+                                )
+                                db.commit()
+                            except Exception:
+                                db.rollback()
+                                raise
+                            finally:
+                                db.close()
                         log.info(
                             "%s Final agent response stored in session %s",
                             log_id_prefix,

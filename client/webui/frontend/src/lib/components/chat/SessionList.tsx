@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
+import { useInView } from "react-intersection-observer";
 
 import { Trash2, Check, X, Pencil, MessageCircle } from "lucide-react";
 
@@ -7,7 +8,21 @@ import { useProjectContext } from "@/lib/providers";
 import { authenticatedFetch } from "@/lib/utils/api";
 import { formatTimestamp } from "@/lib/utils/format";
 import { Button } from "@/lib/components/ui/button";
+import { Spinner } from "@/lib/components/ui/spinner";
 import type { Session } from "@/lib/types";
+
+interface PaginatedSessionsResponse {
+    data: Session[];
+    meta: {
+        pagination: {
+            pageNumber: number;
+            count: number;
+            pageSize: number;
+            nextPage: number | null;
+            totalPages: number;
+        };
+    };
+}
 
 export const SessionList: React.FC = () => {
     const { handleSwitchSession, updateSessionName, openSessionDeleteModal } = useChatContext();
@@ -18,30 +33,56 @@ export const SessionList: React.FC = () => {
     const [sessions, setSessions] = useState<Session[]>([]);
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
     const [editingSessionName, setEditingSessionName] = useState<string>("");
+    const [currentPage, setCurrentPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
 
-    const fetchSessions = useCallback(async () => {
-        const projectId = activeProject?.id;
-        let url = `${configServerUrl}/api/v1/sessions`;
-        if (projectId) {
-            url += `?project_id=${projectId}`;
-        }
-        try {
-            const response = await authenticatedFetch(url);
-            if (response.ok) {
-                const data = await response.json();
-                setSessions(data.sessions || []);
-            } else {
-                console.error(`Failed to fetch sessions: ${response.status} ${response.statusText}`);
+    const { ref: loadMoreRef, inView } = useInView({
+        threshold: 0,
+        triggerOnce: false,
+    });
+
+    const fetchSessions = useCallback(
+        async (pageNumber: number = 1, append: boolean = false) => {
+            setIsLoading(true);
+            const pageSize = 20;
+            const projectId = activeProject?.id;
+            
+            let url = `${configServerUrl}/api/v1/sessions?pageNumber=${pageNumber}&pageSize=${pageSize}`;
+            if (projectId) {
+                url += `&project_id=${projectId}`;
             }
-        } catch (error) {
-            console.error("An error occurred while fetching sessions:", error);
-        }
-    }, [configServerUrl, activeProject]);
+            
+            try {
+                const response = await authenticatedFetch(url);
+                if (response.ok) {
+                    const result: PaginatedSessionsResponse = await response.json();
+
+                    if (append) {
+                        setSessions(prev => [...prev, ...result.data]);
+                    } else {
+                        setSessions(result.data);
+                    }
+
+                    // Use metadata to determine if there are more pages
+                    setHasMore(result.meta.pagination.nextPage !== null);
+                    setCurrentPage(pageNumber);
+                } else {
+                    console.error(`Failed to fetch sessions: ${response.status} ${response.statusText}`);
+                }
+            } catch (error) {
+                console.error("An error occurred while fetching sessions:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        },
+        [configServerUrl, activeProject]
+    );
 
     useEffect(() => {
-        fetchSessions();
+        fetchSessions(1, false);
         const handleNewSession = () => {
-            fetchSessions();
+            fetchSessions(1, false);
         };
         const handleSessionUpdated = (event: CustomEvent) => {
             const { sessionId } = event.detail;
@@ -61,6 +102,12 @@ export const SessionList: React.FC = () => {
             window.removeEventListener("session-updated", handleSessionUpdated as EventListener);
         };
     }, [fetchSessions]);
+
+    useEffect(() => {
+        if (inView && hasMore && !isLoading) {
+            fetchSessions(currentPage + 1, true);
+        }
+    }, [inView, hasMore, isLoading, currentPage, fetchSessions]);
 
     useEffect(() => {
         if (editingSessionId && inputRef.current) {
@@ -167,10 +214,15 @@ export const SessionList: React.FC = () => {
                         ))}
                     </ul>
                 )}
-                {sessions.length === 0 && (
+                {sessions.length === 0 && !isLoading && (
                     <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-sm">
                         <MessageCircle className="mx-auto mb-4 h-12 w-12" />
                         No chat sessions available
+                    </div>
+                )}
+                {hasMore && (
+                    <div ref={loadMoreRef} className="flex justify-center py-4">
+                        {isLoading && <Spinner size="small" variant="muted" />}
                     </div>
                 )}
             </div>

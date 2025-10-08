@@ -8,13 +8,14 @@ from typing import Any, Dict, List, Optional
 import importlib.metadata as metadata
 
 from solace_ai_connector.common.log import log
-from ...common.utils.in_memory_cache import InMemoryCache
+from ..utils.in_memory_cache import InMemoryCache
+from ..sac.sam_component_base import SamComponentBase
 
 
 class BaseIdentityService(ABC):
     """Abstract base class for all Identity Service providers."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], component: Optional[SamComponentBase] = None):
         """
         Initializes the service with its specific configuration block.
 
@@ -22,6 +23,7 @@ class BaseIdentityService(ABC):
             config: The dictionary of configuration parameters for this provider.
         """
         self.config = config
+        self.component = component
         self.log_identifier = f"[{self.__class__.__name__}]"
         self.cache_ttl = config.get("cache_ttl_seconds", 3600)
         self.cache = InMemoryCache() if self.cache_ttl > 0 else None
@@ -33,7 +35,7 @@ class BaseIdentityService(ABC):
 
     @abstractmethod
     async def get_user_profile(
-        self, auth_claims: Dict[str, Any], **kwargs: Any
+        self, auth_claims: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
         """
         Fetches additional profile details for an already authenticated user.
@@ -68,6 +70,7 @@ class BaseIdentityService(ABC):
 
 def create_identity_service(
     config: Optional[Dict[str, Any]],
+    component: Optional[SamComponentBase] = None,
 ) -> Optional[BaseIdentityService]:
     """
     Factory function to create an instance of an Identity Service provider
@@ -90,7 +93,7 @@ def create_identity_service(
     if provider_type == "local_file":
         from .providers.local_file_identity_service import LocalFileIdentityService
 
-        return LocalFileIdentityService(config)
+        return LocalFileIdentityService(config, component)
 
     else:
         try:
@@ -121,7 +124,7 @@ def create_identity_service(
                 )
 
             log.info(f"Successfully loaded identity provider plugin: {provider_type}")
-            return provider_class(config)
+            return provider_class(config, component)
         except (ImportError, AttributeError, TypeError, ValueError) as e:
             log.exception(
                 f"[IdentityFactory] Failed to load identity provider plugin '{provider_type}'. "
