@@ -2,10 +2,7 @@
 Integration tests for data retention service.
 """
 
-import time
-from datetime import datetime, timedelta, timezone
 
-import pytest
 from sqlalchemy.orm import sessionmaker
 
 from solace_agent_mesh.gateway.http_sse.repository.models import (

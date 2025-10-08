@@ -3,15 +3,12 @@ Custom Solace AI Connector Component to Host Google ADK Agents via A2A Protocol.
 """
 
 import asyncio
-import base64
 import concurrent.futures
 import fnmatch
 import functools
 import inspect
 import json
 import threading
-import uuid
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 from a2a.types import (
@@ -82,7 +79,6 @@ from ...common.middleware.registry import MiddlewareRegistry
 from ...common.sac.sam_component_base import SamComponentBase
 
 if TYPE_CHECKING:
-    from .app import AgentInitCleanupConfig
     from .task_execution_context import TaskExecutionContext
 
 info = {

@@ -2,15 +2,9 @@
 Custom MCPToolset that resolves embeds in tool parameters before calling MCP tools.
 """
 
-import asyncio
 from typing import Any, Dict, List, Optional
 
 from google.adk.tools.mcp_tool import MCPTool, MCPToolset
-from google.adk.tools.mcp_tool.mcp_session_manager import (
-    SseConnectionParams,
-    StdioConnectionParams,
-    StreamableHTTPConnectionParams,
-)
 from google.adk.tools.tool_context import ToolContext
 from solace_ai_connector.common.log import log
 

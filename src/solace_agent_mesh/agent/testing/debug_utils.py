@@ -4,7 +4,6 @@ including a pretty-printer for A2A event history.
 """
 
 import json
-from datetime import datetime
 from typing import Any, Dict, List
 
 

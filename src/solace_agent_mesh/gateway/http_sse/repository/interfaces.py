@@ -5,7 +5,7 @@ Repository interfaces defining contracts for data access.
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Optional
 
-from ..shared.types import PaginationInfo, PaginationParams, SessionId, UserId
+from ..shared.types import PaginationParams, SessionId, UserId
 from .entities import Feedback, Session, Task, TaskEvent
 
 if TYPE_CHECKING:

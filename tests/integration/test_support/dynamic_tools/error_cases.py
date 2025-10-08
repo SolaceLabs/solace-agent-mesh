@@ -1,7 +1,6 @@
 from typing import List, Optional
 
 from google.adk.tools import ToolContext
-from google.genai import types as adk_types
 
 from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool, DynamicToolProvider
 

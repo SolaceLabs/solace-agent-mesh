@@ -4,7 +4,7 @@ Built-in ADK Tools for Data Analysis (SQL, JQ, Plotly).
 
 import json
 from datetime import datetime, timezone
-from typing import Any, Dict, Literal, Optional, Tuple
+from typing import Any, Dict, Literal, Optional
 
 try:
     import yaml

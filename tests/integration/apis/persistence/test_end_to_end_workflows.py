@@ -4,7 +4,6 @@ End-to-end user workflow tests using FastAPI HTTP endpoints.
 Tests complete user journeys that span multiple API endpoints and operations.
 """
 
-import io
 
 from fastapi.testclient import TestClient
 

@@ -5,9 +5,8 @@ Provides consistent response formatting across all API endpoints.
 Ensures uniform {data: ...} and {data: [...], meta: ...} response structure.
 """
 
-from typing import Any, Dict, Generic, List, TypeVar
+from typing import Dict, List, TypeVar
 
-from pydantic import BaseModel
 
 from .pagination import DataResponse, PaginatedResponse, PaginationParams
 

@@ -51,7 +51,6 @@ from ..dependencies import (
     get_session_manager,
     get_session_validator,
     get_shared_artifact_service,
-    get_user_config,
     get_user_id,
 )
 

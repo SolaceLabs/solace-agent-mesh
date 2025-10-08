@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from ..shared.base_repository import PaginatedRepository
 from ..shared.pagination import PaginationParams
-from ..shared.types import PaginationInfo, SessionId, UserId
+from ..shared.types import SessionId, UserId
 from .entities import Session
 from .interfaces import ISessionRepository
 from .models import (

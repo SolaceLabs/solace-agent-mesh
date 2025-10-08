@@ -27,7 +27,6 @@ from ...gateway.http_sse.sse_manager import SSEManager
 from . import dependencies
 from .components import VisualizationForwarderComponent
 from .components.task_logger_forwarder import TaskLoggerForwarderComponent
-from .services.feedback_service import FeedbackService
 from .services.task_logger_service import TaskLoggerService
 from .sse_event_buffer import SSEEventBuffer
 

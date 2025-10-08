@@ -6,13 +6,9 @@ import asyncio
 import base64
 import json
 import uuid
-from typing import Any, Dict, List
 
 import pytest
 from a2a.types import Task, TaskState, TaskStatusUpdateEvent
-from sam_test_infrastructure.a2a_validator.validator import (
-    A2AMessageValidator,
-)
 from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )

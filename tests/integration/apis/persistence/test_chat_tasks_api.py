@@ -8,7 +8,6 @@ interactions with message_bubbles and task_metadata as opaque JSON strings.
 import json
 import uuid
 
-import pytest
 from fastapi.testclient import TestClient
 
 

@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 
 from ...agent.adk import callbacks as adk_callbacks
 from ...agent.adk.models.lite_llm import LiteLlm
-from ..tools.dynamic_tool import DynamicTool, DynamicToolProvider
+from ..tools.dynamic_tool import DynamicTool
 from ..tools.registry import tool_registry
 from ..tools.tool_config_types import (
     AnyToolConfig,
@@ -682,7 +682,7 @@ async def load_adk_tools(
     cleanup_hooks: List[Callable] = []
     tools_config = component.get_config("tools", [])
 
-    from pydantic import TypeAdapter, ValidationError
+    from pydantic import TypeAdapter
 
     any_tool_adapter = TypeAdapter(AnyToolConfig)
 

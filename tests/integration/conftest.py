@@ -1,5 +1,4 @@
 import inspect
-import os
 import socket
 import subprocess
 import sys

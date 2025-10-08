@@ -17,9 +17,8 @@ import csv
 import json
 import re
 import uuid
-from datetime import datetime, timezone
 from io import StringIO
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 import yaml

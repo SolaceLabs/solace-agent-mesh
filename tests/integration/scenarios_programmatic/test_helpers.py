@@ -12,7 +12,6 @@ from a2a.types import (
     Task,
     TaskArtifactUpdateEvent,
     TaskStatusUpdateEvent,
-    TextPart,
 )
 from a2a.utils.message import get_message_text
 from sam_test_infrastructure.gateway_interface.component import (

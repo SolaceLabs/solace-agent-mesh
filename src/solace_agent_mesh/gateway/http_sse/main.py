@@ -31,7 +31,6 @@ from ...gateway.http_sse.routers import (
     visualization,
 )
 from .routers.sessions import router as session_router
-from .routers.tasks import router as task_router
 from .routers.users import router as user_router
 
 if TYPE_CHECKING:

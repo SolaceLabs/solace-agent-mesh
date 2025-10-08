@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 from google.adk.tools import ToolContext
 
 if TYPE_CHECKING:
-    from google.adk.agents.invocation_context import InvocationContext
+    pass
 from google.adk.models import LlmRequest
 from google.adk.models.registry import LLMRegistry
 from google.genai import types as adk_types

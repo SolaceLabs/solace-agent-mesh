@@ -2,7 +2,6 @@
 Programmatic integration tests for agent card discovery and peer tool creation.
 """
 
-import asyncio
 
 import pytest
 from sam_test_infrastructure.gateway_interface.component import (

@@ -5,13 +5,11 @@ from solace_ai_connector.common.log import log
 from sqlalchemy.orm import Session as DbSession
 
 from ..repository import (
-    ISessionRepository,
     Session,
 )
 from ..repository.chat_task_repository import ChatTaskRepository
 from ..repository.entities import ChatTask
 from ..shared import now_epoch_ms
-from ..shared.enums import SenderType
 from ..shared.pagination import (
     PaginatedResponse,
     PaginationParams,

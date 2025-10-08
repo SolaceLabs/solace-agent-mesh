@@ -6,7 +6,6 @@ This handler translates low-level database errors into meaningful business excep
 that can be properly handled by the API layer.
 """
 
-from typing import Dict, List, Optional
 
 from sqlalchemy.exc import (
     DatabaseError,

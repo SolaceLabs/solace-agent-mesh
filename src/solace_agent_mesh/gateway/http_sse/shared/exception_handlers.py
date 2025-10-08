@@ -9,7 +9,6 @@ can be used by any FastAPI application for uniform error handling.
 from fastapi import HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import ValidationError as PydanticValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .error_dto import EventErrorDTO

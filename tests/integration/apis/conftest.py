@@ -18,10 +18,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from solace_agent_mesh.core_a2a.service import CoreA2AService
-from solace_agent_mesh.gateway.http_sse import dependencies
 
 # Imports for feedback test fixture
-from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
 
 # Import FastAPI components
 from solace_agent_mesh.gateway.http_sse.main import app as fastapi_app

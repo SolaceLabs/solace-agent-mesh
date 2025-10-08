@@ -21,17 +21,14 @@ from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
 
 from ...agent.utils.artifact_helpers import (
-    DEFAULT_SCHEMA_MAX_KEYS,
     METADATA_SUFFIX,
     format_metadata_for_llm,
-    save_artifact_with_metadata,
 )
 from ...agent.utils.context_helpers import (
     get_original_session_id,
     get_session_from_callback_context,
 )
 from ...common import a2a
-from ...common.a2a.types import ContentPart
 from ...common.data_parts import (
     AgentProgressUpdateData,
     ArtifactCreationProgressData,

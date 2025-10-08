@@ -5,28 +5,12 @@ Tests configuration validation, cleanup logic, and error handling
 for the automatic data retention service that removes old tasks and feedback.
 """
 
-from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import Mock, patch
 
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from solace_agent_mesh.gateway.http_sse.repository.feedback_repository import (
-    FeedbackRepository,
-)
-from solace_agent_mesh.gateway.http_sse.repository.models import (
-    FeedbackModel,
-    TaskEventModel,
-    TaskModel,
-)
-from solace_agent_mesh.gateway.http_sse.repository.task_repository import (
-    TaskRepository,
-)
 from solace_agent_mesh.gateway.http_sse.services.data_retention_service import (
     DataRetentionService,
 )
-from solace_agent_mesh.gateway.http_sse.shared import now_epoch_ms
 
 
 class TestConfigurationValidation:

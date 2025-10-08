@@ -2,10 +2,9 @@
 Event Mesh Test Server for comprehensive testing of the Event Mesh Gateway.
 """
 
-import asyncio
 import logging
 import time
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 
 from ..dev_broker import BrokerConfig, BrokerMessage, DevBroker
 

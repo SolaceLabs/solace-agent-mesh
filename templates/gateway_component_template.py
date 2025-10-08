@@ -5,13 +5,10 @@ Solace Agent Mesh Component class for the __GATEWAY_NAME_PASCAL_CASE__ Gateway.
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from a2a.types import (
-    DataPart,  # If handling structured data
-    FilePart,  # If handling files
     JSONRPCError,
     Task,
     TaskArtifactUpdateEvent,
     TaskStatusUpdateEvent,
-    TextPart,
 )
 from solace_ai_connector.common.log import log
 

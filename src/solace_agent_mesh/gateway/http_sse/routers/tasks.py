@@ -23,7 +23,6 @@ from fastapi import (
 from fastapi import (
     Request as FastAPIRequest,
 )
-from fastapi.exceptions import RequestValidationError
 from solace_ai_connector.common.log import log
 
 from ....common import a2a

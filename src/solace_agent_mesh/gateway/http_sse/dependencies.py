@@ -4,7 +4,6 @@ managed by the WebUIBackendComponent.
 """
 
 from collections.abc import Callable, Generator
-from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
 from fastapi import Depends, HTTPException, Request, status

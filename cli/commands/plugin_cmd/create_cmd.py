@@ -2,7 +2,6 @@ import pathlib
 
 import click
 
-from cli import __version__ as cli_version
 from cli.utils import (
     ask_if_not_provided,
     error_exit,

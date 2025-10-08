@@ -4,7 +4,6 @@ Authentication utilities for the FastAPI application.
 This module provides common authentication functions used across controllers.
 """
 
-from fastapi import Depends
 from fastapi import Request as FastAPIRequest
 
 

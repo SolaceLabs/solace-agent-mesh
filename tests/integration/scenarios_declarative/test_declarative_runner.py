@@ -2,7 +2,6 @@
 Pytest test runner for declarative (YAML/JSON) test scenarios.
 """
 
-import asyncio
 import base64
 import builtins
 import json
@@ -15,12 +14,10 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import pytest
 import yaml
 from a2a.types import (
-    DataPart,
     JSONRPCError,
     Task,
     TaskArtifactUpdateEvent,
     TaskStatusUpdateEvent,
-    TextPart,
 )
 from a2a.utils.message import get_data_parts, get_message_text
 from asteval import Interpreter
@@ -42,7 +39,6 @@ from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.agent.testing.debug_utils import pretty_print_event_history
 from solace_agent_mesh.agent.utils.artifact_helpers import (
-    generate_artifact_metadata_summary,
     load_artifact_content_or_metadata,
 )
 from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
