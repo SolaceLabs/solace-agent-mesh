@@ -82,6 +82,8 @@ export interface UseGlobalProjectsReturn {
 export interface ProjectContextValue extends UseProjectsReturn {
     currentProject: Project | null;
     setCurrentProject: (project: Project | null) => void;
+    selectedProject: Project | null;
+    setSelectedProject: (project: Project | null) => void;
     activeProject: Project | null;
     setActiveProject: (project: Project | null) => void;
     addFilesToProject: (projectId: string, formData: FormData) => Promise<void>;

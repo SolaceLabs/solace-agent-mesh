@@ -12,6 +12,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [currentProject, setCurrentProject] = useState<Project | null>(null);
+    const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     const [activeProject, setActiveProject] = useState<Project | null>(null);
 
     const apiPrefix = `${configServerUrl}/api/v1`;
@@ -173,6 +174,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         refetch: fetchProjects,
         currentProject,
         setCurrentProject,
+        selectedProject,
+        setSelectedProject,
         activeProject,
         setActiveProject,
         addFilesToProject,

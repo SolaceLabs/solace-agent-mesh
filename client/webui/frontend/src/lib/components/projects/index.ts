@@ -5,3 +5,6 @@ export { ProjectList } from "./ProjectList";
 export { ProjectsPage } from "./ProjectsPage";
 export { ProjectDetailView } from "./ProjectDetailView";
 export { ProjectFilesManager } from "./ProjectFilesManager";
+export { ProjectListSidebar } from "./ProjectListSidebar";
+export { ProjectListItem } from "./ProjectListItem";
+export { ProjectDetailPanel } from "./ProjectDetailPanel";

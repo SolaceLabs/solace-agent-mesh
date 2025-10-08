@@ -1,13 +1,11 @@
 import React, { useState } from "react";
-import { Plus } from "lucide-react";
 
-import { Button } from "@/lib/components/ui";
-import { Header } from "@/lib/components/header";
 import { CreateProjectWizard } from "./CreateProjectWizard";
-import { ProjectDetailView } from "./ProjectDetailView";
-import { ProjectList } from "./ProjectList";
+import { ProjectListSidebar } from "./ProjectListSidebar";
+import { ProjectDetailPanel } from "./ProjectDetailPanel";
 import { useProjectContext } from "@/lib/providers";
 import type { Project, ProjectFormData } from "@/lib/types/projects";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 
 interface ProjectsPageProps {
     onProjectActivated: () => void;
@@ -15,7 +13,14 @@ interface ProjectsPageProps {
 
 export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }) => {
     const [showCreateWizard, setShowCreateWizard] = useState(false);
-    const { projects, isLoading, error, createProject, currentProject, setCurrentProject, activeProject, setActiveProject } = useProjectContext();
+    const { 
+        projects, 
+        isLoading, 
+        error, 
+        createProject, 
+        selectedProject, 
+        setSelectedProject,
+    } = useProjectContext();
 
     const handleCreateProject = async (data: ProjectFormData) => {
         const formData = new FormData();
@@ -43,32 +48,21 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
             }
         }
 
-        await createProject(formData);
+        const newProject = await createProject(formData);
         setShowCreateWizard(false);
+        // Auto-select the newly created project
+        setSelectedProject(newProject);
     };
 
-    const handleActivateProject = (project: Project) => {
-        setActiveProject(project);
-        onProjectActivated();
+    const handleProjectSelect = (project: Project) => {
+        setSelectedProject(project);
     };
 
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="text-muted-foreground">Loading projects...</div>
-            </div>
-        );
-    }
+    const handleCreateNew = () => {
+        setShowCreateWizard(true);
+    };
 
-    if (error) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="text-destructive">Error: {error}</div>
-            </div>
-        );
-    }
-
-    // Show wizard if in create mode
+    // Show wizard as overlay
     if (showCreateWizard) {
         return (
             <CreateProjectWizard
@@ -80,37 +74,46 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
     }
 
     return (
-        <div className="flex h-full w-full flex-col">
-            <Header
-                title={currentProject ? `Project Details` : "Projects"}
-                buttons={
-                    !currentProject
-                        ? [
-                              <Button key="create-project" onClick={() => setShowCreateWizard(true)} className="flex items-center gap-2">
-                                  <Plus className="h-4 w-4" />
-                                  Create Project
-                              </Button>,
-                          ]
-                        : undefined
-                }
-            />
-            <div className="flex-1 py-6 px-8">
-                {currentProject ? (
-                    <ProjectDetailView
-                        project={currentProject}
-                        isActive={!!activeProject && activeProject.id === currentProject.id}
-                        onBack={() => setCurrentProject(null)}
-                        onActivate={handleActivateProject}
+        <div className="flex h-full w-full">
+            <ResizablePanelGroup direction="horizontal" className="h-full">
+                {/* Left Sidebar - Project List */}
+                <ResizablePanel
+                    defaultSize={25}
+                    minSize={20}
+                    maxSize={40}
+                    className="min-w-[250px]"
+                >
+                    <ProjectListSidebar
+                        projects={projects}
+                        selectedProject={selectedProject}
+                        isLoading={isLoading}
+                        error={error}
+                        onProjectSelect={handleProjectSelect}
+                        onCreateNew={handleCreateNew}
                     />
-                ) : (
-                    <>
-                        <div className="mb-6">
-                            <p className="text-muted-foreground">Organize your chats and sessions into projects</p>
-                        </div>
-                        <ProjectList projects={projects} onProjectSelect={setCurrentProject} />
-                    </>
-                )}
-            </div>
+                </ResizablePanel>
+
+                <ResizableHandle />
+
+                {/* Center Panel - Project Details */}
+                <ResizablePanel defaultSize={50} minSize={30}>
+                    <ProjectDetailPanel
+                        selectedProject={selectedProject}
+                        onCreateNew={handleCreateNew}
+                    />
+                </ResizablePanel>
+
+                <ResizableHandle />
+
+                {/* Right Sidebar - Metadata (Placeholder for Phase 2) */}
+                <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
+                    <div className="flex h-full items-center justify-center bg-background border-l">
+                        <p className="text-sm text-muted-foreground">
+                            Metadata sidebar (Phase 2)
+                        </p>
+                    </div>
+                </ResizablePanel>
+            </ResizablePanelGroup>
         </div>
     );
 };
