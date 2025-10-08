@@ -29,12 +29,6 @@ async def get_all_sessions(
     session_service: SessionService = Depends(get_session_business_service),
 ):
     user_id = user.get("id")
-    log.info(
-        "User '%s' is listing sessions with pagination (page=%d, size=%d)",
-        user_id,
-        page_number,
-        page_size,
-    )
 
     try:
         pagination = PaginationParams(page_number=page_number, page_size=page_size)
